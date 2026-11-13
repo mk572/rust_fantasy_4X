@@ -71,9 +71,9 @@ impl Game {
         for _ in 0..count {
             let kind = troops[self.roll(troops.len() as u32) as usize - 1];
             let unit = self.spawn_unit(owner, pos, kind);
-            let _ = self.world.insert_one(unit, Unpaid);
+            self.put(unit, Unpaid);
             if let Some(xp) = self.level_xp(unit, xp_level) {
-                let _ = self.world.insert_one(unit, Experience(xp));
+                self.put(unit, Experience(xp));
             }
             made += 1;
         }

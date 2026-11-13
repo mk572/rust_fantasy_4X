@@ -92,9 +92,7 @@ impl Game {
             return Err(MagicError::Target(TargetError::SpellNotThere));
         }
         if crate::spell::city::CityEffect::SpellWard.is_in(self.content.rules.spells.get(spell)) {
-            let _ = self
-                .world
-                .remove_one::<crate::spell::city::SpellWards>(city);
+            self.strip::<crate::spell::city::SpellWards>(city);
         }
         Ok(vec![Event::EnchantmentLapsed { player, spell }])
     }

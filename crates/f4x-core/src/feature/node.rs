@@ -241,9 +241,7 @@ impl Game {
         let mut events = Vec::new();
         if taken {
             if let Some(player) = self.player_entity(owner) {
-                let _ = self
-                    .world
-                    .insert_one(node.entity, crate::player::Owner(player));
+                self.put(node.entity, crate::player::Owner(player));
             }
             if let Ok(mut n) = self.world.get::<&mut Node>(node.entity) {
                 // A rival's guardian is gone with the successful meld; ours stands again.

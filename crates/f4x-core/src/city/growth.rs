@@ -99,11 +99,11 @@ impl Game {
             .map(|p| *p)
             .unwrap_or_default();
         let grown = grow_population(pop, delta_tens, self.content.rules.config.max_city_size);
-        let _ = self.world.insert_one(city, grown);
+        self.put(city, grown);
         // A city that starved down cannot keep more farmers than it has people.
         let farmers = self.world.get::<&Farmers>(city).map_or(0, |f| f.0);
         if farmers > grown.figures {
-            let _ = self.world.insert_one(city, Farmers(grown.figures));
+            self.put(city, Farmers(grown.figures));
         }
         (pop.figures, grown.figures)
     }
@@ -121,7 +121,7 @@ impl Game {
             .map(|p| *p)
             .unwrap_or_default();
         let pop = outpost_step(pop, grow, shrink, &mut self.rng);
-        let _ = self.world.insert_one(city, pop);
+        self.put(city, pop);
         if pop.figures > 0 {
             OutpostTurn::BecameCity
         } else if pop.tens == 0 {
@@ -158,7 +158,7 @@ impl Game {
             },
         ));
         if let Some(r) = race {
-            let _ = self.world.insert_one(city, CityRace(r));
+            self.put(city, CityRace(r));
             if self
                 .wizard(owner)
                 .is_some_and(|w| w.capital_race().is_none())
@@ -167,7 +167,7 @@ impl Game {
             }
         }
         let farmers = self.economy().city_min_farmers(city);
-        let _ = self.world.insert_one(city, Farmers(farmers));
+        self.put(city, Farmers(farmers));
         if owner != crate::player::MONSTERS {
             let sight = self.economy().city_sight(city);
             self.explore(owner, pos, sight);

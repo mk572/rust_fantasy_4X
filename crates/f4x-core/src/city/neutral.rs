@@ -411,7 +411,7 @@ impl Game {
                 break;
             }
         }
-        let _ = self.world.insert_one(city, Buildings(built));
+        self.put(city, Buildings(built));
 
         // Taxes first: the rate decides how many citizens rebel and so how much food there is.
         self.balance_taxes(owner);
@@ -436,9 +436,9 @@ impl Game {
         }
         self.balance_taxes(owner);
         let farmers = self.economy().city_min_farmers(city);
-        let _ = self.world.insert_one(city, Farmers(farmers));
+        self.put(city, Farmers(farmers));
         let item = self.autobuild_choice(city, owner);
-        let _ = self.world.insert_one(
+        self.put(
             city,
             Production {
                 item: Some(item.unwrap_or(ProductionItem::Housing)),

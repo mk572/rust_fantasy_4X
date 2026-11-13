@@ -63,7 +63,7 @@ impl UnitView<'_> {
 /// one point, or a won battle's share (`battle/spoils.rs`).
 pub(crate) fn gain_xp(world: &mut World, content: &Content, unit: hecs::Entity, amount: u32) {
     if let Some(xp) = UnitView::new(world, content).xp_after(unit, amount) {
-        let _ = world.insert_one(unit, Experience(xp));
+        crate::game::put_in(world, unit, Experience(xp));
     }
 }
 
@@ -127,7 +127,7 @@ pub(crate) fn process(world: &mut World, content: &Content, only: Option<PlayerI
     // Several squares are worked out before any is paid, so the same unit is never trained
     // twice from a stale reading: each unit stands on one square and belongs to one owner.
     for (unit, xp) in trained {
-        let _ = world.insert_one(unit, Experience(xp));
+        crate::game::put_in(world, unit, Experience(xp));
     }
 }
 

@@ -51,7 +51,7 @@ fn push_temp(world: &mut World, who: Target, kind: TempKind, turns: Option<u16>)
         list.0.push(effect);
         return;
     }
-    let _ = world.insert_one(e, TempEffects(vec![effect]));
+    crate::game::put_in(world, e, TempEffects(vec![effect]));
 }
 
 /// Put a stat modifier on a unit or city for `turns` turns (`None`: for good).
@@ -95,7 +95,7 @@ pub(crate) fn tick(world: &mut World) {
             list.0.is_empty()
         };
         if empty {
-            let _ = world.remove_one::<TempEffects>(e);
+            crate::game::strip_in::<TempEffects>(world, e);
         }
     }
 }

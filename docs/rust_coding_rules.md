@@ -10,6 +10,14 @@ Current unsafe code should be replaced.
 Implement error handling according to good Rust coding practices.
 Avoid unwrap. Avoid panics. (Tests have their own rules, see "Error handling in tests" below.)
 
+Do not drop a result with `let _ =` or `.ok();`, and do not answer a failure with a `bool` or `Option` where
+several things can go wrong: return an error that says which (`MoveError`, `MarchError`, `ItemError`, an event such
+as `Event::OrderFailed`), and let the caller choose what to do with it (try the next, give up the plan, tell the
+player, `Ai::note_failure`). A caller that wants only yes or no says so with `.is_ok()` and a comment. In the
+engine, components are given with `Game::put` / `put_bundle` and taken off with `Game::strip` (`put_in`, `strip_in`
+for a bare `World`): a component that is not there is fine, an entity that is gone stops a debug build. (Silent
+error audit, tasks 546 to 559.)
+
 Clippy's `unwrap_used` and `expect_used` lints keep unwraps out of production code; tests may allow
 them with `#![cfg_attr(test, allow(clippy::unwrap_used))]`.
 

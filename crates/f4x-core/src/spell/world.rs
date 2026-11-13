@@ -270,7 +270,7 @@ impl Game {
         let (left, _) = self.units().unit_hits(unit);
         let hurt = self.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
         let dealt = amount.min(left);
-        let _ = self.world.insert_one(unit, Hurt(hurt + dealt));
+        self.put(unit, Hurt(hurt + dealt));
         if dealt >= left {
             self.remove_unit(unit, crate::hero::Fate::Slain);
             return true;

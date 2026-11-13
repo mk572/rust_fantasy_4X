@@ -670,7 +670,7 @@ pub(crate) fn spawn(
         Experience(0),
     ));
     let moves = UnitView::new(world, content).unit_max_moves(e);
-    let _ = world.insert_one(e, MovesLeft(moves));
+    crate::game::put_in(world, e, MovesLeft(moves));
     e
 }
 

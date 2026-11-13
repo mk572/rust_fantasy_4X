@@ -214,7 +214,7 @@ impl Game {
             .collect();
         for &city in &mine {
             let min = self.economy().city_min_farmers(city);
-            let _ = self.world.insert_one(city, Farmers(min));
+            self.put(city, Farmers(min));
         }
         let units = self.units();
         let upkeep = units.food_of(&units.player_units(player));
@@ -283,7 +283,7 @@ impl Game {
                 break;
             };
             let (city, farmers) = (slots[i].city, slots[i].farmers + 1);
-            let _ = self.world.insert_one(city, Farmers(farmers));
+            self.put(city, Farmers(farmers));
             judge(self, &mut slots[i], farmers);
         }
     }

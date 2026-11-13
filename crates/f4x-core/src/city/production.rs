@@ -451,7 +451,7 @@ impl Game {
         self.economy().can_build(city, item)?;
         let mut p = self.economy().city_production(city);
         p.item = Some(item);
-        let _ = self.world.insert_one(city, p);
+        self.put(city, p);
         self.note_production_change(city);
         Ok(())
     }
@@ -468,7 +468,7 @@ impl Game {
         treasury.gold -= plan.cost;
         let mut p = self.economy().city_production(city);
         p.progress += plan.remaining;
-        let _ = self.world.insert_one(city, p);
+        self.put(city, p);
         Ok(plan.cost)
     }
 
@@ -482,7 +482,7 @@ impl Game {
             .filter(|&e| self.economy().city_owner(e) == Some(player))
             .collect();
         for e in sold {
-            let _ = self.world.remove_one::<SoldBuilding>(e);
+            self.strip::<SoldBuilding>(e);
         }
     }
 
@@ -496,11 +496,11 @@ impl Game {
         let (owner, cost) = self.economy().sell_plan(city, building)?;
         let ends_production = self.economy().production_needs(city, building);
         remove_building(&self.world, city, building)?;
-        let _ = self.world.insert_one(city, SoldBuilding(building));
+        self.put(city, SoldBuilding(building));
         if ends_production {
             let mut p = self.economy().city_production(city);
             p.item = Some(ProductionItem::Housing);
-            let _ = self.world.insert_one(city, p);
+            self.put(city, p);
         }
         if let Some(t) = self.treasury_mut(owner) {
             t.gold += cost as i32;
@@ -523,7 +523,7 @@ impl Game {
         }
         let mut p = self.economy().city_production(city);
         p.item = Some(ProductionItem::TradeGoods);
-        let _ = self.world.insert_one(city, p);
+        self.put(city, p);
         Some(item)
     }
 
@@ -553,7 +553,7 @@ impl Game {
         if room && !too_small {
             return None;
         }
-        let _ = self.world.insert_one(city, p);
+        self.put(city, p);
         Some(item)
     }
 
@@ -565,7 +565,7 @@ impl Game {
     ) -> Option<ProductionItem> {
         let (item, mut p, at, owner) = match self.economy().advance_production(city, production)? {
             Advance::Waiting(p) => {
-                let _ = self.world.insert_one(city, p);
+                self.put(city, p);
                 return None;
             }
             Advance::Done {
@@ -598,7 +598,7 @@ impl Game {
                 let (xp, weapons) = self.economy().new_unit_start(city, owner);
                 if self.economy().costs_a_citizen(u) {
                     let pop = self.city_population(city);
-                    let _ = self.world.insert_one(
+                    self.put(
                         city,
                         super::economy::Population {
                             figures: pop.figures.saturating_sub(1).max(1),
@@ -608,11 +608,9 @@ impl Game {
                 }
                 let unit = self.spawn_unit(owner, at, u);
                 self.doom_mastery_mutates(unit, owner);
-                let _ = self.world.insert_one(unit, Experience(xp));
+                self.put(unit, Experience(xp));
                 if weapons > 0 {
-                    let _ = self
-                        .world
-                        .insert_one(unit, crate::unit::WeaponQuality(weapons));
+                    self.put(unit, crate::unit::WeaponQuality(weapons));
                 }
                 p.progress = HalfInt::ZERO;
                 self.autobuild_spent(city, item, cost);
@@ -626,7 +624,7 @@ impl Game {
             }
             ProductionItem::TradeGoods | ProductionItem::Housing => {}
         }
-        let _ = self.world.insert_one(city, p);
+        self.put(city, p);
         Some(item)
     }
 
@@ -644,7 +642,7 @@ impl Game {
                 continue;
             }
             if let Some(item) = self.autobuild_choice(city, player) {
-                let _ = self.world.insert_one(
+                self.put(
                     city,
                     Production {
                         item: Some(item),

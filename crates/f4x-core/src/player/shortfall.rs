@@ -310,11 +310,11 @@ impl Game {
                 .is_some_and(|at| self.economy().is_sea(at));
             if !aboard.is_empty() && at_sea {
                 self.set_owner(unit, MONSTERS);
-                let _ = self.world.insert_one(unit, Marooned);
+                self.put(unit, Marooned);
                 return events;
             }
             for p in aboard {
-                let _ = self.world.remove_one::<Aboard>(p);
+                self.strip::<Aboard>(p);
             }
         }
         self.remove_unit(unit, crate::hero::Fate::Released);

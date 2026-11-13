@@ -325,9 +325,7 @@ impl Game {
         }
         if self.is_neutral_player(loser) {
             // The plan the independent city's AI set was its own; the new owner plans anew.
-            let _ = self
-                .world
-                .remove_one::<crate::city::autobuild::AutoBuild>(city);
+            self.strip::<crate::city::autobuild::AutoBuild>(city);
         }
         let mut events = vec![Event::CityCaptured {
             city,
@@ -502,9 +500,7 @@ impl Game {
             w.clear_casting();
         }
         if let Some(e) = self.player_entity(loser) {
-            let _ = self
-                .world
-                .insert_one(e, crate::player::Defeat { by: Some(winner) });
+            self.put(e, crate::player::Defeat { by: Some(winner) });
         }
         self.cities_go_neutral(loser);
         self.aftermath(loser, winner);

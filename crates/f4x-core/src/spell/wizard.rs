@@ -157,7 +157,7 @@ impl Game {
         }
         if damage > 0 {
             let hurt = self.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
-            let _ = self.world.insert_one(unit, Hurt(hurt + damage));
+            self.put(unit, Hurt(hurt + damage));
         }
         false
     }
@@ -222,8 +222,8 @@ impl Game {
         }
         let to = self.content.rules.units.id_numbered(WEREWOLVES.num())?;
         let from = self.world.get::<&crate::unit::Unit>(unit).ok()?.0;
-        let _ = self.world.insert_one(unit, crate::unit::Unit(to));
-        let _ = self.world.remove_one::<crate::unit::Experience>(unit);
+        self.put(unit, crate::unit::Unit(to));
+        self.strip::<crate::unit::Experience>(unit);
         let (left, _) = self.units().unit_hits(unit);
         if left == 0 {
             // More damage than the new body can take: it is left on its last hit point.
@@ -235,9 +235,7 @@ impl Game {
                     .units()
                     .unit_stat(unit, crate::rules::Stat::Figures)
                     .max(0) as u32;
-            let _ = self
-                .world
-                .insert_one(unit, crate::unit::Hurt(max.saturating_sub(1)));
+            self.put(unit, crate::unit::Hurt(max.saturating_sub(1)));
         }
         Some((from, to))
     }

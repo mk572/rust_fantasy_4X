@@ -84,7 +84,7 @@ pub(crate) fn make_undead(world: &mut World, unit: hecs::Entity) -> bool {
     if world.get::<&Unit>(unit).is_err() {
         return false;
     }
-    let _ = world.insert_one(unit, Undead);
+    crate::game::put_in(world, unit, Undead);
     crate::spell::instance::remove_on(
         world,
         crate::spell::instance::SpellTarget::Unit(unit),

@@ -104,7 +104,7 @@ impl Game {
         }
         plan.retain(|&(u, _)| self.units().unit_owner(u) == Some(player));
         for (unit, hurt) in plan {
-            let _ = self.world.insert_one(unit, Hurt(hurt));
+            self.put(unit, Hurt(hurt));
         }
     }
 }

@@ -490,10 +490,10 @@ impl<'a> WizardMut<'a> {
     pub fn put<T: hecs::Component>(&mut self, value: Option<T>) {
         match value {
             Some(v) => {
-                let _ = self.world.insert_one(self.entity, v);
+                crate::game::put_in(self.world, self.entity, v);
             }
             None => {
-                let _ = self.world.remove_one::<T>(self.entity);
+                crate::game::strip_in::<T>(self.world, self.entity);
             }
         }
     }

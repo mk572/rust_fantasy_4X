@@ -464,7 +464,7 @@ fn effects_load(
     list: Vec<crate::spell::temp_effect::TempEffect>,
 ) {
     if !list.is_empty() {
-        let _ = world.insert_one(e, crate::spell::temp_effect::TempEffects(list));
+        crate::game::put_in(world, e, crate::spell::temp_effect::TempEffects(list));
     }
 }
 
@@ -1148,7 +1148,7 @@ impl Snapshot {
                     )))
                 }
             };
-            let _ = game.world.insert(
+            game.put_bundle(
                 entity,
                 (
                     Treasury {
@@ -1190,7 +1190,7 @@ impl Snapshot {
             }
             game.set_grand_vizier(id, p.grand_vizier);
             if p.defeated {
-                let _ = game.world.insert_one(
+                game.put(
                     entity,
                     Defeat {
                         by: p.defeated_by.map(PlayerId),
@@ -1357,7 +1357,7 @@ impl Snapshot {
             })?;
             let entity = match hero_entity {
                 Some(hero) => {
-                    let _ = game.world.insert(
+                    game.put_bundle(
                         hero,
                         (
                             Owner(owner),
@@ -1381,38 +1381,32 @@ impl Snapshot {
                 )),
             };
             if u.weapon > 0 {
-                let _ = game
-                    .world
-                    .insert_one(entity, crate::unit::WeaponQuality(u.weapon));
+                game.put(entity, crate::unit::WeaponQuality(u.weapon));
             }
             if let Some(ship) = u.aboard {
-                let _ = game
-                    .world
-                    .insert_one(entity, crate::unit::transport::Aboard(Serial(ship)));
+                game.put(entity, crate::unit::transport::Aboard(Serial(ship)));
             }
             effects_load(&mut game.world, entity, u.effects);
             if let Some(standby) = u.standby {
-                let _ = game.world.insert_one(entity, standby);
+                game.put(entity, standby);
             }
             if u.undead {
-                let _ = game.world.insert_one(entity, crate::unit::undead::Undead);
+                game.put(entity, crate::unit::undead::Undead);
             }
             if u.unpaid {
-                let _ = game.world.insert_one(entity, crate::unit::Unpaid);
+                game.put(entity, crate::unit::Unpaid);
             }
             if u.marooned {
-                let _ = game
-                    .world
-                    .insert_one(entity, crate::unit::transport::Marooned);
+                game.put(entity, crate::unit::transport::Marooned);
             }
             if let Some(stasis) = u.stasis {
-                let _ = game.world.insert_one(entity, stasis);
+                game.put(entity, stasis);
             }
             if let Some(work) = u.road_work {
-                let _ = game.world.insert_one(entity, work);
+                game.put(entity, work);
             }
             if let Some(order) = u.order {
-                let _ = game.world.insert_one(entity, order);
+                game.put(entity, order);
             }
         }
         // A hero serves exactly when it has its body.
@@ -1536,7 +1530,7 @@ impl Snapshot {
                 },
             ));
             if let Some(r) = race {
-                let _ = game.world.insert_one(entity, CityRace(r));
+                crate::game::put_in(&mut game.world, entity, CityRace(r));
             }
             effects_load(&mut game.world, entity, c.effects);
             if !c.wards.is_empty() {
@@ -1550,26 +1544,24 @@ impl Snapshot {
                             .ok_or(LoadError::UnknownId("realm", n.to_string()))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                let _ = game
-                    .world
-                    .insert_one(entity, crate::spell::city::SpellWards(wards));
+                crate::game::put_in(
+                    &mut game.world,
+                    entity,
+                    crate::spell::city::SpellWards(wards),
+                );
             }
             if let Some(b) = c.sold_building {
                 let b = rules
                     .buildings
                     .id_numbered(b)
                     .ok_or(LoadError::UnknownId("building", b.to_string()))?;
-                let _ = game
-                    .world
-                    .insert_one(entity, crate::city::production::SoldBuilding(b));
+                game.put(entity, crate::city::production::SoldBuilding(b));
             }
             if let Some(a) = c.autobuild {
-                let _ = game.world.insert_one(entity, a);
+                game.put(entity, a);
             }
             if let Some(by) = c.conquered.and_then(|p| game.player_entity(PlayerId(p))) {
-                let _ = game
-                    .world
-                    .insert_one(entity, crate::city::conquest::Conquered(by));
+                game.put(entity, crate::city::conquest::Conquered(by));
             }
         }
         let by_serial: std::collections::HashMap<u64, hecs::Entity> = game
@@ -1650,9 +1642,9 @@ impl Snapshot {
                         "a cast in progress is not the one of its own wizard".into(),
                     ));
                 }
-                let _ = game.world.insert_one(instance, Owed(owed));
+                game.put(instance, Owed(owed));
                 if let Some(extra) = i.extra.filter(|&e| e > 0) {
-                    let _ = game.world.insert_one(instance, Extra(extra));
+                    game.put(instance, Extra(extra));
                 }
             }
         }

@@ -56,9 +56,9 @@ impl Game {
             } else {
                 self.units().unit_max_moves(unit)
             };
-            let _ = self.world.insert_one(unit, crate::unit::MovesLeft(moves));
+            self.put(unit, crate::unit::MovesLeft(moves));
             if self.units().unit_standby(unit) == Some(crate::unit::Standby::Done) {
-                let _ = self.world.remove_one::<crate::unit::Standby>(unit);
+                self.strip::<crate::unit::Standby>(unit);
             }
         }
         events.extend(self.determine_offers(player));
@@ -133,7 +133,7 @@ impl Game {
             let min = self.economy().city_min_farmers(city);
             let farmers = self.world.get::<&Farmers>(city).map_or(0, |f| f.0);
             if farmers < min {
-                let _ = self.world.insert_one(city, Farmers(min));
+                self.put(city, Farmers(min));
             }
         }
         // The wizard whose Time Stop lasts pays no gold and eats no food, only the spell's mana.
@@ -224,7 +224,7 @@ impl Game {
             match self.grow_outpost(city) {
                 crate::city::growth::OutpostTurn::BecameCity => {
                     let farmers = self.economy().city_min_farmers(city);
-                    let _ = self.world.insert_one(city, Farmers(farmers));
+                    self.put(city, Farmers(farmers));
                     events.push(Event::CityGrew { city, figures: 1 });
                 }
                 crate::city::growth::OutpostTurn::Lost => {
@@ -250,7 +250,7 @@ impl Game {
                 figures: after,
                 ..self.city_population(city)
             };
-            let _ = self.world.insert_one(city, pop);
+            self.put(city, pop);
         }
         if after > before {
             events.push(Event::CityGrew {

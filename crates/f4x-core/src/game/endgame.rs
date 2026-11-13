@@ -232,7 +232,7 @@ impl Game {
         }
         for node in self.economy().nodes() {
             if node.owner == Some(loser) {
-                let _ = self.world.remove_one::<crate::player::Owner>(node.entity);
+                self.strip::<crate::player::Owner>(node.entity);
                 if let Ok(mut n) = self
                     .world
                     .get::<&mut crate::feature::node::Node>(node.entity)

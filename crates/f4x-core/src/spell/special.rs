@@ -101,7 +101,7 @@ impl Game {
             .filter(|&u| !self.units().unit_is_death(u))
             .collect();
         for u in healable {
-            let _ = self.world.insert_one(u, Hurt(0));
+            self.put(u, Hurt(0));
         }
     }
 
@@ -130,7 +130,7 @@ impl Game {
         unit: hecs::Entity,
     ) -> Result<(), TargetError> {
         let to = self.recall_destination(caster, unit)?;
-        let _ = self.world.insert_one(unit, to);
+        self.put(unit, to);
         self.explore(caster, to, crate::map::fog::sight_for(1));
         Ok(())
     }
@@ -183,7 +183,7 @@ impl Game {
         let to = self.plane_shift_destination(unit).ok()?;
         let units = self.units().units_at(from);
         for &u in &units {
-            let _ = self.world.insert_one(u, to);
+            self.put(u, to);
         }
         self.explore(caster, to, crate::map::fog::sight_for(1));
         Some(crate::game::Event::PlaneShifted {

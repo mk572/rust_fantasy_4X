@@ -398,7 +398,7 @@ impl Game {
             return true;
         }
         let hurt = (bu.max_hit_points() - bu.hit_points()).max(0);
-        let _ = self.world.insert_one(unit, Hurt(hurt as u32));
+        self.put(unit, Hurt(hurt as u32));
         false
     }
 
@@ -500,8 +500,8 @@ impl Game {
                 .find(|&next| self.free_landing(next, at, owner, &[unit]));
             match landing {
                 Some(next) if self.roll(100) > percent => {
-                    let _ = self.world.remove_one::<crate::unit::Order>(unit);
-                    let _ = self.world.insert_one(unit, next);
+                    self.strip::<crate::unit::Order>(unit);
+                    self.put(unit, next);
                 }
                 _ => self.remove_unit_to(unit, crate::hero::Fate::Slain, Some(victor)),
             }
@@ -986,7 +986,7 @@ impl Game {
             let regenerates = u.regenerates();
             let revived = revived(&battle, u);
             if regenerates && (revived || u.status != Status::Dead) {
-                let _ = self.world.insert_one(entity, Hurt(0));
+                self.put(entity, Hurt(0));
             } else if u.status == Status::Dead {
                 if self.is_raised_by(&battle, u, entity) {
                     drained.push(entity);
@@ -1011,7 +1011,7 @@ impl Game {
                 if let Some(base) = &u.base {
                     hurt = hurt.min(base.hits * u.figures_start as i32 - 1);
                 }
-                let _ = self.world.insert_one(entity, Hurt(hurt as u32));
+                self.put(entity, Hurt(hurt as u32));
             }
         }
         // Passengers of a ship that went down in the fight scramble ashore or drown.
@@ -1150,12 +1150,10 @@ impl Game {
             }
             room -= 1;
             self.make_undead(unit);
-            let _ = self.world.remove_one::<Hurt>(unit);
-            let _ = self.world.remove_one::<crate::unit::Order>(unit);
+            self.strip::<Hurt>(unit);
+            self.strip::<crate::unit::Order>(unit);
             self.set_owner(unit, player);
-            let _ = self
-                .world
-                .insert(unit, (pos, crate::unit::MovesLeft(HalfInt::ZERO)));
+            self.put_bundle(unit, (pos, crate::unit::MovesLeft(HalfInt::ZERO)));
             if zombified.contains(&unit) {
                 zombies += 1;
             } else {
@@ -1197,7 +1195,7 @@ impl Game {
         for u in battle.units.iter().filter(|u| u.status == Status::Recalled) {
             let to = self.summon_point(battle.player_of(u.side));
             if let (Some(unit), Some(to)) = (source_of(u), to) {
-                let _ = self.world.insert_one(unit, to);
+                self.put(unit, to);
             }
         }
         for side in [Side::Attacker, Side::Defender] {
@@ -1281,7 +1279,7 @@ impl Game {
         if let Some(&first) = movers.first() {
             let from = self.units().unit_position(first).unwrap_or(pos);
             for &u in &movers {
-                let _ = self.world.insert_one(u, pos);
+                self.put(u, pos);
             }
             self.explore(attacker, pos, crate::map::fog::sight_for(2));
             events.push(Event::UnitsMoved {

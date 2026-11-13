@@ -534,7 +534,7 @@ impl Game {
             }
         }
         self.set_owner(city, to);
-        let _ = self.world.insert_one(
+        self.put(
             city,
             Production {
                 item: Some(ProductionItem::TradeGoods),
@@ -632,7 +632,7 @@ impl Game {
             figures,
             ..self.city_population(city)
         };
-        let _ = self.world.insert_one(city, pop);
+        self.put(city, pop);
     }
 }
 

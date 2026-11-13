@@ -235,7 +235,7 @@ impl Game {
             if self.has_global_effect(player, GlobalEffect::HerbMastery) {
                 for unit in self.units().player_units(player) {
                     if !self.units().unit_is_death(unit) {
-                        let _ = self.world.insert_one(unit, Hurt(0));
+                        self.put(unit, Hurt(0));
                     }
                 }
             }

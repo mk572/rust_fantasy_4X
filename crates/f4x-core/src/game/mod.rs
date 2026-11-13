@@ -116,7 +116,63 @@ pub struct Game {
     undo_stack: Vec<game::undo::UndoEntry>,
 }
 
+/// Give `entity` a component. Hecs refuses only when the entity is gone, which for a caller that
+/// has just used the entity is a bug that would otherwise vanish: dev and test builds stop on it
+/// (`debug_assert!`), a release build goes on, as it did before the helper (task 554).
+#[track_caller]
+pub(crate) fn put_in<C: hecs::Component>(
+    world: &mut hecs::World,
+    entity: hecs::Entity,
+    component: C,
+) {
+    let put = world.insert_one(entity, component);
+    debug_assert!(
+        put.is_ok(),
+        "no such entity to give a component to: {put:?}"
+    );
+}
+
+/// Take a component off `entity`. A component that is not there is fine (that is what this is
+/// for: "make sure it is off"); an entity that is gone is a bug, as for [`put_in`].
+#[track_caller]
+pub(crate) fn strip_in<C: hecs::Component>(world: &mut hecs::World, entity: hecs::Entity) {
+    let taken = world.remove_one::<C>(entity);
+    debug_assert!(
+        !matches!(taken, Err(hecs::ComponentError::NoSuchEntity)),
+        "no such entity to take a component off"
+    );
+}
+
+/// Give `entity` a bundle of components; see [`put_in`].
+#[track_caller]
+pub(crate) fn put_bundle_in(
+    world: &mut hecs::World,
+    entity: hecs::Entity,
+    bundle: impl hecs::DynamicBundle,
+) {
+    let put = world.insert(entity, bundle);
+    debug_assert!(put.is_ok(), "no such entity to give components to: {put:?}");
+}
+
 impl Game {
+    /// Give `entity` a component (or replace it); see [`put_in`].
+    #[track_caller]
+    pub(crate) fn put<C: hecs::Component>(&mut self, entity: hecs::Entity, component: C) {
+        put_in(&mut self.world, entity, component);
+    }
+
+    /// Take a component off `entity` if it has it; see [`strip_in`].
+    #[track_caller]
+    pub(crate) fn strip<C: hecs::Component>(&mut self, entity: hecs::Entity) {
+        strip_in::<C>(&mut self.world, entity);
+    }
+
+    /// Give `entity` a bundle of components; see [`put_in`].
+    #[track_caller]
+    pub(crate) fn put_bundle(&mut self, entity: hecs::Entity, bundle: impl hecs::DynamicBundle) {
+        put_bundle_in(&mut self.world, entity, bundle);
+    }
+
     pub fn new(seed: u64) -> Self {
         let mut world = hecs::World::new();
         let monsters = world.spawn((player::MONSTERS, player::Neutral));

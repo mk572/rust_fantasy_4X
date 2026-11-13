@@ -51,9 +51,9 @@ impl Game {
     /// Make a unit one its owner pays nothing for, or not (scenarios and tests).
     pub fn scenario_set_unpaid(&mut self, unit: hecs::Entity, on: bool) {
         if on {
-            let _ = self.world.insert_one(unit, crate::unit::Unpaid);
+            self.put(unit, crate::unit::Unpaid);
         } else {
-            let _ = self.world.remove_one::<crate::unit::Unpaid>(unit);
+            self.strip::<crate::unit::Unpaid>(unit);
         }
     }
 

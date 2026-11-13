@@ -237,7 +237,7 @@ impl Game {
         }];
         events.extend(self.capture_city(city, winner));
         // The new owner starts afresh (the old owner's spells ended in `capture_city`).
-        let _ = self.world.insert_one(
+        self.put(
             city,
             Production {
                 item: Some(ProductionItem::TradeGoods),
@@ -245,11 +245,9 @@ impl Game {
             },
         );
         let farmers = self.economy().city_min_farmers(city);
-        let _ = self
-            .world
-            .insert_one(city, crate::city::economy::Farmers(farmers));
+        self.put(city, crate::city::economy::Farmers(farmers));
         if let Some(by) = self.player_entity(winner) {
-            let _ = self.world.insert_one(city, Conquered(by));
+            self.put(city, Conquered(by));
         }
         events
     }
@@ -318,7 +316,7 @@ impl Game {
             .map(|(e, _)| e)
             .collect();
         for e in marked {
-            let _ = self.world.remove_one::<Conquered>(e);
+            self.strip::<Conquered>(e);
         }
     }
 }

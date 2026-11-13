@@ -31,7 +31,7 @@ impl Game {
 
     /// Put a unit on a square, wherever it stands and whatever is there.
     pub fn cheat_move_unit(&mut self, unit: hecs::Entity, to: Position) {
-        let _ = self.world.insert_one(unit, to);
+        self.put(unit, to);
     }
 
     /// Explore every square of both planes for a player, without meeting anyone (for

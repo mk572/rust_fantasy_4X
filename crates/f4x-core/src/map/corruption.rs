@@ -100,8 +100,8 @@ impl Game {
             return Err(PurifyError::NotCorrupted);
         }
         for u in workers {
-            let _ = self.world.remove_one::<crate::unit::Order>(u);
-            let _ = self.world.insert_one(
+            self.strip::<crate::unit::Order>(u);
+            self.put(
                 u,
                 PurifyWork {
                     at,
@@ -129,14 +129,14 @@ impl Game {
             };
             // Moved away, or someone else cleaned it already: the job is off.
             if self.units().unit_position(u) != Some(work.at) || !self.is_corrupted(work.at) {
-                let _ = self.world.remove_one::<PurifyWork>(u);
+                self.strip::<PurifyWork>(u);
                 continue;
             }
             if work.left <= 1 {
                 events.extend(self.purify_square(work.at));
-                let _ = self.world.remove_one::<PurifyWork>(u);
+                self.strip::<PurifyWork>(u);
             } else {
-                let _ = self.world.insert_one(
+                self.put(
                     u,
                     PurifyWork {
                         at: work.at,

@@ -204,7 +204,7 @@ impl Game {
         if !wards.contains(&realm) {
             wards.push(realm);
         }
-        let _ = self.world.insert_one(city, SpellWards(wards));
+        self.put(city, SpellWards(wards));
     }
 
     /// The city whose Spell Ward turns `spell` away when it is cast at `target`: a spell aimed

@@ -545,12 +545,8 @@ fn start_player(
             }) else {
                 continue;
             };
-            let _ = game
-                .world
-                .insert_one(city, crate::city::economy::Farmers(CAPITAL_FARMERS));
-            let _ = game
-                .world
-                .insert_one(city, crate::city::economy::Buildings(buildings));
+            game.put(city, crate::city::economy::Farmers(CAPITAL_FARMERS));
+            game.put(city, crate::city::economy::Buildings(buildings));
             for &unit in &army {
                 game.apply(Command::CreateUnit {
                     owner: player,

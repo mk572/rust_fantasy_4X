@@ -173,7 +173,7 @@ impl EffectHost for GameHost<'_> {
         let (left, _) = self.game.units().unit_hits(u);
         let dealt = amount.max(0).min(left as i32);
         let hurt = self.game.world.get::<&Hurt>(u).map_or(0, |h| h.0);
-        let _ = self.game.world.insert_one(u, Hurt(hurt + dealt as u32));
+        self.game.put(u, Hurt(hurt + dealt as u32));
         if dealt as u32 >= left {
             self.game.remove_unit(u, crate::hero::Fate::Slain);
         }
@@ -216,7 +216,7 @@ impl EffectHost for GameHost<'_> {
         };
         let hurt = self.game.world.get::<&Hurt>(u).map_or(0, |h| h.0);
         let healed = amount.max(0).min(hurt as i32);
-        let _ = self.game.world.insert_one(u, Hurt(hurt - healed as u32));
+        self.game.put(u, Hurt(hurt - healed as u32));
         healed
     }
 

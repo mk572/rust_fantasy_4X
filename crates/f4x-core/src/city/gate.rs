@@ -73,8 +73,8 @@ impl Game {
         let (from, owner) = self.economy().check_stack(units)?;
         for &u in units {
             let left = self.units().unit_moves_left(u).saturating_sub(FULL_MOVE);
-            let _ = self.world.insert_one(u, MovesLeft(left));
-            let _ = self.world.insert_one(u, to);
+            self.put(u, MovesLeft(left));
+            self.put(u, to);
         }
         self.explore(owner, to, crate::map::fog::sight_for(2));
         Ok(vec![Event::UnitsMoved {

@@ -601,7 +601,7 @@ impl Game {
             self.economy().feature_entity_at(at),
             self.player_entity(owner),
         ) {
-            let _ = self.world.insert_one(tower, crate::player::Owner(player));
+            self.put(tower, crate::player::Owner(player));
         }
         let sealed = self.units().planar_seal_active();
         for plane in Plane::all().filter(|&p| !sealed || p == at.plane) {
@@ -624,8 +624,8 @@ impl Game {
         let from = self.units().unit_position(units[0]).expect("checked");
         for (&u, cost) in units.iter().zip(costs) {
             let left = self.units().unit_moves_left(u).saturating_sub(cost);
-            let _ = self.world.insert_one(u, MovesLeft(left));
-            let _ = self.world.insert_one(u, to);
+            self.put(u, MovesLeft(left));
+            self.put(u, to);
             let sight = self.units().unit_sight(u);
             self.explore(owner, to, sight);
         }
@@ -633,7 +633,7 @@ impl Game {
         if let Some(w) = self.economy().wind_walker(units) {
             let left = self.units().unit_moves_left(w);
             for &u in units.iter().filter(|&&u| u != w) {
-                let _ = self.world.insert_one(u, MovesLeft(left));
+                self.put(u, MovesLeft(left));
             }
         }
         self.claim_tower(units, to);
@@ -647,7 +647,7 @@ impl Game {
             }
         }
         for &p in &carried {
-            let _ = self.world.insert_one(p, to);
+            self.put(p, to);
         }
         // Who is aboard what now.
         let flies = self.economy().stack_traits(units);
@@ -674,8 +674,8 @@ impl Game {
         }
         for &u in units {
             let left = self.units().unit_moves_left(u).saturating_sub(FULL_MOVE);
-            let _ = self.world.insert_one(u, MovesLeft(left));
-            let _ = self.world.insert_one(u, to);
+            self.put(u, MovesLeft(left));
+            self.put(u, to);
             let sight = self.units().unit_sight(u);
             self.explore(owner, to, sight);
         }

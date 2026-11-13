@@ -161,8 +161,8 @@ impl Game {
             rest: path[1..].to_vec(),
         };
         for &u in &builders {
-            let _ = self.world.remove_one::<crate::unit::Order>(u);
-            let _ = self.world.insert_one(u, work.clone());
+            self.strip::<crate::unit::Order>(u);
+            self.put(u, work.clone());
         }
         // A square that already has its road needs no work.
         Ok(self.process_road_work_for(&builders))
@@ -217,7 +217,7 @@ impl Game {
         if pos != Some(work.at) {
             // Moved away by hand: the job is off.
             for &u in group {
-                let _ = self.world.remove_one::<RoadWork>(u);
+                self.strip::<RoadWork>(u);
             }
             return events;
         }
@@ -247,7 +247,7 @@ impl Game {
             }
             let Some(&next) = work.rest.first() else {
                 for &u in group {
-                    let _ = self.world.remove_one::<RoadWork>(u);
+                    self.strip::<RoadWork>(u);
                 }
                 return events;
             };
@@ -269,14 +269,14 @@ impl Game {
                 }
                 _ => {
                     for &u in group {
-                        let _ = self.world.remove_one::<RoadWork>(u);
+                        self.strip::<RoadWork>(u);
                     }
                     return events;
                 }
             }
         }
         for &u in group {
-            let _ = self.world.insert_one(u, work.clone());
+            self.put(u, work.clone());
         }
         events
     }

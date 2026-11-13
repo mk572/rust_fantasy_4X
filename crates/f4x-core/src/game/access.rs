@@ -184,7 +184,7 @@ impl Game {
 
     /// Give a unit experience points, as a scenario sets it up (no level checks).
     pub fn scenario_set_experience(&mut self, unit: hecs::Entity, xp: u32) {
-        let _ = self.world.insert_one(unit, Experience(xp));
+        self.put(unit, Experience(xp));
     }
 
     /// Give the wizard of `side` in the battle on the table `mana` to cast with and the same
@@ -200,7 +200,7 @@ impl Game {
 
     /// Wound a unit by this many hit points (over all figures), as a scenario sets it up.
     pub fn scenario_set_hurt(&mut self, unit: hecs::Entity, hurt: u32) {
-        let _ = self.world.insert_one(unit, Hurt(hurt));
+        self.put(unit, Hurt(hurt));
     }
 
     /// Set the number of citizens of a city, as a scenario sets it up.
@@ -261,7 +261,7 @@ impl Game {
 
     /// Set the moves a unit has left.
     pub fn scenario_set_moves_left(&mut self, unit: hecs::Entity, moves: HalfInt) {
-        let _ = self.world.insert_one(unit, crate::unit::MovesLeft(moves));
+        self.put(unit, crate::unit::MovesLeft(moves));
     }
 
     /// Remove a unit from the game.

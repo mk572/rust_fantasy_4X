@@ -509,7 +509,7 @@ impl Game {
                 let units: Vec<_> = (0..count)
                     .map(|_| {
                         let e = self.spawn_unit(player, at, id);
-                        let _ = self.world.insert_one(e, Experience(xp));
+                        self.put(e, Experience(xp));
                         e
                     })
                     .collect();

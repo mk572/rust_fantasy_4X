@@ -90,7 +90,7 @@ pub(crate) fn spawn_instance(
             Err(_) => false,
         };
         if !listed {
-            let _ = world.insert_one(caster, KeepsGlobal(vec![instance]));
+            crate::game::put_in(world, caster, KeepsGlobal(vec![instance]));
         }
     }
     if let Some(e) = target.entity() {
@@ -102,7 +102,7 @@ pub(crate) fn spawn_instance(
             Err(_) => false,
         };
         if !listed {
-            let _ = world.insert_one(e, Enchanted(vec![instance]));
+            crate::game::put_in(world, e, Enchanted(vec![instance]));
         }
     }
     instance
@@ -119,7 +119,7 @@ fn despawn_instance(world: &mut hecs::World, instance: hecs::Entity) {
             list.0.is_empty()
         });
         if emptied {
-            let _ = world.remove_one::<KeepsGlobal>(c);
+            crate::game::strip_in::<KeepsGlobal>(world, c);
         }
     }
     if let Some(e) = target.and_then(SpellTarget::entity) {
@@ -128,7 +128,7 @@ fn despawn_instance(world: &mut hecs::World, instance: hecs::Entity) {
             list.0.is_empty()
         });
         if emptied {
-            let _ = world.remove_one::<Enchanted>(e);
+            crate::game::strip_in::<Enchanted>(world, e);
         }
     }
 }
@@ -343,7 +343,7 @@ pub(crate) fn set_listed(
         return;
     }
     if listed {
-        let _ = world.insert_one(entity, Enchanted(instances.to_vec()));
+        crate::game::put_in(world, entity, Enchanted(instances.to_vec()));
     }
 }
 
@@ -475,9 +475,9 @@ impl Game {
             return;
         };
         let cast = self.spawn_spell(spell, wizard, SpellTarget::Wizard(wizard));
-        let _ = self.world.insert_one(cast, Owed(owed));
+        self.put(cast, Owed(owed));
         if extra > 0 {
-            let _ = self.world.insert_one(cast, Extra(extra));
+            self.put(cast, Extra(extra));
         }
     }
 

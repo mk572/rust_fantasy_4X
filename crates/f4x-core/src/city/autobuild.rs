@@ -885,11 +885,11 @@ impl Game {
                     auto.spent_units = old.spent_units;
                     auto.spent_buildings = old.spent_buildings;
                 }
-                let _ = self.world.insert_one(city, auto);
+                self.put(city, auto);
                 self.autobuild_refresh(city);
             }
             None => {
-                let _ = self.world.remove_one::<AutoBuild>(city);
+                self.strip::<AutoBuild>(city);
             }
         }
         Ok(())
@@ -913,7 +913,7 @@ impl Game {
             if p.item != Some(item) {
                 p.item = Some(item);
                 p.progress = HalfInt::ZERO;
-                let _ = self.world.insert_one(city, p);
+                self.put(city, p);
                 self.note_production_change(city);
             }
         }

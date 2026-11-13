@@ -181,9 +181,9 @@ impl Game {
             && self.world.get::<&HeldBy>(item).map_or(true, |h| *h != by)
         {
             let serial = self.take_serial();
-            let _ = self.world.insert_one(item, serial);
+            self.put(item, serial);
         }
-        let _ = self.world.insert_one(item, by);
+        self.put(item, by);
     }
 
     /// The item is gone from the game.

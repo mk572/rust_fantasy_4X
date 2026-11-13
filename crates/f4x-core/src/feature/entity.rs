@@ -338,10 +338,10 @@ impl Game {
             .world
             .spawn((TerrainFeature(placement.feature), placement.at, serial));
         if let Some(node) = placement.node {
-            let _ = self.world.insert_one(e, node);
+            self.put(e, node);
         }
         if let Some(lair) = placement.lair {
-            let _ = self.world.insert_one(e, lair);
+            self.put(e, lair);
         }
         self.index_feature(e, placement.at, kind == Some(FeatureKind::Tower));
         e
@@ -368,7 +368,7 @@ impl Game {
     /// Hand a node, tower or volcano to a player.
     pub(crate) fn set_feature_owner(&mut self, feature: Entity, owner: PlayerId) {
         if let Some(player) = self.player_entity(owner) {
-            let _ = self.world.insert_one(feature, Owner(player));
+            self.put(feature, Owner(player));
         }
     }
 

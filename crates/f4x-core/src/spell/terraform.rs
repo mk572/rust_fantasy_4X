@@ -213,9 +213,7 @@ impl Game {
             self.remove_unit(ship, crate::hero::Fate::Slain);
         }
         for unit in self.units().units_at(at) {
-            let _ = self
-                .world
-                .remove_one::<crate::unit::transport::Aboard>(unit);
+            self.strip::<crate::unit::transport::Aboard>(unit);
         }
         events.push(Event::VolcanoRaised {
             player: owner,

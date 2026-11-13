@@ -40,7 +40,7 @@ impl Game {
         {
             return false;
         }
-        let _ = self.world.insert_one(unit, Stasis::Fresh);
+        self.put(unit, Stasis::Fresh);
         true
     }
 
@@ -60,14 +60,14 @@ impl Game {
         for (unit, state) in held {
             match state {
                 Stasis::Fresh => {
-                    let _ = self.world.insert_one(unit, Stasis::Lingering);
+                    self.put(unit, Stasis::Lingering);
                 }
                 Stasis::Lingering => {
                     let resistance = self
                         .units()
                         .unit_resistance_against(unit, Some(Realm::Sorcery));
                     if resistance_failure(resistance, FREEING_MODIFIER, &mut rng) == 0 {
-                        let _ = self.world.remove_one::<Stasis>(unit);
+                        self.strip::<Stasis>(unit);
                         events.push(Event::StasisEnded { unit });
                     }
                 }

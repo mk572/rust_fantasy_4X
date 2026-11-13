@@ -211,10 +211,10 @@ pub(crate) fn update_aboard(
         };
         match board {
             Some(aboard) => {
-                let _ = world.insert_one(u, aboard);
+                crate::game::put_in(world, u, aboard);
             }
             None => {
-                let _ = world.remove_one::<Aboard>(u);
+                crate::game::strip_in::<Aboard>(world, u);
             }
         }
     }
@@ -266,15 +266,15 @@ impl Game {
                 }
                 left -= cost;
                 at = next;
-                let _ = self.world.insert_one(ship, at);
+                self.put(ship, at);
                 for &p in &passengers {
-                    let _ = self.world.insert_one(p, at);
+                    self.put(p, at);
                 }
             }
             if self.economy().next_to(at, landing) {
                 for &p in &passengers {
-                    let _ = self.world.remove_one::<Aboard>(p);
-                    let _ = self.world.insert_one(p, landing);
+                    self.strip::<Aboard>(p);
+                    self.put(p, landing);
                 }
                 self.remove_unit(ship, crate::hero::Fate::Released);
                 events.push(Event::ShipLanded {
@@ -375,8 +375,8 @@ impl Game {
                 .is_some_and(|d| d.kind == crate::rules::UnitKind::Hero);
             let percent = if hero { 75 } else { 50 };
             if let Some(land) = landing.filter(|_| self.roll(100) <= percent) {
-                let _ = self.world.remove_one::<Aboard>(unit);
-                let _ = self.world.insert_one(unit, land);
+                self.strip::<Aboard>(unit);
+                self.put(unit, land);
                 continue;
             }
             self.remove_unit(unit, crate::hero::Fate::Slain);
