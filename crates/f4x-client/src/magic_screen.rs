@@ -2,10 +2,10 @@
 //! (`MagicScr.c`) on its 320 by 200 pixels.
 //!
 //! Three staves set how the power base is split between mana, research and casting skill
-//! (drag one; the lock above each holds its share), the four gems on top are the other wizards
-//! (grey until diplomacy gives a wizard something to say), the panel on the right lists the
-//! overland enchantments of every wizard, and the block of text below the staves has the
-//! casting skill, the mana reserve, the power base and what is being cast and researched. The
+//! (drag one; the lock above each holds its share), the panel on the right lists the overland
+//! enchantments of every wizard, and the box under the title "Magic" has the casting skill, the
+//! mana reserve, the power base and what is being cast and researched. The other wizards are on
+//! the Diplomacy screen (`diplomacy_list_screen.rs`). The
 //! Alchemy button opens the gold-and-power exchange. Spells are cast from the spell book
 //! (`spellbook.rs`) and chosen for research in the big book (`bigbook.rs`).
 
@@ -17,7 +17,6 @@ use crate::panel_button_art::Panel;
 use crate::text::Args;
 use crate::ui;
 use f4x_core::game::Command;
-use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::SpellId;
 use macroquad::prelude::*;
@@ -31,6 +30,12 @@ use crate::view::{App, Screen, HUMAN};
 const EDGE_FIGURES: Color = rgb(0x51, 0x3C, 0x30);
 /// The shadow of the stat rows: `Set_Outline_Color(240)`, an entry of the Magic screen's own palette.
 const EDGE_STATS: Color = rgb(0x28, 0x28, 0x41);
+
+/// The box of facts under the title: left, top, width, height, and its colours (the brown of the
+/// panels below, with a dark edge).
+const INFO_BOX: (f32, f32, f32, f32) = (12.0, 16.0, 296.0, 44.0);
+const INFO_FILL: Color = rgb(0x68, 0x46, 0x1C);
+const INFO_EDGE: Color = rgb(0x14, 0x0C, 0x08);
 
 const STAFF_X: &[f32] = &[29.0, 75.0, 122.0];
 /// The picture entries of each staff: empty, full, locked (`magic.lbx`).
@@ -122,16 +127,6 @@ pub(crate) struct AlchemyUi {
     pub slider: i32,
 }
 
-/// Where a wizard stands in the row of gems: those you can talk to first, then those not met
-/// yet, then the gone ones (a stable sort keeps the order of the players within each).
-fn gem_rank(gone: bool, met: bool) -> u8 {
-    match (gone, met) {
-        (false, true) => 0,
-        (false, false) => 1,
-        (true, _) => 2,
-    }
-}
-
 /// What the magic screen remembers while it is open.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct MagicUi {
@@ -140,8 +135,6 @@ pub(crate) struct MagicUi {
     pub drag: Option<usize>,
     /// The first overland enchantment shown, when there are more than eighteen.
     pub first: usize,
-    /// The first of the other wizards shown in the four gems, when there are more than four.
-    pub first_wizard: usize,
     pub alchemy: Option<AlchemyUi>,
     /// Asking whether to turn off one of the wizard's own enchantments.
     pub turn_off: Option<SpellId>,
@@ -189,156 +182,6 @@ impl App {
                     .map(move |s| (s, id))
             })
             .collect()
-    }
-
-    /// The other wizards' gems: grey until the wizard is met, then its picture in its banner
-    /// colour with the word for how it feels about you and an icon for each treaty, and broken
-    /// once the wizard is gone. A click on a met wizard's gem opens the diplomacy screen, a
-    /// right-click the wizard's sheet. The wizards you can talk to come first, then those not
-    /// met yet, then the gone ones; with more than four the wheel, the arrows beside the gems
-    /// and the left and right keys scroll through them.
-    fn magic_gems(
-        &mut self,
-        lay: &Layout,
-        view: (f32, f32, f32),
-        active: bool,
-        input: &Input,
-        first_wizard: &mut usize,
-    ) {
-        for i in 0..4 {
-            self.draw_pic(lay, "magic", 6, 0, 24.0 + 77.0 * i as f32, 4.0);
-        }
-        let mut others: Vec<(PlayerId, u8, u8, bool)> = self
-            .game
-            .player_ids()
-            .into_iter()
-            .filter(|id| *id != HUMAN && self.game.takes_part_in_diplomacy(*id))
-            .map(|id| {
-                let p = self.game.player(id);
-                (
-                    id,
-                    p.map_or(0, |p| p.portrait()),
-                    p.map_or(NEUTRAL_BANNER, |p| p.banner()),
-                    p.is_some_and(|p| p.is_defeated()),
-                )
-            })
-            .collect();
-        others.sort_by_key(|&(id, _, _, gone)| gem_rank(gone, self.game.have_met(HUMAN, id)));
-        let last_first = others.len().saturating_sub(4);
-        *first_wizard = (*first_wizard).min(last_first);
-        if last_first > 0 && active {
-            let strip = lay.rect((24.0, 4.0, 77.0 * 3.0 + 40.0, 56.0));
-            let mouse: Vec2 = input.mouse_position().into();
-            let step =
-                |first: usize, by: i32| (first as i32 + by).clamp(0, last_first as i32) as usize;
-            let wheel = input.mouse_wheel().1;
-            if wheel != 0.0 && strip.contains(mouse) {
-                *first_wizard = step(*first_wizard, if wheel > 0.0 { -1 } else { 1 });
-            }
-            if input.key_pressed(KeyCode::Left) {
-                *first_wizard = step(*first_wizard, -1);
-            }
-            if input.key_pressed(KeyCode::Right) {
-                *first_wizard = step(*first_wizard, 1);
-            }
-            for (right, x) in [(false, 12.0), (true, 308.0)] {
-                let enabled = if right {
-                    *first_wizard < last_first
-                } else {
-                    *first_wizard > 0
-                };
-                let r = lay.rect((x - 5.0, 22.0, 10.0, 16.0));
-                let (cx, cy, h, d) = (
-                    r.x + r.w / 2.0,
-                    r.y + r.h / 2.0,
-                    r.h / 2.0,
-                    if right { 1.0 } else { -1.0 },
-                );
-                let colour = if enabled {
-                    WHITE
-                } else {
-                    Color::new(1.0, 1.0, 1.0, 0.25)
-                };
-                draw_triangle(
-                    vec2(cx + d * r.w / 2.0, cy),
-                    vec2(cx - d * r.w / 2.0, cy - h),
-                    vec2(cx - d * r.w / 2.0, cy + h),
-                    colour,
-                );
-                if enabled && ui::hit(r, true, input).clicked() {
-                    *first_wizard = step(*first_wizard, if right { 1 } else { -1 });
-                }
-            }
-        }
-        let others: Vec<_> = others.into_iter().skip(*first_wizard).collect();
-        let gems: Vec<PlayerId> = others.iter().take(4).map(|o| o.0).collect();
-        for (i, (id, portrait, banner, gone)) in others.into_iter().take(4).enumerate() {
-            let x = 24.0 + 77.0 * i as f32;
-            if gone {
-                self.draw_pic(lay, "magic", 51, 0, x - 1.0, 3.0);
-                continue;
-            }
-            if !self.game.have_met(HUMAN, id) {
-                continue;
-            }
-            let gem = match self.game.race_of_player(id) {
-                // A neutral player's gem is its race's picture, not a wizard's in a banner colour.
-                Some(race) => {
-                    self.draw_neutral(lay, race.num(), crate::neutral_art::Kind::Gem, x, 4.0)
-                }
-                None => crate::art::gem_entry(self.art.wizard(portrait).gem, banner)
-                    .and_then(|entry| self.draw_pic(lay, "lilwiz", entry, 0, x, 4.0)),
-            };
-            let rel = self.game.relation(HUMAN, id);
-            let word = self.text(f4x_core::diplomacy::relation_key(rel));
-            self.draw_styled(
-                view,
-                &Style::set(0, 3).center(),
-                &word,
-                45.0 + 77.0 * i as f32,
-                53.0,
-            );
-            // The treaty with you, then those with the other wizards shown: a scroll for a
-            // pact, a peace symbol for an alliance, crossed swords for war, in its banner colour.
-            let mut icon_y = 2.0;
-            let icon_x = 68.0 + 77.0 * i as f32;
-            let mut show = |app: &mut Self, treaty: f4x_core::diplomacy::Treaty, colour: u8| {
-                use f4x_core::diplomacy::Treaty as T;
-                let n = match treaty {
-                    T::None => return,
-                    T::Pact => 0,
-                    T::Alliance => 1,
-                    T::War => 2,
-                };
-                app.draw_pic(
-                    lay,
-                    "magic",
-                    60 + n + usize::from(colour) * 3,
-                    0,
-                    icon_x,
-                    icon_y,
-                );
-                icon_y += 12.0;
-            };
-            let mine = self.game.treaty(HUMAN, id);
-            let my_banner = self.game.wizard(HUMAN).map_or(0, |w| w.banner());
-            show(self, mine, my_banner);
-            for &other in gems.iter().filter(|&&o| o != id) {
-                if self.game.have_met(HUMAN, other) {
-                    let t = self.game.treaty(id, other);
-                    let colour = crate::map_draw::banner_of(&self.game, other);
-                    show(self, t, colour);
-                }
-            }
-            let over = gem.is_some_and(|r| ui::hit(r, true, input).hovered());
-            if active && over && input.mouse_pressed(MouseButton::Left) {
-                self.open_diplomacy(id);
-            }
-            if active && over && input.mouse_pressed(MouseButton::Right) && self.game.is_wizard(id)
-            {
-                self.open_wizard(id);
-            }
-        }
     }
 
     /// A picture whose rows between `top` and `bottom` (in the original's pixels) are drawn:
@@ -559,18 +402,32 @@ impl MagicUi {
                 summon,
             ),
         ];
+        // The title and, under it, the box with the facts (the rival wizards are on the
+        // Diplomacy screen now): the labels in two columns, each value at the end of its row.
+        app.draw_title_stack(
+            view,
+            4,
+            [
+                font_ramp::LIST_TITLE_FAR,
+                font_ramp::LIST_TITLE_MID,
+                font_ramp::LIST_TITLE_NEAR,
+                font_ramp::LIST_TITLE,
+            ],
+            &app.text("magic.title"),
+            (160.0, 2.0),
+        );
+        let (bx, by, bw, bh) = INFO_BOX;
+        let outer = lay.rect((bx - 1.0, by - 1.0, bw + 2.0, bh + 2.0));
+        draw_rectangle(outer.x, outer.y, outer.w, outer.h, INFO_EDGE);
+        let inner = lay.rect((bx, by, bw, bh));
+        draw_rectangle(inner.x, inner.y, inner.w, inner.h, INFO_FILL);
         for (i, (l1, v1, l2, v2)) in rows.into_iter().enumerate() {
-            let y = 177.0 + 8.0 * i as f32;
-            app.draw_styled(view, &Style::sh_set(1, 3).edge(EDGE_STATS), &l1, 5.0, y);
-            app.draw_styled(
-                view,
-                &Style::sh_set(1, 3).edge(EDGE_STATS).right(),
-                &v1,
-                90.0,
-                y,
-            );
-            app.draw_styled(view, &Style::sh_set(1, 3).edge(EDGE_STATS), &l2, 100.0, y);
-            app.draw_styled(view, &Style::sh_set(1, 3).edge(EDGE_STATS), &v2, 156.0, y);
+            let y = by + 5.0 + 12.0 * i as f32;
+            let style = Style::sh_set(2, 3).edge(EDGE_STATS);
+            app.draw_styled(view, &style, &l1, bx + 8.0, y);
+            app.draw_styled(view, &style.right(), &v1, bx + bw / 2.0 - 10.0, y);
+            app.draw_styled(view, &style, &l2, bx + bw / 2.0 + 6.0, y);
+            app.draw_styled(view, &style, &v2, bx + bw / 2.0 + 74.0, y);
         }
         let _ = lay;
     }
@@ -773,7 +630,6 @@ impl Page for MagicUi {
         }
         self.magic_staves(app, &lay, !modal, input);
         self.magic_text(app, &lay, view);
-        app.magic_gems(&lay, view, !modal, input, &mut self.first_wizard);
         self.magic_enchantments(app, &lay, view, !modal, input);
 
         // The Alchemy and OK buttons (drawn while a box is open, but not clickable).
@@ -828,15 +684,6 @@ impl Page for MagicUi {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn contactable_wizards_come_before_unmet_and_gone_ones() {
-        let mut wizards = [(true, true), (false, false), (false, true), (true, false)];
-        wizards.sort_by_key(|&(gone, met)| gem_rank(gone, met));
-        assert_eq!(wizards[0], (false, true));
-        assert_eq!(wizards[1], (false, false));
-        assert!(wizards[2].0 && wizards[3].0);
-    }
-
     use super::*;
 
     #[test]
