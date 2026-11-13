@@ -274,6 +274,7 @@ impl Game {
                     city,
                     b,
                 )
+                .is_ok()
             },
         );
         if let Ok(mut pop) = self

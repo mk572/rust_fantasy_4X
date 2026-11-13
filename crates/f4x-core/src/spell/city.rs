@@ -159,9 +159,10 @@ impl Game {
                     .collect();
                 if !candidates.is_empty() {
                     let pick = candidates[self.roll(candidates.len() as u32) as usize - 1];
-                    if self.destroy_building(city, pick) {
-                        building = Some(pick);
-                    }
+                    // The candidates were chosen as destroyable just above.
+                    let gone = self.destroy_building(city, pick);
+                    debug_assert!(gone.is_ok(), "a chosen building could not fall: {gone:?}");
+                    building = gone.ok().map(|()| pick);
                 }
             }
             events.push(Event::ChaosRiftStrikes {

@@ -186,7 +186,9 @@ impl Game {
             }
             let built = self.buildings_of(city);
             for b in built {
-                if self.roll(100) <= METEOR_BUILDING_PERCENT && self.destroy_building(city, b) {
+                if self.roll(100) <= METEOR_BUILDING_PERCENT
+                    && self.destroy_building(city, b).is_ok()
+                {
                     buildings_lost += 1;
                 }
             }
@@ -241,7 +243,7 @@ impl Game {
             .count() as u32;
         let mut buildings_lost = 0;
         for b in self.buildings_of(city) {
-            if rng.roll(100) <= VOID_BUILDING_PERCENT && self.destroy_building(city, b) {
+            if rng.roll(100) <= VOID_BUILDING_PERCENT && self.destroy_building(city, b).is_ok() {
                 buildings_lost += 1;
             }
         }

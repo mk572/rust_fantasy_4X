@@ -1037,6 +1037,39 @@ fn selling_a_building_refunds_it_unless_others_need_it() -> TestResult {
 }
 
 #[test]
+fn a_building_that_is_not_destroyed_says_why() -> TestResult {
+    use crate::city::conquest::DestroyError;
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 3 /* barracks */);
+    add_building(&mut g, city, 5 /* fighters_guild */);
+    let barracks = building(&g, 3 /* barracks */);
+    let guild = building(&g, 5 /* fighters_guild */);
+    let smithy = building(&g, 8 /* smithy */);
+    // The guild needs the barracks, so the barracks stay and name the one that holds them.
+    assert_eq!(
+        g.destroy_building(city, barracks),
+        Err(DestroyError::NeededBy(guild))
+    );
+    assert_eq!(
+        g.destroy_building(city, smithy),
+        Err(DestroyError::NotBuilt)
+    );
+    assert_eq!(g.destroy_building(city, guild), Ok(()));
+    assert_eq!(
+        g.destroy_building(city, barracks),
+        Ok(()),
+        "now nothing needs it"
+    );
+    let not_a_city = g.world.spawn(());
+    assert_eq!(
+        g.destroy_building(not_a_city, barracks),
+        Err(DestroyError::NotACity)
+    );
+    Ok(())
+}
+
+#[test]
 fn selling_what_the_production_needs_puts_the_city_back_to_housing() {
     let mut g = world();
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);

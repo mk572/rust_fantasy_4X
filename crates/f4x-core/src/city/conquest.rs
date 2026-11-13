@@ -108,26 +108,40 @@ pub(crate) fn razing_fame_loss(size: i32) -> i32 {
     size
 }
 
-/// Destroy a building, unless another that is built needs it (also down a chain). Returns
-/// whether it went.
+/// Why a building was not destroyed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DestroyError {
+    /// A building that is built needs this one, directly or down a chain of requirements; it
+    /// is the first such. The normal reason: a tremor or a fight spares what holds up another.
+    NeededBy(BuildingId),
+    /// The city does not have this building.
+    NotBuilt,
+    /// The entity has no buildings: it is not a city.
+    NotACity,
+}
+
+/// Destroy a building, unless another that is built needs it (also down a chain), or it is not
+/// there.
 pub(crate) fn destroy_building(
     world: &mut hecs::World,
     map: Option<&crate::map::Map>,
     content: &f4x_def::content::Content,
     city: hecs::Entity,
     building: BuildingId,
-) -> bool {
-    if Economy::new(world, map, content).has_dependants(city, building) {
-        return false;
+) -> Result<(), DestroyError> {
+    match world.get::<&Buildings>(city) {
+        Err(_) => return Err(DestroyError::NotACity),
+        Ok(b) if !b.0.contains(&building) => return Err(DestroyError::NotBuilt),
+        Ok(_) => {}
     }
-    match world.get::<&mut Buildings>(city) {
-        Ok(mut b) => {
-            let before = b.0.len();
-            b.0.retain(|&x| x != building);
-            b.0.len() < before
-        }
-        Err(_) => false,
+    if let Some(by) = Economy::new(world, map, content).first_dependant(city, building) {
+        return Err(DestroyError::NeededBy(by));
     }
+    let mut b = world
+        .get::<&mut Buildings>(city)
+        .map_err(|_| DestroyError::NotACity)?;
+    b.0.retain(|&x| x != building);
+    Ok(())
 }
 
 impl Economy<'_> {
@@ -201,7 +215,9 @@ impl Game {
             .unwrap_or_default();
         let mut lost = Vec::new();
         let toll = fighting_toll(citizens, city_damage, &built, &mut self.rng, |b| {
-            let gone = destroy_building(&mut self.world, self.map.as_ref(), &self.content, city, b);
+            // The fight spares a building that holds up another, and skips one that is gone.
+            let gone = destroy_building(&mut self.world, self.map.as_ref(), &self.content, city, b)
+                .is_ok();
             if gone {
                 lost.push(b);
             }
@@ -239,7 +255,11 @@ impl Game {
     }
 
     /// Destroy a building, unless another that is built needs it (also down a chain).
-    pub(crate) fn destroy_building(&mut self, city: hecs::Entity, building: BuildingId) -> bool {
+    pub(crate) fn destroy_building(
+        &mut self,
+        city: hecs::Entity,
+        building: BuildingId,
+    ) -> Result<(), DestroyError> {
         destroy_building(
             &mut self.world,
             self.map.as_ref(),

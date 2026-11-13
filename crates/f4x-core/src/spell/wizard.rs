@@ -322,7 +322,7 @@ impl Game {
         }
         let mut buildings_lost = 0;
         for b in built {
-            if rng.roll(100) <= building_percent && self.destroy_building(city, b) {
+            if rng.roll(100) <= building_percent && self.destroy_building(city, b).is_ok() {
                 buildings_lost += 1;
             }
         }
