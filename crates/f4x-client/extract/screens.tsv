@@ -333,3 +333,44 @@ cmbtfx	27	27	undead_rising	graveyard
 cmbtfx	29	29	undead_rising	mist
 cmbtfx	30	30	undead_rising	earth_back
 cmbtfx	31	31	undead_rising	earth_front
+
+# The wizard's lab (`wizlab.lbx`; Learn_Spell_Animation, the Spell of Mastery lost scene): the room,
+# the podium, the blue column (ten frames) and the five realm familiars (14 + the strongest realm:
+# nature, sorcery, chaos, life, death); 22 and 23 are two frost pictures the client does not draw.
+# The wizards' own lab pictures (entries 0 to 13) are filed with each wizard (`wizard_art.ron`).
+wizlab	14	14	wizlab	familiar_nature
+wizlab	15	15	wizlab	familiar_sorcery
+wizlab	16	16	wizlab	familiar_chaos
+wizlab	17	17	wizlab	familiar_life
+wizlab	18	18	wizlab	familiar_death
+wizlab	19	19	wizlab	background
+wizlab	20	20	wizlab	podium
+wizlab	21	21	wizlab	column
+wizlab	22	23	wizlab
+
+# The Info button's list box, "Select An Advisor" (`Selection_Box` in GENDRAW.c, also the Tax Collector's
+# rates): the marble frame, the five row buttons and their right ends, the scroll pieces of a box
+# with more rows than fit (the client draws none of them; entry 11 is that scroll bar's segment).
+resource	5	5	infoscreen	frame_left
+resource	6	6	infoscreen	frame_bottom_left
+resource	7	7	infoscreen	frame_top
+resource	8	8	infoscreen	frame_right
+resource	9	9	infoscreen	frame_bottom
+resource	10	10	infoscreen	frame_bottom_right
+resource	11	11	infoscreen	scroll_segment
+resource	12	12	infoscreen	button_1
+resource	13	13	infoscreen	button_2
+resource	14	14	infoscreen	button_3
+resource	15	15	infoscreen	button_4
+resource	16	16	infoscreen	button_5
+resource	22	22	infoscreen	button_end_1
+resource	23	23	infoscreen	button_end_2
+resource	24	24	infoscreen	button_end_3
+resource	25	25	infoscreen	button_end_4
+resource	26	26	infoscreen	button_end_5
+resource	32	32	infoscreen	arrow_up
+resource	33	33	infoscreen	arrow_down
+resource	34	34	infoscreen	scroll_top
+resource	35	35	infoscreen	scroll_bottom
+resource	36	36	infoscreen	scroll_locked_up
+resource	37	37	infoscreen	scroll_locked_down
