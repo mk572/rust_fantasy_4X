@@ -29,11 +29,13 @@ use crate::view::{App, Screen, HUMAN};
 
 /// Rows on the screen (the city list's).
 const ROWS: usize = 9;
-/// Where the columns start: the banner square, the name, the attitude, the treaty.
+/// Where the columns start: the banner square, the name, the attitude, the treaty; the centres of
+/// the three ranks (army, magic, research, as the Astrologer's three bars).
 const BANNER_X: f32 = 31.0;
 const NAME_X: f32 = 41.0;
-const ATTITUDE_X: f32 = 140.0;
-const TREATY_X: f32 = 207.0;
+const ATTITUDE_X: f32 = 104.0;
+const TREATY_X: f32 = 150.0;
+const RANK_X: [f32; 3] = [226.0, 255.0, 284.0];
 /// The picture of the contact under the mouse, and the treaties it holds with the others.
 const GEM_AT: (f32, f32) = (46.0, 157.0);
 const TREATIES_PER_COLUMN: usize = 4;
@@ -57,7 +59,14 @@ pub(crate) struct DiplomacyListUi {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Contact {
     pub id: PlayerId,
+    /// The name in the list: a neutral race is just its people ("Barbarians").
     pub name: String,
+    /// The name in the talk: "Neutral Barbarians".
+    pub full_name: String,
+    /// Place among the wizards known (the player's included) by army, magic and research as the
+    /// Astrologer screen counts them, 1 for the highest; `None` for a neutral race, which has
+    /// no magic and no research.
+    pub ranks: Option<[usize; 3]>,
     /// How the contact feels about you, -100 to 100.
     pub relation: i32,
     pub treaty: Treaty,
@@ -110,6 +119,7 @@ impl App {
     /// The contacts the human has met: rival wizards in the order of their numbers, then the
     /// neutral races; the wizards that are gone after the others of their kind.
     pub(crate) fn contacts(&self) -> Vec<Contact> {
+        let ranks = self.wizard_ranks();
         let mut found: Vec<Contact> = self
             .game
             .player_ids()
@@ -127,7 +137,9 @@ impl App {
                         .is_some_and(|s| s.peace_duration > 0);
                 Contact {
                     id,
-                    name: self.diplo_name(id),
+                    name: self.race_name(id).unwrap_or_else(|| self.diplo_name(id)),
+                    full_name: self.diplo_name(id),
+                    ranks: ranks.get(&id).copied(),
                     relation,
                     treaty,
                     peace,
@@ -138,6 +150,44 @@ impl App {
             .collect();
         found.sort_by_key(|c| (self.game.race_of_player(c.id).is_some(), c.gone));
         found
+    }
+
+    /// A place as a word: "1st", "2nd".
+    pub(crate) fn rank_text(&self, place: usize) -> String {
+        let key = format!("diplomacy.rank_{place}");
+        if self.texts.has(&key) {
+            self.text(&key)
+        } else {
+            self.text_with("diplomacy.rank_other", &Args::new().count("n", place))
+        }
+    }
+
+    /// The people of a neutral player's race, "Barbarians".
+    fn race_name(&self, id: PlayerId) -> Option<String> {
+        let race = self.game.race_of_player(id)?;
+        let num = self.game.content().rules.races.get(race).num;
+        Some(self.names.race_plural(num).to_string())
+    }
+
+    /// Where each wizard known stands by army strength, magic power and spell research, the
+    /// scores of the Astrologer screen: 1 for the highest, a tie shares the better place.
+    pub(crate) fn wizard_ranks(&self) -> std::collections::HashMap<PlayerId, [usize; 3]> {
+        let table = self.game.astrology_table();
+        let known = self.known_wizards();
+        let scores: Vec<(PlayerId, [i32; 3])> = known
+            .iter()
+            .filter_map(|&id| {
+                let (_, a, _) = table.iter().find(|(p, ..)| *p == id)?;
+                Some((id, [a.strength, a.power, a.research]))
+            })
+            .collect();
+        scores
+            .iter()
+            .map(|&(id, mine)| {
+                let place = |k: usize| 1 + scores.iter().filter(|(_, s)| s[k] > mine[k]).count();
+                (id, [place(0), place(1), place(2)])
+            })
+            .collect()
     }
 
     /// The list as rows: the wizards, the heading of the neutral races and them, and the line
@@ -320,6 +370,17 @@ impl Page for DiplomacyListUi {
             let head = app.text(head);
             app.draw_styled(view, &Style::city_list_text(1), &head, x, 17.0);
         }
+        for (head, x) in [
+            "diplomacy.list_army",
+            "diplomacy.list_magic",
+            "diplomacy.list_research",
+        ]
+        .into_iter()
+        .zip(RANK_X)
+        {
+            let head = app.text(head);
+            app.draw_styled(view, &Style::city_list_text(1).center(), &head, x, 17.0);
+        }
 
         // Scrolling: the arrows, U and D, the wheel (as the city list does).
         let mut scroll = 0i32;
@@ -404,6 +465,13 @@ impl Page for DiplomacyListUi {
                     let word = app.text(key);
                     let style = colour.map_or(Style::city_list_text(1), flat);
                     app.draw_styled(view, &style, &word, TREATY_X, ty);
+                    for (k, x) in RANK_X.into_iter().enumerate() {
+                        let text = c.ranks.map_or_else(
+                            || app.text("diplomacy.rank_none"),
+                            |r| app.rank_text(r[k]),
+                        );
+                        app.draw_styled(view, &Style::city_list_text(1).center(), &text, x, ty);
+                    }
                 }
             }
         }
@@ -418,7 +486,7 @@ impl Page for DiplomacyListUi {
             app.draw_styled(
                 view,
                 &Style::city_list_text(1),
-                &c.name.to_uppercase(),
+                &c.full_name.to_uppercase(),
                 99.0,
                 158.0,
             );
@@ -541,6 +609,47 @@ mod tests {
             .position(|r| matches!(r, Row::Heading(_)))
             .expect("a heading for the neutral races");
         assert!(matches!(&rows[0], Row::Contact(c) if c.id == rival));
-        assert!(matches!(&rows[heading + 1], Row::Contact(c) if c.id == neutral));
+        let Row::Contact(n) = &rows[heading + 1] else {
+            panic!("no neutral row in {rows:?}");
+        };
+        assert_eq!(n.id, neutral);
+        assert!(!n.name.starts_with("Neutral"), "{}", n.name);
+        assert!(n.full_name.starts_with("Neutral"), "{}", n.full_name);
+        assert_eq!(n.ranks, None, "a neutral race has no magic or research");
+    }
+
+    #[test]
+    fn the_ranks_count_the_wizards_known_and_a_tie_shares_the_better_place() {
+        let mut app = App::for_test();
+        let rival = app
+            .game
+            .wizards()
+            .into_iter()
+            .find(|&w| w != HUMAN)
+            .expect("a rival");
+        assert!(
+            !app.wizard_ranks().contains_key(&rival),
+            "a wizard not met is not ranked"
+        );
+        app.game.make_contact(HUMAN, rival);
+        let ranks = app.wizard_ranks();
+        let (mine, theirs) = (ranks[&HUMAN], ranks[&rival]);
+        for k in 0..3 {
+            assert!((1..=2).contains(&mine[k]) && (1..=2).contains(&theirs[k]));
+            assert!(
+                mine[k] == 1 || theirs[k] == 1,
+                "somebody is first in column {k}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_place_is_a_word_up_to_the_third_and_th_after() {
+        let app = App::for_test();
+        assert_eq!(app.rank_text(1), "1st");
+        assert_eq!(app.rank_text(2), "2nd");
+        assert_eq!(app.rank_text(3), "3rd");
+        assert_eq!(app.rank_text(4), "4th");
+        assert_eq!(app.rank_text(10), "10th");
     }
 }

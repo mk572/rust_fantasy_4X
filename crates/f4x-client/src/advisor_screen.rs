@@ -45,7 +45,7 @@ const STATUS_AT: (f32, f32) = (20.0, 11.0);
 
 impl App {
     /// The wizards the player knows of, and the player: the ones the two screens list.
-    fn known_wizards(&self) -> Vec<f4x_core::player::PlayerId> {
+    pub(crate) fn known_wizards(&self) -> Vec<f4x_core::player::PlayerId> {
         self.game
             .player_ids()
             .into_iter()
