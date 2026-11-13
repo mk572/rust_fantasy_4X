@@ -1,4 +1,4 @@
-//! The client's help text (`crates/f4x-client/content/text/en/help/help.ron` and `help_screens.ron`)
+//! The client's help text (`crates/f4x-lang/content/text/en/help/help.ron` and `help_screens.ron`)
 //! agrees with the rules: every building, race, retort, realm, wizard, ability and spell names a
 //! topic that exists, and every topic is opened by an area or by a rules entry. The help is the
 //! client's; these checks need the shipped rules, so they run here, not in `f4x-def`.

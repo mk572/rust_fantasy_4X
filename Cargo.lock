@@ -2612,6 +2612,7 @@ dependencies = [
  "f4x-core",
  "f4x-def",
  "f4x-extract",
+ "f4x-lang",
  "f4x-master",
  "hecs",
  "macroquad",
@@ -2663,6 +2664,16 @@ version = "0.0.6"
 dependencies = [
  "fontdue",
  "png 0.17.16",
+ "ron",
+ "serde",
+]
+
+[[package]]
+name = "f4x-lang"
+version = "0.0.6"
+dependencies = [
+ "f4x-core",
+ "f4x-def",
  "ron",
  "serde",
 ]

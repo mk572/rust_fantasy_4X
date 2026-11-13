@@ -4,7 +4,7 @@ The text import, split off `import_mom.py`. Reads the author's own copy of the o
 a local clone of the ReMoM reverse-engineering project, and writes only what is not game data:
 `content-local/` (city names, event messages, diplomacy lines and building descriptions:
 copyrighted prose, gitignored, never to be committed or distributed). Nothing of it is read by the
-game or by `f4x-tools`: the game's own texts are `crates/f4x-client/content/text/`. The files are
+game or by `f4x-tools`: the game's own texts are `crates/f4x-lang/content/text/`. The files are
 for comparing the game's text with the original's, and the building descriptions cross-check the
 effects in `crates/f4x-def/content/buildings.ron`.
 

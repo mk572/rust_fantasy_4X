@@ -287,7 +287,10 @@ mod tests {
     #[test]
     fn every_switch_has_a_help_topic_with_text_and_a_right_click_finds_its_row() {
         let help = f4x_def::load::load_help(
-            &[std::path::Path::new(crate::test_app::CLIENT_CONTENT)],
+            &[
+                std::path::Path::new(crate::test_app::LANG_CONTENT),
+                std::path::Path::new(crate::test_app::CLIENT_CONTENT),
+            ],
             "en",
         )
         .expect("the shipped help loads");

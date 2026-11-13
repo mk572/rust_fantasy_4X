@@ -300,7 +300,7 @@ Where the item rules differ from the original's code or are read from ReMoM with
   summoning circle after the battle, not counted among the fleeing.
 - **Heroes cannot be dismissed yet**: the Dismiss button refuses them until the items they carry
   have somewhere to go (task 221).
-- **Names.** A hero's name comes from `crates/f4x-client/content/text/en/name/hero.ron` (five a hero, one per wizard
+- **Names.** A hero's name comes from `crates/f4x-lang/content/text/en/name/hero.ron` (five a hero, one per wizard
   number).
 - **Hero abilities (task 47).** Legendary adds fame (3 times level plus one; 4.5 times for the
   greater one): the original's fame code for it is commented out, the help promises it, so ours
@@ -361,7 +361,7 @@ the original's ways. Kept there; listed so this file is a complete index.
   building drops the city back to housing, replaced buildings cost no upkeep, a unit with any
   movement left may always step): check each against the original before relying on it.
 - Saves are snapshots, not command logs.
-- Help text rewritten where it disagrees with the game's code (the game's own help is `crates/f4x-client/content/text/en/help/help.ron`, edited by hand; the importer no longer reads the original's help).
+- Help text rewritten where it disagrees with the game's code (the game's own help is `crates/f4x-lang/content/text/en/help/help.ron`, edited by hand; the importer no longer reads the original's help).
 
 ## 13. Casting in battle (tasks 51, 159 and 265)
 

@@ -141,7 +141,7 @@ Not started. Intended design:
 
 ### Placeholder art and original data (local only)
 - The original game's art, music, help text and code are copyrighted and have never been released under a free licence, so they are never committed or distributed with this project. Its rules data (races, units, buildings, spells, items, abilities, realms, level paths and rule values) is committed in `crates/f4x-def/content/`.
-- For development, art is extracted locally from the author's own purchased copy (Steam "Master of Magic Classic") by `f4x-extract art` into `assets-local/art`. The rules data is kept by hand in `crates/f4x-def/content/` (committed), and the game's texts are its own (`crates/f4x-client/content/text/`); `scripts/import_mom_text.py` can write the original's prose to `content-local/` for comparison. The original game files and the ReMoM reverse-engineering clone live in `reference/` inside the project directory, which is gitignored (and so is `*.lbx`, as a second safeguard).
+- For development, art is extracted locally from the author's own purchased copy (Steam "Master of Magic Classic") by `f4x-extract art` into `assets-local/art`. The rules data is kept by hand in `crates/f4x-def/content/` (committed), and the game's texts are its own (`crates/f4x-lang/content/text/`); `scripts/import_mom_text.py` can write the original's prose to `content-local/` for comparison. The original game files and the ReMoM reverse-engineering clone live in `reference/` inside the project directory, which is gitignored (and so is `*.lbx`, as a second safeguard).
 - The client loads local art if present and falls back to flat colours otherwise, so the game runs and CI passes without it.
 - Before any public release, all placeholders must be replaced with original art or art under a free licence. Treat anything in `assets-local/` and `content-local/` as temporary. The rules data in `crates/f4x-def/content/` stays: it is ours to change.
 
@@ -170,7 +170,7 @@ Rules and data
 Resolving differences between sources (full list in `help-vs-implementation-conflicts.md`)
 1. Anything the ReMoM clone marks as a bug in the original game: use ReMoM's fix.
 2. Anything ReMoM marks as to-do or not implemented: use the original game's behaviour.
-3. Where the in-game help disagrees with the original's code or data: decide by the priorities above. Where the game does not follow the help, the imported help is rewritten to say what the game does (the reason is in the importer's report, not in the text the player reads); the game's own help is `crates/f4x-client/content/text/en/help/help.ron`.
+3. Where the in-game help disagrees with the original's code or data: decide by the priorities above. Where the game does not follow the help, the imported help is rewritten to say what the game does (the reason is in the importer's report, not in the text the player reads); the game's own help is `crates/f4x-lang/content/text/en/help/help.ron`.
 4. The importer fails loudly when a source no longer matches, and writes everything it cannot map to `content-local/IMPORT_REPORT.txt`.
 
 Economy and movement

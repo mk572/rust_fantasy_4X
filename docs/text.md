@@ -1,6 +1,13 @@
 # Player-facing text
 
-Every message the player reads comes from `crates/f4x-client/content/text/<lang>/*.ron` by key. Code names a key and
+The words live in their own crate, `f4x-lang` (`crates/f4x-lang`): the loader and `Texts` (`text`), the name tables
+and name lists (`names`, `Names`) and the files in `content/text/`. It depends on `f4x-core` and `f4x-def`, not on
+a client, so another client reads the same files; the client keeps the fonts and glyphs (`font*.rs`) and the keys
+of its screens (`help_screens.ron`, which names the help topic of a screen area, stays in `crates/f4x-client/content`).
+Tests: the loader's and the names' with the crate; the check that the client's code and the keys agree stays in
+`crates/f4x-client/tests/it/text.rs`.
+
+Every message the player reads comes from `crates/f4x-lang/content/text/<lang>/*.ron` by key. Code names a key and
 gives the values; it holds no sentence. This is what makes a second language possible.
 
 ## Files and keys
@@ -47,7 +54,7 @@ Debug output of the console and test messages are not player-facing and stay in 
 
 ## What stays outside
 
-- Names of the numbered rules tables are one file each in `crates/f4x-client/content/text/<lang>/name/`: `unit.ron`,
+- Names of the numbered rules tables are one file each in `crates/f4x-lang/content/text/<lang>/name/`: `unit.ron`,
   `spell.ron`, `building.ron`, `race.ron` (name and plural), `realm.ron`, `ability.ron`,
   `item.ron`, `item_power.ron`, `terrain.ron`, `feature.ron` (the map features). A file is a RON map from the definition's `num` to its name
   (`{ 95: "Spearmen" }`). The loader puts the name of the language in `crates/f4x-client/content/client_settings.ron` on each
@@ -80,7 +87,7 @@ Debug output of the console and test messages are not player-facing and stay in 
 
 ## Help topics
 
-The help text is `crates/f4x-client/content/text/en/help/help.ron`, one topic per index. A screen area names the topic it opens
+The help text is `crates/f4x-lang/content/text/en/help/help.ron`, one topic per index. A screen area names the topic it opens
 (`help_screens.ron`). An entity names its own topic with `help: Some(index)` on its row: abilities,
 spells, buildings, retorts, races, spell realms and ready-made wizards. The code never looks a topic up
 by the entity's name; it follows the entity's `help`. A test (`f4x-core/tests/it`) keeps every such link

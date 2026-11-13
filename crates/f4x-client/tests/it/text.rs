@@ -1,4 +1,4 @@
-//! The messages in `crates/f4x-client/content/text/` and the code agree: every key the code names exists, every key
+//! The messages in `crates/f4x-lang/content/text/` and the code agree: every key the code names exists, every key
 //! is used, and a file holds only the keys of its area (`battle.ron` holds `battle.*`).
 
 use std::collections::BTreeSet;
@@ -19,7 +19,7 @@ type Area = (String, Vec<String>);
 
 /// The area of each file of the English messages, and its keys.
 fn written() -> Result<Vec<Area>, Box<dyn Error>> {
-    let folder = root().join("crates/f4x-client/content/text/en");
+    let folder = root().join("crates/f4x-lang/content/text/en");
     let mut files = Vec::new();
     for entry in std::fs::read_dir(&folder)? {
         let path = entry?.path();
@@ -225,7 +225,7 @@ fn the_client_holds_no_message_in_its_code() -> TestResult {
     }
     assert!(
         found.is_empty(),
-        "text in the client's code; move it to crates/f4x-client/content/text/en/ (docs/text.md):\n{}",
+        "text in the client's code; move it to crates/f4x-lang/content/text/en/ (docs/text.md):\n{}",
         found.join("\n")
     );
     Ok(())

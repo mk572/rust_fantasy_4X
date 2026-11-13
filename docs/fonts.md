@@ -17,7 +17,7 @@ and run `--pin` to fill in the hashes. Include the font's licence text as a down
 
 | Command | What it does |
 |---|---|
-| `font-chars [text-dir]` | prints the distinct characters of every `.ron` file under `crates/f4x-client/content/text` (all languages) on one line; redirect it to a file for `--chars` |
+| `font-chars [text-dir]` | prints the distinct characters of every `.ron` file under `crates/f4x-lang/content/text` (all languages) on one line; redirect it to a file for `--chars` |
 | `font-coverage <font> [--chars FILE]` | lists the wanted characters the font has no glyph for. Wanted: Basic Latin, Latin-1 and Latin Extended-A, plus the characters of FILE |
 | `font-bmfont <font> [<px>] [--out DIR] [--name NAME] [--chars FILE] [--smooth]` | rasterises the font at `<px>` into `DIR/NAME.fnt` and `.png` (default `assets-local/fonts`, name from the file and size): an AngelCode text BMFont with white glyphs, kerning pairs rounded to whole pixels, `lineHeight` and `base` from the font's line metrics. Without `--smooth` every pixel is on or off, which keeps pixel fonts crisp. A `.bdf` bitmap font (`bdf.rs`: ascent, descent, per glyph code point, size, offset, advance and bitmap) keeps its own pixels and size: leave `<px>` out (a different size is an error), and it has no kerning |
 

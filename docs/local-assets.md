@@ -3,7 +3,7 @@
 Nothing protected by IP may be committed or shared (the repo is CC0): the original's art, music
 and sound, help text and other prose, and code. The game's rules data (names, costs, stats,
 effects and numbers) is not in that class and is committed in `crates/f4x-def/content/`. The two outputs below
-are the local-only ones; both are gitignored and the game runs without them (flat colours, and the help of `crates/f4x-client/content/text/en/help/help.ron` only).
+are the local-only ones; both are gitignored and the game runs without them (flat colours, and the help of `crates/f4x-lang/content/text/en/help/help.ron` only).
 
 ## Where the originals live
 
@@ -68,7 +68,7 @@ test cannot pass on data the game no longer has.
 ## The original's prose: `content-local/` (gitignored, developer only)
 
 The game reads **no text of the original**: its texts, event sentences, diplomacy lines, city names and
-help are its own files in `crates/f4x-client/content/text/`. For comparing them with the original's,
+help are its own files in `crates/f4x-lang/content/text/`. For comparing them with the original's,
 a developer can write the original's prose to `content-local/`, which nothing reads:
 
 ```

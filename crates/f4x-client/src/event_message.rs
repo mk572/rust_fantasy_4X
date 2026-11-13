@@ -180,7 +180,7 @@ mod tests {
     /// the placeholders `compose` fills in.
     #[test]
     fn the_shipped_sentences_cover_every_notice() -> TestResult {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("content/text/en/message");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../f4x-lang/content/text/en/message");
         let lines = load(&dir)?;
         assert!(!lines.is_empty(), "the shipped event sentences are missing");
         let known = [

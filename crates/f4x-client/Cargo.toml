@@ -10,6 +10,7 @@ f4x-def.workspace = true
 f4x-console.workspace = true
 f4x-extract.workspace = true
 f4x-ai.workspace = true
+f4x-lang.workspace = true
 f4x-master.workspace = true
 macroquad.workspace = true
 strum.workspace = true

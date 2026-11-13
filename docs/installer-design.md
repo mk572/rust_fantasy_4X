@@ -34,7 +34,7 @@ that does it.
 **Rule: `scripts/import_mom_text.py`, Python and ReMoM are for development only.** The player's machine
 needs none of them, and neither does the game: the client and `f4x-setup` read the original's art and
 sound directly and nothing else. The game reads **no text of the original**: its texts, event sentences,
-diplomacy lines, city names and help are its own files in `crates/f4x-client/content/text/`. The text
+diplomacy lines, city names and help are its own files in `crates/f4x-lang/content/text/`. The text
 import script (city names, event texts, diplomacy lines, building descriptions, written to the
 gitignored `content-local/`) is the developer's tool for comparing the game's text with the original's,
 and is never shipped, run or required by an installer.
@@ -53,7 +53,7 @@ Measured or read in this repository:
 | 2 | Extract art (about 25,000 PNG) | `f4x-extract art` (Rust) | nothing | `assets-local/art`, `assets-local/screens` (86 MB and 53 MB) |
 | 3 | Extract sound effects to OGG | `f4x-extract audio` (Rust) | `oggenc` or `ffmpeg` for the encoding | `assets-local/audio` |
 | 4 | Extract the 118 songs as XMI | same | nothing | `music/*.xmi` |
-| 5 | (none) | The game has its own texts in `crates/f4x-client/content/text/`; `scripts/import_mom_text.py` (developer only) writes the original's prose to `content-local/` for comparison, and nothing reads it | not part of the player's setup | |
+| 5 | (none) | The game has its own texts in `crates/f4x-lang/content/text/`; `scripts/import_mom_text.py` (developer only) writes the original's prose to `content-local/` for comparison, and nothing reads it | not part of the player's setup | |
 | 6 | Get the MT-32 ROMs | by hand | | `reference/Roland MT-32/rom-new/` |
 | 7 | Render the songs to OGG | `tools/xmi-play -R` (Rust, own workspace, LGPL `mt32-rs`) | the ROMs; `oggenc` or `ffmpeg`; about 2 minutes | `music/*.ogg` (129 MB) |
 | 8 | Build the game | `cargo build --release -p f4x-client` via `make_app.sh` | Rust toolchain, a C toolchain, system libraries | `target/release/f4x-client` (12.6 MB) |
@@ -111,7 +111,7 @@ design does to keep it as clean as it can be:
 
 - **Python and ReMoM: not needed by the player.** The game reads no text of the original any more:
   the city names, the event sentences, the diplomacy lines and the help are its own files in
-  `crates/f4x-client/content/text/` (the diplomacy lines are the keys of `text/en/diplomacy.ron`, and
+  `crates/f4x-lang/content/text/` (the diplomacy lines are the keys of `text/en/diplomacy.ron`, and
   the `diplomsg` loader is gone). `scripts/import_mom_text.py` stays a developer script: it writes the
   original's prose (`CITYNAME.LBX`, `EVENTMSG.LBX`, `DIPLOMSG.LBX`, `BUILDESC.LBX`) to the gitignored
   `content-local/` and cross-checks the building descriptions against `buildings.ron`. It needs

@@ -1,7 +1,7 @@
 //! Help pop-ups: a right-click on a button, icon or figure opens the help for it, as
 //! in the original. Each screen has a list of areas in the original's 320 by 200 pixels
 //! (`crates/f4x-client/content/help_screens.ron`, from `HLPENTRY.LBX`) that name the topic they open; the topic's
-//! text is the game's own (`crates/f4x-client/content/text/en/help/help.ron`; the original's is never read). A topic with no text opens nothing. A click or a key closes the pop-up.
+//! text is the game's own (`crates/f4x-lang/content/text/en/help/help.ron`; the original's is never read). A topic with no text opens nothing. A click or a key closes the pop-up.
 //!
 //! The screen under it is frozen: the frame it opened on is kept as a picture, so a click that
 //! closes the pop-up cannot reach a button below. With Expanding Help on, the box grows out of the

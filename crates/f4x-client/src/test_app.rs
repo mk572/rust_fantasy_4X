@@ -19,6 +19,8 @@ use crate::view::App;
 pub(crate) const CONTENT: &str = "../f4x-def/content";
 /// The client's own tables (`crates/f4x-client/content`).
 pub(crate) const CLIENT_CONTENT: &str = "content";
+/// The language files (`crates/f4x-lang/content`).
+pub(crate) const LANG_CONTENT: &str = "../f4x-lang/content";
 
 /// The files of `content/`, each parsed once for the whole test run.
 pub(crate) mod shipped {
@@ -31,7 +33,7 @@ pub(crate) mod shipped {
     pub(crate) fn texts() -> &'static Texts {
         static CELL: OnceLock<Texts> = OnceLock::new();
         CELL.get_or_init(|| {
-            crate::text::load_texts(&[Path::new(CLIENT_CONTENT)], "en")
+            crate::text::load_texts(&[Path::new(LANG_CONTENT)], "en")
                 .expect("the shipped texts load")
         })
     }
@@ -62,7 +64,7 @@ pub(crate) mod shipped {
     pub(crate) fn names() -> &'static crate::names::Names {
         static CELL: OnceLock<crate::names::Names> = OnceLock::new();
         CELL.get_or_init(|| {
-            crate::names::Names::load(&[Path::new(CLIENT_CONTENT)], "en")
+            crate::names::Names::load(&[Path::new(LANG_CONTENT)], "en")
                 .expect("the shipped names load")
         })
     }
@@ -70,7 +72,7 @@ pub(crate) mod shipped {
     pub(crate) fn help() -> &'static f4x_def::help::Help {
         static CELL: OnceLock<f4x_def::help::Help> = OnceLock::new();
         CELL.get_or_init(|| {
-            f4x_def::load::load_help(&[Path::new(CLIENT_CONTENT)], "en")
+            f4x_def::load::load_help(&[Path::new(LANG_CONTENT), Path::new(CLIENT_CONTENT)], "en")
                 .expect("the shipped help loads")
         })
     }

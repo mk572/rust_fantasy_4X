@@ -29,7 +29,7 @@ pub fn run(command: &str, args: &[String]) -> Result<(), String> {
         "font-chars" => {
             let dir = args
                 .first()
-                .map_or("crates/f4x-client/content/text", String::as_str);
+                .map_or("crates/f4x-lang/content/text", String::as_str);
             let chars = used_characters(Path::new(dir))?;
             println!("{}", chars.iter().collect::<String>());
             Ok(())

@@ -358,7 +358,7 @@ mod tests {
 
     #[test]
     fn the_shipped_names_load() -> TestResult {
-        let names = Names::load(&[Path::new(crate::test_app::CLIENT_CONTENT)], "en")?;
+        let names = Names::load(&[Path::new("content")], "en")?;
         assert_eq!(names.unit(0), "Dwarf");
         assert_eq!(names.race_plural(0), "Barbarians");
         Ok(())
@@ -366,8 +366,8 @@ mod tests {
 
     #[test]
     fn the_shipped_name_lists_make_the_bundle_a_new_game_takes() -> TestResult {
-        let names = Names::load(&[Path::new(crate::test_app::CLIENT_CONTENT)], "en")?;
-        let content = crate::test_app::shipped::content();
+        let names = Names::load(&[Path::new("content")], "en")?;
+        let content = f4x_def::testdir::shipped();
         let bundle = names.bundle();
         for race in content.rules.races.defs() {
             let list = bundle.cities.get(&race.num);
@@ -390,10 +390,10 @@ mod tests {
 
     #[test]
     fn an_item_is_called_by_its_given_name_its_prefab_name_or_its_parts() {
-        use crate::test_app::shipped;
-        let content = shipped::content();
-        let names = shipped::names();
-        let texts = shipped::texts();
+        let content = f4x_def::testdir::shipped();
+        let names = Names::load(&[Path::new("content")], "en").expect("the shipped names load");
+        let texts = &crate::text::load_texts(&[Path::new("content")], "en")
+            .expect("the shipped texts load");
         let def = &content.rules.items.defs()[0];
         let mut item = Item::from_def(def);
         assert_eq!(names.item_name(&item, texts), names.item(def.num));

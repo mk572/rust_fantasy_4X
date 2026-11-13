@@ -387,7 +387,7 @@ impl Texts {
         }
     }
 
-    #[cfg(test)]
+    /// Whether the language or the fallback has a message for the key.
     pub fn has(&self, key: &str) -> bool {
         self.entries.contains_key(key) || self.fallback.contains_key(key)
     }

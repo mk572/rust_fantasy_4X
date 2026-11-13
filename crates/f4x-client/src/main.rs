@@ -65,7 +65,6 @@ mod map_slide;
 mod menu_bar_art;
 mod menu_screen;
 mod modal;
-mod names;
 mod neutral_art;
 mod newgame_button_art;
 mod newgame_flow;
@@ -99,7 +98,7 @@ mod temp_effect_view;
 mod terrain_pick;
 #[cfg(test)]
 mod test_app;
-mod text;
+use f4x_lang::{names, text};
 mod turn_seats;
 mod ui;
 mod undead_scene;
@@ -131,7 +130,7 @@ const CLIENT_CONTENT: &str = "crates/f4x-client/content";
 /// language, or the English one.
 fn message_dir(language: &str, file: &str) -> PathBuf {
     let folder = |lang: &str| {
-        Path::new(CLIENT_CONTENT)
+        Path::new(f4x_lang::LANG_CONTENT)
             .join("text")
             .join(lang)
             .join("message")
@@ -662,21 +661,24 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    let texts = match text::load_texts(&layers, &settings.language) {
+    let lang_layers = [Path::new(f4x_lang::LANG_CONTENT)];
+    let texts = match text::load_texts(&lang_layers, &settings.language) {
         Ok(t) => t,
         Err(e) => {
             eprintln!("could not load the messages: {e}");
             std::process::exit(1);
         }
     };
-    let help = f4x_def::load::load_help(&layers, &settings.language).unwrap_or_default();
-    let tables = match asset_check::load_tables(&layers, &content.rules, &settings.language) {
-        Ok(tables) => tables,
-        Err(e) => {
-            eprintln!("could not load the asset tables: {e}");
-            std::process::exit(1);
-        }
-    };
+    let help = f4x_def::load::load_help(&[lang_layers[0], layers[0]], &settings.language)
+        .unwrap_or_default();
+    let tables =
+        match asset_check::load_tables(&layers, &lang_layers, &content.rules, &settings.language) {
+            Ok(tables) => tables,
+            Err(e) => {
+                eprintln!("could not load the asset tables: {e}");
+                std::process::exit(1);
+            }
+        };
     let mut app = match App::new(
         content,
         tables.names,

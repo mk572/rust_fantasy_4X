@@ -27,13 +27,18 @@ pub struct Tables {
 }
 
 /// The tables from the first of `dirs` that has each, checked against `rules`.
-pub fn load_tables(dirs: &[&Path], rules: &Rules, language: &str) -> Result<Tables, String> {
+pub fn load_tables(
+    dirs: &[&Path],
+    lang_dirs: &[&Path],
+    rules: &Rules,
+    language: &str,
+) -> Result<Tables, String> {
     let spells = spell_art::load_spell_art(dirs)?;
     let units = unit_art::load_unit_art(dirs)?;
     let wizards = wizard_art::load_wizard_art(dirs)?;
     let sounds = sound::load_sound(dirs)?;
     let icons = icon_art::load_icon_art(dirs)?;
-    let names = Names::load(dirs, language)?;
+    let names = Names::load(lang_dirs, language)?;
     let mut problems = check_spell_art(&spells, rules);
     problems.extend(check_unit_art(&units, rules));
     problems.extend(check_wizard_art(&wizards, rules));
@@ -179,7 +184,12 @@ mod tests {
     #[test]
     fn the_shipped_tables_agree_with_the_shipped_rules() -> TestResult {
         let rules = &shipped::content().rules;
-        let tables = load_tables(&[Path::new(crate::test_app::CLIENT_CONTENT)], rules, "en")?;
+        let tables = load_tables(
+            &[Path::new(crate::test_app::CLIENT_CONTENT)],
+            &[Path::new(crate::test_app::LANG_CONTENT)],
+            rules,
+            "en",
+        )?;
         assert_eq!(tables.icons.items.len(), rules.items.len());
         assert_eq!(tables.icons.battle_info.len(), 14);
         assert_eq!(tables.sounds.units.len(), rules.units.len());
