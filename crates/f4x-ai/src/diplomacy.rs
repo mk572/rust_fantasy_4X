@@ -281,7 +281,7 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
     let mood = crate::objective::temper(game.personality(me), game.difficulty()).modifier();
     let stance = game
         .diplomacy
-        .stance(me, human)
+        .stance(human, me)
         .cloned()
         .unwrap_or_default();
     let propose = |game: &mut Game, events: &mut Vec<Event>, kind| {
@@ -446,7 +446,7 @@ fn need_for_war(
         return false;
     }
     let difficulty = u32::from(game.difficulty());
-    let hidden = game.diplomacy.stance(me, human).map_or(0, |s| s.hidden);
+    let hidden = game.diplomacy.stance(human, me).map_or(0, |s| s.hidden);
     let (mine, theirs) = (army_strength(game, me), army_strength(game, human));
     let superiority = (mine - theirs) * 100 / (mine + theirs).max(1);
     let at_war_with_human = |game: &Game, w: PlayerId| game.treaty(w, human) == Treaty::War;
@@ -648,7 +648,7 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let mood = crate::objective::temper(game.personality(me), game.difficulty()).modifier();
         let stance = game
             .diplomacy
-            .stance(me, other)
+            .stance(other, me)
             .cloned()
             .unwrap_or_default();
         let score = stance.hidden

@@ -229,8 +229,9 @@ re-evaluate hostility in `15 + Random(10)` turns.
 wizard pact and -20 for an alliance (doubled for a Lawful breaker). In the original it is
 *subtracted* from a negative number, so the stored hidden relation *rises*; the intent (OSG:
 "every treaty you break labels you as untrustworthy and permanently worsens your relations with
-all wizards") is a fall. Everyone else's hidden relation to the victim falls by 5 (this is the
-original's reading of "rest of the world"; the victim, not the breaker). In an alliance the penalty
+all wizards") is a fall. When a pact or alliance is really broken, every other wizard's hidden relation
+to the *breaker* falls by 5 (the original lowers their record of the victim instead, and also when no
+treaty existed, so each war declaration did; 1.50 notes 372, 389 and 390, decided 14 November 2026). In an alliance the penalty
 also lowers `default_rel` (to at least -100). The breaker's relation to the victim falls by
 `Random(20)` if a real treaty was broken. Both sides' status becomes `NoTreaty`, all three
 patience counters -200, and the broken treaty is recorded.
@@ -438,7 +439,8 @@ a named constant so a rule set can restore it (PLANNED item 5, rule sets):
 | `Find_Worst_Modifier` is documented as the lowest of the patience counters but its comparisons are muddled (it also starts from 0) | The "cold shoulder" test is unreliable | Lowest of the three (intended) |
 | "Final war" status | Never set | Left out |
 | Attacking a treaty partner calls `Break_Treaties(defender, attacker)`: the victim is the breaker | The oath-breaker penalty is the victim's | The attacker breaks the treaty and takes the penalty |
-| `Break_Treaties` lowers every other wizard's hidden relation to the victim by 5 even if no treaty existed (so each war declaration does) | As the original | As the original (tested) |
+| `Break_Treaties` lowers every other wizard's hidden relation to the victim by 5 even if no treaty existed (so each war declaration does) | Wars and broken treaties sour the others against the victim | Every other wizard's hidden relation to the breaker falls by 5, only when a pact or alliance is broken (tested) |
+| A spell given to a wizard raises the giver's own slot of the hidden relation in one place and the receiver's in another | Gifts to an AI did not count when it rated a proposal | The receiver's reaction to the giver rises, where the rating reads it (tested) |
 | Gravitation to the default runs for each AI toward each wizard, then the copies are mirrored in a way that depends on the order | Each AI pair drifts about twice a turn | Once per pair, by the AI's own record (the lower number's between two AIs) |
 | `Change_Relations` after turn 200 doubles AI-to-AI friendships and softens AI-to-AI enmities by difficulty | Safeguards for the AI | Not ported (design.md section 8) |
 | The Spell of Mastery's 11 percent war is tested on Earth Lore | Cast Earth Lore: 11 percent war | On the Spell of Mastery (as in the table above), tested |

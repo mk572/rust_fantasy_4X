@@ -117,12 +117,17 @@ pub struct Pair {
     pub default: i32,
 }
 
-/// What one wizard holds about another (`from` about `to`).
+/// What two wizards hold about each other, kept in the slot of one of them. `hidden` and the three
+/// patience counters are the reaction of `to` to `from` (the original's
+/// `_players[from].Dipl.Hidden_Rel[to]`): a wizard that asks, gives or breaks a treaty changes its
+/// own slot for the wizard it deals with, and the rating of a proposal that `from` makes to `to`
+/// reads `stance(from, to)`. A wizard's own decision about another reads `stance(other, me)`.
+/// The other fields are `from`'s about `to`.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Stance {
-    /// The permanent core reaction: oath breaking and gifts. Not shown.
+    /// The permanent core reaction of `to` to `from`: oath breaking and gifts. Not shown.
     pub hidden: i32,
-    /// How receptive `from` is to treaty, spell-exchange and peace proposals of `to`.
+    /// How receptive `to` is to treaty, spell-exchange and peace proposals of `from`.
     pub treaty_patience: i32,
     pub exchange_patience: i32,
     pub peace_patience: i32,
@@ -774,13 +779,17 @@ impl Diplomacy {
             let h = &mut self.stance_mut(breaker, victim).hidden;
             *h = (*h - penalty).max(-100);
         }
-        for other in wizards(ctx.view) {
-            if other != breaker && other != victim {
-                let h = &mut self.stance_mut(other, victim).hidden;
-                *h = (*h - 5).max(-100);
+        let broke_a_treaty = penalty != 0;
+        // Every other wizard thinks less of the oath-breaker (the original lowers their record of
+        // the victim instead, and also when no treaty was broken: 1.50 notes 372, 389, 390).
+        if broke_a_treaty {
+            for other in wizards(ctx.view) {
+                if other != breaker && other != victim {
+                    let h = &mut self.stance_mut(breaker, other).hidden;
+                    *h = (*h - 5).max(-100);
+                }
             }
         }
-        let broke_a_treaty = penalty != 0;
         let drop = if broke_a_treaty {
             ctx.rng.roll(20) as i32
         } else {
@@ -893,8 +902,12 @@ impl Diplomacy {
             ProposalKind::Peace => status == Treaty::War,
             ProposalKind::Threat => status != Treaty::War,
             ProposalKind::Demand { gold } => status != Treaty::War && gold > 0,
+            // A wizard allied with the third one is first asked to break the alliance: Break
+            // Alliance replaces Declare War for that wizard (1.50 note 058).
             ProposalKind::WarOn(third) => {
-                status != Treaty::War && known_third(third) && self.treaty(to, third) != Treaty::War
+                status != Treaty::War
+                    && known_third(third)
+                    && !matches!(self.treaty(to, third), Treaty::War | Treaty::Alliance)
             }
             ProposalKind::BreakAllianceWith(third) => {
                 status != Treaty::War
@@ -1110,7 +1123,9 @@ impl Diplomacy {
         let hidden = 2 + ctx.rng.roll(8) as i32;
         let pair = self.pair_mut(ctx.view, from, to);
         pair.visible = (pair.visible + gain).min(100);
-        let s = self.stance_mut(to, from);
+        // The receiver's reaction to the giver: its record sits in the giver's slot, as the
+        // rating of a proposal reads it (`Stance`).
+        let s = self.stance_mut(from, to);
         s.peace_patience = (s.peace_patience + gain).min(100);
         s.hidden = (s.hidden + hidden).min(30);
         self.queue

@@ -456,7 +456,7 @@ fn breaking_a_treaty_costs_trust_with_everyone() -> TestResult {
     let default = g.diplomacy.pair(P1, P2).ok_or("pair is missing")?.default;
     g.break_treaties(P1, P2);
     assert_eq!(g.treaty(P1, P2), Treaty::None);
-    // The oath breaker's own core reaction falls (the original raises it by mistake).
+    // The victim's core reaction to the oath breaker falls (the original raises it by mistake).
     assert_eq!(
         g.diplomacy
             .stance(P1, P2)
@@ -464,13 +464,18 @@ fn breaking_a_treaty_costs_trust_with_everyone() -> TestResult {
             .hidden,
         -20
     );
-    // Everyone else thinks less of the victim.
+    // Everyone else thinks less of the oath breaker (the original lowers their record of the victim).
     assert_eq!(
         g.diplomacy
-            .stance(P0, P2)
+            .stance(P1, P0)
             .ok_or("stance is missing")?
             .hidden,
         -5
+    );
+    assert_eq!(
+        g.diplomacy.stance(P0, P2).map_or(0, |s| s.hidden),
+        0,
+        "the victim is not thought less of"
     );
     assert_eq!(
         g.diplomacy.pair(P1, P2).ok_or("pair is missing")?.default,
@@ -514,14 +519,16 @@ fn breaking_a_treaty_costs_trust_with_everyone() -> TestResult {
 }
 
 #[test]
-fn ending_no_treaty_costs_the_breaker_nothing_of_its_own() {
+fn ending_no_treaty_costs_the_breaker_nothing() {
     let mut g = world();
     met(&mut g, P1, P2);
     g.break_treaties(P1, P2);
     assert_eq!(g.diplomacy.stance(P1, P2).map_or(0, |s| s.hidden), 0);
     assert_eq!(g.diplomacy.stance(P2, P1).and_then(|s| s.broken), None);
-    // The others' record of the victim still falls, as in the original.
-    assert_eq!(g.diplomacy.stance(P0, P2).map_or(0, |s| s.hidden), -5);
+    // No treaty was broken, so nobody thinks less of the breaker (the original lowers the
+    // others' record of the victim all the same).
+    assert_eq!(g.diplomacy.stance(P1, P0).map_or(0, |s| s.hidden), 0);
+    assert_eq!(g.diplomacy.stance(P0, P2).map_or(0, |s| s.hidden), 0);
 }
 
 #[test]
@@ -624,8 +631,13 @@ fn what_the_treaty_allows_decides_what_can_be_proposed() {
     g.start_treaty(P1, P2, Treaty::Alliance);
     assert!(ok(&g, P0, P1, ProposalKind::BreakAllianceWith(P2)));
     assert!(
+        !ok(&g, P0, P1, ProposalKind::WarOn(P2)),
+        "allies are first asked to break the alliance, not sent to war"
+    );
+    g.start_treaty(P1, P2, Treaty::None);
+    assert!(
         ok(&g, P0, P1, ProposalKind::WarOn(P2)),
-        "allies may still be sent to war"
+        "once the alliance is gone"
     );
     g.declare_war(P1, P2);
     assert!(!ok(&g, P0, P1, ProposalKind::WarOn(P2)), "already at war");
@@ -952,9 +964,10 @@ fn a_spell_given_is_known_and_wins_trust() -> TestResult {
     assert!(rejected(&events).is_none(), "{events:?}");
     assert!(g.wizard(P1).ok_or("wizard is missing")?.knows(famine));
     assert!(g.relation(P0, P1) > 0);
+    // The receiver's reaction to the giver rises: the rating of a proposal of the giver reads it.
     let hidden = g
         .diplomacy
-        .stance(P1, P0)
+        .stance(P0, P1)
         .ok_or("stance is missing")?
         .hidden;
     assert!((2..=9).contains(&hidden), "{hidden}");
