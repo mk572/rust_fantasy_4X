@@ -1,24 +1,29 @@
-//! Writing sprite packs (`pack.rs` has the file layout): lay the pictures of a folder out on PNG
-//! sheets, check that every picture reads back the same, and replace the loose files by the pack.
+//! Writing sprite packs (`pack.rs` has the sheet layout): put the pictures of a folder on PNG
+//! sheets with a uniform grid, check that every picture reads back the same, and replace the loose
+//! files by the sheets.
 //!
-//! `pack_tree` is the command `f4x-extract pack`. Where a folder is packed to:
-//! - `art/units/<unit>/` goes to `art/units/<folder>/<unit>.pack`, where the folder is the unit's
-//!   race (`high_elf/`), or `hero/`, `fantastic/` or `ship/` for a unit without one;
-//! - any other folder `D/` goes to `D.pack`, beside it.
+//! `pack_tree` is the command `f4x-extract pack`. Where a folder's sheets go:
+//! - `art/units/<unit>/` goes to `art/units/<folder>/<unit>.sheet.png`, where the folder is the
+//!   unit's race (`high_elf/`), or `hero/`, `fantastic/` or `ship/` for a unit without one;
+//! - any other folder `D/` goes to `D.sheet.png`, beside it.
 //!
-//! `packs.tsv` in the root lists `folder<TAB>pack` for every pack, both relative to the root; the
-//! client reads it once and opens a pack when a picture of its folder is first asked for. A folder
-//! packed again merges: a loose file replaces the picture of the same name in its old pack.
+//! A folder whose pictures differ much in size gets more sheets (`.sheet2.png`...), so no grid is
+//! mostly empty. `packs.tsv` in the root lists `folder<TAB>sheet` for every sheet, both relative to
+//! the root; the client reads it once and opens a folder's sheets when a picture is first asked for.
+//! A folder packed again merges: a loose file replaces the picture of the same name on its sheets.
 
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::pack::{encode, Frame, Pack};
+use crate::pack::{sheet_text, Pack, Sheet};
 
-/// The most a sheet takes in either direction: small enough for any graphics card, big enough for
-/// a unit's 66 pictures in one piece.
-const SHEET_MAX: usize = 2048;
+/// A sheet is at most this many pixels, so one decoded sheet stays a few megabytes.
+const SHEET_PIXELS: usize = 4_000_000;
+/// The widest a sheet is (the client reads sheets with 16-bit sizes).
+const SHEET_WIDTH: usize = 4096;
+/// A grid may waste this many times the area the pictures need before the sheet is split.
+const WASTE: usize = 2;
 
 /// A picture as RGBA bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,145 +66,131 @@ pub fn decode_png(bytes: &[u8]) -> Result<(usize, usize, Vec<u8>), String> {
     Ok((w, h, rgba))
 }
 
-/// PNG bytes of an RGBA image (the same settings as the loose files).
-pub fn encode_png(w: usize, h: usize, rgba: &[u8]) -> Result<Vec<u8>, String> {
+/// PNG bytes of an RGBA image (the same settings as the loose files), with a text chunk.
+pub fn encode_png(
+    w: usize,
+    h: usize,
+    rgba: &[u8],
+    text: Option<(&str, String)>,
+) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
     let mut enc = png::Encoder::new(&mut out, w as u32, h as u32);
     enc.set_color(png::ColorType::Rgba);
     enc.set_depth(png::BitDepth::Eight);
     enc.set_compression(png::Compression::Best);
     enc.set_filter(png::FilterType::Paeth);
+    if let Some((keyword, text)) = text {
+        enc.add_text_chunk(keyword.to_string(), text)
+            .map_err(|e| e.to_string())?;
+    }
     enc.write_header()
         .and_then(|mut wr| wr.write_image_data(rgba))
         .map_err(|e| e.to_string())?;
     Ok(out)
 }
 
-/// Where each picture goes on which sheet (shelf packing, tallest first), and each sheet's size.
-/// A picture bigger than a sheet gets a sheet of its own.
-fn layout(sizes: &[(usize, usize)]) -> (Vec<Frame>, Vec<(usize, usize)>) {
-    let mut order: Vec<usize> = (0..sizes.len()).collect();
-    order.sort_by_key(|&i| {
+/// Cut the pictures into groups that share a grid without wasting much: largest first, a new group
+/// when the grid of the group would be `WASTE` times the area its pictures need, or too big.
+fn groups(pictures: &[Picture]) -> Vec<Vec<&Picture>> {
+    let mut order: Vec<&Picture> = pictures.iter().collect();
+    order.sort_by_key(|p| {
         (
-            std::cmp::Reverse(sizes[i].1),
-            std::cmp::Reverse(sizes[i].0),
-            i,
+            std::cmp::Reverse(p.w * p.h),
+            std::cmp::Reverse(p.w),
+            &p.name,
         )
     });
-    let mut frames = vec![
-        Frame {
-            sheet: 0,
-            x: 0,
-            y: 0,
-            w: 0,
-            h: 0,
-        };
-        sizes.len()
-    ];
-    let mut sheets: Vec<(usize, usize)> = Vec::new();
-    // The shelf being filled on the last sheet: its next x, its top y and its height.
-    let (mut x, mut y, mut shelf) = (0usize, 0usize, 0usize);
-    for i in order {
-        let (w, h) = sizes[i];
-        let fits_a_sheet = w <= SHEET_MAX && h <= SHEET_MAX;
-        let new_sheet = sheets.is_empty() || !fits_a_sheet || {
-            if x + w > SHEET_MAX {
-                y += shelf;
-                x = 0;
-                shelf = 0;
-            }
-            y + h > SHEET_MAX
-        };
-        if new_sheet {
-            sheets.push((0, 0));
-            (x, y, shelf) = (0, 0, 0);
+    let mut out: Vec<Vec<&Picture>> = Vec::new();
+    let (mut cw, mut ch, mut used) = (0, 0, 0);
+    for p in order {
+        let (nw, nh) = (cw.max(p.w), ch.max(p.h));
+        let count = out.last().map_or(0, Vec::len) + 1;
+        let grid = count * nw * nh;
+        let fits =
+            !out.is_empty() && grid <= WASTE * (used + p.w * p.h).max(1) && grid <= SHEET_PIXELS;
+        if !fits {
+            out.push(Vec::new());
+            (cw, ch, used) = (0, 0, 0);
         }
-        let sheet = sheets.len() - 1;
-        frames[i] = Frame {
-            sheet: sheet as u16,
-            x: x as u16,
-            y: y as u16,
-            w: w as u16,
-            h: h as u16,
-        };
-        shelf = shelf.max(h);
-        x += w;
-        let size = &mut sheets[sheet];
-        size.0 = size.0.max(x);
-        size.1 = size.1.max(y + h);
-        if !fits_a_sheet {
-            // Alone on its sheet: the next picture starts a new one.
-            (x, y, shelf) = (SHEET_MAX, SHEET_MAX, 0);
+        cw = cw.max(p.w);
+        ch = ch.max(p.h);
+        used += p.w * p.h;
+        if let Some(group) = out.last_mut() {
+            group.push(p);
         }
     }
-    (frames, sheets)
+    out
 }
 
-/// The bytes of a pack holding `pictures`.
-pub fn build(pictures: &[Picture]) -> Result<Vec<u8>, String> {
-    let sizes: Vec<(usize, usize)> = pictures.iter().map(|p| (p.w, p.h)).collect();
-    let (frames, sheet_sizes) = layout(&sizes);
-    let mut sheets: Vec<Vec<u8>> = sheet_sizes
-        .iter()
-        .map(|&(w, h)| vec![0; w * h * 4])
-        .collect();
-    for (p, f) in pictures.iter().zip(&frames) {
-        let (sheet_w, _) = sheet_sizes[usize::from(f.sheet)];
-        let target = &mut sheets[usize::from(f.sheet)];
-        for row in 0..p.h {
-            let from = row * p.w * 4;
-            let to = ((usize::from(f.y) + row) * sheet_w + usize::from(f.x)) * 4;
-            target[to..to + p.w * 4].copy_from_slice(&p.rgba[from..from + p.w * 4]);
-        }
-    }
-    let pngs = sheets
-        .iter()
-        .zip(&sheet_sizes)
-        .map(|(rgba, &(w, h))| encode_png(w, h, rgba))
-        .collect::<Result<Vec<_>, _>>()?;
-    let table: Vec<(String, Frame)> = pictures
-        .iter()
-        .zip(frames)
-        .map(|(p, f)| (p.name.clone(), f))
-        .collect();
-    encode(&table, &pngs)
-}
-
-/// Every picture of a pack, decoded.
-pub fn pictures_of(pack: &Pack) -> Result<Vec<Picture>, String> {
+/// The PNG bytes of the sheets holding `pictures`, one uniform grid each.
+pub fn build(pictures: &[Picture]) -> Result<Vec<Vec<u8>>, String> {
     let mut sheets = Vec::new();
-    for i in 0..pack.sheet_count() {
-        let png = pack.sheet_png(i as u16).ok_or("pack: sheet missing")?;
-        sheets.push(decode_png(png)?);
+    for mut group in groups(pictures) {
+        group.sort_by(|a, b| a.name.cmp(&b.name));
+        let cw = group.iter().map(|p| p.w).max().unwrap_or(1).max(1);
+        let ch = group.iter().map(|p| p.h).max().unwrap_or(1).max(1);
+        // About square, never wider than the limit.
+        let wanted = ((group.len() * ch) as f64 / cw as f64).sqrt().ceil() as usize;
+        let cols = wanted.clamp(1, (SHEET_WIDTH / cw).max(1)).min(group.len());
+        let rows = group.len().div_ceil(cols);
+        let (sheet_w, sheet_h) = (cols * cw, rows * ch);
+        let mut rgba = vec![0; sheet_w * sheet_h * 4];
+        for (i, p) in group.iter().enumerate() {
+            let (x, y) = (i % cols * cw, i / cols * ch);
+            for row in 0..p.h {
+                let from = row * p.w * 4;
+                let to = ((y + row) * sheet_w + x) * 4;
+                rgba[to..to + p.w * 4].copy_from_slice(&p.rgba[from..from + p.w * 4]);
+            }
+        }
+        let list: Vec<(String, usize, usize)> =
+            group.iter().map(|p| (p.name.clone(), p.w, p.h)).collect();
+        let text = sheet_text(cw, ch, &list);
+        sheets.push(encode_png(
+            sheet_w,
+            sheet_h,
+            &rgba,
+            Some((crate::pack::KEYWORD, text)),
+        )?);
     }
+    Ok(sheets)
+}
+
+/// Every picture of a folder's sheets, decoded.
+pub fn pictures_of(sheets: &[Vec<u8>]) -> Result<Vec<Picture>, String> {
     let mut out = Vec::new();
-    for name in pack.names() {
-        let f = pack.frame(name).ok_or("pack: name without a frame")?;
-        let (sw, sh, data) = sheets
-            .get(usize::from(f.sheet))
-            .ok_or("pack: sheet missing")?;
-        let (x, y, w, h) = (
-            usize::from(f.x),
-            usize::from(f.y),
-            usize::from(f.w),
-            usize::from(f.h),
-        );
-        if x + w > *sw || y + h > *sh {
-            return Err(format!("pack: {name} reaches outside its sheet"));
+    for png in sheets {
+        let sheet = Sheet::parse(png)?;
+        let (width, height, data) = decode_png(png)?;
+        for i in 0..sheet.pictures.len() {
+            let (x, y, w, h) = sheet.rect(i).ok_or("sheet: a picture is missing")?;
+            if x + w > width || y + h > height {
+                return Err("sheet: a picture reaches outside the image".to_string());
+            }
+            let mut rgba = Vec::with_capacity(w * h * 4);
+            for row in y..y + h {
+                let at = (row * width + x) * 4;
+                rgba.extend_from_slice(&data[at..at + w * 4]);
+            }
+            out.push(Picture {
+                name: sheet.pictures[i].0.clone(),
+                w,
+                h,
+                rgba,
+            });
         }
-        let mut rgba = Vec::with_capacity(w * h * 4);
-        for row in y..y + h {
-            let at = (row * sw + x) * 4;
-            rgba.extend_from_slice(&data[at..at + w * 4]);
-        }
-        out.push(Picture {
-            name: name.to_string(),
-            w,
-            h,
-            rgba,
-        });
     }
     Ok(out)
+}
+
+/// The same as [`Pack`], for the bytes of sheets.
+pub fn pack_of(sheets: &[Vec<u8>]) -> Result<Pack, String> {
+    Ok(Pack::new(
+        sheets
+            .iter()
+            .map(|b| Sheet::parse(b))
+            .collect::<Result<_, _>>()?,
+    ))
 }
 
 /// What a unit's folder is: its race's id, or `hero`, `ship` or `fantastic` for one with no race.
@@ -248,6 +239,7 @@ pub fn unit_folders(rules_dir: &Path) -> Result<BTreeMap<String, String>, String
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Report {
     pub packs: usize,
+    pub sheets: usize,
     pub pictures: usize,
     pub bytes_before: u64,
     pub bytes_after: u64,
@@ -260,7 +252,15 @@ fn skipped(dir: &str) -> bool {
     !dir.starts_with("art/") || dir.starts_with("art/fonts")
 }
 
-/// Every folder under `root` with PNG files in it, relative to the root, with `/` separators.
+/// A sheet file (`x.sheet.png`, `x.sheet2.png`), not a loose picture.
+fn is_sheet(name: &str) -> bool {
+    name.rsplit_once(".sheet").is_some_and(|(_, rest)| {
+        rest.strip_suffix(".png")
+            .is_some_and(|n| n.chars().all(|c| c.is_ascii_digit()))
+    })
+}
+
+/// Every folder under `root` with loose PNG files in it, relative to the root, with `/` separators.
 fn folders_with_pngs(root: &Path) -> Result<BTreeMap<String, Vec<PathBuf>>, String> {
     let mut found: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
     let mut todo = vec![root.to_path_buf()];
@@ -268,9 +268,10 @@ fn folders_with_pngs(root: &Path) -> Result<BTreeMap<String, Vec<PathBuf>>, Stri
         let entries = fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         for entry in entries {
             let path = entry.map_err(|e| e.to_string())?.path();
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if path.is_dir() {
                 todo.push(path);
-            } else if path.extension().is_some_and(|e| e == "png") {
+            } else if name.ends_with(".png") && !is_sheet(name) {
                 let rel = dir
                     .strip_prefix(root)
                     .map_err(|e| e.to_string())?
@@ -285,23 +286,53 @@ fn folders_with_pngs(root: &Path) -> Result<BTreeMap<String, Vec<PathBuf>>, Stri
     Ok(found)
 }
 
-/// The pack file a folder goes to, relative to the root.
-fn pack_path(dir: &str, units: &BTreeMap<String, String>) -> String {
+/// The first sheet file of a folder, relative to the root; later ones are `.sheet2.png`...
+fn sheet_base(dir: &str, units: &BTreeMap<String, String>) -> String {
     if let Some(unit) = dir.strip_prefix("art/units/") {
         if let Some(folder) = units.get(unit) {
-            return format!("art/units/{folder}/{unit}.pack");
+            return format!("art/units/{folder}/{unit}");
         }
     }
-    format!("{dir}.pack")
+    dir.to_string()
 }
 
-/// The rows of `packs.tsv`, a folder and its pack.
-pub fn read_table(root: &Path) -> BTreeMap<String, String> {
-    fs::read_to_string(root.join("packs.tsv"))
+fn sheet_file(base: &str, index: usize) -> String {
+    if index == 0 {
+        format!("{base}.sheet.png")
+    } else {
+        format!("{base}.sheet{}.png", index + 1)
+    }
+}
+
+/// The rows of `packs.tsv`: a folder and its sheets, in order.
+pub fn read_table(root: &Path) -> BTreeMap<String, Vec<String>> {
+    let mut table: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for line in fs::read_to_string(root.join("packs.tsv"))
         .unwrap_or_default()
         .lines()
-        .filter_map(|l| l.split_once('\t'))
-        .map(|(d, p)| (d.to_string(), p.to_string()))
+    {
+        if let Some((dir, sheet)) = line.split_once('\t') {
+            table
+                .entry(dir.to_string())
+                .or_default()
+                .push(sheet.to_string());
+        }
+    }
+    table
+}
+
+fn write_table(root: &Path, table: &BTreeMap<String, Vec<String>>) -> Result<(), String> {
+    let rows: String = table
+        .iter()
+        .flat_map(|(d, sheets)| sheets.iter().map(move |s| format!("{d}\t{s}\n")))
+        .collect();
+    fs::write(root.join("packs.tsv"), rows).map_err(|e| e.to_string())
+}
+
+fn read_sheets(root: &Path, files: &[String]) -> Result<Vec<Vec<u8>>, String> {
+    files
+        .iter()
+        .map(|f| fs::read(root.join(f)).map_err(|e| format!("{f}: {e}")))
         .collect()
 }
 
@@ -311,16 +342,14 @@ pub fn pack_tree(root: &Path, rules_dir: &Path, keep: bool) -> Result<Report, St
     let mut table = read_table(root);
     let mut report = Report::default();
     for (dir, files) in folders_with_pngs(root)? {
-        let pack_rel = table
-            .get(&dir)
-            .cloned()
-            .unwrap_or_else(|| pack_path(&dir, &units));
-        let pack_file = root.join(&pack_rel);
+        let old = table.get(&dir).cloned().unwrap_or_default();
+        let base = match old.first() {
+            Some(first) => first.trim_end_matches(".sheet.png").to_string(),
+            None => sheet_base(&dir, &units),
+        };
         let mut pictures: BTreeMap<String, Picture> = BTreeMap::new();
-        if let Ok(bytes) = fs::read(&pack_file) {
-            for p in pictures_of(&Pack::parse(bytes)?)? {
-                pictures.insert(p.name.clone(), p);
-            }
+        for p in pictures_of(&read_sheets(root, &old)?)? {
+            pictures.insert(p.name.clone(), p);
         }
         let mut loose = Vec::new();
         for path in &files {
@@ -337,23 +366,31 @@ pub fn pack_tree(root: &Path, rules_dir: &Path, keep: bool) -> Result<Report, St
             loose.push(path);
         }
         let all: Vec<Picture> = pictures.into_values().collect();
-        let bytes = build(&all)?;
-        // Read it back before any loose file goes.
-        let back: BTreeMap<String, Picture> = pictures_of(&Pack::parse(bytes.clone())?)?
+        let sheets = build(&all)?;
+        // Read them back before any loose file goes.
+        let back: BTreeMap<String, Picture> = pictures_of(&sheets)?
             .into_iter()
             .map(|p| (p.name.clone(), p))
             .collect();
-        if all.iter().any(|p| back.get(&p.name) != Some(p)) {
-            return Err(format!("{pack_rel}: a picture does not read back the same"));
+        if back.len() != all.len() || all.iter().any(|p| back.get(&p.name) != Some(p)) {
+            return Err(format!("{base}: a picture does not read back the same"));
         }
-        if let Some(parent) = pack_file.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+        for file in &old {
+            let _ = fs::remove_file(root.join(file));
         }
-        fs::write(&pack_file, &bytes).map_err(|e| format!("{}: {e}", pack_file.display()))?;
+        let names: Vec<String> = (0..sheets.len()).map(|i| sheet_file(&base, i)).collect();
+        for (file, bytes) in names.iter().zip(&sheets) {
+            let target = root.join(file);
+            if let Some(parent) = target.parent() {
+                fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+            }
+            fs::write(&target, bytes).map_err(|e| format!("{}: {e}", target.display()))?;
+            report.bytes_after += bytes.len() as u64;
+        }
         report.packs += 1;
+        report.sheets += sheets.len();
         report.pictures += all.len();
-        report.bytes_after += bytes.len() as u64;
-        table.insert(dir.clone(), pack_rel);
+        table.insert(dir.clone(), names);
         if !keep {
             for path in loose {
                 fs::remove_file(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -362,31 +399,31 @@ pub fn pack_tree(root: &Path, rules_dir: &Path, keep: bool) -> Result<Report, St
             let _ = fs::remove_dir(root.join(&dir));
         }
     }
-    let rows: String = table.iter().map(|(d, p)| format!("{d}\t{p}\n")).collect();
-    fs::write(root.join("packs.tsv"), rows).map_err(|e| e.to_string())?;
+    write_table(root, &table)?;
     Ok(report)
 }
 
-/// Turn every pack under `root` back into loose PNG files (the scripts that make or change
+/// Turn every sheet under `root` back into loose PNG files (the scripts that make or change
 /// pictures, `scripts/make_banner_colours.py` and the like, work on loose files; `pack_tree` packs
 /// again afterwards and keeps what they wrote). Returns the number of pictures.
 pub fn unpack_tree(root: &Path) -> Result<usize, String> {
     let mut count = 0;
-    for (dir, pack_rel) in read_table(root) {
-        let pack_file = root.join(&pack_rel);
-        let bytes = fs::read(&pack_file).map_err(|e| format!("{}: {e}", pack_file.display()))?;
+    for (dir, files) in read_table(root) {
         let target = root.join(&dir);
         fs::create_dir_all(&target).map_err(|e| format!("{}: {e}", target.display()))?;
-        for p in pictures_of(&Pack::parse(bytes)?)? {
+        for p in pictures_of(&read_sheets(root, &files)?)? {
             let file = target.join(&p.name);
-            fs::write(&file, encode_png(p.w, p.h, &p.rgba)?)
+            fs::write(&file, encode_png(p.w, p.h, &p.rgba, None)?)
                 .map_err(|e| format!("{}: {e}", file.display()))?;
             count += 1;
         }
-        fs::remove_file(&pack_file).map_err(|e| format!("{}: {e}", pack_file.display()))?;
-        if let Some(parent) = pack_file.parent() {
-            // A race folder left empty goes too.
-            let _ = fs::remove_dir(parent);
+        for f in &files {
+            let path = root.join(f);
+            fs::remove_file(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            if let Some(parent) = path.parent() {
+                // A race folder left empty goes too.
+                let _ = fs::remove_dir(parent);
+            }
         }
     }
     let table = root.join("packs.tsv");
@@ -412,45 +449,69 @@ mod tests {
         }
     }
 
+    fn sorted(mut v: Vec<Picture>) -> Vec<Picture> {
+        v.sort_by(|a, b| a.name.cmp(&b.name));
+        v
+    }
+
     #[test]
-    fn pictures_read_back_unchanged_from_a_pack() -> TestResult {
+    fn pictures_read_back_unchanged_from_a_sheet_that_is_a_plain_png() -> TestResult {
         let pics = vec![
             picture("a.png", 30, 40, 1),
-            picture("b.png", 5, 7, 2),
-            picture("c.png", 64, 3, 3),
+            picture("b.png", 25, 35, 2),
+            picture("c.png", 28, 33, 3),
         ];
-        let pack = Pack::parse(build(&pics)?)?;
-        let mut back = pictures_of(&pack)?;
-        back.sort_by(|a, b| a.name.cmp(&b.name));
-        assert_eq!(back, pics);
+        let sheets = build(&pics)?;
+        assert_eq!(sheets.len(), 1);
+        // Any reader of PNG files gets the image: same width as cols * cell, same height as rows * cell.
+        let (w, h, _) = decode_png(&sheets[0])?;
+        let sheet = Sheet::parse(&sheets[0])?;
+        assert_eq!((sheet.cell_w, sheet.cell_h), (30, 40));
+        assert_eq!(w, sheet.cols * 30);
+        assert_eq!(h, 3usize.div_ceil(sheet.cols) * 40);
+        assert_eq!(sorted(pictures_of(&sheets)?), pics);
         Ok(())
     }
 
     #[test]
-    fn many_pictures_go_on_several_sheets_none_over_the_limit() -> TestResult {
+    fn pictures_of_very_different_sizes_do_not_share_one_grid() -> TestResult {
+        let mut pics: Vec<Picture> = (0..40)
+            .map(|i| picture(&format!("s{i:02}.png"), 8, 8, i as u8))
+            .collect();
+        pics.push(picture("big.png", 300, 200, 9));
+        let sheets = build(&pics)?;
+        assert_eq!(sheets.len(), 2, "the big one has a grid of its own");
+        let area: usize = sheets
+            .iter()
+            .map(|png| decode_png(png).map(|(w, h, _)| w * h))
+            .sum::<Result<usize, _>>()?;
+        let needed: usize = pics.iter().map(|p| p.w * p.h).sum();
+        assert!(area <= WASTE * needed + 400, "{area} pixels for {needed}");
+        assert_eq!(sorted(pictures_of(&sheets)?), sorted(pics));
+        Ok(())
+    }
+
+    #[test]
+    fn many_pictures_stay_in_sheets_of_bounded_size() -> TestResult {
         let pics: Vec<Picture> = (0..300)
             .map(|i| picture(&format!("p{i:03}.png"), 200, 150, i as u8))
             .collect();
-        let pack = Pack::parse(build(&pics)?)?;
-        assert!(pack.sheet_count() > 1);
-        for i in 0..pack.sheet_count() {
-            let (w, h, _) = decode_png(pack.sheet_png(i as u16).ok_or("no sheet")?)?;
-            assert!(w <= SHEET_MAX && h <= SHEET_MAX);
+        let sheets = build(&pics)?;
+        assert!(sheets.len() > 1);
+        for png in &sheets {
+            let (w, h, _) = decode_png(png)?;
+            assert!(w <= SHEET_WIDTH && w * h <= SHEET_PIXELS / 10 * 11);
         }
-        assert_eq!(pictures_of(&pack)?.len(), 300);
+        assert_eq!(pictures_of(&sheets)?.len(), 300);
         Ok(())
     }
 
     #[test]
-    fn a_picture_bigger_than_a_sheet_gets_one_of_its_own() -> TestResult {
-        let pics = vec![
-            picture("small.png", 10, 10, 1),
-            picture("huge.png", 2100, 5, 2),
-        ];
-        let pack = Pack::parse(build(&pics)?)?;
-        assert_eq!(pack.sheet_count(), 2);
-        assert_eq!(pictures_of(&pack)?.len(), 2);
-        Ok(())
+    fn a_sheet_file_name_is_told_from_a_loose_picture() {
+        assert!(is_sheet("high_elf_spearmen.sheet.png"));
+        assert!(is_sheet("x.sheet2.png"));
+        assert!(!is_sheet("figure_0_00.png"));
+        assert!(!is_sheet("sheet.png"));
     }
 
     #[test]
@@ -462,31 +523,32 @@ mod tests {
         fs::create_dir_all(&spell)?;
         fs::create_dir_all(root.join("screens/menu"))?;
         let a = picture("figure_0_00.png", 4, 3, 9);
-        fs::write(unit.join(&a.name), encode_png(a.w, a.h, &a.rgba)?)?;
+        fs::write(unit.join(&a.name), encode_png(a.w, a.h, &a.rgba, None)?)?;
         let b = picture("000_00.png", 2, 2, 50);
-        fs::write(spell.join(&b.name), encode_png(b.w, b.h, &b.rgba)?)?;
+        fs::write(spell.join(&b.name), encode_png(b.w, b.h, &b.rgba, None)?)?;
         fs::write(
             root.join("screens/menu/big_00.png"),
-            encode_png(a.w, a.h, &a.rgba)?,
+            encode_png(a.w, a.h, &a.rgba, None)?,
         )?;
         let rules = content_dir().join("../../f4x-def/content");
 
         let report = pack_tree(&root, &rules, false)?;
         assert_eq!((report.packs, report.pictures), (2, 2));
         assert!(root
-            .join("art/units/high_elf/high_elf_spearmen.pack")
+            .join("art/units/high_elf/high_elf_spearmen.sheet.png")
             .exists());
-        assert!(root.join("art/spells/fireball.pack").exists());
+        assert!(root.join("art/spells/fireball.sheet.png").exists());
         assert!(!unit.exists() && !spell.exists());
         assert!(
             root.join("screens/menu/big_00.png").exists(),
             "screens stay loose"
         );
 
-        // A picture made later is merged into the pack, not lost.
+        // A picture made later is merged into the sheets, not lost, and the sheets are not taken
+        // for loose pictures.
         fs::create_dir_all(&unit)?;
         let c = picture("figure_0_01.png", 3, 3, 70);
-        fs::write(unit.join(&c.name), encode_png(c.w, c.h, &c.rgba)?)?;
+        fs::write(unit.join(&c.name), encode_png(c.w, c.h, &c.rgba, None)?)?;
         pack_tree(&root, &rules, false)?;
         assert_eq!(unpack_tree(&root)?, 3);
         let (w, h, rgba) = decode_png(&fs::read(unit.join("figure_0_00.png"))?)?;
@@ -509,12 +571,16 @@ mod tests {
         assert_eq!(folders.get("trireme").map(String::as_str), Some("ship"));
         assert_eq!(folders.get("djinn").map(String::as_str), Some("fantastic"));
         assert_eq!(
-            pack_path("art/units/high_elf_spearmen", &folders),
-            "art/units/high_elf/high_elf_spearmen.pack"
+            sheet_base("art/units/high_elf_spearmen", &folders),
+            "art/units/high_elf/high_elf_spearmen"
         );
         assert_eq!(
-            pack_path("art/spells/fireball", &folders),
-            "art/spells/fireball.pack"
+            sheet_base("art/spells/fireball", &folders),
+            "art/spells/fireball"
+        );
+        assert_eq!(
+            sheet_file("art/spells/fireball", 1),
+            "art/spells/fireball.sheet2.png"
         );
         Ok(())
     }

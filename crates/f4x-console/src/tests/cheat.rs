@@ -136,6 +136,13 @@ fn citizens_spawn_and_reveal_work_in_the_override_mode() {
     let r = c.execute(&mut g, "spawn barbarian_spearmen 3,3 1");
     assert!(r.ok, "{}", r.text());
     assert_eq!(g.units().all_units().len(), before + 1);
+    let before = g.explored_squares(HUMAN);
     assert!(c.execute(&mut g, "reveal").ok);
+    let after = g.explored_squares(HUMAN);
+    assert!(before < after);
+    // Both planes, every square: the map is the same size on each.
+    assert_eq!(after % 2, 0, "{after}");
+    let rival = g.explored_squares(PlayerId(1));
+    assert!(rival < after, "only the asked wizard sees it all");
     assert!(c.execute(&mut g, &format!("build {n} barracks")).ok);
 }

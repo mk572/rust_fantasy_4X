@@ -1,214 +1,229 @@
-//! The sprite pack: one file that holds all the pictures of a folder (a unit's frames, a spell's)
-//! as one or more PNG sheets and a table of where each picture is on them. `f4x-extract pack`
-//! writes them (`pack_build`); the client reads them (`pack_set`) and still finds loose PNGs where
-//! no pack has the picture (`docs/local-assets.md`).
+//! The sprite pack: the pictures of a folder (a unit's frames, a spell's) as ordinary PNG sheets.
+//! `f4x-extract pack` writes them (`pack_build`); the client reads them (`pack_set`) and still finds
+//! loose PNGs where no sheet has the picture (`docs/local-assets.md`).
 //!
-//! Layout, little-endian:
+//! A sheet is a plain PNG that any image tool opens. Its pictures sit on a uniform grid: every cell
+//! is `cell_w` by `cell_h` pixels (the largest picture on the sheet), `cols` cells to a row, so the
+//! offset of picture number `i` is `(i % cols * cell_w, i / cols * cell_h)`. Smaller pictures sit at
+//! the top left of their cell, the rest is transparent. What the grid cannot say, the PNG says in
+//! one text chunk, keyword `f4x-sheet`:
 //!
 //! ```text
-//! "F4XP"  version u8 (1)  sheets u16  frames u32
-//! frames * ( name_len u16, name utf-8, sheet u16, x u16, y u16, w u16, h u16 )
-//! sheets * ( len u32, PNG bytes )
+//! cell <cell_w>x<cell_h>
+//! <name> TAB <width> TAB <height>      (one line for each picture, in grid order)
 //! ```
 //!
-//! This module needs no PNG code: a pack is a table and the bytes of its sheets.
+//! `cols` is the image's width divided by `cell_w`. A folder can have several sheets (pictures of
+//! very different sizes are not put on one grid); a sheet's file name is `<name>.sheet.png`, then
+//! `<name>.sheet2.png`, and so on. This module needs no PNG code: it reads the chunk headers.
 
 use std::collections::BTreeMap;
-use std::ops::Range;
 
-const MAGIC: &[u8; 4] = b"F4XP";
-const VERSION: u8 = 1;
+/// The PNG text chunk's keyword.
+pub const KEYWORD: &str = "f4x-sheet";
 
-/// Where one picture is: a rectangle of one of the pack's sheets.
+/// Where one picture is: a rectangle of one of a pack's sheets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Frame {
-    pub sheet: u16,
-    pub x: u16,
-    pub y: u16,
-    pub w: u16,
-    pub h: u16,
+    pub sheet: usize,
+    pub x: usize,
+    pub y: usize,
+    pub w: usize,
+    pub h: usize,
 }
 
-/// A parsed pack: the table and the byte ranges of the sheets inside the file's bytes.
+/// One sheet's grid and picture list, read from its PNG bytes (which stay with the caller).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Pack {
-    bytes: Vec<u8>,
-    frames: BTreeMap<String, Frame>,
-    sheets: Vec<Range<usize>>,
+pub struct Sheet {
+    pub cell_w: usize,
+    pub cell_h: usize,
+    pub cols: usize,
+    /// Name and size of each picture, in grid order.
+    pub pictures: Vec<(String, usize, usize)>,
 }
 
-/// A cursor over the file's bytes that never reads past the end.
-struct Reader<'a> {
-    bytes: &'a [u8],
-    at: usize,
+fn be32(b: &[u8]) -> Option<usize> {
+    let a: [u8; 4] = b.get(..4)?.try_into().ok()?;
+    usize::try_from(u32::from_be_bytes(a)).ok()
 }
 
-impl<'a> Reader<'a> {
-    fn take(&mut self, n: usize) -> Result<&'a [u8], String> {
-        let end = self.at.checked_add(n).ok_or("pack: length overflow")?;
-        let slice = self
-            .bytes
-            .get(self.at..end)
-            .ok_or("pack: file ends early")?;
-        self.at = end;
-        Ok(slice)
+/// The width of a PNG and the text of its chunk `keyword` (a `tEXt` chunk, Latin-1 read as UTF-8).
+fn png_width_and_text(png: &[u8], keyword: &str) -> Result<(usize, Option<String>), String> {
+    const SIGNATURE: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+    if !png.starts_with(SIGNATURE) {
+        return Err("sheet: not a PNG".to_string());
     }
-
-    fn u16(&mut self) -> Result<u16, String> {
-        let b = self.take(2)?;
-        Ok(u16::from_le_bytes([b[0], b[1]]))
-    }
-
-    fn u32(&mut self) -> Result<u32, String> {
-        let b = self.take(4)?;
-        Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-    }
-}
-
-impl Pack {
-    /// Read a pack file's bytes; an error says what is wrong with them.
-    pub fn parse(bytes: Vec<u8>) -> Result<Pack, String> {
-        let mut r = Reader {
-            bytes: &bytes,
-            at: 0,
-        };
-        if r.take(4)? != MAGIC {
-            return Err("pack: not a pack file".to_string());
-        }
-        let version = r.take(1)?[0];
-        if version != VERSION {
-            return Err(format!("pack: version {version}, expected {VERSION}"));
-        }
-        let sheet_count = usize::from(r.u16()?);
-        let frame_count = r.u32()?;
-        let mut frames = BTreeMap::new();
-        for _ in 0..frame_count {
-            let len = usize::from(r.u16()?);
-            let name = std::str::from_utf8(r.take(len)?)
-                .map_err(|_| "pack: a name is not text".to_string())?
-                .to_string();
-            let frame = Frame {
-                sheet: r.u16()?,
-                x: r.u16()?,
-                y: r.u16()?,
-                w: r.u16()?,
-                h: r.u16()?,
-            };
-            if usize::from(frame.sheet) >= sheet_count {
-                return Err(format!(
-                    "pack: {name} is on sheet {}, which is missing",
-                    frame.sheet
-                ));
+    let (mut at, mut width, mut text) = (SIGNATURE.len(), None, None);
+    while let (Some(len), Some(kind)) = (png.get(at..).and_then(be32), png.get(at + 4..at + 8)) {
+        let data = png
+            .get(at + 8..at + 8 + len)
+            .ok_or("sheet: a chunk ends early")?;
+        if kind == b"IHDR" {
+            width = be32(data);
+        } else if kind == b"tEXt" {
+            if let Some(split) = data.iter().position(|&b| b == 0) {
+                if &data[..split] == keyword.as_bytes() {
+                    text = Some(String::from_utf8_lossy(&data[split + 1..]).into_owned());
+                }
             }
-            frames.insert(name, frame);
+        } else if kind == b"IDAT" {
+            // The text chunk is written before the pixels.
+            break;
         }
-        let mut sheets = Vec::with_capacity(sheet_count);
-        for _ in 0..sheet_count {
-            let len = usize::try_from(r.u32()?).map_err(|_| "pack: sheet too long")?;
-            let start = r.at;
-            r.take(len)?;
-            sheets.push(start..start + len);
+        at += 12 + len;
+    }
+    Ok((width.ok_or("sheet: no header")?, text))
+}
+
+impl Sheet {
+    /// Read the grid and the picture list of a sheet's PNG bytes.
+    pub fn parse(png: &[u8]) -> Result<Sheet, String> {
+        let (width, text) = png_width_and_text(png, KEYWORD)?;
+        let text = text.ok_or("sheet: no picture list")?;
+        let mut lines = text.lines();
+        let cell = lines
+            .next()
+            .and_then(|l| l.strip_prefix("cell "))
+            .and_then(|l| l.split_once('x'))
+            .and_then(|(w, h)| Some((w.parse::<usize>().ok()?, h.parse::<usize>().ok()?)))
+            .ok_or("sheet: no cell size")?;
+        let (cell_w, cell_h) = cell;
+        if cell_w == 0 || cell_h == 0 || width < cell_w {
+            return Err("sheet: bad cell size".to_string());
         }
-        Ok(Pack {
-            bytes,
-            frames,
-            sheets,
+        let mut pictures = Vec::new();
+        for line in lines {
+            let mut f = line.split('\t');
+            let (Some(name), Some(w), Some(h)) = (f.next(), f.next(), f.next()) else {
+                return Err(format!("sheet: bad line {line:?}"));
+            };
+            let size = |s: &str| {
+                s.parse::<usize>()
+                    .map_err(|_| format!("sheet: bad size {s:?}"))
+            };
+            let (w, h) = (size(w)?, size(h)?);
+            if w > cell_w || h > cell_h {
+                return Err(format!("sheet: {name} is bigger than its cell"));
+            }
+            pictures.push((name.to_string(), w, h));
+        }
+        Ok(Sheet {
+            cell_w,
+            cell_h,
+            cols: width / cell_w,
+            pictures,
         })
     }
 
-    /// The picture called `name` (a file name such as `figure_0_00.png`).
+    /// The rectangle of picture number `index`.
+    pub fn rect(&self, index: usize) -> Option<(usize, usize, usize, usize)> {
+        let (_, w, h) = self.pictures.get(index)?;
+        let x = index % self.cols * self.cell_w;
+        let y = index / self.cols * self.cell_h;
+        Some((x, y, *w, *h))
+    }
+}
+
+/// All the sheets of one folder, to look a picture up by name.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Pack {
+    pub sheets: Vec<Sheet>,
+    names: BTreeMap<String, (usize, usize)>,
+}
+
+impl Pack {
+    pub fn new(sheets: Vec<Sheet>) -> Pack {
+        let mut names = BTreeMap::new();
+        for (s, sheet) in sheets.iter().enumerate() {
+            for (i, (name, _, _)) in sheet.pictures.iter().enumerate() {
+                names.insert(name.clone(), (s, i));
+            }
+        }
+        Pack { sheets, names }
+    }
+
+    /// Where the picture called `name` (a file name such as `figure_0_00.png`) is.
     pub fn frame(&self, name: &str) -> Option<Frame> {
-        self.frames.get(name).copied()
+        let &(sheet, index) = self.names.get(name)?;
+        let (x, y, w, h) = self.sheets.get(sheet)?.rect(index)?;
+        Some(Frame { sheet, x, y, w, h })
     }
 
     /// Every picture name, in order.
     pub fn names(&self) -> impl Iterator<Item = &str> {
-        self.frames.keys().map(String::as_str)
-    }
-
-    pub fn sheet_count(&self) -> usize {
-        self.sheets.len()
-    }
-
-    /// The PNG bytes of sheet `index`.
-    pub fn sheet_png(&self, index: u16) -> Option<&[u8]> {
-        self.bytes.get(self.sheets.get(usize::from(index))?.clone())
+        self.names.keys().map(String::as_str)
     }
 }
 
-/// The file for pictures placed on sheets: `frames` are `(name, frame)` and `sheets` the PNG
-/// bytes of each sheet.
-pub fn encode(frames: &[(String, Frame)], sheets: &[Vec<u8>]) -> Result<Vec<u8>, String> {
-    let mut out = Vec::new();
-    out.extend_from_slice(MAGIC);
-    out.push(VERSION);
-    let sheet_count = u16::try_from(sheets.len()).map_err(|_| "pack: too many sheets")?;
-    out.extend_from_slice(&sheet_count.to_le_bytes());
-    let frame_count = u32::try_from(frames.len()).map_err(|_| "pack: too many pictures")?;
-    out.extend_from_slice(&frame_count.to_le_bytes());
-    for (name, f) in frames {
-        let len = u16::try_from(name.len()).map_err(|_| format!("pack: name too long: {name}"))?;
-        out.extend_from_slice(&len.to_le_bytes());
-        out.extend_from_slice(name.as_bytes());
-        for v in [f.sheet, f.x, f.y, f.w, f.h] {
-            out.extend_from_slice(&v.to_le_bytes());
-        }
+/// The text of the chunk for a sheet of cells `cell_w` by `cell_h` holding `pictures`.
+pub fn sheet_text(cell_w: usize, cell_h: usize, pictures: &[(String, usize, usize)]) -> String {
+    let mut text = format!("cell {cell_w}x{cell_h}");
+    for (name, w, h) in pictures {
+        text.push_str(&format!("\n{name}\t{w}\t{h}"));
     }
-    for sheet in sheets {
-        let len = u32::try_from(sheet.len()).map_err(|_| "pack: sheet too long")?;
-        out.extend_from_slice(&len.to_le_bytes());
-        out.extend_from_slice(sheet);
-    }
-    Ok(out)
+    text
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    fn frame(sheet: u16, x: u16) -> Frame {
-        Frame {
-            sheet,
-            x,
-            y: 2,
-            w: 3,
-            h: 4,
+    /// A PNG with only the chunks the reader looks at (no valid pixels, no checksums).
+    pub fn fake_png(width: u32, text: Option<&str>) -> Vec<u8> {
+        let mut out = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        let mut chunk = |kind: &[u8; 4], data: &[u8]| {
+            out.extend_from_slice(&(data.len() as u32).to_be_bytes());
+            out.extend_from_slice(kind);
+            out.extend_from_slice(data);
+            out.extend_from_slice(&[0; 4]);
+        };
+        let mut header = width.to_be_bytes().to_vec();
+        header.extend_from_slice(&[0; 9]);
+        chunk(b"IHDR", &header);
+        if let Some(text) = text {
+            let mut data = KEYWORD.as_bytes().to_vec();
+            data.push(0);
+            data.extend_from_slice(text.as_bytes());
+            chunk(b"tEXt", &data);
         }
+        chunk(b"IDAT", &[]);
+        out
     }
 
     #[test]
-    fn a_pack_reads_back_what_was_written() -> TestResult {
-        let frames = vec![
-            ("figure_0_00.png".to_string(), frame(0, 0)),
-            ("figure_0_01.png".to_string(), frame(1, 5)),
+    fn offsets_follow_the_grid_and_names_find_their_cell() -> TestResult {
+        let pictures = vec![
+            ("a.png".to_string(), 10, 8),
+            ("b.png".to_string(), 12, 6),
+            ("c.png".to_string(), 3, 3),
         ];
-        let bytes = encode(&frames, &[vec![1, 2, 3], vec![9; 10]])?;
-        let pack = Pack::parse(bytes)?;
-        assert_eq!(pack.frame("figure_0_01.png"), Some(frame(1, 5)));
-        assert_eq!(pack.frame("missing.png"), None);
-        assert_eq!(pack.sheet_count(), 2);
-        assert_eq!(pack.sheet_png(0), Some(&[1u8, 2, 3][..]));
-        assert_eq!(pack.sheet_png(1).map(<[u8]>::len), Some(10));
-        assert_eq!(pack.sheet_png(2), None);
-        assert_eq!(pack.names().count(), 2);
+        let png = fake_png(24, Some(&sheet_text(12, 8, &pictures)));
+        let sheet = Sheet::parse(&png)?;
+        assert_eq!(sheet.cols, 2);
+        assert_eq!(sheet.pictures, pictures);
+        let pack = Pack::new(vec![sheet]);
+        let f = |n: &str| pack.frame(n).map(|f| (f.x, f.y, f.w, f.h));
+        assert_eq!(f("a.png"), Some((0, 0, 10, 8)));
+        assert_eq!(f("b.png"), Some((12, 0, 12, 6)));
+        assert_eq!(f("c.png"), Some((0, 8, 3, 3)));
+        assert_eq!(f("d.png"), None);
+        assert_eq!(pack.names().count(), 3);
         Ok(())
     }
 
     #[test]
-    fn a_damaged_file_is_refused_not_read_past_its_end() -> TestResult {
-        let frames = vec![("a.png".to_string(), frame(0, 0))];
-        let bytes = encode(&frames, &[vec![7; 20]])?;
-        assert!(Pack::parse(b"nope".to_vec()).is_err());
-        let mut wrong = bytes.clone();
-        wrong[4] = 9;
-        assert!(Pack::parse(wrong).is_err());
-        for cut in 0..bytes.len() {
-            assert!(Pack::parse(bytes[..cut].to_vec()).is_err(), "cut at {cut}");
+    fn a_sheet_without_its_list_or_with_a_bad_one_is_refused() {
+        assert!(Sheet::parse(b"not a png").is_err());
+        assert!(Sheet::parse(&fake_png(24, None)).is_err());
+        assert!(Sheet::parse(&fake_png(24, Some("cell 0x8\na.png\t1\t1"))).is_err());
+        assert!(Sheet::parse(&fake_png(24, Some("cell 12x8\na.png\t13\t1"))).is_err());
+        assert!(Sheet::parse(&fake_png(24, Some("cell 12x8\na.png\tx\t1"))).is_err());
+        assert!(Sheet::parse(&fake_png(4, Some("cell 12x8"))).is_err());
+        let whole = fake_png(24, Some("cell 12x8\na.png\t1\t1"));
+        for cut in 0..whole.len() - 16 {
+            assert!(Sheet::parse(&whole[..cut]).is_err(), "cut at {cut}");
         }
-        let on_missing_sheet = encode(&[("a.png".to_string(), frame(3, 0))], &[vec![1]])?;
-        assert!(Pack::parse(on_missing_sheet).is_err());
-        Ok(())
     }
 }

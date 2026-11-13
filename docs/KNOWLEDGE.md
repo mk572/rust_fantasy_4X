@@ -120,8 +120,8 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   packs) is checked by shooting a dozen screens (`--city`, `--armies`, `--unit-list`, `--magic`...) from the loose
   files and from the packed ones and counting differing pixels: 0.
 - **A script that changes pictures works on loose files.** `f4x-extract unpack`, run it, `f4x-extract pack`
-  (`docs/local-assets.md`). A loose file next to a pack is merged into it by the next `pack`; until then the
-  pack wins, so an edited loose file looks unchanged in the client.
+  (`docs/local-assets.md`). A loose file next to a sheet is merged into it by the next `pack`; until then the
+  sheet wins, so an edited loose file looks unchanged in the client.
 - **A font atlas must stay under 16384 pixels in each direction.** The BMFont atlases stack one copy
   of the glyphs per colour set; past the limit the texture fails to load and the text is a black box.
   `BM_COLUMNS` in `f4x-client/extract/src/fonts.rs` is 48 for this reason; check the size when adding ramps.

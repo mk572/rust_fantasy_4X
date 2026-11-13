@@ -1,7 +1,7 @@
 //! Reading pictures out of sprite packs (`f4x_extract::pack`, `docs/local-assets.md`).
 //!
-//! `packs.tsv` in the assets folder (the parent of the art folder) says which pack holds the
-//! pictures of each folder. `read` answers a picture's bytes as an image when a pack has it, and
+//! `packs.tsv` in the assets folder (the parent of the art folder) says which PNG sheets hold the
+//! pictures of each folder (`f4x_extract::pack`: plain PNGs on a uniform grid). `read` answers a picture's bytes as an image when a pack has it, and
 //! `None` otherwise, so the caller goes on to the loose file. A pack is opened when a picture of its
 //! folder is first asked for; the last few decoded sheets are kept, because a unit's frames are
 //! asked for one after another.
@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use f4x_extract::pack::Pack;
+use f4x_extract::pack::{Pack, Sheet};
 use macroquad::prelude::{Image, ImageFormat};
 
 /// Decoded sheets kept at once: a few megabytes each at most.
@@ -21,11 +21,17 @@ const KEPT_SHEETS: usize = 8;
 
 struct PackSet {
     root: PathBuf,
-    /// Folder (relative to the root) to its pack file.
-    folders: HashMap<String, String>,
-    packs: HashMap<String, Option<Rc<Pack>>>,
-    /// Decoded sheets, oldest first: `(pack, sheet)` and its pixels.
-    sheets: Vec<((String, u16), Rc<Image>)>,
+    /// Folder (relative to the root) to its sheet files.
+    folders: HashMap<String, Vec<String>>,
+    packs: HashMap<String, Option<Rc<Opened>>>,
+    /// Decoded sheets, oldest first: `(folder, sheet)` and its pixels.
+    sheets: Vec<((String, usize), Rc<Image>)>,
+}
+
+/// A folder's sheets: the grids and the PNG bytes, decoded when a picture of it is wanted.
+struct Opened {
+    pack: Pack,
+    pngs: Vec<Vec<u8>>,
 }
 
 thread_local! {
@@ -51,12 +57,18 @@ fn clean(base: &str, relative: &Path) -> Option<String> {
 
 impl PackSet {
     fn open(root: &Path) -> PackSet {
-        let folders = std::fs::read_to_string(root.join("packs.tsv"))
+        let mut folders: HashMap<String, Vec<String>> = HashMap::new();
+        for line in std::fs::read_to_string(root.join("packs.tsv"))
             .unwrap_or_default()
             .lines()
-            .filter_map(|l| l.split_once('\t'))
-            .map(|(d, p)| (d.to_string(), p.trim().to_string()))
-            .collect();
+        {
+            if let Some((dir, file)) = line.split_once('\t') {
+                folders
+                    .entry(dir.to_string())
+                    .or_default()
+                    .push(file.trim().to_string());
+            }
+        }
         PackSet {
             root: root.to_path_buf(),
             folders,
@@ -65,16 +77,30 @@ impl PackSet {
         }
     }
 
-    fn pack(&mut self, file: &str) -> Option<Rc<Pack>> {
+    fn pack(&mut self, folder: &str) -> Option<Rc<Opened>> {
+        let files = self.folders.get(folder)?.clone();
         let root = &self.root;
         self.packs
-            .entry(file.to_string())
+            .entry(folder.to_string())
             .or_insert_with(|| {
-                let bytes = std::fs::read(root.join(file)).ok()?;
-                match Pack::parse(bytes) {
-                    Ok(pack) => Some(Rc::new(pack)),
+                let load = || -> Result<Opened, String> {
+                    let mut pngs = Vec::new();
+                    let mut sheets = Vec::new();
+                    for file in &files {
+                        let bytes =
+                            std::fs::read(root.join(file)).map_err(|e| format!("{file}: {e}"))?;
+                        sheets.push(Sheet::parse(&bytes).map_err(|e| format!("{file}: {e}"))?);
+                        pngs.push(bytes);
+                    }
+                    Ok(Opened {
+                        pack: Pack::new(sheets),
+                        pngs,
+                    })
+                };
+                match load() {
+                    Ok(opened) => Some(Rc::new(opened)),
                     Err(e) => {
-                        eprintln!("{file}: {e}");
+                        eprintln!("{e}");
                         None
                     }
                 }
@@ -82,15 +108,15 @@ impl PackSet {
             .clone()
     }
 
-    fn sheet(&mut self, file: &str, pack: &Pack, index: u16) -> Option<Rc<Image>> {
-        let key = (file.to_string(), index);
+    fn sheet(&mut self, folder: &str, opened: &Opened, index: usize) -> Option<Rc<Image>> {
+        let key = (folder.to_string(), index);
         if let Some(at) = self.sheets.iter().position(|(k, _)| *k == key) {
             let kept = self.sheets.remove(at);
             let image = kept.1.clone();
             self.sheets.push(kept);
             return Some(image);
         }
-        let png = pack.sheet_png(index)?;
+        let png = opened.pngs.get(index)?;
         let image = Rc::new(Image::from_file_with_format(png, Some(ImageFormat::Png)).ok()?);
         if self.sheets.len() >= KEPT_SHEETS {
             self.sheets.remove(0);
@@ -102,26 +128,19 @@ impl PackSet {
     /// The picture at `key` (`art/units/orc_archers/figure_0_00.png`), cut out of its sheet.
     fn read(&mut self, key: &str) -> Option<Image> {
         let (folder, name) = key.rsplit_once('/')?;
-        let file = self.folders.get(folder)?.clone();
-        let pack = self.pack(&file)?;
-        let frame = pack.frame(name)?;
-        let sheet = self.sheet(&file, &pack, frame.sheet)?;
-        let (x, y, w, h) = (
-            usize::from(frame.x),
-            usize::from(frame.y),
-            usize::from(frame.w),
-            usize::from(frame.h),
-        );
+        let opened = self.pack(folder)?;
+        let frame = opened.pack.frame(name)?;
+        let sheet = self.sheet(folder, &opened, frame.sheet)?;
         let stride = usize::from(sheet.width) * 4;
-        let mut bytes = Vec::with_capacity(w * h * 4);
-        for row in y..y + h {
-            let from = row * stride + x * 4;
-            bytes.extend_from_slice(sheet.bytes.get(from..from + w * 4)?);
+        let mut bytes = Vec::with_capacity(frame.w * frame.h * 4);
+        for row in frame.y..frame.y + frame.h {
+            let from = row * stride + frame.x * 4;
+            bytes.extend_from_slice(sheet.bytes.get(from..from + frame.w * 4)?);
         }
         Some(Image {
             bytes,
-            width: frame.w,
-            height: frame.h,
+            width: u16::try_from(frame.w).ok()?,
+            height: u16::try_from(frame.h).ok()?,
         })
     }
 }
@@ -177,13 +196,12 @@ mod tests {
                 rgba: (100..116).collect(),
             },
         ];
-        std::fs::write(
-            root.join("art/units/orc/orc_archers.pack"),
-            build(&pictures)?,
-        )?;
+        let sheets = build(&pictures)?;
+        assert_eq!(sheets.len(), 1);
+        std::fs::write(root.join("art/units/orc/orc_archers.sheet.png"), &sheets[0])?;
         std::fs::write(
             root.join("packs.tsv"),
-            "art/units/orc_archers\tart/units/orc/orc_archers.pack\n",
+            "art/units/orc_archers\tart/units/orc/orc_archers.sheet.png\n",
         )?;
         let art = root.join("art");
         let got = read(&art, Path::new("units/orc_archers/figure_0_01.png"));
