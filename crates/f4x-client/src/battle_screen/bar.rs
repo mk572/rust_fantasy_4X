@@ -211,6 +211,10 @@ impl App {
             );
         }
 
+        // The combat turn (1.50 note 109), above the skill, mana and range block.
+        let turn = self.text_with("battle.turn", &Args::new().count("turn", battle.turn));
+        self.bar_text(view, 0, &turn, (218.0, 167.0), Align::Center);
+
         // Skill, mana and range (`Draw_Spell_Information_Window`).
         let (skill, mana, range) =
             Self::my_caster(battle).map_or((0, 0, 10), |c| (c.skill_left, c.mana, c.range));
