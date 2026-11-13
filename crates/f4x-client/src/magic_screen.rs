@@ -423,11 +423,11 @@ impl MagicUi {
         draw_rectangle(inner.x, inner.y, inner.w, inner.h, INFO_FILL);
         for (i, (l1, v1, l2, v2)) in rows.into_iter().enumerate() {
             let y = by + 5.0 + 12.0 * i as f32;
-            let style = Style::sh_set(2, 3).edge(EDGE_STATS);
+            let style = Style::sh_set(4, 3).edge(EDGE_STATS);
             app.draw_styled(view, &style, &l1, bx + 8.0, y);
             app.draw_styled(view, &style.right(), &v1, bx + bw / 2.0 - 10.0, y);
-            app.draw_styled(view, &style, &l2, bx + bw / 2.0 + 6.0, y);
-            app.draw_styled(view, &style, &v2, bx + bw / 2.0 + 74.0, y);
+            app.draw_styled(view, &style, &l2, bx + bw / 2.0, y);
+            app.draw_styled(view, &style, &v2, bx + bw / 2.0 + 86.0, y);
         }
         let _ = lay;
     }
@@ -455,7 +455,7 @@ impl MagicUi {
                 60.0,
                 45.0,
                 "magic.heading_research",
-                3,
+                4,
                 61.0,
                 43.0,
                 (56, 142, 56),
@@ -511,17 +511,19 @@ impl MagicUi {
             let letters: Vec<char> = text.chars().collect();
             let gaps = letters.len().saturating_sub(1);
             let first = keep.min(gaps);
-            let cuts = ((width - wanted).ceil().max(0.0) as usize).min(gaps - first);
+            // `total` pixels to take out of `room` gaps: the same number from each and the rest
+            // spread evenly (at most one pixel a gap: more and the letters run into each other).
+            let room = (gaps - first).max(1);
+            let total = ((width - wanted).ceil().max(0.0) as usize).min(room);
             let mut at = left;
             for (i, letter) in letters.iter().enumerate() {
                 let one = letter.to_string();
                 app.draw_styled(view, &light, &one, at - 1.0, 67.0);
                 app.draw_styled(view, &style, &one, at, 68.0);
                 at += app.art.text_width(font, &one);
-                let gap = i.saturating_sub(first);
-                let room = gaps - first;
-                if i >= first && cuts > 0 && (gap * cuts) / room != ((gap + 1) * cuts) / room {
-                    at -= 1.0;
+                if i >= first && i < gaps {
+                    let k = i - first;
+                    at -= ((total * (k + 1)) / room - (total * k) / room) as f32;
                 }
             }
         }
