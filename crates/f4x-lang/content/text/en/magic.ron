@@ -1,6 +1,10 @@
 // Player-facing messages of the magic screen. One key is in one file only (docs/text.md).
 {
     "magic.title": "Magic",
+    "magic.heading_mana": "Mana",
+    "magic.heading_research": "Research",
+    "magic.heading_skill": "Skill",
+    "magic.heading_enchantments": "Overland Enchantments",
     "magic.mp": "{n} MP",
     "magic.rp": "{n} RP",
     "magic.sp": "{n} SP",

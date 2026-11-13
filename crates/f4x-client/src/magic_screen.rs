@@ -432,6 +432,57 @@ impl MagicUi {
         let _ = lay;
     }
 
+    /// The four headings over the staves and the enchantment list. The background picture has them
+    /// in English; the lettering is covered with the bar's own brown and drawn from the keys, in the
+    /// blackletter, in the colour each had.
+    fn magic_headings(&self, app: &mut App, lay: &Layout, view: (f32, f32, f32)) {
+        // The bars, their middle, the key and the lettering's colour (read from the original).
+        const BARS: [(f32, f32, &str, (u8, u8, u8)); 4] = [
+            (13.0, 45.0, "magic.heading_mana", (190, 125, 20)),
+            (60.0, 45.0, "magic.heading_research", (56, 142, 56)),
+            (107.0, 45.0, "magic.heading_skill", (211, 28, 0)),
+            (172.0, 134.0, "magic.heading_enchantments", (85, 125, 166)),
+        ];
+        let brown = |row: usize| {
+            if row == 0 {
+                Color::from_rgba(105, 73, 36, 255)
+            } else {
+                Color::from_rgba(97, 69, 36, 255)
+            }
+        };
+        for (x, w, key, (r, g, b)) in BARS {
+            for row in 0..8 {
+                let at = lay.rect((x, 68.0 + row as f32, w, 1.0));
+                draw_rectangle(at.x, at.y, at.w, at.h, brown(row));
+            }
+            let style = Style::flat(4, Color::from_rgba(r, g, b, 255))
+                .shadow()
+                .edge(Color::from_rgba(73, 56, 36, 255))
+                .center();
+            let text = app.text(key);
+            let width = app.art.text_width(4, &text);
+            let letters = text.chars().count() as f32;
+            if width <= w - 2.0 || letters < 2.0 {
+                app.draw_styled(view, &style, &text, x + w / 2.0, 67.0);
+                continue;
+            }
+            // Too wide for its bar (Research): close the letters up until the word fits.
+            let tight = ((width - (w - 2.0)) / (letters - 1.0)).ceil();
+            let mut at = x + 1.0;
+            for letter in text.chars() {
+                let one = letter.to_string();
+                app.draw_styled(
+                    view,
+                    &style.align(crate::frame::Align::Left),
+                    &one,
+                    at,
+                    67.0,
+                );
+                at += app.art.text_width(4, &one) - tight;
+            }
+        }
+    }
+
     /// The overland enchantments panel: one column of up to nine, or two of up to eighteen
     /// with a "More..." that turns the page. A click on one of your own offers to turn it off.
     fn magic_enchantments(
@@ -628,6 +679,7 @@ impl Page for MagicUi {
                 Color::new(0.18, 0.2, 0.3, 1.0),
             );
         }
+        self.magic_headings(app, &lay, view);
         self.magic_staves(app, &lay, !modal, input);
         self.magic_text(app, &lay, view);
         self.magic_enchantments(app, &lay, view, !modal, input);
