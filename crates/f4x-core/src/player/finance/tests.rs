@@ -293,6 +293,17 @@ fn the_minimum_farmers_by_halving_are_those_of_the_linear_search() -> f4x_def::t
                     game.economy().city_min_farmers_linear(city),
                     "seed {seed}, a city of {figures}"
                 );
+                // The food by the basis is the food of the whole economy, for any farmers.
+                let basis = game.economy().food_basis(city).ok_or("no basis")?;
+                for farmers in 0..=figures + 1 {
+                    assert_eq!(
+                        Some(game.economy().food_at(&basis, farmers)),
+                        game.economy()
+                            .city_economy_with(city, farmers)
+                            .map(|e| e.food),
+                        "seed {seed}, {farmers} of {figures} farming"
+                    );
+                }
                 checked += 1;
             }
         }

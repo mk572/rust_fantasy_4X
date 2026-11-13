@@ -224,6 +224,8 @@ impl Game {
         // city that took a farmer is worked out again.
         struct Slot {
             city: hecs::Entity,
+            /// What does not change with the farmers (None: the city has no economy).
+            basis: Option<crate::city::economy::FoodBasis>,
             farmers: u32,
             figures: u32,
             /// The city's food with `farmers`, and with one more (None: no gain to be had).
@@ -231,30 +233,36 @@ impl Game {
             more: Option<HalfInt>,
             excess: HalfInt,
         }
-        let judge = |g: &Game, city: hecs::Entity, farmers: u32| -> Slot {
-            let figures = g.world.get::<&Population>(city).map_or(0, |p| p.figures);
-            let now = g.economy().city_economy_with(city, farmers);
-            let more = if farmers < figures {
-                g.economy().city_economy_with(city, farmers + 1)
-            } else {
-                None
-            };
-            Slot {
-                city,
-                farmers,
-                figures,
-                excess: now.as_ref().map_or(HalfInt::ZERO, |eco| {
-                    (eco.food - HalfInt::from_int(eco.figures as i32)).max(HalfInt::ZERO)
-                }),
-                food: now.map(|e| e.food),
-                more: more.map(|e| e.food),
-            }
+        let judge = |g: &Game, slot: &mut Slot, farmers: u32| {
+            let eco = g.economy();
+            let now = slot.basis.as_ref().map(|b| eco.food_at(b, farmers));
+            slot.more = slot
+                .basis
+                .as_ref()
+                .filter(|_| farmers < slot.figures)
+                .map(|b| eco.food_at(b, farmers + 1));
+            slot.excess = now.map_or(HalfInt::ZERO, |food| {
+                (food - HalfInt::from_int(slot.figures as i32)).max(HalfInt::ZERO)
+            });
+            slot.food = now;
+            slot.farmers = farmers;
         };
         let mut slots: Vec<Slot> = mine
             .iter()
             .map(|&c| {
                 let farmers = self.world.get::<&Farmers>(c).map_or(0, |f| f.0);
-                judge(self, c, farmers)
+                let figures = self.world.get::<&Population>(c).map_or(0, |p| p.figures);
+                let mut slot = Slot {
+                    city: c,
+                    basis: self.economy().food_basis(c),
+                    farmers,
+                    figures,
+                    food: None,
+                    more: None,
+                    excess: HalfInt::ZERO,
+                };
+                judge(self, &mut slot, farmers);
+                slot
             })
             .collect();
         loop {
@@ -275,7 +283,7 @@ impl Game {
             };
             let (city, farmers) = (slots[i].city, slots[i].farmers + 1);
             let _ = self.world.insert_one(city, Farmers(farmers));
-            slots[i] = judge(self, city, farmers);
+            judge(self, &mut slots[i], farmers);
         }
     }
 

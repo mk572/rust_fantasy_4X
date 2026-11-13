@@ -39,6 +39,51 @@ pub struct Population {
     pub tens: u32,
 }
 
+/// What the squares of a city's area give, summed.
+struct Land {
+    blighted: i32,
+    /// The food of the land in halves of a half (twice the food), with Gaia's Blessing.
+    terrain_food_x2: i32,
+    production_percent: i32,
+    mine_mana: HalfInt,
+    mine_gold: HalfInt,
+    wild_food: HalfInt,
+    cost_reduction: i32,
+}
+
+/// The food of a city with `farmers` farming (already no more than the citizens who are not
+/// rebels) and its flat food: the farmers' food through the modifiers, halved beyond what the land
+/// feeds, plus the flat food and the wild food.
+fn food_with(
+    mods: &[Modifier],
+    race: Option<&RaceDef>,
+    terrain_food: HalfInt,
+    wild_food: HalfInt,
+    farmers: u32,
+) -> (HalfInt, HalfInt) {
+    let farmer_rate = race.map_or(HalfInt::from_int(2), |r| r.farmer_food);
+    let farmer_rate = compute_half(Stat::FarmerFood, farmer_rate, mods);
+    let mut food = compute_half(Stat::CityFood, farmer_rate * farmers as i32, mods);
+    if food > terrain_food {
+        food = terrain_food + HalfInt::from_raw((food - terrain_food).raw() / 2);
+    }
+    let flat = compute_half(Stat::CityFoodFlat, HalfInt::ZERO, mods);
+    (food + flat + wild_food, flat)
+}
+
+/// The part of a city's economy that does not depend on its farmers, kept to work out its food
+/// for many numbers of them (`Game::balance_farmers`).
+pub struct FoodBasis {
+    figures: u32,
+    rebels: u32,
+    mods: Vec<Modifier>,
+    race_id: Option<crate::rules::RaceId>,
+    terrain_food: HalfInt,
+    wild_food: HalfInt,
+    /// The difficulty bonus on food of a computer wizard, in percent (100: none).
+    food_bonus: i32,
+}
+
 impl Population {
     pub fn people(self) -> u32 {
         self.figures * 1000 + self.tens * 10
@@ -724,10 +769,11 @@ impl<'a> Economy<'a> {
     /// five times and not once for each farmer from none up. A test holds it to the linear search.
     pub fn city_min_farmers(&self, city: hecs::Entity) -> u32 {
         let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);
-        let feeds = |f: u32| {
-            self.city_economy_with(city, f)
-                .is_some_and(|e| e.food >= HalfInt::from_int(figures as i32))
+        // A city with no economy (no basis) feeds no one: all its citizens farm.
+        let Some(basis) = self.food_basis(city) else {
+            return figures;
         };
+        let feeds = |f: u32| self.food_at(&basis, f) >= HalfInt::from_int(figures as i32);
         // The smallest `f` in `0..=figures` that feeds the city, `figures` when none does.
         let (mut low, mut high) = (0, figures);
         while low < high {
@@ -788,34 +834,11 @@ impl<'a> Economy<'a> {
         squares.len() as i32
     }
 
-    /// Compute the city's yields as if `farmers` citizens farmed.
-    pub fn city_economy_with(&self, city: hecs::Entity, farmers: u32) -> Option<CityEconomy> {
-        let at = *self.world.get::<&Position>(city).ok()?;
-        let owner = self.city_owner(city)?;
-        let pop = self
-            .world
-            .get::<&Population>(city)
-            .map(|p| *p)
-            .unwrap_or_default();
-        let race_id = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
-        let rules = &self.content.rules;
-        let race: Option<&RaceDef> = race_id.map(|r| rules.races.get(r));
+    /// What the squares of the city's area give, summed (`city_economy_with`): the same for any
+    /// number of farmers.
+    fn land_of(&self, city: hecs::Entity, at: Position, ctx: SquareCtx) -> Option<Land> {
         let map = self.map?;
         let grid = map.plane(at.plane);
-        let mods = self.city_modifiers(city);
-        let figures = pop.figures;
-        let farmers = farmers.min(figures);
-
-        let has = |b: crate::rules::BuildingId| self.city_has_building(city, b);
-        let ctx = self.square_ctx(city)?;
-        let SquareCtx {
-            gaia: _,
-            blight_proof,
-            miners: _,
-            dwarf,
-        } = ctx;
-
-        // Worked tiles: food, production bonus, mines.
         let area = self.city_area(at);
         let mut blighted = 0i32;
         let (mut terrain_food_x2, mut production_percent) = (0i32, 0i32);
@@ -837,9 +860,31 @@ impl<'a> Economy<'a> {
         }
         // The land's food in quarters of a food to start with (a tile's halves doubled), so a
         // shared tile's half stays exact: 18 is 4.5 food.
-        let terrain_food = HalfInt::from_raw(terrain_food_x2 / 2);
+        Some(Land {
+            blighted,
+            terrain_food_x2,
+            production_percent,
+            mine_mana,
+            mine_gold,
+            wild_food,
+            cost_reduction,
+        })
+    }
 
-        // Rebels.
+    /// The rebels of a city (`city_economy_with`): they do not depend on the farmers.
+    #[allow(clippy::too_many_arguments)]
+    fn city_rebels(
+        &self,
+        city: hecs::Entity,
+        at: Position,
+        owner: PlayerId,
+        race_id: Option<crate::rules::RaceId>,
+        figures: u32,
+        blighted: i32,
+        blight_proof: bool,
+        mods: &[Modifier],
+    ) -> u32 {
+        let rules = &self.content.rules;
         let tax_rate = crate::player::component::<crate::player::Tax>(self.world, owner)
             .map_or(1, |t| t.0) as usize;
         let capital = crate::wizard::entity::find(self.world, owner).and_then(|w| w.capital_race());
@@ -909,18 +954,121 @@ impl<'a> Economy<'a> {
         } else {
             (raw_rebels - pacify).clamp(0, figures as i32) as u32
         };
+        rebels
+    }
+
+    /// The farmer-independent figures of a city's food (`FoodBasis`), by the same helpers
+    /// `city_economy_with` uses.
+    pub fn food_basis(&self, city: hecs::Entity) -> Option<FoodBasis> {
+        let at = *self.world.get::<&Position>(city).ok()?;
+        let owner = self.city_owner(city)?;
+        let figures = self
+            .world
+            .get::<&Population>(city)
+            .map(|p| p.figures)
+            .unwrap_or_default();
+        let race_id = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
+        self.map?;
+        let mods = self.city_modifiers(city);
+        let ctx = self.square_ctx(city)?;
+        let land = self.land_of(city, at, ctx)?;
+        let rebels = self.city_rebels(
+            city,
+            at,
+            owner,
+            race_id,
+            figures,
+            land.blighted,
+            ctx.blight_proof,
+            &mods,
+        );
+        Some(FoodBasis {
+            figures,
+            rebels,
+            mods,
+            race_id,
+            terrain_food: HalfInt::from_raw(land.terrain_food_x2 / 2),
+            wild_food: land.wild_food,
+            food_bonus: crate::player::component::<crate::player::Bonus>(self.world, owner)
+                .map_or_else(crate::player::Bonus::default, |b| *b)
+                .food,
+        })
+    }
+
+    /// The food of the city with `farmers` farming: what `city_economy_with(city, farmers).food`
+    /// is, for a basis taken while nothing else about the city changed.
+    pub fn food_at(&self, basis: &FoodBasis, farmers: u32) -> HalfInt {
+        let farmers = farmers
+            .min(basis.figures)
+            .min(basis.figures - basis.rebels.min(basis.figures));
+        let race = basis.race_id.map(|r| self.content.rules.races.get(r));
+        let (food, _) = food_with(
+            &basis.mods,
+            race,
+            basis.terrain_food,
+            basis.wild_food,
+            farmers,
+        );
+        HalfInt::from_raw(crate::player::Bonus::of(basis.food_bonus, food.raw()))
+    }
+
+    /// Compute the city's yields as if `farmers` citizens farmed.
+    pub fn city_economy_with(&self, city: hecs::Entity, farmers: u32) -> Option<CityEconomy> {
+        let at = *self.world.get::<&Position>(city).ok()?;
+        let owner = self.city_owner(city)?;
+        let pop = self
+            .world
+            .get::<&Population>(city)
+            .map(|p| *p)
+            .unwrap_or_default();
+        let race_id = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
+        let rules = &self.content.rules;
+        let race: Option<&RaceDef> = race_id.map(|r| rules.races.get(r));
+        let map = self.map?;
+        let grid = map.plane(at.plane);
+        let mods = self.city_modifiers(city);
+        let figures = pop.figures;
+        let farmers = farmers.min(figures);
+
+        let has = |b: crate::rules::BuildingId| self.city_has_building(city, b);
+        let ctx = self.square_ctx(city)?;
+        let SquareCtx {
+            gaia: _,
+            blight_proof,
+            miners: _,
+            dwarf,
+        } = ctx;
+
+        // Worked tiles: food, production bonus, mines.
+        let Land {
+            blighted,
+            terrain_food_x2,
+            production_percent,
+            mine_mana,
+            mine_gold,
+            wild_food,
+            cost_reduction,
+        } = self.land_of(city, at, ctx)?;
+        let terrain_food = HalfInt::from_raw(terrain_food_x2 / 2);
+
+        // Rebels.
+        let tax_rate = crate::player::component::<crate::player::Tax>(self.world, owner)
+            .map_or(1, |t| t.0) as usize;
+        let rebels = self.city_rebels(
+            city,
+            at,
+            owner,
+            race_id,
+            figures,
+            blighted,
+            blight_proof,
+            &mods,
+        );
         let farmers = farmers.min(figures - rebels.min(figures));
         let workers = figures - farmers - rebels;
 
         // Food.
-        let farmer_rate = race.map_or(HalfInt::from_int(2), |r| r.farmer_food);
-        let farmer_rate = compute_half(Stat::FarmerFood, farmer_rate, &mods);
-        let mut food = compute_half(Stat::CityFood, farmer_rate * farmers as i32, &mods);
-        if food > terrain_food {
-            food = terrain_food + HalfInt::from_raw((food - terrain_food).raw() / 2);
-        }
-        let flat = compute_half(Stat::CityFoodFlat, HalfInt::ZERO, &mods);
-        food += flat + wild_food;
+        let (food, flat) = food_with(&mods, race, terrain_food, wild_food, farmers);
         // The city feeds as many as its land, farm work and buildings allow.
         let famine = self.city_has_effect(city, CityEffect::Famine);
         let pre_cap_adds = compute_half(Stat::CityFood, HalfInt::ZERO, &mods);
