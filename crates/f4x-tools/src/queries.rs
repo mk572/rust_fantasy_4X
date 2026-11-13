@@ -155,10 +155,7 @@ mod tests {
 
     #[test]
     fn every_frame_query_is_timed_on_a_small_game() -> Result<(), String> {
-        let content =
-            f4x_def::load::load_content_layers(&[std::path::Path::new(f4x_def::SHIPPED_CONTENT)])
-                .map_err(|e| e.to_string())?;
-        let game = new_game(&content, &NewGame::with_wizards(2))?;
+        let game = new_game(crate::testutil::shipped(), &NewGame::with_wizards(2))?;
         let times = measure(&game, PlayerId(0), 1);
         assert!(times.len() >= 8, "{times:?}");
         assert!(times.iter().all(|(_, t)| t.is_finite() && *t >= 0.0));
