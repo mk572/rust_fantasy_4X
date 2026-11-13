@@ -141,3 +141,22 @@ Mac cool on long runs, never to compare times (or with the figures in the tasks)
 warns if the Mac got hot) or plain; they are a few seconds long. `soak --every N`
 also prints the milliseconds a turn per phase: each wizard's turn, the neutrals, and the rest
 (turn changes and the other players' turn ends).
+
+## Speeding up the engine without changing a game: how it was checked (task 512)
+
+The games are deterministic, so a speedup is proven by the games it plays: build the commit before
+into a second worktree (`git worktree add DIR HEAD`, `CARGO_TARGET_DIR=OTHER cargo build --release -p
+f4x-tools`), play the bench snapshots with both binaries (`soak --from soak-out/bench/p5/seed25/t0400.f4x
+--players 5 --turns 460 --snapshots-every 20 --out DIR`), and `diff -r` the saves. A cache is added
+together with an env-var check that works the answer out afresh at every use and compares
+(`F4X_CHECK_UNITS`, `F4X_CHECK_VISION`, `F4X_CHECK_BUDGET`), played on a few games of 2 to 5 wizards.
+The check found a real mistake at once: the kept budget missed a unit made in the middle of a city's
+production, because the auto-builder asks for the budget between the unit and the end of the city's
+turn; the fix was to refresh at the moments the old code recomputed, not at the moments the new
+code thought something had changed.
+
+Profile with `sample PID 15 -file OUT` on `f4x-tools soak --from ...` run in the background; the
+release binary keeps its symbols, and the sample's "Call graph" section (a tree with a count per
+node) shows who calls what. Look at the top of the stack for self time and at the tree for the
+share of a whole phase. Hash maps keyed by `Position` or `Entity` on a hot path want `crate::fast`
+(`FastMap`, `FastSet`): the standard hasher was 6% of a late game.
