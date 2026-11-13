@@ -9,6 +9,7 @@ mod console_cmd;
 mod contestant;
 mod game_methods;
 mod metrics;
+mod queries;
 mod soak;
 #[cfg(test)]
 mod testutil;
@@ -42,6 +43,9 @@ const USAGE: &str = "usage:
                                               per spell and the map spells never cast; with
                                               --refused-log, every refused command goes to FILE (TSV);
                                               --snapshots-every N --out DIR saves the game every N turns
+  f4x-tools queries --from SAVE [--player N] [--repeat N]
+                                              time the game queries the client asks for in every frame
+                                              on a saved game (task 476)
   f4x-tools soak-versus [--seeds A..B] [--turns N] [--players 2..5] [--snapshots-every N] [--out DIR]
                                               the AI under work against the frozen reference (scripts/fork_ai.py):
                                               four games a seed (ref only, new in each half of the seats, new only)
@@ -59,6 +63,7 @@ fn main() -> ExitCode {
         Some("console") => console_cmd::run(&args[1..]),
         Some("game-methods") => game_methods::run(&args[1..]),
         Some("soak") => soak::run(&args[1..]),
+        Some("queries") => queries::run(&args[1..]),
         Some("soak-versus") => versus::run(&args[1..]),
         Some("soak-diff") => versus::diff(&args[1..]),
         _ => Err(USAGE.to_string()),
