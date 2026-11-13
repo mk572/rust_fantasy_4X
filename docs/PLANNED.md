@@ -493,20 +493,18 @@ the map that a building, spell, unit or ability can refer to (a mine for ore and
 for food), placed by the generator and shown with these pictures. Low priority; do it with item 4 (the community
 patch and Caster of Magic content).
 
-**43. Proper windowing support.** Today everything is drawn onto the same pane: a screen paints the whole frame, and
-a pop-up is either a function that takes the frame over (`built_popup_frame`, `end_scene_frame`, the help box with its
-frozen copy of the screen) or a box painted over what the screen drew before. A modern game should have windowed
-layers: each box, panel and screen a window with its own place in a stack, so that a window can stand over a live
-screen, several can be open at once, and input goes to the one on top. Sketch, to be settled when it is taken up:
-- a layer stack in the client: a window has a rectangle (in the original's 320 by 200 coordinates, scaled as now), an
-  order, a title or none, and says whether it is modal (blocks the ones below) or not;
-- input goes to the topmost window under the pointer, a click outside a modal window is swallowed, Esc closes the top
-  one, and the help pop-up (task 289) and the confirmation boxes become windows instead of frozen frames;
-- windows that the original draws full-screen stay full-screen by default, so the look does not change; the new part is
-  that they can be dragged, resized (with item 11's higher resolutions) or placed on another monitor, and that the
-  map can stay visible and live behind a box such as the city screen or the advisors;
-- the drawing of a window can go to its own render target, which also gives fades, the original's page-flip effects
-  and drop shadows without each screen doing its own.
+**43. Proper windowing support.** Partly done (status of 14 November 2026). Everything used to be drawn onto the same pane: a screen paints the whole frame, and a pop-up was either a function that took the frame over or a box painted over what the screen drew before. A modern game should have windowed layers: each box, panel and screen a window with its own place in a stack, so that a window can stand over a live screen, several can be open at once, and input goes to the one on top.
+
+**Done (task 389, `crates/f4x-client/src/modal.rs`):** the **modal stack**. Questions and notices are layers over the screen below: drawn after it (dimmed if the player wants), the newest on top gets all the input of the frame (nothing below sees a click or a key), a box of a kind that is already open is replaced, and notices that turn processing makes wait in a queue by priority until nothing is open. About 25 kinds use it (help, confirmations, events, offers, the built-building and level-up boxes, the scenes). Esc closes the top modal. Tests can click through it (tasks 395 and 406).
+
+**To do:**
+- **Non-modal windows.** Every layer today is modal. A window should say whether it blocks the ones below or not, several should be open at once, and input should go to the topmost window under the pointer (a click outside a modal window stays swallowed).
+- **The help pop-up as a window.** `help_popup.rs` still keeps a frozen picture of the frame it opened on (so a click that closes it cannot reach a button below). The confirmation boxes are modals; the help box should become a live window over the live screen, with Expanding Help drawn on it.
+- **Screens as windows.** The screens the original draws full-screen stay full-screen by default, so the look does not change. The new part is that the map can stay visible and live behind a box such as the city screen or the advisors.
+- **Drag, resize and place.** Windows can be dragged, resized (with item 11's higher resolutions) or placed on another monitor. Nothing of this exists in the client yet (the alchemy window's star is a slider, not a window drag).
+- **A render target for each window,** which also gives fades, the original's page-flip effects and drop shadows without each screen doing its own. Task 424 is the open decision on drawing the frame into one render target; settle it first.
+- Sketch of the stack data, to be settled when it is taken up: a window has a rectangle (in the original's 320 by 200 coordinates, scaled as now), an order, a title or none, and a modal flag.
+
 Related: items 6, 10, 11 and 39 (graphics, fonts and resolution), task 289 (help pop-ups) and the full-screen scenes
 of `end_scene.rs`. The request that opened this item had more detail after "windowed layers"; add it here.
 
