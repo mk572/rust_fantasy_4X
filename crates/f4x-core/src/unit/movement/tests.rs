@@ -748,6 +748,208 @@ fn a_square_has_eight_neighbours_wrapping_east_and_west_and_stopping_at_the_pole
 }
 
 #[test]
+fn a_path_takes_the_short_way_over_the_seam_in_both_directions() -> TestResult {
+    let mut g = world();
+    // Row 1 is open grass; the world is 12 squares wide, so x = 11 and x = 1 are two steps apart.
+    let east = unit(&mut g, P0, 107 /* high_men_cavalry */, at(11, 1));
+    let path = g
+        .find_path(&[east], at(1, 1))
+        .ok_or("no way over the seam")?;
+    assert_eq!(path.len(), 2, "two steps: {path:?}");
+    assert_eq!(path[0].x, 0, "over the seam first: {path:?}");
+    assert_eq!(path.last(), Some(&at(1, 1)));
+    let west = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 1));
+    let back = g.find_path(&[west], at(11, 1)).ok_or("no way back")?;
+    assert_eq!(back.len(), 2, "two steps: {back:?}");
+    assert_eq!(back[0].x, 0, "over the seam first: {back:?}");
+    assert_eq!(back.last(), Some(&at(11, 1)));
+    // A diagonal over the seam too.
+    let diagonal = g.find_path(&[east], at(0, 2)).ok_or("no diagonal")?;
+    assert_eq!(diagonal, vec![at(0, 2)]);
+    Ok(())
+}
+
+#[test]
+fn only_the_seam_leads_to_the_other_side_when_the_middle_is_walled() -> TestResult {
+    let mut g = world();
+    let ocean = g
+        .content
+        .terrains
+        .id_numbered(num::terrain::OCEAN)
+        .ok_or("ocean is not in the content")?;
+    // Water in columns 5 and 6: from x = 8 the squares at x = 2 are reached only the other way round.
+    for x in [5, 6] {
+        for y in 0..6 {
+            g.map
+                .as_mut()
+                .ok_or("no map")?
+                .plane_mut(Plane::Arcanus)
+                .set(x, y, ocean);
+        }
+    }
+    // A hero eats no food, and the treasury pays its gold (as in the goto test).
+    let w = unit(&mut g, P0, 0 /* dwarf */, at(8, 1));
+    let path = g.find_path(&[w], at(2, 1)).ok_or("no way over the seam")?;
+    assert_eq!(path.last(), Some(&at(2, 1)));
+    assert!(
+        path.contains(&at(0, 1)) || path.contains(&at(0, 0)) || path.contains(&at(0, 2)),
+        "it crosses the seam: {path:?}"
+    );
+    assert!(g.reachable_squares(&[w]).contains(&at(2, 1)));
+    assert!(g.reaches_any(&[w], &[at(2, 1)]));
+    // The order walks the stack over the seam, turn after turn.
+    g.treasury_mut(P0).ok_or("no treasury")?.gold = f4x_def::half_int::HalfInt::from_int(1000);
+    let mut events = g.apply(Command::GoTo {
+        units: vec![w],
+        to: at(2, 1),
+    });
+    for _ in 0..8 {
+        events.extend(g.apply(Command::EndTurn));
+    }
+    let moved: Vec<_> = events
+        .iter()
+        .filter(|e| matches!(e, Event::UnitsMoved { .. } | Event::OrderFailed { .. }))
+        .collect();
+    assert_eq!(g.units().unit_position(w), Some(at(2, 1)), "{moved:?}");
+    Ok(())
+}
+
+/// The 12x6 world with every square of both planes the given terrain.
+fn flat_world(terrain: u16) -> Game {
+    let mut g = world();
+    let id = g
+        .content
+        .terrains
+        .id_numbered(terrain)
+        .expect("the terrain exists");
+    let map = g.map.as_mut().expect("the world has a map");
+    for plane in [Plane::Arcanus, Plane::Myrror] {
+        for y in 0..6 {
+            for x in 0..12 {
+                map.plane_mut(plane).set(x, y, id);
+            }
+        }
+    }
+    g
+}
+
+#[test]
+fn on_open_ground_every_path_has_the_length_of_the_wrapped_distance() -> TestResult {
+    let mut g = flat_world(num::terrain::GRASSLAND);
+    let width = 12;
+    let walker = unit(&mut g, P0, 107 /* high_men_cavalry */, at(0, 0));
+    for sy in 0..6 {
+        for sx in 0..12 {
+            let start = at(sx, sy);
+            g.world
+                .insert_one(walker, start)
+                .map_err(|e| format!("{e:?}"))?;
+            for gy in 0..6 {
+                for gx in 0..12 {
+                    let goal = at(gx, gy);
+                    let path = g.find_path(&[walker], goal);
+                    if goal == start {
+                        assert_eq!(path, None, "no path to where it stands");
+                        continue;
+                    }
+                    let path = path.ok_or_else(|| format!("no path {start:?} to {goal:?}"))?;
+                    let dx = sx.abs_diff(gx);
+                    let expected = dx.min(width - dx).max(sy.abs_diff(gy)) as usize;
+                    assert_eq!(path.len(), expected, "{start:?} to {goal:?}: {path:?}");
+                    assert_eq!(path.last(), Some(&goal));
+                    let mut from = start;
+                    for &step in &path {
+                        assert!(adjacent(width, from, step), "{from:?} to {step:?}");
+                        from = step;
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn on_open_ground_the_walk_reaches_every_square_from_any_column() -> TestResult {
+    let mut g = flat_world(num::terrain::GRASSLAND);
+    let walker = unit(&mut g, P0, 107 /* high_men_cavalry */, at(0, 3));
+    for sx in 0..12 {
+        g.world
+            .insert_one(walker, at(sx, 3))
+            .map_err(|e| format!("{e:?}"))?;
+        assert_eq!(g.reachable_squares(&[walker]).len(), 72, "from column {sx}");
+        // The nearest square over the seam is found by the early stop too.
+        let over = at((sx + 11) % 12, 5);
+        assert!(g.reaches_any(&[walker], &[over]));
+    }
+    Ok(())
+}
+
+#[test]
+fn a_stack_steps_over_the_seam_in_both_directions() -> TestResult {
+    let mut g = flat_world(num::terrain::GRASSLAND);
+    let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(11, 1));
+    g.move_stack(&[w], at(0, 1)).map_err(|e| format!("{e:?}"))?;
+    assert_eq!(g.units().unit_position(w), Some(at(0, 1)));
+    g.move_stack(&[w], at(11, 2))
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(g.units().unit_position(w), Some(at(11, 2)), "diagonal back");
+    Ok(())
+}
+
+#[test]
+fn ships_sail_over_the_seam() -> TestResult {
+    let mut g = flat_world(num::terrain::OCEAN);
+    let boat = unit(&mut g, P0, 35 /* trireme */, at(10, 3));
+    let path = g.find_path(&[boat], at(2, 3)).ok_or("no sea way")?;
+    assert_eq!(
+        path.len(),
+        4,
+        "10 to 2 over the seam is four squares: {path:?}"
+    );
+    assert!(path.iter().any(|p| p.x == 11 || p.x == 0));
+    assert!(g.reachable_squares(&[boat]).contains(&at(1, 5)));
+    Ok(())
+}
+
+#[test]
+fn a_road_over_the_seam_halves_the_cost_of_the_step() -> TestResult {
+    let mut g = flat_world(num::terrain::GRASSLAND);
+    let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(11, 1));
+    let plain = cost(&g, w, at(11, 1), at(0, 1)).map_err(|e| format!("{e:?}"))?;
+    for x in [11, 0] {
+        g.map
+            .as_mut()
+            .ok_or("no map")?
+            .plane_mut(Plane::Arcanus)
+            .set_road(x, 1, true);
+    }
+    let road = cost(&g, w, at(11, 1), at(0, 1)).map_err(|e| format!("{e:?}"))?;
+    assert!(road < plain, "road {road:?} against {plain:?}");
+    assert_eq!(
+        cost(&g, w, at(0, 1), at(11, 1)).map_err(|e| format!("{e:?}"))?,
+        road,
+        "the same both ways"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_hostile_stack_on_the_seam_is_gone_round_not_through() -> TestResult {
+    let mut g = flat_world(num::terrain::GRASSLAND);
+    let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(11, 1));
+    g.make_contact(P0, P1);
+    g.declare_war(P0, P1);
+    unit(&mut g, P1, 107 /* high_men_cavalry */, at(0, 1));
+    let path = g.find_path(&[w], at(1, 1)).ok_or("no way round")?;
+    assert!(!path.contains(&at(0, 1)), "through the enemy: {path:?}");
+    assert_eq!(path.len(), 2, "round it over the seam: {path:?}");
+    // And the walk does not enter it either.
+    assert!(!g.reachable_squares(&[w]).contains(&at(0, 1)));
+    Ok(())
+}
+
+#[test]
 fn a_walker_reaches_the_land_round_the_water_and_a_flier_all_of_it() -> TestResult {
     let mut g = world();
     let ocean = g

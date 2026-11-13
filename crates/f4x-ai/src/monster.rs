@@ -170,7 +170,11 @@ fn act(
             ai.send(game, Command::GoTo { units, to: z }, events);
         }
         Some(Goal::City(c)) => {
-            march(ai, game, &units, c, events);
+            // A band that cannot get to the city stays where it is this turn; the reason is kept
+            // in the refused-order log.
+            if let Err(why) = march(ai, game, &units, c, events) {
+                ai.note_failure(game, format!("march to {c:?}"), format!("{why:?}"));
+            }
         }
         None => {
             let target = {

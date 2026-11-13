@@ -94,6 +94,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let view = PlayerView::new(game, me);
         let alive: Vec<Serial> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
         ai.raiders.retain(|s| alive.contains(s));
+        let raiders = ai.raiders.clone();
+        ai.raid_targets.retain(|s, _| raiders.contains(s));
         let mut out: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
         let mut home: Vec<Serial> = Vec::new();
         for u in view.my_units() {
@@ -119,7 +121,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         if game.game_over.is_some() {
             return;
         }
-        let (next_to, city_next, target, home) = {
+        let (next_to, city_next, candidates, home) = {
             let view = PlayerView::new(game, me);
             let strength = stack_strength(&view, &units);
             let next_to = around(&view, pos)
@@ -128,16 +130,40 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let city_next = around(&view, pos)
                 .into_iter()
                 .find(|&p| neutral_city(&view, p) && strength >= city_defence(&view, p) * edge());
-            let target = sites_near(&view, pos, strength).into_iter().next();
+            // The site the party is set on stays its target while it is still worth taking:
+            // "the nearest" changes as the party walks, and a party between two sites went to and
+            // fro for ever.
+            let sites = sites_near(&view, pos, strength);
+            let kept = units
+                .iter()
+                .find_map(|&u| ai.raid_targets.get(&view.serial_of(u)).copied())
+                .filter(|t| sites.contains(t));
+            // The site it is set on first, then the nearest few: one it cannot walk to is
+            // passed over, and a party with none it can reach goes home.
+            let mut candidates: Vec<Position> = kept.into_iter().collect();
+            candidates.extend(sites.iter().copied().filter(|&t| Some(t) != kept).take(4));
             let home = view
                 .my_cities()
                 .into_iter()
                 .map(|(_, p)| p)
                 .min_by_key(|&p| (distance(&view, pos, p), p.y, p.x));
-            (next_to, city_next, target, home)
+            (next_to, city_next, candidates, home)
         };
+        let party: Vec<Serial> = {
+            let view = PlayerView::new(game, me);
+            units.iter().map(|&u| view.serial_of(u)).collect()
+        };
+        let before = events.len();
         if let Some(site) = next_to {
             assault(ai, game, &units, site, events);
+            // A cleared site is the raid's work done: the party has not stalled, so its time
+            // limit starts again (`plan_clock.rs`).
+            if events[before..]
+                .iter()
+                .any(|e| matches!(e, Event::SiteCleared { player, .. } if *player == me))
+            {
+                ai.clock.restart_raiders(&party);
+            }
         } else if let Some(city) = city_next {
             let defenders = PlayerView::new(game, me)
                 .hostile_at(city)
@@ -147,9 +173,50 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             } else {
                 strike(ai, game, units, defenders, events);
             }
-        } else if let Some(site) = target {
-            march(ai, game, &units, site, events);
+            // A city taken ends the raid: the party moves in and is its garrison.
+            if events[before..]
+                .iter()
+                .any(|e| matches!(e, Event::CityCaptured { to, .. } if *to == me))
+            {
+                ai.raiders.retain(|s| !party.contains(s));
+                let stay: Vec<hecs::Entity> = {
+                    let view = PlayerView::new(game, me);
+                    view.my_units()
+                        .into_iter()
+                        .filter(|&u| party.contains(&view.serial_of(u)))
+                        .filter(|&u| view.unit_position(u).is_some_and(|p| p != city))
+                        .collect()
+                };
+                if !stay.is_empty() {
+                    ai.send(
+                        game,
+                        Command::GoTo {
+                            units: stay,
+                            to: city,
+                        },
+                        events,
+                    );
+                }
+            }
+        } else if let Some(site) =
+            candidates
+                .iter()
+                .copied()
+                .find(|&t| match march(ai, game, &units, t, events) {
+                    Ok(()) => true,
+                    Err(why) => {
+                        ai.note_failure(game, format!("march to {t:?}"), format!("{why:?}"));
+                        false
+                    }
+                })
+        {
+            for &s in &party {
+                ai.raid_targets.insert(s, site);
+            }
         } else if let Some(home) = home {
+            party.iter().for_each(|s| {
+                ai.raid_targets.remove(s);
+            });
             let serials: Vec<Serial> = {
                 let view = PlayerView::new(game, me);
                 units.iter().map(|&u| view.serial_of(u)).collect()
@@ -204,7 +271,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             (spare, sites)
         };
         for site in sites {
-            if march(ai, game, &party, site, events) {
+            if march(ai, game, &party, site, events).is_ok() {
                 let view = PlayerView::new(game, me);
                 ai.raiders.extend(party.iter().map(|&u| view.serial_of(u)));
                 return;
@@ -259,7 +326,7 @@ pub fn deploy(
                 sites_near(&view, pos, stack_strength(&view, party))
             };
             for site in sites {
-                if crate::assault::march_with(&mut reached, ai, game, party, site, events) {
+                if crate::assault::march_with(&mut reached, ai, game, party, site, events).is_ok() {
                     let view = PlayerView::new(game, me);
                     ai.raiders.extend(party.iter().map(|&u| view.serial_of(u)));
                     left = true;
@@ -357,6 +424,157 @@ mod tests {
             .sum();
         assert_eq!(gold, 300, "the hoard is the wizard's");
         assert!(g.economy().lair_at(at(8, 6)).is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn a_raid_that_takes_a_city_is_over_and_the_party_is_its_garrison() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        // A city of a neutral player (always at war with everyone) with nobody in it.
+        let neutral = f4x_core::player::PlayerId(2);
+        g.add_neutral_player(neutral);
+        let east = at(33, 6);
+        let founded = g.apply(Command::FoundCity {
+            owner: neutral,
+            pos: east,
+            name: "Greyhold".into(),
+            race: g.content().rules.races.id_numbered(8),
+            population: 8,
+        });
+        assert!(
+            !founded.iter().any(|e| matches!(e, Event::Rejected(_))),
+            "{founded:?}"
+        );
+        g.explore(P0, east, f4x_def::half_int::HalfInt::from_raw(3));
+        let party = spawn(&mut g, P0, at(32, 6), 113 /* high_men_paladins */, 4);
+        let mut ai = Ai::new(P0);
+        {
+            let view = PlayerView::new(&g, P0);
+            ai.raiders = party.iter().map(|&u| view.serial_of(u)).collect();
+        }
+        let mut events = Vec::new();
+        run(&mut ai, &mut g, &mut events);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::CityCaptured { to, .. } if *to == P0)),
+            "{events:?}"
+        );
+        assert!(ai.raiders.is_empty(), "the raid is over");
+        assert!(
+            party
+                .iter()
+                .all(|&u| g.units().unit_position(u) == Some(east)),
+            "the party stands in the city"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_cleared_site_gives_the_party_a_fresh_time() -> TestResult {
+        let mut g = world(
+            5,
+            vec![(f4x_def::rules::UnitId::new(174) /* zombies */, 1)],
+            false,
+        )?;
+        let mut ai = Ai::new(P0);
+        // A party next to the site (the soldiers of the city stay where they are).
+        let party = spawn(&mut g, P0, at(9, 6), 113 /* high_men_paladins */, 5);
+        {
+            let view = PlayerView::new(&g, P0);
+            ai.raiders = party.iter().map(|&u| view.serial_of(u)).collect();
+        }
+        // The party has been out for 90 turns when it clears the site.
+        ai.drop_stale_plans(g.turn);
+        g.turn += 90;
+        ai.drop_stale_plans(g.turn);
+        let mut events = Vec::new();
+        run(&mut ai, &mut g, &mut events);
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, Event::SiteCleared { player, .. } if *player == P0)));
+        // Twenty turns later it would be 110 turns out, but the clear started the time again.
+        g.turn += 20;
+        ai.drop_stale_plans(g.turn);
+        g.turn += 20;
+        ai.drop_stale_plans(g.turn);
+        assert!(!ai.raiders.is_empty(), "not dropped");
+        assert_eq!(ai.plans_dropped().iter().map(|(_, n)| n).sum::<u32>(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_party_keeps_the_site_it_is_set_on_while_another_becomes_nearer() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let guards = || vec![(f4x_def::rules::UnitId::new(174) /* zombies */, 1)];
+        spawn_site(&mut g, at(4, 4), guards(), Vec::new())?;
+        spawn_site(&mut g, at(4, 9), guards(), Vec::new())?;
+        g.reveal_map(P0);
+        let party = spawn(&mut g, P0, at(6, 7), 113 /* high_men_paladins */, 5);
+        let mut ai = Ai::new(P0);
+        let view = PlayerView::new(&g, P0);
+        ai.raiders = party.iter().map(|&u| view.serial_of(u)).collect();
+        // The party is set on the far site (4, 4) though (4, 9) is nearer to where it stands.
+        for &s in &ai.raiders.clone() {
+            ai.raid_targets.insert(s, at(4, 4));
+        }
+        let mut events = Vec::new();
+        run(&mut ai, &mut g, &mut events);
+        let here = g
+            .units()
+            .unit_position(party[0])
+            .ok_or("the party is on the map")?;
+        assert!(here.y < 7, "it went towards (4, 4), not (4, 9): {here:?}");
+        assert!(ai.raid_targets.values().all(|&t| t == at(4, 4)));
+        Ok(())
+    }
+
+    #[test]
+    fn a_party_whose_only_site_cannot_be_reached_goes_home_and_the_raid_ends() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        // A tower on the east island: in range, but over the sea from the party.
+        spawn_tower(&mut g, at(30, 9), true)?;
+        g.reveal_map(P0);
+        let party = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 5);
+        let mut ai = Ai::new(P0);
+        let view = PlayerView::new(&g, P0);
+        ai.raiders = party.iter().map(|&u| view.serial_of(u)).collect();
+        let mut events = Vec::new();
+        for _ in 0..4 {
+            run(&mut ai, &mut g, &mut events);
+            g.apply(Command::EndTurn);
+        }
+        assert!(ai.raid_targets.is_empty(), "no target it can walk to");
+        assert!(
+            ai.raiders.is_empty(),
+            "the raid ended at the city: {:?}",
+            ai.raiders
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_march_that_cannot_be_ordered_says_why() -> TestResult {
+        use crate::assault::{march, MarchError};
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn_tower(&mut g, at(30, 9), true)?;
+        g.reveal_map(P0);
+        let party = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 3);
+        let ai = Ai::new(P0);
+        let mut events = Vec::new();
+        assert_eq!(
+            march(&ai, &mut g, &party, at(30, 9), &mut events),
+            Err(MarchError::Unreachable),
+            "over the sea"
+        );
+        assert_eq!(
+            march(&ai, &mut g, &[], at(30, 9), &mut events),
+            Err(MarchError::NoUnits)
+        );
+        // A site on the party's own island can be marched on.
+        let site = at(3, 3);
+        spawn_site(&mut g, site, Vec::new(), Vec::new())?;
+        assert_eq!(march(&ai, &mut g, &party, site, &mut events), Ok(()));
         Ok(())
     }
 

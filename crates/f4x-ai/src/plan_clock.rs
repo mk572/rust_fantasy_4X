@@ -95,6 +95,13 @@ impl PlanClock {
         expired
     }
 
+    /// The raiders in `party` have done something that counts (cleared a site): their time starts
+    /// again at the next turn's tick.
+    pub(crate) fn restart_raiders(&mut self, party: &[crate::Serial]) {
+        self.started
+            .retain(|(k, key, _)| !(*k == PlanKind::Raid && party.iter().any(|s| s.0 == *key)));
+    }
+
     /// How many plans of `kind` the clock has dropped.
     pub fn dropped(&self, kind: PlanKind) -> u32 {
         self.dropped[kind.slot()]

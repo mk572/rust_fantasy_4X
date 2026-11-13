@@ -140,6 +140,9 @@ pub struct Ai {
     refusals: RefCell<Vec<Refusal>>,
     /// The units out on a raid of a tower, node or encounter site (`site.rs`).
     raiders: Vec<Serial>,
+    /// The site each raider is set on, so a party keeps to it as it walks (`site.rs`).
+    #[serde(default, serialize_with = "persist::sorted")]
+    raid_targets: HashMap<Serial, Position>,
     /// When each plan began, for the time limit on all of them (`plan_clock.rs`).
     #[serde(default)]
     clock: plan_clock::PlanClock,
@@ -238,6 +241,7 @@ impl Ai {
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
             raiders: Vec::new(),
+            raid_targets: HashMap::new(),
             clock: plan_clock::PlanClock::default(),
             defended_by: Vec::new(),
             attacks: Vec::new(),
@@ -346,6 +350,23 @@ impl Ai {
         economy::cities(self, game, &mut events);
         shortfall::run(self, game, &mut events);
         events
+    }
+
+    /// Keep a failure that is no refused command (a party that cannot be sent anywhere) in the
+    /// refused-order log, with the line that asks.
+    #[track_caller]
+    pub(crate) fn note_failure(&self, game: &Game, what: String, reason: String) {
+        if !self.record_refusals {
+            return;
+        }
+        let at = std::panic::Location::caller();
+        self.refusals.borrow_mut().push(Refusal {
+            turn: game.turn,
+            player: self.player,
+            source: format!("{}:{}", at.file(), at.line()),
+            command: what,
+            reason,
+        });
     }
 
     /// Send a command and keep its events.
