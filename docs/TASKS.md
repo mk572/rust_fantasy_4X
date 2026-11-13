@@ -6,9 +6,13 @@ Everything not yet implemented.
 Every row has a priority after its number: High, Medium or Low.
 Add a summary to the table, then details under Descriptions.
 
-Bracketed numbers like [430] point at topics in the original help
-(`content-local/help.ron`)
-B/C numbers point at `help-vs-implementation-conflicts.md`.
+Rules for tasks:
+
+* Keep tasks atomic: work with no dependency between its parts is listed as separate tasks.
+* Avoid overlap and "parent tasks":
+  * Clearly mark if a task requires another one to start (*Needs:*).
+  * Don't keep task A open waiting for task B to finish if no work is left in A that depends on B.
+  * The same work is not duplicated across several tasks.
 
 Gaps found while working on the base game are added here as new tasks, not left in notes.
 
