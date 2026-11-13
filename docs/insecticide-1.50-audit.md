@@ -175,7 +175,64 @@ Also settled by the walk (rows further down the table):
 - 302 (dispelling Web fails to restore movement type) and 440 (Death Immunity does not protect from Terror): **not present**. A broken or dispelled Web gives flight back (`restore_stats_from`); Terror skips units with Death Immunity (`field.rs`).
 - The Web spell itself was checked against the wiki page, apart from the 1.50 rows: **Web now has 12 hit points**; the unit it holds spends its turn striking them and cannot move or attack meanwhile (it counter-attacks as usual). What it takes off: its melee strength, the better of that and a bow, sling or magical ranged attack with a shot left (the 1.31 bug counted missiles only), a thrown weapon, breath or gaze added, Immolation's fire added. A boulder does not count (a catapult stays held until the Web is dispelled; the user agrees). `docs/combat.md` section 8, tests in `battle/tests.rs`. This is independent of the 1.50 rows (it also covers 1.52.03 rows 784 and 785).
 
-Next: row 053 (Gift of the Gods and item eligibility, item slots, more than six items).
+### Walked on 14 November 2026: 053, 134, 135, 291 (and 292, 293)
+
+Notes from the wiki page `reference/Unofficial Patch 1.50 ...html`. All six are **not present**; no code change.
+
+| Rows | Verdict |
+|---|---|
+| 053 Gift of the Gods needed an item the receiver could create | **Not present.** `make_item` (`item/make.rs`) never looks at the wizard's books: they only limit what a wizard may craft (the module's first paragraph; `divergences.md` section 10). The event asks for `Grade::Artifact` and gives the item with `give_item`. |
+| 134 Treasure items needed specific books; a prefab item is made much more often | **Not present.** Same function: a lair's treasure, the merchant and the events draw up to fifty of the 250 prefab items (each once a game, the cost between half the value and the value) and roll a random item only when none suits, so the prefab item is the usual result. 134 also has an AI line (no spell charges for a spell the wizard does not know): crafting refuses charges for a spell the wizard does not know or cannot cast in battle (`item/crafting.rs`, test `charges_need_a_known_battle_spell_and_one_to_four_of_them`), for the AI as for a human. |
+| 135 The internal 0th item slot made one item appear in several places | **Not present.** An item is an entity with one holder (`HeldBy`: a vault slot, the award list, or a hero's slot, `item/entity.rs`); there is no slot 0 and a move changes the holder, so an item cannot be in two places. |
+| 291 More than six items from one combat vanish | **Not present.** `give_item` puts every item in the vault, which has no limit (`VAULT_SLOTS` is the screen's size, 4, and the screen scrolls); test `an_armory_with_many_items_loses_nothing` (ten items waiting, a dead hero's three more all arrive, `lost: 0`). |
+| 292 The vault has 8 slots instead of 4 | **Not present.** No limit at all, see 291. |
+| 293 The AI puts shields in staff slots | **Not present.** The AI moves items with `Command::MoveItem` (`f4x-ai/src/offer.rs`), which goes through the same slot check as the item screen (`ItemError::WrongSlot`, `item/armory.rs`). |
+
+### Walked on 14 November 2026: 056, 057, 062, 058
+
+| Rows | Verdict |
+|---|---|
+| 056 The diplomatic "gold reward" event crashes | **Not present.** A gift of gold is a `DiplomacyCommand::GiveGold` that raises `GoldGiven`; the client shows it with `diplomacy.gives_gold` (`diplomacy_screen.rs`). Nothing is left unimplemented. |
+| 057 The spell name is missing from an AI's spell offer | **Not present.** A spell offered in a swap (`Exchange`) fills `{give}` and `{get}` with the spell names (`diplomacy_prompt.rs`), a spell given away fills `{spell}` (`diplomacy.gives_spell`). We have no treaty offer with a spell attached: the swap and the gift are proposals of their own. The test `every_kind_of_proposal_asks_a_question_that_the_texts_have` checks each question. |
+| 062 The name of the target wizard is missing or wrong in an AI's request to break an alliance | **Not present.** `{third}` is filled from the proposal's own third wizard for `WarOn` and `BreakAllianceWith` (`diplomacy_prompt.rs`). The lists of third wizards come from `check_proposal` for each wizard, not from a shared index (the original's list for Break Alliance holds the wizards that are *not* allied, a bug we do not share). |
+| 058 "Declare War on" offered where "Break Alliance with" is the way | **Present, fixed.** `check_proposal` let a wizard be asked to declare war on its own ally (the test even said "allies may still be sent to war"). Now `WarOn(third)` is refused while the wizard asked is allied with `third`; the Break Alliance entry lists that wizard instead, and once the alliance is gone war is allowed. The AI asks through the same check. Test `what_the_treaty_allows_decides_what_can_be_proposed`. |
+
+### Walked on 14 November 2026: 070, 372, 389, 390
+
+| Rows | Verdict |
+|---|---|
+| 070, 372 Breaking a treaty raises the hidden relation instead of lowering it | **Not present.** Ours lowers it (`break_treaties`, `divergences`: `diplomacy.md` section 10). |
+| 389, 390 Hidden relation changes the wrong player | **Present, fixed** (decided with the user). The `Stance` slots were used in two directions: breaking a treaty and asking wrote where the rating of a proposal reads (the slot of the one who asks), a gift wrote the other slot, and a wizard's own decisions (peace offers, warnings, need for war, its dealings with other wizards) read the slot the human's changes never reach. Now `hidden` and the patiences are read and written in one convention (documented on `Stance`): `stance(x, y)` is what `y` feels about `x`. A gift raises the receiver's reaction to the giver where the rating reads it; the AI's own decisions read `stance(other, me)`; and when a pact or alliance is really broken every other wizard's hidden relation to the *breaker* falls by 5 (the original lowers their record of the victim, and also when no treaty existed). Tests `breaking_a_treaty_costs_trust_with_everyone`, `ending_no_treaty_costs_the_breaker_nothing`, `a_spell_given_is_known_and_wins_trust`. Not unified: the mirrored patience copies in `change_relations` (equal in both directions, so no effect for the treaty and exchange patience; the peace patience there is still split by direction). |
+
+### Walked on 14 November 2026: 075, 077, 078, 082, 086, 089, 090, 093, 096, 098, 102, 106
+
+All **not present**; no code change.
+
+| Rows | Verdict |
+|---|---|
+| 075 Spells offered as a bribe never reach the AI, and not the human for a spell id of 128 and up | **Not present.** We have no bribe attached to a treaty: a gift and a swap are commands of their own. A transfer is an `Outcome::Spell` for any `SpellId` (not a byte) and goes to any wizard, the AI included (`learn_spell`). |
+| 077 Offers received that were never made | **Not present.** An answer re-checks the proposal (`check_proposal`, and that a wizard asked for a demand can pay) before anything moves, so an offer that went stale (a spell learned meanwhile, gold spent) transfers nothing; gifts check the giver's gold and spell. |
+| 078 Severe bugs in AI-to-AI diplomacy | **Not applicable.** Our AIs deal with each other through the same commands and checks as the human (`negotiate`, `rate`; the original's AI code is not ported, `design.md` section 8). The direction faults of the stance record were the ones that applied (rows 389, 390 above). |
+| 082, 098 The AI cannot start a conversation / stays silent instead of warning | **Not present.** `approach_human` (`diplomacy.md` section 8) starts every talk: a proposal waits in a yes-or-no box, a warning is a command that raises an event shown on the map; the chance of a warning is our own heuristic, not the original's. |
+| 086 A failed threat shows the generic war text | **Not present.** The war after a threat shows its own text, `diplomacy.threat_war` (`diplomacy_screen.rs`). |
+| 089, 090 The AI declares war on the wrong person | **Not present.** The target is chosen as a `PlayerId` from the wizards met, with no treaty and no peace left over (`quarrel`), and passed unchanged to `DeclareWar`; the quarrel is forgotten when that wizard is defeated or the war ends. |
+| 093 Warnings about units close to cities use the wrong text group | **Not present.** The trespass warning has its own key, `diplomacy.trespass`. |
+| 096 A treaty broken after warnings uses a text that does not say so | **Not present.** `diplomacy.treaty_broken` says it (`diplomacy_text.rs`). |
+| 102 Defeated wizards cast spells | **Not present.** A defeated wizard's turn is skipped (`f4x-ai/src/lib.rs`), and a human wizard cannot be defeated and still play. |
+| 106 Attacking a lawful wizard's capital overflows the visible relation | **Not present.** Every change of the visible relation is clamped to -100..100 (`change_relations`, `break_treaties`, `declare_war`, gifts, subversion, peace).|
+
+### Walked on 14 November 2026: 108, 111, 113
+
+| Rows | Verdict |
+|---|---|
+| 108 Wind Walking units cannot be attacked by ground units | **Not present.** Wind Walking sets `flies` only for a stack fighting at sea (`battle/game.rs`, `carried`); a flyer on land is attackable by ground units (they fight it with the reach penalty, `melee`: `reach_blocked`). |
+| 111 Strategic-combat damage priority (also 112, 114, 115) | **Not applicable.** We have no separate strategic combat: auto-resolve plays the real battle rules through the battle AI (`design.md`). Rows 112, 114, 115 fall with it. |
+| 113 Healing grants extra health (Regeneration, Life Steal, Healing, Mass Healing) | **Not present** for Regeneration, Healing and Mass Healing: `heal_points(.., false)` never adds extra hits and never exceeds what can be healed. Only Life Steal overheals (`heal_overflow`, as the original means it). Whether Life Steal should ignore irreversible damage is row 700. |
+
+| 109 Turn number shown in combat | **Was a UI gap, fixed.** The turn was only a battle-log line. The battle panel now shows "Turn N" (`battle.turn`) between the unit name and the skill/mana/range block (`bar.rs`, `draw_battle_panel`). Position chosen by eye, not checked in the running game. |
+| 110 Ammo and moves both shown | **Not checked** in the battle panel (needs a look at the running game). |
+
+Next: row 116 (Battle spell target filters).
 
 ## P2 code review: first pass
 
