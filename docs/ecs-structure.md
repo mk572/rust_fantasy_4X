@@ -1,6 +1,6 @@
 # How game state is stored (and how that differs from the original)
 
-**Version: 0.0.6** (`Cargo.toml`). The entity rework (tasks 307 to 339 in `TASKS.md`) changes the save format, so saves and replays of another version are refused (task 335).
+**Version: 0.0.6** (`Cargo.toml`). Saves and replays of another version of the game are refused (section 3.9).
 
 The original game keeps its world in fixed-size arrays of packed records and refers to
 things by array index. This project keeps it as entities with components, typed ids into
@@ -53,12 +53,11 @@ Game                                   (game/mod.rs; the owner and the orchestra
 ├── next_serial                        the counter behind `Serial` (section 5)
 ├── events, item_awards                random events going on; items that fell to wizards from slain heroes
 ├── override_log                       the debug cheat mutators that changed the game (the console cheats are out, see `reference/console-cheat/`)
-├── battle_brains                      the learned players of battles (task 170)
+├── battle_brains                      the learned players of battles
 └── undo_stack                         snapshots for undoing a command (game/undo.rs)
 ```
 
-This is the layout after the entity rework (tasks 307 to 337). Section 3 is the design of the entities;
-section 3.9 is the save.
+Section 3 is the design of the entities; section 3.9 is the save.
 
 `Game::apply(Command) -> Vec<Event>` is the only way state changes. Commands name
 entities by `hecs::Entity`; events report what happened. The client, the AI and tests all
@@ -122,44 +121,31 @@ Three ways to give a domain what it needs, all in use:
 - **Lending the domain out for a call**, where its rules need the whole game as a read-only
   view (`Diplomacy`: `Game::with_diplomacy` takes the state and the generator out of the game,
   runs the rules over `&Game`, puts them back and applies the outcomes).
-  The spell executor lends the generator to its host the same way (`GameHost`, task 184).
+  The spell executor lends the generator to its host the same way (`GameHost`).
 - **A read handle over a few fields** where the domain's state lives in the ECS world (units:
   `UnitView<'a>` holds `&World` and `&Content`, made by `Game::units()`; the city's yields likewise in `Economy<'a>` over the world, the map and the content, made by `Game::economy()`; what changes
   units is a function over `&mut World`, such as `unit::spawn`, `experience::gain_xp` and
   the `spell/temp_effect.rs` functions). A test builds a world and the content and no `Game`.
 
-Where this stands: every domain of the game follows it (tasks 179, 180, 185 to 193 and 196, 197):
-diplomacy, magic (income in `wizard/magic_income.rs` over a small view; the commands that need no world in
-`wizard/magic_command.rs`), the units, the economy and production (the checks are methods of `Economy`,
-which is the world over the map), the turn (`process_turn` only sequences the steps), movement and
-transport (plans on `Economy`; the moves themselves stay on `Game` because they change the fog), the
-lairs (clearing and loot as functions over the map and the wizard's magic), conquest (the loss, the
-loot and the razing as plain functions), the fortress (its rules as functions over the player) and
-vision. The battle engine, the rules layer, the map and the fog already did. The old thin
-`impl Game` wrappers (`unit_stat`, `city_economy`, `plan_step`, ...) are gone: callers ask
-`game.units()` or `game.economy()` (task 198). Task 183's test reports the number of `impl Game`
-methods per file, as a guideline.
+Every domain of the game follows this, and the battle engine, the rules layer, the map and the fog always did. `f4x-tools game-methods` reports the number of `impl Game` methods per file, as a guideline.
 
 
-## 3. The entity model of the rework (tasks 307 to 339)
+## 3. The entity model
 
-Written by task 310. It is the design that tasks 311 to 339 build; where it and the code differ,
-the code is behind, not wrong, until the task named next to the item has landed. Rules of the rework:
-the game's rules do not change (seeds, draw order and old saves may), a wrong structure is moved
-and not worked around, and names are singular.
+A wrong structure is moved and not worked around, and names are singular.
 
 ### 3.1 The entity kinds
 
-| Entity | Module | Components | Built in |
-|---|---|---|---|
-| **Player** | `player/` | `PlayerId`, `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`, `Offers`, `Defeat`, `Control`, `Neutral` (marker), `WizardLink`, `Serial` | 311, 313, 314, 317, 327 |
-| **Wizard** | `wizard/` | `Name`, `Portrait`, `Banner`, `CapitalRace`, `Books`, `Retorts`, `Skill`, `PowerSplit`, `Research`, `KnownSpells`, `Candidates`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt`, `Banishment`, `PlayerLink`, `Serial` | 312, 315, 316 |
-| **Unit** | `unit/` | `Unit`, `Owner`, `Position`, `Hurt`, `Experience`, `WeaponQuality`, `MovesLeft`, `Order`, `Standby`, `Serial`, and the other components it has today | exists |
-| **Hero** | `hero/` | `Hero` (type number, name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `Serial`; the unit components while serving | 326 to 328 |
-| **City** | `city/` | `City`, `Position`, `Owner`, `Population`, `Farmers`, `Buildings`, `CityRace`, `Production`, `Serial` | exists |
-| **Spell instance** | `spell/` | `SpellCast {def}`, `Caster`, `SpellTarget`, `Serial`; `Owed`, `Crafting` on a cast in progress | 318 to 325 |
-| **Terrain feature** (active: tower, node, encounter site, volcano) | `feature/` | `TerrainFeature(FeatureId)` (all but a volcano), `Position`, `Serial`; `Node` and `Lair` (a node and a tower have both), `Volcano`; `Owner` where owned | 329 to 332, 338 (done) |
-| **Item** | `item/` | `ItemKind`, `Name`, `Bonus`, `Powers`, `Charges`, `Prefab`, `HeldBy`, `Serial` | 333, 334 |
+| Entity | Module | Components |
+|---|---|---|
+| **Player** | `player/` | `PlayerId`, `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`, `Offers`, `Defeat`, `Control`, `Neutral` (marker), `WizardLink`, `Serial` |
+| **Wizard** | `wizard/` | `Name`, `Portrait`, `Banner`, `CapitalRace`, `Books`, `Retorts`, `Skill`, `PowerSplit`, `Research`, `KnownSpells`, `Candidates`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt`, `Banishment`, `PlayerLink`, `Serial` |
+| **Unit** | `unit/` | `Unit`, `Owner`, `Position`, `Hurt`, `Experience`, `WeaponQuality`, `MovesLeft`, `Order`, `Standby`, `Serial`, and the other components it has today |
+| **Hero** | `hero/` | `Hero` (type number, name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `Serial`; the unit components while serving |
+| **City** | `city/` | `City`, `Position`, `Owner`, `Population`, `Farmers`, `Buildings`, `CityRace`, `Production`, `Serial` |
+| **Spell instance** | `spell/` | `SpellCast {def}`, `Caster`, `SpellTarget`, `Serial`; `Owed`, `Crafting` on a cast in progress |
+| **Terrain feature** (active: tower, node, encounter site, volcano) | `feature/` | `TerrainFeature(FeatureId)` (all but a volcano), `Position`, `Serial`; `Node` and `Lair` (a node and a tower have both), `Volcano`; `Owner` where owned |
+| **Item** | `item/` | `ItemKind`, `Name`, `Bonus`, `Powers`, `Charges`, `Prefab`, `HeldBy`, `Serial` |
 
 Everything with a `Serial` can be named in a save and in a command log (section 3.9). Definitions
 (`SpellDef`, `UnitDef`, `FeatureDef`, `ItemDef`...) stay registry data and are never entities.
@@ -175,7 +161,7 @@ Two entities, because they answer different questions.
   banner colour, the capital race, spell books, retorts, the spells known and on offer, research,
   casting skill and the split of power between mana, research and skill, fame, personality and objective, and the fortress and summoning circle (a wizard's
   home) with the banishment that follows from losing it.
-- A player may have no wizard. The neutral player of each race (all its independent cities, task 522) and the monsters' owner are players
+- A player may have no wizard. The neutral player of each race (all its independent cities) and the monsters' owner are players
   with `Neutral` and no `WizardLink`. Code that reads a wizard for "every player" (before the rework
   `player.magic`) must handle the missing wizard explicitly.
 - The two refer to each other (`WizardLink`, `PlayerLink`) and are made together by game setup and
@@ -225,20 +211,20 @@ work and leaves no entity.
   the lasting one. Crafting an item and raising a hero are casts of the same kind.
 - One query covers what is now eight containers: "the enchantments on this city", "this wizard's global
   spells", "the upkeep this wizard pays", "what dispel can reach". Dispel, upkeep and the removal when
-  a caster loses them are queries over spell instances (task 325).
+  a caster loses them are queries over spell instances.
 - **Battlefield enchantments** stay in `Battle` (`fields`, the counter magic reserve, the wall of fire, the
-  wards): a `Battle` is cloned and a `hecs::World` cannot be, and a side is no wizard entity (task 324).
+  wards): a `Battle` is cloned and a `hecs::World` cannot be, and a side is no wizard entity.
 - Not spell instances: corruption and enchanted roads (map layers: the original keeps them as flags of
   the square, they have no caster, no upkeep and are read for every step of a path), the random events
   (a table, 3.10), volcanoes (feature entities, 3.6), and the temporary effects the rules engine puts on a
-  unit or city (`TempEffects`, a component: the rules, not only spells, cause them; task 321).
+  unit or city (`TempEffects`, a component: the rules, not only spells, cause them).
 
 ### 3.5 Hero
 
 A hero is an individual, and an entity that outlives its body. There is **one hero of each of the 35
 types in the whole game**, made when the game starts with the abilities and casting skill that
-`Init_Heroes` rolled for it (rolled once for the game, not for each wizard). No wizard owns a hero
-until it is hired; the roster of per-wizard records is gone.
+the original's `Init_Heroes` rolls for it (rolled once for the game, not for each wizard; `f4x-newgame`'s setup adds all 35, `Game::add_hero` rolls one). No wizard owns a hero
+until it is hired.
 
 - `HeroState`: `Free` (no one's: it may be offered, summoned or hired; also a hero that was let go,
   with the experience it has), `Serving` (one wizard's: no other wizard can hire, be offered or
@@ -260,7 +246,7 @@ until it is hired; the roster of per-wizard records is gone.
   items go with the wizard).
 - The hero's own spell list stays a list of spell ids on `Hero`: a hero's casts happen in a battle
   (`Battle`, 3.4), and nothing it knows lasts on the map, so there is no spell instance to make.
-  The armory is a component of the player entity already (task 313).
+  The armory is a component of the player entity.
 
 ### 3.6 Terrain feature
 
@@ -282,17 +268,16 @@ that has identity and state is an entity.
   power a turn, and only its owner.
 - **Node base terrain.** A node square also has the node's base terrain (`sorcery_node`,
   `nature_node`, `chaos_node`: their own food, production and movement values), as in the original.
-  The aura squares keep their terrain (task 338; the one change of rules in the rework).
+  The aura squares keep their terrain.
 - Lair guards are made as neutral units when the site is entered and removed after the fight, as
-  today. The hoard holds item *values*; the items are made as entities when a winner claims the lair (`claim_lair`, task 334).
+  today. The hoard holds item *values*; the items are made as entities when a winner claims the lair (`claim_lair`).
 
 ### 3.7 Item
 
-An item instance is an entity (`item/entity.rs`, task 333). Its data is one component, `Item` (name,
+An item instance is an entity (`item/entity.rs`). Its data is one component, `Item` (name,
 kind, cost, icon, `ItemBonus`, power ids, charges, optional prefab id, and `made`, the parts of a default name), next to `Serial` and
 `HeldBy`: `Hero(entity, slot)`, `Vault(player, slot)`, `Award(player)`, `Crafting(player)` or
-`Offered(player)`. (The design listed the data as several components; they are always read
-together, so they stay one.) Moving an item changes `HeldBy`; an item with no holder is despawned.
+`Offered(player)`. Moving an item changes `HeldBy`; an item with no holder is despawned.
 The prefabs already made stay a registry on `Game` (`prefab_taken`).
 
 - **The vault has no limit** (the original's four slots are the size of the item screen, which shows
@@ -302,7 +287,7 @@ The prefabs already made stay a registry on `Game` (`prefab_taken`).
   list, so that the list keeps the order of arrival.
 - **Reads** go through `ItemView` (`Game::items()`): `item`, `held_by`, `held`, `carried` (a hero's
   items with their slots), `hero_items`, `armory` (the vault and the award list as one value for
-  `plan_move`), `crafting`. `Armory` and `HeroItems` are such values, no longer components.
+  `plan_move`), `crafting`. `Armory` and `HeroItems` are such values, not components.
 - **Loot** is not a holder: `claim_lair` makes the items from the hoard's values and hands them to
   the winner at once (`give_item`); `Event::SiteCleared` carries copies for the message box.
 - **An offer** keeps the item's description (`Offer::Item { item, price }`, what the client shows)
@@ -332,7 +317,7 @@ The prefabs already made stay a registry on `Game` (`prefab_taken`).
 | Raise Volcano / cooled | a volcano feature / | / the volcano feature | |
 | Item made, bought, crafted, won | the item | | |
 | Item scrapped or lost | | the item | |
-| Battle starts / ends | | | the battle's own state (task 324) |
+| Battle starts / ends | | | the battle's own state |
 
 A player that has a wizard, and that wizard, are never despawned during a game: the score, the
 history and the diplomacy log refer to them. The players without a wizard (the monsters' owner and
@@ -348,8 +333,7 @@ it has no city and no unit, as the table says.
   caster's player id, its target and the mana still owed). The lists but `players` and `wizards` are in `Serial` order; a
   link is written as the linked entity's creation number (a hero's item holder, a spell's target)
   and `PlayerId`s are written as values. Everything that has a number in the content is written by that number (version 4): spells (the enchantments of units, cities and wizards, a hero's spells, an item's charges), item powers, prefab items, abilities, units, realms, races, buildings and retorts. The content files refer to each other by number only (`UnitDef.race`, `BuildingDef.races` and `requires`, `RaceDef.units`, the realm of a spell, an item power or a wizard's books, the spells, abilities and units of an effect rule, a hero template, the spell library of `rules_settings.ron`): the loader reads numbers and resolves no name, and a number that is no definition of its kind is a validation error. The `id` of an entry is a readable alias for the author and for the console; nothing in the game looks a definition up by it (`Registry` finds a definition by `id_numbered(n)` or `by_num(n)`; the console and the client's own tables match an alias with a small helper over `Registry::iter`). Code that has to name one definition writes its number with the alias beside it (`UnitId::new(169) /* demon */`, `spells.id_numbered(54) /* spell_lock */`, `Ability::new(24) /* flying */`) and `scripts/check_id_aliases.py` checks the alias; a rule that applies to many definitions is a tag on them in the data (`hireable` on a unit, the `gate` hook (argument `earth` or `astral`) and the `heroism` hook on their spells, `realm` and `holy` on a feature), not a constant in the code. Display names live only in the client (`crates/f4x-lang/content/text/<lang>/name/`, by number). The enchantments are `SpellId`s (`BattleUnit.enchantments`, the city and unit spell components, `has_global(player, SpellId)`); the Warp Creature variants are a `WarpKind` on the battle unit. The numbers of `abilities.ron` and the other tables are frozen (a saved game and the name tables depend on them; a new entry takes the next free number). A replay writes a spell as its number too.
-  The map layers (terrain, minerals, roads, rivers, lakes, corruption) and the fog are written as
-  before; nodes, lairs, towers and volcanoes are feature entities.
+  The map layers (terrain, minerals, roads, rivers, lakes, corruption) and the fog are written as grids; nodes, lairs, towers and volcanoes are feature entities.
 - A battle in progress is the `battle` field (`battle/save.rs`).
 - **Versions.** The first line of a save is `// f4x save, version 4, game 0.0.6, checksum <hex>`. The
   loader reads the `version` and `game_version` fields before the rest and refuses a file of
