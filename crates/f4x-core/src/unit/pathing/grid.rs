@@ -6,13 +6,16 @@
 //! Tests: at the bottom of this file, on the real maps of a few seeds against the step costs.
 
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use f4x_def::half_int::HalfInt;
 
 use crate::city::economy::Economy;
+use crate::fast::FastSet;
 use crate::game::Game;
 use crate::map::{Plane, Position};
 use crate::path_grid::{Costs, PathGrid, Road, Searcher, Square, BLOCKED};
+use crate::player::PlayerId;
 use crate::unit::movement::{MoveError, StackTraits, StepEntry, StepProfile, ROAD_MOVE};
 
 /// A cost in the half moves of a grid; never the value of a blocked square.
@@ -82,11 +85,35 @@ fn with_searcher<R>(search: impl FnOnce(&mut Searcher) -> R) -> R {
     })
 }
 
+/// What decides a stack's grid: whose it is, the plane, what the units can do and what the stack
+/// gives them. Where the stack stands does not matter.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub(crate) struct GridKey {
+    owner: PlayerId,
+    plane: Plane,
+    profiles: Vec<(u16, Vec<crate::rules::Ability>)>,
+    traits: StackTraits,
+}
+
+/// A grid kept for the turn, with the squares of the owner's ships' room it was made for: the
+/// room changes when a ship moves or loads, which a walk does.
+pub(crate) struct CachedGrid {
+    grid: Rc<PathGrid>,
+    room: FastSet<Position>,
+}
+
+/// Set `F4X_CHECK_GRID` to search the old way as well and compare (slow).
+fn checking() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("F4X_CHECK_GRID").is_some())
+}
+
 impl Game {
     /// The grid of a stack on the plane it stands on, at the pace of its slowest unit: the cost
     /// of a step is the worst of its units' costs, and a square one cannot enter is closed to the
-    /// stack. `None` for no units, no map, or a unit that cannot move at all.
-    pub fn stack_grid(&self, units: &[hecs::Entity]) -> Option<PathGrid> {
+    /// stack. `None` for no units, no map, or a unit that cannot move at all. Kept for the turn
+    /// of a computer wizard (see `unit/kept.rs`).
+    pub fn stack_grid(&self, units: &[hecs::Entity]) -> Option<Rc<PathGrid>> {
         let first = *units.first()?;
         let start = self.units().unit_position(first)?;
         let owner = self.units().unit_owner(first)?;
@@ -95,42 +122,244 @@ impl Game {
         let room = economy.ship_room_squares(owner);
         let economy = economy.with_ship_room(owner, &room);
         let profiles = Economy::distinct_step_profiles(economy.step_profiles(units)?);
-        let grids: Vec<PathGrid> = profiles
-            .iter()
-            .map(|p| economy.unit_grid(p, traits, start.plane).ok())
-            .collect::<Option<_>>()?;
-        let parts: Vec<&PathGrid> = grids.iter().collect();
-        PathGrid::slowest(&parts).ok()
+        let mut signatures: Vec<_> = profiles.iter().map(|p| p.signature()).collect();
+        signatures.sort();
+        signatures.dedup();
+        let key = GridKey {
+            owner,
+            plane: start.plane,
+            profiles: signatures,
+            traits,
+        };
+        let make = || -> Option<PathGrid> {
+            let grids: Vec<PathGrid> = profiles
+                .iter()
+                .map(|p| economy.unit_grid(p, traits, start.plane).ok())
+                .collect::<Option<_>>()?;
+            PathGrid::slowest(&grids.iter().collect::<Vec<_>>()).ok()
+        };
+        if let Some(kept) = crate::unit::kept::grid(&self.world, &key) {
+            if kept.room == room {
+                if crate::unit::kept::checking() {
+                    assert!(
+                        make().is_some_and(|fresh| fresh == *kept.grid),
+                        "a kept grid is stale"
+                    );
+                }
+                return Some(kept.grid.clone());
+            }
+        }
+        let grid = Rc::new(make()?);
+        let kept = Rc::new(CachedGrid {
+            grid: grid.clone(),
+            room,
+        });
+        crate::unit::kept::keep_grid(&self.world, key, &kept);
+        Some(grid)
     }
 
-    /// The cheapest path for the stack to `to` (like [`Game::find_path`]: not through hostile
-    /// squares or guarded sites, without the start), found over a grid: the grid is made for the
-    /// call, so this is for trying the grid out, not yet for a search that runs many times.
-    pub fn stack_path(&self, units: &[hecs::Entity], to: Position) -> Option<Vec<Position>> {
+    /// Whether the stack is stopped on `square`: hostile units or a city, or a guarded site.
+    fn stops_at<'a>(
+        economy: &'a Economy<'a>,
+        hostile: &'a FastSet<Position>,
+        owner: PlayerId,
+        plane: Plane,
+        width: u32,
+    ) -> impl Fn(Square) -> bool + 'a {
+        move |s: Square| {
+            let p = Position {
+                plane,
+                x: s % width,
+                y: s / width,
+            };
+            hostile.contains(&p)
+                || (owner != crate::player::MONSTERS
+                    && economy.lair_at(p).is_some_and(|l| !l.guards.is_empty()))
+        }
+    }
+
+    /// [`Game::find_path`]'s search over the stack's grid: the cheapest path for the stack to
+    /// `to` (not through hostile squares or guarded sites; with `avoid_full`, not through squares
+    /// with no room for it), without the start.
+    pub(super) fn grid_path(
+        &self,
+        units: &[hecs::Entity],
+        to: Position,
+        avoid_full: bool,
+    ) -> Option<Vec<Position>> {
         let first = *units.first()?;
         let start = self.units().unit_position(first)?;
         let owner = self.units().unit_owner(first)?;
-        if start.plane != to.plane {
+        if start.plane != to.plane || start == to {
             return None;
         }
         let grid = self.stack_grid(units)?;
         let width = grid.width();
         let economy = self.economy();
         let hostile = economy.hostile_squares(owner);
+        let full = if avoid_full {
+            economy.full_squares(units.len())
+        } else {
+            Default::default()
+        };
         let at = |p: Position| p.y * width + p.x;
         let square = |s: Square| Position {
             plane: start.plane,
             x: s % width,
             y: s / width,
         };
-        let stops = |s: Square| {
-            let p = square(s);
-            hostile.contains(&p)
-                || (owner != crate::player::MONSTERS
-                    && economy.lair_at(p).is_some_and(|l| !l.guards.is_empty()))
-        };
-        let path = with_searcher(|searcher| searcher.path(&grid, at(start), at(to), stops))?;
+        let stops = Self::stops_at(&economy, &hostile, owner, start.plane, width);
+        let path = with_searcher(|searcher| {
+            searcher.path(&grid, at(start), at(to), stops, |s| {
+                full.contains(&square(s))
+            })
+        })?;
         Some(path.into_iter().map(square).collect())
+    }
+
+    /// The walk of [`Game::reachable_squares`] and [`Game::unreached_region`] over the grid:
+    /// what the stack can walk to (until one of `targets`, when there are any), and whether a
+    /// target was among it.
+    pub(super) fn grid_walk(
+        &self,
+        units: &[hecs::Entity],
+        targets: &[Position],
+    ) -> (FastSet<Position>, bool) {
+        let mut seen = FastSet::default();
+        let Some(&first) = units.first() else {
+            return (seen, false);
+        };
+        let (Some(start), Some(owner), Some(grid)) = (
+            self.units().unit_position(first),
+            self.units().unit_owner(first),
+            self.stack_grid(units),
+        ) else {
+            return (seen, false);
+        };
+        let width = grid.width();
+        let economy = self.economy();
+        let hostile = economy.hostile_squares(owner);
+        let stops = Self::stops_at(&economy, &hostile, owner, start.plane, width);
+        let targets: Vec<Square> = targets
+            .iter()
+            .filter(|t| t.plane == start.plane)
+            .map(|t| t.y * width + t.x)
+            .collect();
+        let found = with_searcher(|searcher| {
+            let found = searcher.walk(&grid, start.y * width + start.x, &targets, stops);
+            seen.extend(searcher.settled().iter().map(|&s| Position {
+                plane: start.plane,
+                x: s % width,
+                y: s / width,
+            }));
+            found
+        });
+        (seen, found)
+    }
+
+    /// Whether the stack can walk to any of `targets`, without collecting what it walks over.
+    pub(super) fn grid_reaches_any(&self, units: &[hecs::Entity], targets: &[Position]) -> bool {
+        let Some(&first) = units.first() else {
+            return false;
+        };
+        let (Some(start), Some(owner), Some(grid)) = (
+            self.units().unit_position(first),
+            self.units().unit_owner(first),
+            self.stack_grid(units),
+        ) else {
+            return false;
+        };
+        let width = grid.width();
+        let economy = self.economy();
+        let hostile = economy.hostile_squares(owner);
+        let stops = Self::stops_at(&economy, &hostile, owner, start.plane, width);
+        let targets: Vec<Square> = targets
+            .iter()
+            .filter(|t| t.plane == start.plane)
+            .map(|t| t.y * width + t.x)
+            .collect();
+        with_searcher(|searcher| {
+            searcher.reaches_any(&grid, start.y * width + start.x, &targets, stops)
+        })
+    }
+
+    /// What the stack pays for a path from where it stands, in half moves; `None` when a step is
+    /// one the rules refuse.
+    pub(super) fn path_cost(&self, units: &[hecs::Entity], path: &[Position]) -> Option<u32> {
+        let first = *units.first()?;
+        let mut at = self.units().unit_position(first)?;
+        let owner = self.units().unit_owner(first)?;
+        let traits = self.economy().stack_traits(units);
+        let economy = self.economy();
+        let room = economy.ship_room_squares(owner);
+        let economy = economy.with_ship_room(owner, &room);
+        let profiles = Economy::distinct_step_profiles(economy.step_profiles(units)?);
+        let mut sum = 0;
+        for &next in path {
+            sum += economy.stack_step_cost(&profiles, at, next, traits)?.raw() as u32;
+            at = next;
+        }
+        Some(sum)
+    }
+
+    /// [`Game::grid_path`], and with `F4X_CHECK_GRID` the old search over the squares as well:
+    /// both must find a path or neither, and the grid's must cost no more (the old search guesses
+    /// a road step at half a move even where enchanted roads make it free).
+    pub(super) fn checked_grid_path(
+        &self,
+        units: &[hecs::Entity],
+        to: Position,
+        avoid_full: bool,
+    ) -> Option<Vec<Position>> {
+        let path = self.grid_path(units, to, avoid_full);
+        if checking() {
+            let old = self.search_path_squares(units, to, avoid_full);
+            assert_eq!(old.is_some(), path.is_some(), "a path to {to:?}");
+            if let (Some(old), Some(new)) = (&old, &path) {
+                let (old_cost, new_cost) = (self.path_cost(units, old), self.path_cost(units, new));
+                assert!(
+                    new_cost.is_some() && new_cost <= old_cost,
+                    "the path to {to:?} costs {new_cost:?} over the grid and {old_cost:?} over the squares"
+                );
+            }
+        }
+        path
+    }
+
+    /// [`Game::grid_walk`], and with `F4X_CHECK_GRID` the old walk as well: the same squares.
+    pub(super) fn checked_grid_walk(
+        &self,
+        units: &[hecs::Entity],
+        targets: &[Position],
+    ) -> (FastSet<Position>, bool) {
+        let walked = self.grid_walk(units, targets);
+        if checking() {
+            let old = self.walk_squares(units, targets);
+            assert_eq!(old.1, walked.1, "a walk with targets {targets:?}");
+            // A walk that stops at a target has gone over the squares that came before it, which
+            // equal ways put in either order.
+            if !walked.1 {
+                assert_eq!(old.0, walked.0, "a walk with targets {targets:?}");
+            }
+        }
+        walked
+    }
+
+    /// [`Game::grid_reaches_any`], and with `F4X_CHECK_GRID` the old walk as well.
+    pub(super) fn checked_grid_reaches_any(
+        &self,
+        units: &[hecs::Entity],
+        targets: &[Position],
+    ) -> bool {
+        let reached = self.grid_reaches_any(units, targets);
+        if checking() {
+            assert_eq!(
+                self.walk_squares(units, targets).1,
+                reached,
+                "reaching {targets:?}"
+            );
+        }
+        reached
     }
 }
 
@@ -320,26 +549,6 @@ mod tests {
         Ok(())
     }
 
-    /// What the stack pays for a path from where it stands, in half moves.
-    fn path_cost(game: &Game, units: &[hecs::Entity], path: &[Position]) -> Result<u32, String> {
-        let first = *units.first().ok_or("no units")?;
-        let mut at = game.units().unit_position(first).ok_or("no position")?;
-        let owner = game.units().unit_owner(first).ok_or("no owner")?;
-        let traits = game.economy().stack_traits(units);
-        let economy = game.economy();
-        let room = economy.ship_room_squares(owner);
-        let economy = economy.with_ship_room(owner, &room);
-        let profiles =
-            Economy::distinct_step_profiles(economy.step_profiles(units).ok_or("no profiles")?);
-        let mut sum = 0;
-        for &next in path {
-            sum += rule_cost(&economy, &profiles, traits, at, next)
-                .ok_or(format!("a path step {at:?} to {next:?} the rules refuse"))?;
-            at = next;
-        }
-        Ok(sum)
-    }
-
     #[test]
     fn the_path_over_the_grid_costs_what_the_search_over_the_squares_costs() -> TestResult {
         let content = shipped();
@@ -404,8 +613,8 @@ mod tests {
                 for y in (0..height).step_by(3) {
                     for x in (0..width).step_by(4) {
                         let to = Position { x, y, ..start };
-                        let old = game.search_path(stack, to, false);
-                        let new = game.stack_path(stack, to);
+                        let old = game.search_path_squares(stack, to, false);
+                        let new = game.grid_path(stack, to, false);
                         assert_eq!(
                             old.is_some(),
                             new.is_some(),
@@ -415,8 +624,10 @@ mod tests {
                             continue;
                         };
                         let (old_cost, new_cost) = (
-                            path_cost(&game, stack, &old)?,
-                            path_cost(&game, stack, &new)?,
+                            game.path_cost(stack, &old)
+                                .ok_or("an old path step is refused")?,
+                            game.path_cost(stack, &new)
+                                .ok_or("a new path step is refused")?,
                         );
                         // The search over the squares guesses a road step at half a move even
                         // where the roads are enchanted, so it may be a little dear there.
@@ -486,12 +697,12 @@ mod tests {
         });
         time("search over the squares, 300 goals", &mut || {
             for &g in &goals {
-                let _ = game.search_path(&stack, g, false);
+                let _ = game.search_path_squares(&stack, g, false);
             }
         });
         time("grid made and searched, 300 goals", &mut || {
             for &g in &goals {
-                let _ = game.stack_path(&stack, g);
+                let _ = game.grid_path(&stack, g, false);
             }
         });
         Ok(())

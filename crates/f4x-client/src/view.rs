@@ -826,6 +826,9 @@ impl App {
                 Event::UnitsDrowned { units, .. } => {
                     Some(self.text_with("log.units_drowned", &Args::new().count("n", units)))
                 }
+                Event::ShipStranded { units, .. } => {
+                    Some(self.text_with("log.ship_stranded", &Args::new().count("n", units)))
+                }
                 Event::RoadBuilt { .. } => Some(self.text("log.road_built")),
                 Event::RoadsEnchanted { .. } => Some(self.text("log.roads_enchanted")),
                 Event::VolcanoRaised { .. } => Some(self.text("log.volcano_raised")),
@@ -1451,6 +1454,7 @@ impl App {
             | Event::FortressMoved { player, .. }
             | Event::SummoningCircleMoved { player, .. }
             | Event::ShipLanded { player, .. }
+            | Event::ShipStranded { player, .. }
             | Event::ItemMade { player, .. }
             | Event::ItemsAwarded { player, .. }
             | Event::HeroJoined { player, .. }

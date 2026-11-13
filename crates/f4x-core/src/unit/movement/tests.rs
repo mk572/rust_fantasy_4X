@@ -812,8 +812,9 @@ fn only_the_seam_leads_to_the_other_side_when_the_middle_is_walled() -> TestResu
     let w = unit(&mut g, P0, 0 /* dwarf */, at(8, 1));
     let path = g.find_path(&[w], at(2, 1)).ok_or("no way over the seam")?;
     assert_eq!(path.last(), Some(&at(2, 1)));
+    // A step over the seam changes the column by more than one.
     assert!(
-        path.contains(&at(0, 1)) || path.contains(&at(0, 0)) || path.contains(&at(0, 2)),
+        path.windows(2).any(|w| w[0].x.abs_diff(w[1].x) > 1),
         "it crosses the seam: {path:?}"
     );
     assert!(g.reachable_squares(&[w]).contains(&at(2, 1)));

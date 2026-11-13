@@ -551,7 +551,8 @@ fn a_famous_wizard_starts_with_ten_fame() -> TestResult {
 #[test]
 fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() -> TestResult {
     let mut g = world();
-    // A galley eats no food and costs no gold, so it outlives the long wait.
+    // A galley eats no food and costs no gold, so it outlives the long wait, in a city of its
+    // owner, where a ship may stand on land.
     let spear = g
         .content
         .rules
@@ -564,7 +565,7 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .set_split(0, 100, 0)
         .map_err(|e| format!("{e:?}"))?;
-    let unit = g.spawn_unit(P0, at(3, 3), spear);
+    let unit = g.spawn_unit(P0, at(10, 6), spear);
     g.balance_farmers(P0);
     let strength = spell(&g, 4 /* giant_strength */);
     g.wizard_mut(P0)

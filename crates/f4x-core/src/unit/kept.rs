@@ -16,6 +16,7 @@ use crate::fast::{FastMap, FastSet};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::Ability;
+use crate::unit::pathing::grid::{CachedGrid, GridKey};
 use f4x_def::rules::stats::Modifier;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -31,6 +32,10 @@ struct Kept {
     /// units does not change them.
     player: Option<PlayerId>,
     hostile: Option<Rc<FastSet<Position>>>,
+    /// The grids of stacks (`Game::stack_grid`): roads, terrain, cities and the ships' room are
+    /// what they are made of, and none of them changes by a walk except the room, which each
+    /// entry remembers.
+    grids: FastMap<GridKey, Rc<CachedGrid>>,
 }
 
 thread_local! {
@@ -64,6 +69,7 @@ pub(crate) fn clear() {
             kept.modifiers.clear();
             kept.abilities.clear();
             kept.hostile = None;
+            kept.grids.clear();
         }
     });
 }
@@ -137,6 +143,26 @@ pub(crate) fn keep_hostile(world: &hecs::World, player: PlayerId, set: &Rc<FastS
             .filter(|kept| kept.world == address(world) && kept.player == Some(player))
         {
             kept.hostile = Some(set.clone());
+        }
+    });
+}
+
+pub(crate) fn grid(world: &hecs::World, key: &GridKey) -> Option<Rc<CachedGrid>> {
+    KEPT.with(|k| {
+        let k = k.borrow();
+        let kept = k.as_ref().filter(|kept| kept.world == address(world))?;
+        kept.grids.get(key).cloned()
+    })
+}
+
+pub(crate) fn keep_grid(world: &hecs::World, key: GridKey, grid: &Rc<CachedGrid>) {
+    KEPT.with(|k| {
+        if let Some(kept) = k
+            .borrow_mut()
+            .as_mut()
+            .filter(|kept| kept.world == address(world))
+        {
+            kept.grids.insert(key, grid.clone());
         }
     });
 }

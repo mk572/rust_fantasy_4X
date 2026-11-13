@@ -2,7 +2,7 @@
 //!
 //! Tests: in unit/movement/tests.rs (`paths_go_around_water_...`, `a_square_has_eight_neighbours_...`, `a_walker_reaches_...`, `a_path_takes_as_many_turns_...`).
 
-mod grid;
+pub(crate) mod grid;
 
 use f4x_def::half_int::HalfInt;
 use std::cmp::Reverse;
@@ -191,13 +191,13 @@ impl Game {
     /// excluding the start tile. Hostile tiles other than the destination are avoided.
     /// Returns `None` if there is no way there.
     pub fn find_path(&self, units: &[hecs::Entity], to: Position) -> Option<Vec<Position>> {
-        let path = self.search_path(units, to, false)?;
+        let path = self.checked_grid_path(units, to, false)?;
         // A step into a square that has no room for the stack fails, and the order is lost at its
         // edge for ever: when the path crosses one, search again without such squares. Looking at
         // the squares of the path is cheap; the set of all full squares is not, and only a path
         // like that needs it.
         if self.path_crosses_full_square(units, &path, to) {
-            return self.search_path(units, to, true);
+            return self.checked_grid_path(units, to, true);
         }
         Some(path)
     }
@@ -224,7 +224,7 @@ impl Game {
     }
 
     /// The search of `find_path`, with the squares that are full for the stack left out or not.
-    fn search_path(
+    fn search_path_squares(
         &self,
         units: &[hecs::Entity],
         to: Position,
@@ -332,14 +332,14 @@ impl Game {
     /// `find_path` would find a way to), the start included: one search instead of one per
     /// target. Hostile squares and guarded sites are not entered.
     pub fn reachable_squares(&self, units: &[hecs::Entity]) -> FastSet<Position> {
-        self.walk(units, &[]).0
+        self.checked_grid_walk(units, &[]).0
     }
 
     /// Whether the stack can walk to any of `targets` (the answer of [`Game::reachable_squares`]
     /// for them, but the search stops at the first one it reaches; the start does not count
     /// unless it is among the targets).
     pub fn reaches_any(&self, units: &[hecs::Entity], targets: &[Position]) -> bool {
-        !targets.is_empty() && self.walk(units, targets).1
+        !targets.is_empty() && self.checked_grid_reaches_any(units, targets)
     }
 
     /// Like [`Game::reaches_any`], but when no target can be reached it gives every square the
@@ -349,7 +349,7 @@ impl Game {
         units: &[hecs::Entity],
         targets: &[Position],
     ) -> Option<FastSet<Position>> {
-        let (seen, found) = self.walk(units, targets);
+        let (seen, found) = self.checked_grid_walk(units, targets);
         (!found).then_some(seen)
     }
 
@@ -373,7 +373,11 @@ impl Game {
 
     /// The search of `reachable_squares`: every square it can walk to, and whether one of
     /// `targets` was among them (it then stops there; with no targets it goes on to the end).
-    fn walk(&self, units: &[hecs::Entity], targets: &[Position]) -> (FastSet<Position>, bool) {
+    fn walk_squares(
+        &self,
+        units: &[hecs::Entity],
+        targets: &[Position],
+    ) -> (FastSet<Position>, bool) {
         let mut seen = FastSet::default();
         let mut found = false;
         let (Some(&first), Some(map)) = (units.first(), self.map.as_ref()) else {
@@ -722,24 +726,39 @@ mod tests {
                     .collect();
                 for &goal in &goals {
                     let path = game.find_path(stack, goal);
+                    let reference = game.reference_find_path(stack, goal);
                     assert_eq!(
-                        path,
-                        game.reference_find_path(stack, goal),
-                        "seed {seed}: path from {start:?} to {goal:?}"
+                        path.is_some(),
+                        reference.is_some(),
+                        "seed {seed}: a path from {start:?} to {goal:?}"
                     );
+                    // Equal ways may differ; the grid's costs no more.
+                    if let (Some(new), Some(old)) = (&path, &reference) {
+                        assert!(
+                            game.path_cost(stack, new) <= game.path_cost(stack, old),
+                            "seed {seed}: path from {start:?} to {goal:?}"
+                        );
+                    }
                     found += usize::from(path.is_some());
                 }
                 assert_eq!(
-                    game.walk(stack, &[]),
+                    game.grid_walk(stack, &[]),
                     game.reference_walk(stack, &[]),
                     "seed {seed}: reach of {start:?}"
                 );
                 for targets in goals.chunks(7).take(6) {
-                    assert_eq!(
-                        game.walk(stack, targets),
+                    let (new, old) = (
+                        game.grid_walk(stack, targets),
                         game.reference_walk(stack, targets),
-                        "seed {seed}: reach of {start:?} with targets {targets:?}"
                     );
+                    let what = format!("seed {seed}: reach of {start:?} with targets {targets:?}");
+                    assert_eq!(new.1, old.1, "{what}");
+                    // A walk that stops at a target has gone over the squares that came before
+                    // it, which equal ways put in either order.
+                    if !new.1 {
+                        assert_eq!(new.0, old.0, "{what}");
+                    }
+                    assert_eq!(game.grid_reaches_any(stack, targets), old.1, "{what}");
                 }
             }
             assert!(found > 50, "seed {seed}: only {found} paths found");

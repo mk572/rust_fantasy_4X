@@ -164,6 +164,15 @@ pub fn event(game: &Game, e: &Event) -> String {
             player(game, *p),
             pos(*at)
         ),
+        Event::ShipStranded {
+            player: p,
+            units,
+            at,
+        } => format!(
+            "a ship of {} was destroyed on land at {}, leaving {units} units",
+            player(game, *p),
+            pos(*at)
+        ),
         Event::FortressPlaced { player: p, pos: at } => {
             format!("{} placed a fortress at {}", player(game, *p), pos(*at))
         }

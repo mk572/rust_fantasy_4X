@@ -137,6 +137,13 @@ impl App {
                         .count("x", at.x)
                         .count("y", at.y),
                 )),
+                Event::ShipStranded { player, units, at } if *player == HUMAN => ships.push(say(
+                    "chancellor.ship_stranded",
+                    Args::new()
+                        .count("units", *units)
+                        .count("x", at.x)
+                        .count("y", at.y),
+                )),
                 Event::UnitsDrowned { player, units } if *player == HUMAN => {
                     disbanded.push(say("chancellor.drowned", Args::new().count("n", *units)))
                 }

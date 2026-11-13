@@ -79,7 +79,7 @@ impl Costs {
 }
 
 /// The cost of entering each square, fixed until the map or the walker changes.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathGrid {
     width: u32,
     height: u32,
@@ -424,18 +424,20 @@ impl Searcher {
     }
 
     /// The cheapest way from `from` to `to`, without `from`; `None` when there is none, or
-    /// `from == to`. A square that `stops` holds for cannot be walked through, only ended on.
+    /// `from == to`. A square that `stops` holds for cannot be walked through, only ended on;
+    /// one that `closed` holds for cannot be entered at all.
     pub fn path(
         &mut self,
         grid: &PathGrid,
         from: Square,
         to: Square,
         stops: impl Fn(Square) -> bool,
+        closed: impl Fn(Square) -> bool,
     ) -> Option<Vec<Square>> {
         if from == to || !grid.maybe_reachable(from, to) {
             return None;
         }
-        let end = self.run(grid, from, &Goal::Square(to), &stops)?;
+        let end = self.run(grid, from, &Goal::Square(to), &stops, &closed)?;
         let mut path = vec![end];
         let mut at = end;
         while self.came[at as usize] != from {
@@ -461,7 +463,8 @@ impl Searcher {
         if !targets.iter().any(|&t| grid.maybe_reachable(from, t)) {
             return false;
         }
-        self.run(grid, from, &Goal::Any(targets), &stops).is_some()
+        self.run(grid, from, &Goal::Any(targets), &stops, &|_| false)
+            .is_some()
     }
 
     /// Walk over everything that can be reached from `from`, or until one of `targets` is; the
@@ -478,7 +481,7 @@ impl Searcher {
         } else {
             Goal::Any(targets)
         };
-        self.run(grid, from, &goal, &stops).is_some()
+        self.run(grid, from, &goal, &stops, &|_| false).is_some()
     }
 
     /// The squares the last [`Searcher::walk`] went over, the start first.
@@ -492,6 +495,7 @@ impl Searcher {
         from: Square,
         goal: &Goal,
         stops: &impl Fn(Square) -> bool,
+        closed: &impl Fn(Square) -> bool,
     ) -> Option<Square> {
         self.begin(grid);
         let aim = match goal {
@@ -517,6 +521,9 @@ impl Searcher {
                 Goal::Everything => self.settled.push(here),
             }
             for (next, diagonal) in grid.around(here) {
+                if closed(next) {
+                    continue;
+                }
                 let is_goal = matches!(goal, Goal::Square(to) if *to == next);
                 if !is_goal && self.stopped(next, stops) {
                     continue;
@@ -742,7 +749,13 @@ mod tests {
             for from in (0..n).step_by(3) {
                 let best = plane.reference(from, &plane.stops);
                 for to in (0..n).step_by(2) {
-                    let found = searcher.path(&plane.grid, from, to, |s| plane.stops.contains(&s));
+                    let found = searcher.path(
+                        &plane.grid,
+                        from,
+                        to,
+                        |s| plane.stops.contains(&s),
+                        |_| false,
+                    );
                     let expected = if from == to { None } else { best[to as usize] };
                     assert_eq!(
                         found.as_deref().map(|p| plane.cost_of(from, p)),
@@ -831,7 +844,13 @@ mod tests {
                     continue;
                 }
                 let found = forward
-                    .path(&plane.grid, from, target, |s| plane.stops.contains(&s))
+                    .path(
+                        &plane.grid,
+                        from,
+                        target,
+                        |s| plane.stops.contains(&s),
+                        |_| false,
+                    )
                     .map(|p| plane.cost_of(from, &p));
                 assert_eq!(field.distance(from), found, "from {from} to {target}");
             }
@@ -879,7 +898,7 @@ mod tests {
                 }
             }
             let (from, to) = (1, n as Square - 2);
-            let found = searcher.path(&group, from, to, |_| false);
+            let found = searcher.path(&group, from, to, |_| false, |_| false);
             let stack: Vec<Option<Cost>> = planes
                 .iter()
                 .map(|p| p.reference(from, &HashSet::new())[to as usize])
@@ -949,9 +968,21 @@ mod tests {
         )
         .expect("a grid of the right size");
         let mut searcher = Searcher::new();
-        let west_to_east = searcher.path(&grid, grid.square(0, 1), grid.square(4, 1), |_| false);
+        let west_to_east = searcher.path(
+            &grid,
+            grid.square(0, 1),
+            grid.square(4, 1),
+            |_| false,
+            |_| false,
+        );
         assert_eq!(west_to_east, Some(vec![grid.square(4, 1)]));
-        let north_to_south = searcher.path(&grid, grid.square(0, 0), grid.square(0, 2), |_| false);
+        let north_to_south = searcher.path(
+            &grid,
+            grid.square(0, 0),
+            grid.square(0, 2),
+            |_| false,
+            |_| false,
+        );
         assert_eq!(north_to_south.map(|p| p.len()), Some(2));
     }
 
@@ -1006,7 +1037,7 @@ mod tests {
         let start = Instant::now();
         let mut sum = 0u64;
         for &(a, b) in &pairs {
-            let found = searcher.path(&plane.grid, a, b, |s| plane.stops.contains(&s));
+            let found = searcher.path(&plane.grid, a, b, |s| plane.stops.contains(&s), |_| false);
             sum += found.map_or(0, |p| p.len() as u64);
         }
         println!("helper: {:?} ({sum})", start.elapsed());

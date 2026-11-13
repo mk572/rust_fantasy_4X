@@ -137,6 +137,38 @@ impl Economy<'_> {
         self.terrain_class_at(at) == Some(TerrainClass::Ocean)
     }
 
+    /// Ships standing where their movement no longer lets them be: on land, with no flight or
+    /// non-corporeality (their own or their stack's) and not in a city of their owner.
+    pub(crate) fn stranded_ships(&self) -> Vec<(PlayerId, hecs::Entity)> {
+        let units = self.units();
+        let mut lost = Vec::new();
+        for unit in units.all_units() {
+            let (Some(at), Some(owner)) = (units.unit_position(unit), units.unit_owner(unit))
+            else {
+                continue;
+            };
+            let sails = units
+                .unit_def(unit)
+                .is_some_and(|d| d.movement == MovementType::Sailing);
+            if !sails || self.is_sea(at) {
+                continue;
+            }
+            let stack: Vec<hecs::Entity> = units
+                .units_at(at)
+                .into_iter()
+                .filter(|&u| units.unit_owner(u) == Some(owner))
+                .collect();
+            let traits = self.stack_traits(&stack);
+            let allowed = self
+                .step_profile(unit)
+                .is_ok_and(|p| self.step_entry(&p, at, traits).is_ok());
+            if !allowed {
+                lost.push((owner, unit));
+            }
+        }
+        lost
+    }
+
     /// Land units at sea with no ship under them: they are lost (`Game::drown_stranded`).
     pub(crate) fn stranded(&self) -> Vec<(PlayerId, hecs::Entity)> {
         let units = self.units();
@@ -350,12 +382,33 @@ impl Game {
             .all(|&p| e.step_cost(p, from, land, traits).is_ok())
     }
 
-    /// Land units at sea with no ship under them are lost, as the units of a defeated army are
+    /// Ships on land that lost their way there are destroyed (their passengers stay on the
+    /// square); land units at sea with no ship under them are lost, as the units of a defeated army are
     /// when they flee: where free land lies beside them they scramble ashore, half of the troops
     /// and three in four of the heroes making it (`overland_aftermath`'s odds); anywhere else
     /// they drown. Fliers and swimmers never need a ship, so they never come here.
     pub(crate) fn drown_stranded(&mut self, only: Option<crate::player::PlayerId>) -> Vec<Event> {
         let mut events = Vec::new();
+        // A ship on land that can no longer be there is destroyed, and the units it carried
+        // stand on the square.
+        for (owner, ship) in self.economy().stranded_ships() {
+            if only.is_some_and(|p| p != owner) {
+                continue;
+            }
+            let Some(at) = self.units().unit_position(ship) else {
+                continue;
+            };
+            let passengers = self.economy().passengers_of(ship);
+            for &p in &passengers {
+                self.strip::<Aboard>(p);
+            }
+            self.remove_unit(ship, crate::hero::Fate::Slain);
+            events.push(Event::ShipStranded {
+                player: owner,
+                units: passengers.len() as u32,
+                at,
+            });
+        }
         let mut drowned: Vec<(crate::player::PlayerId, u32)> = Vec::new();
         for (owner, unit) in self.economy().stranded() {
             if only.is_some_and(|p| p != owner) {
@@ -798,6 +851,94 @@ mod tests {
         );
         assert_eq!(back.economy().carrier_of(w2), Some(boat2));
         assert_eq!(back.economy().ship_room(boat2), 1);
+        Ok(())
+    }
+
+    /// A ship on land with the passenger it carries, and the spare power to take it there.
+    fn ship_on_land(
+        g: &mut Game,
+        power: Option<(u16, Option<u16>)>,
+    ) -> (hecs::Entity, hecs::Entity) {
+        let boat = unit(g, 35 /* trireme */, at(2, 2));
+        let w = unit(g, 107 /* high_men_cavalry */, at(2, 2));
+        let aboard = Aboard(g.units().serial_of(boat));
+        crate::game::put_in(&mut g.world, w, aboard);
+        if let Some((ability, turns)) = power {
+            g.grant_temp_ability(
+                crate::rules::exec::Target::Unit(boat),
+                crate::rules::Ability::new(ability),
+                turns,
+            );
+        }
+        (boat, w)
+    }
+
+    #[test]
+    fn a_ship_on_land_is_destroyed_and_its_passengers_stay_where_it_stood() -> TestResult {
+        let mut g = world();
+        let (boat, w) = ship_on_land(&mut g, None);
+        let events = g.drown_stranded(None);
+        assert_eq!(
+            events,
+            vec![Event::ShipStranded {
+                player: P0,
+                units: 1,
+                at: at(2, 2)
+            }]
+        );
+        assert!(g.world.get::<&crate::unit::Unit>(boat).is_err());
+        assert_eq!(g.units().unit_position(w), Some(at(2, 2)));
+        assert!(g.economy().carrier_of(w).is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn a_ship_that_flies_or_is_non_corporeal_may_stand_on_land_and_keeps_its_passengers(
+    ) -> TestResult {
+        for ability in [24 /* flying */, 49 /* non_corporeal */] {
+            let mut g = world();
+            let (boat, w) = ship_on_land(&mut g, Some((ability, None)));
+            assert!(g.drown_stranded(None).is_empty(), "ability {ability}");
+            assert_eq!(g.units().unit_position(boat), Some(at(2, 2)));
+            assert_eq!(g.economy().carrier_of(w), Some(boat), "still a transport");
+        }
+        // A wind walker in the stack carries the ship too.
+        let mut g = world();
+        let (boat, _) = ship_on_land(&mut g, None);
+        let guide = unit(&mut g, 107 /* high_men_cavalry */, at(2, 2));
+        g.grant_temp_ability(
+            crate::rules::exec::Target::Unit(guide),
+            crate::rules::Ability::new(74),
+            None,
+        );
+        assert!(g.drown_stranded(None).is_empty());
+        assert!(g.units().unit_position(boat).is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn a_ship_whose_special_movement_runs_out_on_land_is_destroyed() -> TestResult {
+        let mut g = world();
+        let (boat, w) = ship_on_land(&mut g, Some((49, Some(1))));
+        assert!(g.drown_stranded(None).is_empty());
+        crate::spell::temp_effect::tick(&mut g.world);
+        let events = g.drown_stranded(None);
+        assert!(
+            matches!(events.as_slice(), [Event::ShipStranded { units: 1, .. }]),
+            "{events:?}"
+        );
+        assert!(g.world.get::<&crate::unit::Unit>(boat).is_err());
+        assert_eq!(g.units().unit_position(w), Some(at(2, 2)));
+        Ok(())
+    }
+
+    #[test]
+    fn a_ship_in_a_city_of_its_owner_is_not_stranded() -> TestResult {
+        let mut g = world();
+        let boat = unit(&mut g, 35 /* trireme */, at(4, 4));
+        g.spawn_city(P0, at(4, 4), "A".into(), None, 3);
+        assert!(g.drown_stranded(None).is_empty());
+        assert!(g.units().unit_position(boat).is_some());
         Ok(())
     }
 }

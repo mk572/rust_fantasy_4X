@@ -51,6 +51,13 @@ pub enum Event {
         units: u32,
         at: map::Position,
     },
+    /// A ship on land lost the movement that took it there (flight, Wraith Form): it is
+    /// destroyed and its passengers stand on the square.
+    ShipStranded {
+        player: player::PlayerId,
+        units: u32,
+        at: map::Position,
+    },
     /// A hero was let go for lack of gold or food; the hero is free to hire again.
     HeroLeft {
         player: player::PlayerId,

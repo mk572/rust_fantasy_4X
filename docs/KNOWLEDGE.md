@@ -149,7 +149,7 @@ into a second worktree (`git worktree add DIR HEAD`, `CARGO_TARGET_DIR=OTHER car
 f4x-tools`), play the bench snapshots with both binaries (`soak --from soak-out/bench/p5/seed25/t0400.f4x
 --players 5 --turns 460 --snapshots-every 20 --out DIR`), and `diff -r` the saves. A cache is added
 together with an env-var check that works the answer out afresh at every use and compares
-(`F4X_CHECK_UNITS`, `F4X_CHECK_VISION`, `F4X_CHECK_BUDGET`), played on a few games of 2 to 5 wizards.
+(`F4X_CHECK_UNITS`, `F4X_CHECK_VISION`, `F4X_CHECK_BUDGET`, `F4X_CHECK_GRID` for the path searches over the grid), played on a few games of 2 to 5 wizards.
 The check found a real mistake at once: the kept budget missed a unit made in the middle of a city's
 production, because the auto-builder asks for the budget between the unit and the end of the city's
 turn; the fix was to refresh at the moments the old code recomputed, not at the moments the new

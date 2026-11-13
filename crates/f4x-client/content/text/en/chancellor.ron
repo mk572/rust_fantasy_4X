@@ -27,6 +27,7 @@
     "chancellor.rival_short": "{wizard} has run short of {what}.",
     "chancellor.rival_hero_left": "{wizard} has lost a hero, {hero}, who walked out.",
     "chancellor.ship_landed": "A ship that could not be paid for has landed {units} of your units at {x}, {y}.",
+    "chancellor.ship_stranded": "A ship of yours was destroyed at {x}, {y} when its special movement ended; its {units} units stand there.",
     "chancellor.drowned": (count: "n",
         one: "1 drowned because the unit carrying them was destroyed.",
         other: "{n} drowned because the unit carrying them was destroyed."),
