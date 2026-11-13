@@ -160,3 +160,14 @@ release binary keeps its symbols, and the sample's "Call graph" section (a tree 
 node) shows who calls what. Look at the top of the stack for self time and at the tree for the
 share of a whole phase. Hash maps keyed by `Position` or `Entity` on a hot path want `crate::fast`
 (`FastMap`, `FastSet`): the standard hasher was 6% of a late game.
+
+## A kept value must be checked where it is read, not where it is made (task 514)
+
+The net gold the auto-builder reads was kept from one asking to the next, with an env check
+(`F4X_CHECK_BUDGET`) that compared it with a fresh budget. The check ran only when the value was
+worked out, so the answers served from the memo were never compared, and one was stale after a
+building completed (the flag came after the choice that needed it). Equal saves on one bench game
+did not see it: it changed an item in one city of one of three games. When a cache gets an
+equality check, put the check on the read path (every hit), run it on the late-game snapshots of
+2 and 5 wizards and on new games, and take the reference to be the version without the cache (a
+temporary build that always works the value out afresh), not the previous commit.

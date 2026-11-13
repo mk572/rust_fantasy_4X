@@ -718,7 +718,16 @@ impl Game {
     fn net_gold_of(&self, owner: PlayerId, city: hecs::Entity) -> HalfInt {
         use crate::game::NetGoldMemo;
         match self.net_gold_memo.get() {
-            NetGoldMemo::Known(p, gold) if p == owner => gold,
+            NetGoldMemo::Known(p, gold) if p == owner => {
+                if crate::player::finance::check_budget() {
+                    assert_eq!(
+                        gold,
+                        self.budget(owner).net_gold(),
+                        "the kept net gold is out of date"
+                    );
+                }
+                gold
+            }
             NetGoldMemo::Off => self.budget(owner).net_gold(),
             _ => {
                 let gold = self.kept_budget(owner, city).net_gold();
@@ -905,6 +914,7 @@ impl Game {
                 p.item = Some(item);
                 p.progress = HalfInt::ZERO;
                 let _ = self.world.insert_one(city, p);
+                self.note_production_change(city);
             }
         }
     }

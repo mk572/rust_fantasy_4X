@@ -907,12 +907,12 @@ impl<'a> Economy<'a> {
             .get(tax_rate)
             .copied()
             .unwrap_or(0) as i32;
-        let unrest_percent = compute(Stat::CityUnrestPercent, racial + tax_unrest, &mods);
+        let unrest_percent = compute(Stat::CityUnrestPercent, racial + tax_unrest, mods);
         // Each corrupted square in the city's area stirs one more citizen to unrest.
         let blight_unrest = if blight_proof { 0 } else { blighted };
         let raw_rebels = (figures as i32 * unrest_percent / 100 + blight_unrest).max(0);
         // Pacification: negative CityUnrest modifiers calm the city; troops help if still short.
-        let mut pacify = -compute(Stat::CityUnrest, 0, &mods);
+        let mut pacify = -compute(Stat::CityUnrest, 0, mods);
         // Gaia's Blessing pacifies two (the wiki and the original's code say so; its help text
         // does not).
         if self.city_has_effect(city, CityEffect::GaiasBlessing) {
@@ -949,12 +949,11 @@ impl<'a> Economy<'a> {
         }
         // Stream of Life: the citizens are so pleased that unrest disappears (the original's
         // code reads the owner's table instead of the city's, see B8).
-        let rebels = if self.city_has_effect(city, CityEffect::StreamOfLife) {
+        if self.city_has_effect(city, CityEffect::StreamOfLife) {
             0
         } else {
             (raw_rebels - pacify).clamp(0, figures as i32) as u32
-        };
-        rebels
+        }
     }
 
     /// The farmer-independent figures of a city's food (`FoodBasis`), by the same helpers

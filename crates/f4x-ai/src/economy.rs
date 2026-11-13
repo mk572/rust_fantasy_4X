@@ -120,6 +120,9 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         crate::military::force_wanted(&view, &ai.city_memory, game.turn, target)
     });
     let empire = Empire::of(&PlayerView::new(game, me));
+    // Each city's auto-builder reads the net gold: kept and patched for the cities whose item
+    // changes, not worked out for the whole empire in every city.
+    game.begin_kept_budget();
     for (city, pos) in mine {
         let (plan, port_item) = {
             let view = PlayerView::new(game, me);
@@ -209,6 +212,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
         }
     }
+    game.end_kept_budget();
     spend_gold(ai, game, events);
 }
 

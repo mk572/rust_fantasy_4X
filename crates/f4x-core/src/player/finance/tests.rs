@@ -346,3 +346,94 @@ fn the_city_places_are_the_cities_without_their_names() -> f4x_def::testdir::Tes
     assert!(checked > 20, "{checked}");
     Ok(())
 }
+
+/// While a computer wizard plans its cities, what a city builds changes its gold (trade goods),
+/// and the net gold the auto-builder reads follows each change as a fresh budget does.
+#[test]
+fn the_kept_net_gold_follows_a_change_of_production_while_planning() -> f4x_def::testdir::TestResult
+{
+    use crate::city::production::ProductionItem;
+    use crate::game::setup::{new_game, NewGame};
+    let content = crate::game::testutil::shipped();
+    let mut game = new_game(
+        &content,
+        &NewGame {
+            seed: 7,
+            all_ai: true,
+            ..NewGame::with_wizards(2)
+        },
+    )?;
+    let player = game
+        .player_ids()
+        .into_iter()
+        .find(|&p| game.is_wizard(p))
+        .ok_or("no wizard")?;
+    let cities = game.economy().cities_of(player);
+    game.begin_kept_budget();
+    let mut moved = false;
+    for &(city, _) in &cities {
+        assert_eq!(game.kept_budget(player, city), game.budget(player));
+        game.set_production(city, ProductionItem::TradeGoods)
+            .map_err(|e| format!("{e:?}"))?;
+        // The command flagged the city: the next asking is the budget of the changed game.
+        assert_eq!(game.kept_budget(player, city), game.budget(player));
+        moved = true;
+    }
+    game.end_kept_budget();
+    assert!(moved);
+    Ok(())
+}
+
+/// A building completed while the budget is kept adds its upkeep at once: the next asking (the
+/// auto-builder's choice of the next item, made inside the completion) is the fresh budget, not the
+/// one from before the building stood.
+#[test]
+fn the_kept_net_gold_counts_a_building_the_moment_it_is_completed() -> f4x_def::testdir::TestResult
+{
+    use crate::city::production::ProductionItem;
+    use crate::game::setup::{new_game, NewGame};
+    let content = crate::game::testutil::shipped();
+    let mut game = new_game(
+        &content,
+        &NewGame {
+            seed: 7,
+            all_ai: true,
+            ..NewGame::with_wizards(2)
+        },
+    )?;
+    let player = game
+        .player_ids()
+        .into_iter()
+        .find(|&p| game.is_wizard(p))
+        .ok_or("no wizard")?;
+    let (city, _) = *game
+        .economy()
+        .cities_of(player)
+        .first()
+        .ok_or("the wizard has no city")?;
+    let building = content
+        .rules
+        .buildings
+        .iter()
+        .map(|(id, _)| id)
+        .find(|&b| {
+            game.economy()
+                .can_build(city, ProductionItem::Building(b))
+                .is_ok()
+                && game.economy().item_cost(city, ProductionItem::Building(b)) > 0
+        })
+        .ok_or("no building the city can build")?;
+    game.set_production(city, ProductionItem::Building(building))
+        .map_err(|e| format!("{e:?}"))?;
+    game.begin_kept_budget();
+    // The auto-builder's facts keep the net gold they read.
+    let facts = game.autobuild_facts(city, player).ok_or("no facts")?;
+    assert_eq!(facts.net_gold, game.budget(player).net_gold());
+    let done = game.apply_production(city, f4x_def::half_int::HalfInt::from_int(100_000));
+    assert_eq!(done, Some(ProductionItem::Building(building)));
+    // The completion flagged the city: what the facts read now is the fresh net gold.
+    let facts = game.autobuild_facts(city, player).ok_or("no facts")?;
+    assert_eq!(facts.net_gold, game.budget(player).net_gold());
+    game.end_kept_budget();
+    Ok(())
+}

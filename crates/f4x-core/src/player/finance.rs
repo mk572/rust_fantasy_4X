@@ -22,8 +22,9 @@ pub(crate) struct BudgetParts {
     dirty: Vec<hecs::Entity>,
 }
 
-/// Set `F4X_CHECK_BUDGET` to work the kept budget out afresh each time and compare.
-fn check_budget() -> bool {
+/// Set `F4X_CHECK_BUDGET` to work the kept budget out afresh each time and compare, and to compare
+/// the net gold the auto-builder keeps (`net_gold_memo`) with a fresh budget at every asking.
+pub(crate) fn check_budget() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| std::env::var_os("F4X_CHECK_BUDGET").is_some())
 }
@@ -393,6 +394,36 @@ impl Game {
             );
         }
         budget
+    }
+
+    /// Keep the budget while a player plans what its cities build (the computer wizard's round of
+    /// cities, which sets each city's auto-builder in turn): the net gold the auto-builder asks
+    /// for is patched for the cities whose item changed, not worked out afresh in every city.
+    /// Pair it with [`Game::end_kept_budget`]; nothing but the commands that set what a city
+    /// builds may be given in between (they flag the city, `note_production_change`).
+    pub fn begin_kept_budget(&self) {
+        self.net_gold_memo.set(crate::game::NetGoldMemo::Empty);
+        *self.budget_parts.borrow_mut() = None;
+    }
+
+    /// The end of [`Game::begin_kept_budget`]: nothing is kept.
+    pub fn end_kept_budget(&self) {
+        self.net_gold_memo.set(crate::game::NetGoldMemo::Off);
+        *self.budget_parts.borrow_mut() = None;
+    }
+
+    /// What `city` builds, or what it has built, changed: while the budget is kept, its yield (a
+    /// building's upkeep, trade goods' gold, a citizen a unit cost) and its owner's units are
+    /// worked out again at the next asking, as a fresh budget would have them. Called wherever
+    /// the auto-builder is about to ask for the net gold after such a change.
+    pub(crate) fn note_production_change(&self, city: hecs::Entity) {
+        if matches!(self.net_gold_memo.get(), crate::game::NetGoldMemo::Off) {
+            return;
+        }
+        self.net_gold_memo.set(crate::game::NetGoldMemo::Empty);
+        if let Some(owner) = self.economy().city_owner(city) {
+            self.mark_budget_dirty(owner, city);
+        }
     }
 
     /// `city` of `player` completed an item, or changed what it builds, while the kept budget is

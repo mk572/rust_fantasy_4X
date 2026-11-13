@@ -452,6 +452,7 @@ impl Game {
         let mut p = self.economy().city_production(city);
         p.item = Some(item);
         let _ = self.world.insert_one(city, p);
+        self.note_production_change(city);
         Ok(())
     }
 
@@ -581,6 +582,8 @@ impl Game {
                     buildings.0.push(b);
                 }
                 self.autobuild_spent(city, item, cost);
+                // The building's upkeep is in the net gold the choice below reads.
+                self.note_production_change(city);
                 // Surplus production is lost; the city falls back to housing, unless the
                 // auto-builder picks the next item.
                 p = Production {
@@ -613,6 +616,9 @@ impl Game {
                 }
                 p.progress = HalfInt::ZERO;
                 self.autobuild_spent(city, item, cost);
+                // The unit's upkeep (and the citizen it cost) is in the net gold the choice
+                // below reads.
+                self.note_production_change(city);
                 // A unit is built over and over, unless the auto-builder picks the next item.
                 if let Some(next) = self.autobuild_choice(city, owner) {
                     p.item = Some(next);
