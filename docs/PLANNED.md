@@ -12,7 +12,6 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | \# | Area | Summary |
 | --- | --- | --- |
 | 1 | Movement | Faster movement along rivers |
-| 2 | Options | Spell of Return setting: off, player only, all wizards |
 | 4 | Content | Rules changes and new items from the community patch and the Caster of Magic expansion |
 | 5 | Platform | Modding support |
 | 6 | Client | Upscaled graphics |
@@ -48,7 +47,6 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 43 | Client | Proper windowing support: boxes and screens as windowed layers instead of one shared pane |
 | 45 | Client | Start a game from a map seed chosen in the UI |
 | 46 | Tools | Find the use of the unreferenced art files `combat`, `desert`, `tundra`, `cmbtwall` |
-| 47 | Meta | Game settings, stage 3: the advanced screen and the easy custom settings |
 | 48 | Meta | Game settings, stage 4: no Myrror, hardcore mode, larger stacks and other hard settings |
 
 ## Descriptions
@@ -61,14 +59,6 @@ ships ever sail them. Make it a rule in data (a movement cost modifier per river
 be switched off, and show river-assisted paths in the path preview. Needs a decision on
 direction (up or down stream) before any asymmetric rule; the river layer currently has no flow
 direction.
-
-**2. Spell of Return options.** Today every banished wizard can cast the Spell of Return
-(`wizard/fortress.rs`, `magic.md` section 12), and an AI wizard's resignation rule is built (task 82). Add a
-new-game setting with three values: **off** (banishment is final: the wizard is defeated),
-**player only** (the human may return, AI wizards are defeated on banishment) and **all
-wizards** (as in the original). Store it in the game settings saved with the game (new field,
-`serde(default)` = all wizards), check it in `capture_city` where banishment is decided, and
-mention it in the new-game screen (T10, T75).
 
 **4. Community patch and Caster of Magic content.** Collect the rule changes of the community
 patch (its files are in `reference/mom-classic/Master of Magic Community Patch/`) and of the
@@ -101,7 +91,7 @@ repository; the repository can only ship tools. Also check tile seams and shore 
 
 **8. Hardcore mode.** A new-game option for one-life play, bundling three rules: **no undo** (the
 undo of orders, task 90, is off for the whole game); **permanent death** (a banished wizard is
-defeated at once, whatever the Spell of Return setting of item 2 says, and the spell is not
+defeated at once, whatever the Spell of Return setting (task 585) says, and the spell is not
 available); and **one save file, constantly updated**: the game saves automatically after every
 command that matters and at every turn end into a single file, cannot be saved elsewhere, and
 cannot load an older state (loading the file continues the game, and a crash or quit never
@@ -521,10 +511,6 @@ replayed without the command line:
 Related: task 148 (the seed display), the new-game flow (`newgame_flow.rs`), `docs/game-settings.md`.
 
 **46. Find the use of the unreferenced art files.** (Moved here from the task list, formerly task 147: not needed for functional parity.) ReMoM's loader has no reference to four LBX files that `f4x-extract art` extracts fine: `combat`, `desert`, `tundra` and `cmbtwall`. `docs/extract-art.md` lists them as unknown rather than guessing. Find out what they are for: look at the pictures (frame counts, sizes, which terrain or battle element they resemble), search the original's disassembly and the other reverse-engineering sources in `reference/` for their names or for the loader slots they would occupy, and compare with the battlefield terrain and wall code (`cmbtwall` may be wall pieces beside `citywall`; `desert` and `tundra` may be terrain variants or battlefield backgrounds). Record the result in section 9 of `docs/extract-art.md` (replace the "unknown" row) and, if one is a real gap in the client, add a task for it. If nothing can be found, say so in the doc and leave the files unused.
-
-**47. Game settings, stage 3: the advanced screen and the easy custom settings.** Stage 3 of `game-settings.md`. The advanced screen with the difficulty dropdown (five levels and Custom), the Advanced settings button on the base screen, human and AI values for starting gold, mana and picks, `ai.apply_to_human`, the AI wizard block, starting units (race units, settlers, scouts, ships, the first summoning spell's creature, and a free Magic Spirit as the scout: the starting-spell order is to be checked, see 4.2), switches (Spell of Mastery, Spell of Return off, human only, all, heroes, lairs, neutral cities, raiders, random events and frequency, fleeing), a lowered stack limit and city size cap, city distance, map size and counts, score scale and Needs task 247 (done). (Hardcore is stage 4, item 48.)
-
-(Moved here from the task list, formerly task 248: it goes beyond the base game.)
 
 **48. Game settings, stage 4: no Myrror, hardcore mode, larger stacks and other hard settings.** Stage 4 of `game-settings.md`. No Myrror (section 4.9: one plane, no Myrran wizards, Planar Travel, Plane Shift or Planar Seal) and hardcore mode (4.10 and `PLANNED.md` item 8: no undo, permanent death, one constantly updated save file). Larger unit stacks are designed in [`large-stacks.md`](large-stacks.md); a raised city size cap needs its own check (growth tables, art for larger cities, balance); more than four opponents and per-event switches are listed in section 6. Each gets its own task before it starts. Needs item 47.
 

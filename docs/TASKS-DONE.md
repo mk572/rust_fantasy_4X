@@ -491,6 +491,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | P33 | AI | (done) Neutral cities that play strategically (was planned item 33) |
 | P34 | Rules | (done) Larger tiles: up to 20 units on a square (was planned item 34) |
 | P35 | Content | (skipped) Palette-swap wizards: variants of the 14 ready-made wizards (was planned item 35) |
+| P47 | Meta | (done) Game settings, stage 3: the advanced screen and the easy custom settings (was planned item 47) |
 
 ## Descriptions
 
@@ -1179,3 +1180,19 @@ Needs: the attitude score and its rules in the core (a `NeutralDiplomacy` module
 - **AI.** The AI's personality and objective draw (task 64) is unchanged; the books and retorts decide its spells as they do now.
 
 Needs: the data file and its loader (`f4x-def`), the palette tables and the importer step that writes the recoloured portraits (`scripts/import_mom.py` or a new script, logged in `docs/scripts.md` with `--help`), the new-game screen's longer list, saves (the wizard is saved by its books and retorts, so a variant needs only its portrait number, to check), the console and the help, tests that every variant is a legal pick, and a balance pass.
+
+**P47. (done) Game settings, stage 3.** Closed on 14 November 2026 at the user's request; it was item 47 of `PLANNED.md`. The settings record, the difficulty levels, the Settings screen and the Custom rules screen are built (tasks 246, 247, 503 and 532; `docs/game-settings.md`). The settings the item named that do not exist yet became tasks 581 to 594 in `TASKS.md`: starting settlers (581), a free Magic Spirit (582), the first summoned creature and a ship (583), the Spell of Mastery on, human only or off (584), the Spell of Return on, human only or off (585, which takes over planned item 2), heroes off (586), lairs off (587), Myrror off (588), a lower army limit (589), city size and distance (590), the most books in a realm (591), the turn random events begin (592), the AI multipliers for the human (593) and the map generator counts (594). Hardcore mode stays planned item 48. The item's text:
+
+**47. Game settings, stage 3: the advanced screen and the easy custom settings.** Stage 3 of `game-settings.md`. The advanced screen with the difficulty dropdown (five levels and Custom), the Advanced settings button on the base screen, human and AI values for starting gold, mana and picks, `ai.apply_to_human`, the AI wizard block, starting units (race units, settlers, scouts, ships, the first summoning spell's creature, and a free Magic Spirit as the scout: the starting-spell order is to be checked, see 4.2), switches (Spell of Mastery, Spell of Return off, human only, all, heroes, lairs, neutral cities, raiders, random events and frequency, fleeing), a lowered stack limit and city size cap, city distance, map size and counts, score scale and Needs task 247 (done). (Hardcore is stage 4, item 48.)
+
+(Moved here from the task list, formerly task 248: it goes beyond the base game.)
+
+Planned item 2, which task 585 took over, read:
+
+**2. Spell of Return options.** Today every banished wizard can cast the Spell of Return
+(`wizard/fortress.rs`, `magic.md` section 12), and an AI wizard's resignation rule is built (task 82). Add a
+new-game setting with three values: **off** (banishment is final: the wizard is defeated),
+**player only** (the human may return, AI wizards are defeated on banishment) and **all
+wizards** (as in the original). Store it in the game settings saved with the game (new field,
+`serde(default)` = all wizards), check it in `capture_city` where banishment is decided, and
+mention it in the new-game screen (T10, T75).

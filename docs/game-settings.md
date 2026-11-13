@@ -430,7 +430,7 @@ a player who dislikes Meteor can drop just that one. Not in the first stages.
 
 ### 4.6 Spell of Return: off / human only / all
 
-`PLANNED.md` item 2. Today `wizard/fortress.rs::banish` always gives the banished wizard the Spell of
+task 585 (was `PLANNED.md` item 2). Today `wizard/fortress.rs::banish` always gives the banished wizard the Spell of
 Return casting. The check goes there:
 
 | Setting | Human banished | AI wizard banished |
@@ -768,7 +768,7 @@ the same spirit as `game.magic_strength = self.magic_strength.min(2)` today.
    event switches. Each gets its own task and its own tests, and its range on the screen is raised
    only when it is done.
 
-Tasks 89 and 94 become stages 1 to 3 (tasks 246 and 247, and planned item 47; stage 4 is planned item 48, formerly tasks 248 and 249); the presentation half of task 94 is separate (not saved per
+Tasks 89 and 94 become stages 1 to 3 (tasks 246 and 247, and task P47; stage 4 is planned item 48, formerly tasks 248 and 249); the presentation half of task 94 is separate (not saved per
 game).
 
 ## 10. Open questions
