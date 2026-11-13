@@ -38,7 +38,6 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 28 | Rules | More useful buildings: most buildings get a tangible benefit of their own |
 | 29 | Rules | Reduced upkeep for basic units; no upkeep for settlers |
 | 30 | Rules | More interesting strategies for underplayed or underpowered races |
-| 31 | Meta | Diplomacy with neutral cities: attitude, a leader portrait, talking, deals |
 | 32 | Magic | Neutral cities: their own mana and spells |
 | 33 | AI | Neutral cities that play strategically (replaces the raiders of task 154) |
 | 34 | Rules | Larger tiles: up to 20 units on a square, armies and battles still limited to nine |
@@ -381,39 +380,14 @@ Gnoll AI that sacrifices, a Barbarian AI that expands by sea), the new-game race
 help text describing them, and the divergence recorded in `divergences.md`. Do the balance
 with item 24, one race at a time, so the effect of each change is measured alone.
 
-**31. Diplomacy with neutral cities.** The independent cities act as players with a budget (task 31, `divergences.md` section 2) but can only be fought. Give them a voice, after the base game is playable and after task 292. Design on top of `docs/diplomacy.md` (the wizards' diplomacy) and `city/neutral.rs`.
-
-1. **Attitude.** Each neutral city keeps a score of how much it likes each wizard, human and AI, from a neutral start. It moves with gifts, deals kept and broken, attacks on it or its neighbours, the wizard's fame and strength; it fades slowly towards neutral. Save it with the city.
-2. **A leader portrait for each race**, shown in the talk dialog (new local art or replacement art, item 12; the portraits are art, so local-only like the rest unless made for the project).
-3. **A dialog when a unit tries to enter the city:** Attack, Talk, Leave. The AI can use the same choice (a rule in `f4x-ai`: attack the weak, talk to the strong or the friendly). A city with free access (below) is entered without asking.
-4. **Talk: the offers** a wizard can make. The city accepts or rejects each one by how much it likes the wizard, whether the deal helps it, and the wizard's overall strength against its own (the same inputs for the human and the AI):
-   - **Give a gift** (an item, a unit, gold): improves relations.
-   - **Demand tribute** (a unit, citizens, a lump sum of gold, gold per turn, mana): the city decides by attitude and strength. (Cities cannot cast spells now; giving them spells is a separate change.)
-   - **Hire mercenaries**: units of the city's race for gold paid to the city.
-   - **Free access**: the wizard's units and ships may enter the city freely.
-   - **Offer protection**: as free access, and the wizard defends the city when attacked; the city pays the upkeep of the wizard's units while they stand on its territory.
-   - **Open trade**: both gain gold each turn by the city's size and whether they are joined by a port or a road.
-   - **Surrender**: the city joins the wizard's empire.
-   - **Sever ties**: the city ends its deals with another wizard.
-   - More offers later (a shared sight, a joint war, passage for a stack through the territory).
-
-Needs: the attitude score and its rules in the core (a `NeutralDiplomacy` module beside `diplomacy.rs`, with the offers as commands and the answers as events, all deterministic), standing deals saved with the game and checked each turn (tribute and trade are paid at the turn change; broken deals change attitude), the entry dialog and talk screen in the client, an AI that makes and answers offers, a console command per offer, news lines (a city that surrendered, a deal ended), and the help text.
-
-**Decided (17 October 2026):**
-- **Strength** is the wizard strength score the game already computes for the advisor screens (`wizard/astrology.rs`: the Astrologer's power, strength and research figures and the History graph's power; `game/endgame.rs`'s score for the hall of fame is the related one). A neutral city compares that with its own (its size, buildings and garrison, scored the same way); no new measure.
-- **Surrender** adds fame to the wizard who receives it, and lowers the diplomatic standing of that wizard with the enemy wizards (those at war with them or hostile to them), who see a rival grow.
-- **Protection and free passage in a battle.** With a protection pact, the wizard's units that stand in the city join the battle at once on the defender's side. The human plays that battle (unless auto-battle is on); an AI wizard's battle is played by the battle AI. With only free passage, the wizard's units sit out any battle, and are evicted if an enemy conquers the city.
-
-**Pacts end only by being broken** (decided 17 October 2026): either side, the city included, may break a protection pact or a free-passage deal by a command; the protector's units in the city are then evicted to a free square next to it. A pact does not end by itself when the units leave. A city may break its own pact, for instance when it cannot afford the upkeep. Breaking has no penalty for now beyond losing the protection (no attitude or fame cost, no warning period); revisit when item 31 is balanced.
-
-**32. Neutral cities: mana and spells.** Independent cities cannot cast today (item 31 notes it). Give them a small magic of their own, after the base game is playable; it feeds item 31 (a city that can cast is a better ally or enemy, and gives and takes spells in deals) and the battles at its gates.
+**32. Neutral cities: mana and spells.** Independent cities cannot cast today (task P31 notes it). Give them a small magic of their own, after the base game is playable; it feeds item 31 (a city that can cast is a better ally or enemy, and gives and takes spells in deals) and the battles at its gates.
 
 - **Mana.** A neutral city makes its own mana by the normal rules (buildings, population, nodes in its land, the same `magic_income` sums a wizard's cities feed), keeps it in its own reserve, and pays the standard price for every spell. No distance rules: it casts anywhere it needs to, at the standard cost.
 - **Learning.** A city never forgets a spell, also when it shrinks. When it gains a population it learns a new spell only if its population is then higher than the number of spells it knows, so it never knows more spells than its population has reached (a city that shrinks and regrows learns nothing until it passes the old count).
 - **Spell lists.** Each race has a list of 20 spells the city picks from, in a data file (`crates/f4x-def/content/`, one list per race, in the rules framework's spell ids), chosen to suit the race (a first pass from the races' realms and the retorts they favour). The pick is a random one: a d20 roll on the list from the game's seeded generator (so it is repeatable from the seed); if the spell rolled is already known, the city goes down the list to the next one it does not know, starting again at 1 after 20; a city that knows all 20 learns nothing more. Spells need no research and no books. A smarter pick (weighted by what the race favours) can come later.
 - **Casting strength.** Needs a formula, since a wizard's strength comes from casting skill and a city has none. A start: the casting skill of a city is its population plus a share of its mana income, capped by a number per size, and it decides which spells it can afford in one go and the strength of the ones that scale (Fireball, Dispel Magic's strength, resistance modifiers in battle). Decide the shape and write it into `magic.md`.
 - **Use.** In battle the city casts as the defender (and as the attacker when a raider sallies out, task 154) with the combat AI's spell rules for a wizard, within the city's mana and the battle's casting limits; overland, a first version casts only what helps its own cities and defence (wards, Wall of Fire, healing, summons for the garrison). The AI wizards' answer to a city that casts: they weigh the risk in the attack decision.
-- **Interaction with deals (item 31).** This item makes it possible to learn spells from neutral cities: a city can teach a spell it knows, for a gift, for its liking of the wizard, or as the price of a deal (a wizard learns it under the normal limits for learning spells: the books, the realm and rarity rules and the spells it already knows). Tribute in mana, and spells given as a gift, work on the city's reserve. The offers themselves belong to item 31, which comes first.
+- **Interaction with deals (task P31).** This item makes it possible to learn spells from neutral cities: a city can teach a spell it knows, for a gift, for its liking of the wizard, or as the price of a deal (a wizard learns it under the normal limits for learning spells: the books, the realm and rarity rules and the spells it already knows). Tribute in mana, and spells given as a gift, work on the city's reserve. The offers themselves belong to item 31, which comes first.
 
 Needs: the data (20 spells for each of the 14 races), a `Magic`-like record for a neutral player in the core (known spells, reserve; saved with the game), the learning step in the growth code, the casting strength rule, the battle and overland AI hooks, the client showing what a neutral city knows when the player has the knowledge (the enemy city screen), help text, and tests with fixed seeds. Do the balance with item 24's soak runs, since a city with spells changes every siege.
 
@@ -422,7 +396,7 @@ Needs: the data (20 spells for each of the 14 races), a `Magic`-like record for 
 - **They are players.** A neutral city already has a player record, a budget and an upkeep (`city/neutral.rs`, task 292); `design.md` says the AI sees what a human sees and obeys the same commands, so the neutral ones use the same commands too. Give them a driver in `f4x-ai` (a neutral personality and objectives beside the wizards', `ai-objectives.md`), run at the turn change for every neutral player, deterministic and cheap.
 - **Goals** (a first set): defend the city and its land; keep the roads and the sea lanes near it clear; take or clear nearby lairs and unguarded nodes for their treasure and mana; take a weak neighbouring city (another neutral city, a wizard's outpost or a badly garrisoned city) when strong enough; trade with friendly cities and wizards (item 31); ask a strong wizard for protection when threatened; found a new outpost with settlers when there is room (the outpost becomes a new independent city).
 - **Units.** Each city chooses what to build for its goals from its budget, with the same production rules as anyone (the AI's `economy::cities` logic, tuned for a small city); no free units. Armies are small and local; they go home when the goal is met.
-- **Attitude** (item 31) steers who they fight: a city does not attack a wizard it likes, shares an enemy with a protector, and may break a deal when a bigger neighbour offers more.
+- **Attitude** (task P31) steers who they fight: a city does not attack a wizard it likes, shares an enemy with a protector, and may break a deal when a bigger neighbour offers more.
 - **Settings** (`game-settings.md`): `raiders_enabled` and `raider_percent` become one `neutral_activity` setting (off, passive, active, aggressive) by difficulty.
 - **Needs:** the neutral driver and objectives in `f4x-ai`; their budget and unit choice; the goal logic above; a way for a human to see what neutral cities are doing (the enemy-city screen, the history graph); news lines for a neutral city taking a city or clearing a lair; tuning with item 24's soak runs (a neutral city must be a worthwhile target and a possible friend, not a wall or a pest); the help text.
 

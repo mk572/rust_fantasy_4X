@@ -487,6 +487,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | P3 | Options | (done) More computer wizards: up to nine opponents (ten wizards); was planned item 3 |
 | P7 | City | (done) Smarter city auto-builder (was planned item 7) |
 | P15 | Tools | (done) Console for game commands (was planned item 15) |
+| P31 | Meta | (done) Diplomacy with neutral cities (was planned item 31; mostly done) |
 
 ## Descriptions
 
@@ -1102,3 +1103,30 @@ Not part of this: the reasons a rule refuses a player's command (`Rejection`) ar
 **P7. (done) Smarter city auto-builder.** Closed on 14 November 2026 at the user's request; it was item 7 of `PLANNED.md`. The item asked for an auto-builder that weighs a city's needs (food, unrest, gold, production, defence), upkeep against income, the race's strengths, the neighbours, the wizard's strategy and the game stage, avoids buildings about to be obsolete, lets the player set a profile, and shares one scoring function with the AI's city production. The design is `docs/auto-builder.md`; it was built in stages 1 to 4. When the item was last updated the AI sides and the event prompt were still listed as remaining; they were not re-checked when closing, so if either is still missing, open a task for it.
 
 **P15. (done) Console for game commands.** Closed on 14 November 2026 at the user's request; it was item 15 of `PLANNED.md`. The console is described in `docs/console.md`: legal and override commands, the override log, one `Console::execute` hook for the client and the headless runner. Its commands today: `give`, `spawn`, `kill`, `restore`, `undead`, `teleport`, `fortress`, `newcity`, `build`, `terrain`, `enchant`, `citizens`, `learn`, `reveal`, `contact`, `event`, `offer`, `eliminate`, `win` and `as`. The item's plan also named setting features and lairs, clearing lairs, and disabling the override commands in hardcore mode (item 8, still open in `PLANNED.md`). Those were not re-checked when closing; there is no command for lairs or features in the list above, so open a task if they are wanted.
+
+**P31. (done) Diplomacy with neutral cities.** Closed on 14 November 2026 at the user's request ("mostly done"); it was item 31 of `PLANNED.md`. The independent cities now take part in diplomacy as the neutral player of each race (tasks 522 and 534 to 537): the human opens a talk by clicking a neutral city of a race met, the race has its leader picture (`crates/f4x-client/assets/neutral/`), the AI makes and answers offers for them like for a wizard, and `docs/diplomacy.md` describes it. The original item asked for more than that, and the parts that are not built are not lost: the entry dialog (Attack, Talk, Leave), the gift of items and units, hiring mercenaries from a city, free access, protection, open trade, surrender and severing ties, as offers of a neutral city. The new task 580 takes the three the user wants next (surrender, protection and a trade pact, for any player, a wizard or a race); the others are not planned. The design text of the item, with its decisions of 17 October 2026, is kept here:
+
+**31. Diplomacy with neutral cities.** The independent cities act as players with a budget (task 31, `divergences.md` section 2) but can only be fought. Give them a voice, after the base game is playable and after task 292. Design on top of `docs/diplomacy.md` (the wizards' diplomacy) and `city/neutral.rs`.
+
+1. **Attitude.** Each neutral city keeps a score of how much it likes each wizard, human and AI, from a neutral start. It moves with gifts, deals kept and broken, attacks on it or its neighbours, the wizard's fame and strength; it fades slowly towards neutral. Save it with the city.
+2. **A leader portrait for each race**, shown in the talk dialog (new local art or replacement art, item 12; the portraits are art, so local-only like the rest unless made for the project).
+3. **A dialog when a unit tries to enter the city:** Attack, Talk, Leave. The AI can use the same choice (a rule in `f4x-ai`: attack the weak, talk to the strong or the friendly). A city with free access (below) is entered without asking.
+4. **Talk: the offers** a wizard can make. The city accepts or rejects each one by how much it likes the wizard, whether the deal helps it, and the wizard's overall strength against its own (the same inputs for the human and the AI):
+   - **Give a gift** (an item, a unit, gold): improves relations.
+   - **Demand tribute** (a unit, citizens, a lump sum of gold, gold per turn, mana): the city decides by attitude and strength. (Cities cannot cast spells now; giving them spells is a separate change.)
+   - **Hire mercenaries**: units of the city's race for gold paid to the city.
+   - **Free access**: the wizard's units and ships may enter the city freely.
+   - **Offer protection**: as free access, and the wizard defends the city when attacked; the city pays the upkeep of the wizard's units while they stand on its territory.
+   - **Open trade**: both gain gold each turn by the city's size and whether they are joined by a port or a road.
+   - **Surrender**: the city joins the wizard's empire.
+   - **Sever ties**: the city ends its deals with another wizard.
+   - More offers later (a shared sight, a joint war, passage for a stack through the territory).
+
+Needs: the attitude score and its rules in the core (a `NeutralDiplomacy` module beside `diplomacy.rs`, with the offers as commands and the answers as events, all deterministic), standing deals saved with the game and checked each turn (tribute and trade are paid at the turn change; broken deals change attitude), the entry dialog and talk screen in the client, an AI that makes and answers offers, a console command per offer, news lines (a city that surrendered, a deal ended), and the help text.
+
+**Decided (17 October 2026):**
+- **Strength** is the wizard strength score the game already computes for the advisor screens (`wizard/astrology.rs`: the Astrologer's power, strength and research figures and the History graph's power; `game/endgame.rs`'s score for the hall of fame is the related one). A neutral city compares that with its own (its size, buildings and garrison, scored the same way); no new measure.
+- **Surrender** adds fame to the wizard who receives it, and lowers the diplomatic standing of that wizard with the enemy wizards (those at war with them or hostile to them), who see a rival grow.
+- **Protection and free passage in a battle.** With a protection pact, the wizard's units that stand in the city join the battle at once on the defender's side. The human plays that battle (unless auto-battle is on); an AI wizard's battle is played by the battle AI. With only free passage, the wizard's units sit out any battle, and are evicted if an enemy conquers the city.
+
+**Pacts end only by being broken** (decided 17 October 2026): either side, the city included, may break a protection pact or a free-passage deal by a command; the protector's units in the city are then evicted to a free square next to it. A pact does not end by itself when the units leave. A city may break its own pact, for instance when it cannot afford the upkeep. Breaking has no penalty for now beyond losing the protection (no attitude or fame cost, no warning period); revisit when item 31 is balanced.
