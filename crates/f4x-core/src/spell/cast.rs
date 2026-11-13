@@ -364,7 +364,11 @@ impl GameHost<'_> {
             };
             match CityStrike::named(name) {
                 Some(CityStrike::Earthquake) => {
-                    vec![self.game.earthquake(city, &mut self.rng)]
+                    // `who` was checked to be a city when the spell was chosen.
+                    self.game
+                        .earthquake(city, &mut self.rng)
+                        .into_iter()
+                        .collect()
                 }
                 Some(CityStrike::CallTheVoid) => {
                     let (units_lost, buildings_lost, population_lost) =

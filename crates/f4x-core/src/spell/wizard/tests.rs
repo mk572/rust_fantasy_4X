@@ -276,6 +276,36 @@ fn death_wish_spares_the_casters_units_and_the_fantastic() {
 }
 
 #[test]
+fn an_earthquake_on_something_that_is_not_a_city_touches_nothing_and_says_so() -> TestResult {
+    let mut g = world();
+    let race = g.content.rules.races.id_numbered(7);
+    g.apply(Command::FoundCity {
+        owner: P1,
+        pos: at(5, 5),
+        name: "Town".into(),
+        race,
+        population: 4,
+    });
+    let city = g.economy().city_at(at(5, 5)).ok_or("city_at is missing")?;
+    let walker = unit(&mut g, P1, 107 /* high_men_cavalry */, at(5, 5));
+    let mut rng = crate::game::rng::GameRng::new(4);
+    // Without a square the units cannot be found: nothing at all is shaken, not just the units.
+    g.world.remove_one::<crate::map::Position>(city)?;
+    assert_eq!(
+        g.earthquake(city, &mut rng),
+        Err(crate::spell::wizard::ShakeError::NotACity)
+    );
+    assert!(g.world.contains(walker));
+    // Without buildings it is no city either.
+    let other = g.world.spawn(());
+    assert_eq!(
+        g.earthquake(other, &mut rng),
+        Err(crate::spell::wizard::ShakeError::NotACity)
+    );
+    Ok(())
+}
+
+#[test]
 fn an_earthquake_spares_flyers_and_the_bodiless() -> TestResult {
     let mut g = world();
     let city = {
@@ -296,7 +326,7 @@ fn an_earthquake_spares_flyers_and_the_bodiless() -> TestResult {
     let ghost = unit(&mut g, P1, 154 /* magic_spirit */, at(5, 5));
     let mut rng = crate::game::rng::GameRng::new(4);
     for _ in 0..50 {
-        g.earthquake(city, &mut rng);
+        g.earthquake(city, &mut rng).map_err(|e| format!("{e:?}"))?;
     }
     assert!(g.world.contains(flyer));
     assert!(g.world.contains(ghost));

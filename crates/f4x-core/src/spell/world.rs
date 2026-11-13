@@ -313,10 +313,13 @@ impl Game {
         let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());
         let (mut units_lost, mut buildings_lost) = (0, 0);
         for city in cities {
-            let (u, b) =
-                self.shake_city(city, WRATH_UNIT_PERCENT, WRATH_BUILDING_PERCENT, &mut rng);
-            units_lost += u;
-            buildings_lost += b;
+            // The cities come from the economy: one that cannot be shaken is skipped.
+            if let Ok((u, b)) =
+                self.shake_city(city, WRATH_UNIT_PERCENT, WRATH_BUILDING_PERCENT, &mut rng)
+            {
+                units_lost += u;
+                buildings_lost += b;
+            }
         }
         self.rng = rng;
         vec![Event::WorldSpellStruck {

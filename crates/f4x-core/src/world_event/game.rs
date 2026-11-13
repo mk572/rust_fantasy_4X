@@ -510,12 +510,14 @@ impl Game {
         }
         // The earthquake kills no citizens (`Apply_Damage_To_City(city, 0, 15)`).
         match self.earthquake(city, rng) {
-            Event::EarthquakeStruck {
+            Ok(Event::EarthquakeStruck {
                 units_lost,
                 buildings_lost,
                 ..
-            } => (units_lost, buildings_lost, 0),
-            _ => (0, 0, 0),
+            }) => (units_lost, buildings_lost, 0),
+            // The event is picked from the cities of a player: a shake that finds no city is a
+            // bug, and changes nothing.
+            Ok(_) | Err(crate::spell::wizard::ShakeError::NotACity) => (0, 0, 0),
         }
     }
 

@@ -263,63 +263,78 @@ impl Game {
 
     /// Earthquake: every unit in the city that neither flies nor has no body has a one in four
     /// chance of dying, and each building a 15 percent chance of falling (unless another needs
-    /// it). Returns the units and buildings lost.
-    pub(crate) fn earthquake(&mut self, city: hecs::Entity, rng: &mut GameRng) -> Event {
+    /// it). Returns the units and buildings lost, or why nothing was shaken.
+    pub(crate) fn earthquake(
+        &mut self,
+        city: hecs::Entity,
+        rng: &mut GameRng,
+    ) -> Result<Event, ShakeError> {
         let (units_lost, buildings_lost) = self.shake_city(
             city,
             EARTHQUAKE_UNIT_PERCENT,
             EARTHQUAKE_BUILDING_PERCENT,
             rng,
-        );
-        Event::EarthquakeStruck {
+        )?;
+        Ok(Event::EarthquakeStruck {
             city,
             units_lost,
             buildings_lost,
-        }
+        })
     }
 
     /// Tremors in a city: each unit that neither flies nor lacks a body dies with `unit_percent`,
-    /// each building falls with `building_percent`. Returns the units and buildings lost.
+    /// each building falls with `building_percent`. Returns the units and buildings lost; for
+    /// something that is not a city (no owner, no square, no buildings) nothing is touched and
+    /// it says so, instead of shaking half of it.
     pub(crate) fn shake_city(
         &mut self,
         city: hecs::Entity,
         unit_percent: u32,
         building_percent: u32,
         rng: &mut GameRng,
-    ) -> (u32, u32) {
-        let at = self.world.get::<&crate::map::Position>(city).map(|p| *p);
-        let mut units_lost = 0;
-        if let Ok(at) = at {
-            for unit in self.units().units_at(at) {
-                let units = self.units();
-                let flies = units
-                    .unit_def(unit)
-                    .is_some_and(|d| d.movement == crate::rules::MovementType::Flying);
-                if flies
-                    || units.unit_has_ability(unit, Ability::new(24))
-                    || units.unit_has_ability(unit, Ability::new(49))
-                {
-                    continue;
-                }
-                if rng.roll(100) <= unit_percent {
-                    self.remove_unit(unit, crate::hero::Fate::Slain);
-                    units_lost += 1;
-                }
-            }
-        }
+    ) -> Result<(u32, u32), ShakeError> {
+        let at = self
+            .world
+            .get::<&crate::map::Position>(city)
+            .map(|p| *p)
+            .map_err(|_| ShakeError::NotACity)?;
         let built: Vec<_> = self
             .world
             .get::<&crate::city::economy::Buildings>(city)
             .map(|b| b.0.clone())
-            .unwrap_or_default();
+            .map_err(|_| ShakeError::NotACity)?;
+        let mut units_lost = 0;
+        for unit in self.units().units_at(at) {
+            let units = self.units();
+            let flies = units
+                .unit_def(unit)
+                .is_some_and(|d| d.movement == crate::rules::MovementType::Flying);
+            if flies
+                || units.unit_has_ability(unit, Ability::new(24))
+                || units.unit_has_ability(unit, Ability::new(49))
+            {
+                continue;
+            }
+            if rng.roll(100) <= unit_percent {
+                self.remove_unit(unit, crate::hero::Fate::Slain);
+                units_lost += 1;
+            }
+        }
         let mut buildings_lost = 0;
         for b in built {
             if rng.roll(100) <= building_percent && self.destroy_building(city, b) {
                 buildings_lost += 1;
             }
         }
-        (units_lost, buildings_lost)
+        Ok((units_lost, buildings_lost))
     }
+}
+
+/// Why a city could not be shaken (Earthquake, Nature's Wrath).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShakeError {
+    /// The entity has no square or no buildings: it is not a city.
+    NotACity,
 }
 
 #[cfg(test)]
