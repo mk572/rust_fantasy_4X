@@ -1,7 +1,7 @@
 # Which of the original's pictures belong to one screen alone.
 #
 # `extract-art` writes a picture listed here to `assets-local/screens/<screen>/` and not to
-# `assets-local/art/<lbx>/`; every other picture stays in `art/` (shared pictures, figures,
+# `assets-local/art/<lbx>/`; every other picture stays in `art/` (figures,
 # terrain, map sprites, spell effects). Only numbers and names: no art in this file.
 #
 # Columns: lbx (lower-case file name), first entry, last entry, screen (folder name), label.
@@ -383,3 +383,14 @@ spellscr	9	9	wizlab	summon_frame
 spellscr	10	10	wizlab	summon_flame_back
 spellscr	11	11	wizlab	summon_flame_front
 spellscr	61	66	wizlab
+
+# Pictures of `backgrnd.lbx` that several screens draw: the shared-tile marker of the city's land view,
+# the red button (unit screen, art.rs) and the gold upkeep icon (unit screen, production screen).
+backgrnd	0	0	shared	marker_shared_tile
+backgrnd	24	24	shared	button_red
+backgrnd	42	42	shared	icon_gold
+
+# The banner step's small flags: not in the original's files, `scripts/make_banner_flags.py` makes them
+# (entries 0 to 4 the original's five, 5 to 9 the new colours) and `scripts/make_banner_colours.py` the rest.
+banner_flags	0	9	new_game
+backgrnd	73	73	shared	icon_gold_upkeep

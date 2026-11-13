@@ -3,7 +3,7 @@
 and five more with the hue turned, for more player colours.
 
 Reads assets-local/screens/new_game/newgame_046_00.png (the player's own extracted art, the five
-flags on the screen's ground, which is cut away by comparing with background_00.png) and writes assets-local/art/banner_flags/NNN_00.png: entries 0 to 4
+flags on the screen's ground, which is cut away by comparing with background_00.png) and writes assets-local/screens/new_game/banner_flags_NNN_00.png: entries 0 to 4
 the flags of the original in the order of the screen (top to bottom), 5 to 9 the same turned.
 `--turn` (default: pink, brown, turquoise, dark blue and orange) takes the angle in degrees, or one for each flag (comma separated); `90x0.7` also darkens the flag to 0.7 of its brightness. The output is
 derived from the original's art, so it stays local like the rest of assets-local. Needs Pillow (.venv).
@@ -20,7 +20,7 @@ SOURCE = ROOT / "assets-local/screens/new_game/newgame_046_00.png"
 GROUND = ROOT / "assets-local/screens/new_game/background_00.png"
 # The picture is drawn at this column of the screen.
 PICTURE_X = 158
-TARGET = ROOT / "assets-local/art/banner_flags"
+TARGET = ROOT / "assets-local/screens/new_game"
 # The rows each flag of the picture stands in (the picture is drawn at the top of the screen).
 # Green to pink, light blue to brown, red to turquoise, purple to dark blue, yellow to orange.
 DEFAULT_TURN = "210,180x0.78,180,285x0.8,-18"
@@ -105,8 +105,8 @@ def main():
             print(f"flag {i}: nothing in rows {top} to {bottom}", file=sys.stderr)
             return 1
         small = half(band.crop(box))
-        small.save(args.target / f"{i:03d}_00.png")
-        turn_hue(small, *angles[i]).save(args.target / f"{i + 5:03d}_00.png")
+        small.save(args.target / f"banner_flags_{i:03d}_00.png")
+        turn_hue(small, *angles[i]).save(args.target / f"banner_flags_{i + 5:03d}_00.png")
         print(f"flag {i}: {small.size}")
     return 0
 

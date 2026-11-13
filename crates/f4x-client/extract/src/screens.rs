@@ -465,8 +465,12 @@ mod tests {
             placement(&rules, "main", 45).as_deref(),
             Some("road_build/background")
         );
-        // Shared pictures stay where they were.
-        assert_eq!(placement(&rules, "backgrnd", 24), None);
+        // A picture several screens draw lives in `shared`; one nothing names stays in `art/`.
+        assert_eq!(
+            placement(&rules, "backgrnd", 24).as_deref(),
+            Some("shared/button_red")
+        );
+        assert_eq!(placement(&rules, "backgrnd", 100), None);
         assert_eq!(placement(&rules, "load", 8), None);
         // A picture two screens use lives with its main screen.
         assert_eq!(

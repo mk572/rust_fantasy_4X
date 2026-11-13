@@ -98,3 +98,5 @@ vortex	5	5	main_menu/button_load_game
 cmbtwall	0	63	combat/cmbtwall_unknown
 figure15	0	119	art/figure15
 figure16	0	23	art/figure16
+backgrnd	20	20	city_screen/button_cancel
+backgrnd	21	21	city_screen/button_ok_small
