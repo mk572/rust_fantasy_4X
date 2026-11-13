@@ -2593,6 +2593,52 @@ mod fields {
         assert_eq!(b.units[0].hit_points(), b.units[0].max_hit_points());
     }
 
+    /// What Wrack did to a unit of eight figures with plenty of hit points over ten turns: the
+    /// points of each of its strikes.
+    fn wrack_strikes(resistance: i32, abilities: &[u16]) -> Vec<i32> {
+        let mut b = pair(
+            of(Side::Attacker, None, (3, 5)),
+            of(Side::Defender, None, (17, 5)),
+        );
+        b.units[1].resistance = resistance;
+        b.units[1].figures_start = 8;
+        b.units[1].figures = 8;
+        b.units[1].hits = 1000;
+        for &a in abilities {
+            b.units[1].abilities.push(Ability::new(a));
+        }
+        b.raise_field(Side::Attacker, Field::Wrack, spell());
+        end_turns(&mut b, 10)
+            .iter()
+            .filter_map(|e| match e {
+                BattleEvent::FieldStruck { unit: 1, dealt, .. } => Some(*dealt),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn wrack_deals_one_point_for_each_figure_that_fails_its_roll_and_not_the_square_of_that() {
+        // The original deals n x n points when n figures fail (the wiki lists it as a bug).
+        let strikes = wrack_strikes(0, &[]);
+        assert!(strikes.len() >= 5, "{strikes:?}");
+        assert!(strikes.iter().all(|&d| (1..=8).contains(&d)), "{strikes:?}");
+    }
+
+    #[test]
+    fn wrack_spares_a_resistance_of_nine_and_the_immune_and_hurts_a_resistance_of_eight() {
+        assert!(
+            wrack_strikes(9, &[]).is_empty(),
+            "nine and the +1 cannot fail"
+        );
+        assert!(wrack_strikes(0, &[16 /* death_immunity */]).is_empty());
+        assert!(wrack_strikes(0, &[40 /* magic_immunity */]).is_empty());
+        assert!(
+            !wrack_strikes(8, &[]).is_empty(),
+            "a roll of ten still beats eight and the +1"
+        );
+    }
+
     #[test]
     fn call_lightning_strikes_a_unit_under_wraith_form() {
         let mut b = pair(
