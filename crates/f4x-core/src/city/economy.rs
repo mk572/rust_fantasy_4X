@@ -265,6 +265,27 @@ impl<'a> Economy<'a> {
             .collect()
     }
 
+    /// The cities `keep` accepts (given the owner and the position), with owner and position,
+    /// oldest first: what `cities` gives, without the names, and with the filter before the
+    /// sort, so a caller who wants the few cities of others does not clone and sort them all.
+    pub fn city_places(
+        &self,
+        keep: impl Fn(PlayerId, Position) -> bool,
+    ) -> Vec<(hecs::Entity, PlayerId, Position)> {
+        let mut out: Vec<_> = self
+            .world
+            .query::<(&City, &Position, &Owner)>()
+            .iter()
+            .filter_map(|(e, (_, p, o))| {
+                let owner = crate::player::id_of(self.world, o.0)?;
+                keep(owner, *p).then_some((e, owner, *p))
+            })
+            .collect();
+        let units = self.units();
+        out.sort_by_cached_key(|(e, ..)| (units.serial_of(*e), e.id()));
+        out
+    }
+
     /// The cities of one player with their positions, oldest first: what `cities` gives for one
     /// owner, without the names and without looking up every city's owner.
     pub fn cities_of(&self, owner: PlayerId) -> Vec<(hecs::Entity, Position)> {
@@ -325,6 +346,27 @@ impl<'a> Economy<'a> {
         out
     }
 
+    /// Whether a wizard other than `owner` keeps Armageddon, and whether one keeps Great Wasting
+    /// (`city_modifiers`: the unrest it brings to the city). One pass over the players, no list
+    /// of them made or sorted: the answer does not depend on the order.
+    fn others_keep_curses(&self, owner: Option<PlayerId>) -> (bool, bool) {
+        let rules = &self.content.rules;
+        let (mut armageddon, mut wasting) = (false, false);
+        for (_, &id) in self.world.query::<&PlayerId>().iter() {
+            if id == crate::player::MONSTERS || Some(id) == owner {
+                continue;
+            }
+            let Some(w) = self.wizard(id) else {
+                continue;
+            };
+            let keeps =
+                |effect| crate::spell::global_enchantment::magic_has_effect(&w, rules, effect);
+            armageddon = armageddon || keeps(GlobalEffect::Armageddon);
+            wasting = wasting || keeps(GlobalEffect::GreatWasting);
+        }
+        (armageddon, wasting && !armageddon)
+    }
+
     /// Modifiers from the city's race, buildings and enchantments.
     pub fn city_modifiers(&self, city: hecs::Entity) -> Vec<Modifier> {
         let rules = &self.content.rules;
@@ -344,21 +386,7 @@ impl<'a> Economy<'a> {
             let (mut power, mut pacify) = (0, 0);
             // While another wizard keeps Armageddon going, the city has two more rebels' worth of
             // unrest (the buildings still calm it, as in the community patch).
-            let others_keep = |effect: GlobalEffect| {
-                crate::player::ids(self.world)
-                    .into_iter()
-                    .filter(|&id| Some(id) != owner)
-                    .filter_map(|id| self.wizard(id))
-                    .any(|w| {
-                        crate::spell::global_enchantment::magic_has_effect(
-                            &w,
-                            &self.content.rules,
-                            effect,
-                        )
-                    })
-            };
-            let armageddon = others_keep(GlobalEffect::Armageddon);
-            let wasting = !armageddon && others_keep(GlobalEffect::GreatWasting);
+            let (armageddon, wasting) = self.others_keep_curses(owner);
             for &b in &buildings.0 {
                 let def = rules.buildings.get(b);
                 let mut found = passive_modifiers(&def.effects, Source::Building(b));

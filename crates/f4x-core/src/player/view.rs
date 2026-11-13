@@ -422,11 +422,7 @@ impl<'a> PlayerView<'a> {
     pub fn known_cities(&self) -> Vec<(hecs::Entity, PlayerId, Position)> {
         self.game
             .economy()
-            .cities()
-            .into_iter()
-            .filter(|(_, c, p)| c.owner != self.me && self.explored(*p))
-            .map(|(e, c, p)| (e, c.owner, p))
-            .collect()
+            .city_places(|owner, p| owner != self.me && self.explored(p))
     }
 
     /// The city on a square the player has explored.

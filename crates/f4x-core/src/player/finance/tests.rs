@@ -300,3 +300,38 @@ fn the_minimum_farmers_by_halving_are_those_of_the_linear_search() -> f4x_def::t
     assert!(checked > 100, "{checked}");
     Ok(())
 }
+
+/// `city_places` is `cities()` without the names, with the filter before the sort: the same cities
+/// in the same order, for every owner, in new games of several seeds.
+#[test]
+fn the_city_places_are_the_cities_without_their_names() -> f4x_def::testdir::TestResult {
+    use crate::game::setup::{new_game, NewGame};
+    let content = crate::game::testutil::shipped();
+    let mut checked = 0;
+    for seed in [3, 7, 11] {
+        let game = new_game(
+            &content,
+            &NewGame {
+                seed,
+                all_ai: true,
+                ..NewGame::with_wizards(4)
+            },
+        )?;
+        for me in game.player_ids() {
+            let old: Vec<_> = game
+                .economy()
+                .cities()
+                .into_iter()
+                .filter(|(_, c, p)| c.owner != me && p.x % 2 == 0)
+                .map(|(e, c, p)| (e, c.owner, p))
+                .collect();
+            let new = game
+                .economy()
+                .city_places(|owner, p| owner != me && p.x % 2 == 0);
+            assert_eq!(old, new, "seed {seed}, player {me:?}");
+            checked += new.len();
+        }
+    }
+    assert!(checked > 20, "{checked}");
+    Ok(())
+}
