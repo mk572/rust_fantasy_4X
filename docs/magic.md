@@ -7,16 +7,14 @@ ReMoM source) unless noted. For where wizard state sits in the game, see
 
 ## 1. The wizard
 
-> **Rework (task 310, built in tasks 311 to 317; the wizard side is done, tasks 312, 315 and 316).**
-> The wizard is an entity of its own, linked to a **player** entity that holds what the wizard has
-> and does (gold, mana, tax rate, offers, defeat). Its components are `Books`, `Retorts`, `Skill`
-> (invested points and `skill_left`), `Research` (`researching`, `research_remaining`),
-> `KnownSpells`, `Candidates`, `PowerSplit` (`mana_pct`, `research_pct`, `skill_pct`), `Name`,
-> `Portrait`, `Banner`, `CapitalRace`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt`
-> and `Banishment`. The cast in progress (with the item or hero it carries) and the lasting spells are
-> spell instances, built in tasks 318 to 322, done ([`ecs-structure.md`](ecs-structure.md) section 3.2 and 3.4). Independent cities have a player and
-> no wizard. The table below lists the wizard's data; the mana reserve is the player's
-> `Treasury`.
+The wizard is an entity of its own, linked to a **player** entity that holds what the wizard has
+and does (gold, mana, tax rate, offers, defeat). Its components are `Books`, `Retorts`, `Skill`
+(invested points and `skill_left`), `Research` (`researching`, `research_remaining`),
+`KnownSpells`, `Candidates`, `PowerSplit` (`mana_pct`, `research_pct`, `skill_pct`), `Name`,
+`Portrait`, `Banner`, `CapitalRace`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt`
+and `Banishment`. The cast in progress (with the item or hero it carries) and the lasting spells are
+spell instances ([`ecs-structure.md`](ecs-structure.md) sections 3.2 and 3.4). Independent cities have a player and
+no wizard. The table below lists the wizard's data; the mana reserve is the player's `Treasury`.
 
 | Field | Meaning |
 |---|---|
@@ -47,8 +45,7 @@ per turn, and the amount available for instant casting.
 
 - **Power base** = mana from all the wizard's cities (citizens of some races, religious
   buildings, mineral ores) plus the **fortress city's** bonus: one per book, five more on Myrror.
-  Magic nodes will
-  add power once they can be owned.
+  Nodes the wizard owns add their power too.
 - **Split:** mana share and skill share are `power × pct` rounded to nearest; research gets the
   rest, plus all research from city buildings. If research is set to 0%, its share goes to skill
   (or to mana when skill is also 0). Mana Focusing adds a quarter to mana.
@@ -59,9 +56,9 @@ per turn, and the amount available for instant casting.
 
 ## 4. Spells and the library
 
-> **Rework.** `known` and `researchable` stay a set of spell ids, as components of the wizard
-> (`KnownSpells`, `Candidates`). A spell the wizard knows is not an entity; a spell that is cast or
-> lasting is (section 14 and 15, `ecs-structure.md` section 3.4).
+`known` and `researchable` are sets of spell ids, components of the wizard (`KnownSpells`,
+`Candidates`). A spell the wizard knows is not an entity; a spell that is cast or lasting is
+(sections 14 and 15, `ecs-structure.md` section 3.4).
 
 A new wizard gets, for each realm with *n* books:
 
@@ -87,10 +84,9 @@ sorts the offer by the time each would take. It runs when a wizard is made, ever
 a spell is learned. `SetResearch` takes one of the offered spells; the cost is its
 `research_cost`, and the choice stands until the spell is learned (no switching). When the
 remaining cost reaches 0 the spell becomes known (`SpellLearned`), leaves the offer, and the
-player picks the next. Not done: the Spell of Mastery joining the offer when nothing else is
-left (task 61).
+player picks the next. The Spell of Mastery joins the offer last (`arcane_closed`).
 
-Task 472 (research against the wiki and ReMoM):
+Research against the wiki and ReMoM:
 - **Arcane rarities** are the wiki's (`spells.ron`): Magic Spirit, Dispel Magic, Summoning Circle
   common; Disenchant Area, Recall Hero, Detect Magic, Enchant Item, Summon Hero uncommon; Awareness,
   Disjunction, Create Artifact, Summon Champion rare. The arcane realm now follows the ordinary
@@ -111,8 +107,8 @@ Task 472 (research against the wiki and ReMoM):
 
 ## 6. Casting overland
 
-> **Rework (done).** The spell being paid for (`casting`, and the item being crafted and the hero being
-> raised) is a spell instance in a casting state, owned by the casting wizard (task 322).
+The spell being paid for (`casting`, and the item being crafted and the hero being raised) is a
+spell instance in a casting state, owned by the casting wizard.
 
 - **Cost:** the spell's `cost`; a spell that can also be cast in battle costs **five times** as
   much overland. Reductions (percent): each book beyond seven 10, realm mastery 15, Artificer 50
@@ -147,16 +143,14 @@ Task 472 (research against the wiki and ReMoM):
 `resolve_cast` runs the spell's `OnCast` effects through the effect executor against a real
 effect host over the ECS (`GameHost` in `spell/cast.rs`): damage and healing of units, summoning,
 terrain and feature changes, resources, dispelling. A spell that lasts (the original has no timed spells) is
-a spell instance (`spell/instance.rs`) on its target: a city, a unit or the world; its passive effects then apply as stat modifiers. Spells whose effects are
-still the `unimplemented` hook are cast, cost mana, and report `SpellHasNoEffectYet`.
-
-Known gaps: instant `Modify`/ability grants have no
-home; battle spells are cast in battles (`combat.md` section 8).
+a spell instance (`spell/instance.rs`) on its target: a city, a unit or the world; its passive effects then apply as stat modifiers. A spell whose effects are
+only the `unimplemented` hook is cast, costs mana and reports `SpellHasNoEffectYet` (none ships
+like that now). Battle spells are cast in battles (`combat.md` section 8).
 
 ## 8. Upkeep
 
-> **Rework (done).** The lasting spells a wizard pays for are the spell instances whose caster it is: the
-> upkeep is one query over them, and so is giving them up (task 325).
+The lasting spells a wizard pays for are the spell instances whose caster it is: the upkeep is one
+query over them, and so is giving them up.
 
 Each turn the wizard pays mana for lasting spells they cast (global, city, unit) and for units
 with mana upkeep. If the reserve cannot cover it, things are given up until it can: the highest mana upkeep first
@@ -166,13 +160,13 @@ production cost, a spell's casting mana), then the newest (`EnchantmentLapsed`,
 applies the same rule itself (`f4x-ai/src/shortfall.rs`). The upkeep is paid at the turn end,
 after the mana income and before casting.
 
-**The human's choice (task 62).** Before the turn ends, the client asks `Game::upkeep_shortfall(player)`:
+**The human's choice.** Before the turn ends, the client asks `Game::upkeep_shortfall(player)`:
 the reserve plus this turn's mana income against the upkeep (`player/upkeep.rs`). If it is short, a prompt
 lists every item that costs mana with its price, pre-marks what the default would give up, and lets
 the player mark others (space or click; Enter confirms, Esc goes back). The marked items are
 released with `Command::ReleaseUpkeep`, and the turn change then drops only what is still missing.
 The original does not ask: its `WIZ_MatchManaUpkeep` takes a random kind of asset and only the
-summons part is written (`NEXTTURN.c`), so this prompt is our own rule. The prompt also lists the troops that cost gold or food (task 292, `divergences.md` section 22), and the AI answers the same questions through the same commands (`f4x-ai/src/shortfall.rs`).
+summons part is written (`NEXTTURN.c`), so this prompt is our own rule. The prompt also lists the troops that cost gold or food (`divergences.md` section 22), and the AI answers the same questions through the same commands (`f4x-ai/src/shortfall.rs`).
 
 ## 9. Turn order
 
@@ -185,7 +179,7 @@ The screens follow the original's (`magic_screen.rs`, `spellbook.rs`, `bigbook.r
 - **M, the Magic button:** the three staves (drag one; the lock above holds its share, and the
   others give and take as `staff_adjust` says), the income under each, the casting skill,
   magic reserve and power base, what is being cast and researched, the summoning circle's city,
-  the gems of the other wizards (grey until diplomacy: tasks 63, 83), the overland enchantments
+  the gems of the other wizards (grey until diplomacy), the overland enchantments
   of every wizard (click your own to turn it off: `Command::TurnOffSpell`), and the Alchemy
   window (the slider and the arrow that turns the exchange round).
 - **V, the Spells button:** the small spell book, spells by realm six to a page with the cost and
@@ -199,28 +193,24 @@ The screens follow the original's (`magic_screen.rs`, `spellbook.rs`, `bigbook.r
 
 ## 11. Differences from the original
 
-- The fortress is a location on the player, not a building; the original also has the fortress
-  city act as a building in the city screen. Banishment, the circle and the Spell of Return work
-  (section 12); the aftermath of a wizard's defeat (neutral units and cities) does not.
-- Heroes add to the casting skill that pays over turns and sage heroes to research (task 51); no node power, no Evil Omens or other global
-  modifiers on cost, no Spell of Return handling, no spell research cost for the Spell of Mastery
-  (placeholder data). Casting in battle is in `combat.md` section 8.
+- The fortress is a location on the wizard, not a building; the original also has the fortress
+  city act as a building in the city screen.
+- Heroes add to the casting skill that pays over turns, and sage heroes to research. Evil
+  Omens (section 14) is a global modifier on spell cost. Casting in battle is in `combat.md` section 8.
 - The importer keeps the original's eligibility (`spell_contexts` in `import_mom.py`): 0, 2 and
   3 are castable in a battle and on the map, and `SpellDef::overland_x5` makes the map cost five
   times as much (Flight, Bless, Resist Elements, Wall of Fire and the like, as well as the
   spells of eligibility 0). Eligibility 4 (Word of Recall, Disenchant True and Area) is in the
-  original's battle list too, but stays overland-only here until their battle effects exist
-  (task 159).
+  original's battle list too, but stays overland-only here until their battle effects exist.
 - Starting known spells follow the original's rules (section 13): the tables are in
   `crates/f4x-def/content/rules_settings.ron`, `spell_library`.
 
 ## 12. Fortress, summoning circle, banishment
 
-> **Rework.** The fortress, the summoning circle and the banishment are components of the wizard
-> (`Fortress`, `SummonAt`, `Banishment {by}`, task 316); `defeated` is the player's `Defeat`. The
-> fortress city stays a city entity; the wizard names it. Defeating a wizard despawns all the
-> spell instances it cast (`aftermath`, `despawn_spells_of`); player and wizard
-> entities stay.
+The fortress, the summoning circle and the banishment are components of the wizard (`Fortress`,
+`SummonAt`, `Banishment {by}`); `defeated` is the player's `Defeat`. The fortress city stays a city
+entity; the wizard names it. Defeating a wizard despawns all the spell instances it cast
+(`aftermath`, `despawn_spells_of`); player and wizard entities stay.
 
 Code: `crates/f4x-core/src/wizard/fortress.rs`. A wizard has `Fortress` and `SummonAt` (positions of
 cities) and, while banished, `Banishment`; a defeated one has no fortress and the player has `Defeat`.
@@ -257,23 +247,20 @@ cities) and, while banished, `Banishment`; a defeated one has no fortress and th
 - **Destroying:** `Game::destroy_city` refuses a fortress city and leaves it with at least one
   citizen, as in the original, and a city with no owner or no square. A city that must go anyway
   (a lost outpost, a taken city with no citizens, a city a horde razes) goes through
-  `Game::remove_city`, which keeps the fortress and removes the others, so none stays as a ghost
-  (task 549).
-- Spell targets are now checked before mana is paid.
+  `Game::remove_city`, which keeps the fortress and removes the others, so none stays as a ghost.
+- Spell targets are checked before mana is paid.
 
-Defeat is done in `game/endgame.rs` (`aftermath`, task 82) as in the original's `Resolve_Wizard_Conquest`:
+Defeat is done in `game/endgame.rs` (`aftermath`) as in the original's `Resolve_Wizard_Conquest`:
 the loser's remaining units and heroes go, their enchantments come off every city and unit, their
 global spells and cast stop, their nodes are freed, the winner takes half their gold, and their
-cities turn neutral. A computer wizard banished with casting skill under 40 or no mana resigns at
-once; the human is never auto-defeated (the original does that to the human too). Not done, all in
-task 341: that test for the human, conquest spells, diplomacy blocked while banished, the fame and
-mana of a defeat without banishment. See also tasks 70 and 82.
+cities turn neutral. A wizard banished with casting skill under 40 or no mana is defeated at once, the human included
+(see above).
 
 ## 13. Creating a wizard
 
-> **Rework.** Creating a wizard spawns a player entity and a wizard entity together and links them
-> (tasks 311 and 312). The pick rules stay in `wizard/mod.rs`; `WizardBuild` fills the wizard's
-> components. The computer wizards are built the same way (`f4x-newgame/src/computer_wizard.rs`).
+Creating a wizard spawns a player entity and a wizard entity together and links them. The pick
+rules stay in `wizard/mod.rs`; `WizardBuild` fills the wizard's components. The computer wizards are
+built the same way (`f4x-newgame/src/computer_wizard.rs`).
 
 `wizard/mod.rs` holds the pick rules and `Game::create_wizard`; `crates/f4x-def/content/wizards.ron` lists the
 ready-made wizards' books and retorts (game rules, committed); their names are in `crates/f4x-lang/content/text/en/name/wizard.ron` and their help text is the topic named by `help` in
@@ -314,23 +301,19 @@ spent twelve; ours has four sorcery books and spends eleven, as the others). The
 
 ## 14. Global enchantments
 
-> **Rework.** A global enchantment is a spell instance with target `Global` and the casting wizard as
 A global spell is a spell instance with the target `Global` and costs upkeep like any lasting spell. Its effect is
 read where it matters (`spell/global_enchantment.rs`), by spell id for engine rules, and through the spell's own
 passive rules for unit stats (a rule may carry a condition such as `KindIs(Normal)` or
 `RealmIs("chaos")`, checked against each of the owner's units). Spells with an engine rule carry
 the `global_effect` hook so that casting them does not report "no effect yet". Implemented:
 Evil Omens, Herb Mastery, Planar Seal, Awareness, Nature Awareness, Detect Magic, Holy Arms,
-Chaos Surge, Charm of Life. The rest is task 87. Holy Arms gives the owner's normal units magical weapons and +1 to hit (not +1 attack); Just Cause adds 10 fame and pacifies one rebel in each of the owner's cities.
+Chaos Surge, Charm of Life. Holy Arms gives the owner's normal units magical weapons and +1 to hit (not +1 attack); Just Cause adds 10 fame and pacifies one rebel in each of the owner's cities.
 
-## 15. City enchantments with engine effects (task 25)
+## 15. City enchantments with engine effects
 
-> **Rework.** A city enchantment is a spell instance with target `City(entity)` and the casting
-> wizard as `Caster` (task 320), replacing the city's `Enchantments` list; Spell Ward's realms are
-> data on the instance. It is despawned with the city.
-
-A city enchantment sits in the city's `Enchantments` (spell and caster), costs its upkeep, and is
-dispelled like any other. The engine reads them by effect, not by spell number: a spell lists the effects it gives in the hook
+A city enchantment is a spell instance with target `City(entity)` and the casting wizard as
+`Caster`; Spell Ward's realms are data on the instance. It is despawned with the city, costs its
+upkeep, and is dispelled like any other. The engine reads them by effect, not by spell number: a spell lists the effects it gives in the hook
 `city_effect` (`Custom(name: "city_effect", args: ["gaias_blessing"])`; casting only enchants the city), the
 list is `CityEffect` in `spell/city.rs`, and the code asks `city_has_effect(city, CityEffect::...)`. The
 stat-only ones (Heavenly Light, Consecration, famine, pestilence...) have their modifiers as plain rules and the
@@ -339,7 +322,7 @@ same hook beside them; the walls use the `wall` hook (`city_has_wall`):
 | Spell | Effect |
 |---|---|
 | Gaia's Blessing | 50% more terrain food, the land greens and cleans each turn (`map/corruption.rs`), faster outpost growth, two rebels pacified (the help omits that, B8) |
-| Stream of Life | doubled growth (stat), no rebels in the city and the units there heal completely each turn (task 24) |
+| Stream of Life | doubled growth (stat), no rebels in the city and the units there heal completely each turn |
 | Evil Presence | an enemy city: the mana of its shrines, temples, parthenons and cathedrals is destroyed, unless the owner has death books; casting it on such a city is refused; an outpost shrinks faster (B22: the help, not the original's code, which stops them pacifying) |
 | Chaos Rift | an enemy city: each turn every unit inside takes five strength 8 lightning bolts (armour piercing, stopped by magic immunity) and a building that nothing needs falls with 5 percent chance (`Event::ChaosRiftStrikes`; help only, B26) |
 | Consecration | not a spell ward, but it shields the city and its units from death and chaos spells the same way (`city_shielded_realms`: overland spells fizzle, an attacker cannot cast them in a battle there), and cleans every corrupted square of the city's area each turn (`process_gaias_blessing`); unrest -2 as a stat |
