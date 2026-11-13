@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portrait cutter</title>
+<style>
+  :root { --bg: #1e1f26; --panel: #2a2c36; --line: #444858; --ink: #e8e8ee; --accent: #f0b84a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px system-ui, sans-serif; }
+  header { display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: var(--panel); flex-wrap: wrap; }
+  main { display: flex; gap: 16px; padding: 16px; align-items: flex-start; flex-wrap: nowrap; }
+  button, select, input { background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #111; border-color: var(--accent); }
+  button.chosen { border-color: var(--accent); outline: 1px solid var(--accent); }
+  input[type=number] { width: 72px; }
+  #stage { border: 1px solid var(--line); background: #000; touch-action: none; display: block; flex: none; }
+  #side { display: flex; flex-direction: column; gap: 12px; width: 470px; flex: none; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .shot { background: #000; border: 1px solid var(--line); image-rendering: pixelated; }
+  #status { color: var(--accent); min-height: 1.2em; }
+  small { opacity: .7; }
+  kbd { background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Portrait cutter</strong>
+  <label>Picture <select id="picture"></select></label>
+  <span id="kinds" class="row"></span>
+  <label>Scaling <select id="filter"></select></label>
+  <button id="save" class="primary">Save</button>
+  <button id="saveall">Save all three</button>
+  <span id="status"></span>
+</header>
+<main>
+  <canvas id="stage"></canvas>
+  <div id="side">
+    <div class="row">
+      <label>x <input id="fx" type="number" step="1"></label>
+      <label>y <input id="fy" type="number" step="1"></label>
+      <label>size <input id="fw" type="number" step="1" min="1"></label>
+    </div>
+    <div id="info"><small></small></div>
+    <div><div>Result, 1x and 3x</div>
+      <div class="row"><img id="p1" class="shot" alt=""><img id="p4" class="shot" alt=""></div>
+    </div>
+    <div><div>Installed now, 1x and 2x</div>
+      <div class="row"><img id="i1" class="shot" alt=""><img id="i4" class="shot" alt=""></div>
+    </div>
+    <small>
+      Drag inside the frame to move it, drag a corner to resize it (the proportions stay those of
+      the picture), click outside to centre it there. <kbd>Wheel</kbd> resizes, <kbd>arrows</kbd>
+      nudge by a pixel (<kbd>Shift</kbd>: ten), <kbd>+</kbd> and <kbd>-</kbd> resize by two
+      (<kbd>Shift</kbd>: twenty), <kbd>Enter</kbd> saves.
+    </small>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const stage = $("stage"), ctx = stage.getContext("2d");
+const HANDLE = 10;
+// The picture takes the window's height and what the side column leaves of its width.
+function maxWidthPx() { return Math.max(300, window.innerWidth - 470 - 16 * 3); }
+function maxHeightPx() { return Math.max(300, window.innerHeight - $('stage').getBoundingClientRect().top - 16); }
+let pictures = [], kinds = {}, current = null, kind = "portrait", image = null, scale = 1;
+let frames = {};          // kind -> {x, y, w}, in source pixels
+let drag = null, timer = null;
+let manual = {};          // kind -> true once its frame was set by hand (it then stops following the portrait)
+
+function aspect() { const [w, h] = kinds[kind]; return w / h; }
+function frame() { return frames[kind]; }
+function maxWidth() { return Math.min(image.naturalWidth, image.naturalHeight * aspect()); }
+function frameHeight(f = frame()) { return f.w / aspect(); }
+
+function clamp(f) {
+  f.w = Math.max(4, Math.min(maxWidth(), f.w));
+  f.x = Math.max(0, Math.min(image.naturalWidth - f.w, f.x));
+  f.y = Math.max(0, Math.min(image.naturalHeight - frameHeight(f), f.y));
+  return f;
+}
+
+function centred(w) {
+  const f = { w, x: 0, y: 0 };
+  f.x = (image.naturalWidth - w) / 2;
+  f.y = (image.naturalHeight - w / aspect()) / 2;
+  return clamp(f);
+}
+
+function touch() { manual[kind] = true; }
+
+// The small pictures follow the portrait by default: the same centre and the same zoom (target
+// pixels per source pixel), so they show the middle of the portrait and crop the pixels around it.
+function followsPortrait() { return kind !== "portrait" && !manual[kind] && frames.portrait; }
+function derivedFrame() {
+  const pf = frames.portrait, [pw, ph] = kinds.portrait, [tw, th] = kinds[kind];
+  const zoom = pw / pf.w, cx = pf.x + pf.w / 2, cy = pf.y + (pf.w * ph / pw) / 2;
+  const w = tw / zoom;
+  return { w, x: cx - w / 2, y: cy - th / zoom / 2 };
+}
+
+function setStatus(text) { $("status").textContent = text; }
+
+async function api(path) {
+  const r = await fetch(path);
+  const body = await r.json();
+  if (!r.ok) throw new Error(body.error);
+  return body;
+}
+
+function frameQuery() {
+  const f = frame();
+  return `id=${encodeURIComponent(current.id)}&kind=${kind}&x=${f.x}&y=${f.y}&w=${f.w}&h=${frameHeight()}` +
+         `&filter=${$("filter").value}`;
+}
+
+function refreshPreview() {
+  clearTimeout(timer);
+  timer = setTimeout(() => {
+    const [w, h] = kinds[kind];
+    const url = `/crop?${frameQuery()}`;
+    for (const [id, k] of [["p1", 1], ["p4", 3]]) {
+      $(id).src = url; $(id).width = w * k; $(id).height = h * k;
+    }
+    const installed = `/installed?id=${encodeURIComponent(current.id)}&kind=${kind}&t=${Date.now()}`;
+    for (const [id, k] of [["i1", 1], ["i4", 2]]) {
+      $(id).src = installed; $(id).width = w * k; $(id).height = h * k;
+    }
+  }, 80);
+}
+
+function draw() {
+  const W = stage.width, H = stage.height, f = frame();
+  ctx.clearRect(0, 0, W, H);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(image, 0, 0, W, H);
+  const x = f.x * scale, y = f.y * scale, w = f.w * scale, h = frameHeight() * scale;
+  ctx.fillStyle = "rgba(0,0,0,.55)";
+  ctx.fillRect(0, 0, W, y); ctx.fillRect(0, y + h, W, H - y - h);
+  ctx.fillRect(0, y, x, h); ctx.fillRect(x + w, y, W - x - w, h);
+  ctx.strokeStyle = "#f0b84a"; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+  ctx.strokeStyle = "rgba(240,184,74,.35)"; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (const t of [1 / 3, 2 / 3]) {
+    ctx.moveTo(x + w * t, y); ctx.lineTo(x + w * t, y + h);
+    ctx.moveTo(x, y + h * t); ctx.lineTo(x + w, y + h * t);
+  }
+  ctx.stroke();
+  ctx.fillStyle = "#f0b84a";
+  for (const [cx, cy] of corners()) ctx.fillRect(cx - 5, cy - 5, 10, 10);
+  $("fx").value = Math.round(f.x); $("fy").value = Math.round(f.y); $("fw").value = Math.round(f.w);
+  const [tw, th] = kinds[kind];
+  $("info").firstChild.textContent =
+    `Frame ${Math.round(f.w)} x ${Math.round(frameHeight())} of the ${image.naturalWidth} x ${image.naturalHeight} ` +
+    `picture, scaled to ${tw} x ${th} (${(tw / f.w * 100).toFixed(1)}%).` +
+    (followsPortrait() ? " Centred on the portrait's centre at its zoom; move it to take over." : "");
+  refreshPreview();
+}
+
+function corners() {
+  const f = frame(), x = f.x * scale, y = f.y * scale, w = f.w * scale, h = frameHeight() * scale;
+  return [[x, y], [x + w, y], [x, y + h], [x + w, y + h]];
+}
+
+function pointer(e) {
+  const r = stage.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * stage.width / r.width, y: (e.clientY - r.top) * stage.height / r.height };
+}
+
+stage.addEventListener("pointerdown", (e) => {
+  const p = pointer(e), f = frame();
+  const hit = corners().findIndex(([cx, cy]) => Math.abs(cx - p.x) <= HANDLE && Math.abs(cy - p.y) <= HANDLE);
+  const inside = p.x >= f.x * scale && p.x <= (f.x + f.w) * scale &&
+                 p.y >= f.y * scale && p.y <= (f.y + frameHeight()) * scale;
+  stage.setPointerCapture(e.pointerId);
+  if (hit >= 0) {
+    // The opposite corner stays where it is.
+    const left = hit % 2 === 1, top = hit >= 2;
+    drag = { mode: "size", left, top,
+             ax: (left ? f.x : f.x + f.w), ay: (top ? f.y : f.y + frameHeight()) };
+  } else if (inside) {
+    drag = { mode: "move", dx: p.x / scale - f.x, dy: p.y / scale - f.y };
+  } else {
+    touch();
+    f.x = p.x / scale - f.w / 2; f.y = p.y / scale - frameHeight() / 2;
+    clamp(f); draw();
+    drag = { mode: "move", dx: f.w / 2, dy: frameHeight() / 2 };
+  }
+});
+
+stage.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  touch();
+  const p = pointer(e), f = frame(), a = aspect();
+  if (drag.mode === "move") {
+    f.x = p.x / scale - drag.dx; f.y = p.y / scale - drag.dy;
+  } else {
+    const px = p.x / scale, py = p.y / scale;
+    let w = Math.max(Math.abs(px - drag.ax), Math.abs(py - drag.ay) * a);
+    // A corner may not be dragged out of the picture: shrink to what fits on that side.
+    const roomX = drag.left ? drag.ax : image.naturalWidth - drag.ax;
+    const roomY = (drag.top ? drag.ay : image.naturalHeight - drag.ay) * a;
+    w = Math.max(4, Math.min(w, roomX, roomY));
+    f.w = w;
+    f.x = drag.left ? drag.ax - w : drag.ax;
+    f.y = drag.top ? drag.ay - w / a : drag.ay;
+  }
+  clamp(f); draw();
+});
+
+stage.addEventListener("pointerup", () => { drag = null; });
+
+function resizeAround(factorOrDelta, isDelta) {
+  touch();
+  const f = frame(), cx = f.x + f.w / 2, cy = f.y + frameHeight() / 2;
+  f.w = isDelta ? f.w + factorOrDelta : f.w * factorOrDelta;
+  f.x = cx - f.w / 2; f.y = cy - frameHeight() / 2;
+  clamp(f); draw();
+}
+
+stage.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  resizeAround(e.deltaY > 0 ? 1.03 : 1 / 1.03, false);
+}, { passive: false });
+
+window.addEventListener("keydown", (e) => {
+  if (!image || e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  const f = frame(), step = e.shiftKey ? 10 : 1;
+  const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+  if (nudge) { touch(); f.x += nudge[0]; f.y += nudge[1]; clamp(f); draw(); e.preventDefault(); }
+  else if (e.key === "+" || e.key === "=") resizeAround(e.shiftKey ? 20 : 2, true);
+  else if (e.key === "-") resizeAround(e.shiftKey ? -20 : -2, true);
+  else if (e.key === "Enter") save();
+});
+
+for (const id of ["fx", "fy", "fw"]) {
+  $(id).addEventListener("input", () => {
+    const f = frame(), v = Number($(id).value);
+    if (!Number.isFinite(v)) return;
+    touch();
+    if (id === "fx") f.x = v; else if (id === "fy") f.y = v; else f.w = v;
+    clamp(f); draw();
+  });
+}
+$("filter").addEventListener("change", refreshPreview);
+
+async function saveKind(name) {
+  const f = frames[name];
+  const prev = kind;
+  kind = name;
+  const body = { id: current.id, kind: name, x: f.x, y: f.y, w: f.w, h: frameHeight(f),
+                 filter: $("filter").value, manual: !!manual[name] };
+  kind = prev;
+  const r = await fetch("/save", { method: "POST", body: JSON.stringify(body) });
+  const out = await r.json();
+  if (!r.ok) throw new Error(out.error);
+  return out.written;
+}
+
+// The kinds that follow the portrait get its frame at once, so a saved portrait carries them.
+function followPortrait() {
+  const prev = kind;
+  for (const name of Object.keys(kinds)) {
+    kind = name;
+    if (followsPortrait()) { frames[name] = derivedFrame(); clamp(frames[name]); }
+  }
+  kind = prev;
+}
+
+async function save() {
+  try {
+    const written = await saveKind(kind);
+    if (kind === "portrait") followPortrait();
+    setStatus(`saved ${written.join(" and ")}` +
+              (kind === "portrait" ? "; the gem and hall frames follow its centre and zoom" : ""));
+    draw();
+  } catch (error) { setStatus(String(error)); }
+}
+
+async function saveAll() {
+  try {
+    followPortrait();
+    for (const name of Object.keys(kinds)) await saveKind(name);
+    setStatus("saved the portrait, the gem and the hall picture");
+    draw();
+  } catch (error) { setStatus(String(error)); }
+}
+$("saveall").addEventListener("click", saveAll);
+$("save").addEventListener("click", save);
+
+function showKinds() {
+  const box = $("kinds");
+  box.replaceChildren();
+  for (const [name, [w, h]] of Object.entries(kinds)) {
+    const b = document.createElement("button");
+    b.textContent = `${name} ${w}x${h}`;
+    b.className = name === kind ? "chosen" : "";
+    b.onclick = () => { kind = name; showKinds(); ensureFrame(); draw(); };
+    box.append(b);
+  }
+}
+
+function ensureFrame() {
+  if (followsPortrait()) frames[kind] = derivedFrame();
+  else if (!frames[kind]) frames[kind] = centred(maxWidth() * 0.8);
+  clamp(frames[kind]);
+}
+
+function fit() {
+  scale = Math.min(maxWidthPx() / image.naturalWidth, maxHeightPx() / image.naturalHeight, 1);
+  stage.width = Math.round(image.naturalWidth * scale);
+  stage.height = Math.round(image.naturalHeight * scale);
+  scale = stage.width / image.naturalWidth;
+}
+window.addEventListener("resize", () => { if (image) { fit(); draw(); } });
+
+async function choose(id) {
+  current = pictures.find((p) => p.id === id);
+  setStatus("loading...");
+  const saved = await api(`/api/frames?id=${encodeURIComponent(id)}`);
+  const img = new Image();
+  await new Promise((ok, fail) => { img.onload = ok; img.onerror = () => fail(new Error("cannot load the picture")); img.src = `/source?id=${encodeURIComponent(id)}`; });
+  image = img;
+  fit();
+  frames = {}; manual = {};
+  for (const [name, s] of Object.entries(saved)) { frames[name] = { x: s.x, y: s.y, w: s.w }; manual[name] = !!s.manual; }
+  if (saved[kind]) $("filter").value = saved[kind].filter;
+  ensureFrame(); draw();
+  setStatus("");
+}
+
+(async () => {
+  try {
+    const data = await api("/api/pictures");
+    pictures = data.pictures; kinds = data.kinds;
+    for (const f of data.filters) $("filter").add(new Option(f, f));
+    $("picture").replaceChildren(...pictures.map((p) => new Option(`${p.race}: ${p.name} (${p.width}x${p.height})`, p.id)));
+    $("picture").addEventListener("change", () => choose($("picture").value).catch((e) => setStatus(String(e))));
+    showKinds();
+    await choose(pictures[0].id);
+  } catch (error) { setStatus(String(error)); }
+})();
+</script>
+</body>
+</html>
