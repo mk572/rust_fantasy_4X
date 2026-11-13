@@ -715,13 +715,13 @@ impl Game {
 
     /// The owner's net gold: worked out afresh, except while the player's cities build, when it
     /// is kept until something is completed.
-    fn net_gold_of(&self, owner: PlayerId) -> HalfInt {
+    fn net_gold_of(&self, owner: PlayerId, city: hecs::Entity) -> HalfInt {
         use crate::game::NetGoldMemo;
         match self.net_gold_memo.get() {
             NetGoldMemo::Known(p, gold) if p == owner => gold,
             NetGoldMemo::Off => self.budget(owner).net_gold(),
             _ => {
-                let gold = self.budget(owner).net_gold();
+                let gold = self.kept_budget(owner, city).net_gold();
                 self.net_gold_memo.set(NetGoldMemo::Known(owner, gold));
                 gold
             }
@@ -800,7 +800,7 @@ impl Game {
             max_size: e.max_size,
             food: e.food,
             rebels: e.rebels,
-            net_gold: self.net_gold_of(owner),
+            net_gold: self.net_gold_of(owner, city),
             defenders,
             rival_near,
             built,

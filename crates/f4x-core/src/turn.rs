@@ -150,6 +150,7 @@ impl Game {
         // wizard who keeps Time Stop builds nothing until it ends.
         if stopper.is_none() {
             self.net_gold_memo.set(crate::game::NetGoldMemo::Empty);
+            *self.budget_parts.borrow_mut() = None;
             for city in self.player_cities(player) {
                 let before = self.economy().city_production(city).item;
                 let done = self.produce_city(city);
@@ -161,10 +162,12 @@ impl Game {
                         .any(|e| matches!(e, Event::ProductionCompleted { .. }))
                 {
                     self.net_gold_memo.set(crate::game::NetGoldMemo::Empty);
+                    self.mark_budget_dirty(player, city);
                 }
                 events.extend(done);
             }
             self.net_gold_memo.set(crate::game::NetGoldMemo::Off);
+            *self.budget_parts.borrow_mut() = None;
         }
         events
     }

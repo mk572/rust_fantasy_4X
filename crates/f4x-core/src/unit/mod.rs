@@ -632,6 +632,19 @@ impl<'a> UnitView<'a> {
         out
     }
 
+    /// How many units a player has (what `player_units` would count, without the list or the
+    /// sort).
+    pub fn player_unit_count(&self, player: PlayerId) -> usize {
+        let Some(entity) = crate::player::find_entity(self.world, player) else {
+            return 0;
+        };
+        self.world
+            .query::<(&Unit, &Owner)>()
+            .iter()
+            .filter(|(_, (_, o))| o.0 == entity)
+            .count()
+    }
+
     /// Whether the unit counts towards a city's garrison for keeping order.
     pub fn is_garrison(&self, unit: hecs::Entity) -> bool {
         self.unit_def(unit)

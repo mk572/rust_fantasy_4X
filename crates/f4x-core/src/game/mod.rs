@@ -74,6 +74,9 @@ pub struct Game {
     /// auto-builder, which asks for it in every city. Cleared when something is completed, since
     /// that changes the upkeep. `None` outside that pass: nothing is kept.
     pub(crate) net_gold_memo: std::cell::Cell<NetGoldMemo>,
+    /// The figures the budget is made of while a player's cities build, patched after each
+    /// completed item instead of worked out afresh (`Game::kept_budget`).
+    pub(crate) budget_parts: std::cell::RefCell<Option<player::finance::BudgetParts>>,
     pub(crate) next_serial: u64,
     /// The seeded generator all randomness comes from; it counts its draws (see `game/rng.rs`).
     pub(crate) rng: game::rng::GameRng,
@@ -128,6 +131,7 @@ impl Game {
             fog: map::fog::Fog::default(),
             vision: Default::default(),
             net_gold_memo: Default::default(),
+            budget_parts: Default::default(),
             next_serial: 1,
             rng: game::rng::GameRng::new(seed),
             // The Average level of the shipped rules; a game made for play gets its level from

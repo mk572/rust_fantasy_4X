@@ -201,3 +201,60 @@ fn half_a_gold_of_tax_or_upkeep_is_kept_and_paid() {
     let settled = settle(&t, HalfInt::from_raw(1), 0, &troops);
     assert_eq!(settled.gold, HalfInt::from_int(3)); // 0.5 + 4.5 - 1.5 - 0.5
 }
+
+#[test]
+fn the_kept_budget_follows_a_completed_item_as_the_budget_does() -> f4x_def::testdir::TestResult {
+    use crate::game::setup::{new_game, NewGame};
+    let content = crate::game::testutil::shipped();
+    let mut game = new_game(
+        &content,
+        &NewGame {
+            seed: 7,
+            all_ai: true,
+            ..NewGame::with_wizards(2)
+        },
+    )?;
+    let player = game
+        .player_ids()
+        .into_iter()
+        .find(|&p| game.is_wizard(p))
+        .ok_or("no wizard")?;
+    let (city, at) = *game
+        .economy()
+        .cities_of(player)
+        .first()
+        .ok_or("the wizard has no city")?;
+    assert_eq!(game.kept_budget(player, city), game.budget(player));
+    // A unit is made in the city and a building stands in it: the asking after the flag agrees.
+    let unit = game
+        .units()
+        .player_units(player)
+        .first()
+        .and_then(|&u| game.units().unit_def(u))
+        .map(|d| d.num)
+        .ok_or("the wizard has no unit")?;
+    let unit = game
+        .content()
+        .rules
+        .units
+        .id_numbered(unit)
+        .ok_or("no such unit")?;
+    game.spawn_unit(player, at, unit);
+    game.spawn_unit(player, at, unit);
+    game.mark_budget_dirty(player, city);
+    assert_eq!(game.kept_budget(player, city), game.budget(player));
+    // Another player's figures replace the kept ones.
+    let other = game
+        .player_ids()
+        .into_iter()
+        .find(|&p| p != player && game.is_wizard(p))
+        .ok_or("no second wizard")?;
+    let (other_city, _) = *game
+        .economy()
+        .cities_of(other)
+        .first()
+        .ok_or("no city for the second wizard")?;
+    assert_eq!(game.kept_budget(other, other_city), game.budget(other));
+    assert_eq!(game.kept_budget(player, city), game.budget(player));
+    Ok(())
+}

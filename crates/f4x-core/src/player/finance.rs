@@ -13,6 +13,21 @@ use crate::rules::Ability;
 use crate::rules::UnitKind;
 use f4x_def::half_int::HalfInt;
 
+/// The figures a kept budget is made of: see [`Game::kept_budget`].
+pub(crate) struct BudgetParts {
+    pub(crate) owner: PlayerId,
+    cities: Vec<(hecs::Entity, CityYield)>,
+    troops: Vec<Troop>,
+    /// Cities that completed something since the last asking.
+    dirty: Vec<hecs::Entity>,
+}
+
+/// Set `F4X_CHECK_BUDGET` to work the kept budget out afresh each time and compare.
+fn check_budget() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("F4X_CHECK_BUDGET").is_some())
+}
+
 /// A player's projected gold and food for the coming turn change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Budget {
@@ -264,23 +279,39 @@ impl Game {
         }
     }
 
+    /// What one unit costs the treasury.
+    fn troop_of(&self, id: hecs::Entity) -> Troop {
+        let units = self.units();
+        Troop {
+            id,
+            food: units.unit_food(id),
+            gold: units.unit_gold_upkeep(id),
+            noble_hero: units.unit_has_ability(id, Ability::new(96))
+                && units.unit_def(id).is_some_and(|d| d.kind == UnitKind::Hero),
+            cost: units.unit_def(id).map_or(0, |d| d.cost),
+            last: units.hero_kind(id).is_some()
+                || (self.economy().is_ship(id) && !self.economy().passengers_of(id).is_empty()),
+        }
+    }
+
     /// The figures of a player's troops that the treasury needs, in the order of `player_units`.
     pub(crate) fn troops(&self, player: PlayerId) -> Vec<Troop> {
-        let units = self.units();
-        units
+        self.units()
             .player_units(player)
             .into_iter()
-            .map(|id| Troop {
-                id,
-                food: units.unit_food(id),
-                gold: units.unit_gold_upkeep(id),
-                noble_hero: units.unit_has_ability(id, Ability::new(96))
-                    && units.unit_def(id).is_some_and(|d| d.kind == UnitKind::Hero),
-                cost: units.unit_def(id).map_or(0, |d| d.cost),
-                last: units.hero_kind(id).is_some()
-                    || (self.economy().is_ship(id) && !self.economy().passengers_of(id).is_empty()),
-            })
+            .map(|id| self.troop_of(id))
             .collect()
+    }
+
+    /// What one city adds to the treasury (none for a city that has no economy).
+    fn city_yield_of(&self, city: hecs::Entity) -> Option<CityYield> {
+        let eco = self.economy().city_economy(city)?;
+        Some(CityYield {
+            gold: eco.gold,
+            gold_upkeep: eco.gold_upkeep,
+            food: eco.food,
+            figures: eco.figures as i32,
+        })
     }
 
     /// What a player will take in and pay out at the next turn change.
@@ -289,16 +320,81 @@ impl Game {
             .economy()
             .cities_of(player)
             .into_iter()
-            .filter_map(|(city, _)| self.economy().city_economy(city))
-            .map(|eco| CityYield {
-                gold: eco.gold,
-                gold_upkeep: eco.gold_upkeep,
-                food: eco.food,
-                figures: eco.figures as i32,
-            })
+            .filter_map(|(city, _)| self.city_yield_of(city))
             .collect();
         let fame = self.fame(player);
         Budget::compute(&cities, &self.troops(player), fame)
+    }
+
+    /// [`Game::budget`] while a player's cities build (`turn.rs`), asked for the sake of the
+    /// auto-builder of `city`. The figures it is made of are kept from one asking to the next;
+    /// what a completed item changes is the city that completed it (flagged by
+    /// [`Game::mark_budget_dirty`]) and one more unit, so a budget costs the economy of the
+    /// cities that changed and the upkeep of the new units, not the whole empire's.
+    /// `F4X_CHECK_BUDGET` works the budget out afresh each time and compares (slow).
+    pub(crate) fn kept_budget(&self, player: PlayerId, city: hecs::Entity) -> Budget {
+        let mut kept = self.budget_parts.borrow_mut();
+        if kept.as_ref().is_none_or(|p| p.owner != player) {
+            *kept = Some(BudgetParts {
+                owner: player,
+                cities: self
+                    .economy()
+                    .cities_of(player)
+                    .into_iter()
+                    .filter_map(|(city, _)| Some((city, self.city_yield_of(city)?)))
+                    .collect(),
+                troops: self.troops(player),
+                dirty: Vec::new(),
+            });
+        }
+        let parts = kept.as_mut().expect("the parts were just made");
+        // The city that builds and the ones that completed something since the last asking.
+        let mut stale = std::mem::take(&mut parts.dirty);
+        stale.push(city);
+        for c in stale {
+            let now = self.city_yield_of(c);
+            match (now, parts.cities.iter().position(|(k, _)| *k == c)) {
+                (Some(y), Some(i)) => parts.cities[i].1 = y,
+                (Some(y), None) => parts.cities.push((c, y)),
+                (None, Some(i)) => {
+                    parts.cities.remove(i);
+                }
+                (None, None) => {}
+            }
+        }
+        // Units made since: the order of `player_units` is the order of the serial numbers, so
+        // the new ones come last. Anything else starts again.
+        if self.units().player_unit_count(player) != parts.troops.len() {
+            let now = self.units().player_units(player);
+            let known = parts.troops.len();
+            if now.len() < known || parts.troops.iter().zip(&now).any(|(t, &u)| t.id != u) {
+                parts.troops = now.iter().map(|&u| self.troop_of(u)).collect();
+            } else {
+                for &unit in &now[known..] {
+                    parts.troops.push(self.troop_of(unit));
+                }
+            }
+        }
+        let yields: Vec<CityYield> = parts.cities.iter().map(|(_, y)| *y).collect();
+        let budget = Budget::compute(&yields, &parts.troops, self.fame(player));
+        if check_budget() {
+            assert_eq!(
+                budget,
+                self.budget(player),
+                "the kept budget is out of date"
+            );
+        }
+        budget
+    }
+
+    /// `city` of `player` completed an item, or changed what it builds, while the kept budget is
+    /// in use: its yield is worked out again at the next asking.
+    pub(crate) fn mark_budget_dirty(&self, player: PlayerId, city: hecs::Entity) {
+        if let Some(parts) = self.budget_parts.borrow_mut().as_mut() {
+            if parts.owner == player {
+                parts.dirty.push(city);
+            }
+        }
     }
 
     /// Income, food and gold upkeep for one player; units go when they cannot be paid for
