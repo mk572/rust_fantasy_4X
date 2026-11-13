@@ -157,6 +157,11 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
         }
     }
+    if ai.sea_scouting && !ship_out {
+        // The ship is gone (sunk, or called back): the search by sea is over until another is
+        // built. The flag stood for hundreds of turns while land scouts went on (task 567).
+        ai.sea_scouting = false;
+    }
     if !found_any {
         // Nothing reachable shows anything new: the rest of the map needs ships or a gate.
         ai.frontier_closed = true;
@@ -309,11 +314,31 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .towers()
             .into_iter()
             .filter(|&(p, intact)| {
-                !intact && !ai.bad_scout_targets.contains(&p) && worth_crossing(&view, p)
+                !intact
+                    && !ai.bad_scout_targets.contains(&p)
+                    // An enemy unit stands on it (task 567): the scout would wait next to it for
+                    // ever, as an order onto an occupied square does not take it there.
+                    && view.hostile_at(p).is_none()
+                    && worth_crossing(&view, p)
             })
             .map(|(p, _)| p)
             .min_by_key(|&p| (p.plane as u8, p.y, p.x));
         let Some(tower) = tower else {
+            // No tower is a way across now (all taken by enemy units, or all explored): a scout
+            // sent to one is let go, to be recruited again when one opens.
+            let gone = ai.planar.take();
+            ai.planar_tower = None;
+            if let Some(serial) = gone {
+                ai.scouts.retain(|s| *s != serial);
+                let unit = view
+                    .my_units()
+                    .into_iter()
+                    .find(|&u| view.serial_of(u) == serial);
+                drop(view);
+                if let Some(unit) = unit {
+                    ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
+                }
+            }
             return;
         };
         let unit = ai.planar.and_then(|s| {
@@ -622,6 +647,20 @@ mod tests {
     }
 
     #[test]
+    fn the_search_by_sea_ends_when_the_ship_is_gone_though_land_scouts_go_on() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
+        let mut ai = Ai::new(P0);
+        // The ship that was out is lost: no ship is among the scouts.
+        ai.sea_scouting = true;
+        scout(&mut ai, &mut g, &mut Vec::new());
+        assert!(!ai.scouts.is_empty(), "a scout is recruited on land");
+        assert!(!ai.frontier_closed, "land scouting goes on");
+        assert!(!ai.sea_scouting, "the flag does not outlive the ship");
+        assert!(!ai.sea_done, "a lost ship is built again");
+    }
+
+    #[test]
     fn a_sea_scout_in_port_takes_spare_fighters_aboard_and_leaves_the_city_one() {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let ship = spawn(&mut g, P0, city(), 36 /* galley */, 1)[0];
@@ -695,6 +734,39 @@ mod tests {
             Some(Plane::Myrror)
         );
         assert!(!ai.frontier_closed);
+        assert_eq!(ai.planar, None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_tower_with_an_enemy_unit_on_it_is_no_way_across_and_a_scout_bound_for_it_is_let_go(
+    ) -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let tower = at(8, 6);
+        spawn_tower(&mut g, tower, false)?;
+        g.explore(P0, tower, HalfInt::from_raw(3));
+        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
+        let mut ai = Ai::new(P0);
+        scout(&mut ai, &mut g, &mut Vec::new());
+        assert!(ai.planar.is_some(), "the open tower is chosen");
+        // An enemy unit moves onto the tower while the scout is on its way.
+        spawn(
+            &mut g,
+            crate::testworld::P1,
+            tower,
+            104, /* high_men_spearmen */
+            1,
+        );
+        assert!(
+            PlayerView::new(&g, P0).hostile_at(tower).is_some(),
+            "the unit on the tower is hostile to the scout"
+        );
+        scout(&mut ai, &mut g, &mut Vec::new());
+        assert_eq!(ai.planar, None);
+        assert_eq!(ai.planar_tower, None);
+        assert!(!ai.scouts.iter().any(|s| ai.planar == Some(*s)));
+        // And it is not chosen again while the enemy stands there.
+        scout(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(ai.planar, None);
         Ok(())
     }
