@@ -32,7 +32,7 @@ impl crate::game::Game {
     /// Give each computer wizard its difficulty bonuses from the settings (a human wizard and
     /// the neutral players get none). Called when a game is made and when one is loaded, after
     /// the human is known.
-    pub(crate) fn apply_wizard_settings(&mut self) {
+    pub fn apply_wizard_settings(&mut self) {
         let ai = self.settings.ai;
         let human = self.human();
         for (_, (&id, bonus, neutral)) in self.world.query_mut::<(

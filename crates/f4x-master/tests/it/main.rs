@@ -4,10 +4,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::PlayerId;
 use f4x_master::{Controller, Master, Phase, Refused, Seat, Status, Stopped, Until};
+use f4x_newgame::setup::{new_game, NewGame};
 
 type Log = Rc<RefCell<Vec<(u32, PlayerId)>>>;
 

@@ -82,7 +82,7 @@ pub fn roll(rng: &mut GameRng, rules: &Rules, names: &NameBundle) -> Vec<Hero> {
         .collect()
 }
 
-fn roll_one(
+pub fn roll_one(
     rng: &mut GameRng,
     rules: &Rules,
     names: &NameBundle,

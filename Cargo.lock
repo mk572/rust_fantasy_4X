@@ -2598,6 +2598,7 @@ dependencies = [
  "f4x-core",
  "f4x-def",
  "f4x-master",
+ "f4x-newgame",
  "hecs",
  "ron",
  "serde",
@@ -2614,6 +2615,7 @@ dependencies = [
  "f4x-extract",
  "f4x-lang",
  "f4x-master",
+ "f4x-newgame",
  "hecs",
  "macroquad",
  "macroquad_bitmap_font_engine",
@@ -2631,6 +2633,7 @@ dependencies = [
  "f4x-ai",
  "f4x-core",
  "f4x-def",
+ "f4x-newgame",
  "hecs",
 ]
 
@@ -2686,6 +2689,7 @@ dependencies = [
  "f4x-ai",
  "f4x-core",
  "f4x-def",
+ "f4x-newgame",
  "hecs",
  "rand 0.8.8",
  "rand_pcg",
@@ -2699,7 +2703,20 @@ version = "0.0.6"
 dependencies = [
  "f4x-core",
  "f4x-def",
+ "f4x-newgame",
  "ron",
+ "serde",
+]
+
+[[package]]
+name = "f4x-newgame"
+version = "0.0.6"
+dependencies = [
+ "f4x-core",
+ "f4x-def",
+ "hecs",
+ "rand 0.8.8",
+ "rand_pcg",
  "serde",
 ]
 
@@ -2713,6 +2730,7 @@ dependencies = [
  "f4x-def",
  "f4x-learn",
  "f4x-master",
+ "f4x-newgame",
  "ron",
  "serde",
 ]

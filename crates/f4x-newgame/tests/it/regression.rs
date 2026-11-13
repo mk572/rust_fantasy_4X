@@ -6,20 +6,20 @@
 //! accident changes the summary or the checksum and the test fails, with both texts in the message.
 //!
 //! **Changing the target on purpose** (a rule changed and the new result is right):
-//! `F4X_REFRESH_REGRESSION=targets cargo test -p f4x-core --test it regression`
+//! `F4X_REFRESH_REGRESSION=targets cargo test -p f4x-newgame --test it regression`
 //! rewrites the `.target` files; read the diff in git before committing it.
 //! **Rebuilding the saves** (the save format version changed, or the scenario's set-up changed):
-//! `F4X_REFRESH_REGRESSION=saves cargo test -p f4x-core --test it regression` rewrites the
+//! `F4X_REFRESH_REGRESSION=saves cargo test -p f4x-newgame --test it regression` rewrites the
 //! `.save` files from the set-ups below, then the targets.
 
 use std::path::{Path, PathBuf};
 
 use f4x_core::game::save::Snapshot;
-use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::{Command, Game};
 use f4x_core::player::PlayerId;
 use f4x_def::content::Content;
 use f4x_def::testdir::TestResult;
+use f4x_newgame::setup::{new_game, NewGame};
 
 fn shipped() -> &'static Content {
     f4x_def::testdir::shipped()
@@ -197,7 +197,7 @@ fn check(name: &str, build: fn() -> Result<Game, String>) -> TestResult {
     assert_eq!(
         got, want,
         "the game `{name}` ended differently from its target. If the change is on purpose: \
-         F4X_REFRESH_REGRESSION=targets cargo test -p f4x-core --test it regression"
+         F4X_REFRESH_REGRESSION=targets cargo test -p f4x-newgame --test it regression"
     );
     Ok(())
 }

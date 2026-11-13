@@ -7,10 +7,10 @@
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
-use crate::feature::def::FeatureKind;
-use crate::map::mapgen::{GenError, GenParams};
-use crate::map::terrain::TerrainClass;
-use crate::map::{FeatureId, Grid, Map, Plane};
+use crate::mapgen::{GenError, GenParams};
+use f4x_core::feature::def::FeatureKind;
+use f4x_core::map::terrain::TerrainClass;
+use f4x_core::map::{FeatureId, Grid, Map, Plane};
 use f4x_def::content::Content;
 
 /// Minimum distance between towers (when the map has room for it).
@@ -439,12 +439,12 @@ fn pick(rng: &mut Pcg64Mcg, weights: &[(FeatureId, u32)]) -> Option<FeatureId> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::shipped;
-    use crate::map::mapgen::{generate, Generated};
+    use crate::mapgen::{generate, Generated};
+    use f4x_def::testdir::shipped;
     use f4x_def::testdir::TestResult;
 
     fn made(seed: u64) -> Result<(Generated, GenParams, Content), GenError> {
-        let (c, p) = (shipped(), GenParams::default());
+        let (c, p) = (shipped().clone(), GenParams::default());
         Ok((generate(seed, &p, &c)?, p, c))
     }
 
@@ -452,7 +452,7 @@ mod tests {
         g: &'a Generated,
         c: &'a Content,
         kind: FeatureKind,
-    ) -> impl Iterator<Item = &'a crate::feature::entity::Placement> {
+    ) -> impl Iterator<Item = &'a f4x_core::feature::entity::Placement> {
         g.placements
             .iter()
             .filter(move |p| c.features.get(p.feature).is_some_and(|d| d.kind == kind))
@@ -497,7 +497,7 @@ mod tests {
         let grid = g.map.plane(Plane::Arcanus);
         for (i, a) in nodes.iter().enumerate() {
             assert!((POLE_MARGIN..p.height - POLE_MARGIN).contains(&a.at.y));
-            let near = |b: &&crate::feature::entity::Placement| {
+            let near = |b: &&f4x_core::feature::entity::Placement| {
                 grid.distance_sq((a.at.x, a.at.y), (b.at.x, b.at.y)) < NODE_SPACING.pow(2)
             };
             assert!(!towers.iter().any(near), "a node is clear of the towers");
@@ -573,9 +573,9 @@ mod tests {
         p.tower_count = 0;
         p.strong_sites = 0;
         p.weak_sites = 0;
-        let g = generate(5, &p, &c)?;
-        assert_eq!(of_kind(&g, &c, FeatureKind::Tower).count(), 0);
-        assert_eq!(of_kind(&g, &c, FeatureKind::Encounter).count(), 0);
+        let g = generate(5, &p, c)?;
+        assert_eq!(of_kind(&g, c, FeatureKind::Tower).count(), 0);
+        assert_eq!(of_kind(&g, c, FeatureKind::Encounter).count(), 0);
         Ok(())
     }
 
@@ -593,7 +593,7 @@ mod tests {
 
     #[test]
     fn a_map_without_a_tower_kind_is_refused() {
-        let (mut c, p) = (shipped(), GenParams::default());
+        let (mut c, p) = (shipped().clone(), GenParams::default());
         let defs: Vec<_> = c
             .features
             .defs()
@@ -601,7 +601,7 @@ mod tests {
             .filter(|d| d.kind != FeatureKind::Tower)
             .cloned()
             .collect();
-        c.features = crate::feature::def::Features::new(defs);
+        c.features = f4x_core::feature::def::Features::new(defs);
         assert_eq!(
             generate(5, &p, &c).err(),
             Some(GenError::MissingFeature {

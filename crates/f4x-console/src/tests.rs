@@ -333,7 +333,7 @@ fn new_game_settings_reach_the_game() -> TestResult {
         seed: 7,
         settings: {
             let mut s = NewGame::with_wizards(5).settings;
-            s.basic.land_percent = f4x_core::game::setup::LAND_SMALL;
+            s.basic.land_percent = f4x_newgame::setup::LAND_SMALL;
             s.basic.difficulty = 4;
             s.basic.magic_strength = 2;
             s
@@ -344,7 +344,7 @@ fn new_game_settings_reach_the_game() -> TestResult {
     assert_eq!(small.settings().basic.opponents, 4);
     assert_eq!(
         small.settings().basic.land_percent,
-        f4x_core::game::setup::LAND_SMALL
+        f4x_newgame::setup::LAND_SMALL
     );
     assert_eq!(
         (
@@ -355,7 +355,7 @@ fn new_game_settings_reach_the_game() -> TestResult {
     );
     let land = |g: &Game| {
         let map = g.map().expect("the game has a map");
-        f4x_core::map::mapgen::land_percent(
+        f4x_newgame::mapgen::land_percent(
             map.plane(f4x_core::map::Plane::Arcanus),
             &g.content().terrains,
         )
@@ -3653,7 +3653,7 @@ fn every_map_size_makes_a_game_with_the_counts_in_proportion() -> TestResult {
                     .is_some_and(|o| game.is_neutral_player(o))
             })
             .count() as u32;
-        let wanted = 2 * f4x_core::city::neutral::neutral_city_count(w, h);
+        let wanted = 2 * f4x_newgame::neutral::neutral_city_count(w, h);
         // The row scan keeps its distances and stops at the target or the last row, so a small
         // map with five fortresses on it gets few: some at every size, never more than the
         // target.

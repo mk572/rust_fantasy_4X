@@ -2,29 +2,29 @@
 //! the map and a few starting units. The client's new-game screen, the console, the AI soak
 //! runs and tests all start games here.
 //!
-//! Tests: below, and in game/setup/original.rs for the original's fortress sites.
+//! Tests: below, and in setup/original.rs for the original's fortress sites.
 
 use f4x_def::half_int::HalfInt;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod original;
 
-use crate::game::setting::GameSettings;
-use crate::map::mapgen::{generate, GenParams};
-use crate::map::{Plane, Position};
-use crate::player::PlayerId;
-use crate::rules::{BuildingId, RealmId};
+use crate::mapgen::{generate, GenParams};
+use f4x_core::game::setting::GameSettings;
+use f4x_core::map::{Plane, Position};
+use f4x_core::player::PlayerId;
+use f4x_core::rules::{BuildingId, RealmId};
 use f4x_def::content::Content;
 
-use crate::game::{Command, Game};
-use crate::wizard::magic::Retort;
-use crate::wizard::WizardBuild;
+use f4x_core::game::{Command, Game};
+use f4x_core::wizard::magic::Retort;
+use f4x_core::wizard::WizardBuild;
 
 pub const HUMAN: PlayerId = PlayerId(0);
 pub const RIVAL: PlayerId = PlayerId(1);
 
 /// A retort by name (case and punctuation ignored): `alchemy`, `sage_master`, `sagemaster`.
-pub fn parse_retort(rules: &crate::rules::Rules, text: &str) -> Option<Retort> {
+pub fn parse_retort(rules: &f4x_core::rules::Rules, text: &str) -> Option<Retort> {
     let squash = |s: &str| -> String {
         s.chars()
             .filter(|c| c.is_alphanumeric())
@@ -41,7 +41,7 @@ pub fn parse_retort(rules: &crate::rules::Rules, text: &str) -> Option<Retort> {
 
 /// The original's land sizes, as a share of each plane's tiles (`NEWG_CreateLands`: 360, 480 and
 /// 720 of 2400).
-pub use crate::game::setting::{LAND_LARGE, LAND_MEDIUM, LAND_SMALL};
+pub use f4x_core::game::setting::{LAND_LARGE, LAND_MEDIUM, LAND_SMALL};
 
 /// What a new game is made from. Everything but the seed is optional.
 #[derive(Debug, Clone, Default)]
@@ -84,7 +84,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         return Err(problems.join("; "));
     }
     // The hooks and special spells the code implements are the only ones the content may name.
-    let hooks = crate::hook::problems(&content.rules);
+    let hooks = f4x_core::hook::problems(&content.rules);
     if !hooks.is_empty() {
         return Err(hooks.join("; "));
     }
@@ -113,12 +113,14 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         ..params
     };
     let map = generate(spec.seed, &params, content).map_err(|e| e.to_string())?;
-    let mut game = Game::new(spec.seed);
-    game.settings = settings;
-    game.content = content.clone();
-    game.apply_content_settings();
-    game.names = spec.names.clone();
-    game.set_generated(map);
+    let mut game = Game::begin_world(
+        spec.seed,
+        settings,
+        content,
+        spec.names.clone(),
+        map.map,
+        map.placements,
+    );
     for k in 0..wizards {
         // A stand-in until the wizard's own name replaces it.
         let name = match (k, spec.all_ai) {
@@ -138,7 +140,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         preset: true,
     };
     let preset_ids: Vec<u16> = game
-        .content
+        .content()
         .rules
         .wizards
         .defs()
@@ -192,8 +194,8 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                     let plain = |i: usize| plain_computer_build(&spec.names, spec.seed, first + i);
                     let plain: Vec<WizardBuild> = (0..computers).map(plain).collect();
                     let human_myrran = !spec.all_ai && builds.first().is_some_and(myrran_build);
-                    let presets = game.content.rules.wizards.defs().to_vec();
-                    crate::wizard::ai::make(
+                    let presets = game.content().rules.wizards.defs().to_vec();
+                    crate::computer_wizard::make(
                         &mut game,
                         &presets,
                         &settings,
@@ -230,7 +232,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     if !settings.ai.wizards.randomise {
         let first = usize::from(!spec.all_ai);
         let human_myrran = first == 1 && builds.first().is_some_and(myrran_build);
-        crate::wizard::ai::balance_planes(
+        crate::computer_wizard::balance_planes(
             &mut game,
             &mut builds[first..],
             human_myrran,
@@ -248,11 +250,13 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         let id = PlayerId(k);
         let mut banner = game.player(id).map_or(0, |p| p.banner());
         // Each wizard has a colour of their own while there are colours left.
-        while used.len() < usize::from(crate::player::BANNER_CHOICES) && used.contains(&banner) {
-            banner = (banner + 1) % crate::player::BANNER_CHOICES;
+        while used.len() < usize::from(f4x_core::player::BANNER_CHOICES) && used.contains(&banner) {
+            banner = (banner + 1) % f4x_core::player::BANNER_CHOICES;
         }
         used.insert(banner);
-        game.wizard_set(id, crate::wizard::entity::Banner(banner));
+        if let Some(mut w) = game.wizard_mut(id) {
+            w.put(Some(f4x_core::wizard::entity::Banner(banner)));
+        }
     }
     // And a picture of their own.
     let mut shown = BTreeSet::new();
@@ -260,15 +264,17 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         let id = PlayerId(k);
         let mut portrait = game.player(id).map_or(0, |p| p.portrait());
         while shown.contains(&portrait) {
-            portrait = (portrait + 1) % crate::player::PORTRAITS;
+            portrait = (portrait + 1) % f4x_core::player::PORTRAITS;
         }
         shown.insert(portrait);
-        game.wizard_set(id, crate::wizard::entity::Portrait(portrait));
+        if let Some(mut w) = game.wizard_mut(id) {
+            w.put(Some(f4x_core::wizard::entity::Portrait(portrait)));
+        }
     }
     game.set_human((!spec.all_ai).then_some(HUMAN));
     game.apply_wizard_settings();
     for k in 0..wizards {
-        game.give_main_realm_spell(PlayerId(k));
+        crate::main_realm_spell::give_main_realm_spell(&mut game, PlayerId(k));
     }
     for k in 0..wizards {
         let id = PlayerId(k);
@@ -284,11 +290,11 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     }
     // Races: player 0's choice, then the others in turn, skipping races already taken. A
     // Myrran wizard has a Myrror race and starts there; everyone else an Arcanus one.
-    let race_defs = game.content.rules.races.defs().to_vec();
+    let race_defs = game.content().rules.races.defs().to_vec();
     let mut races: Vec<u16> = Vec::new();
     for k in 0..wizards as usize {
         let myrran = is_myrran(&game, PlayerId(k as u8));
-        let on_plane = |r: &&crate::rules::RaceDef| r.myrror == myrran;
+        let on_plane = |r: &&f4x_core::rules::RaceDef| r.myrror == myrran;
         let id = match spec.race.as_ref().filter(|_| k == 0) {
             Some(want) => {
                 let ok = race_defs.iter().filter(on_plane).any(|r| r.num == *want);
@@ -344,11 +350,11 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     }
     // Independent cities on both planes, once the wizards' fortresses are down.
     for plane in [Plane::Arcanus, Plane::Myrror] {
-        game.generate_neutral_cities(plane);
+        crate::neutral::generate_neutral_cities(&mut game, plane);
     }
-    game.assign_temperaments();
+    crate::temperament::assign_temperaments(&mut game);
     // The heroes' abilities are rolled last, so the map and the wizards' start stay as they were.
-    game.init_heroes();
+    init_heroes(&mut game);
     // Undo takes a snapshot of the whole game for every command: only a person needs it.
     game.set_undo(!spec.all_ai);
     Ok(game)
@@ -356,6 +362,14 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
 
 /// The plain build of computer wizard `k` when no ready-made wizard is free: a chaos and death
 /// wizard or a life and nature one, with a name from the lists.
+/// Make the game's heroes (`Init_Heroes`): one of each hero type, in the template order, which is
+/// the order the original draws their abilities in.
+fn init_heroes(game: &mut Game) {
+    for kind in 0..game.content().rules.hero_templates.len() {
+        game.add_hero(kind);
+    }
+}
+
 fn plain_computer_build(names: &f4x_def::names::NameBundle, seed: u64, k: usize) -> WizardBuild {
     let (books, retort): (&[(RealmId, u8)], Retort) = if k % 2 == 1 {
         (
@@ -447,13 +461,7 @@ fn reveal_start(game: &mut Game, player: PlayerId, radius: HalfInt) {
     let Some(fortress) = game.wizard(player).and_then(|w| w.fortress()) else {
         return;
     };
-    game.fog.forget(player);
-    game.fog.explore(
-        player,
-        fortress,
-        radius,
-        game.settings.basic.diagonal_extra_cost,
-    );
+    game.restrict_view(player, fortress, radius);
 }
 
 /// Found a wizard's fortress near their start point, as the original's `Generate_Home_Cities`
@@ -468,13 +476,13 @@ fn start_player(
     race: u16,
     site: Option<Position>,
 ) -> Result<(), String> {
-    let rules = &game.content.rules;
+    let rules = &game.content().rules;
     let race_def = rules
         .races
         .by_num(race)
         .ok_or_else(|| format!("no race {race}"))?;
     let race_id = rules.races.id_numbered(race_def.num);
-    let name = game.names.city(race_def.num, &race_def.id, 0);
+    let name = game.names().city(race_def.num, &race_def.id, 0);
     let army = race_def.start_army.clone();
     let buildings: Vec<_> = CAPITAL_BUILDINGS.to_vec();
     let plane = if is_myrran(game, player) {
@@ -483,8 +491,7 @@ fn start_player(
         Plane::Arcanus
     };
     let (width, height) = game
-        .map
-        .as_ref()
+        .map()
         .map(|m| (m.width(), m.height()))
         .ok_or("no map")?;
     // Wizards on the same plane are spread round it, whatever the others do on the other.
@@ -504,9 +511,10 @@ fn start_player(
         .flat_map(|y| (0..width).map(move |x| (x, y)))
         .collect();
     spots.sort_by_key(|&(x, y)| (wrap(x, cx).pow(2) + y.abs_diff(cy).pow(2), y, x));
-    let fortresses: Vec<Position> = crate::wizard::entity::all(&game.world)
-        .iter()
-        .filter_map(|w| w.fortress())
+    let fortresses: Vec<Position> = game
+        .player_ids()
+        .into_iter()
+        .filter_map(|p| game.wizard(p)?.fortress())
         .filter(|f| f.plane == plane)
         .collect();
     let need = 8 - u32::from(player.0) / 3;
@@ -526,7 +534,7 @@ fn start_player(
                 .iter()
                 .any(|f| wrap(f.x, x).max(f.y.abs_diff(y)) < apart)
                 || game.can_found_city(pos).is_err()
-                || !game.clear_of_sites(pos, clear)
+                || !crate::neutral::clear_of_sites(game, pos, clear)
                 || game.economy().site_max_size(pos) < size
             {
                 continue;
@@ -539,14 +547,19 @@ fn start_player(
                 population: CAPITAL_FIGURES,
             });
             let Some(city) = events.iter().find_map(|e| match e {
-                crate::game::Event::FortressPlaced { .. } => None,
-                crate::game::Event::CityFounded { city, .. } => Some(*city),
+                f4x_core::game::Event::FortressPlaced { .. } => None,
+                f4x_core::game::Event::CityFounded { city, .. } => Some(*city),
                 _ => None,
             }) else {
                 continue;
             };
-            game.put(city, crate::city::economy::Farmers(CAPITAL_FARMERS));
-            game.put(city, crate::city::economy::Buildings(buildings));
+            game.apply(Command::SetFarmers {
+                city,
+                farmers: CAPITAL_FARMERS,
+            });
+            for building in buildings {
+                game.scenario_set_building(city, building, true);
+            }
             for &unit in &army {
                 game.apply(Command::CreateUnit {
                     owner: player,
@@ -563,7 +576,7 @@ fn start_player(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::shipped;
+    use f4x_def::testdir::shipped;
     use f4x_def::testdir::TestResult;
 
     fn spec(seed: u64, wizards: u8) -> NewGame {
@@ -583,7 +596,7 @@ mod tests {
                 .find(|(_, c, _)| c.owner == PlayerId(0))
                 .map(|(_, c, _)| c.name.clone())
         };
-        let bare = new_game(&content, &spec(3, 2))?;
+        let bare = new_game(content, &spec(3, 2))?;
         let race_id = |g: &Game| {
             g.wizard(PlayerId(0))
                 .and_then(|w| w.capital_race())
@@ -601,7 +614,7 @@ mod tests {
                 .insert(race.num, vec![format!("Town of {}", race.id)]);
         }
         named.names.heroes.insert(0, vec!["Brax".into()]);
-        let g = new_game(&content, &named)?;
+        let g = new_game(content, &named)?;
         assert_eq!(capital_race(&g), Some(format!("Town of {id}")));
         assert_eq!(g.units().hero_type_name(0).as_deref(), Some("Brax"));
         assert_eq!(g.names().heroes[&0], ["Brax"]);
@@ -618,7 +631,7 @@ mod tests {
                 let mut sp = spec(seed, 5);
                 sp.settings.basic.difficulty = difficulty;
                 sp.settings.rules.limit_ai_races = limit;
-                let g = new_game(&content, &sp)?;
+                let g = new_game(content, &sp)?;
                 for k in 0..5 {
                     let race = g
                         .wizard(PlayerId(k))
@@ -740,16 +753,16 @@ mod tests {
         let c = shipped();
         let mut bad = spec(1, 3);
         bad.settings.basic.difficulty = 9;
-        assert!(new_game(&c, &bad).is_err());
+        assert!(new_game(c, &bad).is_err());
         let mut many = spec(1, 3);
         many.settings.basic.opponents = c.settings.max_opponents + 1;
-        let err = new_game(&c, &many).err().unwrap_or_default();
+        let err = new_game(c, &many).err().unwrap_or_default();
         assert!(err.contains("opponents"), "{err}");
     }
 
     #[test]
     fn every_wizard_starts_with_a_capital_an_army_and_a_small_view() -> TestResult {
-        let g = new_game(&shipped(), &spec(2, 3))?;
+        let g = new_game(shipped(), &spec(2, 3))?;
         for k in 0..3 {
             let p = PlayerId(k);
             let fortress = g
@@ -784,7 +797,7 @@ mod tests {
         s.retorts.insert(Retort::new(9) /* myrran */);
         // Every wizard is the computer's here, and the computer's retorts are rolled.
         s.settings.ai.wizards.randomise = false;
-        let g = new_game(&shipped(), &s)?;
+        let g = new_game(shipped(), &s)?;
         let plane = |k| {
             g.wizard(PlayerId(k))
                 .and_then(|w| w.fortress())
@@ -799,7 +812,7 @@ mod tests {
     #[test]
     fn the_same_seed_makes_the_same_world_and_another_seed_another() -> TestResult {
         let text = |seed| -> Result<String, Box<dyn std::error::Error>> {
-            Ok(new_game(&shipped(), &spec(seed, 3))?.snapshot().to_text()?)
+            Ok(new_game(shipped(), &spec(seed, 3))?.snapshot().to_text()?)
         };
         assert_eq!(text(4)?, text(4)?);
         assert_ne!(text(4)?, text(5)?);

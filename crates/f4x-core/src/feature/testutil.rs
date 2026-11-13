@@ -76,30 +76,32 @@ impl Game {
         e
     }
 
-    /// Put a node on a square, with an aura made from `seed` as map generation does.
-    pub(crate) fn put_node(&mut self, at: Position, num: u16, seed: u64) -> Entity {
+    /// Put a sorcery-like node of power 7 on a square, with an aura of its own square and the
+    /// six squares next to it (the generator that makes them in a new game is
+    /// `f4x_newgame::node`).
+    pub(crate) fn put_node(&mut self, at: Position, num: u16) -> Entity {
         let feature = self
             .content
             .features
             .id_numbered(num)
             .expect("a feature of that number");
-        let mut placed = crate::feature::place::Placed::new(
-            self.map.as_ref().expect("a map").width(),
-            self.map.as_ref().expect("a map").height(),
-        );
-        placed.set(at.plane, at.x, at.y, feature);
-        let nodes = crate::feature::node::generate_nodes(
-            seed,
-            self.map.as_ref().expect("a map"),
-            &placed,
-            &self.content,
-        );
-        let node: Node = nodes.into_iter().next().expect("a node").1;
-        self.spawn_feature(Placement {
-            at,
-            feature,
-            node: Some(node),
-            lair: None,
-        })
+        let realm = self
+            .content
+            .features
+            .get(feature)
+            .and_then(|f| f.realm)
+            .expect("a node feature has a realm");
+        let aura = [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), (0, 2), (2, 1)]
+            .iter()
+            .map(|&(dx, dy)| (at.x + dx, at.y + dy))
+            .collect();
+        let node = Node {
+            realm,
+            power: 7,
+            aura,
+            guardian: false,
+            warped: false,
+        };
+        self.put_node_data(at, num, node, None)
     }
 }

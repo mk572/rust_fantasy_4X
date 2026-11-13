@@ -154,7 +154,7 @@ command so every client action keeps a text equivalent.
 
 ## 6. Notes and open work
 
-- `new` repeats the client's new-game setup (`game/setup.rs`); the client should call it instead
+- `new` repeats the client's new-game setup (`f4x-newgame/src/setup.rs`); the client should call it instead
   of keeping its own copy, and the wizard creation screen's remaining choices (spell picks,
   banner) have no text equivalent yet.
 - Messages for events are one line each (`describe.rs`); events without a nicer line print in

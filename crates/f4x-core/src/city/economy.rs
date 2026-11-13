@@ -783,7 +783,7 @@ impl<'a> Economy<'a> {
 
     /// What a city at `at` could grow to on its land alone, with no buildings, race or
     /// enchantments: the estimate the original's new-game placement judges a home site by.
-    pub(crate) fn site_max_size(&self, at: Position) -> u32 {
+    pub fn site_max_size(&self, at: Position) -> u32 {
         let Some(map) = self.map else {
             return 0;
         };

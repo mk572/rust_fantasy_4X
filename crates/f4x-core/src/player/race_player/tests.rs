@@ -1,19 +1,11 @@
 use super::*;
-use crate::game::setup::{new_game, NewGame};
-use crate::game::testutil::shipped;
+use crate::game::testutil::fresh;
 use crate::player::{Treasury, MONSTERS};
 use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 
 fn world(seed: u64) -> Result<Game, String> {
-    new_game(
-        &shipped(),
-        &NewGame {
-            seed,
-            all_ai: true,
-            ..Default::default()
-        },
-    )
+    fresh(2, seed)
 }
 
 /// The race players that own a city.

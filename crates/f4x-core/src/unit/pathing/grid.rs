@@ -288,8 +288,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::setup::{new_game, NewGame};
-    use crate::game::testutil::shipped;
+    use crate::game::testutil::fresh;
     use crate::rules::exec::Target;
     use crate::rules::{Ability, MovementType, UnitDef, UnitId};
 
@@ -356,17 +355,9 @@ mod tests {
 
     #[test]
     fn the_grid_of_a_stack_gives_every_step_the_cost_the_rules_give() -> TestResult {
-        let content = shipped();
         let mut steps_checked = 0;
         for (seed, diagonal) in [(3u64, false), (11, true)] {
-            let mut game = new_game(
-                &content,
-                &NewGame {
-                    seed,
-                    all_ai: true,
-                    ..NewGame::with_wizards(3)
-                },
-            )?;
+            let mut game = fresh(3, seed)?;
             game.settings.basic.diagonal_extra_cost = diagonal;
             lay_roads(&mut game, seed)?;
             let owner = game
@@ -473,17 +464,9 @@ mod tests {
 
     #[test]
     fn paths_and_walks_over_the_grid_obey_the_movement_rule() -> TestResult {
-        let content = shipped();
         let mut found = 0;
         for (seed, diagonal) in [(3u64, false), (11, true)] {
-            let mut game = new_game(
-                &content,
-                &NewGame {
-                    seed,
-                    all_ai: true,
-                    ..NewGame::with_wizards(3)
-                },
-            )?;
+            let mut game = fresh(3, seed)?;
             game.settings.basic.diagonal_extra_cost = diagonal;
             lay_roads(&mut game, seed)?;
             let owner = game
@@ -557,15 +540,7 @@ mod tests {
     #[ignore = "a timing, not a check"]
     fn timing_of_making_a_grid_and_of_the_search() -> TestResult {
         use std::time::Instant;
-        let content = shipped();
-        let mut game = new_game(
-            &content,
-            &NewGame {
-                seed: 3,
-                all_ai: true,
-                ..NewGame::with_wizards(3)
-            },
-        )?;
+        let mut game = fresh(3, 3)?;
         game.settings.basic.diagonal_extra_cost = true;
         lay_roads(&mut game, 3)?;
         let owner = game

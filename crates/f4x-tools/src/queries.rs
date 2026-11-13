@@ -151,7 +151,7 @@ pub fn measure(game: &Game, human: PlayerId, repeat: u32) -> Vec<(&'static str, 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::game::setup::{new_game, NewGame};
+    use f4x_newgame::setup::{new_game, NewGame};
 
     #[test]
     fn every_frame_query_is_timed_on_a_small_game() -> Result<(), String> {

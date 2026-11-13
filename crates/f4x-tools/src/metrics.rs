@@ -667,8 +667,8 @@ mod tests {
     use super::*;
     use crate::contestant::{self, Version};
     use crate::testutil::shipped;
-    use f4x_core::game::setup::{new_game, NewGame};
     use f4x_def::testdir::TestResult;
+    use f4x_newgame::setup::{new_game, NewGame};
 
     /// A real two-wizard game: every city a wizard has at the end was there at the start, was
     /// founded or was taken, and none that was lost is still there.

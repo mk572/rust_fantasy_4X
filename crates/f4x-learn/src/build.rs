@@ -1,10 +1,10 @@
 //! Turn a [`BattleScenario`] into a game with its battle begun.
 
-use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_def::content::Content;
+use f4x_newgame::setup::{new_game, NewGame};
 
 use f4x_core::game::{Command, Event, Game};
 

@@ -47,8 +47,9 @@ The game is built on four major components: rules engine, game engine, client an
 
 The crates depend on each other in one direction: `f4x-def` is at the bottom (the static definitions,
 no other game crate); `f4x-core` and `f4x-ai` depend on `f4x-def`, and `f4x-ai` on `f4x-core`;
-`f4x-console` depends on def, core and ai; `f4x-learn` on def and core; `f4x-client` and `f4x-tools` on
-all of these (`f4x-tools` also on `f4x-ai-ref`). A crate loads the data it holds: `f4x-def` loads the
+`f4x-newgame` (the map generator, the setup of a new game) sits above core and uses only its public API,
+so core never calls it; `f4x-console` depends on def, core, newgame and ai; `f4x-learn` on def, core and
+newgame; `f4x-client` and `f4x-tools` on all of these (`f4x-tools` also on `f4x-ai-ref`). A crate loads the data it holds: `f4x-def` loads the
 definitions (`f4x_def::load`). `f4x-core` reads and writes save files only (`game/save/file.rs`); it is deterministic otherwise.
 
 ## Rules engine
@@ -136,7 +137,7 @@ wrong reason.
   function that takes the registry as its input and needs a case the shipped content lacks. These are
   the tests that still do, each with its reason (`docs/test-review-log.md`, tasks 461 and 484):
   `hook.rs` (validator), `game/save/tests.rs` (a save naming a unit the content lacks),
-  `wizard/ai/tests.rs` (ready-made wizards with a composition the shipped ones lack: opposed realms,
+  `f4x-newgame/src/computer_wizard/tests.rs` (ready-made wizards with a composition the shipped ones lack: opposed realms,
   a set of Myrran ones) and `f4x-console` (no ready-made wizards, so the fallback names show).
   Where a result depends on a roll, cast or fight again until it happens (`cast_until`) or give the
   caster the means, rather than raising a number in the rules. Tests that only set a game setting or a
@@ -160,6 +161,13 @@ wrong reason.
   run once per test process. The integration tests in `f4x-core/tests/it/` use
   `f4x_def::load::load_content` itself (`tests/it/world.rs`).
   Do not hand-build units, spells, buildings or terrains in either.
+- A unit test in `f4x-core/src/` that needs a whole new game (a real map, wizards, cities) cannot call
+  `new_game` (the crate that has it sits above core): it loads one with `game::testutil::fresh(wizards, seed)`,
+  a saved game in `crates/f4x-core/tests/saves/fresh_w<wizards>_s<seed>.save`. The test `fixtures` of
+  `f4x-newgame` keeps the files equal to what `new_game` makes; when it fails, refresh them with
+  `F4X_REFRESH_FIXTURES=1 cargo test -p f4x-newgame --test it fixtures` and run the tests of core again
+  (a test that depends on a seed's map may need a look). A test of the generators or of `new_game` itself
+  lives in `f4x-newgame`.
 
 ### Where a test lives
 
@@ -229,12 +237,12 @@ predefined outcome save or a diff against the loaded save.
 
 Regression testing is done without the client.
 
-They live in `crates/f4x-core/tests/it/regression.rs`, with the prepared saves and the targets in
+They live in `crates/f4x-newgame/tests/it/regression.rs`, with the prepared saves and the targets in
 `tests/regression/` (`<name>.save`, `<name>.target`): an early game, a game at war and a game with three
 global enchantments in force, each loaded, played on by a fixed command list, and compared with a
 target of a short summary plus the checksum of the whole save (the game's version left out, so a
 release does not fail them). A failing test prints both texts. Change a target on purpose with
-`F4X_REFRESH_REGRESSION=targets cargo test -p f4x-core --test it regression` and read the git diff of
+`F4X_REFRESH_REGRESSION=targets cargo test -p f4x-newgame --test it regression` and read the git diff of
 `tests/regression/` before committing; after a save format change (`SAVE_VERSION`) or a change of a
 set-up rebuild the saves with `F4X_REFRESH_REGRESSION=saves` (it rewrites the targets too).
 

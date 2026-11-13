@@ -38,11 +38,6 @@ pub mod num {
     }
 }
 
-/// The shipped `crates/f4x-def/content/rules_settings.ron`, for tests that play a difficulty level.
-pub fn settings() -> crate::game::setting::SettingsDef {
-    f4x_def::testdir::shipped().settings.clone()
-}
-
 /// The game's own `content/` folder, loaded by the real loader (`f4x_def::testdir::shipped`), as
 /// a copy for a `Game`, which owns its content.
 pub fn shipped() -> Content {
@@ -139,4 +134,31 @@ pub fn ability_ref(alias: u16) -> crate::rules::Ability {
 /// [`ability`] for a list of aliases.
 pub fn abilities(aliases: &[u16]) -> Vec<crate::rules::Ability> {
     aliases.iter().map(|&a| ability(a)).collect()
+}
+
+/// Where the saved fresh games of [`fresh`] are (`crates/f4x-core/tests/saves`).
+pub fn saves_dir() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/saves")
+}
+
+/// The file of the fresh game with `wizards` computer wizards on `seed`.
+pub fn fresh_file(wizards: u8, seed: u64) -> std::path::PathBuf {
+    saves_dir().join(format!("fresh_w{wizards}_s{seed}.save"))
+}
+
+/// A new game of `wizards` computer wizards on `seed`, on the shipped content, loaded from its
+/// save: the world `f4x_newgame::setup::new_game` made, with a real map, cities, units and wizards.
+/// Core cannot make one itself (the crate that does sits above it); the test `fixtures` of
+/// `f4x-newgame` keeps these files equal to what it makes, and rewrites them with
+/// `F4X_REFRESH_FIXTURES=1 cargo test -p f4x-newgame --test it fixtures`.
+pub fn fresh(wizards: u8, seed: u64) -> Result<crate::game::Game, String> {
+    let path = fresh_file(wizards, seed);
+    crate::game::save::file::load_game(&path, shipped())
+        .map(|(game, _)| game)
+        .map_err(|e| {
+            format!(
+                "{}: {e} (rewrite the fresh games with F4X_REFRESH_FIXTURES=1 cargo test -p f4x-newgame --test it fixtures)",
+                path.display()
+            )
+        })
 }

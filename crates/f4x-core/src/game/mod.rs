@@ -15,7 +15,6 @@ pub mod rng;
 pub mod save;
 pub mod serial;
 pub mod setting;
-pub mod setup;
 #[cfg(test)]
 pub(crate) mod testutil;
 pub mod undo;
@@ -191,7 +190,7 @@ impl Game {
             next_serial: 1,
             rng: game::rng::GameRng::new(seed),
             // The Average level of the shipped rules; a game made for play gets its level from
-            // `game::setup::new_game`.
+            // `f4x_newgame::setup::new_game`.
             settings: game::setting::GameSettings::default(),
             battle: None,
             game_over: None,
@@ -240,20 +239,6 @@ impl Game {
     /// The settings the game is played with.
     pub fn settings(&self) -> &game::setting::GameSettings {
         &self.settings
-    }
-
-    /// Start a game on a freshly generated map.
-    pub fn with_generated_map(
-        seed: u64,
-        params: &map::mapgen::GenParams,
-        content: &content::Content,
-    ) -> Result<Self, map::mapgen::GenError> {
-        let mut game = Self::new(seed);
-        game.settings.basic.magic_strength = params.magic_strength.min(2);
-        game.settings.basic.difficulty = params.difficulty.min(f4x_def::settings::MAX_DIFFICULTY);
-        game.content = content.clone();
-        game.set_generated(map::mapgen::generate(seed, params, content)?);
-        Ok(game)
     }
 
     /// Whether a city could be founded at `pos` right now.

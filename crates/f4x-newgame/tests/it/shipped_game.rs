@@ -1,9 +1,9 @@
 //! A whole game on the shipped content (`content/`), through the public interface only.
 
-use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::{Command, Event, Game};
 use f4x_def::content::Content;
 use f4x_def::testdir::TestResult;
+use f4x_newgame::setup::{new_game, NewGame};
 
 fn shipped() -> &'static Content {
     f4x_def::testdir::shipped()

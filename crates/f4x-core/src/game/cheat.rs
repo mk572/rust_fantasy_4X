@@ -137,8 +137,8 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
-    use crate::game::setup::{new_game, NewGame};
-    use crate::game::testutil::{num, shipped};
+    use crate::game::testutil::fresh;
+    use crate::game::testutil::num;
     use crate::game::Game;
     use crate::hero::HeroState;
     use crate::map::{Plane, Position};
@@ -148,14 +148,7 @@ mod tests {
     const P0: PlayerId = PlayerId(0);
 
     fn world() -> Result<Game, String> {
-        new_game(
-            &shipped(),
-            &NewGame {
-                seed: 4,
-                all_ai: true,
-                ..Default::default()
-            },
-        )
+        fresh(2, 7)
     }
 
     fn at(x: u32, y: u32) -> Position {

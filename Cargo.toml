@@ -27,6 +27,7 @@ f4x-master = { path = "crates/f4x-master" }
 f4x-ai = { path = "crates/f4x-ai" }
 f4x-console = { path = "crates/f4x-console" }
 f4x-lang = { path = "crates/f4x-lang" }
+f4x-newgame = { path = "crates/f4x-newgame" }
 f4x-learn = { path = "crates/f4x-learn" }
 f4x-extract = { path = "crates/f4x-client/extract", default-features = false }
 

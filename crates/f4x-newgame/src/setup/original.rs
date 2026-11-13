@@ -11,9 +11,9 @@
 //!
 //! Tests: below.
 
-use crate::game::Game;
-use crate::map::terrain::TerrainClass;
-use crate::map::{Plane, Position};
+use f4x_core::game::Game;
+use f4x_core::map::terrain::TerrainClass;
+use f4x_core::map::{Plane, Position};
 
 /// The most passes with smaller distances before giving up (the original loops for ever).
 const MAX_PASSES: u32 = 60;
@@ -21,7 +21,7 @@ const MAX_PASSES: u32 = 60;
 /// One site for each wizard, in order, `planes[k]` being wizard `k`'s plane. `None` if no pass
 /// found them all.
 pub(super) fn fortress_sites(game: &mut Game, planes: &[Plane]) -> Option<Vec<Position>> {
-    let (w, h) = game.map.as_ref().map(|m| (m.width(), m.height()))?;
+    let (w, h) = game.map().map(|m| (m.width(), m.height()))?;
     let sites = game.economy().site_squares();
     let (mut apart, mut clear) = (16u32, 8u32);
     for _ in 0..MAX_PASSES {
@@ -38,7 +38,7 @@ pub(super) fn fortress_sites(game: &mut Game, planes: &[Plane]) -> Option<Vec<Po
                     x: 2 + game.roll(w - 6),
                     y: 2 + game.roll(h - 6),
                 };
-                let grid = game.map.as_ref()?.plane(plane);
+                let grid = game.map()?.plane(plane);
                 let wrap = |a: u32, b: u32| {
                     let d = a.abs_diff(b);
                     d.min(w - d)
@@ -46,7 +46,7 @@ pub(super) fn fortress_sites(game: &mut Game, planes: &[Plane]) -> Option<Vec<Po
                 let dist = |o: &Position| wrap(o.x, pos.x).max(o.y.abs_diff(pos.y));
                 let water = grid
                     .get(pos.x as i32, pos.y as i32)
-                    .and_then(|t| game.content.terrains.get(t))
+                    .and_then(|t| game.content().terrains.get(t))
                     .is_none_or(|d| d.class == TerrainClass::Ocean);
                 if water
                     || placed.iter().any(|f| f.plane == plane && dist(f) < apart)
@@ -80,9 +80,9 @@ pub(super) fn fortress_sites(game: &mut Game, planes: &[Plane]) -> Option<Vec<Po
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::setup::{new_game, NewGame};
-    use crate::game::testutil::shipped;
-    use crate::player::PlayerId;
+    use crate::setup::{new_game, NewGame};
+    use f4x_core::player::PlayerId;
+    use f4x_def::testdir::shipped;
     use f4x_def::testdir::TestResult;
 
     fn original(seed: u64, wizards: u8) -> Result<Game, String> {
@@ -90,7 +90,7 @@ mod tests {
         spec.seed = seed;
         spec.all_ai = true;
         spec.settings.basic.original_map_generator = true;
-        new_game(&shipped(), &spec)
+        new_game(shipped(), &spec)
     }
 
     fn fortress(g: &Game, p: PlayerId) -> Option<Position> {
@@ -104,10 +104,9 @@ mod tests {
             let p = PlayerId(k);
             let pos = fortress(&g, p).ok_or("no fortress")?;
             let class = g
-                .map
-                .as_ref()
+                .map()
                 .and_then(|m| m.plane(pos.plane).get(pos.x as i32, pos.y as i32))
-                .and_then(|t| g.content.terrains.get(t))
+                .and_then(|t| g.content().terrains.get(t))
                 .map(|d| d.class);
             assert_ne!(
                 class,
@@ -122,7 +121,7 @@ mod tests {
     #[test]
     fn fortresses_on_one_plane_are_far_apart_across_the_wrapping_edge() -> TestResult {
         let g = original(5, 4)?;
-        let w = g.map.as_ref().ok_or("no map")?.width();
+        let w = g.map().ok_or("no map")?.width();
         let sites: Vec<Position> = (0..4)
             .map(|k| fortress(&g, PlayerId(k)))
             .collect::<Option<_>>()

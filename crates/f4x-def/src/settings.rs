@@ -1211,7 +1211,7 @@ mod tests;
 
 /// The game as the shipped rules play it: the Average level of `crates/f4x-def/content/rules_settings.ron`
 /// (read at build time, so there is one set of figures). A game made for play picks its level in
-/// `game::setup::new_game`; a bare `Game::new` and a `NewGame::default()` start from this.
+/// `f4x_newgame::setup::new_game`; a bare `Game::new` and a `NewGame::default()` start from this.
 impl Default for GameSettings {
     fn default() -> Self {
         static AVERAGE: std::sync::OnceLock<GameSettings> = std::sync::OnceLock::new();

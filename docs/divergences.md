@@ -50,7 +50,7 @@ Decided October 2026, `design.md` section 8.
 
 ## 2. Neutral cities (task 31)
 
-Decided with task 31; code in `city/neutral.rs`, `player/mod.rs`, `turn.rs`, `wizard/fortress.rs`.
+Decided with task 31; code in `f4x-newgame/src/neutral.rs`, `city/neutral.rs`, `player/mod.rs`, `turn.rs`, `wizard/fortress.rs`.
 
 - **They pay upkeep.** The original gives a neutral garrison free upkeep. Ours pay food and
   gold like anyone's, which is design.md section 8 applied.
@@ -93,7 +93,7 @@ Decided with task 41; code in `city/conquest.rs`, `battle/`.
 
 ## 4. The starting setup (task 32)
 
-Decided with task 32; code in `game/setup.rs`, `city/economy.rs` (`site_max_size`).
+Decided with task 32; code in `f4x-newgame/src/setup.rs`, `city/economy.rs` (`site_max_size`).
 
 - **Starting gold follows the level (task 247).** The human gets `(5 - difficulty) * 25` (125 on
   Intro down to 25 on Impossible) and every AI 150, as in the original; both are settings.

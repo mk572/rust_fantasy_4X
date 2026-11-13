@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 f4x-ai.workspace = true
 f4x-core.workspace = true
+f4x-newgame.workspace = true
 f4x-def.workspace = true
 hecs.workspace = true
 

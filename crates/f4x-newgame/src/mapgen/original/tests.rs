@@ -1,7 +1,7 @@
-use crate::game::testutil::shipped;
-use crate::map::mapgen::{generate, land_percent, GenParams};
-use crate::map::terrain::TerrainClass;
-use crate::map::Plane;
+use crate::mapgen::{generate, land_percent, GenParams};
+use f4x_core::map::terrain::TerrainClass;
+use f4x_core::map::Plane;
+use f4x_def::testdir::shipped;
 
 fn original(land_percent: u8) -> GenParams {
     GenParams {
@@ -15,10 +15,10 @@ use f4x_def::testdir::TestResult;
 #[test]
 fn deterministic_and_unlike_the_noise_map() -> TestResult {
     let (c, p) = (shipped(), original(30));
-    assert_eq!(generate(3, &p, &c)?, generate(3, &p, &c)?);
-    assert_ne!(generate(3, &p, &c)?, generate(4, &p, &c)?);
+    assert_eq!(generate(3, &p, c)?, generate(3, &p, c)?);
+    assert_ne!(generate(3, &p, c)?, generate(4, &p, c)?);
     let noise = GenParams::default();
-    assert_ne!(generate(3, &p, &c)?.map, generate(3, &noise, &c)?.map);
+    assert_ne!(generate(3, &p, c)?.map, generate(3, &noise, c)?.map);
     Ok(())
 }
 
@@ -27,7 +27,7 @@ fn land_reaches_the_wanted_share_and_grows_with_it() -> TestResult {
     let c = shipped();
     let mut shares = Vec::new();
     for pct in [15u8, 20, 30] {
-        let map = generate(5, &original(pct), &c)?.map;
+        let map = generate(5, &original(pct), c)?.map;
         let got = land_percent(map.plane(Plane::Arcanus), &c.terrains);
         assert!(got >= u32::from(pct) - 1, "{pct}% asked, {got}% made");
         shares.push(got);
@@ -39,7 +39,7 @@ fn land_reaches_the_wanted_share_and_grows_with_it() -> TestResult {
 #[test]
 fn the_margins_are_ocean_or_tundra_and_the_poles_are_tundra() -> TestResult {
     let c = shipped();
-    let map = generate(9, &original(30), &c)?.map;
+    let map = generate(9, &original(30), c)?.map;
     for plane in Plane::all() {
         let grid = map.plane(plane);
         let class = |x: i32, y: i32| {
@@ -71,7 +71,7 @@ fn works_on_every_map_size_and_a_very_high_land_share() -> TestResult {
                 land_percent: pct,
                 ..GenParams::sized(w, h)
             };
-            let map = generate(2, &p, &c)?.map;
+            let map = generate(2, &p, c)?.map;
             assert!(land_percent(map.plane(Plane::Arcanus), &c.terrains) > 5);
         }
     }
@@ -80,10 +80,10 @@ fn works_on_every_map_size_and_a_very_high_land_share() -> TestResult {
 
 #[test]
 fn a_lone_node_gets_ground_on_every_side_over_many_seeds() -> TestResult {
-    use crate::feature::def::FeatureKind;
-    use crate::feature::place::Placed;
-    use crate::map::mapgen::original::extend_islands;
-    use crate::map::{Grid, Map};
+    use crate::mapgen::original::extend_islands;
+    use crate::place::Placed;
+    use f4x_core::feature::def::FeatureKind;
+    use f4x_core::map::{Grid, Map};
     let c = shipped();
     let ocean = c
         .terrains
@@ -98,7 +98,7 @@ fn a_lone_node_gets_ground_on_every_side_over_many_seeds() -> TestResult {
         let mut map = Map::new(Grid::new(20, 20, ocean), Grid::new(20, 20, ocean));
         let mut placed = Placed::new(20, 20);
         placed.set(Plane::Arcanus, 10, 10, node);
-        extend_islands(seed, &mut map, &placed, &c);
+        extend_islands(seed, &mut map, &placed, c);
         let grid = map.plane(Plane::Arcanus);
         for (dy, row) in grew.iter_mut().enumerate() {
             for (dx, cell) in row.iter_mut().enumerate() {

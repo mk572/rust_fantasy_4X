@@ -1,10 +1,8 @@
 mod autobuild;
 mod city_gate;
 mod features;
-mod regression;
 mod shipped;
 mod shipped_content;
-mod shipped_game;
 mod stacking;
 mod version;
 mod world;

@@ -8,7 +8,6 @@
 //!
 //! Tests: in wizard/tests.rs.
 
-pub(crate) mod ai;
 pub mod astrology;
 pub mod entity;
 pub mod fortress;
@@ -221,7 +220,7 @@ impl Game {
 #[cfg(test)]
 mod original_content;
 /// The ready-made wizard `num` of a list of them, as a build. The portrait is its place in the list.
-pub(crate) fn preset_build_of(defs: &[crate::rules::WizardDef], num: u16) -> Option<WizardBuild> {
+pub fn preset_build_of(defs: &[crate::rules::WizardDef], num: u16) -> Option<WizardBuild> {
     let place = defs.iter().position(|w| w.num == num)?;
     let def = &defs[place];
     let retorts = def.retorts.iter().copied().collect();

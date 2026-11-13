@@ -273,7 +273,7 @@ mana of a defeat without banishment. See also tasks 70 and 82.
 
 > **Rework.** Creating a wizard spawns a player entity and a wizard entity together and links them
 > (tasks 311 and 312). The pick rules stay in `wizard/mod.rs`; `WizardBuild` fills the wizard's
-> components. The computer wizards are built the same way (`wizard/ai.rs`).
+> components. The computer wizards are built the same way (`f4x-newgame/src/computer_wizard.rs`).
 
 `wizard/mod.rs` holds the pick rules and `Game::create_wizard`; `crates/f4x-def/content/wizards.ron` lists the
 ready-made wizards' books and retorts (game rules, committed); their names are in `crates/f4x-lang/content/text/en/name/wizard.ron` and their help text is the topic named by `help` in

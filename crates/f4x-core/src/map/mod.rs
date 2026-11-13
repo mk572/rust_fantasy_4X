@@ -2,7 +2,6 @@
 
 pub mod corruption;
 pub mod fog;
-pub mod mapgen;
 pub mod road;
 pub mod survey;
 pub mod terrain;

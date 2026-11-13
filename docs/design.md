@@ -21,6 +21,7 @@ Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer),
 ```
 crates/f4x-core/    simulation (reads the definitions of f4x-def), no I/O but save files, no rendering
 crates/f4x-def/     the static definitions, their loaders and cross-reference validation (RON)
+crates/f4x-newgame/ making a new game: map generator, placement of nodes, lairs and neutral cities, the wizards and their start (reads and writes a `Game` through f4x-core's public API)
 crates/f4x-ai/      AI players, depends on f4x-core only (empty so far)
 crates/f4x-console/ the text console: every action as a line of text (`console.md`)
 crates/f4x-client/  rendering, input, UI (macroquad)

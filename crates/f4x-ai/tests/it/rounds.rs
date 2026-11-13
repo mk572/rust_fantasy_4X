@@ -1,9 +1,9 @@
 //! The AIs under the master: sequential turns, one round counter step per round.
 
 use f4x_ai::{play_round, Ai};
-use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::Event;
 use f4x_core::player::PlayerId;
+use f4x_newgame::setup::{new_game, NewGame};
 
 #[test]
 fn rounds_with_two_ais_advance_the_round_counter_once_each() {

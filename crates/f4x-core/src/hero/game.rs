@@ -178,13 +178,21 @@ impl Game {
             .sum()
     }
 
-    /// Roll the game's heroes (`Init_Heroes`) and make their entities. Called once when a game is
-    /// made, after everything else is placed, so the map and the starting cities of a seed stay
-    /// as they were.
-    pub(crate) fn init_heroes(&mut self) {
-        for hero in kind::roll(&mut self.rng, &self.content.rules, &self.names) {
-            self.make_hero(hero, HeroState::Free, 0);
-        }
+    /// Roll one hero of the template numbered `kind` (`Init_Heroes` for one hero type, see
+    /// [`kind::roll_one`]) and make its entity, in nobody's service. `None` when there is no such
+    /// template. A new game makes one of each (`f4x_newgame::setup`), after everything else is
+    /// placed, so the map and the starting cities of a seed stay as they were; a test makes the
+    /// ones it needs.
+    pub fn add_hero(&mut self, kind: usize) -> Option<hecs::Entity> {
+        let template = self.content.rules.hero_templates.get(kind)?;
+        let hero = kind::roll_one(
+            &mut self.rng,
+            &self.content.rules,
+            &self.names,
+            kind,
+            template,
+        );
+        Some(self.make_hero(hero, HeroState::Free, 0))
     }
 
     /// A new hero entity, in nobody's service.
@@ -388,7 +396,9 @@ pub(crate) mod tests {
         g.add_player(P0, "A");
         g.add_player(P1, "B");
         g.add_neutral_player(PlayerId(9));
-        g.init_heroes();
+        for kind in 0..g.content.rules.hero_templates.len() {
+            g.add_hero(kind);
+        }
         g
     }
 

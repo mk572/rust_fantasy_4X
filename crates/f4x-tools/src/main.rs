@@ -19,11 +19,11 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use f4x_core::map::mapgen::{generate, GenParams};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Plane;
 use f4x_def::content::Content;
 use f4x_def::feature::FeatureKind;
+use f4x_newgame::mapgen::{generate, GenParams};
 
 const USAGE: &str = "usage:
   f4x-tools validate [content-dir]            check content files (default: content)
@@ -138,7 +138,7 @@ fn mapgen(args: &[String]) -> Result<(), String> {
 }
 
 /// Counts of one generated map, summed over both planes.
-fn map_counts(c: &Content, g: &f4x_core::map::mapgen::Generated) -> BTreeMap<String, f64> {
+fn map_counts(c: &Content, g: &f4x_newgame::mapgen::Generated) -> BTreeMap<String, f64> {
     let mut n: BTreeMap<String, f64> = BTreeMap::new();
     let mut add = |k: String, v: f64| *n.entry(k).or_default() += v;
     for plane in Plane::all() {
@@ -251,7 +251,7 @@ fn mapgen_stats(args: &[String]) -> Result<(), String> {
 /// New games with `original_map_generator` off and on: the neutral cities each plane gets (the
 /// original's target is 15) and how far apart the wizards' fortresses stand.
 fn start_stats(args: &[String]) -> Result<(), String> {
-    use f4x_core::game::setup::{new_game, NewGame};
+    use f4x_newgame::setup::{new_game, NewGame};
     let runs: u64 = match args.first() {
         Some(s) => s
             .parse()

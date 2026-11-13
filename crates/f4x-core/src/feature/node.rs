@@ -6,16 +6,11 @@
 //! `strength` is the game's node setting: 0 weak, 1 normal, 2 powerful.
 
 use crate::rules::{Ability, RealmId};
-use rand::{Rng, SeedableRng};
-use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
 
-use crate::feature::def::FeatureKind;
 use crate::feature::entity::NodeInfo;
-use crate::feature::place::Placed;
-use crate::map::{Map, Plane, Position};
+use crate::map::Position;
 use crate::player::PlayerId;
-use f4x_def::content::Content;
 
 use crate::game::{Event, Game};
 
@@ -65,88 +60,6 @@ impl MeldError {
             Self::AlreadyGuarded => "refuse_map.meld_error_already_guarded",
         }
     }
-}
-
-/// Squares of a node's aura: its own tile, then up to eight of the squares around it, then
-/// the rest from the ring two squares out; fewer if the map edge leaves no room.
-fn make_aura(
-    rng: &mut Pcg64Mcg,
-    map: &Map,
-    plane: Plane,
-    x: u32,
-    y: u32,
-    power: u8,
-) -> Vec<(u32, u32)> {
-    let (w, h) = (map.width() as i32, map.height() as i32);
-    let mut aura = vec![(x, y)];
-    for radius in [1i32, 2] {
-        let mut ring: Vec<(u32, u32)> = Vec::new();
-        for dy in -radius..=radius {
-            for dx in -radius..=radius {
-                if dx.abs().max(dy.abs()) != radius {
-                    continue;
-                }
-                let ny = y as i32 + dy;
-                if !(0..h).contains(&ny) {
-                    continue;
-                }
-                ring.push(((x as i32 + dx).rem_euclid(w) as u32, ny as u32));
-            }
-        }
-        while aura.len() < usize::from(power) && !ring.is_empty() {
-            let i = rng.gen_range(0..ring.len());
-            aura.push(ring.swap_remove(i));
-        }
-    }
-    let _ = plane;
-    aura
-}
-
-/// Make the `Node` of every node feature on the map, each with the square it stands on.
-pub fn generate_nodes(
-    seed: u64,
-    map: &Map,
-    placed: &Placed,
-    content: &Content,
-) -> Vec<(Position, Node)> {
-    let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x4E4F_4445_535F_5057);
-    let mut nodes = Vec::new();
-    for plane in Plane::all() {
-        let mut found = Vec::new();
-        for y in 0..map.height() {
-            for x in 0..map.width() {
-                let Some(def) = placed
-                    .get(plane, x as i32, y as i32)
-                    .and_then(|f| content.features.get(f))
-                else {
-                    continue;
-                };
-                if def.kind == FeatureKind::Node {
-                    if let Some(realm) = def.realm {
-                        found.push((x, y, realm));
-                    }
-                }
-            }
-        }
-        for (x, y, realm) in found {
-            let power: u8 = match plane {
-                Plane::Arcanus => 5 + rng.gen_range(0..6),
-                Plane::Myrror => 10 + rng.gen_range(0..11),
-            };
-            let aura = make_aura(&mut rng, map, plane, x, y, power);
-            nodes.push((
-                Position { plane, x, y },
-                Node {
-                    realm,
-                    power,
-                    aura,
-                    guardian: false,
-                    warped: false,
-                },
-            ));
-        }
-    }
-    nodes
 }
 
 impl Game {
@@ -264,10 +177,9 @@ impl Game {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::feature::place::Placed;
     use crate::game::testutil::{num, shipped};
     use crate::game::Command;
-    use crate::map::Grid;
+    use crate::map::{Grid, Map, Plane};
     use crate::wizard::magic::Retort;
     use f4x_def::testdir::TestResult;
 
@@ -297,7 +209,7 @@ pub(crate) mod tests {
         let mut g = Game::new(seed);
         g.content = c;
         g.map = Some(map);
-        g.put_node(at(6, 6), num::feature::SORCERY_NODE, 1);
+        g.put_node(at(6, 6), num::feature::SORCERY_NODE);
         for id in [P0, P1] {
             g.add_player(id, "W");
             g.treasury_mut(id).expect("treasury_mut succeeds").mana =
@@ -351,40 +263,6 @@ pub(crate) mod tests {
         assert_eq!(n.owner, None);
         assert_eq!(g.economy().node_covering(at(6, 6)), Some(n.clone()));
         assert_eq!(g.economy().node_covering(at(20, 2)), None);
-    }
-
-    #[test]
-    fn generation_is_deterministic_and_myrror_nodes_are_stronger() -> TestResult {
-        let c = shipped();
-        let grass = c
-            .terrains
-            .id_numbered(num::terrain::GRASSLAND)
-            .ok_or("grassland is not in the content")?;
-        let node = c
-            .features
-            .id_numbered(num::feature::SORCERY_NODE)
-            .ok_or("sorcery_node is not in the content")?;
-        let build = || {
-            let map = Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass));
-            let mut placed = Placed::new(30, 20);
-            for p in Plane::all() {
-                placed.set(p, 10, 10, node);
-            }
-            generate_nodes(5, &map, &placed, &c)
-        };
-        assert_eq!(build(), build());
-        let nodes = build();
-        let power = |plane| {
-            nodes
-                .iter()
-                .find(|(p, _)| p.plane == plane)
-                .expect("value succeeds")
-                .1
-                .power
-        };
-        assert!((5..=10).contains(&power(Plane::Arcanus)));
-        assert!((10..=20).contains(&power(Plane::Myrror)));
-        Ok(())
     }
 
     #[test]

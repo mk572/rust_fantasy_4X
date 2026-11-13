@@ -11,19 +11,14 @@
 //!
 //! Tests: in feature/lair/tests.rs.
 
-use rand::{Rng, SeedableRng};
-use rand_pcg::Pcg64Mcg;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::feature::def::FeatureKind;
 use crate::feature::entity::LairInfo;
-use crate::feature::node::Node;
-use crate::feature::place::Placed;
 use crate::item::make::{make_item, Grade};
-use crate::map::mapgen::GenParams;
-use crate::map::{Map, Plane, Position};
+use crate::map::Position;
 use crate::player::{PlayerId, MONSTERS};
-use crate::rules::lair::{HoardKind, LairRules};
 use f4x_def::content::Content;
 
 use crate::rules::{Rarity, RealmId, SpellId, Stat, UnitId, UnitKind};
@@ -32,57 +27,9 @@ use crate::unit::movement::MoveError;
 use crate::game::{Event, Game};
 use crate::wizard::{all_retorts, retort_available, retort_cost};
 
-/// What kind of site a lair guards, for choosing its guards' realm.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SiteType {
-    Tower,
-    Node(RealmId),
-    /// Temples and ruins draw on death and life.
-    Holy,
-    /// Caves, lairs, dungeons and keeps draw on death, chaos and nature.
-    Wild,
-}
-
-fn site_type(def: &crate::feature::def::FeatureDef) -> SiteType {
-    match def.kind {
-        FeatureKind::Tower => SiteType::Tower,
-        FeatureKind::Node => def.realm.map_or(SiteType::Wild, SiteType::Node),
-        _ if def.holy => SiteType::Holy,
-        _ => SiteType::Wild,
-    }
-}
-
-/// `Random(n)` of the original: `1..=n`.
-fn random(rng: &mut Pcg64Mcg, n: i32) -> i32 {
-    rng.gen_range(1..=n.max(1))
-}
-
-/// The realm of a site's guards.
-fn guard_realm(rng: &mut Pcg64Mcg, site: SiteType, content: &Content) -> Option<RealmId> {
-    let rules = &content.rules.lairs;
-    let realms = &content.rules.realms;
-    let table = |rng: &mut Pcg64Mcg, weights| {
-        LairRules::realm_for(
-            weights,
-            random(rng, LairRules::total(weights) as i32) as u32,
-        )
-    };
-    let num = match site {
-        SiteType::Node(realm) => Some(realm.num())
-            .filter(|n| rules.node_own_realms.contains(n))
-            .unwrap_or(rules.node_other),
-        SiteType::Tower => table(rng, &rules.tower_realms),
-        SiteType::Holy => table(rng, &rules.holy_realms),
-        // The original's switch falls through to nature in every case; the intended split
-        // (ReMoM marks it a bug) is two parts death, two chaos, one nature.
-        SiteType::Wild => table(rng, &rules.wild_realms),
-    };
-    realms.id_numbered(num)
-}
-
 /// Units that can guard a site of `realm`: summoned creatures of that realm that are not
 /// transports, with their costs, in the data's order.
-pub(crate) fn candidates(content: &Content, realm: RealmId) -> Vec<(UnitId, i32)> {
+pub fn candidates(content: &Content, realm: RealmId) -> Vec<(UnitId, i32)> {
     content
         .rules
         .units
@@ -95,172 +42,6 @@ pub(crate) fn candidates(content: &Content, realm: RealmId) -> Vec<(UnitId, i32)
         })
         .map(|d| (UnitId::new(d.num), d.cost as i32))
         .collect()
-}
-
-/// The dearest candidate costing less than `limit` (the first of equals), skipping `not`.
-fn dearest_under(
-    list: &[(UnitId, i32)],
-    limit: i32,
-    not: Option<UnitId>,
-) -> Option<&(UnitId, i32)> {
-    let mut best: Option<&(UnitId, i32)> = None;
-    for c in list {
-        if not == Some(c.0) {
-            continue;
-        }
-        if c.1 > best.map_or(0, |b| b.1) && c.1 < limit {
-            best = Some(c);
-        }
-    }
-    best
-}
-
-/// Choose the guards a budget buys: a first kind from a random share of the budget, then
-/// a second kind from what is left, nine units at most. Returns the guards and their value.
-fn pick_guards(
-    rng: &mut Pcg64Mcg,
-    rules: &LairRules,
-    list: &[(UnitId, i32)],
-    mut budget: i32,
-) -> (Vec<(UnitId, u32)>, i32, i32) {
-    let mut guards: Vec<(UnitId, u32)> = Vec::new();
-    let draw = |rng: &mut Pcg64Mcg, budget: i32, spread: i32, not: Option<UnitId>| {
-        for _ in 0..200 {
-            let limit = budget / random(rng, spread);
-            if let Some(c) = dearest_under(list, limit, not) {
-                return Some(*c);
-            }
-        }
-        None
-    };
-    let mut first_value = 0;
-    let mut second_value = 0;
-    let mut first_count = 0;
-    if let Some((id, cost)) = draw(rng, budget, rules.first_spread, None) {
-        let mut count = budget / cost;
-        if count > 1 && random(rng, 2) == 1 {
-            count -= 1;
-        }
-        count = count.min(rules.max_first_guards);
-        budget -= cost * count;
-        first_count = count;
-        first_value = cost * count;
-        guards.push((id, count as u32));
-    }
-    if first_count > 0 {
-        let first_id = guards[0].0;
-        if let Some((id, cost)) = draw(
-            rng,
-            budget,
-            rules.second_spread - first_count,
-            Some(first_id),
-        ) {
-            let count = (budget / cost).min(rules.max_guards as i32 - first_count);
-            if count > 0 {
-                second_value = cost * count;
-                guards.push((id, count as u32));
-            }
-        }
-    }
-    (guards, first_value, second_value)
-}
-
-/// Fill a lair's hoard from its guards' value (`Create_Lair` after the guards are chosen).
-#[allow(clippy::too_many_arguments)]
-fn fill_hoard(
-    rng: &mut Pcg64Mcg,
-    rules: &LairRules,
-    lair: &mut Lair,
-    site: SiteType,
-    plane: Plane,
-    guard_value: i32,
-    second_value: i32,
-    treasure_percent: i32,
-) {
-    let mut loot = guard_value + second_value * rules.second_share / 100;
-    loot = loot * treasure_percent / 100;
-    let plane_loot = rules.plane_loot[plane.index()];
-    loot = loot * (plane_loot.base + random(rng, plane_loot.rolls)) / 100;
-    loot = loot.max(rules.min_loot);
-    let mut special = 0i32;
-    if site == SiteType::Tower {
-        // A tower always holds a spell, and pays for it out of the rest.
-        let rarity = random(rng, rules.spell_rarities);
-        loot -= rarity * rarity * rules.spell_cost - rules.tower_spell_refund;
-        special = rarity;
-    }
-    let total: i32 = rules.hoard.iter().map(|(_, w)| *w as i32).sum();
-    let coin = |rng: &mut Pcg64Mcg, loot: i32| {
-        (random(rng, rules.coin_rolls) * rules.coin_step).min(loot) / 10 * 10
-    };
-    let mut guard = 0;
-    while loot >= rules.min_loot && guard < 2000 {
-        guard += 1;
-        let mut slot = random(rng, total);
-        let kind = rules
-            .hoard
-            .iter()
-            .find(|(_, w)| {
-                slot -= *w as i32;
-                slot <= 0
-            })
-            .map(|(k, _)| *k);
-        match kind {
-            Some(HoardKind::Gold) => {
-                let price = coin(rng, loot);
-                loot -= rules.coin_cost;
-                lair.gold += price as u32;
-            }
-            Some(HoardKind::Mana) => {
-                let price = coin(rng, loot);
-                loot -= rules.coin_cost;
-                lair.mana += price as u32;
-            }
-            Some(HoardKind::Item) => {
-                if lair.items.len() < rules.max_items && loot >= rules.item_min {
-                    let price = (rules.item_base + random(rng, rules.item_rolls) * rules.item_step)
-                        .min(loot)
-                        / 10
-                        * 10;
-                    loot -= price;
-                    lair.items.push(price as u32);
-                }
-            }
-            Some(HoardKind::Prisoner) => {
-                if loot >= rules.prisoner_min && !lair.prisoner {
-                    lair.prisoner = true;
-                    loot -= rules.prisoner_cost;
-                }
-            }
-            Some(HoardKind::Spell) => {
-                let rarity = random(rng, rules.spell_rarities);
-                if rarity * rarity * rules.spell_cost <= loot && special < rules.spell_total {
-                    loot -= rarity * rarity * rules.spell_cost;
-                    special = (special + rarity).min(rules.spell_total);
-                }
-            }
-            Some(HoardKind::Special) => {
-                // A spell book or retort: two picks' worth when the budget allows.
-                if random(rng, rules.double_chance) == 1 && loot >= rules.special_double_min
-                    || loot >= rules.special_double_sure
-                {
-                    special = 6;
-                    loot -= rules.special_cost;
-                } else if loot >= rules.special_min {
-                    special = 5;
-                    loot -= rules.special_cost;
-                }
-            }
-            None => {}
-        }
-    }
-    if special > rules.spell_total {
-        lair.gold = 0;
-        lair.mana = 0;
-        lair.items.clear();
-        lair.prisoner = false;
-    }
-    lair.special = special as u8;
 }
 
 /// What the loot a winner cannot use turns into: the hoard's own table over `value`, without
@@ -301,45 +82,6 @@ pub(crate) fn reroll_hoard(rng: &mut impl Rng, value: i32, items: usize) -> (u32
     (gold, mana, made)
 }
 
-/// Make one lair from its budget (the original's `Create_Lair`).
-#[allow(clippy::too_many_arguments)]
-fn make_lair(
-    rng: &mut Pcg64Mcg,
-    content: &Content,
-    plane: Plane,
-    site: SiteType,
-    budget: i32,
-    guard_percent: i32,
-    treasure_percent: i32,
-) -> Lair {
-    let rules = &content.rules.lairs;
-    let budget = budget * guard_percent / 100;
-    let list =
-        guard_realm(rng, site, content).map_or_else(Vec::new, |realm| candidates(content, realm));
-    let (guards, first, second) = pick_guards(rng, rules, &list, budget);
-    let mut lair = Lair {
-        intact: true,
-        guards,
-        gold: 0,
-        mana: 0,
-        items: Vec::new(),
-        prisoner: false,
-        special: 0,
-        fought_by: Vec::new(),
-    };
-    fill_hoard(
-        rng,
-        rules,
-        &mut lair,
-        site,
-        plane,
-        first,
-        second,
-        treasure_percent,
-    );
-    lair
-}
-
 /// What a guarded site holds: its guards and its treasure. Towers, magic nodes and the
 /// encounter sites each have one (the original's "lair" table), a component of their entity.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -360,129 +102,6 @@ pub struct Lair {
     /// The players who have fought for this site once: they know what guards it.
     #[serde(default)]
     pub fought_by: Vec<PlayerId>,
-}
-
-/// Give every tower, node and encounter site on the map its guards and treasure, each with the
-/// square it is on. A tower is one site, on its Arcanus square.
-pub fn generate_lairs(
-    seed: u64,
-    params: &GenParams,
-    map: &Map,
-    placed: &Placed,
-    nodes: &[(Position, Node)],
-    content: &Content,
-) -> Vec<(Position, Lair)> {
-    let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x1A12_5EED_600D_5CA1);
-    let guards = i32::from(params.lair_guard_percent.min(300));
-    let treasure = i32::from(params.lair_treasure_percent.min(500));
-    let magic = i32::from(params.magic_strength.min(2));
-    let mut lairs: Vec<(Position, Lair)> = Vec::new();
-    // Towers stand on both planes and share one set of guards and treasure.
-    let mut seen_towers: Vec<(u32, u32)> = Vec::new();
-    for plane in Plane::all() {
-        for y in 0..map.height() {
-            for x in 0..map.width() {
-                let Some(def) = placed
-                    .get(plane, x as i32, y as i32)
-                    .and_then(|f| content.features.get(f))
-                else {
-                    continue;
-                };
-                if def.kind != FeatureKind::Tower || seen_towers.contains(&(x, y)) {
-                    continue;
-                }
-                seen_towers.push((x, y));
-                let budget = content.rules.lairs.tower_budget.base
-                    + content.rules.lairs.tower_budget.step
-                        * random(&mut rng, content.rules.lairs.tower_budget.rolls);
-                let lair = make_lair(
-                    &mut rng,
-                    content,
-                    Plane::Arcanus,
-                    SiteType::Tower,
-                    budget,
-                    guards,
-                    treasure,
-                );
-                lairs.push((
-                    Position {
-                        plane: Plane::Arcanus,
-                        x,
-                        y,
-                    },
-                    lair,
-                ));
-            }
-        }
-    }
-    for (pos, node) in nodes {
-        let power = i32::from(node.power);
-        let rules = &content.rules.lairs;
-        let budget =
-            (power * power * (rules.node_base + random(&mut rng, rules.node_rolls)) * (magic + 1)
-                / 2)
-            .min(rules.node_cap);
-        let lair = make_lair(
-            &mut rng,
-            content,
-            pos.plane,
-            SiteType::Node(node.realm),
-            budget,
-            guards,
-            treasure,
-        );
-        lairs.push((*pos, lair));
-    }
-    // The random sites, in map order; exactly `strong_sites` of them (picked at random) are the
-    // strong ones, the rest weak.
-    let mut sites = Vec::new();
-    for plane in Plane::all() {
-        for y in 0..map.height() {
-            for x in 0..map.width() {
-                let Some(def) = placed
-                    .get(plane, x as i32, y as i32)
-                    .and_then(|f| content.features.get(f))
-                else {
-                    continue;
-                };
-                if def.kind == FeatureKind::Encounter {
-                    sites.push((plane, x, y, def));
-                }
-            }
-        }
-    }
-    let mut order: Vec<usize> = (0..sites.len()).collect();
-    for i in (1..order.len()).rev() {
-        order.swap(i, rng.gen_range(0..=i));
-    }
-    let strong_count = (params.strong_sites as usize).min(sites.len());
-    let strong: Vec<bool> = {
-        let mut flags = vec![false; sites.len()];
-        for &i in &order[..strong_count] {
-            flags[i] = true;
-        }
-        flags
-    };
-    for (i, &(plane, x, y, def)) in sites.iter().enumerate() {
-        let rules = &content.rules.lairs;
-        let roll = if strong[i] {
-            rules.strong_budget[plane.index()]
-        } else {
-            rules.weak_budget[plane.index()]
-        };
-        let budget = roll.base + random(&mut rng, roll.rolls) * roll.step;
-        let lair = make_lair(
-            &mut rng,
-            content,
-            plane,
-            site_type(def),
-            budget,
-            guards,
-            treasure,
-        );
-        lairs.push((Position { plane, x, y }, lair));
-    }
-    lairs
 }
 
 impl Lair {

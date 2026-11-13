@@ -222,8 +222,7 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
-    use crate::game::setup::{new_game, NewGame};
-    use crate::game::testutil::shipped;
+    use crate::game::testutil::fresh;
     use crate::map::Position;
     use f4x_def::testdir::TestResult;
 
@@ -234,16 +233,8 @@ mod tests {
     /// target goes over every square any walk reaches.
     #[test]
     fn the_searches_match_the_movement_rule_on_real_maps() -> TestResult {
-        let content = shipped();
-        for seed in [3u64, 11, 25] {
-            let game = new_game(
-                &content,
-                &NewGame {
-                    seed,
-                    all_ai: true,
-                    ..NewGame::with_wizards(3)
-                },
-            )?;
+        for seed in [3u64, 7, 11] {
+            let game = fresh(3, seed)?;
             let (w, h) = {
                 let map = game.map.as_ref().ok_or("no map")?;
                 (map.width(), map.height())

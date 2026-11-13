@@ -9,13 +9,13 @@
 //! and the erasure dice that clear retorts clear them all (the original's loop has an index bug
 //! that clears one slot).
 //!
-//! Tests: in wizard/ai/tests.rs.
+//! Tests: in computer_wizard/tests.rs.
 
-use crate::game::setting::GameSettings;
-use crate::game::Game;
-use crate::rules::{RealmId, Rules};
-use crate::wizard::magic::Retort;
-use crate::wizard::{
+use f4x_core::game::setting::GameSettings;
+use f4x_core::game::Game;
+use f4x_core::rules::{RealmId, Rules};
+use f4x_core::wizard::magic::Retort;
+use f4x_core::wizard::{
     all_retorts, preset_build_of, retort_available, retort_cost, WizardBuild, MAX_BOOKS,
     MAX_RETORTS,
 };
@@ -110,7 +110,7 @@ pub(crate) fn balance_planes(
         }
         builds[k].books.retain(|_, n| *n > 0);
         builds[k].retorts.insert(Retort::new(9) /* myrran */);
-        drop_unavailable(&game.content.rules, &mut builds[k]);
+        drop_unavailable(&game.content().rules, &mut builds[k]);
     }
     while count(builds) > most {
         let myrrans: Vec<usize> = (0..builds.len()).filter(|&k| myrran(&builds[k])).collect();
@@ -129,7 +129,7 @@ pub(crate) fn balance_planes(
 /// same changes.
 pub(crate) fn make(
     game: &mut Game,
-    presets: &[crate::rules::WizardDef],
+    presets: &[f4x_core::rules::WizardDef],
     settings: &GameSettings,
     taken: &mut Vec<u16>,
     count: usize,
@@ -191,7 +191,7 @@ pub(crate) fn make(
                 b.books.insert(to, sum);
                 b.books.remove(&from);
             }
-            drop_unavailable(&game.content.rules, b);
+            drop_unavailable(&game.content().rules, b);
         }
     }
 
@@ -213,7 +213,7 @@ pub(crate) fn make(
                     b.retorts.clear();
                 }
             }
-            drop_unavailable(&game.content.rules, b);
+            drop_unavailable(&game.content().rules, b);
         }
     }
 
@@ -232,7 +232,7 @@ pub(crate) fn make(
 /// eight add a retort.
 fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8) {
     for _ in 0..500 {
-        let used = picks_used(&game.content.rules, b);
+        let used = picks_used(&game.content().rules, b);
         if used >= picks {
             return;
         }
@@ -272,8 +272,8 @@ fn add_books(b: &mut WizardBuild, realm: RealmId, value: u8, opposed: Option<Rea
 }
 
 fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
-    let used = picks_used(&game.content.rules, b);
-    let all: Vec<Retort> = all_retorts(&game.content.rules).collect();
+    let used = picks_used(&game.content().rules, b);
+    let all: Vec<Retort> = all_retorts(&game.content().rules).collect();
     let r = all[game.roll(all.len() as u32) as usize - 1];
     if b.retorts.len() >= MAX_RETORTS || r == Retort::new(9)
     /* myrran */
@@ -287,7 +287,7 @@ fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
         Retort::new(6), /* divine_power */
         Retort::new(5), /* infernal_power */
     ];
-    let two_pick = retort_cost(&game.content.rules, r) == 2;
+    let two_pick = retort_cost(&game.content().rules, r) == 2;
     let retort = match r {
         // A realm mastery (or Divine or Infernal Power): of a realm picked by its books, among
         // those the wizard does not yet hold the mastery of, the two powers only with picks to
@@ -350,8 +350,9 @@ fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
         }
         other => other,
     };
-    if retort_available(&game.content.rules, retort, &b.books)
-        && u16::from(used) + u16::from(retort_cost(&game.content.rules, retort)) <= u16::from(picks)
+    if retort_available(&game.content().rules, retort, &b.books)
+        && u16::from(used) + u16::from(retort_cost(&game.content().rules, retort))
+            <= u16::from(picks)
     {
         b.retorts.insert(retort);
     }

@@ -2,4 +2,4 @@
 //!
 //! Tests: none, because it only re-exports the core setup, whose tests are in the core crate.
 
-pub use f4x_core::game::setup::*;
+pub use f4x_newgame::setup::*;

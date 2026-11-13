@@ -197,3 +197,14 @@ from one loop that kept ordering units into a full tower square. `Ai::send` now 
 `SendError::Stopped`, and a caller that sends several units to one square stops at the first
 refusal for want of room. When a soak counts refused orders, look at the sources first: one site
 was two thirds of them.
+
+## A crate above core cannot be used by core's unit tests (task 458)
+
+`f4x-newgame` builds a `Game` and so sits above `f4x-core`. A unit test inside core cannot depend on it,
+not even as a dev-dependency: the test build of core and the one core that newgame links are two
+copies of every type. The tests of core that need a whole new game (a real map, wizards, cities) load
+a saved one instead (`game::testutil::fresh`, `crates/f4x-core/tests/saves/fresh_w*_s*.save`), and the test
+`fixtures` in `f4x-newgame` fails when a file no longer equals what `new_game` makes. When the setup or the
+generator changes on purpose, refresh the files (the command is in the failure message) and look at the
+core tests that depend on a seed's map. To check a move of the setup code, rebuild the regression saves
+(`F4X_REFRESH_REGRESSION=saves`) and see that `git status tests/regression` stays empty: the games are the same.

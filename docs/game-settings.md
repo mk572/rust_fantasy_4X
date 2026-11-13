@@ -103,16 +103,16 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | basic | `difficulty` | 0..=4 (Intro to Impossible) | 2 | `Game::difficulty` |
 | basic | `opponents` | 1..=9 | 1 in the client | `NewGame` wizard count |
 | basic | `land_percent` | preset 15 / 20 / 30, free 10..=60 | 30 | `GenParams::land_percent` |
-| basic | `original_map_generator` | bool | off | `GenParams::original_generator`: the land from the original's random walks (`map/mapgen/original.rs`) and its fortress sites (`game/setup/original.rs`) instead of the noise-based land. `land_percent` is the land without the polar caps in both |
+| basic | `original_map_generator` | bool | off | `GenParams::original_generator`: the land from the original's random walks (`f4x-newgame/src/mapgen/original.rs`) and its fortress sites (`game/setup/original.rs`) instead of the noise-based land. `land_percent` is the land without the polar caps in both |
 | content | `half_upkeep` (`enabled`, `units`) | bool, unit ids without the race (`spearmen`) | off (30 October 2026: the AI learns on the original's rules), Spearmen and Swordsmen when on | `UnitView::pays_upkeep` (unit/mod.rs): the basic troops cost half the food and gold (about every second one, by serial number, is free); not saved with the game, it is read from the content |
 | basic | `magic_strength` | 0..=2 (Weak, Normal, Powerful) | 1 | `Game::magic_strength` |
 | wizards | `picks` | `Split`, 5..=20 | 11 / 11 | `wizard::PICKS` |
 | wizards | `max_books_per_realm` | 3..=11 | 11 | `wizard::MAX_BOOKS` |
 | wizards | `starting_gold` | `Split`, 0..=2000 | 75 / 150 | `Player::new` (`gold: 100`) |
 | wizards | `starting_mana` | `Split`, 0..=2000 | 0 / 0 | `Player::new` (`mana: 0`) |
-| wizards | `starting_units` | `Split<Vec<StartUnit>>`, at most 12 entries, 20 units | Spearmen, Swordsmen | `game/setup.rs::start_player` |
+| wizards | `starting_units` | `Split<Vec<StartUnit>>`, at most 12 entries, 20 units | Spearmen, Swordsmen | `f4x-newgame/src/setup.rs::start_player` |
 | ai | `apply_to_human` | bool | off | not built (a custom setting: the human gets the same multipliers) |
-| ai | `randomise_wizards` and the AI wizard rules | see 4.8 | original | `game/setup.rs` |
+| ai | `randomise_wizards` and the AI wizard rules | see 4.8 | original | `f4x-newgame/src/setup.rs` |
 | ai | `growth_percent` | 100..=800 | 150 | not built (original table) |
 | ai | `outpost_growth_percent` | 100..=800 | 150 | not built |
 | ai | `production_percent` | 100..=800 | 150 | not built |
@@ -133,7 +133,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | world | `heroes_enabled` | bool | on | heroes are not built yet (tasks 218, 219); read when they are |
 | world | `lair_guard_percent` | 0..=300 | from preset | `feature/lair.rs`: `budget * (d + 1) / 4` |
 | world | `lair_treasure_percent` | 0..=500 | from preset | `feature/lair.rs`: `loot * 4 / (d + 1)` |
-| world | `neutral_city_size_bonus` | -2..=6 | from preset | `city/neutral.rs`: `(d + 1) / 3` terms |
+| world | `neutral_city_size_bonus` | -2..=6 | from preset | `f4x-newgame/src/neutral.rs`, `city/neutral.rs`: `(d + 1) / 3` terms |
 | world | `raider_percent` | 0..=300 | from preset | `threat/raider.rs` (task 376): the party is `troops * raider_percent / 100`, `troops * d / 6` in the original |
 | rules | `max_tile` | `usize`, 9..=20 | 12 (v1.31; the original's is 9, see `divergences.md` 4) | units on one square (`Game::max_tile()`, `Economy::max_tile`; task 34, done 30 October 2026); `unit::MAX_TILE_LIMIT` is only its ceiling and default. No screen yet. A unit the human gains on a full square (a summoning, a hire, a finished unit) is let in and the square is over the limit until the player moves or disbands a unit (`unit/crowding.rs`, `f4x-client/src/crowd_prompt.rs`; the turn cannot end before); the computer wizards keep below the limit instead (`f4x-ai/src/garrison.rs`) |
 | rules | `max_stack` | an army and a battle side, now fixed at nine | 9 | `unit::MAX_STACK` (still a constant: lowering it is stage 3) |
@@ -143,7 +143,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | rules | `settlers_cost_citizen` | bool | on | `city/production.rs`: on (the original), a city needs two citizens to build Settlers (`ProductionError::TooSmall`) and loses one when they are done; off, Settlers cost production only. Renamed on 30 October 2026 from `settlers_free` (inverted: on now means the cost applies) |
 | rules | `walls_cover_city` | bool | off (on in v1.6) | `battle/mod.rs` `city_defense_bonus`: off (the original), a unit hit from outside the city area has +3 defence on a standing wall section and +1 elsewhere in a walled city; on (patch 1.40, IW082), +3 anywhere inside the walls |
 | rules | `suppress_spares_return` | bool | off (on in v1.6) | `spell/dispel.rs` `suppressed_by`: off (the original), an enemy's Suppress Magic can counter the Spell of Return like any spell; on (patch 1.40, IW114), it never does |
-| rules | `limit_ai_races` | bool | on (v1.31 and v1.6) | `game/setup.rs` race pick: on (the original, `Generate_Home_Cities`), above Normal difficulty an Arcanus computer wizard is Halfling, High Elf, High Men, Klackon or Nomad; off, any Arcanus race. Myrror and the human are never limited; independent cities are not affected (task 379) |
+| rules | `limit_ai_races` | bool | on (v1.31 and v1.6) | `f4x-newgame/src/setup.rs` race pick: on (the original, `Generate_Home_Cities`), above Normal difficulty an Arcanus computer wizard is Halfling, High Elf, High Men, Klackon or Nomad; off, any Arcanus race. Myrror and the human are never limited; independent cities are not affected (task 379) |
 | rules | `melee_vs_fliers` | `zero` / `half` / `full` | zero | `battle/mod.rs` `Battle::fighter`: a unit that does not fly deals no melee damage to a flier (`zero`, the original), half strength rounded up (`half`, a planned mod, what the game did before) or its full strength (`full`, the rule is off); the flier hits back in full, thrown and breath attacks are unchanged. The battle AI's `expected_damage` follows it |
 | victory | `spell_of_mastery` | on / off | on | always on |
 | victory | `spell_of_return` | `Off` / `HumanOnly` / `All` | `All` | always all |
@@ -305,7 +305,7 @@ Today the values travel in separate places: `setup::NewGame` (difficulty, magic,
 
 ### 4.2 Starting units and other start values
 
-Today `game/setup.rs::start_player` gives each wizard a capital of four citizens (three farming), the
+Today `f4x-newgame/src/setup.rs::start_player` gives each wizard a capital of four citizens (three farming), the
 race's spearmen and swordsmen (two swordsmen for a race without spearmen), and three buildings.
 The unit list becomes a setting, **split human and AI** like gold:
 
@@ -482,7 +482,7 @@ with the `rules.safe_flee` setting. A Web holds the unit only while it has hit p
 left (`docs/combat.md` section 8); a broken one no longer does.
 
 Only one place in the code reads `difficulty` outside the generator today (neutral city size,
-`city/neutral.rs`). The `ai` group is new code: city calculation (`city/mod.rs`, `city/economy.rs`,
+`f4x-newgame/src/neutral.rs`, `city/neutral.rs`). The `ai` group is new code: city calculation (`city/mod.rs`, `city/economy.rs`,
 `player/finance.rs`) multiplies the city's figures by the owner's percent when the owner is not the human.
 All of these are applied **at the end of the calculation**, as the original does, so the figures the
 city screen shows for an AI city are the multiplied ones and nothing else needs to know.
@@ -544,7 +544,7 @@ pub struct AiWizardSettings {
 today's behaviour. Everything uses the game's seeded generator, so the soak stays reproducible.
 Races are chosen later, in the start: the original limits AI races above Normal
 to five of the nine; ours has no limit, and task 379 adds lists of banned races per level (empty by default). Whether a preset wizard keeps its fixed race
-or portrait is already handled in `game/setup.rs`; this list does not change it.
+or portrait is already handled in `f4x-newgame/src/setup.rs`; this list does not change it.
 
 ### 4.9 No Myrror (stage 4)
 

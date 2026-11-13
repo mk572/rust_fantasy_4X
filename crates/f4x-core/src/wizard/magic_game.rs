@@ -38,56 +38,6 @@ impl Game {
         Ok(())
     }
 
-    /// A computer wizard also knows one spell of its main realm, the realm with most books (the
-    /// first in the realms' order on a tie), from `spell_library.ai_main_realm_known`. The
-    /// human wizard and the independent players get none.
-    pub(crate) fn give_main_realm_spell(&mut self, player: PlayerId) {
-        if self.human() == Some(player) {
-            return;
-        }
-        let guaranteed = self.settings.ai.wizards.guaranteed_summoning_spell;
-        let Some(w) = self.wizard(player) else {
-            return;
-        };
-        let books = w.books();
-        let main = self
-            .content
-            .rules
-            .realms
-            .defs()
-            .iter()
-            .filter_map(|r| {
-                let id = RealmId::new(r.num);
-                Some((id, *books.get(&id)?))
-            })
-            .fold(None, |best: Option<(RealmId, u8)>, (id, n)| match best {
-                Some((_, b)) if b >= n => best,
-                _ => Some((id, n)),
-            });
-        let Some((realm, _)) = main else {
-            return;
-        };
-        let library = &self.content.settings.spell_library;
-        let known = guaranteed
-            .then(|| library.ai_main_realm_known.get(&realm).copied())
-            .flatten();
-        let open = (self.difficulty() >= library.ai_main_realm_researchable_from)
-            .then(|| library.ai_main_realm_researchable.get(&realm).copied())
-            .flatten();
-        if let Some(open) = open {
-            let known = self.wizard(player).is_some_and(|w| w.knows(open));
-            if let Some(mut w) = self.wizard_mut(player).filter(|_| !known) {
-                w.get_mut::<crate::wizard::sheet::KnownSpells>()
-                    .researchable
-                    .insert(open);
-            }
-        }
-        match known {
-            Some(spell) => self.learn_spell(player, spell),
-            None => self.refill_research(player),
-        }
-    }
-
     // ---- power -------------------------------------------------------------------
 
     /// Is the wizard casting the Spell of Return? Then they get no income of any kind.

@@ -6,11 +6,11 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::text::Args;
-use f4x_core::game::setup::{self, NewGame};
-use f4x_core::map::mapgen::GenParams;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_def::content::Content;
+use f4x_newgame::mapgen::GenParams;
+use f4x_newgame::setup::{self, NewGame};
 
 use crate::font::Style;
 use crate::input::Input;

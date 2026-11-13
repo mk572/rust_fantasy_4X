@@ -537,7 +537,7 @@ mod tests {
         let settings = shipped_settings();
         let o = OptionsState::from_settings(settings);
         assert_eq!(o.opponents, 1);
-        assert_eq!(o.land_percent(settings), f4x_core::game::setup::LAND_LARGE);
+        assert_eq!(o.land_percent(settings), f4x_newgame::setup::LAND_LARGE);
         assert_eq!(DIFFICULTIES[usize::from(o.difficulty)], "options.average");
     }
 

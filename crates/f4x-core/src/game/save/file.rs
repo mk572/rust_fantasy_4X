@@ -83,13 +83,8 @@ pub fn summarize_save(path: &Path) -> Result<SaveSummary, SaveError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::shipped;
+    use crate::game::testutil::{fresh, shipped};
     use crate::game::Command;
-    use crate::map::mapgen::{generate, GenParams};
-    use crate::map::Plane;
-    use crate::map::Position;
-    use crate::player::PlayerId;
-    use crate::rules::RealmId;
     use f4x_def::testdir::TestDir;
     use f4x_def::testdir::TestResult;
 
@@ -97,59 +92,15 @@ mod tests {
         shipped()
     }
 
-    /// A real generated map with the shipped content, a city, units and a few turns.
+    /// A new game on a real map with its wizards, cities and units, and a few turns played.
     fn game() -> Result<Game, Box<dyn std::error::Error>> {
-        let content = content();
-        let params = GenParams::default();
-        let mut g = Game::new(21);
-        g.set_generated(generate(21, &params, &content)?);
-        g.set_content(content);
-        g.add_player(PlayerId(0), "Merlin");
-        g.init_wizard(
-            PlayerId(0),
-            &[
-                (RealmId::new(3 /* life */), 2),
-                (RealmId::new(2 /* chaos */), 1),
-            ],
-            &[crate::wizard::magic::Retort::new(0) /* alchemy */],
-            None,
-        )
-        .map_err(|e| format!("init_wizard: {e:?}"))?;
-        let first = g
-            .wizard(PlayerId(0))
-            .ok_or("the wizard is missing")?
-            .candidates()[0];
-        g.set_research(PlayerId(0), first)
+        let mut g = fresh(2, 7)?;
+        // The first wizard researches something, so the file has a research in it.
+        let first = g.player_ids().into_iter().find(|&p| g.wizard(p).is_some());
+        let first = first.ok_or("no wizard")?;
+        let spell = g.wizard(first).ok_or("no wizard")?.candidates()[0];
+        g.set_research(first, spell)
             .map_err(|e| format!("set_research: {e:?}"))?;
-        let pos = (0..params.height)
-            .flat_map(|y| {
-                (0..params.width).map(move |x| Position {
-                    plane: Plane::Arcanus,
-                    x,
-                    y,
-                })
-            })
-            .find(|&p| g.can_found_city(p).is_ok())
-            .ok_or("the map has no square for a city")?;
-        let race = g.content().rules.races.id_numbered(0);
-        g.apply(Command::FoundCity {
-            owner: PlayerId(0),
-            pos,
-            name: "Dawn".into(),
-            race,
-            population: 3,
-        });
-        let spear = g
-            .content()
-            .rules
-            .units
-            .id_numbered(39)
-            .ok_or("barbarian_spearmen is not in the content")?;
-        g.apply(Command::CreateUnit {
-            owner: PlayerId(0),
-            pos,
-            unit: spear,
-        });
         for _ in 0..3 {
             g.apply(Command::EndTurn);
         }
@@ -171,10 +122,10 @@ mod tests {
         assert_eq!(back.snapshot(), g.snapshot());
         assert_eq!(back.turn, 4);
         assert!(back
-            .wizard(PlayerId(0))
-            .ok_or("the value is missing")?
-            .researching()
-            .is_some());
+            .player_ids()
+            .into_iter()
+            .filter_map(|p| back.wizard(p))
+            .any(|w| w.researching().is_some()));
         Ok(())
     }
 
@@ -215,7 +166,9 @@ mod tests {
         let path = folder.join("s.ron");
         save_game(&path, &g)?;
         let s = summarize_save(&path)?;
-        assert_eq!(s.wizard, "Merlin");
+        // Nobody is human in this game: the first wizard stands for it.
+        let first = g.player_ids().into_iter().find_map(|p| g.wizard(p));
+        assert_eq!(Some(s.wizard), first.map(|w| w.name().to_string()));
         assert_eq!(s.turn, g.turn);
         assert!(!s.finished);
         std::fs::write(&path, "not a save")?;

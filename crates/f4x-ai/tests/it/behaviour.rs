@@ -4,10 +4,10 @@
 
 use f4x_ai::{play_round, Ai};
 use f4x_core::game::endgame::EndKind;
-use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::Game;
 use f4x_core::player::PlayerId;
 use f4x_def::content::Content;
+use f4x_newgame::setup::{new_game, NewGame};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 

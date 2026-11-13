@@ -2,10 +2,10 @@
 //! without a wizard, so no spells, no research and no crafting.
 
 use f4x_ai::{Ai, AiSeat, NeutralSeat};
-use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::PlayerId;
 use f4x_master::{Controller, Master, Seat, Status, Until};
+use f4x_newgame::setup::{new_game, NewGame};
 use std::cell::RefCell;
 
 /// The neutral seat, shared with the test so that it can look at it between rounds.

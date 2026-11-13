@@ -8,11 +8,11 @@ use rand_pcg::Pcg64Mcg;
 
 mod original;
 
-use crate::feature::def::FeatureKind;
-use crate::feature::entity::Placement;
-use crate::feature::place;
-use crate::map::terrain::{TerrainClass, Terrains, REQUIRED_CLASSES};
-use crate::map::{Grid, Map, Plane, Position, TerrainId};
+use crate::place;
+use f4x_core::feature::def::FeatureKind;
+use f4x_core::feature::entity::Placement;
+use f4x_core::map::terrain::{TerrainClass, Terrains, REQUIRED_CLASSES};
+use f4x_core::map::{Grid, Map, Plane, Position, TerrainId};
 use f4x_def::content::Content;
 
 /// Per-plane feature settings; Myrror is denser in minerals than Arcanus by default.
@@ -171,11 +171,11 @@ pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Gene
         [Plane::Arcanus, Plane::Myrror].map(|p| generate_plane(seed, p, params, terrains));
     let mut map = Map::new(arcanus?, myrror?);
     let placed = place::place_features(seed, params, content, &mut map)?;
-    let nodes = crate::feature::node::generate_nodes(seed, &map, &placed, content);
+    let nodes = crate::node::generate_nodes(seed, &map, &placed, content);
     if params.original_generator {
         original::extend_islands(seed, &mut map, &placed, content);
     }
-    let lairs = crate::feature::lair::generate_lairs(seed, params, &map, &placed, &nodes, content);
+    let lairs = crate::lair::generate_lairs(seed, params, &map, &placed, &nodes, content);
     let mut placements = Vec::new();
     for plane in Plane::all() {
         for y in 0..map.height() {
@@ -546,21 +546,21 @@ pub fn land_percent(grid: &Grid, terrains: &Terrains) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::shipped;
+    use f4x_def::testdir::shipped;
     use f4x_def::testdir::TestResult;
 
     #[test]
     fn same_seed_same_map_different_seed_differs() -> TestResult {
         let (c, p) = (shipped(), GenParams::default());
-        assert_eq!(generate(7, &p, &c)?, generate(7, &p, &c)?);
-        assert_ne!(generate(7, &p, &c)?, generate(8, &p, &c)?);
+        assert_eq!(generate(7, &p, c)?, generate(7, &p, c)?);
+        assert_ne!(generate(7, &p, c)?, generate(8, &p, c)?);
         Ok(())
     }
 
     #[test]
     fn land_share_matches_request_and_planes_differ() -> TestResult {
         let (c, p) = (shipped(), GenParams::default());
-        let map = generate(1, &p, &c)?.map;
+        let map = generate(1, &p, c)?.map;
         for plane in Plane::all() {
             let pct = land_percent(map.plane(plane), &c.terrains);
             // The polar caps come on top of the share asked for.
@@ -580,15 +580,12 @@ mod tests {
             land_percent: 0,
             ..GenParams::default()
         };
-        assert!(matches!(generate(1, &bad, &c), Err(GenError::BadParams(_))));
+        assert!(matches!(generate(1, &bad, c), Err(GenError::BadParams(_))));
         let tiny = GenParams {
             width: 2,
             ..GenParams::default()
         };
-        assert!(matches!(
-            generate(1, &tiny, &c),
-            Err(GenError::BadParams(_))
-        ));
+        assert!(matches!(generate(1, &tiny, c), Err(GenError::BadParams(_))));
 
         let mut no_swamp = c.clone();
         no_swamp.terrains = Terrains::new(
@@ -608,7 +605,7 @@ mod tests {
         ));
 
         let mut no_tower = c.clone();
-        no_tower.features = crate::feature::def::Features::new(
+        no_tower.features = f4x_core::feature::def::Features::new(
             c.features
                 .defs()
                 .iter()
@@ -627,8 +624,8 @@ mod tests {
     #[test]
     fn rivers_exist_on_gentle_land_and_are_deterministic() -> TestResult {
         let c = shipped();
-        let a = generate(7, &GenParams::default(), &c)?;
-        let b = generate(7, &GenParams::default(), &c)?;
+        let a = generate(7, &GenParams::default(), c)?;
+        let b = generate(7, &GenParams::default(), c)?;
         assert_eq!(a, b);
         let mut count = 0;
         for plane in Plane::all() {
@@ -662,7 +659,7 @@ mod tests {
         let c = shipped();
         let mut lakes = 0;
         for seed in 1..=30 {
-            let generated = generate(seed, &GenParams::default(), &c)?;
+            let generated = generate(seed, &GenParams::default(), c)?;
             let m = &generated.map;
             for plane in Plane::all() {
                 let g = m.plane(plane);
@@ -711,7 +708,7 @@ mod tests {
                 land_percent: 40,
                 ..GenParams::default()
             };
-            let map = generate(3, &p, &c)?.map;
+            let map = generate(3, &p, c)?.map;
             assert_eq!((map.width(), map.height()), (w, h));
         }
         Ok(())
@@ -737,7 +734,7 @@ mod tests {
         let c = shipped();
         for (w, h) in [(45, 30), (75, 50), (90, 60)] {
             let p = GenParams::sized(w, h);
-            let g = generate(5, &p, &c)?;
+            let g = generate(5, &p, c)?;
             assert_eq!((g.map.width(), g.map.height()), (w, h));
             let towers = g
                 .placements

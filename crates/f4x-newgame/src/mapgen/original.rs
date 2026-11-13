@@ -11,19 +11,19 @@
 //!
 //! The draws are our own seeded generator, so a seed gives another map than the original's.
 //!
-//! Tests: in map/mapgen/original/tests.rs.
+//! Tests: in mapgen/original/tests.rs.
 
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
-use crate::feature::def::FeatureKind;
-use crate::feature::place::Placed;
-use crate::map::terrain::TerrainClass;
-use crate::map::{Map, Plane};
+use crate::place::Placed;
+use f4x_core::feature::def::FeatureKind;
+use f4x_core::map::terrain::TerrainClass;
+use f4x_core::map::{Map, Plane};
 use f4x_def::content::Content;
 
 use super::{place_lakes, place_rivers, scaled_count, GenParams};
-use crate::map::{Grid, TerrainId};
+use f4x_core::map::{Grid, TerrainId};
 
 /// The eight terrains of the plane the generator paints with.
 pub struct Terrain {

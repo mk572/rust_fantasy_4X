@@ -1,10 +1,17 @@
 use super::*;
-use crate::game::setting::AiWizardSettings;
-use crate::game::testutil::{realm, shipped};
-use crate::rules::RealmId;
-use crate::rules::Rules;
-use crate::rules::WizardDef;
+use f4x_core::game::setting::AiWizardSettings;
+use f4x_core::rules::RealmId;
+use f4x_core::rules::Rules;
+use f4x_core::rules::WizardDef;
 use std::collections::BTreeSet;
+
+fn shipped() -> f4x_def::content::Content {
+    f4x_def::testdir::shipped().clone()
+}
+
+fn realm(n: u16) -> RealmId {
+    RealmId::new(n)
+}
 
 const SEEDS: std::ops::Range<u64> = 1..60;
 const PICKS: u8 = 11;
@@ -70,7 +77,7 @@ fn wizard_def(num: u16, id: &str, books: &[(RealmId, u8)], retorts: &[Retort]) -
 
 fn settings(opponents: u8, picks: u8) -> GameSettings {
     let mut s =
-        GameSettings::for_difficulty(&crate::game::testutil::settings(), 2 /* Average */);
+        GameSettings::for_difficulty(&f4x_def::testdir::shipped().settings, 2 /* Average */);
     s.basic.opponents = opponents;
     s.wizards.picks.ai = picks;
     // Each test switches on the one wizard rule it is about.

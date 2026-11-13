@@ -94,7 +94,7 @@ impl Names {
         })
     }
 
-    /// The name lists a new game draws from (`f4x_core::game::setup::NewGame::names`).
+    /// The name lists a new game draws from (`f4x_newgame::setup::NewGame::names`).
     pub fn bundle(&self) -> NameBundle {
         NameBundle {
             cities: self.city.clone(),

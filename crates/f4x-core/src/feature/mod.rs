@@ -6,6 +6,5 @@ pub use f4x_def::feature as def;
 pub mod entity;
 pub mod lair;
 pub mod node;
-pub mod place;
 #[cfg(test)]
 mod testutil;

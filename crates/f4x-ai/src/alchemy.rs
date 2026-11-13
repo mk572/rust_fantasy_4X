@@ -33,9 +33,9 @@ pub(crate) fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::game::setup::{new_game, NewGame};
     use f4x_def::half_int::HalfInt;
     use f4x_def::testdir::TestResult;
+    use f4x_newgame::setup::{new_game, NewGame};
 
     #[test]
     fn a_player_without_a_wizard_turns_its_mana_into_gold_and_a_wizard_keeps_it() -> TestResult {

@@ -204,16 +204,8 @@ fn half_a_gold_of_tax_or_upkeep_is_kept_and_paid() {
 
 #[test]
 fn the_kept_budget_follows_a_completed_item_as_the_budget_does() -> f4x_def::testdir::TestResult {
-    use crate::game::setup::{new_game, NewGame};
-    let content = crate::game::testutil::shipped();
-    let mut game = new_game(
-        &content,
-        &NewGame {
-            seed: 7,
-            all_ai: true,
-            ..NewGame::with_wizards(2)
-        },
-    )?;
+    use crate::game::testutil::fresh;
+    let mut game = fresh(2, 7)?;
     let player = game
         .player_ids()
         .into_iter()
@@ -265,18 +257,11 @@ fn the_kept_budget_follows_a_completed_item_as_the_budget_does() -> f4x_def::tes
 #[test]
 fn the_minimum_farmers_by_halving_are_those_of_the_linear_search() -> f4x_def::testdir::TestResult {
     use crate::city::economy::Population;
-    use crate::game::setup::{new_game, NewGame};
+    use crate::game::testutil::fresh;
     let content = crate::game::testutil::shipped();
     let mut checked = 0;
     for seed in [3, 7, 11] {
-        let mut game = new_game(
-            &content,
-            &NewGame {
-                seed,
-                all_ai: true,
-                ..NewGame::with_wizards(3)
-            },
-        )?;
+        let mut game = fresh(3, seed)?;
         let cities: Vec<_> = game
             .economy()
             .cities()
@@ -316,18 +301,10 @@ fn the_minimum_farmers_by_halving_are_those_of_the_linear_search() -> f4x_def::t
 /// in the same order, for every owner, in new games of several seeds.
 #[test]
 fn the_city_places_are_the_cities_without_their_names() -> f4x_def::testdir::TestResult {
-    use crate::game::setup::{new_game, NewGame};
-    let content = crate::game::testutil::shipped();
+    use crate::game::testutil::fresh;
     let mut checked = 0;
     for seed in [3, 7, 11] {
-        let game = new_game(
-            &content,
-            &NewGame {
-                seed,
-                all_ai: true,
-                ..NewGame::with_wizards(4)
-            },
-        )?;
+        let game = fresh(3, seed)?;
         for me in game.player_ids() {
             let old: Vec<_> = game
                 .economy()
@@ -353,16 +330,8 @@ fn the_city_places_are_the_cities_without_their_names() -> f4x_def::testdir::Tes
 fn the_kept_net_gold_follows_a_change_of_production_while_planning() -> f4x_def::testdir::TestResult
 {
     use crate::city::production::ProductionItem;
-    use crate::game::setup::{new_game, NewGame};
-    let content = crate::game::testutil::shipped();
-    let mut game = new_game(
-        &content,
-        &NewGame {
-            seed: 7,
-            all_ai: true,
-            ..NewGame::with_wizards(2)
-        },
-    )?;
+    use crate::game::testutil::fresh;
+    let mut game = fresh(2, 7)?;
     let player = game
         .player_ids()
         .into_iter()
@@ -391,16 +360,9 @@ fn the_kept_net_gold_follows_a_change_of_production_while_planning() -> f4x_def:
 fn the_kept_net_gold_counts_a_building_the_moment_it_is_completed() -> f4x_def::testdir::TestResult
 {
     use crate::city::production::ProductionItem;
-    use crate::game::setup::{new_game, NewGame};
+    use crate::game::testutil::fresh;
     let content = crate::game::testutil::shipped();
-    let mut game = new_game(
-        &content,
-        &NewGame {
-            seed: 7,
-            all_ai: true,
-            ..NewGame::with_wizards(2)
-        },
-    )?;
+    let mut game = fresh(2, 7)?;
     let player = game
         .player_ids()
         .into_iter()

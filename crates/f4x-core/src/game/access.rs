@@ -176,10 +176,37 @@ impl Game {
         self.despawn_all_features();
     }
 
-    /// Replace the map with a generated one, and spawn its features.
-    pub fn set_generated(&mut self, generated: crate::map::mapgen::Generated) {
-        self.set_map(generated.map);
-        self.spawn_features(generated.placements);
+    // ---- starting a game (`f4x_newgame`) -----------------------------------------
+
+    /// A new game on a made map, with the game's own copy of the content and the name lists, the
+    /// settings applied to the content, and the map's features spawned. No players yet.
+    pub fn begin_world(
+        seed: u64,
+        settings: crate::game::setting::GameSettings,
+        content: &Content,
+        names: f4x_def::names::NameBundle,
+        map: Map,
+        placements: Vec<crate::feature::entity::Placement>,
+    ) -> Game {
+        let mut game = Game::new(seed);
+        game.settings = settings;
+        game.content = content.clone();
+        game.apply_content_settings();
+        game.names = names;
+        game.set_map(map);
+        game.spawn_features(placements);
+        game
+    }
+
+    /// Make what `player` has explored only the land within `radius` of `centre`.
+    pub fn restrict_view(&mut self, player: PlayerId, centre: Position, radius: HalfInt) {
+        self.fog.forget(player);
+        self.fog.explore(
+            player,
+            centre,
+            radius,
+            self.settings.basic.diagonal_extra_cost,
+        );
     }
 
     /// Give a unit experience points, as a scenario sets it up (no level checks).
@@ -284,8 +311,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::setup::{new_game, NewGame};
-    use crate::game::testutil::shipped;
+    use crate::game::testutil::fresh;
     use crate::map::Plane;
     use crate::world_event::EventKind;
     use f4x_def::testdir::TestResult;
@@ -293,14 +319,7 @@ mod tests {
     const P0: PlayerId = PlayerId(0);
 
     fn world() -> Result<Game, String> {
-        new_game(
-            &shipped(),
-            &NewGame {
-                seed: 6,
-                all_ai: true,
-                ..Default::default()
-            },
-        )
+        fresh(2, 7)
     }
 
     fn at(x: u32, y: u32) -> Position {

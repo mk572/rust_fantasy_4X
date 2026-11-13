@@ -13,4 +13,5 @@ ron.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
+f4x-newgame.workspace = true
 f4x-def = { workspace = true, features = ["testutil"] }

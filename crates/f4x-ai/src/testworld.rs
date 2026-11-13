@@ -34,9 +34,9 @@ pub fn content() -> Content {
 
 /// A new game as the game itself sets it up (wizards, cities, heroes), on the shipped content.
 pub fn fresh_game() -> Result<Game, Box<dyn std::error::Error>> {
-    Ok(f4x_core::game::setup::new_game(
+    Ok(f4x_newgame::setup::new_game(
         shipped(),
-        &f4x_core::game::setup::NewGame {
+        &f4x_newgame::setup::NewGame {
             seed: 7,
             ..Default::default()
         },

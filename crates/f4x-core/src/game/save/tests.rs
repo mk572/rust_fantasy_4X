@@ -858,16 +858,9 @@ fn a_wizard_without_a_player_is_refused() {
 #[test]
 fn an_older_save_with_a_player_for_each_neutral_city_is_read_as_one_player_for_each_race(
 ) -> TestResult {
-    use crate::game::setup::{new_game, NewGame};
+    use crate::game::testutil::fresh;
     let content = shipped();
-    let game = new_game(
-        &content,
-        &NewGame {
-            seed: 7,
-            all_ai: true,
-            ..Default::default()
-        },
-    )?;
+    let game = fresh(2, 7)?;
     let mut old = game.snapshot();
     // Give every neutral city a player of its own, as the older game did.
     let races: Vec<_> = old

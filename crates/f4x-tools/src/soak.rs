@@ -14,11 +14,11 @@ use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
 use f4x_core::game::endgame::GameOver;
-use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::Game;
 use f4x_core::player::PlayerId;
 use f4x_core::world_event::EventKind;
 use f4x_def::content::Content;
+use f4x_newgame::setup::{new_game, NewGame};
 use serde::{Deserialize, Serialize};
 
 use crate::contestant::{self, Contestant, Version};
