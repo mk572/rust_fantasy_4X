@@ -51,7 +51,7 @@ assets-local/art/
                           section 6), portrait_FF.png (heroes, `portrait`)
   figure*/NNN_FF_banner.png   a mask beside every combat figure frame (section 6); a
                           picture_FF_banner.png also sits beside each overland unit picture
-  cursors/                NN.png, the original's sixteen 16 by 16 mouse pointers, numbered as
+  cursors/                cursors.sheet.png (NN.png when loose), the original's sixteen 16 by 16 mouse pointers, numbered as
                           `crsr_Finger` (1), `crsr_CastBase` (2), `crsr_RedCross` (3), `crsr_Ranged` (4),
                           `crsr_Melee` (5), `crsr_Hourglass` (6), `crsr_WingedBoot` (7)... They sit in
                           the base palette's entry in FONTS.LBX, 1280 bytes in, a column at a time
