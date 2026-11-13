@@ -33,6 +33,8 @@ pub struct PlayerView<'a> {
     game: &'a Game,
     me: PlayerId,
     seen: [OnceCell<Vec<bool>>; 2],
+    /// A number the caller works out once for this view (see [`PlayerView::memo`]).
+    memo: OnceCell<f32>,
 }
 
 impl<'a> PlayerView<'a> {
@@ -41,11 +43,20 @@ impl<'a> PlayerView<'a> {
             game,
             me,
             seen: [OnceCell::new(), OnceCell::new()],
+            memo: OnceCell::new(),
         }
     }
 
     pub fn me(&self) -> PlayerId {
         self.me
+    }
+
+    /// One number of the caller's (the AI's average unit strength), worked out by `compute` on
+    /// the first call and kept for the life of the view. A view borrows the game, so the game
+    /// cannot change under it: the kept number is the one a new call would give. The view holds
+    /// one slot; every caller of one view must ask for the same number.
+    pub fn memo(&self, compute: impl FnOnce() -> f32) -> f32 {
+        *self.memo.get_or_init(compute)
     }
 
     // ---- the game and the player's own state ---------------------------------------

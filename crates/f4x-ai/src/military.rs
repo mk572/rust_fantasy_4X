@@ -661,16 +661,20 @@ fn relieve(
     free
 }
 
+/// The mean strength of the AI's fighters (20 with none). Worked out once for a view: it walks
+/// every own unit, and the plans ask for it once per target.
 pub(crate) fn average_strength(view: &PlayerView) -> f32 {
-    let units: Vec<_> = view
-        .my_units()
-        .into_iter()
-        .filter(|&u| is_fighter(view, u))
-        .collect();
-    if units.is_empty() {
-        return 20.0;
-    }
-    units.iter().map(|&u| unit_strength(view, u)).sum::<f32>() / units.len() as f32
+    view.memo(|| {
+        let units: Vec<_> = view
+            .my_units()
+            .into_iter()
+            .filter(|&u| is_fighter(view, u))
+            .collect();
+        if units.is_empty() {
+            return 20.0;
+        }
+        units.iter().map(|&u| unit_strength(view, u)).sum::<f32>() / units.len() as f32
+    })
 }
 
 /// Can the AI's soldiers walk to a square beside the city? Judged with a fighter of the capital.
