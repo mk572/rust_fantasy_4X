@@ -235,6 +235,39 @@ pub fn unit_folders(rules_dir: &Path) -> Result<BTreeMap<String, String>, String
     Ok(out)
 }
 
+/// The realm folder of each spell, keyed `spell:<id>` (so it shares a map with the units): the
+/// spell's realm in `spells.ron` by the id in `realms.ron`. `art/spells/_shared` and `_book` stay
+/// where they are.
+pub fn spell_folders(rules_dir: &Path) -> Result<BTreeMap<String, String>, String> {
+    let read = |file: &str| {
+        let path = rules_dir.join(file);
+        fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))
+    };
+    let field = |line: &str, key: &str| -> Option<String> {
+        let at = line.find(key)? + key.len();
+        let rest = &line[at..];
+        Some(rest[..rest.find([',', ')', '"'])?].to_string())
+    };
+    let mut realms = BTreeMap::new();
+    for line in read("realms.ron")?.lines() {
+        if let (Some(num), Some(id)) = (field(line, "num: "), field(line, "id: \"")) {
+            realms.insert(num, id);
+        }
+    }
+    let mut out = BTreeMap::new();
+    for line in read("spells.ron")?.lines() {
+        if let (Some(id), Some(realm)) = (field(line, "id: \""), field(line, "realm: ")) {
+            if let Some(name) = realms.get(&realm) {
+                out.insert(format!("spell:{id}"), name.clone());
+            }
+        }
+    }
+    if out.is_empty() {
+        return Err("spells.ron: no spells found".to_string());
+    }
+    Ok(out)
+}
+
 /// What `pack_tree` did.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Report {
@@ -293,6 +326,11 @@ fn sheet_base(dir: &str, units: &BTreeMap<String, String>) -> String {
             return format!("art/units/{folder}/{unit}");
         }
     }
+    if let Some(spell) = dir.strip_prefix("art/spells/") {
+        if let Some(realm) = units.get(&format!("spell:{spell}")) {
+            return format!("art/spells/{realm}/{spell}");
+        }
+    }
     dir.to_string()
 }
 
@@ -338,7 +376,8 @@ fn read_sheets(root: &Path, files: &[String]) -> Result<Vec<Vec<u8>>, String> {
 
 /// Pack the loose pictures under `root` (`assets-local`). With `keep` the loose files stay.
 pub fn pack_tree(root: &Path, rules_dir: &Path, keep: bool) -> Result<Report, String> {
-    let units = unit_folders(rules_dir)?;
+    let mut units = unit_folders(rules_dir)?;
+    units.extend(spell_folders(rules_dir)?);
     let mut table = read_table(root);
     let mut report = Report::default();
     for (dir, files) in folders_with_pngs(root)? {
@@ -518,7 +557,7 @@ mod tests {
     fn a_tree_is_packed_replaced_and_unpacked_with_the_same_pictures() -> TestResult {
         let root = std::env::temp_dir().join(format!("f4x_pack_tree_{}", std::process::id()));
         let unit = root.join("art/units/high_elf_spearmen");
-        let spell = root.join("art/spells/fireball");
+        let spell = root.join("art/combat/flames");
         fs::create_dir_all(&unit)?;
         fs::create_dir_all(&spell)?;
         fs::create_dir_all(root.join("screens/menu"))?;
@@ -537,7 +576,7 @@ mod tests {
         assert!(root
             .join("art/units/high_elf/high_elf_spearmen.sheet.png")
             .exists());
-        assert!(root.join("art/spells/fireball.sheet.png").exists());
+        assert!(root.join("art/combat/flames.sheet.png").exists());
         assert!(!unit.exists() && !spell.exists());
         assert!(
             root.join("screens/menu/big_00.png").exists(),

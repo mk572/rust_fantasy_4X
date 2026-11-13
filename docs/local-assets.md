@@ -45,6 +45,7 @@ The PNG's text chunk `f4x-sheet` holds the cell size and each picture's name and
   `art/units/high_elf/high_elf_spearmen.sheet.png` holds every picture of the High Elf Spearmen. The race is
   the unit's race in `units.ron`; a unit without one goes to `hero/`, `ship/` (trireme, galley, warship) or
   `fantastic/` (summoned creatures, the catapult);
+- a spell folder `art/spells/<spell>/` becomes `art/spells/<realm>/<spell>.sheet.png` (`art/spells/chaos/fire_bolt.sheet.png`; the realm is the spell's in `spells.ron`). `_shared` (pictures used by several spells: Dispel Magic, Warp Node, Disenchant True share `specfx` 13) and `_book` stay in `art/spells/`;
 - any other folder `art/<folder>/` goes to `art/<folder>.sheet.png` beside it (`art/spells/fire_bolt.sheet.png`,
   `art/map/tiles/arcanus/shore.sheet.png`);
 - `packs.tsv` in `assets-local/` lists each folder and its sheets. The client reads it at start and opens a
