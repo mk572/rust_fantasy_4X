@@ -997,7 +997,7 @@ impl App {
             .enchantments
             .iter()
             .copied()
-            .chain(u.combat_spells.iter().map(|&(spell, _)| spell))
+            .chain(u.lasting.iter().map(|l| l.spell))
             .map(|spell| {
                 let s = content.rules.spells.get(spell);
                 (spell, self.names.spell(s.num).to_string(), false, s.help)

@@ -172,7 +172,7 @@ Found on the way, fixed (`unit_sheet.rs`, compared with the original's `UnitView
 
 Also settled by the walk (rows further down the table):
 
-- 302 (dispelling Web fails to restore movement type) and 440 (Death Immunity does not protect from Terror): **not present**. A broken or dispelled Web gives flight back (`restore_stats_from`); Terror skips units with Death Immunity (`field.rs`).
+- 302 (dispelling Web fails to restore movement type) and 440 (Death Immunity does not protect from Terror): **not present**. A broken or dispelled Web gives flight back (`BattleUnit::recompute`); Terror skips units with Death Immunity (`field.rs`).
 - The Web spell itself was checked against the wiki page, apart from the 1.50 rows: **Web now has 12 hit points**; the unit it holds spends its turn striking them and cannot move or attack meanwhile (it counter-attacks as usual). What it takes off: its melee strength, the better of that and a bow, sling or magical ranged attack with a shot left (the 1.31 bug counted missiles only), a thrown weapon, breath or gaze added, Immolation's fire added. A boulder does not count (a catapult stays held until the Web is dispelled; the user agrees). `docs/combat.md` section 8, tests in `battle/tests.rs`. This is independent of the 1.50 rows (it also covers 1.52.03 rows 784 and 785).
 
 ### Walked on 14 November 2026: 053, 134, 135, 291 (and 292, 293)
@@ -258,7 +258,15 @@ The text of these notes is not in the repository; the verdicts follow the one-li
 | 131 Doom Bolt graphics | **Not checked** (presentation; needs the running client). |
 | 136 Merging item power does not work | **Present, fixed, with new rules** (task 602, `divergences.md` 44). The power gave the carrier nothing (it needs 22 books, so nobody crafts it and finds of the two prefab items are out in the original). It now gives the Merging ability, and Merging is a new rule: a unit sinks into the ground and comes up a turn later. Our finds ignore books (section 10), so the two items can turn up and work. |
 
-Next: row 138 (zero-health units, repeated death, list bounds).
+### Walked on 14 November 2026: 138
+
+The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fandom.html`.
+
+| Rows | Verdict |
+|---|---|
+| 138 Units with 0 health | **Present, fixed, with a different rule** (`divergences.md` 45). The note says living units at 0 health come from the malfunction of Lionheart and the removal of Charm of Life, and the patch sets them to one health when they enter a combat. Here a unit left at zero or less dies, in a battle (`settle_hit_points`) and overland after every command (`remove_units_without_hit_points`); tests `a_unit_whose_borrowed_hit_points_go_with_the_damage_it_took_dies` and `turning_charm_of_life_off_kills_the_units_that_were_standing_on_its_hit_points`. The one exception, by decision: Lycanthropy replaces a unit with another and does not end an effect, so a werewolf that cannot take the wounds is left on its last hit point (test `lycanthropy_leaves_a_werewolf_that_cannot_take_the_wounds_on_its_last_hit_point`). Found on the way, not in the original's notes: a dispel of an unrelated spell takes away the extra hit points life steal gave and leaves `extra_hits` stale (a negative maximum, and the write-back heals the unit fully); the cause is that a unit's numbers are changed in place and restored from a snapshot, so the fix is the model of tasks 604 to 606. |
+
+Next: row 148 (dead units cannot die again: the overland kill paths, drowning and the like), then 467, 683 and 684.
 
 ## P2 code review: first pass
 
@@ -301,7 +309,7 @@ Relevant code: [battle/mod.rs](../crates/f4x-core/src/battle/mod.rs), [battle/at
 
 **Finding: architecture supports removal and restoration, but the full list of 1.50 granted-ability cases needs verification.**
 
-The battle model records combat spells with their caster and preserves a base copy of the unit before the first combat enchantment. This allows dispelling to rebuild the unit from the base plus the enchantments that remain, rather than trying to reverse every stat mutation independently. The shared overland dispel code also records spell ownership and applies Spell Lock before other dispels.
+The battle model records combat spells with their caster and keeps the numbers the unit started with (`BaseStats`) and a list of the lasting spells on it (since task 604; before that a copy of the whole unit). A dispel recomputes the unit from the base plus the enchantments that remain, rather than trying to reverse every stat mutation independently. The shared overland dispel code also records spell ownership and applies Spell Lock before other dispels.
 
 This is a good foundation for the 1.50 fix where dispelling Guardian Wind, Magic Immunity, Immolation, Wraith Form or True Sight must remove the ability granted by that spell. It also helps avoid double-applying modifiers. The audit still needs to confirm each ability-granting spell uses the same reversible representation, including spells cast in battle and spells whose effects influence movement or attack nature.
 

@@ -140,7 +140,7 @@ pub enum ModOp {
 
 /// What produced a modifier, so the UI can show "+2 from Iron Armour" and so a
 /// source can be removed cleanly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Source {
     Race(Id<RaceDef>),
     Ability(Id<AbilityDef>),
@@ -156,7 +156,7 @@ pub enum Source {
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Modifier {
     pub stat: Stat,
     pub op: ModOp,

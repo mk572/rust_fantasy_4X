@@ -7,7 +7,7 @@ use crate::{
     battle, city, diplomacy, feature, game, item, map, player, rules, unit, wizard, world_event,
 };
 
-/// Why a unit left its owner's army at the turn change.
+/// Why a unit left its owner's army (at the turn change, or when its hit points ran out).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LossCause {
     /// Deserted for lack of food.
@@ -16,6 +16,9 @@ pub enum LossCause {
     Gold,
     /// A summoned creature dispelled for lack of mana.
     Mana,
+    /// No hit points left: what it had taken was more than it can stand once a spell that gave
+    /// it hit points was gone.
+    Wounds,
 }
 
 /// What a wizard could not pay for.

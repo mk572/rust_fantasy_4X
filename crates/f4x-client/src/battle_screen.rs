@@ -659,7 +659,13 @@ impl App {
                     u.enchantments.push(spell);
                 }
                 for (u, spell) in battle.units.iter_mut().skip(5).zip(curses) {
-                    u.combat_spells.push((spell, f4x_core::player::PlayerId(0)));
+                    u.lasting.push(f4x_core::battle::Lasting {
+                        spell,
+                        caster: f4x_core::player::PlayerId(0),
+                        effects: Default::default(),
+                        mods: Vec::new(),
+                        grants: Vec::new(),
+                    });
                 }
             }
             "vortex" => {
@@ -1088,7 +1094,7 @@ impl App {
         u.enchantments
             .iter()
             .copied()
-            .chain(u.combat_spells.iter().map(|(s, _)| *s))
+            .chain(u.lasting.iter().map(|l| l.spell))
             .collect()
     }
 

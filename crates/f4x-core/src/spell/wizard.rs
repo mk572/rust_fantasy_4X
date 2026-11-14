@@ -226,7 +226,9 @@ impl Game {
         self.strip::<crate::unit::Experience>(unit);
         let (left, _) = self.units().unit_hits(unit);
         if left == 0 {
-            // More damage than the new body can take: it is left on its last hit point.
+            // More damage than the new body can take: it is left on its last hit point. The
+            // one exception to "no hit points, no unit" (`divergences.md` 45): this replaces a
+            // unit with another and does not end an effect.
             let max = self
                 .units()
                 .unit_stat(unit, crate::rules::Stat::MaxHp)

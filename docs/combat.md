@@ -491,14 +491,19 @@ It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effec
   reserve's strength against the mana put in (times the caster's mastery, as in `spell/dispel.rs`);
   the attempt drains the reserve by five whether or not it works, and a stopped spell still
   costs its mana and the wizard's turn.
-- **Lasting spells** change the unit's numbers for the battle only (`BattleUnit::apply_lasting`):
-  the original keeps them on the battle unit and they are gone afterwards. The unit remembers
-  its numbers from before the first one (`base`) and the spells on it (`combat_spells` with
-  their casters), so a **dispel** (`Game::dispel_battle_unit`) can take one off: it works on the
+- **Lasting spells** change the unit's numbers for the battle only: the original keeps them on
+  the battle unit and they are gone afterwards. A unit's numbers are a function of two things and
+  nothing else (`BattleUnit::recompute`): what it started the battle with (`base`, a `BaseStats`
+  kept from the first spell on) and its list of lasting spells (`lasting`, in the order cast; each
+  entry is a `Lasting` with the spell, its caster, what it does and the modifiers and abilities
+  it gives). A cast adds an entry, a **dispel** (`Game::dispel_battle_unit`) removes entries, and
+  both recompute, so taking one spell off never touches what another gave. A dispel works on the
   spells cast in the battle and on the lasting spells of the overland unit the fighter was
-  copied from (those *are* taken off the overland unit), only those cast by another wizard, and
-  then the unit is rebuilt from its base (re-read from the overland unit if that changed) with the
-  spells that are left. A unit cannot be given a spell it has.
+  copied from (those *are* taken off the overland unit), only those cast by another wizard; the
+  base is re-read from the overland unit if that changed. Life steal's extra hit points
+  (`extra_hits`) belong to no spell and stay through any dispel. Whenever the hit-point ceiling
+  falls, the damage taken is kept and a unit left with none dies (`settle_hit_points`,
+  `divergences.md` 45). A unit cannot be given a spell it has.
 - **Haste** doubles the unit's moves and grants the ability `hasted`: a hasted unit has a second attack or shot each turn (`BattleUnit::extra_attack`, spent by `used_attack`; the second shot uses a second round of ammunition).
 - **Summons** appear on a free square of the caster's half of the field, at most nine units a
   side, ready to act; they are made like any unit and the overland copy is dropped at once, so

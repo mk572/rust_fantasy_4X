@@ -22,7 +22,7 @@ use f4x_newgame::setup::{new_game, NewGame};
 use serde::{Deserialize, Serialize};
 
 use crate::contestant::{self, Contestant, Version};
-use crate::metrics::{add_casts, casts_line, never_cast, Metrics, Standing, Tally};
+use crate::metrics::{add_casts, casts_line, never_cast, never_cast_in, Metrics, Standing, Tally};
 
 pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6] [--mastery all|human|off] [--return all|human|off]";
 
@@ -264,6 +264,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
         println!(
             "all games, map spells never cast: {}",
             never_cast(&content.rules, &all).join(", ")
+        );
+        let fought = add_casts(results.iter().map(|r| r.tally.battle_casts()));
+        println!("all games, battle casts: {}", casts_line(&fought));
+        println!(
+            "all games, battle spells never cast: {}",
+            never_cast_in(&content.rules, &fought, f4x_def::rules::CastContext::Battle).join(", ")
         );
     }
     Ok(())
@@ -590,6 +596,7 @@ pub fn game(
     }
     if opts.casts {
         println!("{tag}: casts: {}", casts_line(tally.casts()));
+        println!("{tag}: battle casts: {}", casts_line(tally.battle_casts()));
     }
     if opts.events {
         println!("{tag}: {}", watch.summary(game.turn.saturating_sub(1)));

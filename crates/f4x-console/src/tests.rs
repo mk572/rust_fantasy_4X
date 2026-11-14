@@ -2132,7 +2132,7 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
             .expect("a battle is on")
             .unit(enemy)
             .expect("the unit is alive")
-            .combat_spells
+            .lasting
             .is_empty()
         {
             removed = true;
@@ -2292,7 +2292,7 @@ fn a_spell_that_kills_the_last_enemy_ends_the_battle() {
 }
 
 #[test]
-fn hit_points_a_spell_added_do_not_kill_the_unit_when_the_battle_is_over() {
+fn a_unit_standing_on_hit_points_a_spell_added_is_dead_when_the_battle_is_over() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&[141 /* lionheart */]);
     // Fleeing may lose the unit by chance; this test is about its hit points, not that roll.
@@ -2312,12 +2312,18 @@ fn hit_points_a_spell_added_do_not_kill_the_unit_when_the_battle_is_over() {
     {
         let u = &mut g.battle.as_mut().expect("the value is there").battle.units[mine];
         assert!(u.hits > 1 && u.figures_start > 1, "{u:?}");
+        // One figure left, and all its hit points are the spell's or less (divergence 45).
         u.figures = 1;
+        let own = u.base.as_ref().expect("the spell kept a base").hits * u.figures_start as i32;
+        let spell_gave = u.max_hit_points() - own;
+        assert!(u.hit_points() <= spell_gave, "{u:?}");
     }
     assert!(cast(&mut g, "bflee").ok);
     assert!(!g.in_battle());
-    let (left, max) = g.units().unit_hits(entity);
-    assert!(left >= 1 && left <= max, "{left} of {max}");
+    assert!(
+        g.units().unit_position(entity).is_none(),
+        "the hit points were the spell's, and they went with the battle"
+    );
 }
 
 // ---- battlefield and destroying spells (tasks 44 and 159) --------------------------------

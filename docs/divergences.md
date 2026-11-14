@@ -914,3 +914,25 @@ two prefab items with it work, and as books play no part in finds (section 10) t
 The computer wizard merges a unit that is hurt (under half its hit points) with an enemy near, and
 brings it up beside the enemy it would hurt most, or, if it is still hurt, as far from the enemy as it
 can. The human's screen for it is task 603.
+
+## 45. A unit with no hit points left is dead, whatever took them (1.50 note 138)
+
+In the original a spell that gives hit points (Lionheart, Charm of Life) can end while the unit has
+taken more damage than it can stand without it, and the unit stays alive at zero hit points or less;
+the 1.50 patch only stops the crash by setting such a unit to one hit point when it enters a battle.
+Here the damage a unit has taken stays when its maximum falls, and a unit left with zero or less is
+dead and removed: in a battle at once (`settle_hit_points`, which a dispel or a new spell calls, and
+a dispel that kills a unit reports `UnitDied`), overland after every command
+(`Game::remove_units_without_hit_points`, reported as a `UnitLost` with the cause `Wounds`).
+The figures of a unit only show its hit points, so the whole unit dies, not a figure. Entering a
+battle still clamps to one hit point (`battle_unit_from`) as a last guard; no unit should reach it.
+
+The end of a battle is the same: the hit points a spell cast in the battle gave (Lionheart) go with
+the battle, the damage taken stays, and a unit that was standing on them is dead (the write-back in
+`battle/game.rs` leaves it with none and the sweep removes it, as `UnitLost` with the cause `Wounds`).
+The 1.50 patch would leave it on one hit point. The extra hit points of life steal were never the
+unit's, so they do not count for or against it.
+
+One exception: Lycanthropy. It does not end an effect, it replaces a unit with Werewolves that keep
+its wounds, so a body too small for them is left on its last hit point (`spell/wizard.rs`, test
+`lycanthropy_leaves_a_werewolf_that_cannot_take_the_wounds_on_its_last_hit_point`).

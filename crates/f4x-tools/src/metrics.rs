@@ -5,6 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::AddAssign;
 
+use f4x_core::battle::BattleEvent;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::diplomacy::{DiplomacyEvent, Proposal, ProposalKind, Treaty};
 use f4x_core::game::{Event, Game};
@@ -176,11 +177,20 @@ pub fn add_casts<'a>(
 
 /// The ids of the spells that can be cast on the map and are not in `casts`.
 pub fn never_cast(rules: &Rules, casts: &BTreeMap<String, u32>) -> Vec<String> {
+    never_cast_in(rules, casts, CastContext::Overland)
+}
+
+/// The ids of the spells that can be cast in `context` and are not in `casts`.
+pub fn never_cast_in(
+    rules: &Rules,
+    casts: &BTreeMap<String, u32>,
+    context: CastContext,
+) -> Vec<String> {
     rules
         .spells
         .iter()
         .map(|(_, def)| def)
-        .filter(|def| def.contexts.contains(&CastContext::Overland) && !casts.contains_key(&def.id))
+        .filter(|def| def.contexts.contains(&context) && !casts.contains_key(&def.id))
         .map(|def| def.id.clone())
         .collect()
 }
@@ -320,6 +330,10 @@ pub struct Tally {
     /// How often each spell was cast by anyone, by the spell's id.
     #[serde(default)]
     casts: BTreeMap<String, u32>,
+    /// The same for the spells cast in battles, by a wizard or by a unit (a hero, a creature, an
+    /// item's charge): `Event::SpellCast` is the map's, a battle has its own events.
+    #[serde(default)]
+    battle_casts: BTreeMap<String, u32>,
     /// Per wizard (by player number): the mana spent over the game (net of what Alchemy added),
     /// and the pool after the last round.
     #[serde(default)]
@@ -346,6 +360,7 @@ impl Tally {
             ships_at_start: vec![0; count + 1],
             landed_on: vec![BTreeSet::new(); count + 1],
             casts: BTreeMap::new(),
+            battle_casts: BTreeMap::new(),
             mana_spent: vec![0; count + 1],
             mana_left: vec![0; count + 1],
         };
@@ -425,6 +440,11 @@ impl Tally {
     /// How often each spell was cast, by the spell's id; a spell never cast is not in it.
     pub fn casts(&self) -> &BTreeMap<String, u32> {
         &self.casts
+    }
+
+    /// How often each spell was cast in a battle, by the spell's id; a spell never cast is not in it.
+    pub fn battle_casts(&self) -> &BTreeMap<String, u32> {
+        &self.battle_casts
     }
 
     pub fn of(&self, player: PlayerId) -> Metrics {
@@ -562,6 +582,14 @@ impl Tally {
                         .entry(game.content().rules.spells.get(*spell).id.clone())
                         .or_default() += 1;
                     self.bump(*player, |m| m.spells_cast += 1)
+                }
+                Event::Battle(
+                    BattleEvent::SpellCast { spell, .. } | BattleEvent::UnitSpellCast { spell, .. },
+                ) => {
+                    *self
+                        .battle_casts
+                        .entry(game.content().rules.spells.get(*spell).id.clone())
+                        .or_default() += 1;
                 }
                 Event::SpellLearned { player, .. } => self.bump(*player, |m| m.spells_learned += 1),
                 Event::HeroJoined { player, .. } => self.bump(*player, |m| m.heroes_joined += 1),
@@ -947,5 +975,61 @@ mod tests {
             !missing.iter().any(|s| s == "magic_vortex"),
             "a battle-only spell is not a map spell"
         );
+    }
+
+    /// A wizard's and a unit's casts in a battle are counted by the spell, apart from the map's
+    /// casts, and a battle spell that is not among them is reported as never cast.
+    #[test]
+    fn battle_casts_are_counted_apart_from_the_maps() -> TestResult {
+        let rules = &shipped().rules;
+        let spell = |id: &str| {
+            rules
+                .spells
+                .iter()
+                .find(|(_, d)| d.id == id)
+                .map(|(i, _)| i)
+                .ok_or(format!("no spell {id}"))
+        };
+        let game = new_game(
+            shipped(),
+            &NewGame {
+                seed: 4,
+                all_ai: true,
+                ..NewGame::with_wizards(2)
+            },
+        )?;
+        let mut tally = Tally::new(&game);
+        let bolt = spell("fire_bolt")?;
+        let side = f4x_core::battle::Side::Attacker;
+        tally.record(
+            &game,
+            None,
+            &[
+                Event::Battle(BattleEvent::SpellCast {
+                    side,
+                    spell: bolt,
+                    skill: 5,
+                    mana: 5,
+                }),
+                Event::Battle(BattleEvent::SpellCast {
+                    side,
+                    spell: bolt,
+                    skill: 5,
+                    mana: 5,
+                }),
+                Event::Battle(BattleEvent::UnitSpellCast {
+                    unit: 0,
+                    spell: spell("web")?,
+                    mana: 0,
+                }),
+            ],
+        );
+        assert_eq!(tally.battle_casts()["fire_bolt"], 2);
+        assert_eq!(tally.battle_casts()["web"], 1);
+        assert!(tally.casts().is_empty(), "a battle cast is not a map cast");
+        let never = never_cast_in(rules, tally.battle_casts(), CastContext::Battle);
+        assert!(!never.iter().any(|s| s == "fire_bolt" || s == "web"));
+        assert!(never.iter().any(|s| s == "magic_vortex"), "{never:?}");
+        Ok(())
     }
 }

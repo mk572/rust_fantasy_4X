@@ -1798,8 +1798,7 @@ impl Game {
         let entity = unit.source.and_then(|i| active.sources.get(i).copied());
         let mut rng = Pcg64Mcg::seed_from_u64(self.next_u64());
 
-        let (kept, gone) =
-            self.dispel_list(unit.combat_spells.clone(), strength, by, true, &mut rng);
+        let (kept, gone) = self.dispel_list(unit.combat_spells(), strength, by, true, &mut rng);
         let mut removed = gone.len() as u32;
         let mut overland_changed = false;
         let mut overland_gone = Vec::new();
@@ -1827,10 +1826,10 @@ impl Game {
         }
         // Rebuild the unit: from the overland unit as it is now, or from its saved numbers.
         let base = match entity {
-            Some(e) if overland_changed || unit.base.is_none() => {
-                self.battle_unit_from(e, unit.side, unit.source.unwrap_or(0))
-            }
-            _ => unit.base.as_deref().cloned(),
+            Some(e) if overland_changed || unit.base.is_none() => self
+                .battle_unit_from(e, unit.side, unit.source.unwrap_or(0))
+                .map(|made| super::BaseStats::of(&made)),
+            _ => unit.base.clone(),
         };
         let Some(base) = base else {
             return vec![event];
@@ -1840,62 +1839,66 @@ impl Game {
             let warped = kept
                 .iter()
                 .any(|&(s, _)| UnitEffect::WarpCreature.is_in(self.content.rules.spells.get(s)));
-            active.battle.rebuild_unit(target, base, kept, &lasting);
+            let bound = lasting
+                .iter()
+                .any(|l| l.effects.contains(UnitEffect::CreatureBinding));
+            active.battle.rebuild_unit(target, base, lasting);
             active.battle.units[target].warp = unit.warp.filter(|_| warped);
-            if unit.effects.contains(UnitEffect::CreatureBinding)
-                && !lasting
-                    .iter()
-                    .any(|(_, effects, ..)| effects.contains(UnitEffect::CreatureBinding))
-            {
+            if unit.effects.contains(UnitEffect::CreatureBinding) && !bound {
                 active.battle.return_unit(target);
             }
             active.battle.refresh_fields();
         }
-        vec![event]
+        let mut events = vec![event];
+        // Taking off hit points can leave a unit with none.
+        if self
+            .battle
+            .as_ref()
+            .is_some_and(|a| !a.battle.units[target].is_active())
+        {
+            events.push(BattleEvent::UnitDied { unit: target });
+        }
+        events
     }
 
-    /// The lasting spells (id, modifiers, abilities) a battle unit keeps on top of `base`, for
-    /// `rebuild_unit`, from the spells `kept` on it. `unit` is the unit as it was before.
+    /// The lasting spells a battle unit keeps on top of `base`, for `rebuild_unit`, from the spells
+    /// `kept` on it, with what each does to the numbers. `unit` is the unit as it was before.
     fn lasting_spells(
         &self,
         unit: &super::BattleUnit,
         kept: &[(SpellId, PlayerId)],
-        base: &super::BattleUnit,
+        base: &super::BaseStats,
         target: usize,
-    ) -> Vec<(SpellId, UnitEffects, Vec<Modifier>, Vec<Ability>)> {
-        let lasting: Vec<_> = kept
+    ) -> Vec<super::Lasting> {
+        let mut lasting: Vec<super::Lasting> = kept
             .iter()
-            .filter_map(|&(s, _)| {
-                let def = self.content.rules.spells.get(s);
-                match self.battle_kind(s, def)? {
-                    Kind::Enchant { mods, grants, .. } => {
-                        Some((s, UnitEffects::of(def), mods, grants))
-                    }
-                    Kind::Turn { bind: true, .. } => {
-                        Some((s, UnitEffects::of(def), Vec::new(), Vec::new()))
-                    }
+            .filter_map(|&(spell, caster)| {
+                let def = self.content.rules.spells.get(spell);
+                let (mods, grants) = match self.battle_kind(spell, def)? {
+                    Kind::Enchant { mods, grants, .. } => (mods, grants),
+                    Kind::Turn { bind: true, .. } => (Vec::new(), Vec::new()),
                     // The warp it got is kept among the unit's enchantment ids.
-                    Kind::Warp { .. } => Some((
-                        s,
-                        UnitEffects::of(def),
-                        warp_mods(unit.warp?, s),
-                        Vec::new(),
-                    )),
-                    _ => None,
-                }
+                    Kind::Warp { .. } => (warp_mods(unit.warp?, spell), Vec::new()),
+                    _ => return None,
+                };
+                Some(super::Lasting {
+                    spell,
+                    caster,
+                    effects: UnitEffects::of(def),
+                    mods,
+                    grants,
+                })
             })
             .collect();
         // A spell that gives way to another on the unit stays out of the numbers, as in the cast.
         let mut present = base.enchantments.clone();
-        present.extend(lasting.iter().map(|(id, ..)| *id));
-        let lasting: Vec<_> = lasting
-            .into_iter()
-            .map(|(id, effects, mut mods, grants)| {
-                mods.extend(self.superseded_bonuses(id, &present));
-                mods.extend(self.battle_bonuses_by_name(id, target));
-                (id, effects, mods, grants)
-            })
-            .collect();
+        present.extend(lasting.iter().map(|l| l.spell));
+        for l in &mut lasting {
+            let extra = self.superseded_bonuses(l.spell, &present);
+            l.mods.extend(extra);
+            let named = self.battle_bonuses_by_name(l.spell, target);
+            l.mods.extend(named);
+        }
         lasting
     }
 
@@ -1918,14 +1921,14 @@ impl Game {
         if !done {
             return false;
         }
-        let Some(base) = self.battle_unit_from(entity, unit.side, index) else {
+        let Some(made) = self.battle_unit_from(entity, unit.side, index) else {
             return false;
         };
-        let kept = unit.combat_spells.clone();
-        let lasting = self.lasting_spells(&unit, &kept, &base, target);
-        let realm = base.realm;
+        let base = super::BaseStats::of(&made);
+        let lasting = self.lasting_spells(&unit, &unit.combat_spells(), &base, target);
+        let realm = made.realm;
         if let Some(active) = self.battle.as_mut() {
-            active.battle.rebuild_unit(target, base, kept, &lasting);
+            active.battle.rebuild_unit(target, base, lasting);
             active.battle.units[target].realm = realm;
             active.battle.refresh_fields();
         }

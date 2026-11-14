@@ -72,11 +72,13 @@ fn check_unit_spells(
     for c in &casting.item_charges {
         check(c.spell)?;
     }
-    for &(spell, _) in &unit.combat_spells {
-        check(spell)?;
+    for l in &unit.lasting {
+        check(l.spell)?;
     }
     if let Some(base) = unit.base.as_ref() {
-        check_unit_spells(base, check)?;
+        for &spell in &base.enchantments {
+            check(spell)?;
+        }
     }
     Ok(())
 }

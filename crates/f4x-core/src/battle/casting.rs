@@ -16,7 +16,7 @@ use rand::RngCore;
 use super::attack::{kill_figure, spell_attack, unblockable, Combatant, Damage, Mode, Volley};
 use super::immunity::{effective_resistance, AttackNature, Realm};
 use super::map::{is_wall_corner, Pos};
-use super::{Battle, BattleEvent, BattleUnit, Side, Status};
+use super::{Battle, BattleEvent, BattleUnit, RangedKind, Side, Status};
 use crate::player::PlayerId;
 use crate::rules::effects::DamageTraits;
 use crate::rules::stats::{compute, Modifier, Stat};
@@ -78,6 +78,71 @@ pub struct BattleCaster {
     /// The most reserve mana the wizard may still spend in this battle, if limited (the brief
     /// of the strategic AI, `docs/learning-ai.md` section 2). `None` is no limit.
     pub budget: Option<i32>,
+}
+
+/// What a unit starts a battle with, before any lasting spell cast in the battle: the numbers
+/// its lasting spells are added to. They are kept for as long as the unit has such a spell, and
+/// no spell changes them (`BattleUnit::base`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct BaseStats {
+    pub melee: i32,
+    pub ranged: i32,
+    pub defense: i32,
+    pub resistance: i32,
+    pub to_hit: i32,
+    pub to_block: i32,
+    /// Hit points of one figure, without the extra ones life steal gave.
+    pub hits: i32,
+    pub moves: HalfInt,
+    pub flies: bool,
+    pub first_strike: bool,
+    pub negate_first_strike: bool,
+    pub long_range: bool,
+    pub magical_weapon: bool,
+    pub special_level: i32,
+    pub ranged_kind: RangedKind,
+    pub abilities: Vec<Ability>,
+    /// The lasting spells it came into the battle with (from the overland unit), and what they do.
+    pub enchantments: Vec<SpellId>,
+    pub effects: UnitEffects,
+}
+
+impl BaseStats {
+    /// The numbers of `unit` as they are now.
+    pub fn of(unit: &BattleUnit) -> Self {
+        Self {
+            melee: unit.melee,
+            ranged: unit.ranged,
+            defense: unit.defense,
+            resistance: unit.resistance,
+            to_hit: unit.to_hit,
+            to_block: unit.to_block,
+            hits: unit.hits - unit.extra_hits,
+            moves: unit.moves,
+            flies: unit.flies,
+            first_strike: unit.first_strike,
+            negate_first_strike: unit.negate_first_strike,
+            long_range: unit.long_range,
+            magical_weapon: unit.magical_weapon,
+            special_level: unit.special_level,
+            ranged_kind: unit.ranged_kind,
+            abilities: unit.abilities.clone(),
+            enchantments: unit.enchantments.clone(),
+            effects: unit.effects,
+        }
+    }
+}
+
+/// A lasting spell cast on a unit in the battle, with what it does to the unit's numbers: the
+/// unit's list of these, in the order cast, is all that is added to its base
+/// (`BattleUnit::lasting`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Lasting {
+    pub spell: SpellId,
+    pub caster: PlayerId,
+    pub effects: UnitEffects,
+    pub mods: Vec<Modifier>,
+    pub grants: Vec<Ability>,
 }
 
 impl BattleCaster {
@@ -425,8 +490,9 @@ impl Battle {
         }
     }
 
-    /// Put a lasting spell on a unit: its modifiers and abilities change the unit's numbers
-    /// until the battle ends or a dispel takes the spell off.
+    /// Put a lasting spell on a unit: it joins the unit's list of lasting spells, and the unit's
+    /// numbers are worked out again from what it started the battle with and that list. They
+    /// last until the battle ends or a dispel takes the spell off.
     pub fn enchant_unit(
         &mut self,
         target: usize,
@@ -443,53 +509,34 @@ impl Battle {
             unit.web_closes();
             return;
         }
-        // The base is the unit without the battlefield spells' changes too.
-        unit.take_off_field();
-        if unit.base.is_none() {
-            let mut base = unit.clone();
-            base.base = None;
-            unit.base = Some(Box::new(base));
-        }
+        unit.keep_base();
         // Sleep ends the unit's turn.
         if effects.contains(UnitEffect::BlackSleep) {
             unit.attacked = true;
         }
-        unit.combat_spells.push((spell, caster));
-        unit.enchantments.push(spell);
-        unit.effects.union(effects);
-        unit.apply_lasting(mods, grants);
+        unit.lasting.push(Lasting {
+            spell,
+            caster,
+            effects,
+            mods: mods.to_vec(),
+            grants: grants.to_vec(),
+        });
+        unit.recompute();
         if webbing {
             unit.web_closes();
         }
     }
 
-    /// Take a unit back to `base` (its numbers from before any combat spell, brought up to date
-    /// by the game) and put on the spells it still has, each with its modifiers and abilities
-    /// from `lasting`, in step with `combat_spells`.
-    pub fn rebuild_unit(
-        &mut self,
-        target: usize,
-        base: BattleUnit,
-        kept: Vec<(SpellId, PlayerId)>,
-        lasting: &[(SpellId, UnitEffects, Vec<Modifier>, Vec<Ability>)],
-    ) {
+    /// Give a unit the numbers it starts the battle with (`base`, brought up to date by the game
+    /// when the unit it was made from changed) and the lasting spells it still has, `lasting`:
+    /// what a dispel leaves. Nothing but the list and the base decides the numbers.
+    pub fn rebuild_unit(&mut self, target: usize, base: BaseStats, lasting: Vec<Lasting>) {
         let unit = &mut self.units[target];
-        unit.restore_stats_from(&base);
-        unit.field = Default::default();
-        unit.base = Some(Box::new(base));
-        unit.combat_spells = kept;
-        unit.effects = Default::default();
-        for (id, effects, mods, grants) in lasting {
-            unit.enchantments.push(*id);
-            unit.effects.union(*effects);
-            unit.apply_lasting(mods, grants);
-        }
-        if unit.combat_spells.is_empty() {
+        unit.base = Some(base);
+        unit.lasting = lasting;
+        unit.recompute();
+        if unit.lasting.is_empty() {
             unit.base = None;
-        }
-        // A dispelled web is gone with its hit points.
-        if !unit.effects.contains(UnitEffect::Web) {
-            unit.web_hits = 0;
         }
     }
 
@@ -525,8 +572,82 @@ impl BattleUnit {
         self.extra_attack = false;
     }
 
-    /// Change the unit's numbers by a lasting spell's modifiers, and give it its abilities.
-    pub fn apply_lasting(&mut self, mods: &[Modifier], grants: &[Ability]) {
+    /// The lasting spells of the battle on the unit, and who cast each, in the order cast.
+    pub fn combat_spells(&self) -> Vec<(SpellId, PlayerId)> {
+        self.lasting.iter().map(|l| (l.spell, l.caster)).collect()
+    }
+
+    /// Keep what the unit started the battle with, before its first lasting spell: the numbers
+    /// without the changes of the battlefield spells, which are put on again by
+    /// `Battle::refresh_fields`, and without the extra hit points of life steal, which the unit
+    /// keeps whatever happens to its spells.
+    pub(super) fn keep_base(&mut self) {
+        if self.base.is_none() {
+            self.take_off_field();
+            self.base = Some(BaseStats::of(self));
+        }
+    }
+
+    /// Work the unit's numbers out again from what it started the battle with and its lasting
+    /// spells. The numbers are a function of those two and nothing else, so whatever a dispel
+    /// takes off, the rest is untouched. The damage taken is kept, and the unit is dead if its
+    /// hit points do not cover it any longer (`settle_hit_points`). The battlefield spells'
+    /// changes are gone with the numbers and put on again by the caller (`refresh_fields`).
+    pub(super) fn recompute(&mut self) {
+        let Some(base) = self.base.clone() else {
+            return;
+        };
+        let (ceiling, hit_points) = (self.hit_point_ceiling(), self.hit_points());
+        let moves_before = self.moves;
+        self.field = Default::default();
+        self.melee = base.melee;
+        self.ranged = base.ranged;
+        self.defense = base.defense;
+        self.resistance = base.resistance;
+        self.to_hit = base.to_hit;
+        self.to_block = base.to_block;
+        self.hits = base.hits;
+        self.moves = base.moves;
+        self.flies = base.flies;
+        self.first_strike = base.first_strike;
+        self.negate_first_strike = base.negate_first_strike;
+        self.long_range = base.long_range;
+        self.magical_weapon = base.magical_weapon;
+        self.special_level = base.special_level;
+        self.enchantments = base.enchantments.clone();
+        self.effects = base.effects;
+        self.abilities = base.abilities.clone();
+        self.ranged_kind = base.ranged_kind;
+        for l in std::mem::take(&mut self.lasting) {
+            self.enchantments.push(l.spell);
+            self.effects.union(l.effects);
+            self.apply(&l.mods, &l.grants);
+            self.lasting.push(l);
+        }
+        // Life steal's extra hit points are no spell's: they stay.
+        self.hits += self.extra_hits;
+        // What is left of this turn's moves follows the change in the moves of the turn.
+        if self.moves >= moves_before {
+            self.moves_left += self.moves - moves_before;
+        } else {
+            self.moves_left = self.moves_left.min(self.moves);
+        }
+        // Haste: a unit that has not attacked yet may attack twice this turn; without it, never.
+        if !self.has(Ability::new(26)) {
+            self.extra_attack = false;
+        } else if !self.attacked {
+            self.extra_attack = true;
+        }
+        self.sync_abilities();
+        // A web that is gone is gone with its hit points.
+        if !self.effects.contains(UnitEffect::Web) {
+            self.web_hits = 0;
+        }
+        self.settle_hit_points(ceiling, hit_points);
+    }
+
+    /// One lasting spell's modifiers and abilities on the numbers worked out so far.
+    fn apply(&mut self, mods: &[Modifier], grants: &[Ability]) {
         let comp = |stat: Stat, base: i32| compute(stat, base, mods);
         self.melee = comp(Stat::Melee, self.melee);
         self.ranged = comp(Stat::Ranged, self.ranged);
@@ -542,21 +663,39 @@ impl BattleUnit {
         } else {
             HalfInt::from_int(whole) + HalfInt::from_raw(old.raw() % 2)
         };
-        if self.moves >= old {
-            self.moves_left += self.moves - old;
-        } else {
-            self.moves_left = self.moves_left.min(self.moves);
-        }
         for g in grants {
             if !self.has(*g) {
                 self.abilities.push(*g);
             }
         }
-        // Haste: a unit that has not attacked yet may attack twice this turn.
-        if self.has(Ability::new(26)) && !self.attacked {
-            self.extra_attack = true;
+    }
+
+    /// The most hit points the unit can have over all its figures.
+    pub(super) fn hit_point_ceiling(&self) -> i32 {
+        self.figures_start as i32 * self.hits
+    }
+
+    /// The unit's hit points were `old_hp` of a ceiling of `old_ceiling` and the ceiling is
+    /// lower now (a spell that gave hit points is gone). The damage it has taken stays, so the
+    /// hit points fall by as much as the ceiling did; the figures only show what is left. At
+    /// zero or less the whole unit is dead (row 138 of the 1.50 notes: the original left such a
+    /// unit alive).
+    pub(super) fn settle_hit_points(&mut self, old_ceiling: i32, old_hp: i32) {
+        let lost = old_ceiling - self.hit_point_ceiling();
+        if lost <= 0 || self.figures == 0 {
+            return;
         }
-        self.sync_abilities();
+        let left = old_hp - lost;
+        if left <= 0 {
+            self.figures = 0;
+            self.front_damage = 0;
+            if self.status == Status::Active {
+                self.status = Status::Dead;
+            }
+        } else {
+            self.figures = ((left + self.hits - 1) / self.hits) as u32;
+            self.front_damage = self.figures as i32 * self.hits - left;
+        }
     }
 
     /// The flags the battle reads, brought in line with the abilities.
@@ -570,28 +709,5 @@ impl BattleUnit {
         if self.has(Ability::new(73)) || self.has(Ability::new(2)) {
             self.flies = false;
         }
-    }
-
-    /// Take the numbers (not the damage or the position) from `base`.
-    fn restore_stats_from(&mut self, base: &BattleUnit) {
-        self.melee = base.melee;
-        self.ranged = base.ranged;
-        self.defense = base.defense;
-        self.resistance = base.resistance;
-        self.to_hit = base.to_hit;
-        self.to_block = base.to_block;
-        self.hits = base.hits;
-        self.moves = base.moves;
-        self.moves_left = self.moves_left.min(base.moves);
-        self.flies = base.flies;
-        self.first_strike = base.first_strike;
-        self.negate_first_strike = base.negate_first_strike;
-        self.long_range = base.long_range;
-        self.magical_weapon = base.magical_weapon;
-        self.special_level = base.special_level;
-        self.enchantments = base.enchantments.clone();
-        self.effects = base.effects;
-        self.abilities = base.abilities.clone();
-        self.ranged_kind = base.ranged_kind;
     }
 }

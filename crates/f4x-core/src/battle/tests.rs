@@ -2033,17 +2033,79 @@ mod casting {
         );
         assert_eq!(u.melee, before.melee + 1);
         assert!(u.first_strike && u.has(Ability::new(23)));
-        assert_eq!(u.combat_spells, vec![(spell, A)]);
+        assert_eq!(u.combat_spells(), vec![(spell, A)]);
         // A dispel: back to the base, with no spells on.
-        let base = u.base.as_deref().ok_or("as_deref is missing")?.clone();
-        b.rebuild_unit(0, base, Vec::new(), &[]);
+        let base = u.base.clone().ok_or("as_deref is missing")?;
+        b.rebuild_unit(0, base, Vec::new());
         let u = &b.units[0];
         assert_eq!(
             (u.moves, u.melee, u.first_strike),
             (before.moves, before.melee, false)
         );
-        assert!(u.combat_spells.is_empty() && u.base.is_none());
+        assert!(u.combat_spells().is_empty() && u.base.is_none());
         assert!(u.abilities.is_empty() && u.enchantments.is_empty());
+        Ok(())
+    }
+
+    /// A unit with a lasting spell that gave hit points, the damage it has taken, and the spell
+    /// taken off again. Row 138 of the 1.50 notes: the original left such a unit alive at zero
+    /// hit points or less. The unit has `figures` figures of `hits` hit points, `alive` of them
+    /// alive with `front_damage` on the front one, and the spell gave `bonus` more to each.
+    fn after_the_hit_points_are_taken_off(
+        (figures, hits, alive, front_damage): (u32, i32, u32, i32),
+        bonus: i32,
+    ) -> Result<BattleUnit, Box<dyn std::error::Error>> {
+        let m = |stat, op, value| Modifier::new(stat, op, value, Source::Other);
+        let mut unit = spearman(Side::Attacker, (3, 5));
+        (unit.figures_start, unit.hits) = (figures, hits);
+        let mut b = duel(unit, spearman(Side::Defender, (8, 5)), 1);
+        b.enchant_unit(
+            0,
+            crate::rules::SpellId::new(1),
+            A,
+            crate::spell::unit_effect::UnitEffects::NONE,
+            &[m(Stat::MaxHp, ModOp::Add, bonus)],
+            &[],
+        );
+        assert_eq!(b.units[0].hits, hits + bonus);
+        (b.units[0].figures, b.units[0].front_damage) = (alive, front_damage);
+        let base = b.units[0].base.clone().ok_or("no base")?;
+        b.rebuild_unit(0, base, Vec::new());
+        Ok(b.units[0].clone())
+    }
+
+    #[test]
+    fn a_unit_whose_borrowed_hit_points_go_with_the_damage_it_took_dies() -> TestResult {
+        // 10 hit points and 5 more from a spell: 15. It takes 12 and has 3 left. The spell is
+        // dispelled: 3 - 5 = -2.
+        let u = after_the_hit_points_are_taken_off((1, 10, 1, 12), 5)?;
+        assert!(!u.is_active() && u.hit_points() <= 0, "{u:?}");
+        // Exactly zero is dead as well.
+        let u = after_the_hit_points_are_taken_off((1, 10, 1, 10), 5)?;
+        assert!(!u.is_active(), "{u:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn the_figures_of_a_unit_are_only_its_hit_points_so_the_whole_unit_dies_at_zero() -> TestResult
+    {
+        // Three figures of 5 (15 hit points); one figure dead and 4 damage on the front one of
+        // the others: 6 left. The ceiling falls to 6 (2 each): 6 - 9 = -3. No figure is spared.
+        let u = after_the_hit_points_are_taken_off((3, 2, 2, 4), 3)?;
+        assert_eq!((u.figures, u.is_active()), (0, false), "{u:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_hurt_unit_that_has_hit_points_left_keeps_them_in_fewer_figures() -> TestResult {
+        // Three whole figures of 5 with 3 damage on the front one: 12 hit points. The ceiling
+        // falls to 6: 3 left, two figures of 2 with 1 damage on the front one.
+        let u = after_the_hit_points_are_taken_off((3, 2, 3, 3), 3)?;
+        assert_eq!((u.figures, u.front_damage, u.hit_points()), (2, 1, 3));
+        assert!(u.is_active());
+        // A unit that took no damage keeps all its figures.
+        let u = after_the_hit_points_are_taken_off((3, 2, 3, 0), 3)?;
+        assert_eq!((u.figures, u.hit_points()), (3, 6));
         Ok(())
     }
 
@@ -2575,7 +2637,7 @@ mod fields {
                 .count(),
             1
         );
-        assert_eq!(u.combat_spells.len(), 1);
+        assert_eq!(u.combat_spells().len(), 1);
     }
 
     #[test]
@@ -5053,6 +5115,11 @@ fn dispel_magic_takes_down_the_enemy_battlefield_spells_and_leaves_its_casters_o
 /// A battle of player A's wizard, who knows `spells` and has plenty to cast with; the first
 /// attacker is a `unit` of the test content.
 fn wizard_battle(unit: u16, spells: &[u16]) -> Game {
+    wizard_battle_against(unit, spells, 1)
+}
+
+/// [`wizard_battle`] against `foes` cavalry of player D.
+fn wizard_battle_against(unit: u16, spells: &[u16], foes: usize) -> Game {
     let mut g = game();
     g.treasury_mut(A).expect("treasury_mut succeeds").mana =
         f4x_def::half_int::HalfInt::from_int(2000);
@@ -5092,12 +5159,30 @@ fn wizard_battle(unit: u16, spells: &[u16]) -> Game {
         .id_numbered(unit)
         .expect("id_of succeeds");
     let ours = g.spawn_unit(A, at(4, 4), kind);
-    begin(&mut g, ours);
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_numbered(107)
+        .expect("id_of succeeds");
+    let defenders: Vec<_> = (0..foes)
+        .map(|_| g.spawn_unit(D, at(5, 4), walker))
+        .collect();
+    g.apply(Command::BeginBattle {
+        attackers: vec![ours],
+        defenders,
+    });
+    assert!(g.in_battle());
     g
 }
 
 /// The wizard casts `spell` on the first attacker, with a fresh turn's casting.
 fn cast_on_first(g: &mut Game, spell: u16) -> Result<Vec<Event>, BattleError> {
+    cast_on(g, spell, 0)
+}
+
+/// The wizard casts `spell` on unit `target`, with a fresh turn's casting.
+fn cast_on(g: &mut Game, spell: u16, target: usize) -> Result<Vec<Event>, BattleError> {
     let id = g
         .content
         .rules
@@ -5114,7 +5199,7 @@ fn cast_on_first(g: &mut Game, spell: u16) -> Result<Vec<Event>, BattleError> {
         );
     g.battle_command(BattleCommand::Cast {
         spell: id,
-        aim: SpellAim::Unit(0),
+        aim: SpellAim::Unit(target),
         mana: 0,
     })
 }
@@ -5208,6 +5293,492 @@ fn a_dispel_does_not_bring_back_the_bonus_of_a_spell_that_gives_way() -> TestRes
         };
         assert_eq!(unit.defense, base + expected, "strength {strength}");
     }
+    Ok(())
+}
+
+/// A unit's numbers as the battle reads them: what a spell can change.
+#[derive(Debug, PartialEq)]
+struct Numbers {
+    melee: i32,
+    ranged: i32,
+    defense: i32,
+    resistance: i32,
+    to_hit: i32,
+    to_block: i32,
+    hits: i32,
+    moves: HalfInt,
+    flags: [bool; 6],
+    special_level: i32,
+    abilities: Vec<String>,
+    granted: Vec<String>,
+    effects: crate::spell::unit_effect::UnitEffects,
+    enchantments: Vec<String>,
+    web_hits: i32,
+    warp: Option<String>,
+}
+
+fn numbers(u: &BattleUnit) -> Numbers {
+    let sorted = |list: &[crate::rules::Ability]| {
+        let mut v: Vec<String> = list.iter().map(|a| format!("{a:?}")).collect();
+        v.sort();
+        v
+    };
+    let mut enchantments: Vec<String> = u.enchantments.iter().map(|s| format!("{s:?}")).collect();
+    enchantments.sort();
+    Numbers {
+        melee: u.melee,
+        ranged: u.ranged,
+        defense: u.defense,
+        resistance: u.resistance,
+        to_hit: u.to_hit,
+        to_block: u.to_block,
+        hits: u.hits,
+        moves: u.moves,
+        flags: [
+            u.flies,
+            u.first_strike,
+            u.negate_first_strike,
+            u.long_range,
+            u.magical_weapon,
+            u.extra_attack,
+        ],
+        special_level: u.special_level,
+        abilities: sorted(&u.abilities),
+        granted: sorted(&u.granted),
+        effects: u.effects,
+        enchantments,
+        web_hits: u.web_hits,
+        warp: u.warp.map(|w| format!("{w:?}")),
+    }
+}
+
+/// The lasting spells that can be cast on a unit of one's own and change its numbers, flags or
+/// abilities: the matrix of the model tests of task 604.
+const OWN_UNIT_SPELLS: [u16; 15] = [
+    4,   // giant_strength
+    7,   // stone_skin
+    24,  // iron_skin
+    31,  // regeneration
+    56,  // flight
+    62,  // invisibility
+    70,  // haste
+    94,  // flame_blade
+    121, // bless
+    124, // holy_weapon
+    126, // holy_armor
+    130, // heroism
+    141, // lionheart
+    143, // invulnerability
+    179, // berserk
+];
+
+/// A battle in which a `unit` has had `casts` cast on it in turn; the casts that were refused
+/// (a spell it has by nature, one that gives way) are left out.
+fn unit_with_spells(unit: u16, casts: &[u16]) -> Result<Game, Box<dyn std::error::Error>> {
+    let mut g = wizard_battle(unit, &OWN_UNIT_SPELLS);
+    for &spell in casts {
+        let _ = cast_on_first(&mut g, spell);
+    }
+    Ok(g)
+}
+
+/// Task 604, the model: whatever a dispel takes off a unit, what is left is the unit with only
+/// the spells that remain cast on it, in the same order. (The numbers are a function of the unit
+/// and its spells, not of the history.)
+#[test]
+fn a_dispel_leaves_exactly_the_unit_with_the_spells_that_remain_cast_on_it() -> TestResult {
+    let mut checked = 0;
+    let mut partial = 0;
+    let mut failures = Vec::new();
+    for unit in [
+        107, /* high_men_cavalry */
+        104, /* high_men_spearmen */
+    ] {
+        for (i, &a) in OWN_UNIT_SPELLS.iter().enumerate() {
+            for (j, &b) in OWN_UNIT_SPELLS.iter().enumerate().skip(i + 1) {
+                for &c in OWN_UNIT_SPELLS.iter().skip(j + 1).step_by(3) {
+                    for strength in [25, 60] {
+                        let casts = [a, b, c];
+                        let mut g = unit_with_spells(unit, &casts)?;
+                        let all = g
+                            .battle()
+                            .ok_or("no battle")?
+                            .unit(0)
+                            .ok_or("no unit")?
+                            .combat_spells()
+                            .len();
+                        g.dispel_battle_unit(0, strength, D);
+                        let after = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
+                        let kept: Vec<u16> =
+                            after.combat_spells().iter().map(|(s, _)| s.num()).collect();
+                        if kept.len() < all && !kept.is_empty() {
+                            partial += 1;
+                        }
+                        let fresh = unit_with_spells(unit, &kept)?;
+                        let want = numbers(
+                            fresh
+                                .battle()
+                                .ok_or("no battle")?
+                                .unit(0)
+                                .ok_or("no unit")?,
+                        );
+                        checked += 1;
+                        let got = numbers(after);
+                        if got != want {
+                            failures.push(format!(
+                                "unit {unit}, cast {casts:?}, strength {strength}, kept {kept:?}:\n   got  {got:?}\n   want {want:?}"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        partial > 20,
+        "too few partial dispels to mean anything: {partial} of {checked}"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} of {checked} differ, the first:\n{}",
+        failures.len(),
+        failures
+            .iter()
+            .take(3)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    Ok(())
+}
+
+/// The curses of the matrix: they land on an enemy unit with no resistance.
+const CURSES: [u16; 6] = [
+    162, // weakness
+    53,  // vertigo
+    67,  // mind_storm
+    88,  // shatter
+    165, // black_sleep
+    5,   // web
+];
+
+/// A battle in which the enemy unit (no resistance: a roll never beats it) has had the
+/// `casts` cast on it in turn by the first wizard.
+fn enemy_with_curses(casts: &[u16]) -> Result<Game, Box<dyn std::error::Error>> {
+    let mut g = wizard_battle(107 /* high_men_cavalry */, &CURSES);
+    g.battle.as_mut().ok_or("no battle")?.battle.units[1].resistance = 0;
+    for &spell in casts {
+        let _ = cast_on(&mut g, spell, 1);
+    }
+    Ok(g)
+}
+
+/// The same invariant for what the enemy does to a unit: a dispel leaves the unit with only the
+/// curses that remain on it, whichever they are (task 604).
+#[test]
+fn a_dispel_leaves_exactly_the_enemy_unit_with_the_curses_that_remain_on_it() -> TestResult {
+    let (mut checked, mut partial) = (0, 0);
+    let mut failures = Vec::new();
+    for (i, &a) in CURSES.iter().enumerate() {
+        for (j, &b) in CURSES.iter().enumerate().skip(i + 1) {
+            for &c in CURSES.iter().skip(j + 1) {
+                for strength in [25, 60, 10_000] {
+                    let casts = [a, b, c];
+                    let mut g = enemy_with_curses(&casts)?;
+                    let all = g
+                        .battle()
+                        .ok_or("no battle")?
+                        .unit(1)
+                        .ok_or("no unit")?
+                        .combat_spells()
+                        .len();
+                    g.dispel_battle_unit(1, strength, D);
+                    let after = g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?;
+                    let kept: Vec<u16> =
+                        after.combat_spells().iter().map(|(s, _)| s.num()).collect();
+                    partial += usize::from(kept.len() < all && !kept.is_empty());
+                    let fresh = enemy_with_curses(&kept)?;
+                    let want = numbers(
+                        fresh
+                            .battle()
+                            .ok_or("no battle")?
+                            .unit(1)
+                            .ok_or("no unit")?,
+                    );
+                    checked += 1;
+                    let got = numbers(after);
+                    if got != want {
+                        failures.push(format!("cast {casts:?}, strength {strength}, kept {kept:?}:\n   got  {got:?}\n   want {want:?}"));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        partial >= 5,
+        "too few partial dispels: {partial} of {checked}"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} of {checked} differ, the first:\n{}",
+        failures.len(),
+        failures
+            .iter()
+            .take(3)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    Ok(())
+}
+
+#[test]
+fn a_creature_binding_that_is_dispelled_returns_the_unit_and_takes_only_its_own_effect(
+) -> TestResult {
+    let mut g = wizard_battle_against(
+        107, /* high_men_cavalry */
+        &[73 /* creature_binding */, 162 /* weakness */],
+        2,
+    );
+    g.battle.as_mut().ok_or("no battle")?.battle.units[1].resistance = 0;
+    g.battle.as_mut().ok_or("no battle")?.battle.units[1].realm = Some(Realm::Chaos);
+    let pristine = numbers(g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?);
+    cast_on(&mut g, 162 /* weakness */, 1).map_err(|e| format!("{e:?}"))?;
+    cast_on(&mut g, 73 /* creature_binding */, 1).map_err(|e| format!("{e:?}"))?;
+    let bound = g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?;
+    assert_eq!(
+        (bound.side, bound.bound_from),
+        (Side::Attacker, Some(Side::Defender))
+    );
+    let weakened = numbers(bound);
+    assert!(weakened.melee < pristine.melee);
+    // Dice: look at every throw until the binding alone is gone and weakness stays, and at the
+    // throw that takes both.
+    let mut one_of_them = false;
+    for strength in 1..400 {
+        let mut h = wizard_battle_against(107, &[73, 162], 2);
+        h.battle.as_mut().ok_or("no battle")?.battle.units[1].resistance = 0;
+        h.battle.as_mut().ok_or("no battle")?.battle.units[1].realm = Some(Realm::Chaos);
+        cast_on(&mut h, 162, 1).map_err(|e| format!("{e:?}"))?;
+        cast_on(&mut h, 73, 1).map_err(|e| format!("{e:?}"))?;
+        h.dispel_battle_unit(1, strength, D);
+        let u = h.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?;
+        let has = |n: u16| u.combat_spells().iter().any(|(s, _)| s.num() == n);
+        // The side follows the binding, the numbers follow weakness.
+        assert_eq!(u.side == Side::Attacker, has(73), "strength {strength}");
+        assert_eq!(u.bound_from.is_some(), has(73));
+        assert_eq!(
+            u.effects
+                .contains(crate::spell::unit_effect::UnitEffect::CreatureBinding),
+            has(73)
+        );
+        assert_eq!(u.melee < pristine.melee, has(162), "strength {strength}");
+        one_of_them |= has(73) != has(162);
+    }
+    assert!(one_of_them, "the dice never took just one of the two");
+    Ok(())
+}
+
+#[test]
+fn a_warp_creature_that_is_dispelled_takes_its_warp_and_its_numbers_with_it() -> TestResult {
+    let mut g = wizard_battle(107 /* high_men_cavalry */, &[89 /* warp_creature */]);
+    g.battle.as_mut().ok_or("no battle")?.battle.units[1].resistance = 0;
+    let pristine = numbers(g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?);
+    cast_on(&mut g, 89 /* warp_creature */, 1).map_err(|e| format!("{e:?}"))?;
+    let warped = g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?;
+    assert!(warped.warp.is_some());
+    assert_ne!(numbers(warped), pristine);
+    g.dispel_battle_unit(1, 10_000, D);
+    let after = g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?;
+    assert_eq!(numbers(after), pristine);
+    assert!(after.warp.is_none() && after.base.is_none());
+    Ok(())
+}
+
+/// A spell the unit had before the battle (on the overland unit) goes through the same dispel:
+/// the unit is then as one that never had it.
+#[test]
+fn a_dispel_of_a_spell_from_before_the_battle_leaves_the_unit_as_if_it_never_had_it() -> TestResult
+{
+    let build = |lionheart: bool| -> Result<Game, Box<dyn std::error::Error>> {
+        let mut g = game();
+        g.treasury_mut(A).ok_or("no treasury")?.mana = f4x_def::half_int::HalfInt::from_int(2000);
+        g.init_wizard(A, &[(RealmId::new(3 /* life */), 5)], &[], None)
+            .map_err(|e| format!("{e:?}"))?;
+        let walker = g.content.rules.units.id_numbered(107).ok_or("no cavalry")?;
+        let ours = g.spawn_unit(A, at(4, 4), walker);
+        if lionheart {
+            let spell = g
+                .content
+                .rules
+                .spells
+                .id_numbered(141)
+                .ok_or("no lionheart")?;
+            g.attach_enchantment(crate::rules::exec::Target::Unit(ours), spell, A);
+        }
+        begin(&mut g, ours);
+        Ok(g)
+    };
+    let mut g = build(true)?;
+    let plain = numbers(
+        build(false)?
+            .battle()
+            .ok_or("no battle")?
+            .unit(0)
+            .ok_or("no unit")?,
+    );
+    let with = numbers(g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?);
+    assert!(
+        with.hits > plain.hits && with.melee > plain.melee,
+        "{with:?} against {plain:?}"
+    );
+    g.dispel_battle_unit(0, 10_000, D);
+    let after = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
+    assert_eq!(numbers(after), plain);
+    Ok(())
+}
+
+/// Hit points a battle-cast Lionheart gave go with it at the end of the battle, and the damage
+/// the unit took stays (`divergences.md` 45): a unit that stands on them is dead, one that does
+/// not is hurt by what it took.
+#[test]
+fn a_lionheart_cast_in_the_battle_ends_with_it_and_the_damage_stays() -> TestResult {
+    for (damage_on_top, lives) in [(0, true), (1, false)] {
+        let mut g = wizard_battle(107 /* high_men_cavalry */, &[141 /* lionheart */]);
+        cast_on_first(&mut g, 141).map_err(|e| format!("{e:?}"))?;
+        let (base, max, ours) = {
+            let a = g.battle.as_ref().ok_or("no battle")?;
+            let u = a.battle.unit(0).ok_or("no unit")?;
+            let base = u.base.clone().ok_or("no base")?.hits * u.figures_start as i32;
+            (base, u.max_hit_points(), a.sources[0])
+        };
+        assert!(max > base, "lionheart gave hit points: {max} over {base}");
+        // The damage that leaves the unit on one hit point of its normal maximum, or none.
+        let taken = base - 1 + damage_on_top;
+        {
+            let u = &mut g.battle.as_mut().ok_or("no battle")?.battle.units[0];
+            let left = max - taken;
+            u.figures = ((left + u.hits - 1) / u.hits) as u32;
+            u.front_damage = u.figures as i32 * u.hits - left;
+            assert_eq!(u.hit_points(), left);
+        }
+        // The other side flees, so ours wins and nothing is lost on the way.
+        g.battle_command(BattleCommand::EndTurn)
+            .map_err(|e| format!("{e:?}"))?;
+        g.battle_command(BattleCommand::Flee)
+            .map_err(|e| format!("{e:?}"))?;
+        assert!(!g.in_battle());
+        if lives {
+            assert_eq!(g.units().unit_hits(ours).0, 1);
+        } else {
+            assert!(
+                !g.world.contains(ours),
+                "no hit points are left, so it is dead"
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Life steal, then a spell that gave hit points is dispelled: the extras stay, the spell's hit
+/// points go, and the damage taken is kept.
+#[test]
+fn life_steal_extras_stay_and_lionheart_goes_when_it_is_dispelled() -> TestResult {
+    let mut g = wizard_battle(107 /* high_men_cavalry */, &[141 /* lionheart */]);
+    cast_on_first(&mut g, 141).map_err(|e| format!("{e:?}"))?;
+    let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
+    let base_max = u.base.clone().ok_or("no base")?.hits * u.figures_start as i32;
+    let with_spell = u.max_hit_points();
+    // Hurt by three, then healed past the maximum by life steal.
+    {
+        let u = &mut g.battle.as_mut().ok_or("no battle")?.battle.units[0];
+        u.front_damage = 3;
+        u.heal_points(100, true);
+        assert!(u.extra_hits > 0 && u.hit_points() > with_spell);
+    }
+    let (extra, figures) = {
+        let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
+        (u.extra_hits, u.figures_start as i32)
+    };
+    g.dispel_battle_unit(0, 10_000, D);
+    let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
+    assert_eq!(u.extra_hits, extra, "the extras are no spell's");
+    assert_eq!(
+        u.max_hit_points(),
+        base_max,
+        "the spell's hit points are gone"
+    );
+    assert_eq!(u.hits, base_max / figures + extra);
+    assert!(u.is_active());
+    assert_eq!(
+        u.hit_points(),
+        base_max + figures * extra,
+        "it was whole with the extras, so it is whole with them still"
+    );
+    Ok(())
+}
+
+/// Haste lets a unit attack twice in a turn; a dispel that takes the Haste off takes the second
+/// attack with it (the original, and this code before task 604, left it).
+#[test]
+fn a_dispelled_haste_takes_the_second_attack_with_it() -> TestResult {
+    let mut g = wizard_battle(107 /* high_men_cavalry */, &[70 /* haste */]);
+    cast_on_first(&mut g, 70).map_err(|e| format!("{e:?}"))?;
+    assert!(
+        g.battle()
+            .ok_or("no battle")?
+            .unit(0)
+            .ok_or("no unit")?
+            .extra_attack
+    );
+    g.dispel_battle_unit(0, 10_000, D);
+    let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
+    assert!(!u.has(Ability::new(26)));
+    assert!(
+        !u.extra_attack,
+        "the haste is gone, the second attack is not"
+    );
+    Ok(())
+}
+
+/// The extra hit points life steal gave are no spell's: the dispel of an unrelated spell leaves
+/// them, and the unit's maximum stays what it was (before task 604 the extras were lost and the
+/// maximum went negative, which healed the unit fully when the battle was written back).
+#[test]
+fn life_steal_hit_points_survive_the_dispel_of_an_unrelated_spell() -> TestResult {
+    use crate::rules::{ModOp, Modifier, Source, Stat};
+    let m = |stat, op, value| Modifier::new(stat, op, value, Source::Other);
+    let mut b = duel(
+        spearman(Side::Attacker, (3, 5)),
+        spearman(Side::Defender, (8, 5)),
+        1,
+    );
+    b.enchant_unit(
+        0,
+        crate::rules::SpellId::new(1),
+        A,
+        crate::spell::unit_effect::UnitEffects::NONE,
+        &[m(Stat::Melee, ModOp::Add, 1)],
+        &[],
+    );
+    let max = b.units[0].max_hit_points();
+    let mut state = b.units[0].defender_state();
+    state.heal_overflow(9);
+    b.units[0].set_from(&state);
+    let (hits, extra, hp) = (
+        b.units[0].hits,
+        b.units[0].extra_hits,
+        b.units[0].hit_points(),
+    );
+    assert!(
+        extra > 0 && hp > max,
+        "life steal healed past the maximum: {hp} of {max}"
+    );
+    let base = b.units[0].base.clone().ok_or("no base")?;
+    b.rebuild_unit(0, base, Vec::new());
+    let u = &b.units[0];
+    assert_eq!((u.hits, u.extra_hits, u.hit_points()), (hits, extra, hp));
+    assert_eq!(u.max_hit_points(), max);
     Ok(())
 }
 
@@ -5678,10 +6249,19 @@ fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() ->
 
 #[test]
 fn a_hasted_unit_attacks_twice_in_a_turn() -> TestResult {
-    let mut hasted = spearman(Side::Attacker, (9, 10));
-    hasted.abilities.push(Ability::new(26));
-    hasted.apply_lasting(&[], &[]);
-    let mut b = duel(hasted, spearman(Side::Defender, (10, 10)), 3);
+    let mut b = duel(
+        spearman(Side::Attacker, (9, 10)),
+        spearman(Side::Defender, (10, 10)),
+        3,
+    );
+    b.enchant_unit(
+        0,
+        SpellId::new(70), /* haste */
+        A,
+        crate::spell::unit_effect::UnitEffects::NONE,
+        &[],
+        &[Ability::new(26)],
+    );
     assert!(b.unit(0).ok_or("unit is missing")?.extra_attack);
     b.apply(BattleCommand::Attack { unit: 0, target: 1 })
         .map_err(|e| format!("{e:?}"))?;

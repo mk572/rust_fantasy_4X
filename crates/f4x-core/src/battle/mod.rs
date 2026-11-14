@@ -42,7 +42,7 @@ use immunity::{AttackNature, Immunities, Realm};
 use map::{distance, in_city_area, BattleMap, Mover, Pos, OPEN_COST};
 use special::{Gaze, SpecialAttacks};
 
-pub use casting::{BattleCaster, SpellAim, SpellError};
+pub use casting::{BaseStats, BattleCaster, Lasting, SpellAim, SpellError};
 
 /// A side never fights on past this turn: the defender holds.
 pub const TURN_LIMIT: u32 = 100;
@@ -250,11 +250,12 @@ pub struct BattleUnit {
     /// Whether it was invisible when the field was last refreshed, to tell when invisibility
     /// begins (it hides the unit at once).
     pub(crate) was_invisible: bool,
-    /// Lasting spells cast on it in this battle, and who cast them. They last until the battle
-    /// ends or a dispel takes them off.
-    pub combat_spells: Vec<(SpellId, PlayerId)>,
-    /// The unit as it was before the first of them, which a dispel goes back to.
-    pub base: Option<Box<BattleUnit>>,
+    /// Lasting spells cast on it in this battle, in the order cast, with who cast them and what
+    /// they do to its numbers. They last until the battle ends or a dispel takes them off.
+    pub lasting: Vec<Lasting>,
+    /// What it started the battle with, kept while it has lasting spells: its numbers are those
+    /// and the effect of the list (`BattleUnit::recompute`).
+    pub base: Option<BaseStats>,
     /// What the battlefield spells have changed (`field.rs`).
     pub field: FieldBonus,
     /// Confusion has put it under the enemy's orders for their next turn.
@@ -377,7 +378,7 @@ impl BattleUnit {
             surfaced: false,
             slipped: false,
             was_invisible: false,
-            combat_spells: Vec::new(),
+            lasting: Vec::new(),
             base: None,
             field: FieldBonus::default(),
             seized: false,

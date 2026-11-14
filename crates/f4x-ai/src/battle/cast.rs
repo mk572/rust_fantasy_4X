@@ -1346,4 +1346,106 @@ mod tests {
         assert!(j(50.0, 50.0, false).tier(100.0) > j(20.0, 0.0, false).tier(100.0));
         assert!(j(20.0, 0.0, false).tier(100.0) > j(5.0, 5.0, false).tier(100.0));
     }
+
+    /// Rows 138, 148, 467, 683 and 684 of the 1.50 notes (zero-health units, repeated death,
+    /// lists that run out of bounds after a removal): in many fights of mixed stacks whose
+    /// wizards know every battle spell, after every order no unit that is alive has no figures
+    /// or no hit points, nothing dead comes back, and a unit dies in the events at most once.
+    #[test]
+    fn death_is_one_way_and_no_live_unit_has_no_hit_points_in_fights_with_every_spell() -> TestResult
+    {
+        use f4x_core::battle::{BattleEvent, Status};
+        use f4x_core::game::Event;
+        use f4x_def::rules::{CastContext, UnitKind};
+        crate::battle::install();
+        let rules = &shipped().rules;
+        let kinds: Vec<_> = rules
+            .units
+            .defs()
+            .iter()
+            .filter(|d| matches!(d.kind, UnitKind::Normal | UnitKind::Fantastic))
+            .map(|d| rules.units.id_numbered(d.num).ok_or("no unit"))
+            .collect::<Result<_, _>>()?;
+        let spells: Vec<_> = rules
+            .spells
+            .iter()
+            .filter(|(_, d)| d.contexts.contains(&CastContext::Battle))
+            .map(|(id, _)| id)
+            .collect();
+        let mut orders = 0;
+        for seed in 0..40u64 {
+            // A small generator of the test's own, so the stacks differ from seed to seed.
+            let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+            let mut below = |n: usize| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                (state % n as u64) as usize
+            };
+            let mut g = game(COAST_CITY, 7);
+            for _ in 0..seed {
+                g.next_u64();
+            }
+            for p in [P0, P1] {
+                let books: Vec<_> = (0..5)
+                    .map(|r| (f4x_core::rules::RealmId::new(r), 6))
+                    .collect();
+                g.init_wizard(p, &books, &[], None)
+                    .map_err(|e| format!("{e:?}"))?;
+                for &s in &spells {
+                    g.cheat_learn_spell(p, s);
+                }
+                g.treasury_mut(p).ok_or("no treasury")?.mana =
+                    f4x_def::half_int::HalfInt::from_int(800);
+            }
+            let mut stack = |g: &mut f4x_core::game::Game, p, cell| {
+                (0..=below(5))
+                    .map(|_| g.spawn_unit(p, cell, kinds[below(kinds.len())]))
+                    .collect::<Vec<_>>()
+            };
+            let ours = stack(&mut g, P0, at(4, 4));
+            let theirs = stack(&mut g, P1, at(5, 4));
+            g.apply(Command::BeginBattle {
+                attackers: ours,
+                defenders: theirs,
+            });
+            let mut dead: std::collections::BTreeSet<usize> = Default::default();
+            let mut died: std::collections::BTreeSet<usize> = Default::default();
+            for _ in 0..3000 {
+                let Some(command) = g.next_battle_command() else {
+                    break;
+                };
+                let Ok(events) = g.battle_command(command.clone()) else {
+                    break;
+                };
+                orders += 1;
+                for e in &events {
+                    if let Event::Battle(BattleEvent::UnitDied { unit }) = e {
+                        assert!(died.insert(*unit), "seed {seed}: unit {unit} died twice");
+                    }
+                }
+                let Some(b) = g.battle() else {
+                    break;
+                };
+                for u in &b.units {
+                    if u.is_active() {
+                        assert!(
+                            u.figures > 0 && u.hit_points() > 0,
+                            "seed {seed} after {command:?}: {u:?}"
+                        );
+                        assert!(
+                            !dead.contains(&u.id),
+                            "seed {seed}: unit {} came back",
+                            u.id
+                        );
+                    }
+                    if u.status == Status::Dead {
+                        dead.insert(u.id);
+                    }
+                }
+            }
+        }
+        assert!(orders > 500, "the fights were too short: {orders} orders");
+        Ok(())
+    }
 }

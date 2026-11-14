@@ -21,6 +21,7 @@
     "chancellor.lost_food": "{unit} - deserted: lack of food.",
     "chancellor.lost_gold": "{unit} - deserted: lack of gold.",
     "chancellor.lost_mana": "{unit} - dispelled: lack of mana.",
+    "chancellor.lost_wounds": "{unit} - died: its wounds are more than it can stand now.",
     "chancellor.mana": "mana",
     "chancellor.gold": "gold",
     "chancellor.food": "food",

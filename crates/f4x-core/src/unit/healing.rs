@@ -111,3 +111,44 @@ impl Game {
 
 #[cfg(test)]
 mod tests;
+
+impl Game {
+    /// A unit with no hit points left is dead, whatever took them: damage past what a spell that
+    /// gave hit points leaves once it is dispelled or lapses, Charm of Life ending, an item put
+    /// down. The original left such units alive at zero or less (row 138 of the 1.50 notes, which
+    /// patches only the crash by setting them to one point on entering a battle). Run after every
+    /// command, so no other rule has to account for a unit at zero; not during a battle, whose
+    /// units are written back when it ends.
+    pub(crate) fn remove_units_without_hit_points(&mut self) -> Vec<crate::game::Event> {
+        if self.battle.is_some() {
+            return Vec::new();
+        }
+        let mut hurt: Vec<hecs::Entity> = self
+            .world
+            .query::<(&crate::unit::Unit, &Hurt)>()
+            .iter()
+            .filter(|(_, (_, h))| h.0 > 0)
+            .map(|(e, _)| e)
+            .collect();
+        self.sort_by_serial(&mut hurt);
+        let mut events = Vec::new();
+        for unit in hurt {
+            if self.units().unit_hits(unit).0 > 0 {
+                continue;
+            }
+            let (owner, kind) = (
+                self.units().unit_owner(unit),
+                self.units().unit_kind_id(unit),
+            );
+            self.remove_unit(unit, crate::hero::Fate::Slain);
+            if let (Some(player), Some(unit)) = (owner, kind) {
+                events.push(crate::game::Event::UnitLost {
+                    player,
+                    unit,
+                    cause: crate::game::LossCause::Wounds,
+                });
+            }
+        }
+        events
+    }
+}

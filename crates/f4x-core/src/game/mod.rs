@@ -489,6 +489,7 @@ impl Game {
     fn execute(&mut self, cmd: Command) -> Vec<Event> {
         let vision = map::vision::VisionEffect::of(&cmd);
         let mut events = self.execute_command(cmd);
+        events.extend(self.remove_units_without_hit_points());
         // What hooks in battles, spells and the turn raised between wizards comes last.
         events.extend(self.drain_diplomacy_events());
         events.extend(self.drain_item_awards());

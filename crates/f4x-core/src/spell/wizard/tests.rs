@@ -481,6 +481,50 @@ fn lycanthropy_makes_a_normal_unit_a_werewolf_and_forgets_its_experience() -> Te
     Ok(())
 }
 
+/// An exception to "no hit points, no unit" (`divergences.md` 45): Lycanthropy does not end an
+/// effect, it replaces one unit with another that keeps the wounds, so a body too small for them
+/// is left on its last hit point instead of dying.
+#[test]
+fn lycanthropy_leaves_a_werewolf_that_cannot_take_the_wounds_on_its_last_hit_point() -> TestResult {
+    let mut g = world();
+    // A normal unit with more hit points in all than the Werewolves have.
+    let rules = &g.content.rules;
+    let werewolf_max = {
+        let d = rules
+            .units
+            .iter()
+            .map(|(_, d)| d)
+            .find(|d| d.id == "werewolves")
+            .ok_or("no werewolves")?;
+        d.stats[&crate::rules::Stat::MaxHp].floor() * d.stats[&crate::rules::Stat::Figures].floor()
+    };
+    let big = rules
+        .units
+        .iter()
+        .map(|(_, d)| d)
+        .filter(|d| d.kind == f4x_def::rules::UnitKind::Normal)
+        .find(|d| {
+            let hits = |s| d.stats.get(&s).map_or(0, |v| v.floor());
+            hits(crate::rules::Stat::MaxHp) * hits(crate::rules::Stat::Figures) > werewolf_max
+        })
+        .ok_or("no normal unit with more hit points than the werewolves")?
+        .num;
+    let u = unit(&mut g, P0, big, at(3, 3));
+    let (_, before) = g.units().unit_hits(u);
+    g.world.insert_one(u, crate::unit::Hurt(before - 1))?;
+    let events = cast(&mut g, 173 /* lycanthropy */, Some(Target::Unit(u)));
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::UnitTransformed { .. })),
+        "{events:?}"
+    );
+    let (left, max) = g.units().unit_hits(u);
+    assert!(max < before, "{max} against {before}");
+    assert_eq!(left, 1, "alive on its last hit point");
+    Ok(())
+}
+
 #[test]
 fn lycanthropy_refuses_fantastic_creatures_undead_and_other_wizards_units() {
     let mut g = world();

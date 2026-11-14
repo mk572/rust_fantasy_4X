@@ -371,7 +371,7 @@ impl Game {
             surfaced: false,
             slipped: false,
             was_invisible: false,
-            combat_spells: Vec::new(),
+            lasting: Vec::new(),
             base: None,
             field: Default::default(),
             seized: false,
@@ -1008,15 +1008,23 @@ impl Game {
                     self.remove_unit_to(entity, fate, heir);
                 }
             } else {
-                let mut hurt = (u.max_hit_points() - u.hit_points()).max(0);
-                // Hit points a lasting spell added (Lionheart) are gone with it: the unit
-                // is hurt by at most what it can lose and live.
-                if let Some(base) = &u.base {
-                    hurt = hurt.min(base.hits * u.figures_start as i32 - 1);
-                }
+                // The hit points a lasting spell cast in the battle gave (Lionheart) end with
+                // it, and the extras of life steal were never the unit's. The damage it took
+                // stays: what is left is its hit points less what the spells gave, and a unit
+                // left with none is dead (`divergences.md` 45): the sweep after this command
+                // removes it, as it does when a spell like that is dispelled on the map.
+                let ceiling = match &u.base {
+                    Some(base) => base.hits * u.figures_start as i32,
+                    None => u.max_hit_points(),
+                };
+                let from_spells = u.max_hit_points() - ceiling;
+                let left = (u.hit_points() - from_spells).min(ceiling);
+                let hurt = (ceiling - left).max(0);
                 self.put(entity, Hurt(hurt as u32));
             }
         }
+        // A unit that stood on hit points a spell of the battle gave is dead now.
+        events.extend(self.remove_units_without_hit_points());
         // Passengers of a ship that went down in the fight scramble ashore or drown.
         events.extend(self.drown_stranded(None));
         if let Some(side) = battle.winner {

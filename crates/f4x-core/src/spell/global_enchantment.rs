@@ -524,6 +524,58 @@ mod tests {
         Ok(())
     }
 
+    /// Row 138 of the 1.50 notes: a unit whose wounds are more than it can stand once the hit
+    /// points a spell gave are gone is dead, not left alive at zero or less.
+    #[test]
+    fn turning_charm_of_life_off_kills_the_units_that_were_standing_on_its_hit_points() -> TestResult
+    {
+        let mut g = world();
+        let walker = g
+            .content
+            .rules
+            .units
+            .id_numbered(107)
+            .ok_or("high_men_cavalry is not in the content")?;
+        let (hurt_badly, hurt_a_little, other_wizards) = (
+            g.spawn_unit(P0, at(5, 5), walker),
+            g.spawn_unit(P0, at(6, 5), walker),
+            g.spawn_unit(P1, at(7, 5), walker),
+        );
+        let charm = spell(&g, 160 /* charm_of_life */);
+        grant(&mut g, P0, 160);
+        // One point left with the charm; without it the same wounds are more than it can take.
+        let (_, max) = g.units().unit_hits(hurt_badly);
+        g.world.insert_one(hurt_badly, Hurt(max - 1))?;
+        g.world.insert_one(hurt_a_little, Hurt(1))?;
+        let (_, own_max) = g.units().unit_hits(other_wizards);
+        g.world.insert_one(other_wizards, Hurt(own_max - 1))?;
+        assert!(g.units().unit_hits(hurt_badly).0 == 1);
+        let events = g.apply(crate::game::Command::TurnOffSpell {
+            player: P0,
+            spell: charm,
+        });
+        assert!(
+            g.world.get::<&Hurt>(hurt_badly).is_err(),
+            "the unit is gone: {events:?}"
+        );
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                crate::game::Event::UnitLost {
+                    player: P0,
+                    cause: crate::game::LossCause::Wounds,
+                    ..
+                }
+            )),
+            "{events:?}"
+        );
+        // The unit with wounds it can still stand, and a unit of another wizard (whose Charm of
+        // Life it never had), are alive.
+        assert!(g.units().unit_hits(hurt_a_little).0 > 0);
+        assert!(g.world.get::<&Hurt>(other_wizards).is_ok());
+        Ok(())
+    }
+
     #[test]
     fn nature_awareness_and_natures_eye_show_who_guards_a_site() -> TestResult {
         let mut g = world();
