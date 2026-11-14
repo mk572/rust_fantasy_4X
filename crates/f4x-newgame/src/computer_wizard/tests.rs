@@ -123,7 +123,7 @@ fn too_few_myrran_wizards_are_made_by_giving_up_three_books() {
             &[],
         );
         let mut builds = vec![before.clone(); 6];
-        balance_planes(&mut g, &mut builds, false, 6, PICKS);
+        balance_planes(&mut g, &mut builds, false, 6, PICKS, true);
         let made: Vec<&WizardBuild> = builds.iter().filter(|b| myrran(b)).collect();
         let (least, most) = myrran_range(6);
         assert!(
@@ -142,7 +142,7 @@ fn a_wizard_with_one_book_left_gives_up_no_more() {
     for seed in SEEDS {
         let mut g = new_game(seed);
         let mut builds = vec![build(&[(RealmId::new(3 /* life */), 2)], &[]); 2];
-        balance_planes(&mut g, &mut builds, false, 4, PICKS);
+        balance_planes(&mut g, &mut builds, false, 4, PICKS, true);
         assert!(
             builds.iter().filter(|b| myrran(b)).count() >= 1,
             "seed {seed}"
@@ -156,7 +156,7 @@ fn the_human_myrran_wizard_counts_toward_the_share() {
     for seed in SEEDS {
         let mut g = new_game(seed);
         let mut builds = vec![build(&[(RealmId::new(3 /* life */), 5)], &[]); 3];
-        balance_planes(&mut g, &mut builds, true, 4, PICKS);
+        balance_planes(&mut g, &mut builds, true, 4, PICKS, true);
         // One of four is already the human: nothing is lacking.
         assert!(builds.iter().all(|b| !myrran(b)), "seed {seed}");
         assert!(builds.iter().all(|b| book_total(b) == 5), "seed {seed}");
@@ -174,7 +174,7 @@ fn too_many_myrran_wizards_are_made_ordinary_and_refilled() {
             );
             4
         ];
-        balance_planes(&mut g, &mut builds, false, 4, PICKS);
+        balance_planes(&mut g, &mut builds, false, 4, PICKS, true);
         let (_, most) = myrran_range(4);
         assert_eq!(
             builds.iter().filter(|b| myrran(b)).count(),
@@ -197,7 +197,7 @@ fn the_refill_spends_the_picks_without_breaking_a_rule() {
     for seed in SEEDS {
         let mut g = new_game(seed);
         let mut b = build(&[], &[]);
-        refill(&mut g, &mut b, PICKS);
+        refill(&mut g, &mut b, PICKS, true);
         assert_sound(&b, PICKS);
         assert!(!myrran(&b), "seed {seed}: the refill picked Myrran");
         assert!(
@@ -224,7 +224,7 @@ fn the_refill_leaves_a_full_build_alone() {
         &[],
     );
     let before = b.clone();
-    refill(&mut g, &mut b, PICKS);
+    refill(&mut g, &mut b, PICKS, true);
     assert_eq!(b, before);
 }
 
@@ -233,7 +233,7 @@ fn the_same_seed_makes_the_same_wizard() {
     let make_one = |seed| {
         let mut g = new_game(seed);
         let mut b = build(&[], &[]);
-        refill(&mut g, &mut b, PICKS);
+        refill(&mut g, &mut b, PICKS, true);
         b
     };
     assert_eq!(make_one(7), make_one(7));
@@ -242,6 +242,20 @@ fn the_same_seed_makes_the_same_wizard() {
         all.len() > 10,
         "the seeds make hardly any different wizards"
     );
+}
+
+#[test]
+fn without_the_ban_the_refill_gives_life_and_death_to_one_wizard() {
+    let both = |ban: bool| {
+        SEEDS.into_iter().any(|seed| {
+            let mut g = new_game(seed);
+            let mut b = build(&[], &[]);
+            refill(&mut g, &mut b, PICKS, ban);
+            books(&b, realm(3 /* life */)) > 0 && books(&b, realm(4 /* death */)) > 0
+        })
+    };
+    assert!(!both(true), "the ban lets both realms through");
+    assert!(both(false), "no seed drew both realms with the ban off");
 }
 
 #[test]

@@ -147,9 +147,14 @@ impl CreateState {
         if n == self.books_of(realm) {
             return;
         }
+        let ban = app
+            .options
+            .settings(&app.game.content().settings)
+            .rules
+            .ban_life_and_death;
         let rival = match realm.num() {
-            3 /* life */ => Some(RealmId::new(4) /* death */),
-            4 /* death */ => Some(RealmId::new(3) /* life */),
+            3 /* life */ if ban => Some(RealmId::new(4) /* death */),
+            4 /* death */ if ban => Some(RealmId::new(3) /* life */),
             _ => None,
         };
         if n > 0 && rival.is_some_and(|r| self.books_of(r) > 0) {
@@ -544,5 +549,22 @@ mod tests {
             Retort::new(0) /* alchemy */
         )
         .is_empty());
+    }
+
+    #[test]
+    fn life_and_death_books_are_kept_apart_unless_the_setting_is_off() {
+        let (life, death) = (RealmId::new(3), RealmId::new(4));
+        for ban in [true, false] {
+            let mut app = crate::App::for_test();
+            let mut settings = app.options.settings(&app.game.content().settings);
+            settings.rules.ban_life_and_death = ban;
+            app.options.custom = Some(settings);
+            let mut state = crate::create_screen::CreateState::empty();
+            state.set_books(&mut app, life, 2);
+            state.set_books(&mut app, death, 2);
+            assert_eq!(state.books_of(life), 2);
+            assert_eq!(state.books_of(death), if ban { 0 } else { 2 }, "ban {ban}");
+            assert_eq!(state.warn.is_some(), ban, "ban {ban}");
+        }
     }
 }

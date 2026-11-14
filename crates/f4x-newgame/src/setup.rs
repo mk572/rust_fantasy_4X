@@ -238,6 +238,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
             human_myrran,
             usize::from(wizards),
             settings.wizards.picks.ai,
+            settings.rules.ban_life_and_death,
         );
     }
     for (k, build) in builds.iter().enumerate() {

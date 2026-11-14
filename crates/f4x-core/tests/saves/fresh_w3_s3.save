@@ -1,4 +1,4 @@
-// f4x save, version 4, game 0.0.7, checksum 70ee9913456f1389
+// f4x save, version 4, game 0.0.7, checksum b6f2aa5c1f7da0d8
 (
     version: 4,
     game_version: "0.0.7",
@@ -11,7 +11,7 @@
         wizards: (starting_gold: (human: 75, ai: 150), starting_mana: (human: 0, ai: 0), picks: (human: 11, ai: 11)),
         ai: (growth_percent: 150, outpost_growth_percent: 150, production_percent: 150, gold_percent: 150, mana_percent: 150, food_percent: 150, research_percent: 100, maintenance_percent: 75, unit_upkeep_percent: 100, wizards: (randomise: true, consolidate_percent: 0, erasure_dice: (1, 3), myrran_rule: false, guaranteed_summoning_spell: true)),
         world: (lair_guard_percent: 75, lair_treasure_percent: 133, neutral_city_size_bonus: 1, raiders_enabled: true, monsters_enabled: true, raider_percent: 33, monster_start_turn: 50, start_reveal_radius: 2.5),
-        rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, half_upkeep: false, arcane_candidate_cap: 0, trireme_capacity: 2, galley_capacity: 5, walls_cover_city: false, suppress_spares_return: false, limit_ai_races: true, spell_of_mastery: all, spell_of_return: all),
+        rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, half_upkeep: false, arcane_candidate_cap: 0, trireme_capacity: 2, galley_capacity: 5, walls_cover_city: false, suppress_spares_return: false, limit_ai_races: true, ban_life_and_death: true, spell_of_mastery: all, spell_of_return: all),
         events: (random_events: true, pressure_percent: 75, frequency: Normal),
         scoring: (score_percent: 100),
     ),

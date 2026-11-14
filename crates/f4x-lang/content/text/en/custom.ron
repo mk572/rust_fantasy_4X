@@ -64,6 +64,7 @@
     "custom.suppress_spares_return": "Suppress Magic spares Spell of Return",
     "custom.defaults_title": "Default Game Settings",
     "custom.limit_ai_races": "Limit AI race picks at higher difficulties",
+    "custom.ban_life_and_death": "Ban Life and Death books in one wizard",
     "custom.spell_of_mastery": "Spell of Mastery",
     "custom.spell_of_return": "Spell of Return",
     "custom.access_all": "All wizards",

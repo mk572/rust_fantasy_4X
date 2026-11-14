@@ -438,6 +438,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.rules.limit_ai_races.into(),
             |s, v| s.rules.limit_ai_races = v != 0,
         ),
+        flag(
+            "custom.ban_life_and_death",
+            |s| s.rules.ban_life_and_death.into(),
+            |s, v| s.rules.ban_life_and_death = v != 0,
+        ),
         choice(
             "custom.spell_of_mastery",
             ACCESS_WORDS,

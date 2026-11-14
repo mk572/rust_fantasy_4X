@@ -347,6 +347,11 @@ pub struct RuleSettings {
     /// off, any Arcanus race. Myrror races are never limited. On in v1.31 and v1.6.
     #[serde(default = "default_true")]
     pub limit_ai_races: bool,
+    /// The original's rule that a wizard does not combine Life and Death books: on, the new-wizard
+    /// screen refuses the second realm and the computer wizards are never given both; off, both
+    /// are allowed. On in v1.31 and v1.6.
+    #[serde(default = "fb_ban_life_and_death")]
+    pub ban_life_and_death: bool,
     /// Who may research and cast the Spell of Mastery (the spell that wins the game). All: every
     /// wizard (the original). Human only: the AI wizards never get it. Off: nobody does, and a
     /// game is won by conquest only.
@@ -448,6 +453,10 @@ fn fb_half_upkeep() -> bool {
 
 fn fb_arcane_candidate_cap() -> u8 {
     fallback(|g| g.rules.arcane_candidate_cap, 0)
+}
+
+fn fb_ban_life_and_death() -> bool {
+    fallback(|g| g.rules.ban_life_and_death, true)
 }
 
 fn fb_walls_cover_city() -> bool {

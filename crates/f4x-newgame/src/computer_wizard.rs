@@ -71,13 +71,14 @@ pub(crate) fn myrran_range(total: usize) -> (usize, usize) {
 /// the retort are made Myrran (three books given up, one kept at least) while there are too few,
 /// and random Myrran ones are made ordinary (their picks refilled) while there are too many.
 /// `builds` are the computer wizards, `human_myrran` says whether the human wizard is one,
-/// `total` is all the wizards.
+/// `total` is all the wizards, `ban` says whether Life and Death books are kept apart.
 pub(crate) fn balance_planes(
     game: &mut Game,
     builds: &mut [WizardBuild],
     human_myrran: bool,
     total: usize,
     picks: u8,
+    ban: bool,
 ) {
     let myrran = |b: &WizardBuild| b.retorts.contains(&Retort::new(9) /* myrran */);
     let (least, most) = myrran_range(total);
@@ -119,7 +120,7 @@ pub(crate) fn balance_planes(
         }
         let k = myrrans[game.roll(myrrans.len() as u32) as usize - 1];
         builds[k].retorts.remove(&Retort::new(9) /* myrran */);
-        refill(game, &mut builds[k], picks);
+        refill(game, &mut builds[k], picks, ban);
     }
 }
 
@@ -138,6 +139,7 @@ pub(crate) fn make(
 ) -> Vec<WizardBuild> {
     let rules = settings.ai.wizards;
     let picks = settings.wizards.picks.ai;
+    let ban = settings.rules.ban_life_and_death;
     let ids: Vec<u16> = presets.iter().map(|w| w.num).collect();
     let myran = |id: u16| {
         preset_build_of(presets, id)
@@ -218,11 +220,11 @@ pub(crate) fn make(
     }
 
     // Myrran: the wizards are shared between the planes (`balance_planes`).
-    balance_planes(game, &mut builds, human_myrran, wizards, picks);
+    balance_planes(game, &mut builds, human_myrran, wizards, picks, ban);
 
     // Fill the picks up with random books and retorts.
     for b in &mut builds {
-        refill(game, b, picks);
+        refill(game, b, picks, ban);
         b.preset = true;
     }
     builds
@@ -230,7 +232,7 @@ pub(crate) fn make(
 
 /// The original's refill loop: five rolls in eight add two to five books to a realm, three in
 /// eight add a retort.
-fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8) {
+fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8, ban: bool) {
     for _ in 0..500 {
         let used = picks_used(&game.content().rules, b);
         if used >= picks {
@@ -252,8 +254,8 @@ fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8) {
             value = 1;
         }
         match kind {
-            1 => add_books(b, LIFE, value, Some(DEATH)),
-            2 => add_books(b, DEATH, value, Some(LIFE)),
+            1 => add_books(b, LIFE, value, ban.then_some(DEATH)),
+            2 => add_books(b, DEATH, value, ban.then_some(LIFE)),
             3 => add_books(b, NATURE, value, None),
             4 => add_books(b, SORCERY, value, None),
             5 => add_books(b, CHAOS, value, None),
