@@ -130,9 +130,10 @@ def parse_functions(path: str) -> list[Fn]:
 
 
 def calls(body: str, name: str) -> bool:
-    """Whether `body` calls the function `name` of its own file: `name(..)`, `x.name(..)` or
-    `Self::name(..)`, not `Other::name(..)` (a function of another type that shares the name)."""
-    pattern = rf"(?:(?<![\w:])|(?<=Self::)|(?<=self::)|(?<=super::)){re.escape(name)}\s*\("
+    """Whether `body` calls the function `name` of its own file: `name(..)` or `Self::name(..)`,
+    not `Other::name(..)` (a function of another type that shares the name) and not `x.name(..)`
+    (a method, which is not the file's own function)."""
+    pattern = rf"(?:(?<![\w:.])|(?<=Self::)|(?<=self::)|(?<=super::)){re.escape(name)}\s*\("
     return re.search(pattern, body) is not None
 
 
