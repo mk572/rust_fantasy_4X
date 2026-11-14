@@ -1353,7 +1353,7 @@ mod growth_tests {
     use super::*;
 
     fn cap() -> u32 {
-        Content::default().rules.config.max_city_size
+        crate::game::testutil::shipped().rules.config.max_city_size
     }
 
     fn rate(figures: u32, food: i32, max_size: u32) -> i32 {

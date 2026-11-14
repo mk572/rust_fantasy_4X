@@ -15,46 +15,25 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 46 tests. Part 2: 97 tests. Of 2166 in all.**
+**Part 1: 30 tests. Part 2: 90 tests. Of 2166 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
 | File | Tests |
 |---|---|
-| `crates/f4x-def/src/load/rules.rs` | 13 |
-| `crates/f4x-core/src/wizard/retort.rs` | 7 |
+| `crates/f4x-def/src/load/rules.rs` | 10 |
 | `crates/f4x-def/src/rules/stats.rs` | 7 |
 | `crates/f4x-core/src/spell/temp_effect.rs` | 5 |
-| `crates/f4x-core/src/city/economy.rs` | 4 |
 | `crates/f4x-def/src/rules/registry.rs` | 4 |
-| `crates/f4x-ai/src/battle/cast.rs` | 2 |
 | `crates/f4x-core/src/hook.rs` | 2 |
 | `crates/f4x-client/src/temp_effect_view.rs` | 1 |
 | `crates/f4x-core/src/map/vision.rs` | 1 |
-
-## `crates/f4x-ai/src/battle/cast.rs` (2)
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `the_scripted_side_steers_its_vortex_onto_an_enemy_once_and_leaves_the_enemys_alone` | 897 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `warp_wood_is_worth_something_only_against_archers_with_arrows` | 1304 | hand-made battle unit (`BattleUnit::simple`) | itself | |
 
 ## `crates/f4x-client/src/temp_effect_view.rs` (1)
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
 | `a_unit_lists_its_effects_with_their_length_and_a_lasting_one_says_none` | 126 | hand-made spell modifier (`Modifier::new`) | itself | |
-
-## `crates/f4x-core/src/city/economy.rs` (4)
-
-Helpers that make things up: `cap` (line 1355), `rate` (line 1359).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_missing_half_food_starves_half_as_fast_as_a_missing_food` | 1364 | empty content (`Content::default`) | `cap` | |
-| `a_city_at_its_maximum_size_does_not_grow_but_can_starve` | 1373 | empty content (`Content::default`) | `rate` | |
-| `a_city_over_its_limit_shrinks_even_at_the_largest_size` | 1379 | empty content (`Content::default`) | `cap`, `rate` | |
-| `growth_stops_at_zero_people_and_a_zero_limit_kills` | 1395 | empty content (`Content::default`) | `rate` | |
 
 ## `crates/f4x-core/src/hook.rs` (2)
 
@@ -83,30 +62,14 @@ Helpers that make things up: `plus` (line 398).
 | `effects_survive_a_save` | 467 | hand-made spell modifier (`Modifier::new`) | `plus` | |
 | `a_rules_effect_reaches_the_store_through_the_host` | 482 | hand-made spell modifier (`Modifier::new`) | `plus` | |
 
-## `crates/f4x-core/src/wizard/retort.rs` (7)
+## `crates/f4x-def/src/load/rules.rs` (10)
 
-Helpers that make things up: `cost_cut` (line 96), `research_bonus` (line 101), `stat` (line 91), `stat_with` (line 52).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_mastery_cuts_cost_and_speeds_research_in_its_own_realm_only` | 128 | hand-made spell modifier (`Modifier::new`) | `cost_cut`, `research_bonus` | |
-| `the_crafting_and_summoning_retorts_single_out_their_spells` | 150 | hand-made spell modifier (`Modifier::new`) | `cost_cut`, `research_bonus` | |
-| `mana_focusing_adds_a_quarter_to_the_mana_and_channeler_halves_the_upkeep` | 167 | hand-made spell modifier (`Modifier::new`) | `stat` | |
-| `sage_master_and_a_mastery_add_up` | 185 | hand-made spell modifier (`Modifier::new`) | `research_bonus` | |
-| `the_wizard_wide_retorts_change_their_stats` | 198 | hand-made spell modifier (`Modifier::new`) | `stat` | |
-| `a_dispel_resists_once_more_for_the_casters_mastery_of_the_realm_and_for_archmage` | 238 | hand-made spell modifier (`Modifier::new`) | `stat_with` | |
-| `a_node_doubles_for_its_realms_mastery_and_again_for_node_mastery` | 258 | hand-made spell modifier (`Modifier::new`) | `stat_with` | |
-
-## `crates/f4x-def/src/load/rules.rs` (13)
-
-Helpers that make things up: `load_rules` (line 33), `problems` (line 892), `problems_after` (line 865), `rules_with` (line 804).
+Helpers that make things up: `problems` (line 892), `problems_after` (line 865), `rules_with` (line 804).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `the_committed_wizards_have_their_names_and_books` | 785 | hand-built registry (`Registry::new`) | `load_rules` | |
 | `the_shipped_lair_table_is_the_default_and_bad_ones_are_refused` | 901 | hand-built registry (`Registry::new`) | `rules_with`, `problems` | |
-| `shipped_rules_are_valid` | 925 | hand-built registry (`Registry::new`) | `load_rules`, `problems` | |
-| `typed_ids_round_trip` | 941 | hand-built registry (`Registry::new`) | `load_rules` | |
+| `shipped_rules_are_valid` | 925 | hand-built registry (`Registry::new`) | `problems` | |
 | `catches_item_problems` | 950 | hand-built registry (`Registry::new`) | `problems_after` | |
 | `catches_unknown_references` | 967 | hand-built registry (`Registry::new`) | `problems_after` | |
 | `catches_hero_template_problems` | 989 | hand-built registry (`Registry::new`) | `rules_with` | |
@@ -115,7 +78,6 @@ Helpers that make things up: `load_rules` (line 33), `problems` (line 892), `pro
 | `catches_building_problems` | 1048 | hand-built registry (`Registry::new`) | `problems_after` | |
 | `catches_spell_and_effect_problems` | 1073 | hand-built registry (`Registry::new`) | `problems_after` | |
 | `catches_bad_level_paths` | 1092 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `veteran_stats_come_from_def_plus_level_modifiers` | 1100 | hand-built registry (`Registry::new`) | `load_rules` | |
 
 ## `crates/f4x-def/src/rules/registry.rs` (4)
 
@@ -153,10 +115,8 @@ Helpers that make things up: `m` (line 280).
 | `crates/f4x-core/src/hero/game.rs` | 7 |
 | `crates/f4x-core/src/threat/tests.rs` | 7 |
 | `crates/f4x-core/src/city/mod.rs` | 5 |
-| `crates/f4x-core/src/unit/mod.rs` | 4 |
 | `crates/f4x-core/src/player/offer/tests.rs` | 3 |
 | `crates/f4x-core/src/player/shortfall/tests.rs` | 3 |
-| `crates/f4x-newgame/src/lair.rs` | 3 |
 | `crates/f4x-ai/src/offer.rs` | 2 |
 | `crates/f4x-core/src/city/economy.rs` | 2 |
 | `crates/f4x-core/src/diplomacy/tests.rs` | 2 |
@@ -356,17 +316,6 @@ Helpers that make things up: `lair` (line 54).
 | `a_stack_that_settles_on_the_way_does_not_walk_on` | 309 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
 | `a_node_a_wizard_holds_is_not_taken` | 346 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
 
-## `crates/f4x-core/src/unit/mod.rs` (4)
-
-Helpers that make things up: `spawn` (line 656).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_units_allowance_is_its_moves` | 732 | hand-built entity (`spawn` with components) | `spawn` | |
-| `basic_troops_cost_half_the_upkeep_when_the_setting_is_on` | 747 | hand-built entity (`spawn` with components) | `spawn` | |
-| `a_units_figures_come_from_a_world_and_content_alone` | 792 | hand-built entity (`spawn` with components) | `spawn` | |
-| `units_come_in_the_order_they_were_made` | 816 | hand-built entity (`spawn` with components) | `spawn` | |
-
 ## `crates/f4x-core/src/wizard/fortress/tests.rs` (1)
 
 | Test | Line | What is made up | Through | Decision |
@@ -393,13 +342,3 @@ Helpers that make things up: `treasury` (line 8).
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
 | `every_battle_spell_that_is_offered_is_accepted_and_the_fight_goes_on` | 22 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
-
-## `crates/f4x-newgame/src/lair.rs` (3)
-
-Helpers that make things up: `generate_lairs` (line 278), `lair_checksum` (line 635), `make_lair` (line 238).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `every_site_gets_a_lair_and_a_tower_has_one_for_both_planes` | 550 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `generate_lairs` | |
-| `hoards_follow_the_original_rules` | 577 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `make_lair` | |
-| `generated_lairs_for_a_seed_stay_the_same` | 693 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `lair_checksum` | |

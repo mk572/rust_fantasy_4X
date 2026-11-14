@@ -10,7 +10,8 @@ What it does:
     `#[test]` function.
   * Flags a test whose body, or the body of a helper function of the same file it calls (followed
     through any number of helpers: `spearman()` -> `BattleUnit::simple`), contains one of the
-    patterns in `PATTERNS`.
+    patterns in `PATTERNS`. A function above the file's `#[cfg(test)]` is the game's own code,
+    not a test helper: a test that calls the loader is not flagged for what the loader builds.
   * Writes the list, by crate and file with the line of each test, to `docs/tests-on-imaginary-units.md`
     (`--out` for another file).
 
@@ -71,6 +72,7 @@ class Fn:
     line: int
     is_test: bool
     body: str
+    production: bool = False
     reasons: set = field(default_factory=set)
     via: list = field(default_factory=list)
 
@@ -103,9 +105,20 @@ def blank_comments_and_strings(src: str) -> str:
     return "".join(out)
 
 
+def test_code_starts_at(path: str, src: str) -> int:
+    """Where the test code of a file begins: 0 for a file that is all tests (`tests.rs`, a
+    file of a `tests` folder), else the first `#[cfg(test)]`, else the end of the file."""
+    parts = path.split(os.sep)
+    if os.path.basename(path) == "tests.rs" or "tests" in parts[:-1]:
+        return 0
+    found = re.search(r"#\[cfg\(test\)\]", src)
+    return found.start() if found else len(src)
+
+
 def parse_functions(path: str) -> list[Fn]:
     with open(path, encoding="utf8") as handle:
         src = blank_comments_and_strings(handle.read())
+    tests_from = test_code_starts_at(path, src)
     fns = []
     for match in FN_RE.finditer(src):
         start = src.find("{", match.end())
@@ -124,6 +137,7 @@ def parse_functions(path: str) -> list[Fn]:
                 line=src.count("\n", 0, match.start(2)) + 1,
                 is_test="#[test]" in match.group(1).replace(" ", ""),
                 body=src[start : end + 1],
+                production=match.start() < tests_from,
             )
         )
     return fns
@@ -142,7 +156,7 @@ def flag(fns: list[Fn]) -> dict[str, set]:
     Returns the helpers (not tests) that make something up, with their reasons."""
     for f in fns:
         f.reasons = {label for rx, label in COMPILED if rx.search(f.body)}
-    helpers = {f.name: f for f in fns if not f.is_test}
+    helpers = {f.name: f for f in fns if not f.is_test and not f.production}
     changed = True
     while changed:
         changed = False
