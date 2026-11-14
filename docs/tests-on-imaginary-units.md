@@ -15,7 +15,7 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 30 tests. Part 2: 90 tests. Of 2166 in all.**
+**Part 1: 24 tests. Part 2: 90 tests. Of 2160 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
@@ -23,17 +23,9 @@ The `Decision` column is for the walk through the list.
 |---|---|
 | `crates/f4x-def/src/load/rules.rs` | 10 |
 | `crates/f4x-def/src/rules/stats.rs` | 7 |
-| `crates/f4x-core/src/spell/temp_effect.rs` | 5 |
 | `crates/f4x-def/src/rules/registry.rs` | 4 |
 | `crates/f4x-core/src/hook.rs` | 2 |
-| `crates/f4x-client/src/temp_effect_view.rs` | 1 |
 | `crates/f4x-core/src/map/vision.rs` | 1 |
-
-## `crates/f4x-client/src/temp_effect_view.rs` (1)
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_unit_lists_its_effects_with_their_length_and_a_lasting_one_says_none` | 126 | hand-made spell modifier (`Modifier::new`) | itself | |
 
 ## `crates/f4x-core/src/hook.rs` (2)
 
@@ -49,18 +41,6 @@ The `Decision` column is for the walk through the list.
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
 | `oracle_walls_and_natures_eye_widen_a_citys_sight` | 420 | hand-made spell modifier (`Modifier::new`) | itself | |
-
-## `crates/f4x-core/src/spell/temp_effect.rs` (5)
-
-Helpers that make things up: `plus` (line 398).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_modifier_changes_the_stat_until_it_runs_out` | 403 | hand-made spell modifier (`Modifier::new`) | `plus` | |
-| `an_untimed_effect_stays` | 417 | hand-made spell modifier (`Modifier::new`) | `plus` | |
-| `a_city_takes_modifiers_but_no_abilities` | 455 | hand-built entity (`spawn` with components); hand-made spell modifier (`Modifier::new`) | `plus` | |
-| `effects_survive_a_save` | 467 | hand-made spell modifier (`Modifier::new`) | `plus` | |
-| `a_rules_effect_reaches_the_store_through_the_host` | 482 | hand-made spell modifier (`Modifier::new`) | `plus` | |
 
 ## `crates/f4x-def/src/load/rules.rs` (10)
 

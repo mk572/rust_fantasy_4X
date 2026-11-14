@@ -282,10 +282,7 @@ fn say_temp_effects(ctx: &mut Ctx, e: hecs::Entity) {
                 TempKind::Grant(a) => format!("grants {}", name(a)),
                 TempKind::Remove(a) => format!("removes {}", name(a)),
             };
-            let turns = t
-                .turns
-                .map_or("permanent".to_string(), |n| format!("{n} turns left"));
-            format!("temporary: {what} ({turns})")
+            format!("temporary: {what}")
         })
         .collect();
     for line in lines {

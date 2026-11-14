@@ -6956,7 +6956,6 @@ fn cast_over_wraiths(
                     g.grant_temp_ability(
                         crate::rules::exec::Target::Unit(unit),
                         crate::rules::Ability::new(ability),
-                        None,
                     );
                 }
             }

@@ -855,19 +855,15 @@ mod tests {
     }
 
     /// A ship on land with the passenger it carries, and the spare power to take it there.
-    fn ship_on_land(
-        g: &mut Game,
-        power: Option<(u16, Option<u16>)>,
-    ) -> (hecs::Entity, hecs::Entity) {
+    fn ship_on_land(g: &mut Game, power: Option<u16>) -> (hecs::Entity, hecs::Entity) {
         let boat = unit(g, 35 /* trireme */, at(2, 2));
         let w = unit(g, 107 /* high_men_cavalry */, at(2, 2));
         let aboard = Aboard(g.units().serial_of(boat));
         crate::game::put_in(&mut g.world, w, aboard);
-        if let Some((ability, turns)) = power {
+        if let Some(ability) = power {
             g.grant_temp_ability(
                 crate::rules::exec::Target::Unit(boat),
                 crate::rules::Ability::new(ability),
-                turns,
             );
         }
         (boat, w)
@@ -897,7 +893,7 @@ mod tests {
     ) -> TestResult {
         for ability in [24 /* flying */, 49 /* non_corporeal */] {
             let mut g = world();
-            let (boat, w) = ship_on_land(&mut g, Some((ability, None)));
+            let (boat, w) = ship_on_land(&mut g, Some(ability));
             assert!(g.drown_stranded(None).is_empty(), "ability {ability}");
             assert_eq!(g.units().unit_position(boat), Some(at(2, 2)));
             assert_eq!(g.economy().carrier_of(w), Some(boat), "still a transport");
@@ -909,26 +905,9 @@ mod tests {
         g.grant_temp_ability(
             crate::rules::exec::Target::Unit(guide),
             crate::rules::Ability::new(74),
-            None,
         );
         assert!(g.drown_stranded(None).is_empty());
         assert!(g.units().unit_position(boat).is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn a_ship_whose_special_movement_runs_out_on_land_is_destroyed() -> TestResult {
-        let mut g = world();
-        let (boat, w) = ship_on_land(&mut g, Some((49, Some(1))));
-        assert!(g.drown_stranded(None).is_empty());
-        crate::spell::temp_effect::tick(&mut g.world);
-        let events = g.drown_stranded(None);
-        assert!(
-            matches!(events.as_slice(), [Event::ShipStranded { units: 1, .. }]),
-            "{events:?}"
-        );
-        assert!(g.world.get::<&crate::unit::Unit>(boat).is_err());
-        assert_eq!(g.units().unit_position(w), Some(at(2, 2)));
         Ok(())
     }
 

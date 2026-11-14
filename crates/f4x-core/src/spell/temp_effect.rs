@@ -1,7 +1,7 @@
 //! Temporary effects: modifiers and abilities that instant spells and rules put on a unit or
 //! a city without an enchantment to carry them.
 //!
-//! Each carries the turns it has left (`None` lasts until the bearer is gone). Units read them
+//! They last until the bearer is gone (the original has no timed effects). Units read them
 //! through `unit_modifiers` and `unit_abilities`, cities through `city_modifiers`. Cities have
 //! no abilities, so granting or removing one there does nothing.
 
@@ -29,8 +29,6 @@ pub enum TempKind {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TempEffect {
     pub kind: TempKind,
-    /// Turns left, counted down once per turn change; `None` never runs out.
-    pub turns: Option<u16>,
 }
 
 /// The temporary effects on one unit or city.
@@ -38,7 +36,7 @@ pub struct TempEffect {
 pub struct TempEffects(pub Vec<TempEffect>);
 
 /// Put an effect on a unit or city (cities take only modifiers).
-fn push_temp(world: &mut World, who: Target, kind: TempKind, turns: Option<u16>) {
+fn push_temp(world: &mut World, who: Target, kind: TempKind) {
     let e = match who {
         Target::Unit(e) | Target::City(e) if world.contains(e) => e,
         _ => return,
@@ -46,7 +44,7 @@ fn push_temp(world: &mut World, who: Target, kind: TempKind, turns: Option<u16>)
     if matches!(who, Target::City(_)) && !matches!(kind, TempKind::Modifier { .. }) {
         return;
     }
-    let effect = TempEffect { kind, turns };
+    let effect = TempEffect { kind };
     if let Ok(mut list) = world.get::<&mut TempEffects>(e) {
         list.0.push(effect);
         return;
@@ -54,50 +52,24 @@ fn push_temp(world: &mut World, who: Target, kind: TempKind, turns: Option<u16>)
     crate::game::put_in(world, e, TempEffects(vec![effect]));
 }
 
-/// Put a stat modifier on a unit or city for `turns` turns (`None`: for good).
-pub(crate) fn add_modifier(world: &mut World, who: Target, m: Modifier, turns: Option<u16>) {
+/// Put a stat modifier on a unit or city for good.
+pub(crate) fn add_modifier(world: &mut World, who: Target, m: Modifier) {
     let kind = TempKind::Modifier {
         stat: m.stat,
         op: m.op,
         value: m.value,
     };
-    push_temp(world, who, kind, turns);
+    push_temp(world, who, kind);
 }
 
-/// Give a unit an ability it does not have for `turns` turns (`None`: for good).
-pub(crate) fn grant_ability(world: &mut World, who: Target, ability: Ability, turns: Option<u16>) {
-    push_temp(world, who, TempKind::Grant(ability), turns);
+/// Give a unit an ability it does not have, for good.
+pub(crate) fn grant_ability(world: &mut World, who: Target, ability: Ability) {
+    push_temp(world, who, TempKind::Grant(ability));
 }
 
-/// Take an ability away from a unit for `turns` turns (`None`: for good).
-pub(crate) fn remove_ability(world: &mut World, who: Target, ability: Ability, turns: Option<u16>) {
-    push_temp(world, who, TempKind::Remove(ability), turns);
-}
-
-/// Count every timed effect down; drop the ones that ran out.
-pub(crate) fn tick(world: &mut World) {
-    let holders: Vec<hecs::Entity> = world
-        .query::<&TempEffects>()
-        .iter()
-        .map(|(e, _)| e)
-        .collect();
-    for e in holders {
-        let empty = {
-            let Ok(mut list) = world.get::<&mut TempEffects>(e) else {
-                continue;
-            };
-            for t in &mut list.0 {
-                if let Some(n) = t.turns.as_mut() {
-                    *n = n.saturating_sub(1);
-                }
-            }
-            list.0.retain(|t| t.turns != Some(0));
-            list.0.is_empty()
-        };
-        if empty {
-            crate::game::strip_in::<TempEffects>(world, e);
-        }
-    }
+/// Take an ability away from a unit for good.
+pub(crate) fn remove_ability(world: &mut World, who: Target, ability: Ability) {
+    push_temp(world, who, TempKind::Remove(ability));
 }
 
 impl<'a> UnitView<'a> {
@@ -334,24 +306,19 @@ impl<'a> UnitView<'a> {
 }
 
 impl Game {
-    /// Put a stat modifier on a unit or city for `turns` turns (`None`: for good).
-    pub fn add_temp_modifier(&mut self, who: Target, m: Modifier, turns: Option<u16>) {
-        add_modifier(&mut self.world, who, m, turns);
+    /// Put a stat modifier on a unit or city for good.
+    pub fn add_temp_modifier(&mut self, who: Target, m: Modifier) {
+        add_modifier(&mut self.world, who, m);
     }
 
-    /// Give a unit an ability it does not have for `turns` turns (`None`: for good).
-    pub fn grant_temp_ability(&mut self, who: Target, ability: Ability, turns: Option<u16>) {
-        grant_ability(&mut self.world, who, ability, turns);
+    /// Give a unit an ability it does not have, for good.
+    pub fn grant_temp_ability(&mut self, who: Target, ability: Ability) {
+        grant_ability(&mut self.world, who, ability);
     }
 
-    /// Take an ability away from a unit for `turns` turns (`None`: for good).
-    pub fn remove_temp_ability(&mut self, who: Target, ability: Ability, turns: Option<u16>) {
-        remove_ability(&mut self.world, who, ability, turns);
-    }
-
-    /// Count every timed effect down; drop the ones that ran out.
-    pub(crate) fn tick_temp_effects(&mut self) {
-        tick(&mut self.world);
+    /// Take an ability away from a unit for good.
+    pub fn remove_temp_ability(&mut self, who: Target, ability: Ability) {
+        remove_ability(&mut self.world, who, ability);
     }
 }
 
@@ -395,56 +362,15 @@ mod tests {
         g.spawn_unit(P0, AT, id)
     }
 
-    fn plus(stat: Stat, value: i32) -> Modifier {
-        Modifier::new(stat, ModOp::Add, value, Source::Other)
-    }
-
-    #[test]
-    fn a_modifier_changes_the_stat_until_it_runs_out() {
-        let mut g = world();
-        let u = unit(&mut g, 95 /* high_elf_spearmen */);
-        let base = g.units().unit_stat(u, Stat::Melee);
-        g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 3), Some(2));
-        assert_eq!(g.units().unit_stat(u, Stat::Melee), base + 3);
-        g.tick_temp_effects();
-        assert_eq!(g.units().unit_stat(u, Stat::Melee), base + 3);
-        g.tick_temp_effects();
-        assert_eq!(g.units().unit_stat(u, Stat::Melee), base);
-        assert!(g.units().temp_effects(u).is_empty());
-    }
-
-    #[test]
-    fn an_untimed_effect_stays() {
-        let mut g = world();
-        let u = unit(&mut g, 95 /* high_elf_spearmen */);
-        let base = g.units().unit_stat(u, Stat::Melee);
-        g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 1), None);
-        for _ in 0..50 {
-            g.tick_temp_effects();
-        }
-        assert_eq!(g.units().unit_stat(u, Stat::Melee), base + 1);
-    }
-
-    #[test]
-    fn a_granted_ability_counts_until_it_runs_out() {
-        let mut g = world();
-        let u = unit(&mut g, 95 /* high_elf_spearmen */);
-        assert!(!g.units().unit_has_ability(u, Ability::new(24)));
-        g.grant_temp_ability(Target::Unit(u), Ability::new(24), Some(1));
-        assert!(g.units().unit_has_ability(u, Ability::new(24)));
-        g.tick_temp_effects();
-        assert!(!g.units().unit_has_ability(u, Ability::new(24)));
-    }
-
     #[test]
     fn a_removed_ability_is_gone_until_it_is_granted_again() {
         let mut g = world();
         // The Pegasai fly by nature.
         let u = unit(&mut g, 103 /* high_elf_pegasai */);
         assert!(g.units().unit_has_ability(u, Ability::new(24)));
-        g.remove_temp_ability(Target::Unit(u), Ability::new(24), None);
+        g.remove_temp_ability(Target::Unit(u), Ability::new(24));
         assert!(!g.units().unit_has_ability(u, Ability::new(24)));
-        g.grant_temp_ability(Target::Unit(u), Ability::new(24), None);
+        g.grant_temp_ability(Target::Unit(u), Ability::new(24));
         assert!(
             g.units().unit_has_ability(u, Ability::new(24)),
             "a later grant wins"
@@ -452,46 +378,21 @@ mod tests {
     }
 
     #[test]
-    fn a_city_takes_modifiers_but_no_abilities() {
-        let mut g = world();
-        let city = g.world.spawn((crate::game::serial::Serial(900),));
-        g.add_temp_modifier(Target::City(city), plus(Stat::CityGold, 4), Some(3));
-        g.grant_temp_ability(Target::City(city), Ability::new(24), None);
-        assert_eq!(g.units().temp_effects(city).len(), 1);
-        assert!(g.economy().city_modifiers(city).iter().any(
-            |m| m.stat == Stat::CityGold && m.value == f4x_def::half_int::HalfInt::from_int(4)
-        ));
-    }
-
-    #[test]
     fn effects_survive_a_save() -> TestResult {
+        // Chaos Channels mutates a unit: its temporary effects are the mutation.
         let mut g = world();
         let u = unit(&mut g, 95 /* high_elf_spearmen */);
-        g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 3), Some(5));
-        g.grant_temp_ability(Target::Unit(u), Ability::new(24), None);
+        let mut rng = crate::game::rng::GameRng::new(9);
+        g.mutate(u, &mut rng).ok_or("the unit did not mutate")?;
+        let effects = g.units().temp_effects(u);
+        assert!(!effects.is_empty());
         let snap = g.snapshot();
         let back = snap.clone().restore(g.content.clone())?;
         assert_eq!(back.snapshot(), snap);
         let u = back.units().units_at(AT)[0];
-        assert_eq!(back.units().temp_effects(u).len(), 2);
-        assert!(back.units().unit_has_ability(u, Ability::new(24)));
+        assert_eq!(back.units().temp_effects(u), effects);
+        assert!(back.units().unit_is_mutated(u));
         Ok(())
-    }
-
-    #[test]
-    fn a_rules_effect_reaches_the_store_through_the_host() {
-        use crate::rules::exec::EffectHost;
-        let mut g = world();
-        let u = unit(&mut g, 95 /* high_elf_spearmen */);
-        let melee = g.units().unit_stat(u, Stat::Melee);
-        let mut host = crate::spell::cast::tests_support::host(&mut g);
-        host.add_modifier(Target::Unit(u), plus(Stat::Melee, 2));
-        host.grant_ability(Target::Unit(u), Ability::new(24) /* flying */);
-        drop(host);
-        assert_eq!(g.units().unit_stat(u, Stat::Melee), melee + 2);
-        assert!(g.units().unit_has_ability(u, Ability::new(24)));
-        g.remove_temp_ability(Target::Unit(u), Ability::new(24) /* flying */, None);
-        assert!(!g.units().unit_has_ability(u, Ability::new(24)));
     }
 
     fn enchant(g: &mut Game, u: hecs::Entity, spell: u16) {
@@ -520,7 +421,7 @@ mod tests {
             .iter()
             .any(|a| *a == Ability::new(40)));
         // A temporary removal still takes it away again.
-        g.remove_temp_ability(Target::Unit(u), Ability::new(40), None);
+        g.remove_temp_ability(Target::Unit(u), Ability::new(40));
         assert!(!g
             .units()
             .unit_abilities(u)

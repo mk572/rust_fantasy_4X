@@ -169,8 +169,7 @@ The start-of-turn event is currently a notification, not an effect trigger:
 1. `Game::end_turn` performs its pre-turn cleanup, increments `Game.turn`, processes stasis,
    refills unit movement and emits `Event::TurnStarted { turn }`.
 2. It then calls `process_turn`, which directly calls the turn-step methods in a fixed order.
-   Among those are treasury settlement, random events, city production and growth, timed-effect
-   countdown, global and world enchantments, experience, wizard magic, healing, threats and
+   Among those are treasury settlement, random events, city production and growth, global and world enchantments, experience, wizard magic, healing, threats and
    offers.
 3. After `process_turn`, `end_turn` records history, processes diplomacy, handles purifying,
    stranded ships and road work, then follows unit standing orders.

@@ -129,7 +129,7 @@ fn abilities_change_costs() {
         "mountaineer: mountains cost one"
     );
     let pf = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 2));
-    g.grant_temp_ability(crate::rules::exec::Target::Unit(pf), Ability::new(50), None);
+    g.grant_temp_ability(crate::rules::exec::Target::Unit(pf), Ability::new(50));
     assert_eq!(
         cost(&g, pf, at(3, 2), at(4, 2)),
         Ok(HalfInt::from_raw(1)),
@@ -174,11 +174,7 @@ fn boats_stay_on_water() {
 fn a_ship_with_wraith_form_crosses_land_for_half_a_move() {
     let mut g = world();
     let boat = unit(&mut g, P0, 38 /* warship */, at(7, 2));
-    g.grant_temp_ability(
-        crate::rules::exec::Target::Unit(boat),
-        Ability::new(49),
-        None,
-    );
+    g.grant_temp_ability(crate::rules::exec::Target::Unit(boat), Ability::new(49));
     assert_eq!(
         cost(&g, boat, at(8, 2), at(9, 2)),
         Ok(HalfInt::from_raw(1)),
@@ -467,7 +463,6 @@ fn water_walking_carries_only_the_walker_over_water() {
     g.grant_temp_ability(
         crate::rules::exec::Target::Unit(strider),
         crate::rules::Ability::new(71),
-        None,
     );
     let walker = unit(&mut g, P0, 107 /* high_men_cavalry */, at(6, 2));
     assert_eq!(
@@ -697,11 +692,7 @@ fn a_pathfinder_gives_the_whole_stack_road_speed() -> TestResult {
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(plain, 2, "forest costs two moves");
     let guide = g.spawn_unit(player, at(1, 2), walker);
-    g.grant_temp_ability(
-        crate::rules::exec::Target::Unit(guide),
-        Ability::new(50),
-        None,
-    );
+    g.grant_temp_ability(crate::rules::exec::Target::Unit(guide), Ability::new(50));
     let traits = g.economy().stack_traits(&[alone, guide]);
     assert!(traits.pathfinding);
     assert_eq!(

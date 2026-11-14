@@ -64,7 +64,7 @@ fn stat_key(stat: Stat) -> &'static str {
 }
 
 impl App {
-    /// One line for each temporary effect on a unit or city: "Melee +2 (3 turns)".
+    /// One line for each temporary effect on a unit or city: "Defense +1".
     pub(crate) fn temp_effect_lines(&self, e: hecs::Entity) -> Vec<String> {
         self.game
             .units()
@@ -101,17 +101,7 @@ impl App {
                 self.text_with("temp.remove", &Args::new().text("ability", ability(*id)))
             }
         };
-        // An effect that never runs out says nothing about its length.
-        match t.turns {
-            Some(n) => {
-                let when = self.text_with("temp.turns", &Args::new().count("n", u32::from(n)));
-                self.text_with(
-                    "temp.line",
-                    &Args::new().text("effect", effect).text("when", when),
-                )
-            }
-            None => effect,
-        }
+        effect
     }
 }
 
@@ -120,40 +110,51 @@ mod tests {
     use super::*;
     use crate::view::HUMAN;
     use f4x_core::rules::exec::Target;
-    use f4x_def::rules::{Modifier, Source};
 
     #[test]
-    fn a_unit_lists_its_effects_with_their_length_and_a_lasting_one_says_none() {
+    fn a_mutated_unit_lists_the_effects_the_mutation_gave_it() {
+        // Chaos Channels is the one spell that puts temporary effects on a unit.
         let mut app = App::for_test();
         let unit = app.game.units().player_units(HUMAN)[0];
-        let who = Target::Unit(unit);
-        let plus = Modifier::new(Stat::Melee, ModOp::Add, 2, Source::Other);
-        app.game.add_temp_modifier(who, plus, Some(3));
-        let set = Modifier::new(Stat::Moves, ModOp::Set, 4, Source::Other);
-        app.game.add_temp_modifier(who, set, None);
-        app.game
-            .grant_temp_ability(who, f4x_def::rules::Ability::new(23), Some(1));
-        let ability = app
+        let spell = app
             .game
             .content()
             .rules
-            .abilities
-            .by_num(23)
-            .map(|a| app.names.ability(a.num).to_string())
-            .expect("first_strike is an ability");
-        assert_eq!(
-            app.temp_effect_lines(unit),
-            [
-                "Melee +2 (3 turns)".to_string(),
-                app.text_with(
-                    "temp.modifier_set",
-                    &Args::new()
-                        .text("stat", app.text("temp.stat_moves"))
-                        .text("value", "4".to_string())
-                ),
-                format!("Gains {ability} (1 turn)"),
-            ]
-        );
+            .spells
+            .id_numbered(93 /* chaos_channels */)
+            .expect("chaos_channels is a spell");
+        app.game.cheat_learn_spell(HUMAN, spell);
+        app.game.treasury_mut(HUMAN).expect("a treasury").mana =
+            f4x_def::half_int::HalfInt::from_int(1000);
+        app.game
+            .wizard_mut(HUMAN)
+            .expect("a wizard")
+            .get_mut::<f4x_core::wizard::sheet::Skill>()
+            .left = 99_999;
+        let events = app.game.apply(f4x_core::game::Command::CastSpell {
+            extra: 0,
+            player: HUMAN,
+            spell,
+            target: Some(Target::Unit(unit)),
+        });
+        assert!(app.game.units().unit_is_mutated(unit), "{events:?}");
+        let effects = app.game.units().temp_effects(unit);
+        let lines = app.temp_effect_lines(unit);
+        assert!(!effects.is_empty());
+        assert_eq!(lines.len(), effects.len());
+        // A granted ability reads "Gains <the ability's name>".
+        let granted = effects
+            .iter()
+            .find_map(|t| match t.kind {
+                TempKind::Grant(a) => Some(a),
+                _ => None,
+            })
+            .expect("a mutation grants an ability");
+        let name = app
+            .names
+            .ability(app.game.content().rules.abilities.get(granted).num)
+            .to_string();
+        assert!(lines.contains(&app.text_with("temp.grant", &Args::new().text("ability", name))));
     }
 
     #[test]

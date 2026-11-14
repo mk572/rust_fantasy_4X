@@ -181,7 +181,6 @@ impl Game {
     /// once however many players there are.
     pub fn end_round(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
-        self.tick_temp_effects();
         self.process_globals();
         events.extend(self.process_world_enchantments());
         let mut cooling = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0xC001);

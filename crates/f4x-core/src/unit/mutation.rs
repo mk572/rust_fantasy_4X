@@ -98,29 +98,27 @@ impl Game {
             Mutation::Armor => self.add_temp_modifier(
                 who,
                 Modifier::new(Stat::Defense, ModOp::Add, ARMOR_DEFENSE, source),
-                None,
             ),
             Mutation::Wings => {
-                self.grant_temp_ability(who, Ability::new(24), None);
+                self.grant_temp_ability(who, Ability::new(24));
                 self.add_temp_modifier(
                     who,
                     Modifier::new(Stat::Moves, ModOp::Min, WINGS_MOVES, source),
-                    None,
                 );
             }
             Mutation::Breath => {
-                self.grant_temp_ability(who, Ability::new(20), None);
+                self.grant_temp_ability(who, Ability::new(20));
                 for (stat, op, value) in [
                     (Stat::Ranged, ModOp::Set, BREATH_STRENGTH),
                     (Stat::Ammo, ModOp::Min, 1),
                 ] {
-                    self.add_temp_modifier(who, Modifier::new(stat, op, value, source), None);
+                    self.add_temp_modifier(who, Modifier::new(stat, op, value, source));
                 }
             }
         }
-        self.grant_temp_ability(who, MUTATED, None);
+        self.grant_temp_ability(who, MUTATED);
         if let Some((_, marker)) = MUTATION_MARKERS.iter().find(|(m, _)| *m == pick) {
-            self.grant_temp_ability(who, *marker, None);
+            self.grant_temp_ability(who, *marker);
         }
         Some(pick)
     }

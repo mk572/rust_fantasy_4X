@@ -148,19 +148,6 @@ impl App {
         } else {
             unit
         };
-        if spell == Some("temp") {
-            // Two temporary effects, to see their lines.
-            let who = f4x_core::rules::exec::Target::Unit(unit);
-            let plus = f4x_def::rules::Modifier::new(
-                f4x_def::rules::Stat::Melee,
-                f4x_def::rules::ModOp::Add,
-                2,
-                f4x_def::rules::Source::Other,
-            );
-            self.game.add_temp_modifier(who, plus, Some(3));
-            self.game
-                .grant_temp_ability(who, f4x_def::rules::Ability::new(23), None);
-        }
         let spell = spell.and_then(|id| crate::alias::id_of(&self.game.content().rules.spells, id));
         if let Some(spell) = spell {
             let who = f4x_core::rules::exec::Target::Unit(unit);

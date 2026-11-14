@@ -159,11 +159,11 @@ impl EffectHost for GameHost<'_> {
     /// Bare modifiers and abilities from instant spells and rules go to the bearer's
     /// temporary effects (`spell/temp_effect.rs`); lasting spells use enchantments instead.
     fn add_modifier(&mut self, who: Target, modifier: Modifier) {
-        self.game.add_temp_modifier(who, modifier, None);
+        self.game.add_temp_modifier(who, modifier);
     }
 
     fn grant_ability(&mut self, who: Target, ability: Ability) {
-        self.game.grant_temp_ability(who, ability, None);
+        self.game.grant_temp_ability(who, ability);
     }
 
     fn damage(&mut self, who: Target, amount: i32, _kind: DamageKind) -> i32 {
@@ -1173,18 +1173,5 @@ pub(crate) mod tests_support {
             boost: 0,
         };
         host.dispel(who, strength, by)
-    }
-
-    pub(crate) fn host(game: &mut Game) -> impl EffectHost + '_ {
-        // A copy of the generator: tests of single effects need no stream of their own.
-        let rng = game.rng.clone();
-        GameHost {
-            game,
-            rng,
-            events: Vec::new(),
-            slain: 0,
-            extra: 0,
-            boost: 0,
-        }
     }
 }

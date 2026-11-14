@@ -421,7 +421,7 @@ mod tests {
                 for (kind, ability) in kinds {
                     let unit = game.spawn_unit(owner, here, kind);
                     if let Some(n) = ability {
-                        game.grant_temp_ability(Target::Unit(unit), Ability::new(n), None);
+                        game.grant_temp_ability(Target::Unit(unit), Ability::new(n));
                     }
                     units.push(unit);
                 }
@@ -502,7 +502,7 @@ mod tests {
                 );
             }
             let guide = game.spawn_unit(owner, start, walker);
-            game.grant_temp_ability(Target::Unit(guide), Ability::new(50), None);
+            game.grant_temp_ability(Target::Unit(guide), Ability::new(50));
             stacks.push(vec![game.spawn_unit(owner, start, walker), guide]);
             let real = game.units().player_units(owner);
             stacks.push(
