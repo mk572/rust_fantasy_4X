@@ -15,13 +15,12 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 75 tests. Part 2: 97 tests. Of 2166 in all.**
+**Part 1: 59 tests. Part 2: 97 tests. Of 2166 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
 | File | Tests |
 |---|---|
-| `crates/f4x-core/src/battle/tests.rs` | 16 |
 | `crates/f4x-ai/src/battle/order.rs` | 13 |
 | `crates/f4x-def/src/load/rules.rs` | 13 |
 | `crates/f4x-core/src/wizard/retort.rs` | 7 |
@@ -66,29 +65,6 @@ Helpers that make things up: `duel` (line 430), `merging_unit` (line 617), `shoo
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
 | `a_unit_lists_its_effects_with_their_length_and_a_lasting_one_says_none` | 126 | hand-made spell modifier (`Modifier::new`) | itself | |
-
-## `crates/f4x-core/src/battle/tests.rs` (16)
-
-Helpers that make things up: `caster` (line 4575), `crowd` (line 4214), `duel` (line 24), `dummy` (line 1362), `ghost` (line 5085), `spearman` (line 20).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_spell_save_makes_the_resistance_checks_of_the_cast_harder` | 3834 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers` | 4219 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crowd` | |
-| `striking_into_a_city_behind_a_wall_of_fire_burns_the_attacker` | 4276 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crowd` | |
-| `a_wall_of_darkness_stops_shots_into_the_city_unless_the_shooter_sees_through` | 4299 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crowd` | |
-| `a_flying_fortress_shuts_the_city_to_walkers_and_its_walkers_in` | 4338 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crowd` | |
-| `the_legal_commands_are_exactly_what_apply_accepts` | 4406 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman` | |
-| `a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot` | 4585 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel`, `dummy`, `caster` | |
-| `regenerating_units_heal_a_hit_as_their_sides_turn_begins` | 4619 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `dummy` | |
-| `healing_cannot_bring_back_what_was_destroyed` | 4884 | hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `extra_hits_do_not_count_as_the_units_real_strength` | 4912 | hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `a_vortex_crushes_the_unit_it_lands_on_and_is_steered_once_a_turn_by_its_owner` | 4922 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `vortices_wander_three_squares_each_turn_and_there_are_at_most_ten` | 4968 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `an_invisible_unit_is_unseen_and_cannot_be_aimed_at_until_it_gives_itself_away` | 5092 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `ghost` | |
-| `an_invisible_unit_shows_after_it_attacks_until_its_next_turn_and_to_those_who_see_through` | 5118 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `ghost` | |
-| `invisibility_that_begins_in_battle_hides_the_unit_at_once` | 5157 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `a_hasted_unit_attacks_twice_in_a_turn` | 6476 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
 
 ## `crates/f4x-core/src/city/economy.rs` (4)
 
@@ -231,18 +207,18 @@ Helpers that make things up: `made` (line 494).
 
 ## `crates/f4x-core/src/battle/tests.rs` (8)
 
-Helpers that make things up: `battle_in_the_middle` (line 6220).
+Helpers that make things up: `battle_in_the_middle` (line 6138).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle` | 3150 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots` | 3224 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item` | 3629 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `a_battle_is_saved_and_read_back_with_its_spells_and_items` | 6158 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `a_game_saved_in_a_battle_continues_exactly_like_the_unsaved_one` | 6270 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
-| `a_game_saved_outside_a_battle_holds_no_battle` | 6302 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
-| `a_save_whose_battle_names_a_unit_that_is_gone_is_refused` | 6309 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
-| `a_replay_can_start_in_a_battle` | 6321 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
+| `a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle` | 3130 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots` | 3204 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item` | 3609 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `a_battle_is_saved_and_read_back_with_its_spells_and_items` | 6076 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `a_game_saved_in_a_battle_continues_exactly_like_the_unsaved_one` | 6188 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
+| `a_game_saved_outside_a_battle_holds_no_battle` | 6220 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
+| `a_save_whose_battle_names_a_unit_that_is_gone_is_refused` | 6227 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
+| `a_replay_can_start_in_a_battle` | 6239 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
 
 ## `crates/f4x-core/src/city/economy.rs` (2)
 
