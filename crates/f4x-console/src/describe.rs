@@ -551,6 +551,8 @@ fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
         }
         B::SpellImmune { unit } => format!("Unit {unit} takes no harm from the spell"),
         B::SpellHealed { unit, healed } => format!("Unit {unit} heals {healed}"),
+        B::Merged { unit } => format!("Unit {unit} sinks into the ground"),
+        B::Surfaced { unit, cell } => format!("Unit {unit} comes up at {},{}", cell.0, cell.1),
         B::HeroRecalled { unit } => format!("Unit {unit} is recalled to the summoning circle"),
         B::SpellEnchanted { unit, spell: s } => format!("Unit {unit} is under {}", spell(game, *s)),
         B::SpellDispelled { unit, removed, .. } => {

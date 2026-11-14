@@ -217,6 +217,84 @@ fn hopeless(battle: &Battle, side: Side) -> bool {
     battle.active_units(side).count() > 1 && theirs > mine * FLEE_RATIO
 }
 
+/// A unit with Merging sinks into the ground when it is hurt (under half its hit points) and an
+/// enemy that can hurt it is near, unless it is the last unit its side has on the field and not
+/// nearly dead (it would give up the battle for nothing). Not part of [`next_command`]: the
+/// scripted wizard asks (`cast.rs`), the learned player has no such order.
+pub fn merge_order(battle: &Battle) -> Option<BattleCommand> {
+    let side = battle.active;
+    let on_field = battle.active_units(side).count();
+    battle
+        .active_units(side)
+        .filter(|u| u.can_merge())
+        .find(|u| {
+            let left = u.hit_points().max(0) as f32 / u.max_hit_points().max(1) as f32;
+            let threatened = battle.active_units(side.other()).any(|e| {
+                distance(u.cell, e.cell) <= 3
+                    && expected_damage(e, u, can_shoot(e), battle.melee_vs_fliers) > 0.0
+            });
+            let alone = on_field <= 1;
+            threatened && (left < 0.25 || (left < 0.5 && !alone))
+        })
+        .map(|u| BattleCommand::Merge { unit: u.id })
+}
+
+/// A merged unit of the side to play comes up: hurt, as far from the enemy as the field allows;
+/// otherwise beside the enemy it would hurt most, ready to strike (it comes up with its whole
+/// turn). Not part of [`next_command`] (see [`merge_order`]).
+pub fn surface_order(battle: &Battle) -> Option<BattleCommand> {
+    let side = battle.active;
+    let unit = battle.units.iter().find(|u| {
+        u.side == side && u.status == f4x_core::battle::Status::Merged && !u.merged_this_turn
+    })?;
+    let enemies: Vec<&BattleUnit> = battle.active_units(side.other()).collect();
+    let free = battle.free_squares();
+    let hurt = unit.hit_points() * 2 < unit.max_hit_points();
+    let to = if hurt || enemies.is_empty() {
+        free.iter().copied().max_by_key(|&p| {
+            (
+                enemies
+                    .iter()
+                    .map(|e| distance(p, e.cell))
+                    .min()
+                    .unwrap_or(0),
+                std::cmp::Reverse(p),
+            )
+        })
+    } else {
+        // The best blow from a free square beside an enemy, the one with the fewest enemies
+        // around it on a tie.
+        let mut best: Option<(f32, std::cmp::Reverse<usize>, Pos)> = None;
+        for &p in &free {
+            let mut at = unit.clone();
+            at.cell = p;
+            let near: Vec<&&BattleUnit> = enemies
+                .iter()
+                .filter(|e| distance(p, e.cell) == 1)
+                .collect();
+            let blow = near
+                .iter()
+                .map(|e| attack_value(&at, e, false, battle.melee_vs_fliers))
+                .fold(0.0, f32::max);
+            let key = (blow, std::cmp::Reverse(near.len()), p);
+            if blow > 0.0 && best.as_ref().is_none_or(|b| (key.0, key.1) > (b.0, b.1)) {
+                best = Some(key);
+            }
+        }
+        best.map(|b| b.2).or_else(|| {
+            // Nothing to strike from a free square: as near the enemy as it gets.
+            free.iter().copied().min_by_key(|&p| {
+                enemies
+                    .iter()
+                    .map(|e| distance(p, e.cell))
+                    .min()
+                    .unwrap_or(0)
+            })
+        })
+    }?;
+    Some(BattleCommand::Surface { unit: unit.id, to })
+}
+
 /// The order to run, if the active side's fight is lost. It is not part of
 /// [`next_command`], which gives unit orders only (the learned player takes the unit orders from
 /// it and decides to flee on its own); the scripted wizard asks for it first (`brain.rs`).
@@ -293,6 +371,15 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
                 .iter()
                 .any(|e| !battle.blocked_by_darkness(unit.id, e.id));
         if unit.moves_left == 0 || (has_shot && !adjacent) || behind_walls {
+            return BattleCommand::Done { unit: unit.id };
+        }
+        // A unit that can hurt none of them (walkers against fliers, with the melee rule that
+        // gives them nothing against fliers) does not walk into them when its side is outmatched:
+        // it holds its place instead of dying for nothing.
+        let hurts = |e: &&BattleUnit| attack_value(unit, e, false, battle.melee_vs_fliers) > 0.0;
+        if !enemies.iter().any(hurts)
+            && field_worth(battle, side.other()) > field_worth(battle, side)
+        {
             return BattleCommand::Done { unit: unit.id };
         }
         // Walk towards the enemy that is worth the most for the walk.
@@ -509,6 +596,63 @@ mod tests {
         assert!(matches!(first, BattleCommand::Move { unit: 0, .. }));
         b.apply(first).map_err(|e| format!("{e:?}"))?;
         assert!(distance(b.units[0].cell, (10, 5)) < 7);
+        Ok(())
+    }
+
+    #[test]
+    fn a_walker_outmatched_by_fliers_it_cannot_hurt_holds_its_place() {
+        let mut b = duel((3, 5), (10, 5));
+        b.units[1].flies = true;
+        // As strong as it is: the walk goes on (it blocks and fights what comes).
+        assert!(matches!(
+            next_command(&b),
+            BattleCommand::Move { unit: 0, .. }
+        ));
+        // Stronger, and out of reach for a walker's melee: it stays.
+        b.units[1].melee = 9;
+        b.units[1].defense = 9;
+        assert_eq!(next_command(&b), BattleCommand::Done { unit: 0 });
+    }
+
+    fn merging_unit(side: Side, cell: Pos) -> BattleUnit {
+        let mut u = BattleUnit::simple(side, 4, 3, 4, 2).at(cell);
+        u.abilities.push(f4x_core::rules::Ability::new(43));
+        u
+    }
+
+    #[test]
+    fn a_hurt_merging_unit_with_an_enemy_near_goes_under_and_comes_up_beside_a_target() -> TestResult
+    {
+        let units = vec![
+            merging_unit(Side::Attacker, (5, 5)),
+            BattleUnit::simple(Side::Attacker, 1, 1, 1, 1).at((2, 2)),
+            BattleUnit::simple(Side::Defender, 4, 3, 4, 2).at((6, 5)),
+        ];
+        let mut b = Battle::new(PlayerId(0), PlayerId(1), BattleMap::open(), units, 1);
+        assert_eq!(merge_order(&b), None, "whole: it fights");
+        b.units[0].figures = 1;
+        b.units[0].front_damage = b.units[0].hits - 1;
+        assert!(b.units[0].hit_points() * 2 < b.units[0].max_hit_points());
+        assert_eq!(merge_order(&b), Some(BattleCommand::Merge { unit: 0 }));
+        b.apply(BattleCommand::Merge { unit: 0 })
+            .map_err(|e| format!("{e:?}"))?;
+        b.apply(BattleCommand::EndTurn)
+            .map_err(|e| format!("{e:?}"))?;
+        assert_eq!(surface_order(&b), None, "not its side's turn");
+        b.apply(BattleCommand::EndTurn)
+            .map_err(|e| format!("{e:?}"))?;
+        // Hurt, it comes up as far from the enemy as the field allows.
+        let Some(BattleCommand::Surface { unit: 0, to }) = surface_order(&b) else {
+            return Err("no surfacing".into());
+        };
+        assert!(distance(to, (6, 5)) > 10, "{to:?}");
+        // Whole, it comes up beside the enemy.
+        b.units[0].figures = b.units[0].figures_start;
+        b.units[0].front_damage = 0;
+        let Some(BattleCommand::Surface { unit: 0, to }) = surface_order(&b) else {
+            return Err("no surfacing".into());
+        };
+        assert_eq!(distance(to, (6, 5)), 1, "{to:?}");
         Ok(())
     }
 

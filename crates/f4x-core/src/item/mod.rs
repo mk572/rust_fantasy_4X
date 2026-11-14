@@ -216,7 +216,6 @@ impl HeroItems {
 pub const OTHER_POWERS: &[ItemPowerId] = &[
     ItemPowerId::new(33), /* flaming */
     ItemPowerId::new(44), /* giant_strength */
-    ItemPowerId::new(62), /* merging */
     ItemPowerId::new(65), /* spell_charges */
 ];
 
@@ -538,6 +537,7 @@ mod tests {
                 Ability::new(34), /* large_shield */
                 Ability::new(17), /* dispel_evil */
                 Ability::new(35), /* life_steal */
+                Ability::new(43), /* merging, the item of Merging */
             ]
         );
     }

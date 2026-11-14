@@ -224,8 +224,14 @@ good.
   swamp, rubble: two moves to enter), or blocked (trees, rocks: walkers cannot enter). Flying
   units pay one move everywhere. Moves are in half-moves like the overland map; a unit with
   any move left may take a last step that costs more.
-- **Teleporting and merging** units (`teleport`: unicorns, djinn; `merging`: great wyrm) skip the path
+- **Teleporting** units (`teleport`: unicorns, djinn) skip the path
   search: they may go to any free, unblocked square for one move (task 13).
+- **Merging** units (great wyrm, and a hero with an Item of Merging) walk like any other unit, and
+  may also sink into the ground (`BattleCommand::Merge`, with half a move left): off the field,
+  out of every attack and spell, until their side's next turn, when they come up on any free
+  square at no cost in moves and with their whole turn (`Surface`). A unit that came up cannot go
+  down again that turn. A side with only merged units has lost, and they get away whole
+  (`BattleUnit::slipped`: no loss to the flight). A divergence, `divergences.md` section 44.
 - Movement is in eight directions, cannot enter an occupied square, and is found with a
   cheapest-path search (`BattleMap::reachable`, `Battle::reachable`).
 - The map is generated from the overland terrain of the defenders' square (more rough ground
@@ -390,8 +396,8 @@ mirrored, so the defenders are at the east and the city stands at x 12 to 15, y 
   first), skipping the corner towers when there are walls; attackers outside in three columns.
 - **Movement:** an attacker outside cannot enter a standing wall section, except at the gate,
   and nobody can enter a standing corner tower. A unit inside cannot leave except by the gate,
-  because the squares just outside the standing walls are shut to it. Fliers, teleporters, the
-  merging and the non-corporeal pass over the walls (but not the towers). A fallen section (`Wall::Broken`) is open
+  because the squares just outside the standing walls are shut to it. Fliers, teleporters and the
+  non-corporeal pass over the walls (but not the towers). A fallen section (`Wall::Broken`) is open
   ground again.
 - **Wall crushers** (the attackers' units with `wall_crusher`) strike a standing section with
   `AttackWall` from next to it (it falls half the time, and the blow uses up the unit's moves) or

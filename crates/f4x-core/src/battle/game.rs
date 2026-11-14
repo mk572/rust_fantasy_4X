@@ -367,6 +367,9 @@ impl Game {
             attacked: self.unit_in_stasis(unit),
             extra_attack: false,
             revealed: false,
+            merged_this_turn: false,
+            surfaced: false,
+            slipped: false,
             was_invisible: false,
             combat_spells: Vec::new(),
             base: None,
@@ -1202,7 +1205,7 @@ impl Game {
             let mut fled: Vec<(hecs::Entity, bool)> = battle
                 .units
                 .iter()
-                .filter(|u| u.side == side && u.status == Status::Fled)
+                .filter(|u| u.side == side && u.status == Status::Fled && !u.slipped)
                 .filter_map(|u| {
                     // Asleep, confused or in a web that has not been broken.
                     let webbed = u

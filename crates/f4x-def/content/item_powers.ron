@@ -66,7 +66,7 @@
     (num: 59, id: "water_walking", group: 9, cost: 100, kinds: [Misc], realm: Some(0), books: 2, spell: Some(8)),
     (num: 60, id: "regeneration", group: 9, cost: 1500, kinds: [Misc], realm: Some(0), books: 6, spell: Some(31)),
     (num: 61, id: "pathfinding", group: 9, cost: 200, kinds: [Misc], realm: Some(0), books: 3, spell: Some(16)),
-    (num: 62, id: "merging", group: 9, cost: 300, kinds: [Staff, Wand, Misc], realm: Some(0), books: 22),
+    (num: 62, id: "merging", group: 9, cost: 1500, kinds: [Staff, Wand, Misc], realm: Some(0), books: 6, attack: Some(43)),
     (num: 63, id: "flight", group: 9, cost: 200, kinds: [Misc], realm: Some(1), books: 3, spell: Some(56)),
     (num: 64, id: "invisibility", group: 9, cost: 1000, kinds: [Misc], realm: Some(1), books: 5, spell: Some(62)),
     (num: 65, id: "spell_charges", group: 9, cost: 1000, kinds: [Staff, Wand]),

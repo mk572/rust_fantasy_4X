@@ -70,6 +70,8 @@
     "battle.undead_for_wizard": (count: "n",
         one: "1 unit rises from the dead to serve {wizard}.",
         other: "{n} units rise from the dead to serve {wizard}."),
+    "battle.merged": "{unit} sinks into the ground",
+    "battle.surfaced": "{unit} comes up from the ground",
     "battle.recalled": "{unit} is recalled to the summoning circle",
 
     // The spell book and the aim bar.
@@ -101,6 +103,9 @@
     "battle.ammo_label": "Ammo",
     "battle.spell_row": "{spell} {cost}",
     "battle.demon_row": "Demon ({n})",
+    "battle.merge_row": "Merge",
+    "battle.surface_row": "Up: {unit}",
+    "battle.surface_hint": "Click a free square for {unit}; right-click cancels",
     "battle.side_cast": "{caster} has cast {spell}",
     "battle.unit_cast": (count: "figures",
         one: "The {unit} has cast {spell}",

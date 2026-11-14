@@ -32,6 +32,10 @@ enum Row {
     Demon(u32),
     /// An ability or lasting spell: its picture and name.
     Ability(Option<usize>, String),
+    /// Merging: the unit goes under the ground (one click), with its picture and name.
+    Merge(Option<usize>, String, bool),
+    /// A merged unit of mine, to bring up on a free square: its name.
+    Up(usize, String),
 }
 
 impl App {
@@ -101,14 +105,35 @@ impl App {
         input: &Input,
     ) {
         ui.box_rect = None;
-        let Some(id) = ui.selected else {
-            return;
-        };
-        let Some(unit) = battle.unit(id) else {
-            return;
-        };
+        // A unit picked to come up that is no longer waiting under the ground (or the turn went
+        // to the other side) is let go.
+        if ui.placing.is_some_and(|p| {
+            !my_turn
+                || !battle.unit(p).is_some_and(|u| {
+                    u.status == f4x_core::battle::Status::Merged && !u.merged_this_turn
+                })
+        }) {
+            ui.placing = None;
+        }
         let mut rows: Vec<Row> = Vec::new();
-        for s in self.game.battle_unit_spells(id) {
+        // The units under the ground come first: they cannot be picked on the field.
+        let mine = Self::human_side(battle).filter(|&side| my_turn && side == battle.active);
+        for u in battle.units.iter().filter(|u| {
+            mine == Some(u.side)
+                && u.status == f4x_core::battle::Status::Merged
+                && !u.merged_this_turn
+        }) {
+            rows.push(Row::Up(
+                u.id,
+                self.text_with(
+                    "battle.surface_row",
+                    &Args::new().text("unit", self.battle_unit_name(u)),
+                ),
+            ));
+        }
+        let selected = ui.selected.and_then(|id| battle.unit(id));
+        let id = selected.map_or(0, |u| u.id);
+        for s in selected.map_or_else(Vec::new, |_| self.game.battle_unit_spells(id)) {
             let name = self
                 .names
                 .spell(self.game.content().rules.spells.get(s.spell).num)
@@ -132,15 +157,26 @@ impl App {
                 label,
             ));
         }
-        if unit.casting.demons > 0 {
-            rows.push(Row::Demon(unit.casting.demons));
-        }
-        for special in self
-            .battle_sheet(battle, id)
-            .map(|s| s.specials)
-            .unwrap_or_default()
-        {
-            rows.push(Row::Ability(special.icon, special.name));
+        if let Some(unit) = selected {
+            if unit.casting.demons > 0 {
+                rows.push(Row::Demon(unit.casting.demons));
+            }
+            for special in self
+                .battle_sheet(battle, id)
+                .map(|s| s.specials)
+                .unwrap_or_default()
+            {
+                // Merging is the one ability that is an order: it has its own row.
+                if matches!(special.item, Some(crate::unit_sheet::ItemIcon::Power(_))) {
+                    rows.push(Row::Merge(
+                        special.icon,
+                        self.text("battle.merge_row"),
+                        unit.can_merge(),
+                    ));
+                } else {
+                    rows.push(Row::Ability(special.icon, special.name));
+                }
+            }
         }
         rows.truncate(MOST_ROWS);
         if rows.is_empty() {
@@ -158,6 +194,8 @@ impl App {
         let free = my_turn && ui.aiming.is_none() && ui.fallen_list.is_none();
         let mut cast: Option<BattleSpell> = None;
         let mut summon = false;
+        let mut merge = false;
+        let mut up = None;
         for (i, row) in rows.iter().enumerate() {
             let (x, y) = (LEFT + SIDE + 1.0, TOP + EDGE_TOP + i as f32 * ROW);
             let cell = lay.rect((x - 1.0, y, WIDTH - 2.0 * SIDE, ROW - 1.0));
@@ -170,6 +208,8 @@ impl App {
                     free && self.game.can_summon_demon(id),
                 ),
                 Row::Ability(icon, name) => (name.clone(), light, *icon, false),
+                Row::Merge(icon, name, can) => (name.clone(), gold, *icon, *can && free),
+                Row::Up(_, label) => (label.clone(), gold, None, free && ui.placing.is_none()),
             };
             let clickable = !matches!(row, Row::Ability(..));
             let hover = ui::hit(cell, usable, input).hovered();
@@ -193,11 +233,18 @@ impl App {
                 match row {
                     Row::Spell(spell, _) => cast = Some(*spell),
                     Row::Demon(_) => summon = true,
+                    Row::Merge(..) => merge = true,
+                    Row::Up(unit, _) => up = Some(*unit),
                     Row::Ability(..) => {}
                 }
             }
         }
-        if let Some(spell) = cast {
+        if merge {
+            self.battle_order(ui, BattleCommand::Merge { unit: id });
+            ui.selected = None;
+        } else if let Some(unit) = up {
+            ui.placing = Some(unit);
+        } else if let Some(spell) = cast {
             ui.spell_unit = Some(id);
             self.pick_spell(ui, &spell);
         } else if summon {

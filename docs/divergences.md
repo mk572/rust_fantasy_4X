@@ -886,3 +886,31 @@ Two things the wiki calls bugs of the original, which we do not copy (the rule i
 The wiki page on Wrack (`reference/`) says Wrack strikes at the end of each of its caster's combat turns, "right before the enemy army makes its moves", and that the first strike comes as soon as the caster's turn ends. The original's code does not (ReMoM, `Begin_Combat_Turn` in `Combat.c`, checked 13 November 2026): at the start of every combat turn it applies Mana Leak, then Call Lightning and then Wrack, the attacker's before the defender's. So a defender's Wrack strikes right after the defender's turn, as the wiki says, but an attacker's strikes only at the start of the next turn, after the defender has moved. **Ours follows the original's code** (`Battle::turn_effects` in `battle/field.rs`): the wiki's timing is taken to be loose, and play and balance come before the wiki. The strikes per battle are the same, only the attacker's first one comes half a turn later than the wiki says.
 
 What ours does differently from the original, and in agreement with the wiki, is not copy its two bugs (`Apply_Wrack` in `Spells133.c` marks both): Wraith Form gives no shelter from it, and n failed figures deal n points, not n x n (tests `wrack_deals_one_point_for_each_figure_that_fails_its_roll_and_not_the_square_of_that` and the Wrack test in `battle/tests.rs`).
+
+## 44. Merging: a unit sinks into the ground and comes up a turn later (task 602)
+
+In the original the Merging ability is a teleport that the great wyrm alone has (a move to any free
+square for one move), and the item power Merging, which would give it to a hero, does nothing
+(`reference/Merging (Item Power)`): it needs 22 books, so nobody can craft it, and the two items
+that carry it cannot turn up. The rules we use instead (asked for by the user, 14 November 2026):
+
+- A unit with Merging that has half a move left may **merge**: it leaves the field. Nothing can
+  attack, see or spell it while it is under the ground, and its square is free.
+- At the start of its side's **next** turn its controller may place it on **any free square** of the
+  field. That costs no moves, and the unit has its whole turn (it may attack at once). It is not
+  forced to come up.
+- A unit that came up **cannot merge again on that turn**, so it is open to attack after it
+  appears: a strong defence, not a safe one.
+- If the battle is lost while a unit is under the ground, it **flees with certainty**: it is not
+  killed or left behind, and the flight costs it nothing (an ordinary flight loses half the units
+  and a quarter of the heroes). If the battle is won, it comes up again.
+- A side whose units are all under the ground has lost the battle.
+
+The item power is **craftable**: it needs 6 books of Nature and costs 1500 (the original's 22 books and 300), in line with the other powerful abilities (Regeneration 1500 and 6 books, Phantasmal 1500 and 6, Haste 2000 and 7), so it is made with Create Artifact.
+
+Walking is the same as for any unit: the great wyrm no longer jumps to any square for a move. Teleporting
+units (unicorns, djinn) do as before. The Item of Merging now gives its carrier the ability, so the
+two prefab items with it work, and as books play no part in finds (section 10) they can be found.
+The computer wizard merges a unit that is hurt (under half its hit points) with an enemy near, and
+brings it up beside the enemy it would hurt most, or, if it is still hurt, as far from the enemy as it
+can. The human's screen for it is task 603.

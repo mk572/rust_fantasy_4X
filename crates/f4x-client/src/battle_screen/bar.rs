@@ -341,6 +341,14 @@ impl App {
         }
         self.draw_scanned_unit(battle, hovered, view);
         self.draw_unit_specials(ui, battle, my_turn, input);
+        if let Some(u) = ui.placing.and_then(|p| battle.unit(p)) {
+            let hint = self.text_with(
+                "battle.surface_hint",
+                &Args::new().text("unit", self.battle_unit_name(u)),
+            );
+            let y = 3.0 + line * 3.0;
+            self.draw_styled(view, &Style::flat(1, LIGHTGRAY).shadow(), &hint, 4.0, y);
+        }
     }
 
     /// The selected unit in the middle of the panel (`Draw_Active_Unit_Window`).

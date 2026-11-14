@@ -25,6 +25,7 @@ use f4x_core::battle::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
 use f4x_core::game::Game;
 use f4x_core::rules::effects::{Effect, EffectRule, TargetSel};
 use f4x_core::rules::{ModOp, SpellDef, SpellId, Stat};
+use f4x_core::spell::unit_effect::UnitEffect;
 
 /// A cast by a unit (a hero's spell, a charge) must be worth at least this share of the dearest
 /// enemy unit to be made. The wizard has no floor: it spends what it may (`cast_choice`).
@@ -97,8 +98,11 @@ const MANA_SOFTENING: f32 = 12.0;
 pub fn next_command(game: &Game) -> Option<BattleCommand> {
     let battle = game.battle()?;
     Some(
-        cast_choice(game, battle)
+        // Coming up from the ground costs nothing: first.
+        ai::surface_order(battle)
+            .or_else(|| cast_choice(game, battle))
             .or_else(|| unit_cast_choice(game, battle))
+            .or_else(|| ai::merge_order(battle))
             .or_else(|| ai::retreat(battle))
             .or_else(|| steer_choice(battle))
             .unwrap_or_else(|| ai::next_command(battle)),
@@ -361,7 +365,7 @@ impl Scene<'_> {
         let own_worth: f32 = self.friends.iter().map(|u| worth(u)).sum();
         // A section of wall comes down: the attacker's gain, more with the enemy at the gap.
         let breach = if self.side == Side::Attacker && battle.map.has_wall(cell) {
-            let gap = if self.enemies.iter().any(|u| near(&u, 3)) {
+            let gap = if self.enemies.iter().any(|u| near(u, 3)) {
                 1.0
             } else {
                 0.5
@@ -726,7 +730,13 @@ fn rule_value(
             ..
         } => on
             .iter()
-            .filter(|u| !ours(u) && !immune.iter().any(|&a| u.has(a)) && slay_allows(*only, u))
+            .filter(|u| {
+                !ours(u)
+                    && !immune.iter().any(|&a| u.has(a))
+                    && slay_allows(*only, u)
+                    // Spell Lock keeps a unit from the spells that sever or burn it.
+                    && !u.effects.contains(UnitEffect::SpellLock)
+            })
             .map(|u| {
                 let chance = game.battle().map_or(1.0, |b| {
                     b.failure_chance(u.id, Realm::of(*realm), *modifier)

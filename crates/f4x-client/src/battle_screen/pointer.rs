@@ -34,6 +34,14 @@ impl App {
         let Some(cell) = hovered else {
             return RED_CROSS;
         };
+        // A merged unit coming up: the boot on every free square.
+        if ui.placing.is_some() {
+            return if battle.free_squares().contains(&cell) {
+                BOOT
+            } else {
+                RED_CROSS
+            };
+        }
         // A vortex being steered: the boot on the squares it can move to, the cross elsewhere.
         if let Some(v) = ui.steering.and_then(|i| battle.vortices.get(i)) {
             let free = battle.map.is_playable(cell) && battle.vortex_at(cell).is_none();
@@ -285,6 +293,25 @@ mod tests {
             .find(|&c| f.battle.unit_at(c).is_none() && !reach.contains_key(&c))
             .ok_or("every square is reachable")?;
         assert_eq!(image(&f, &mut ui, true, Some(unreachable)), RED_CROSS);
+        Ok(())
+    }
+
+    #[test]
+    fn a_merged_unit_coming_up_gets_the_boot_on_free_squares_anywhere_and_the_cross_elsewhere(
+    ) -> TestResult {
+        let f = fight()?;
+        let mut ui = BattleUi {
+            placing: Some(f.ours),
+            ..BattleUi::default()
+        };
+        let free = f.battle.free_squares();
+        let far = free
+            .iter()
+            .copied()
+            .find(|c| !f.battle.reachable(f.ours).contains_key(c))
+            .ok_or("every free square is within the unit's reach")?;
+        assert_eq!(image(&f, &mut ui, true, Some(far)), BOOT);
+        assert_eq!(image(&f, &mut ui, true, Some((5, 6))), RED_CROSS);
         Ok(())
     }
 }

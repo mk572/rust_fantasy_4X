@@ -264,6 +264,10 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() -> TestResult {
             f4x_core::battle::BattleCommand::MoveVortex { .. } => {
                 unreachable!("the plain unit AI steers no vortex")
             }
+            f4x_core::battle::BattleCommand::Merge { unit } => format!("bmerge {unit}"),
+            f4x_core::battle::BattleCommand::Surface { unit, to } => {
+                format!("bsurface {unit} {},{}", to.0, to.1)
+            }
             f4x_core::battle::BattleCommand::Done { unit } => format!("bdone {unit}"),
             f4x_core::battle::BattleCommand::EndTurn => "bend".into(),
             f4x_core::battle::BattleCommand::Flee => "bflee".into(),

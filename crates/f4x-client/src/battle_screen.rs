@@ -96,6 +96,8 @@ pub(crate) struct BattleUi {
     auto: bool,
     /// The Magic Vortex being steered: click it, then a square next to it.
     steering: Option<usize>,
+    /// A merged unit of mine picked to come up: click a free square for it.
+    placing: Option<usize>,
     /// The information window (the Info button) is open.
     info_open: bool,
 }
@@ -315,6 +317,8 @@ pub(crate) fn describe(
             say("battle.turn", Args::new().count("turn", *turn))
         }
         BattleEvent::Fled { .. } => say("battle.fled", Args::new()),
+        BattleEvent::Merged { unit: u } => say("battle.merged", unit(*u)),
+        BattleEvent::Surfaced { unit: u, .. } => say("battle.surfaced", unit(*u)),
         BattleEvent::HeroRecalled { unit: u } => say("battle.recalled", unit(*u)),
         BattleEvent::Ended { .. } | BattleEvent::Exhausted => None,
     }
@@ -921,27 +925,14 @@ impl App {
                         .unwrap_or(start);
                     ui.facing.insert(*unit, battle_anim::facing(prev, last));
                 }
-                // A teleporter or a merging unit crosses the field in one jump, with its
-                // own sound and picture (`Battle_Unit_Teleport`, `Battle_Unit_Tunnel`).
-                let instant = before.unit(*unit).and_then(|u| {
-                    if u.has(Ability::new(68)) {
-                        Some(false)
-                    } else if u.has(Ability::new(43)) {
-                        Some(true)
-                    } else {
-                        None
-                    }
-                });
-                match (instant, path.last()) {
-                    (Some(tunnel), Some(&to)) => {
-                        out.push(Anim::Sound {
-                            cast: if tunnel { 12 } else { 11 },
-                        });
-                        out.push(if tunnel {
-                            Anim::Tunnel { unit: *unit, to }
-                        } else {
-                            Anim::Teleport { unit: *unit, to }
-                        });
+                // A teleporter crosses the field in one jump, with its own sound and picture
+                // (`Battle_Unit_Teleport`). A merging unit walks like any other: it goes under
+                // with `Merge` instead.
+                let teleports = before.unit(*unit).is_some_and(|u| u.has(Ability::new(68)));
+                match (teleports, path.last()) {
+                    (true, Some(&to)) => {
+                        out.push(Anim::Sound { cast: 11 });
+                        out.push(Anim::Teleport { unit: *unit, to });
                     }
                     _ => out.push(Anim::Move {
                         unit: *unit,
@@ -980,6 +971,19 @@ impl App {
                 });
             }
             BattleEvent::UnitDied { unit } => out.push(Anim::Death { unit: *unit }),
+            // The ground opens for a merging unit (`Battle_Unit_Tunnel`'s sound and its descent);
+            // the unit that comes up simply stands there afterwards.
+            BattleEvent::Merged { unit } => {
+                out.push(Anim::Sound { cast: 12 });
+                out.push(Anim::Sink { unit: *unit });
+            }
+            BattleEvent::Surfaced { unit, cell } => {
+                out.push(Anim::Sound { cast: 12 });
+                out.push(Anim::Rise {
+                    unit: *unit,
+                    to: *cell,
+                });
+            }
             // The vortex's round sounds like a small flyer (`Vortex_Combat_Round`).
             BattleEvent::VortexMoved { .. } => out.push(Anim::Sound { cast: 7 }),
             BattleEvent::SpellCast { side, spell, .. } => {
@@ -1283,6 +1287,9 @@ impl App {
         if ui.aiming.is_some() || ui.spell_list || ui.fallen_list.is_some() {
             return self.spell_input(ui, battle, hovered, input);
         }
+        if let Some(unit) = ui.placing {
+            return self.placing_input(ui, battle, unit, hovered, input);
+        }
         let selected = ui.selected;
         let sel_unit = selected
             .and_then(|i| battle.unit(i))
@@ -1320,6 +1327,32 @@ impl App {
                     self.battle_click(ui, battle, cell);
                 }
             }
+        }
+    }
+
+    /// A merged unit is coming up: a click on a free square puts it there, Escape or a
+    /// right-click leaves it under the ground for now.
+    fn placing_input(
+        &mut self,
+        ui: &mut BattleUi,
+        battle: &Battle,
+        unit: usize,
+        hovered: Option<Pos>,
+        input: &Input,
+    ) {
+        if input.key_pressed(KeyCode::Escape) || input.mouse_pressed(MouseButton::Right) {
+            ui.placing = None;
+            return;
+        }
+        if !input.mouse_pressed(MouseButton::Left)
+            || !self.on_map(ui, input.mouse_position().into())
+        {
+            return;
+        }
+        if let Some(to) = hovered.filter(|cell| battle.free_squares().contains(cell)) {
+            ui.placing = None;
+            self.battle_order(ui, BattleCommand::Surface { unit, to });
+            ui.selected = Some(unit);
         }
     }
 
@@ -1909,12 +1942,18 @@ impl App {
             _ => Default::default(),
         };
 
+        // The squares a merged unit may come up on.
+        let landing = if my_turn && ui.placing.is_some() {
+            battle.free_squares()
+        } else {
+            Vec::new()
+        };
         // Ground and roads, then reach markers.
         self.draw_ground(battle, plane, (ox, oy, scale));
         for gy in 0..GRID_H {
             for gx in 0..GRID_W {
                 let pos = (gx, gy);
-                if reach.contains_key(&pos) {
+                if reach.contains_key(&pos) || landing.contains(&pos) {
                     let (sx, sy) = at(pos);
                     diamond(sx, sy, scale, Color::new(0.4, 0.7, 1.0, 0.28), true);
                 }
@@ -1944,11 +1983,15 @@ impl App {
         let mut items = self.scenery_pieces(after.as_ref().unwrap_or(battle), rising);
         let mut looks: HashMap<usize, Visual> = HashMap::new();
         let viewer = Self::human_side(battle);
-        for u in battle
-            .units
-            .iter()
-            .filter(|u| u.is_active() && viewer.is_none_or(|v| battle.seen_by(v, u.id)))
-        {
+        // A merged unit that is coming up is not active in the battle shown, but is drawn.
+        let rising_unit = match &ui.playing {
+            Some((Anim::Rise { unit, .. }, _)) => Some(*unit),
+            _ => None,
+        };
+        for u in battle.units.iter().filter(|u| {
+            (u.is_active() || rising_unit == Some(u.id))
+                && viewer.is_none_or(|v| battle.seen_by(v, u.id))
+        }) {
             let vis = self.visual_of(ui, battle, u.id);
             let depth = ((GRID_W - 1) as f32 - vis.at.0 + vis.at.1) * 100.0;
             items.push((depth.round() as i32, 2, u.cell, Piece::Unit(u.id)));

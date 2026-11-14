@@ -58,7 +58,22 @@ impl Battle {
                     }
                 }
             }
+            if u.can_merge() {
+                out.push(BattleCommand::Merge { unit });
+            }
             out.push(BattleCommand::Done { unit });
+        }
+        // A unit under the ground comes up on any free square, from its side's next turn.
+        for u in self
+            .units
+            .iter()
+            .filter(|u| u.side == side && u.status == super::Status::Merged && !u.merged_this_turn)
+        {
+            out.extend(
+                self.free_squares()
+                    .into_iter()
+                    .map(|to| BattleCommand::Surface { unit: u.id, to }),
+            );
         }
         out.push(BattleCommand::EndTurn);
         out.push(BattleCommand::Flee);

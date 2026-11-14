@@ -45,7 +45,7 @@
     (num: 40, id: "magic_immunity", help: Some(1039), description: "Spells and magical ranged attacks do nothing to it, and it resists magic with +30.", effects: []),
     (num: 41, id: "magical_weapon", help: Some(1040), description: "Its normal attacks count as magical, so weapon immunity does not stop them.", effects: []),
     (num: 42, id: "meld", help: Some(1041), description: "Can merge with a node.", effects: []),
-    (num: 43, id: "merging", help: Some(1042), description: "Moves instantly through the ground to any free square in a battle, for one move.", effects: []),
+    (num: 43, id: "merging", help: Some(1042), description: "Sinks into the ground and comes up on any free square on its side's next turn.", effects: []),
     (num: 44, id: "missile_immunity", help: Some(1043), description: "Arrows and slings do nothing to it.", effects: []),
     (num: 45, id: "mountaineer", help: Some(1044), description: "Crosses mountains and hills at no extra cost.", effects: []),
     (num: 46, id: "multi_gaze", help: Some(1045), description: "Ranged attack type: Multiple Gaze.", effects: []),

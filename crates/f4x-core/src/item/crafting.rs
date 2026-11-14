@@ -842,6 +842,28 @@ mod tests {
     }
 
     #[test]
+    fn merging_can_be_crafted_with_six_books_in_nature_by_an_artifact() -> TestResult {
+        let mut g = world(0);
+        let offered = |g: &Game| -> bool {
+            available_powers(
+                ItemKind::Staff,
+                Craft::CreateArtifact,
+                &g.wizard(P0).expect("wizard succeeds"),
+                &g.content.rules,
+            )
+            .iter()
+            .any(|p| p.id == "merging")
+        };
+        assert!(!offered(&g), "two books in chaos are not enough");
+        for (books, expected) in [(5, false), (6, true)] {
+            g.init_wizard(P0, &[(RealmId::new(0 /* nature */), books)], &[], None)
+                .map_err(|e| format!("{e:?}"))?;
+            assert_eq!(offered(&g), expected, "{books} books in nature");
+        }
+        Ok(())
+    }
+
+    #[test]
     fn building_an_item_gives_bonuses_armour_extras_and_a_default_name() {
         let g = world(0);
         let rules = &g.content.rules;

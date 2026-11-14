@@ -76,6 +76,8 @@ pub const TABLE: &[CommandDef] = &[
     legal!("summondemon", "summondemon <unit>", "In battle: a unit with Creature Summoning (the Demon Lord) calls a demon to its side, for no mana; the unit ends its turn. A Demon Lord can do it three times a battle.", summondemon),
     legal!("bcast", "bcast <spell> [unit:N | tile:x,y] [mana:N]", "In battle: your wizard casts a spell (once a turn). Aim it at a battle unit or a square; extra mana makes a bolt, a dispel or Counter Magic stronger (`bspells` lists what you can cast).", bcast),
     legal!("bvortex", "bvortex <n> <x,y>", "In battle: move your Magic Vortex number n (see `battle`) one square, once a turn.", bvortex),
+    legal!("bmerge", "bmerge <unit>", "In battle: a unit with Merging sinks into the ground until its next turn.", bmerge),
+    legal!("bsurface", "bsurface <unit> <x,y>", "In battle: a merged unit comes up on a free square.", bsurface),
     legal!("bdone", "bdone <unit>", "In battle: give up the rest of a unit's turn.", bdone),
     legal!("bend", "bend", "In battle: end your side's turn.", bend),
     legal!("bflee", "bflee", "In battle: leave; the other side wins.", bflee),
@@ -561,6 +563,21 @@ fn ucast(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn bvortex(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let order = BattleCommand::MoveVortex {
         index: a.int(0, "vortex number")? as usize,
+        to: battle_pos(a.need(1, "square")?)?,
+    };
+    battle_order(ctx, order)
+}
+
+fn bmerge(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let order = BattleCommand::Merge {
+        unit: battle_unit(a, 0)?,
+    };
+    battle_order(ctx, order)
+}
+
+fn bsurface(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let order = BattleCommand::Surface {
+        unit: battle_unit(a, 0)?,
         to: battle_pos(a.need(1, "square")?)?,
     };
     battle_order(ctx, order)

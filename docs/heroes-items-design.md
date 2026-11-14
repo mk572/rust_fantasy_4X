@@ -192,7 +192,7 @@ engine (`rules/stats.rs`) and the ability list need no special case.**
 ### 3.2 `item_powers` (the power table)
 
 `crates/f4x-def/content/item_powers.ron` from `ITEMPOW.LBX`: id, name, group, cost, kinds allowed (a set), realm,
-books needed, and what it does (a stat modifier, an ability, an attack trait, or nothing: Merging,
+books needed, and what it does (a stat modifier, an ability, an attack trait, an ability: Merging, or nothing:
 Spell Charges). One table drives the crafting screen, random items, the item pop-up and the
 battle code.
 
@@ -397,7 +397,7 @@ comment or one read of the code and need a second look before they are built (th
 | H17 | Anvil [246] | half the base creation cost in mana | Same | As help. |
 | H18 | Enchant Item [207] | "only powers that cost 200 mana or less" | `Itam_Make_Screen_Build_Weapon_Powers_List` takes a maximum cost for a power (the player's crafting); random items for Power 1 use cost 200 and **at most 2** powers; the player may pick four (`NUM_ITEM_POWERS`; the screen warns "only 4 powers may be enchanted into an item") | Limit each power as the help says; four powers at most. **Done** (task 50, `crafting::check`). Wiki agrees (B58). |
 | H19 | Artificer [697] | cost of making magical items -50% | A 50 percent reduction of the crafting spells' casting cost, in the same function as the other books' reductions (`NEXTTURN.c:1343`) | As help. |
-| H20 | Item power Merging | not in the help | Needs 22 books in `ITEMPOW.LBX`, so no wizard can craft it | Import it with the 22 as it is. |
+| H20 | Item power Merging | not in the help | Needs 22 books in `ITEMPOW.LBX`, so no wizard can craft it | Changed (`divergences.md` section 44): 6 books and a cost of 1500, as Regeneration and Phantasmal. It gives the carrier the Merging ability. |
 | H21 | Item attack and to hit | "attack" on every item | Goes to melee or to ranged by item kind (2.1); to hit is per attack | Port the kind rule; the current import puts every bonus on `Melee`. **Done** (task 49, `items::modifiers`; the plain bonuses are the item's `ItemBonus`, the import's `Melee` effect is read as its attack). |
 | H22 | Embedded spells | any slot | Only `Items[0]` is ever usable (`COMBINIT.c:511`, marked OGBUG) | Allow every slot (the bug is not copied); say so in `divergences.md`. |
 | H23 | Spells of a dead hero's owner | item and hero spells | Several places use the current battle controller, not the hero's owner (OGBUG notes at `CMBMAGIC.c:543` and others) | Use the owner. |

@@ -169,6 +169,16 @@ fn every_item_power_has_the_originals_types_cost_group_realm_and_books() {
             ));
             continue;
         }
+        // The one power we changed: Merging is craftable (6 books, 1500; `docs/divergences.md` 44).
+        if def.id == "merging" {
+            assert_eq!(
+                (def.cost, def.books),
+                (1500, 6),
+                "the divergence of Merging"
+            );
+            assert_eq!(number(row, "books"), 22, "the original's books for Merging");
+            continue;
+        }
         let kinds = def.kinds.iter().fold(0, |m, k| m | 1 << *k as i64);
         if kinds != number(row, "kinds") {
             wrong.push(format!(

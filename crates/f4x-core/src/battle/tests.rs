@@ -952,9 +952,177 @@ fn instant_unit(side: Side, cell: Pos, ability: u16) -> BattleUnit {
     u
 }
 
+/// A battle of one Merging unit and one spearman each side, and a second spearman for each
+/// side so that one unit lost does not end it.
+fn merging_battle() -> Battle {
+    Battle::new(
+        A,
+        D,
+        BattleMap::open(),
+        vec![
+            instant_unit(Side::Attacker, (3, 10), 43),
+            spearman(Side::Attacker, (3, 12)),
+            spearman(Side::Defender, (17, 10)),
+            spearman(Side::Defender, (17, 12)),
+        ],
+        1,
+    )
+}
+
 #[test]
-fn teleporting_and_merging_units_go_anywhere_free_for_one_move() -> TestResult {
-    for ability in [68 /* teleport */, 43 /* merging */] {
+fn a_merged_unit_leaves_the_field_and_comes_up_on_the_next_turn_wherever_it_likes() -> TestResult {
+    let mut b = merging_battle();
+    b.apply(BattleCommand::Merge { unit: 0 })
+        .map_err(|e| format!("{e:?}"))?;
+    let gone = b.unit(0).ok_or("no unit")?;
+    assert_eq!(gone.status, Status::Merged);
+    assert!(b.unit_at((3, 10)).is_none(), "its square is free");
+    assert!(b.active_units(Side::Attacker).all(|u| u.id != 0));
+    // It cannot come up on the turn it went down, and a unit that is not merged cannot come up.
+    assert_eq!(
+        b.apply(BattleCommand::Surface {
+            unit: 0,
+            to: (9, 9)
+        }),
+        Err(BattleError::NotMerged)
+    );
+    assert_eq!(
+        b.apply(BattleCommand::Surface {
+            unit: 1,
+            to: (9, 9)
+        }),
+        Err(BattleError::NotMerged)
+    );
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
+    // The enemy cannot touch it: nothing to attack, and it is not on the legal lists.
+    assert!(b
+        .legal_commands()
+        .iter()
+        .all(|c| !matches!(c, BattleCommand::Attack { target: 0, .. })));
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
+    // Its own side's next turn: it comes up anywhere free, beside an enemy if it likes.
+    assert!(b.legal_commands().contains(&BattleCommand::Surface {
+        unit: 0,
+        to: (16, 10)
+    }));
+    assert_eq!(
+        b.apply(BattleCommand::Surface {
+            unit: 0,
+            to: (17, 10)
+        }),
+        Err(BattleError::Unreachable),
+        "not onto a unit"
+    );
+    b.apply(BattleCommand::Surface {
+        unit: 0,
+        to: (16, 10),
+    })
+    .map_err(|e| format!("{e:?}"))?;
+    let up = b.unit(0).ok_or("no unit")?;
+    assert_eq!(up.status, Status::Active);
+    assert_eq!(up.cell, (16, 10));
+    assert_eq!(up.moves_left, up.moves, "coming up costs no moves");
+    assert!(!up.attacked, "it can strike at once");
+    b.apply(BattleCommand::Attack { unit: 0, target: 2 })
+        .map_err(|e| format!("{e:?}"))?;
+    // It cannot go down again on the turn it came up.
+    assert_eq!(
+        b.apply(BattleCommand::Merge { unit: 0 }),
+        Err(BattleError::CannotMerge)
+    );
+    assert!(!b
+        .legal_commands()
+        .contains(&BattleCommand::Merge { unit: 0 }));
+    // Next turn it can.
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
+    assert!(b
+        .legal_commands()
+        .contains(&BattleCommand::Merge { unit: 0 }));
+    Ok(())
+}
+
+#[test]
+fn merging_needs_the_ability_and_half_a_move() -> TestResult {
+    let mut b = merging_battle();
+    assert_eq!(
+        b.apply(BattleCommand::Merge { unit: 1 }),
+        Err(BattleError::CannotMerge),
+        "no Merging"
+    );
+    b.apply(BattleCommand::Done { unit: 0 })
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(
+        b.apply(BattleCommand::Merge { unit: 0 }),
+        Err(BattleError::CannotMerge),
+        "no move left"
+    );
+    // Half a move is enough.
+    let mut b = merging_battle();
+    b.units[0].moves_left = HalfInt::from_raw(1);
+    assert!(b.units[0].moves_left > 0);
+    b.apply(BattleCommand::Merge { unit: 0 })
+        .map_err(|e| format!("{e:?}"))?;
+    Ok(())
+}
+
+#[test]
+fn a_side_with_only_merged_units_loses_and_they_get_away_whole() -> TestResult {
+    let mut b = Battle::new(
+        A,
+        D,
+        BattleMap::open(),
+        vec![
+            instant_unit(Side::Attacker, (3, 10), 43),
+            spearman(Side::Defender, (17, 10)),
+        ],
+        1,
+    );
+    b.apply(BattleCommand::Merge { unit: 0 })
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(
+        b.winner,
+        Some(Side::Defender),
+        "nothing of the side is on the field"
+    );
+    let u = b.unit(0).ok_or("no unit")?;
+    assert_eq!(u.status, Status::Fled);
+    assert!(u.slipped, "flight without the risk");
+    Ok(())
+}
+
+#[test]
+fn merged_units_of_the_winner_come_up_when_the_battle_is_won() -> TestResult {
+    let mut b = Battle::new(
+        A,
+        D,
+        BattleMap::open(),
+        vec![
+            instant_unit(Side::Attacker, (3, 10), 43),
+            spearman(Side::Attacker, (3, 12)),
+            spearman(Side::Defender, (4, 12)),
+        ],
+        1,
+    );
+    b.apply(BattleCommand::Merge { unit: 0 })
+        .map_err(|e| format!("{e:?}"))?;
+    b.units[2].figures = 0;
+    b.units[2].status = Status::Dead;
+    b.apply(BattleCommand::Done { unit: 1 })
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(b.winner, Some(Side::Attacker));
+    assert_eq!(b.unit(0).ok_or("no unit")?.status, Status::Active);
+    Ok(())
+}
+
+#[test]
+fn teleporting_units_go_anywhere_free_for_one_move() -> TestResult {
+    {
+        let ability = 68 /* teleport */;
         let mut map = BattleMap::open();
         map.set((10, 10), Cell::Blocked);
         let mut b = Battle::new(

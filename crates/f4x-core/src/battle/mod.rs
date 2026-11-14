@@ -96,6 +96,11 @@ pub enum Status {
     /// A hero Recall Hero took off the field to the summoning circle: unlike a fled unit it
     /// risks nothing.
     Recalled,
+    /// A unit with Merging that sank into the ground: off the field, out of every attack and
+    /// spell, until its side's next turn, when it comes up on a square of its choice
+    /// (`BattleCommand::Surface`). A side with nothing but merged units has lost, and they get
+    /// away whole (divergence 44).
+    Merged,
 }
 
 /// How a unit that died was brought down, by the kind of damage that did most of it (the
@@ -233,6 +238,15 @@ pub struct BattleUnit {
     /// An invisible unit that gave itself away by attacking or casting: the other side sees it
     /// until its own next turn begins.
     pub revealed: bool,
+    /// Merged on this turn of its side: it cannot come up before the next one.
+    #[serde(default)]
+    pub merged_this_turn: bool,
+    /// Came up from the ground on this turn: it cannot merge again until the next one.
+    #[serde(default)]
+    pub surfaced: bool,
+    /// Got away from a lost battle under the ground: it flees without the risk of a flight.
+    #[serde(default)]
+    pub slipped: bool,
     /// Whether it was invisible when the field was last refreshed, to tell when invisibility
     /// begins (it hides the unit at once).
     pub(crate) was_invisible: bool,
@@ -359,6 +373,9 @@ impl BattleUnit {
             attacked: false,
             extra_attack: false,
             revealed: false,
+            merged_this_turn: false,
+            surfaced: false,
+            slipped: false,
             was_invisible: false,
             combat_spells: Vec::new(),
             base: None,
@@ -446,11 +463,16 @@ impl BattleUnit {
         }
     }
 
-    /// Teleporting and merging units go to any free square for one move.
+    /// Teleporting units go to any free square for one move. (Merging units do not: they sink
+    /// into the ground and come up a turn later, `BattleCommand::Merge`.)
     pub fn moves_instantly(&self) -> bool {
-        self.abilities
-            .iter()
-            .any(|a| *a == Ability::new(68) || *a == Ability::new(43))
+        self.abilities.iter().any(|a| *a == Ability::new(68))
+    }
+
+    /// Whether the unit can sink into the ground now: it has Merging, half a move left, and did
+    /// not come up this turn.
+    pub fn can_merge(&self) -> bool {
+        self.is_active() && self.has(Ability::new(43)) && self.moves_left > 0 && !self.surfaced
     }
 
     /// An attack or shot is used up: a hasted unit has a second one before it is spent.
@@ -682,6 +704,12 @@ pub enum BattleCommand {
     SummonDemon { unit: usize },
     /// The wizard whose vortex it is moves it one square (once a turn each).
     MoveVortex { index: usize, to: Pos },
+    /// A unit with Merging (and half a move left) sinks into the ground: off the field until
+    /// its side's next turn.
+    Merge { unit: usize },
+    /// A merged unit comes up on any free square, at no cost in moves and with its full turn;
+    /// it cannot merge again this turn.
+    Surface { unit: usize, to: Pos },
     /// Give up the rest of the unit's turn.
     Done { unit: usize },
     /// End the side's turn.
@@ -716,6 +744,10 @@ pub enum BattleError {
     /// A Wall of Darkness: no ranged attack on a unit inside the city from outside it, unless
     /// the shooter sees through illusions.
     WallOfDarkness,
+    /// The unit cannot merge now: no Merging, no move left, or it came up this turn.
+    CannotMerge,
+    /// The unit is not under the ground, or it went down this turn.
+    NotMerged,
 }
 
 impl BattleError {
@@ -738,6 +770,8 @@ impl BattleError {
             Self::NotWallCrusher => "refuse_battle.battle_error_not_wall_crusher",
             Self::Spell(e) => e.key(),
             Self::WallOfDarkness => "refuse_battle.battle_error_wall_of_darkness",
+            Self::CannotMerge => "refuse_battle.battle_error_cannot_merge",
+            Self::NotMerged => "refuse_battle.battle_error_not_merged",
         }
     }
 }
@@ -927,6 +961,15 @@ pub enum BattleEvent {
         unit: usize,
         amount: i32,
     },
+    /// A unit sank into the ground.
+    Merged {
+        unit: usize,
+    },
+    /// A merged unit came up on a square.
+    Surfaced {
+        unit: usize,
+        cell: Pos,
+    },
     /// Recall Hero took the hero (a battle unit id) off the field.
     HeroRecalled {
         unit: usize,
@@ -1107,15 +1150,24 @@ impl Battle {
     /// or whatever is left if that is less).
     fn instant_squares(&self, unit: usize) -> std::collections::HashMap<Pos, HalfInt> {
         let cell = self.units[unit].cell;
-        let mut squares = std::collections::HashMap::new();
+        self.free_squares()
+            .into_iter()
+            .filter(|&p| p != cell)
+            .map(|p| (p, crate::battle::map::OPEN_COST))
+            .collect()
+    }
+
+    /// Every free square a unit may stand on: open ground nobody stands on (the towers at the
+    /// corners of a city's wall are shut to everyone).
+    pub fn free_squares(&self) -> Vec<Pos> {
+        let mut squares = Vec::new();
         for y in 0..crate::battle::map::GRID_H {
             for x in 0..crate::battle::map::GRID_W {
                 let p = (x, y);
-                // The towers at the corners of a city's wall are shut to everyone.
                 let open = self.map.enter_cost(p, false).is_some()
                     && !(map::is_wall_corner(p) && self.map.has_wall(p));
-                if p != cell && open && self.unit_at(p).is_none() {
-                    squares.insert(p, crate::battle::map::OPEN_COST);
+                if open && self.unit_at(p).is_none() {
+                    squares.push(p);
                 }
             }
         }
@@ -1128,6 +1180,10 @@ impl Battle {
         // A new turn begins with the attacker: the spells that act every turn strike first.
         if side == Side::Attacker {
             events.extend(self.turn_effects());
+        }
+        for u in self.units.iter_mut().filter(|u| u.side == side) {
+            u.surfaced = false;
+            u.merged_this_turn = false;
         }
         for u in &mut self.units {
             if let Some(owner) = u.turned_from.take() {
@@ -1185,6 +1241,18 @@ impl Battle {
             None
         };
         self.winner = winner;
+        if let Some(won) = winner {
+            // Units still under the ground when the battle ends: the winner's come up again, the
+            // loser's get away whole.
+            for u in self.units.iter_mut().filter(|u| u.status == Status::Merged) {
+                if u.side == won {
+                    u.status = Status::Active;
+                } else {
+                    u.slipped = true;
+                    u.status = Status::Fled;
+                }
+            }
+        }
         if winner.is_some() {
             for u in &mut self.units {
                 // A creature still under Creature Binding is destroyed (Possession only lasts).
@@ -1526,6 +1594,35 @@ impl Battle {
             | BattleCommand::SummonDemon { .. } => {
                 return Err(BattleError::Spell(SpellError::NeedsGame))
             }
+            BattleCommand::Merge { unit } => {
+                let u = self.check_unit(unit)?;
+                if !u.can_merge() {
+                    return Err(BattleError::CannotMerge);
+                }
+                let u = &mut self.units[unit];
+                u.status = Status::Merged;
+                u.merged_this_turn = true;
+                u.moves_left = HalfInt::ZERO;
+                events.push(BattleEvent::Merged { unit });
+            }
+            BattleCommand::Surface { unit, to } => {
+                let u = self.units.get(unit).ok_or(BattleError::NoSuchUnit)?;
+                if u.side != self.active || u.status != Status::Merged || u.merged_this_turn {
+                    return Err(BattleError::NotMerged);
+                }
+                if !self.free_squares().contains(&to) {
+                    return Err(BattleError::Unreachable);
+                }
+                let haste = u.has(Ability::new(26));
+                let u = &mut self.units[unit];
+                u.status = Status::Active;
+                u.cell = to;
+                u.surfaced = true;
+                u.moves_left = u.moves;
+                u.attacked = false;
+                u.extra_attack = haste;
+                events.push(BattleEvent::Surfaced { unit, cell: to });
+            }
             BattleCommand::Done { unit } => {
                 self.check_unit(unit)?;
                 self.units[unit].moves_left = HalfInt::ZERO;
@@ -1547,12 +1644,13 @@ impl Battle {
             }
             BattleCommand::Flee => {
                 let side = self.active;
-                for u in self
-                    .units
-                    .iter_mut()
-                    .filter(|u| u.side == side && u.is_active())
-                {
-                    u.status = Status::Fled;
+                for u in self.units.iter_mut().filter(|u| u.side == side) {
+                    if u.status == Status::Merged {
+                        u.slipped = true;
+                        u.status = Status::Fled;
+                    } else if u.is_active() {
+                        u.status = Status::Fled;
+                    }
                 }
                 events.push(BattleEvent::Fled { side });
             }

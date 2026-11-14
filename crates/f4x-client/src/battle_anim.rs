@@ -22,7 +22,10 @@ pub const INSTANT_FRAME: f32 = 2.0 / 18.2;
 /// How many frames a teleport lasts (the fade runs from 150 in steps of 20), and a tunnel (four
 /// down, five up).
 const TELEPORT_FRAMES: usize = 8;
-const TUNNEL_FRAMES: usize = 9;
+/// The frames of the sinking: the original's tunnelling goes down in the first four.
+const SINK_FRAMES: usize = 4;
+/// The frames of the rising: the last five of the tunnelling.
+const RISE_FRAMES: usize = 5;
 /// Walking figures cycle through these animation frames.
 const WALK_FRAMES: &[u8] = &[0, 1, 2, 1];
 const WALK_RATE: f32 = 7.0;
@@ -40,9 +43,14 @@ pub enum Anim {
         unit: usize,
         to: Pos,
     },
-    /// A merging unit sinks into the ground where it stood and rises on the square `to`
-    /// (`Battle_Unit_Tunnel`).
-    Tunnel {
+    /// A merging unit sinks into the ground where it stood and stays under it until its side's
+    /// next turn (the first half of `Battle_Unit_Tunnel`).
+    Sink {
+        unit: usize,
+    },
+    /// A merged unit comes up on the square `to` (the second half of `Battle_Unit_Tunnel`). The
+    /// battle shown still has it under the ground, so it is drawn for this animation only.
+    Rise {
         unit: usize,
         to: Pos,
     },
@@ -90,7 +98,8 @@ impl Anim {
         match self {
             Anim::Move { path, .. } => path.len() as f32 * STEP_TIME,
             Anim::Teleport { .. } => TELEPORT_FRAMES as f32 * INSTANT_FRAME,
-            Anim::Tunnel { .. } => TUNNEL_FRAMES as f32 * INSTANT_FRAME,
+            Anim::Sink { .. } => SINK_FRAMES as f32 * INSTANT_FRAME,
+            Anim::Rise { .. } => RISE_FRAMES as f32 * INSTANT_FRAME,
             Anim::Attack { .. } => ATTACK_TIME,
             Anim::Shot { .. } => SHOT_TIME,
             Anim::Death { .. } => DEATH_TIME,
@@ -325,11 +334,15 @@ pub fn visual_in(anim: &Anim, t: f32, unit: usize, cell: Pos, base_facing: u8) -
             }
             Some(v)
         }
-        Anim::Tunnel { unit: u, to } if *u == unit => {
-            let (arrived, sink, alpha) = tunnel_step(frame_of(t, TUNNEL_FRAMES));
-            if arrived {
-                v.at = (to.0 as f32, to.1 as f32);
-            }
+        Anim::Sink { unit: u } if *u == unit => {
+            let (_, sink, alpha) = tunnel_step(frame_of(t, SINK_FRAMES));
+            v.sink = sink;
+            v.alpha = alpha;
+            Some(v)
+        }
+        Anim::Rise { unit: u, to } if *u == unit => {
+            let (_, sink, alpha) = tunnel_step(4 + frame_of(t, RISE_FRAMES));
+            v.at = (to.0 as f32, to.1 as f32);
             v.sink = sink;
             v.alpha = alpha;
             Some(v)
@@ -529,24 +542,33 @@ mod tests {
     }
 
     #[test]
-    fn a_tunneller_sinks_by_the_origin_and_rises_at_the_target() {
+    fn a_merging_unit_sinks_where_it_stands_and_fades() {
         assert_eq!(tunnel_step(0), (false, 5.0, 0.8));
         assert_eq!(tunnel_step(3), (false, 20.0, 0.2 * 1.0));
-        let (arrived, sink, alpha) = tunnel_step(4);
-        assert!(arrived && sink == 20.0 && alpha == 0.0);
-        let (_, sink, alpha) = tunnel_step(8);
-        assert!(sink == 0.0 && (alpha - 0.8).abs() < 1e-6);
-        let anim = Anim::Tunnel {
-            unit: 0,
-            to: (9, 9),
-        };
+        let anim = Anim::Sink { unit: 0 };
         let down = visual_in(&anim, INSTANT_FRAME * 1.5, 0, (1, 1), 2)
             .expect("the unit has a place on screen");
         assert_eq!(down.at, (1.0, 1.0));
         assert_eq!(down.sink, 10.0);
-        let up = visual_in(&anim, INSTANT_FRAME * 7.5, 0, (1, 1), 2)
+        let end = visual_in(&anim, anim.duration() * 2.0, 0, (1, 1), 2)
             .expect("the unit has a place on screen");
-        assert_eq!(up.at, (9.0, 9.0));
+        assert_eq!(end.at, (1.0, 1.0));
+        assert!(end.alpha <= 0.2 + 1e-6);
+        assert!(visual_in(&anim, 0.0, 5, (1, 1), 2).is_none());
+    }
+
+    #[test]
+    fn a_surfacing_unit_rises_on_the_square_it_was_given() {
+        let anim = Anim::Rise {
+            unit: 3,
+            to: (7, 2),
+        };
+        let start = visual_in(&anim, 0.0, 3, (1, 1), 2).expect("the unit has a place on screen");
+        assert_eq!((start.at, start.sink, start.alpha), ((7.0, 2.0), 20.0, 0.0));
+        let end = visual_in(&anim, anim.duration() * 2.0, 3, (1, 1), 2)
+            .expect("the unit has a place on screen");
+        assert_eq!((end.sink, end.at), (0.0, (7.0, 2.0)));
+        assert!(end.alpha > 0.7);
     }
 
     #[test]

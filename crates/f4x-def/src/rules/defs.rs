@@ -596,7 +596,7 @@ pub struct ItemPowerDef {
     /// The lasting spell (an id of `spells.ron`) the power puts on the hero that carries the item.
     #[serde(default)]
     pub spell: Option<Id<SpellDef>>,
-    /// The special attack ability the power gives the carrier.
+    /// The ability the power gives the carrier: a special attack, or Merging.
     #[serde(default)]
     pub attack: Option<Id<AbilityDef>>,
 }

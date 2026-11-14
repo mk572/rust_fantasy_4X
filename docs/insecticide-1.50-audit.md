@@ -247,7 +247,18 @@ The text of these notes is not in the repository; the verdicts follow the one-li
 | 123 Possession on a Death-immune unit | **Not present.** A spell of the Death realm is refused on a unit with Death immunity (`check_aim`, the save check). |
 | 125 Spell Ward against combat spells | **Not present.** `check_spell` refuses a cast of a warded realm (`ward_stops`), in battle as overland. |
 
-Next: row 124 (dispel target selection).
+### Walked on 14 November 2026: 124, 126, 127, 129, 131, 136
+
+| Rows | Verdict |
+|---|---|
+| 124 Dispel target selection, no Disjunction on allies, Spell Lock against Banish and Dispel Evil | **Not present in the game**: a slay skips a unit with Spell Lock (`battle/spell.rs`). **Present in the AI, fixed**: it valued a slay on a locked unit as if it worked; now it does not. The AI casts a dispel only at an enemy unit that has lasting spells (task 600). Not tested on its own. |
+| 126 Prefer Counter Magic; idle with unreachable fliers; do not skip caster turns at low mana | **Counter Magic:** was never cast (value 0), now valued while the enemy wizard has mana (task 600). **Low mana:** not present, a caster that cannot pay falls through to the unit orders (`next_command`). **Unreachable fliers:** present, fixed: a unit that cannot hurt any enemy (a walker against fliers, with the default melee rule) walked into them even when its side was outmatched; it now holds its place then (`order.rs` `next_command`, test `a_walker_outmatched_by_fliers_it_cannot_hurt_holds_its_place`). When the sides are even it still advances. |
+| 127 Animate and Raise Dead filtering | **Not present.** Only a dead unit of the side that is not a hero, not destroyed outright and, for Raise Dead, not fantastic or undead (`can_animate`, `can_raise`), and only with room on the side (nine units). A recalled unit is not dead. |
+| 129 Summon Demon above nine units | **Not present.** `demon_squares` refuses at nine units (`MAX_SIDE_UNITS`); so do the summons and Raise Dead. |
+| 131 Doom Bolt graphics | **Not checked** (presentation; needs the running client). |
+| 136 Merging item power does not work | **Present, fixed, with new rules** (task 602, `divergences.md` 44). The power gave the carrier nothing (it needs 22 books, so nobody crafts it and finds of the two prefab items are out in the original). It now gives the Merging ability, and Merging is a new rule: a unit sinks into the ground and comes up a turn later. Our finds ignore books (section 10), so the two items can turn up and work. |
+
+Next: row 138 (zero-health units, repeated death, list bounds).
 
 ## P2 code review: first pass
 
