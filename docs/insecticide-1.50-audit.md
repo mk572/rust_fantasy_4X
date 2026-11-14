@@ -232,7 +232,22 @@ All **not present**; no code change.
 | 109 Turn number shown in combat | **Was a UI gap, fixed.** The turn was only a battle-log line. The battle panel now shows "Turn N" (`battle.turn`) between the unit name and the skill/mana/range block (`bar.rs`, `draw_battle_panel`). Position chosen by eye, not checked in the running game. |
 | 110 Ammo and moves both shown | **Not checked** in the battle panel (needs a look at the running game). |
 
-Next: row 116 (Battle spell target filters).
+### Walked on 14 November 2026: 116 to 123 and 125 (battle spell target filters)
+
+The text of these notes is not in the repository; the verdicts follow the one-line descriptions above and the code (`battle/spell.rs` `check_aim`, `f4x-ai/src/battle/cast.rs`). The battle AI picks only among `legal_battle_casts`, so the game's own refusals apply to it as to a human.
+
+| Rows | Verdict |
+|---|---|
+| 116 Life Drain target | **Not present.** Refused on a Death creature or one immune to Death (`check_aim`, test `life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune`). The AI gives Life Drain no value (a custom battle effect), so it never casts it: a gap, not the original's bug. |
+| 117 Fireball damage preference | **Not present.** A damage cast is judged on each unit by the game's own damage code (`preview_spell_damage`): a kill outranks a wound, and the mana is fed until it kills. |
+| 118 Duplicate Haste and Invisibility | **Not present.** A lasting spell on a unit that has it, or has what it gives, is refused (`check_stacking_in_battle`). |
+| 119, 120 Shatter restrictions | **Present in the AI, fixed.** Shatter is a cap on attack (`Modify Max`), which the AI read as a blessing, so it was worth nothing on an enemy and never cast. A cap now counts as a curse. |
+| 121 Curses on high resistance | **Present in the AI, fixed.** The AI valued a curse the same against any enemy. A curse with a save is now worth its chance to land (`Battle::save_failure_chance`, the check `resist_fails` rolls); a unit with resistance 10 or more is left alone. Test `a_curse_is_worth_less_against_a_unit_that_resists_it_better`. |
+| 122 Invalid spell exclusions | **Not present.** The AI casts only legal aims. |
+| 123 Possession on a Death-immune unit | **Not present.** A spell of the Death realm is refused on a unit with Death immunity (`check_aim`, the save check). |
+| 125 Spell Ward against combat spells | **Not present.** `check_spell` refuses a cast of a warded realm (`ward_stops`), in battle as overland. |
+
+Next: row 124 (dispel target selection).
 
 ## P2 code review: first pass
 

@@ -246,7 +246,8 @@ fn undead_penalty(spell: SpellId) -> i32 {
     }
 }
 
-fn slay_allows(only: SlayOnly, unit: &super::BattleUnit) -> bool {
+/// Whether a slaying spell of this kind can destroy the unit.
+pub fn slay_allows(only: SlayOnly, unit: &super::BattleUnit) -> bool {
     match only {
         SlayOnly::Any => true,
         SlayOnly::Fantastic => unit.is_fantastic(),
@@ -1938,6 +1939,33 @@ impl Battle {
         [Side::Attacker, Side::Defender]
             .into_iter()
             .find(|&s| self.player_of(s) == player)
+    }
+
+    /// The chance that a unit of the battle fails the resistance check of a spell with a save
+    /// (a curse, Possession, a banishment): 1 for a spell with no save or no such unit. The
+    /// check is the one `resist_fails` rolls, a ten-sided die over the resistance.
+    pub fn save_failure_chance(&self, spell: &SpellDef, target: usize) -> f32 {
+        match &spell.save {
+            Some(save) => self.failure_chance(target, Realm::of(spell.realm), save.modifier),
+            None => 1.0,
+        }
+    }
+
+    /// The chance that a unit of the battle fails a resistance check of `realm` with `modifier`
+    /// (negative for a spell that is hard to resist); 1 for a unit that is not there.
+    pub fn failure_chance(&self, target: usize, realm: Option<Realm>, modifier: i32) -> f32 {
+        let Some(unit) = self.units.get(target) else {
+            return 1.0;
+        };
+        let state = unit.defender_state();
+        let resistance = super::immunity::effective_resistance(
+            state.resistance,
+            &state.immunities,
+            realm,
+            state.effects,
+        );
+        let needed = resistance + modifier - self.save_penalty;
+        (10 - needed.clamp(0, 10)) as f32 / 10.0
     }
 
     /// A resistance check of one unit against a realm: whether it *fails*.

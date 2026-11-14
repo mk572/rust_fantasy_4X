@@ -17,15 +17,60 @@
 
 use super::order::{self as ai, worth};
 use f4x_core::battle::casting::SpellAim;
+use f4x_core::battle::field::Field;
+use f4x_core::battle::immunity::Realm;
 use f4x_core::battle::map::{self, Pos};
-use f4x_core::battle::spell::BattleEffect;
+use f4x_core::battle::spell::{slay_allows, BattleEffect};
 use f4x_core::battle::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
 use f4x_core::game::Game;
 use f4x_core::rules::effects::{Effect, EffectRule, TargetSel};
 use f4x_core::rules::{ModOp, SpellDef, SpellId, Stat};
 
-/// A cast must be worth at least this share of the dearest enemy unit to be made.
+/// A cast by a unit (a hero's spell, a charge) must be worth at least this share of the dearest
+/// enemy unit to be made. The wizard has no floor: it spends what it may (`cast_choice`).
 const WORTH_FLOOR: f32 = 0.12;
+/// What a spell on the whole field is worth, as a share of the worth of the units it falls on
+/// (our own for a gift, the enemy's for a curse).
+const PRAYER_SHARE: f32 = 0.15;
+const HIGH_PRAYER_SHARE: f32 = 0.25;
+const BLACK_PRAYER_SHARE: f32 = 0.2;
+const METAL_FIRES_SHARE: f32 = 0.2;
+const MASS_INVISIBILITY_SHARE: f32 = 0.25;
+const BLUR_SHARE: f32 = 0.3;
+const TERROR_SHARE: f32 = 0.3;
+const ENTANGLE_SHARE: f32 = 0.1;
+const WRACK_SHARE: f32 = 0.2;
+const LIGHTNING_SHARE: f32 = 0.25;
+const LIGHT_SHARE: f32 = 0.2;
+const WARP_REALITY_SHARE: f32 = 0.1;
+/// Mana Leak: a share of the dearest enemy, when the enemy wizard has mana to lose.
+const MANA_LEAK_SHARE: f32 = 0.05;
+/// A wall: a share of the worth of the units that stand behind it.
+const WALL_SHARE: f32 = 0.2;
+/// Counter Magic: a share of our dearest unit, when the enemy wizard has mana to cast with.
+const COUNTER_SHARE: f32 = 0.2;
+/// A dispel: a share of the worth of a unit for each lasting spell on it (at most three), half
+/// the time it works.
+const DISPEL_SHARE: f32 = 0.1;
+/// A recall of a unit that is nearly dead: a share of its worth, saved.
+const RECALL_SHARE: f32 = 0.6;
+/// Raise Dead and Animate Dead: a share of the worth of the unit that comes back.
+const RAISE_SHARE: f32 = 0.6;
+const ANIMATE_SHARE: f32 = 0.5;
+/// Earth to Mud: a share of the worth of the enemy ground units within three squares of the
+/// centre (entering mud costs six moves, so they are held back), less ours.
+const MUD_SHARE: f32 = 0.15;
+/// A fissure takes a unit that walks over it one time in four.
+const FISSURE_ODDS: f32 = 0.25;
+/// Breaking a wall section (Disrupt, Cracks Call), for the side that attacks the city: a share of
+/// the worth of its units, more with an enemy near the gap.
+const WALL_BREAK_SHARE: f32 = 0.1;
+/// Life Drain: a share of the worth of the unit drained.
+const DRAIN_SHARE: f32 = 0.2;
+/// A spell that holds a unit still (a web, confusion, black sleep), and one that takes it over
+/// (possession, creature binding): a share of its worth, or all of it as it changes sides.
+const HOLD_SHARE: f32 = 0.5;
+const STEAL_SHARE: f32 = 1.5;
 /// Hit points an average outcome of Call Chaos takes from an enemy unit (eight outcomes: nothing,
 /// five points of healing, two changes, a Fire Bolt, a Warp Lightning, a Doom Bolt, Disintegrate).
 const CHAOS_DAMAGE: f32 = 6.0;
@@ -132,7 +177,6 @@ pub fn cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
         .filter(|e| battle.seen_by(side, e.id))
         .collect();
     let friends: Vec<&BattleUnit> = battle.active_units(side).collect();
-    let floor = enemies.iter().map(|e| worth(e)).fold(0.0, f32::max) * WORTH_FLOOR;
     let scene = Scene {
         game,
         side,
@@ -149,7 +193,9 @@ pub fn cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
             let most = cast.most_mana.min(spare).max(cast.least_mana);
             let judged = scene.judge(cast.spell, def, aim, cast.least_mana, most);
             let mana = judged.mana;
-            if (reserve - mana as i32) < upkeep || judged.value < scene.floor_for(&judged, floor) {
+            // The wizard spends what it may, the best cast first, whatever it is worth: a battle
+            // is where the mana is for. Only a cast of no worth is left alone.
+            if (reserve - mana as i32) < upkeep || judged.value <= 0.0 {
                 continue;
             }
             let tier = judged.tier(dearest);
@@ -230,6 +276,127 @@ impl Scene<'_> {
         }
     }
 
+    /// The worth of the units of one side that `keep` picks.
+    fn sum(units: &[&BattleUnit], keep: impl Fn(&BattleUnit) -> bool) -> f32 {
+        units.iter().filter(|u| keep(u)).map(|u| worth(u)).sum()
+    }
+
+    /// What a battlefield enchantment is worth to the side that casts it, and the part of that
+    /// which is harm to the enemy: a share of the worth of the units it falls on.
+    fn field_value(&self, field: Field) -> (f32, f32) {
+        let (own, foe) = (self.friends, self.enemies);
+        let all = |_: &BattleUnit| true;
+        let realm = |r: Realm| move |u: &BattleUnit| u.realm == Some(r);
+        let (gain, harm) = match field {
+            Field::Prayer => (PRAYER_SHARE * Self::sum(own, all), 0.0),
+            Field::HighPrayer => (HIGH_PRAYER_SHARE * Self::sum(own, all), 0.0),
+            Field::BlackPrayer => (0.0, BLACK_PRAYER_SHARE * Self::sum(foe, all)),
+            Field::MetalFires => (
+                METAL_FIRES_SHARE * Self::sum(own, |u| !u.is_fantastic()),
+                0.0,
+            ),
+            Field::MassInvisibility => (MASS_INVISIBILITY_SHARE * Self::sum(own, all), 0.0),
+            // Blur only matters against shooters: scaled by their share of the enemy's worth.
+            Field::Blur => {
+                let shooters = Self::sum(foe, |u| u.ranged_kind != RangedKind::None);
+                let total = Self::sum(foe, all).max(1.0);
+                (BLUR_SHARE * Self::sum(own, all) * shooters / total, 0.0)
+            }
+            Field::Terror => (0.0, TERROR_SHARE * Self::sum(foe, all)),
+            Field::Entangle => (0.0, ENTANGLE_SHARE * Self::sum(foe, all)),
+            Field::Wrack => (
+                0.0,
+                WRACK_SHARE * Self::sum(foe, |u| u.realm != Some(Realm::Death)),
+            ),
+            Field::CallLightning => (0.0, LIGHTNING_SHARE * Self::sum(foe, all)),
+            Field::ManaLeak => {
+                let wizard = self.game.battle().map(|b| b.player_of(self.side.other()));
+                let has_mana = wizard
+                    .and_then(|p| self.game.player(p))
+                    .is_some_and(|p| p.treasury().mana.floor() > 0);
+                let dearest = foe.iter().map(|u| worth(u)).fold(0.0, f32::max);
+                (
+                    0.0,
+                    if has_mana {
+                        MANA_LEAK_SHARE * dearest
+                    } else {
+                        0.0
+                    },
+                )
+            }
+            // Light helps the creatures of life and hurts those of death, Darkness the reverse.
+            Field::TrueLight | Field::Darkness => {
+                let (good, bad) = if field == Field::TrueLight {
+                    (Realm::Life, Realm::Death)
+                } else {
+                    (Realm::Death, Realm::Life)
+                };
+                let up = Self::sum(own, realm(good)) + Self::sum(foe, realm(bad));
+                let down = Self::sum(own, realm(bad)) + Self::sum(foe, realm(good));
+                let hurt = LIGHT_SHARE * Self::sum(foe, realm(bad));
+                (LIGHT_SHARE * (up - down), hurt)
+            }
+            // Warp Reality weakens every unit but the chaos creatures.
+            Field::WarpReality => {
+                let hit = |u: &BattleUnit| u.realm != Some(Realm::Chaos);
+                let foes = WARP_REALITY_SHARE * Self::sum(foe, hit);
+                (foes - WARP_REALITY_SHARE * Self::sum(own, hit), foes)
+            }
+        };
+        let value = gain + harm;
+        (value.max(0.0), harm.min(value.max(0.0)))
+    }
+
+    /// What the spells that act on a square of the ground are worth there: mud holds back the
+    /// enemy walkers near it, a fissure may take the walker over it and opens a wall, Disrupt
+    /// opens a wall section for the side that attacks the city.
+    fn ground_value(&self, effect: BattleEffect, cell: Pos) -> f32 {
+        let Some(battle) = self.game.battle() else {
+            return 0.0;
+        };
+        let walks = |u: &BattleUnit| !u.flies && !u.has(f4x_core::rules::Ability::new(49));
+        let near = |u: &&BattleUnit, reach: u32| map::distance(u.cell, cell) <= reach;
+        let ours = |reach: u32| Self::sum(self.friends, |u| walks(u) && near(&u, reach));
+        let theirs = |reach: u32| Self::sum(self.enemies, |u| walks(u) && near(&u, reach));
+        let own_worth: f32 = self.friends.iter().map(|u| worth(u)).sum();
+        // A section of wall comes down: the attacker's gain, more with the enemy at the gap.
+        let breach = if self.side == Side::Attacker && battle.map.has_wall(cell) {
+            let gap = if self.enemies.iter().any(|u| near(&u, 3)) {
+                1.0
+            } else {
+                0.5
+            };
+            WALL_BREAK_SHARE * own_worth * gap
+        } else {
+            0.0
+        };
+        match effect {
+            BattleEffect::EarthToMud => (MUD_SHARE * (theirs(3) - ours(3))).max(0.0),
+            BattleEffect::CracksCall => {
+                let over = |units: &[&BattleUnit]| {
+                    Self::sum(units, |u| {
+                        u.cell == cell && walks(u) && !u.has(f4x_core::rules::Ability::new(43))
+                    })
+                };
+                (FISSURE_ODDS * (over(self.enemies) - over(self.friends)) + breach).max(0.0)
+            }
+            _ => breach,
+        }
+    }
+
+    /// Counter Magic: worth something while the enemy wizard has mana to cast with.
+    fn counter_value(&self) -> f32 {
+        let wizard = self.game.battle().map(|b| b.player_of(self.side.other()));
+        let mana = wizard
+            .and_then(|p| self.game.player(p))
+            .map_or(0, |p| p.treasury().mana.floor());
+        if mana > 0 {
+            COUNTER_SHARE * self.friends.iter().map(|u| worth(u)).fold(0.0, f32::max)
+        } else {
+            0.0
+        }
+    }
+
     fn unit(&self, id: usize) -> Option<&BattleUnit> {
         self.friends
             .iter()
@@ -279,6 +446,23 @@ impl Scene<'_> {
             _ => None,
         };
         let own = BattleEffect::of(def);
+        // A curse the enemy may resist is worth what it is likely to take: a unit with a high
+        // resistance is left alone (a spell that also damages is judged by its own odds).
+        let landing = match aimed {
+            Some(u)
+                if def.save.is_some()
+                    && u.side != self.side
+                    && !def
+                        .effects
+                        .iter()
+                        .any(|r| matches!(r.effect, Effect::Damage { .. })) =>
+            {
+                self.game
+                    .battle()
+                    .map_or(1.0, |b| b.save_failure_chance(def, u.id))
+            }
+            _ => 1.0,
+        };
         let mut out = Judged {
             value: 0.0,
             harm: 0.0,
@@ -335,11 +519,95 @@ impl Scene<'_> {
                         .map_or(0.0, |u| WARP_WOOD_SHARE * worth(u));
                     (v, v)
                 }
+                Effect::Custom { name, .. } if name == "battlefield" => {
+                    Field::of(def).map_or((0.0, 0.0), |f| self.field_value(f))
+                }
+                Effect::Custom { name, .. } if name == "wall" => {
+                    let v = WALL_SHARE * self.friends.iter().map(|u| worth(u)).sum::<f32>();
+                    (v, 0.0)
+                }
+                Effect::Custom { name, args } if name == "counter_effect" => {
+                    match args.first().map(String::as_str) {
+                        Some("dispel") => {
+                            let v = aimed.filter(|u| u.side != self.side).map_or(0.0, |u| {
+                                DISPEL_SHARE * worth(u) * u.enchantments.len().min(3) as f32
+                            });
+                            (v, v)
+                        }
+                        Some("counter_magic") => (self.counter_value(), 0.0),
+                        _ => (0.0, 0.0),
+                    }
+                }
+                // Word of Recall and Recall Hero: a unit that is nearly dead is taken out of the
+                // fight whole.
+                Effect::Custom { name, .. } if name == "recall" => {
+                    let v = aimed.filter(|u| u.side == self.side).map_or(0.0, |u| {
+                        let left = u.hit_points().max(0) as f32 / u.max_hit_points().max(1) as f32;
+                        if left < 0.4 {
+                            RECALL_SHARE * (1.0 - left) * worth(u)
+                        } else {
+                            0.0
+                        }
+                    });
+                    (v, 0.0)
+                }
+                Effect::Custom { .. } if own == Some(BattleEffect::LifeDrain) => {
+                    let v = aimed
+                        .filter(|u| u.side != self.side)
+                        .map_or(0.0, |u| DRAIN_SHARE * worth(u));
+                    (v, v)
+                }
+                Effect::Custom { .. }
+                    if matches!(
+                        own,
+                        Some(
+                            BattleEffect::EarthToMud
+                                | BattleEffect::CracksCall
+                                | BattleEffect::Disrupt
+                        )
+                    ) =>
+                {
+                    let v = match (aim, own) {
+                        (SpellAim::Tile(cell), Some(effect)) => self.ground_value(effect, cell),
+                        _ => 0.0,
+                    };
+                    (v, v)
+                }
+                // The dead come back on our side: the unit that fell, at a share of its worth.
+                Effect::Custom { .. }
+                    if matches!(own, Some(BattleEffect::Raise | BattleEffect::Animate)) =>
+                {
+                    let share = if own == Some(BattleEffect::Raise) {
+                        RAISE_SHARE
+                    } else {
+                        ANIMATE_SHARE
+                    };
+                    let v = match aim {
+                        SpellAim::Unit(id) => self
+                            .game
+                            .battle()
+                            .and_then(|b| b.unit(id))
+                            .map_or(0.0, |u| share * worth(u)),
+                        _ => 0.0,
+                    };
+                    (v, 0.0)
+                }
                 // A lasting spell on a unit (a blessing, a web, a weakness): a share of the unit's
                 // worth, a gain on one of ours and harm on an enemy. The game refuses the spells
-                // the unit already carries or cannot take.
-                Effect::Custom { name, .. } if name == "unit_effect" => {
-                    let v = aimed.map_or(0.0, |u| LASTING_SHARE * worth(u));
+                // the unit already carries or cannot take. One that holds a unit or takes it
+                // over is worth more.
+                Effect::Custom { name, args } if name == "unit_effect" || name == "heroism" => {
+                    let share = if args
+                        .iter()
+                        .any(|a| a == "possession" || a == "creature_binding")
+                    {
+                        STEAL_SHARE
+                    } else if args.iter().any(|a| a == "holds") {
+                        HOLD_SHARE
+                    } else {
+                        LASTING_SHARE
+                    };
+                    let v = aimed.map_or(0.0, |u| share * worth(u));
                     (
                         v,
                         if aimed.is_some_and(|u| u.side != self.side) {
@@ -363,8 +631,8 @@ impl Scene<'_> {
                     (v, if on_enemy { v } else { 0.0 })
                 }
             };
-            out.value += value;
-            out.harm += harm;
+            out.value += value * landing;
+            out.harm += harm * landing;
         }
         out
     }
@@ -448,10 +716,23 @@ fn rule_value(
     let on = victims(rule, aimed, friends, enemies);
     let ours = |u: &BattleUnit| u.side == side;
     match &rule.effect {
-        Effect::Slay { immune, .. } => on
+        // A slaying spell: a share of the worth of each enemy it can touch, by the odds that
+        // the enemy fails its resistance check.
+        Effect::Slay {
+            immune,
+            realm,
+            modifier,
+            only,
+            ..
+        } => on
             .iter()
-            .filter(|u| !ours(u) && !immune.iter().any(|&a| u.has(a)))
-            .map(|u| 0.35 * worth(u))
+            .filter(|u| !ours(u) && !immune.iter().any(|&a| u.has(a)) && slay_allows(*only, u))
+            .map(|u| {
+                let chance = game.battle().map_or(1.0, |b| {
+                    b.failure_chance(u.id, Realm::of(*realm), *modifier)
+                });
+                0.35 * worth(u) * chance
+            })
             .sum(),
         Effect::Heal(points) => on
             .iter()
@@ -476,7 +757,9 @@ fn rule_value(
             // an enemy likewise. The sign of the change says which it is; a stat set to nothing
             // (a web holds a unit still) is a curse.
             let zero = f4x_def::half_int::HalfInt::ZERO;
-            let good = *value >= zero && !(*op == ModOp::Set && *value == zero);
+            // A cap (Shatter lets a unit hit for one at most) is a curse whatever its figure.
+            let good =
+                *value >= zero && !(*op == ModOp::Set && *value == zero) && *op != ModOp::Max;
             on.iter()
                 .filter(|u| ours(u) == good)
                 .map(|u| 0.25 * worth(u))
@@ -820,6 +1103,163 @@ mod tests {
                 .side,
             Side::Attacker
         );
+        Ok(())
+    }
+
+    /// What a cast of `spell` at the one enemy unit of a duel is worth.
+    fn curse_value(
+        spell: u16,
+        foe: f4x_core::rules::UnitId,
+    ) -> Result<f32, Box<dyn std::error::Error>> {
+        let g = duel_with(&[spell], foe)?;
+        let battle = g.battle().ok_or("no battle")?;
+        let enemy: Vec<&BattleUnit> = battle.active_units(Side::Defender).collect();
+        let friends: Vec<&BattleUnit> = battle.active_units(Side::Attacker).collect();
+        let scene = Scene {
+            game: &g,
+            side: Side::Attacker,
+            friends: &friends,
+            enemies: &enemy,
+        };
+        let id = shipped()
+            .rules
+            .spells
+            .id_numbered(spell)
+            .ok_or("no spell")?;
+        let def = g.content().rules.spells.get(id);
+        Ok(scene
+            .judge(id, def, SpellAim::Unit(enemy[0].id), 0, 0)
+            .value)
+    }
+
+    #[test]
+    fn a_curse_is_worth_less_against_a_unit_that_resists_it_better() -> TestResult {
+        let rules = &shipped().rules;
+        let resistance =
+            |d: &f4x_core::rules::UnitDef| d.stats.get(&Stat::Resistance).map_or(0, |v| v.floor());
+        let defs = rules.units.defs();
+        let weak = defs
+            .iter()
+            .filter(|d| d.num != 107)
+            .min_by_key(|d| resistance(d))
+            .ok_or("no unit")?;
+        let strong = defs.iter().max_by_key(|d| resistance(d)).ok_or("no unit")?;
+        assert!(resistance(strong) > resistance(weak));
+        let (weak, strong) = (
+            f4x_core::rules::UnitId::new(weak.num),
+            f4x_core::rules::UnitId::new(strong.num),
+        );
+        let against = |foe| curse_value(88 /* shatter */, foe);
+        let (easy, hard) = (against(weak)?, against(strong)?);
+        assert!(
+            easy > 0.0,
+            "a curse on a weak-willed unit is worth something"
+        );
+        assert!(hard < easy, "{hard} against {easy}");
+        Ok(())
+    }
+
+    /// The battle spells the plain duel gives no worth: the ones that need something in the fight.
+    fn unvalued_in_a_plain_duel() -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        use f4x_core::rules::defs::CastContext;
+        let walker = shipped().rules.units.id_numbered(107).ok_or("no cavalry")?;
+        let g = duel_with(&[], walker)?;
+        let battle = g.battle().ok_or("no battle")?;
+        let enemy: Vec<&BattleUnit> = battle.active_units(Side::Defender).collect();
+        let friends: Vec<&BattleUnit> = battle.active_units(Side::Attacker).collect();
+        let scene = Scene {
+            game: &g,
+            side: Side::Attacker,
+            friends: &friends,
+            enemies: &enemy,
+        };
+        let mut aims = vec![SpellAim::None, SpellAim::Tile((4, 4))];
+        aims.extend(battle.units.iter().map(|u| SpellAim::Unit(u.id)));
+        let mut none = Vec::new();
+        for def in shipped().rules.spells.defs() {
+            if !def.contexts.contains(&CastContext::Battle) {
+                continue;
+            }
+            let id = SpellId::new(def.num);
+            let best = aims
+                .iter()
+                .map(|&aim| scene.judge(id, def, aim, def.cost, def.cost).value)
+                .fold(0.0, f32::max);
+            if best <= 0.0 {
+                none.push(def.id.clone());
+            }
+        }
+        Ok(none)
+    }
+
+    #[test]
+    fn every_battle_spell_has_a_value_or_waits_for_what_it_needs() -> TestResult {
+        // In a plain duel of two walkers, with no mana on the enemy side, these have no worth:
+        // each needs something the duel lacks (a hurt unit, a lasting spell to dispel, a unit
+        // that is nearly dead, a missile unit, a creature of the realm, a wizard with mana), or
+        // is left alone on purpose (Earth to Mud, Cracks Call and Disrupt: terrain and wall
+        // spells the AI has no use for yet, task 600).
+        let mut waits = unvalued_in_a_plain_duel()?;
+        waits.sort();
+        let mut expected = vec![
+            "banish",
+            "blur",
+            "counter_magic",
+            "cracks_call",
+            "dispel_evil",
+            "dispel_magic",
+            "dispel_magic_true",
+            "disrupt",
+            "earth_to_mud",
+            "healing",
+            "holy_word",
+            "magic_vortex",
+            "mana_leak",
+            "mass_healing",
+            "recall_hero",
+            "true_light",
+            "darkness",
+            "warp_wood",
+            "word_of_recall",
+        ];
+        expected.sort();
+        assert_eq!(waits, expected, "a spell gained or lost its worth");
+        Ok(())
+    }
+
+    #[test]
+    fn counter_magic_and_mana_leak_are_worth_something_once_the_enemy_wizard_has_mana() -> TestResult
+    {
+        let walker = shipped().rules.units.id_numbered(107).ok_or("no cavalry")?;
+        let mut g = duel_with(&[], walker)?;
+        g.treasury_mut(P1).ok_or("no treasury")?.mana = f4x_def::half_int::HalfInt::from_int(100);
+        let battle = g.battle().ok_or("no battle")?;
+        let enemy: Vec<&BattleUnit> = battle.active_units(Side::Defender).collect();
+        let friends: Vec<&BattleUnit> = battle.active_units(Side::Attacker).collect();
+        let scene = Scene {
+            game: &g,
+            side: Side::Attacker,
+            friends: &friends,
+            enemies: &enemy,
+        };
+        for name in ["counter_magic", "mana_leak"] {
+            let def = g
+                .content()
+                .rules
+                .spells
+                .defs()
+                .iter()
+                .find(|d| d.id == name)
+                .ok_or("no such spell")?;
+            let judged = scene.judge(
+                SpellId::new(def.num),
+                def,
+                SpellAim::None,
+                def.cost,
+                def.cost,
+            );
+            assert!(judged.value > 0.0, "{name} is worth nothing");
+        }
         Ok(())
     }
 

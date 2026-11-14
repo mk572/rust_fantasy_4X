@@ -299,6 +299,33 @@ a summon by the unit's strength; dispel and counter magic only against enemy enc
 mana, and cast the best affordable one once a turn with a floor on the score. The mana budget
 (`set_battle_mana_budget`) stays the player's limit.
 
+**Task 600 (14 November 2026): the wizard spends what it may.** The wizard casts the best cast it
+can afford every turn, with no floor on the worth (only a cast worth nothing is left alone);
+the bounds are outside: the casting skill of the battle, the mana reserve minus what the
+overland upkeep needs, and the budget the player or the strategic AI sets (task 601). The tiers
+and the value per mana (softened by `MANA_SOFTENING`) order the casts. What each kind is worth
+(`f4x-ai/src/battle/cast.rs`, `docs/battle-spell-ai.md` lists every spell):
+
+- a blow: the game's own odds (`preview_spell_damage`), a kill first, mana fed until it kills;
+- a slay: 35% of the worth of each enemy it can touch (`slay_allows`), times the chance that the
+  enemy fails its save (`Battle::failure_chance`);
+- a curse with a save: its flat share times the chance the target fails the save; a cap on a stat
+  (Shatter) is a curse; a spell that holds a unit is worth half of it, one that takes it over all;
+- a lasting gift on our own unit: 25% of its worth;
+- a battlefield spell: a share of the worth of the units it falls on, ours for a gift (Prayer,
+  Metal Fires, Mass Invisibility, Blur against shooters), the enemy's for a harm (Black Prayer,
+  Terror, Wrack, Call Lightning, Entangle), the realm creatures for light and darkness;
+- a wall: 20% of the worth of the units behind it; Counter Magic: 20% of our dearest unit while
+  the enemy wizard has mana; a dispel: 10% of a unit's worth for each lasting spell on an enemy
+  unit; a recall: a unit that is nearly dead; Raise and Animate Dead: a share of the unit that
+  returns; Life Drain: 20% of the unit.
+
+- the ground: Earth to Mud holds back the enemy walkers near the square (15% of their worth, less ours); Cracks Call is a one in four chance on the walker over the fissure plus the wall it breaks; Disrupt opens a wall section for the side that attacks the city;
+- a takeover (Possession, Creature Binding) is worth 1.5 times the unit: the enemy loses it and we gain it.
+
+The shares are
+first guesses; the soak of task 600 is where they are tuned.
+
 ### 6.6 The learned agent
 
 `f4x-learn`'s baseline and imitation target is `next_command`. After step 10 its numbers move.
