@@ -115,6 +115,12 @@ pub struct Pair {
     pub visible: i32,
     /// What `visible` drifts back to.
     pub default: i32,
+    /// The turn the war began, while the two are at war (the AI weighs a war by its age).
+    #[serde(default)]
+    pub war_since: Option<u32>,
+    /// The cities each held when the war began, the lower player number first.
+    #[serde(default)]
+    pub war_cities: [u16; 2],
 }
 
 /// What two wizards hold about each other, kept in the slot of one of them. `hidden` and the three
@@ -263,6 +269,12 @@ pub enum DiplomacyEvent {
         from: PlayerId,
         to: PlayerId,
     },
+    /// `from` tells `to` why it did what it did.
+    Remarked {
+        from: PlayerId,
+        to: PlayerId,
+        why: Remark,
+    },
     /// `intruder` has units next to a city of `owner`, who gives a warning (the first turn of a
     /// treaty partner's trespass).
     Trespassing {
@@ -313,6 +325,38 @@ pub enum DiplomacyCommand {
         from: PlayerId,
         to: PlayerId,
     },
+    /// `from` tells `to` why it has done what it did (a war, a gift, a peace offer): the
+    /// original's remarks. Nothing changes but what the human is told.
+    Remark {
+        from: PlayerId,
+        to: PlayerId,
+        why: Remark,
+    },
+}
+
+/// Why an AI wizard did what it did to another (`DiplomacyCommand::Remark`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Remark {
+    /// It declared war because the other is much weaker.
+    DominantWar,
+    /// It gives a gift or offers a treaty because the other is much stronger.
+    Appeasing,
+    /// It asks for an alliance against the wizard that leads.
+    Coalition,
+    /// It offers peace because the war goes badly or serves no purpose.
+    WarWeary,
+}
+
+impl Remark {
+    /// The text key of the remark.
+    pub fn key(self) -> &'static str {
+        match self {
+            Remark::DominantWar => "diplomacy.remark_dominant_war",
+            Remark::Appeasing => "diplomacy.remark_appeasing",
+            Remark::Coalition => "diplomacy.remark_coalition",
+            Remark::WarWeary => "diplomacy.remark_war_weary",
+        }
+    }
 }
 
 /// Everything diplomacy keeps in a game.
@@ -524,6 +568,8 @@ impl Diplomacy {
                 status: Treaty::None,
                 visible: start,
                 default: start,
+                war_since: None,
+                war_cities: [0, 0],
             }
         })
     }
@@ -535,6 +581,22 @@ impl Diplomacy {
     /// The treaty between two wizards.
     pub fn treaty(&self, a: PlayerId, b: PlayerId) -> Treaty {
         self.pair(a, b).map_or(Treaty::None, |p| p.status)
+    }
+
+    /// How many turns the two have been at war (none when they are not).
+    pub fn war_age(&self, view: &Game, a: PlayerId, b: PlayerId) -> Option<u32> {
+        self.pair(a, b)
+            .and_then(|p| p.war_since)
+            .map(|since| view.turn.saturating_sub(since))
+    }
+
+    /// How many cities `a` has gained since its war with `b` began (negative: lost). None when
+    /// they are not at war.
+    pub fn war_gain(&self, view: &Game, a: PlayerId, b: PlayerId) -> Option<i32> {
+        let pair = self.pair(a, b)?;
+        pair.war_since?;
+        let at_start = pair.war_cities[usize::from(a.0 > b.0)];
+        Some(view.economy().city_count(a) as i32 - i32::from(at_start))
     }
 
     /// The relation between two wizards as the player sees it (0 before they have a record).
@@ -733,7 +795,20 @@ impl Diplomacy {
     // ---- treaties and war ------------------------------------------------------
 
     fn set_status(&mut self, ctx: &mut DiplomacyCtx<'_>, a: PlayerId, b: PlayerId, treaty: Treaty) {
-        self.pair_mut(ctx.view, a, b).status = treaty;
+        let turn = ctx.view.turn;
+        let count =
+            |p: PlayerId| ctx.view.economy().city_count(p).min(usize::from(u16::MAX)) as u16;
+        let cities = if a.0 <= b.0 {
+            [count(a), count(b)]
+        } else {
+            [count(b), count(a)]
+        };
+        let pair = self.pair_mut(ctx.view, a, b);
+        pair.status = treaty;
+        if treaty == Treaty::War && pair.war_since.is_none() {
+            pair.war_cities = cities;
+        }
+        pair.war_since = (treaty == Treaty::War).then(|| pair.war_since.unwrap_or(turn));
         self.queue
             .push(DiplomacyEvent::TreatyChanged { a, b, treaty });
     }
@@ -1160,7 +1235,8 @@ impl Diplomacy {
             DiplomacyCommand::Propose { from, .. }
             | DiplomacyCommand::GiveGold { from, .. }
             | DiplomacyCommand::GiveSpell { from, .. }
-            | DiplomacyCommand::Warn { from, .. } => Some(from),
+            | DiplomacyCommand::Warn { from, .. }
+            | DiplomacyCommand::Remark { from, .. } => Some(from),
         };
         if actor.is_some_and(|a| ctx.view.wizard(a).is_some_and(|w| w.is_banished())) {
             return vec![Event::Rejected(crate::game::Rejection::Diplomacy(
@@ -1208,6 +1284,11 @@ impl Diplomacy {
             }
             DiplomacyCommand::GiveSpell { from, to, spell } => {
                 self.give_spell_as_gift(ctx, from, to, spell)
+            }
+            DiplomacyCommand::Remark { from, to, why } => {
+                self.check_gift(ctx.view, from, to).map(|()| {
+                    self.queue.push(DiplomacyEvent::Remarked { from, to, why });
+                })
             }
             DiplomacyCommand::Warn { from, to } => self.check_gift(ctx.view, from, to).map(|()| {
                 let s = self.stance_mut(from, to);
@@ -1391,6 +1472,7 @@ impl Diplomacy {
             if destroyed {
                 let pair = self.pair_mut(ctx.view, other, loser);
                 pair.status = Treaty::None;
+                pair.war_since = None;
                 pair.contacted = false;
             }
             if other != winner {
@@ -1782,6 +1864,16 @@ impl Game {
     /// The relation between two wizards as the player sees it.
     pub fn relation(&self, a: PlayerId, b: PlayerId) -> i32 {
         self.diplomacy.relation(self, a, b)
+    }
+
+    /// How many turns the two have been at war (none when they are not).
+    pub fn war_age(&self, a: PlayerId, b: PlayerId) -> Option<u32> {
+        self.diplomacy.war_age(self, a, b)
+    }
+
+    /// The cities `a` has gained since its war with `b` began (negative: lost).
+    pub fn war_gain(&self, a: PlayerId, b: PlayerId) -> Option<i32> {
+        self.diplomacy.war_gain(self, a, b)
     }
 
     /// What the hooks raised since the last command, as events.

@@ -610,6 +610,22 @@ The current baseline (2 to 5 wizards, seeds 21 to 28, 1000 turns, per-seed resul
 Before the objectives (same code otherwise): 0 of 8 won, 12 to 78 s a game. A wizard ends at 1 to 7 cities
 (often 1 to 3 of them outposts) and 5 to 30 units; the treasury sits at 50 to 100 gold.
 
+**Statecraft, 14 November 2026 (task 510, `docs/diplomacy.md` section 8).** Measured with the parts switched off
+(`AIK_DIPLO_ON_*=0`) and on, on `small-2p`, `hard-3p` and `islands-3p` of `scripts/soak_variety.sh`, six rounds of seeds (24, 18 and 24
+games, 66 each way; the numbers are before the later gift to a hostile coalition partner and the 25-turn peace cooldown):
+
+| | Won | By conquest | Mean winning turn | Wars declared a game | Peace offers a game | Refused or lapsed proposals a game |
+|---|---|---|---|---|---|---|
+| off | 34 of 66 | 18 | 314 | 22.0 | 19.8 | 0.8 |
+| on | 32 of 66 | 13 | 339 | 17.6 | 66.3 | 52.2 |
+
+The parts fire (a game has 2.6 wars on a weaker neighbour, 5.8 appeasements, 34 peace offers by a wizard tired of a war;
+a later run with the gift to a coalition partner had 0 to 13 coalition requests a game). Fewer wars and fewer conquests are what the task
+asks for (no war on two fronts, peace for a lost war), not a loss of strength; the number of wins stays within the noise
+(`small-2p` 13 of 24 off, 9 of 24 on). The refused proposals are the peace offers of the loser, which the winner refuses
+while the war is young and has taken nothing (`peace_ok`). The soak prints four new counts after the diplomacy kinds: `wars on a
+weaker neighbour`, `appeasements`, `coalition requests`, `war-weary peace offers`.
+
 ### 12.3 Open issues
 
 1. **The AI hardly fights.** Most two-wizard games have 0 or 1 war and 0 to 4 cities taken in 300 turns.

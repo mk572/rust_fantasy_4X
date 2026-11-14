@@ -71,7 +71,11 @@ pub(crate) fn rate(
             125,
             (relation <= ALLIANCE_RELATION).then_some(Verdict::Refused),
         ),
-        ProposalKind::Peace => (60, None),
+        // A peace is not given while the war is young and the AI is far ahead (`statecraft`).
+        ProposalKind::Peace => (
+            60,
+            (!crate::statecraft::peace_ok(game, judge, asker)).then_some(Verdict::Refused),
+        ),
         ProposalKind::WarOn(third) => {
             let allied_with_both = game.treaty(asker, judge) == Treaty::Alliance
                 && game.treaty(asker, third) == Treaty::Alliance;
@@ -88,8 +92,16 @@ pub(crate) fn rate(
             175 + game.relation(judge, third),
             (relation <= 24).then_some(Verdict::Maybe),
         ),
-        // The original swaps spells without a test: both must have one the other lacks.
-        ProposalKind::Exchange { .. } => (0, Some(Verdict::Accepted)),
+        // The original swaps spells without a test: both must have one the other lacks. A
+        // wizard does not arm an enemy.
+        ProposalKind::Exchange { .. } => (
+            0,
+            Some(if crate::statecraft::arms_enemy(game, judge, asker) {
+                Verdict::Refused
+            } else {
+                Verdict::Accepted
+            }),
+        ),
         // A threat has its own rule, a demand is the human's to answer.
         ProposalKind::Threat => (
             0,
@@ -113,8 +125,9 @@ pub(crate) fn rate(
         + stance.hidden
         + relation
         + crate::objective::temper(game.personality(judge), game.difficulty()).modifier();
-    let mut final_value =
-        relations + game.roll(100) as i32 - type_modifier + threat_modifier(game, asker, judge);
+    let mut final_value = relations + game.roll(100) as i32 - type_modifier
+        + threat_modifier(game, asker, judge)
+        + crate::statecraft::goodwill(game, judge, asker, kind);
     if game.treaty(asker, judge) == Treaty::Alliance {
         final_value += 40;
     }
@@ -197,6 +210,8 @@ pub(crate) fn quarrel(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .into_iter()
             .filter(|&p| view.is_diplomat(p))
             .filter(|&p| game.have_met(me, p) && game.treaty(me, p) == Treaty::None)
+            // A neighbour it keeps out of the way of, being much stronger, is left alone.
+            .filter(|&p| !ai.is_appeasing(p))
             // After a war it ends the pair leaves each other alone for a few turns.
             .filter(|&p| {
                 game.diplomacy
@@ -655,11 +670,12 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             + relation
             + mood
             + game.roll(100) as i32
-            + (3 + game.roll(5) as i32) * difficulty as i32;
+            + (3 + game.roll(5) as i32) * difficulty as i32
+            + crate::statecraft::goodwill(game, me, other, ProposalKind::Pact);
         let kind = match treaty {
-            Treaty::War => {
-                (stance.peace_patience + game.roll(100) as i32 > 100).then_some(ProposalKind::Peace)
-            }
+            Treaty::War => (stance.peace_patience + game.roll(100) as i32 > 100
+                && crate::statecraft::peace_ok(game, me, other))
+            .then_some(ProposalKind::Peace),
             Treaty::None if score > 150 && relation > ALLIANCE_RELATION => {
                 Some(ProposalKind::Alliance)
             }
@@ -698,6 +714,7 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     && game.treaty(other, t) == Treaty::War
                     && game.treaty(me, t) != Treaty::War
                     && game.treaty(me, t) != Treaty::Alliance
+                    && !ai.is_appeasing(t)
                     && PlayerView::new(game, me).is_diplomat(t)
                     && game.have_met(me, t)
             });
@@ -715,24 +732,7 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
 }
 
-/// A swap of spells `me` could offer `other`: the cheapest spell each has and the other lacks.
-fn spell_swap(game: &Game, me: PlayerId, other: PlayerId) -> Option<ProposalKind> {
-    let (mine, theirs) = (game.wizard(me)?, game.wizard(other)?);
-    let cheapest = |from: &dyn Fn(f4x_def::rules::SpellId) -> bool,
-                    to: &dyn Fn(f4x_def::rules::SpellId) -> bool,
-                    receiver: &f4x_core::wizard::entity::Wizard<'_>| {
-        game.content()
-            .rules
-            .spells
-            .iter()
-            .filter(|&(id, def)| from(id) && !to(id) && receiver.books_allow(def))
-            .min_by_key(|&(_, def)| (def.research_cost, def.num))
-            .map(|(id, _)| id)
-    };
-    let give = cheapest(&|id| mine.knows(id), &|id| theirs.knows(id), &theirs)?;
-    let get = cheapest(&|id| theirs.knows(id), &|id| mine.knows(id), &mine)?;
-    Some(ProposalKind::Exchange { give, get })
-}
+use crate::statecraft::spell_swap;
 
 #[cfg(test)]
 mod tests {

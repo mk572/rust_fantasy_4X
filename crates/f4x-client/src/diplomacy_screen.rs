@@ -451,6 +451,10 @@ impl App {
                     .text("victim", self.diplo_name(victim));
                 Some(self.text_with("diplomacy.breaks_treaty", &args))
             }
+            D::Remarked { from, to, why } if to == HUMAN => Some(self.text_with(
+                why.key(),
+                &Args::new().text("wizard", self.diplo_name(from)),
+            )),
             D::Warned { from, to } if to == HUMAN => Some(self.text_with(
                 "diplomacy.warns_you",
                 &Args::new().text("wizard", self.diplo_name(from)),

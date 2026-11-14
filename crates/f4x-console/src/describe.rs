@@ -684,6 +684,11 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             player(game, *from),
             player(game, *to)
         ),
+        D::Remarked { from, to, why } => format!(
+            "{} tells {} why: {why:?}",
+            player(game, *from),
+            player(game, *to)
+        ),
         D::Trespassing { owner, intruder } => format!(
             "{} warns {} to keep its units away from its cities",
             player(game, *owner),

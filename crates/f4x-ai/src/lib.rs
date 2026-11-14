@@ -33,6 +33,7 @@ mod scout;
 mod shortfall;
 mod site;
 mod spellhelper;
+mod statecraft;
 #[cfg(test)]
 mod testworld;
 mod view;
@@ -141,6 +142,9 @@ pub struct Ai {
     war_on: Option<PlayerId>,
     /// The wizard this one went to war on by temper (`diplomacy::quarrel`).
     quarrel: Option<PlayerId>,
+    /// What the statecraft (`statecraft.rs`, task 510) keeps between turns.
+    #[serde(default)]
+    statecraft: statecraft::State,
     #[serde(skip)]
     record_refusals: bool,
     #[serde(skip)]
@@ -206,6 +210,11 @@ impl Ai {
         }
     }
 
+    /// Whether the AI keeps out of this player's way, for being much stronger and near.
+    pub(crate) fn is_appeasing(&self, other: PlayerId) -> bool {
+        self.statecraft.appeased.contains(&other)
+    }
+
     pub fn new(player: PlayerId) -> Self {
         battle::install();
         Self {
@@ -247,6 +256,7 @@ impl Ai {
             racing: false,
             war_on: None,
             quarrel: None,
+            statecraft: Default::default(),
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
             raiders: Vec::new(),
@@ -348,6 +358,7 @@ impl Ai {
         diplomacy::answer(self, game, &mut events);
         diplomacy::quarrel(self, game, &mut events);
         diplomacy::negotiate(self, game, &mut events);
+        statecraft::run(self, game, &mut events);
         offer::answer(self, game, &mut events);
         offer::equip(self, game, &mut events);
         game.balance_farmers(self.player);

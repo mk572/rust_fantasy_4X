@@ -345,6 +345,50 @@ with no treaty 6 percent a turn of `-Random(5)`; the "too many cities" reaction 
 on a pact or alliance partner asks "You have a treaty with X. Do you still wish to attack?" first, and menu rows that
 cannot be chosen are greyed instead of dark.
 
+**Statecraft (task 510, `f4x-ai/src/statecraft.rs`).** What the AI plans, for the wizards and the neutral races alike
+(`PlayerView::is_diplomat`; a neutral race has no spells, so no trades, gifts of spells or Mastery; everything else
+applies). Each part reads only what a human can see: the army scores of the Astrologer (`army_strength`), the cities it
+has seen, the treaties and the proposals.
+1. *Dominant war.* From turn 40, with no war on and no treaty, it declares war on the weakest neighbour it holds 160
+   percent of the army and 150 percent of the known cities of (and at least three cities of its own), once one of its
+   fighters can walk to one of that neighbour's cities. The chance in a hundred each turn is 12, plus 12 for a fighting
+   temper and objective, plus 10 when the target leads the game, plus up to 20 for the size of the edge, less the
+   `affinity` it feels for the target. No war on two fronts; the armies then go for that wizard's cities as for any
+   quarrel (`Ai::quarrel`). The human is told why (`Remark::DominantWar`).
+2. *Appeasing.* A neighbour with 150 percent of its army, or more, and a city within 16 squares is "appeased" until its
+   army falls under 110 percent of its own: the AI starts no war on it (`quarrel`, the ally-joins-the-war rule). It offers
+   a pact (when the relation allows one), else gives 25 to 75 gold (with 150 in the treasury) or a spell, at most once in 20
+   turns, while the relation is under 60 (`Remark::Appeasing`).
+3. *Coalition.* The leader, as one wizard sees it, is a rival casting the Spell of Mastery, or the one whose power (army
+   plus 100 a city) is 130 percent of the next best's. The weaker wizards ask each other for a pact, then an alliance
+   (one turn in six per wizard met; one it is not on good enough terms with for a pact gets a gift of gold first, no oftener
+   than once in 20 turns), and two wizards that fear the same leader are 30 points more
+   willing to say yes (`goodwill`). *Not done:* the alliance is not broken when the threat ends; breaking a treaty costs the
+   breaker standing with every wizard (`break_treaties`), so friends stay friends.
+4. *War and peace.* A war that is lost (it lost more cities than it took and has under 80 percent of the other's army, or
+   two cities more than it took, or under 60 percent of the other's power), or the more dangerous of two fronts, is offered
+   peace one turn in three, at most once in 25 turns per wizard (`Remark::WarWeary`). `peace_ok` is the other side: a wizard
+   far ahead (130 percent of the power) does not accept peace while the war has taken no city from the other and is
+   under 80 turns old. (The stalled war is task 561.) The core keeps when a war began and the cities each side held
+   (`Pair::war_since`, `Pair::war_cities`, `Game::war_age`, `Game::war_gain`).
+5. *Trades.* `spell_swap` values a spell for the wizard that gets it (research cost, up to a third more for a realm it holds
+   many books in), asks for the best one the other has and offers the cheapest one the other lacks, when what it gets is
+   worth at least nine tenths of what the other gets. `arms_enemy` refuses a trade with a wizard at war with it or with
+   one of its allies, or with the leader, both in making it and in answering. *Not done:* choosing by the spell
+   helper's intents (task 509 is not built), and gold-for-spell trades (a proposal carries no gold).
+6. *Remarks and memory.* `DiplomacyCommand::Remark` (`DiplomacyEvent::Remarked`) tells the other wizard why: the human sees
+   one line in the log (`diplomacy.remark_*`). `affinity` counts a treaty the other broke with it against the other
+   (15), and the soak tally counts each remark (`wars on a weaker neighbour`, `appeasements`, `coalition requests`,
+   `war-weary peace offers`).
+
+*Factors and self-interest.* `affinity` is what eases a pact, an alliance, a peace and a trade: the other's fame (one point
+for 25 fame, at most 8), a Charismatic retort (6), the same race (8), books in the same realms (3 each, at most 6), less 4
+for Life against Death. `self_interest` is what it takes off: 25 toward a neighbour it is far ahead of (and so means to
+attack), 15 toward the leader. Both go into the rating of every proposal (`rate`) and into the AI's own willingness
+(`negotiate`, the dominant war). Every number is in `Knobs`; `AIK_DIPLO_<NAME>=value` sets one for a soak, and
+`AIK_DIPLO_ON_DOMINANT`, `_APPEASE`, `_COALITION`, `_WARS`, `_PEACE_GATE`, `_FACTORS` and `_ARMS` (0 or 1) switch a part off to
+measure it alone.
+
 Left (task 384): AI-to-AI demands and threats, the original's alliance and pact-breaking chances of a superiority war,
 and the tuning of the numbers above by soak.
 

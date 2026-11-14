@@ -58,6 +58,13 @@ pub struct Metrics {
     pub proposals_accepted: u32,
     pub proposals_refused: u32,
     pub treaties_joined: u32,
+    /// What the AI said it did and why (`DiplomacyCommand::Remark`, task 510), counted for the
+    /// wizard that said it: wars begun on a much weaker neighbour, gifts and pacts offered to a
+    /// much stronger one, alliances asked against the leader, peace offered by a wizard tired of war.
+    pub dominant_wars: u32,
+    pub appeasements: u32,
+    pub coalition_asks: u32,
+    pub weary_peace_offers: u32,
     pub refused_orders: u32,
     pub ships_built: u32,
     pub ships_lost: u32,
@@ -82,7 +89,7 @@ pub struct Metrics {
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 43] {
+    pub fn rows(&self) -> [(&'static str, u32); 47] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -116,6 +123,10 @@ impl Metrics {
             ("proposals accepted", self.proposals_accepted),
             ("proposals refused or lapsed", self.proposals_refused),
             ("pacts and alliances joined", self.treaties_joined),
+            ("wars on a weaker neighbour", self.dominant_wars),
+            ("appeasements", self.appeasements),
+            ("coalition requests", self.coalition_asks),
+            ("war-weary peace offers", self.weary_peace_offers),
             ("refused orders", self.refused_orders),
             ("ships built", self.ships_built),
             ("ships lost", self.ships_lost),
@@ -206,6 +217,10 @@ impl AddAssign for Metrics {
             proposals_accepted,
             proposals_refused,
             treaties_joined,
+            dominant_wars,
+            appeasements,
+            coalition_asks,
+            weary_peace_offers,
             refused_orders,
             ships_built,
             ships_lost,
@@ -251,6 +266,10 @@ impl AddAssign for Metrics {
         self.proposals_accepted += proposals_accepted;
         self.proposals_refused += proposals_refused;
         self.treaties_joined += treaties_joined;
+        self.dominant_wars += dominant_wars;
+        self.appeasements += appeasements;
+        self.coalition_asks += coalition_asks;
+        self.weary_peace_offers += weary_peace_offers;
         self.refused_orders += refused_orders;
         self.ships_built += ships_built;
         self.ships_lost += ships_lost;
@@ -566,6 +585,14 @@ impl Tally {
                         self.bump(*a, |m| m.treaties_joined += 1);
                         self.bump(*b, |m| m.treaties_joined += 1);
                     }
+                }
+                Event::Diplomacy(DiplomacyEvent::Remarked { from, why, .. }) => {
+                    self.bump(*from, |m| match why {
+                        f4x_core::diplomacy::Remark::DominantWar => m.dominant_wars += 1,
+                        f4x_core::diplomacy::Remark::Appeasing => m.appeasements += 1,
+                        f4x_core::diplomacy::Remark::Coalition => m.coalition_asks += 1,
+                        f4x_core::diplomacy::Remark::WarWeary => m.weary_peace_offers += 1,
+                    })
                 }
                 Event::Diplomacy(DiplomacyEvent::Warned { from, .. }) => self.bump(*from, |m| {
                     m.diplomacy_started += 1;
