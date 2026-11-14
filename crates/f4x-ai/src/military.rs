@@ -445,6 +445,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             } else if !ordered
                 && reach
                 && !tower_full
+                && Ai::room_at(game, tower, 1)
                 && at_tower.len() < PlayerView::new(game, me).max_tile()
                 && here.is_some_and(|p| p.plane == tower.plane)
             {
@@ -646,6 +647,10 @@ fn relieve(
             if full {
                 return false;
             }
+            if !Ai::room_at(game, city, 1) {
+                full = true;
+                return false;
+            }
             let sent = ai.send(
                 game,
                 Command::GoTo {
@@ -814,6 +819,9 @@ fn march(
         spots.sort_by_key(|&s| distance(&view, s, view.unit_position(units[0]).unwrap_or(target)));
         spots
     };
+    // Squares where the stack would not fit (`StackFull`): a way to them exists, but sending the
+    // order there is refused until the units standing there move on.
+    let full = game.economy().full_squares(units.len());
     for spot in spots {
         {
             let view = PlayerView::new(game, ai.player);
@@ -821,6 +829,9 @@ fn march(
                 continue;
             }
             way = true;
+        }
+        if full.contains(&spot) {
+            continue;
         }
         let sent = ai
             .send(

@@ -441,6 +441,9 @@ fn load_and_sail(
                 ai.naval = None;
                 return;
             }
+            if !Ai::room_at(game, plan.port, 1) {
+                return;
+            }
             ai.order(
                 game,
                 Command::GoTo {
@@ -659,15 +662,17 @@ fn voyage(
                     squares
                 };
                 let landed = squares.into_iter().any(|to| {
-                    ai.send(
-                        game,
-                        Command::GoTo {
-                            units: group.clone(),
-                            to,
-                        },
-                        events,
-                    )
-                    .is_ok()
+                    Ai::room_at(game, to, group.len())
+                        && ai
+                            .send(
+                                game,
+                                Command::GoTo {
+                                    units: group.clone(),
+                                    to,
+                                },
+                                events,
+                            )
+                            .is_ok()
                 });
                 if !landed {
                     return;
@@ -700,14 +705,16 @@ fn voyage(
         ai.ferries.retain(|f| f.ship != ferry.ship);
     } else if idle {
         make_room(ai, game, plan.port, events);
-        ai.order(
-            game,
-            Command::GoTo {
-                units: vec![ship],
-                to: plan.port,
-            },
-            events,
-        );
+        if Ai::room_at(game, plan.port, 1) {
+            ai.order(
+                game,
+                Command::GoTo {
+                    units: vec![ship],
+                    to: plan.port,
+                },
+                events,
+            );
+        }
     }
 }
 

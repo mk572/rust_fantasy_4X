@@ -393,6 +393,12 @@ impl Ai {
         });
     }
 
+    /// Whether `count` more units fit on the square (the limit of a square, `StackFull`): the check
+    /// to make before an order to walk there, so that a full square is not asked again and again.
+    pub(crate) fn room_at(game: &Game, to: Position, count: usize) -> bool {
+        game.units().units_at(to).len() + count <= game.max_tile()
+    }
+
     /// Send a command and keep its events.
     #[track_caller]
     fn send(

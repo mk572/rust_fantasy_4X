@@ -115,6 +115,11 @@ pub(crate) fn march_with(
         if !PlayerView::new(game, ai.player).can_reach(units, spot) {
             continue;
         }
+        // A square with no room for the party is left alone (a way exists: it may be free later).
+        if !Ai::room_at(game, spot, units.len()) {
+            refused = Some(f4x_core::unit::movement::MoveError::StackFull);
+            continue;
+        }
         let sent = ai.send(
             game,
             Command::GoTo {

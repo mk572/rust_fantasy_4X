@@ -276,7 +276,7 @@ fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
         (here.first().copied(), settlers.first().copied(), strays)
     };
     // A ship left at sea by an earlier voyage comes home.
-    if !strays.is_empty() {
+    if !strays.is_empty() && Ai::room_at(game, colony.port, strays.len()) {
         ai.order(
             game,
             Command::GoTo {
