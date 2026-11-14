@@ -218,6 +218,14 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 ai.raid_targets.insert(s, site);
             }
         } else if let Some(home) = home {
+            // No candidate could be walked to: that is worth a line (one site passed over is not).
+            if !candidates.is_empty() {
+                ai.note_failure(
+                    game,
+                    format!("raid party at {pos:?}: no site to march to among {candidates:?}"),
+                    "Unreachable".to_string(),
+                );
+            }
             party.iter().for_each(|s| {
                 ai.raid_targets.remove(s);
             });
@@ -239,6 +247,13 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .send(game, Command::GoTo { units, to: home }, events)
                     .is_ok()
             {
+                if !reachable {
+                    ai.note_failure(
+                        game,
+                        format!("raid party at {pos:?}: no way home to {home:?}"),
+                        "Unreachable".to_string(),
+                    );
+                }
                 ai.raiders.retain(|s| !serials.contains(s));
             }
         }
