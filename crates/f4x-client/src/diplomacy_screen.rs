@@ -9,7 +9,7 @@
 //! as it does on this screen in the original.
 
 use crate::audio::{diplomacy_entry, Track};
-use crate::diplomacy_trade::TradeSort;
+use crate::diplomacy_trade::{Cat, Draft, Side};
 use crate::font::Style;
 use crate::input::Input;
 use crate::page::Page;
@@ -82,15 +82,14 @@ pub(crate) enum Menu {
     ExchangeGet(usize),
     /// What is offered for the spell wanted.
     ExchangeGive(SpellId),
-    /// The kinds of trade for gold.
+    /// The trade being put together: what is given and what is asked.
     Trade,
-    /// The things of this sort to pick from.
-    TradeThings(TradeSort),
-    /// The prices for the thing picked; `buying` is true when the human buys it.
-    TradePrice {
-        thing: Goods,
-        buying: bool,
-    },
+    /// The categories to add to a side of the trade.
+    TradeAdd(Side),
+    /// The things (or amounts of gold) of a category to add to a side.
+    TradePick(Side, Cat),
+    /// A trade the wizard has put (an answer to the human's, or its own): accept, change, refuse.
+    Counter,
     /// The wizard has answered; a click goes back to the main menu (or leaves).
     Reply,
 }
@@ -107,11 +106,17 @@ enum Act {
         give: SpellId,
         get: SpellId,
     },
-    /// A trade of one thing for gold, or the reverse.
-    Trade {
-        give: Goods,
-        get: Goods,
-    },
+    /// Begin a new trade draft.
+    StartTrade,
+    /// Add goods to a side of the draft, and go back to the draft.
+    DraftAdd(Side, Goods),
+    DraftClear,
+    /// Put the draft to the wizard (a counter when it answers the wizard's trade).
+    DraftSend,
+    /// Answer the trade the wizard has put to the human.
+    AnswerTrade(bool),
+    /// Make the wizard's trade the draft, turned round, to change it.
+    ChangeTrade,
     Back,
     Leave,
     /// Not available: the row is shown dimmed.
@@ -123,6 +128,15 @@ struct Row {
     label: String,
     enabled: bool,
     act: Act,
+}
+
+/// Whether the draft may be put to the wizard now (a new offer or an answer to its trade).
+fn ok_trade(app: &App, with: PlayerId, draft: Draft) -> bool {
+    let kind = ProposalKind::Trade {
+        give: draft.give,
+        get: draft.ask,
+    };
+    app.game.check_proposal(HUMAN, with, kind).is_ok()
 }
 
 fn row(label: impl Into<String>, enabled: bool, act: Act) -> Row {
@@ -150,6 +164,8 @@ pub(crate) struct DiploUi {
     pub leaving: Option<f64>,
     /// The screen the talk came from, which it goes back to: the Magic screen or the list.
     pub back: Screen,
+    /// The trade being put together.
+    pub draft: Draft,
 }
 
 /// Seconds the room takes to fade in and out.
@@ -173,6 +189,7 @@ impl Default for DiploUi {
             opened: 0.0,
             leaving: None,
             back: Screen::Magic,
+            draft: Draft::default(),
         }
     }
 }
@@ -548,9 +565,19 @@ impl DiploUi {
                         !war,
                         Act::Go(Menu::ExchangeRealm),
                     ),
-                    row(app.text("diplomacy.trade"), !war, Act::Go(Menu::Trade)),
+                    row(app.text("diplomacy.trade"), !war, Act::StartTrade),
                     row(app.text("diplomacy.good_bye"), true, Act::Leave),
                 ];
+                if self.waiting_trade(app).is_some() {
+                    rows.insert(
+                        0,
+                        row(
+                            app.text("diplomacy.trade_consider"),
+                            true,
+                            Act::Go(Menu::Counter),
+                        ),
+                    );
+                }
                 // A neutral player has no spells to trade (task 522).
                 if app.game.race_of_player(with).is_some() {
                     rows.retain(|r| !matches!(r.act, Act::Go(Menu::ExchangeRealm)));
@@ -736,67 +763,154 @@ impl DiploUi {
                 (say::exchange_give_prompt(app.texts()), rows)
             }
             Menu::Trade => {
+                let draft = self.draft;
+                let rows = vec![
+                    row(
+                        app.text("diplomacy.trade_add_give"),
+                        true,
+                        Act::Go(Menu::TradeAdd(Side::Give)),
+                    ),
+                    row(
+                        app.text("diplomacy.trade_add_ask"),
+                        true,
+                        Act::Go(Menu::TradeAdd(Side::Ask)),
+                    ),
+                    row(
+                        app.text(if draft.counter {
+                            "diplomacy.trade_send_counter"
+                        } else {
+                            "diplomacy.trade_send"
+                        }),
+                        ok_trade(app, with, draft),
+                        Act::DraftSend,
+                    ),
+                    row(app.text("diplomacy.trade_clear"), true, Act::DraftClear),
+                    forget(),
+                ];
+                let text = app.text_with(
+                    "diplomacy.trade_draft",
+                    &Args::new()
+                        .text("give", app.goods_text(draft.give))
+                        .text("ask", app.goods_text(draft.ask)),
+                );
+                (text, rows)
+            }
+            Menu::TradeAdd(side) => {
+                let (owner, to) = match side {
+                    Side::Give => (HUMAN, with),
+                    Side::Ask => (with, HUMAN),
+                };
+                // A neutral race has no spells, no vault and no heroes to trade.
                 let neutral = app.game.race_of_player(with).is_some();
-                let mut rows = Vec::new();
-                for (key, sort) in [
-                    ("diplomacy.trade_buy_spell", TradeSort::BuySpell),
-                    ("diplomacy.trade_sell_spell", TradeSort::SellSpell),
-                    ("diplomacy.trade_sell_item", TradeSort::SellItem),
-                    ("diplomacy.trade_sell_unit", TradeSort::SellUnit),
-                ] {
-                    // A neutral race has no spells and no vault: it deals in units only.
-                    let kind_ok = !neutral || sort == TradeSort::SellUnit;
-                    let any = kind_ok && !app.trade_things(with, sort).is_empty();
-                    rows.push(row(
-                        app.text(key),
-                        any,
-                        if any {
-                            Act::Go(Menu::TradeThings(sort))
-                        } else {
-                            Act::Nothing
-                        },
-                    ));
-                }
-                rows.push(forget());
-                (app.text("diplomacy.trade_prompt"), rows)
-            }
-            Menu::TradeThings(sort) => {
-                let buying = sort == TradeSort::BuySpell;
-                let mut rows: Vec<Row> = app
-                    .trade_things(with, sort)
+                let mut rows: Vec<Row> = Cat::ALL
                     .into_iter()
-                    .map(|(label, thing)| {
-                        row(label, true, Act::Go(Menu::TradePrice { thing, buying }))
-                    })
-                    .collect();
-                rows.push(forget());
-                (app.text("diplomacy.trade_which_prompt"), rows)
-            }
-            Menu::TradePrice { thing, buying } => {
-                let mut rows: Vec<Row> = app
-                    .trade_prices(with, thing, buying)
-                    .into_iter()
-                    .map(|gold| {
-                        let (give, get) = if buying {
-                            (Goods::gold(gold), thing)
-                        } else {
-                            (thing, Goods::gold(gold))
-                        };
+                    .map(|cat| {
+                        let free = !neutral || matches!(cat, Cat::Gold | Cat::Unit);
+                        let any = free && app.can_pick(owner, to, cat);
                         row(
-                            app.text_with(
-                                "diplomacy.trade_price",
-                                &Args::new().count("gold", gold),
-                            ),
-                            ok(ProposalKind::Trade { give, get }),
-                            Act::Trade { give, get },
+                            app.text(cat.key()),
+                            any,
+                            if any {
+                                Act::Go(Menu::TradePick(side, cat))
+                            } else {
+                                Act::Nothing
+                            },
                         )
                     })
                     .collect();
-                rows.push(forget());
-                (app.text("diplomacy.trade_price_prompt"), rows)
+                rows.push(row(
+                    app.text("diplomacy.forget_it"),
+                    true,
+                    Act::Go(Menu::Trade),
+                ));
+                (app.text("diplomacy.trade_category_prompt"), rows)
+            }
+            Menu::TradePick(side, cat) => {
+                let (owner, to) = match side {
+                    Side::Give => (HUMAN, with),
+                    Side::Ask => (with, HUMAN),
+                };
+                let mut rows: Vec<Row> = if cat == Cat::Gold {
+                    let gold = app
+                        .game
+                        .player(owner)
+                        .map_or(0, |p| p.treasury().gold.floor());
+                    app.gold_steps()
+                        .into_iter()
+                        .filter(|&g| side == Side::Ask || g <= gold)
+                        .map(|g| {
+                            row(
+                                app.text_with(
+                                    "diplomacy.goods_gold",
+                                    &Args::new().count("gold", g),
+                                ),
+                                true,
+                                Act::DraftAdd(side, Goods::gold(g)),
+                            )
+                        })
+                        .collect()
+                } else {
+                    app.pick_things(owner, to, cat)
+                        .into_iter()
+                        .map(|(label, thing)| row(label, true, Act::DraftAdd(side, thing)))
+                        .collect()
+                };
+                rows.push(row(
+                    app.text("diplomacy.forget_it"),
+                    true,
+                    Act::Go(Menu::Trade),
+                ));
+                let key = if cat == Cat::Gold {
+                    "diplomacy.trade_gold_prompt"
+                } else {
+                    "diplomacy.trade_which_prompt"
+                };
+                (app.text(key), rows)
+            }
+            Menu::Counter => {
+                let Some(p) = self.waiting_trade(app) else {
+                    return (say::menu_prompt(app.texts()), vec![forget()]);
+                };
+                let ProposalKind::Trade { give, get } = p.kind else {
+                    return (say::menu_prompt(app.texts()), vec![forget()]);
+                };
+                let text = app.text_with(
+                    "diplomacy.counter_offer",
+                    &Args::new()
+                        .text("give", app.goods_text(give))
+                        .text("get", app.goods_text(get)),
+                );
+                let open = give.is_empty() || get.is_empty();
+                let can_counter = p.round + 1 < f4x_core::diplomacy::MAX_ROUNDS;
+                let rows = vec![
+                    row(
+                        app.text("diplomacy.counter_accept"),
+                        !open && app.game.check_proposal(p.from, HUMAN, p.kind).is_ok(),
+                        Act::AnswerTrade(true),
+                    ),
+                    row(
+                        app.text("diplomacy.counter_change"),
+                        can_counter,
+                        Act::ChangeTrade,
+                    ),
+                    row(
+                        app.text("diplomacy.counter_refuse"),
+                        true,
+                        Act::AnswerTrade(false),
+                    ),
+                ];
+                (text, rows)
             }
             Menu::Greeting | Menu::Reply => (self.message.clone(), Vec::new()),
         }
+    }
+
+    /// The trade the wizard has put to the human and that waits for an answer.
+    fn waiting_trade(&self, app: &App) -> Option<f4x_core::diplomacy::Proposal> {
+        f4x_core::player::view::PlayerView::new(&app.game, HUMAN)
+            .proposals_to_me()
+            .into_iter()
+            .find(|p| p.from == self.with && matches!(p.kind, ProposalKind::Trade { .. }))
     }
 
     /// The wizard speaks: the message is shown, the lips move, and the face takes the mood.
@@ -810,16 +924,28 @@ impl DiploUi {
 
     /// Put a proposal and show the wizard's answer.
     fn diplo_propose(&mut self, app: &mut App, kind: ProposalKind) {
+        self.diplo_send(app, kind, false);
+    }
+
+    /// Put a proposal, or answer the wizard's trade with one (`counter`), and show the answer.
+    fn diplo_send(&mut self, app: &mut App, kind: ProposalKind, counter: bool) {
         let with = self.with;
         let salt = app.game.turn as usize + usize::from(with.0);
         let level = relation_level(app.game.relation(HUMAN, with));
-        let mut events = app.game.apply(Command::Diplomacy(
+        let command = if counter {
+            f4x_core::diplomacy::DiplomacyCommand::Counter {
+                player: HUMAN,
+                from: with,
+                kind,
+            }
+        } else {
             f4x_core::diplomacy::DiplomacyCommand::Propose {
                 from: HUMAN,
                 to: with,
                 kind,
-            },
-        ));
+            }
+        };
+        let mut events = app.game.apply(Command::Diplomacy(command));
         if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
             app.note(events);
             let said = say::refused(app.texts(), kind, level, salt);
@@ -835,7 +961,19 @@ impl DiploUi {
             }) => Some((*accepted, *lapsed)),
             _ => None,
         });
+        let countered = events.iter().any(|e| {
+            matches!(e, Event::Diplomacy(f4x_core::diplomacy::DiplomacyEvent::ProposalCountered { new, .. })
+                if new.to == HUMAN)
+        });
         app.note(events);
+        if countered {
+            // The wizard has put a trade of its own: show it, to accept, change or refuse.
+            self.menu = Menu::Counter;
+            self.message = self.diplo_rows(app).0;
+            self.talk_since = get_time();
+            self.mood = Mood::Neutral;
+            return;
+        }
         match answer {
             Some((true, _)) => {
                 let said = say::accepted(app.texts(), kind, salt);
@@ -926,7 +1064,67 @@ impl DiploUi {
                     get: Goods::spell(get),
                 },
             ),
-            Act::Trade { give, get } => self.diplo_propose(app, ProposalKind::Trade { give, get }),
+            Act::StartTrade => {
+                self.draft = Draft::default();
+                self.menu = Menu::Trade;
+                self.message = self.diplo_rows(app).0;
+            }
+            Act::DraftAdd(side, goods) => {
+                self.draft.add(side, goods);
+                self.menu = Menu::Trade;
+                self.message = self.diplo_rows(app).0;
+            }
+            Act::DraftClear => {
+                self.draft = Draft {
+                    counter: self.draft.counter,
+                    ..Draft::default()
+                };
+                self.message = self.diplo_rows(app).0;
+            }
+            Act::DraftSend => {
+                let kind = ProposalKind::Trade {
+                    give: self.draft.give,
+                    get: self.draft.ask,
+                };
+                let counter = self.draft.counter;
+                self.draft = Draft::default();
+                self.diplo_send(app, kind, counter);
+            }
+            Act::ChangeTrade => {
+                if let Some(p) = self.waiting_trade(app) {
+                    if let ProposalKind::Trade { give, get } = p.kind {
+                        // What the wizard gives the human gets; what it asks, the human gives.
+                        self.draft = Draft {
+                            give: get,
+                            ask: give,
+                            counter: true,
+                        };
+                    }
+                }
+                self.menu = Menu::Trade;
+                self.message = self.diplo_rows(app).0;
+            }
+            Act::AnswerTrade(accept) => {
+                let Some(p) = self.waiting_trade(app) else {
+                    return;
+                };
+                let events = app.game.apply(Command::Diplomacy(
+                    f4x_core::diplomacy::DiplomacyCommand::Answer {
+                        player: HUMAN,
+                        from: with,
+                        accept,
+                    },
+                ));
+                app.note(events);
+                if accept {
+                    let said = say::accepted(app.texts(), p.kind, salt);
+                    self.diplo_say(said, Mood::Good, false);
+                } else {
+                    let level = relation_level(app.game.relation(HUMAN, with));
+                    let said = say::refused(app.texts(), p.kind, level, salt);
+                    self.diplo_say(said, Mood::Neutral, false);
+                }
+            }
         }
     }
 }

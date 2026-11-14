@@ -983,7 +983,7 @@ fn diplomacy_line(total: &Metrics) -> String {
 }
 
 /// "diplomacy started" and the counts of each kind that follow it in `Metrics::rows`.
-const DIPLOMACY_ROWS: usize = 23;
+const DIPLOMACY_ROWS: usize = 24;
 
 #[cfg(test)]
 mod tests {

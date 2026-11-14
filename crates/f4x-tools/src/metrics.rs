@@ -52,6 +52,8 @@ pub struct Metrics {
     /// Trades offered (a spell swap, gold, an item or a unit), and the ones answered yes: all, those
     /// with gold, and those with an item or a unit.
     pub spell_exchanges: u32,
+    /// Trades answered with a trade of the other's own (a negotiation round).
+    pub trade_counters: u32,
     pub trades_done: u32,
     pub trades_gold: u32,
     pub trades_goods: u32,
@@ -95,7 +97,7 @@ pub struct Metrics {
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 51] {
+    pub fn rows(&self) -> [(&'static str, u32); 52] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -121,9 +123,10 @@ impl Metrics {
             ("war requests", self.war_requests),
             ("alliance-break requests", self.alliance_break_requests),
             ("trades offered", self.spell_exchanges),
+            ("trade counters", self.trade_counters),
             ("trades done", self.trades_done),
             ("trades with gold", self.trades_gold),
-            ("trades of items or units", self.trades_goods),
+            ("trades of items, units or heroes", self.trades_goods),
             ("threats", self.threats),
             ("tribute demands", self.demands),
             ("warnings", self.warnings),
@@ -219,6 +222,7 @@ impl AddAssign for Metrics {
             war_requests,
             alliance_break_requests,
             spell_exchanges,
+            trade_counters,
             trades_done,
             trades_gold,
             trades_goods,
@@ -272,6 +276,7 @@ impl AddAssign for Metrics {
         self.war_requests += war_requests;
         self.alliance_break_requests += alliance_break_requests;
         self.spell_exchanges += spell_exchanges;
+        self.trade_counters += trade_counters;
         self.trades_done += trades_done;
         self.trades_gold += trades_gold;
         self.trades_goods += trades_goods;
@@ -602,13 +607,18 @@ impl Tally {
                                 give.item.is_some()
                                     || give.unit.is_some()
                                     || get.item.is_some()
-                                    || get.unit.is_some(),
+                                    || get.unit.is_some()
+                                    || give.hero.is_some()
+                                    || get.hero.is_some(),
                             );
                         }
                     } else {
                         m.proposals_refused += 1;
                     }
                 }),
+                Event::Diplomacy(DiplomacyEvent::ProposalCountered { new, .. }) => {
+                    self.bump(new.from, |m| m.trade_counters += 1)
+                }
                 Event::Diplomacy(DiplomacyEvent::TreatyChanged { a, b, treaty }) => {
                     if matches!(treaty, Treaty::Pact | Treaty::Alliance) {
                         self.bump(*a, |m| m.treaties_joined += 1);
@@ -827,6 +837,7 @@ mod tests {
                 from: a,
                 to: b,
                 kind,
+                round: 0,
             }))
         };
         let spell = game
@@ -873,6 +884,7 @@ mod tests {
                         from: a,
                         to: b,
                         kind: ProposalKind::Peace,
+                        round: 0,
                     },
                     accepted: true,
                     lapsed: false,

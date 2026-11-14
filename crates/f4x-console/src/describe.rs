@@ -614,6 +614,9 @@ pub fn goods(game: &Game, goods: f4x_core::diplomacy::Goods) -> String {
     if goods.unit.is_some() {
         parts.push("a unit".to_string());
     }
+    if goods.hero.is_some() {
+        parts.push("a hero".to_string());
+    }
     if parts.is_empty() {
         "nothing".into()
     } else {
@@ -684,6 +687,13 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             player(game, p.from),
             player(game, p.to),
             proposal(game, p.kind)
+        ),
+        D::ProposalCountered { old, new } => format!(
+            "{} answers {}'s proposal of {} with: {}",
+            player(game, new.from),
+            player(game, old.from),
+            proposal(game, old.kind),
+            proposal(game, new.kind)
         ),
         D::ProposalAnswered {
             proposal: p,

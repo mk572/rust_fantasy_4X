@@ -1510,6 +1510,7 @@ fn diplomacy_survives_a_save() -> TestResult {
         from: P0,
         to: P2,
         kind: ProposalKind::WarOn(P1),
+        round: 0,
     });
     let famine = g
         .content
@@ -1530,6 +1531,7 @@ fn diplomacy_survives_a_save() -> TestResult {
             give: Goods::spell(famine),
             get: Goods::spell(gaia),
         },
+        round: 0,
     });
     g.drain_diplomacy_events();
     let snap: Snapshot = g.snapshot();
@@ -1927,6 +1929,7 @@ fn a_trade_hands_over_gold_a_spell_an_item_and_a_unit() -> TestResult {
         spell: Some(dear),
         item: Some(blade),
         unit: Some(soldier_serial),
+        hero: None,
     };
     let kind = trade(Goods::gold(400), get);
     assert_eq!(g.check_proposal(P0, P1, kind), Ok(()));
@@ -1976,7 +1979,7 @@ fn a_trade_a_side_cannot_hand_over_is_refused() -> TestResult {
         Err(DiplomacyError::NotAllowed)
     );
     assert_eq!(
-        g.check_proposal(P0, P1, trade(Goods::gold(10), Goods::NONE)),
+        g.check_proposal(P0, P1, trade(Goods::NONE, Goods::NONE)),
         Err(DiplomacyError::NotAllowed)
     );
     assert_eq!(
@@ -2029,11 +2032,13 @@ fn a_saved_trade_and_an_old_swap_both_come_back() -> TestResult {
         spell: Some(dear),
         item: Some(crate::game::serial::Serial(7)),
         unit: Some(crate::game::serial::Serial(9)),
+        hero: Some(crate::game::serial::Serial(11)),
     };
     g.diplomacy.proposals.push(Proposal {
         from: P0,
         to: P1,
         kind: trade(Goods::spell(cheap), wanted),
+        round: 2,
     });
     let save = g.diplomacy.to_save();
     let mut d = Diplomacy::default();
@@ -2050,5 +2055,141 @@ fn a_saved_trade_and_an_old_swap_both_come_back() -> TestResult {
         d.proposals[0].kind,
         trade(Goods::spell(cheap), Goods::spell(dear))
     );
+    Ok(())
+}
+
+#[test]
+fn a_veteran_unit_and_a_hero_are_worth_more_for_level_and_experience() -> TestResult {
+    let mut g = world();
+    city(&mut g, P0, at(1, 1));
+    let spearmen = g.content.rules.units.id_numbered(95).ok_or("spearmen")?;
+    let soldier = g.spawn_unit(P0, at(1, 1), spearmen);
+    let serial = g.serial_of(soldier);
+    let green = trade::worth(&g, P1, Goods::unit(serial));
+    g.world.insert_one(soldier, crate::unit::Experience(25))?;
+    let seasoned = trade::worth(&g, P1, Goods::unit(serial));
+    assert!(seasoned > green, "{seasoned} should be more than {green}");
+    g.world.insert_one(soldier, crate::unit::Experience(400))?;
+    assert!(trade::worth(&g, P1, Goods::unit(serial)) > seasoned);
+    // A hero is worth its hire cost and its level, and what it carries.
+    g.add_hero(0).ok_or("a hero")?;
+    let hero = g
+        .spawn_hero(P0, at(1, 1), 0)
+        .map_err(|e| format!("{e:?}"))?;
+    let hero_serial = g.serial_of(hero);
+    let bare = trade::worth(&g, P1, Goods::hero(hero_serial));
+    assert!(bare > 0);
+    g.world.insert_one(hero, crate::unit::Experience(60))?;
+    let leveled = trade::worth(&g, P1, Goods::hero(hero_serial));
+    assert!(leveled > bare);
+    Ok(())
+}
+
+#[test]
+fn a_hero_is_traded_with_its_level_and_its_items() -> TestResult {
+    let mut g = world();
+    met(&mut g, P0, P1);
+    set_gold(&mut g, P0, 2000)?;
+    fortress(&mut g, P1, at(5, 5))?;
+    city(&mut g, P1, at(5, 5));
+    city(&mut g, P0, at(1, 1));
+    g.add_hero(0).ok_or("a hero")?;
+    let hero = g
+        .spawn_hero(P1, at(5, 5), 0)
+        .map_err(|e| format!("{e:?}"))?;
+    g.world.insert_one(hero, crate::unit::Experience(60))?;
+    let level = g.units().unit_level(hero);
+    let serial = g.serial_of(hero);
+    let kind = trade(Goods::gold(1500), Goods::hero(serial));
+    assert_eq!(g.check_proposal(P0, P1, kind), Ok(()));
+    command(
+        &mut g,
+        DiplomacyCommand::Propose {
+            from: P0,
+            to: P1,
+            kind,
+        },
+    );
+    let events = command(
+        &mut g,
+        DiplomacyCommand::Answer {
+            player: P1,
+            from: P0,
+            accept: true,
+        },
+    );
+    assert!(rejected(&events).is_none(), "{events:?}");
+    assert_eq!(g.units().unit_owner(hero), Some(P0));
+    assert_eq!(g.units().unit_position(hero), Some(at(1, 1)));
+    assert_eq!(g.units().unit_experience(hero), 60);
+    assert_eq!(g.units().unit_level(hero), level);
+    assert_eq!(g.units().hero_units(P0), vec![hero]);
+    assert!(g.units().hero_units(P1).is_empty());
+    Ok(())
+}
+
+#[test]
+fn a_trade_is_countered_up_to_the_round_limit_and_an_open_one_is_not_a_deal() -> TestResult {
+    let mut g = world();
+    met(&mut g, P0, P1);
+    let (dear, _) = two_spells(&g)?;
+    teach(&mut g, P1, dear)?;
+    forget(&mut g, P0, dear)?;
+    set_gold(&mut g, P0, 900)?;
+    set_gold(&mut g, P1, 900)?;
+    // P0 asks for the spell and names no price.
+    let open = trade(Goods::NONE, Goods::spell(dear));
+    assert_eq!(g.check_proposal(P0, P1, open), Ok(()));
+    command(
+        &mut g,
+        DiplomacyCommand::Propose {
+            from: P0,
+            to: P1,
+            kind: open,
+        },
+    );
+    // An open trade cannot be accepted.
+    let events = command(
+        &mut g,
+        DiplomacyCommand::Answer {
+            player: P1,
+            from: P0,
+            accept: true,
+        },
+    );
+    assert!(rejected(&events).is_some());
+    assert_eq!(g.diplomacy.proposals().len(), 1);
+    // P1 names a price: a counter, a round on.
+    let price = trade(Goods::spell(dear), Goods::gold(300));
+    let counter = |g: &mut Game, player, from, kind| {
+        command(g, DiplomacyCommand::Counter { player, from, kind })
+    };
+    let events = counter(&mut g, P1, P0, price);
+    assert!(rejected(&events).is_none(), "{events:?}");
+    let pending = g.diplomacy.proposals().to_vec();
+    assert_eq!(
+        (pending.len(), pending[0].from, pending[0].round),
+        (1, P1, 1)
+    );
+    // P0 asks for a lower price, P1 comes down, and the third counter is the last the limit
+    // allows; a fourth is refused.
+    counter(&mut g, P0, P1, trade(Goods::gold(200), Goods::spell(dear)));
+    counter(&mut g, P1, P0, trade(Goods::spell(dear), Goods::gold(250)));
+    assert_eq!(g.diplomacy.proposals()[0].round, 3);
+    let events = counter(&mut g, P0, P1, trade(Goods::gold(220), Goods::spell(dear)));
+    assert!(rejected(&events).is_some());
+    // The last offer can still be accepted: 250 gold for the spell.
+    let events = command(
+        &mut g,
+        DiplomacyCommand::Answer {
+            player: P0,
+            from: P1,
+            accept: true,
+        },
+    );
+    assert!(rejected(&events).is_none(), "{events:?}");
+    assert!(g.wizard(P0).ok_or("a wizard")?.knows(dear));
+    assert_eq!(gold_of(&g, P0)?, 650);
+    assert_eq!(gold_of(&g, P1)?, 1150);
     Ok(())
 }

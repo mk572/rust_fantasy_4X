@@ -15,6 +15,36 @@ use crate::Ai;
 pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let pending = PlayerView::new(game, ai.player).proposals_to_me();
     for proposal in pending {
+        if matches!(proposal.kind, ProposalKind::Trade { .. }) {
+            match crate::trade::respond(game, ai.player, proposal) {
+                crate::trade::Reply::Counter(kind) => {
+                    let sent = ai.send(
+                        game,
+                        Command::Diplomacy(DiplomacyCommand::Counter {
+                            player: ai.player,
+                            from: proposal.from,
+                            kind,
+                        }),
+                        events,
+                    );
+                    if sent.is_ok() {
+                        continue;
+                    }
+                }
+                reply => {
+                    ai.order(
+                        game,
+                        Command::Diplomacy(DiplomacyCommand::Answer {
+                            player: ai.player,
+                            from: proposal.from,
+                            accept: reply == crate::trade::Reply::Accept,
+                        }),
+                        events,
+                    );
+                    continue;
+                }
+            }
+        }
         let accept = rate(game, proposal.from, proposal.to, proposal.kind) == Verdict::Accepted;
         ai.order(
             game,
@@ -696,7 +726,7 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 )
                 .is_ok();
             if made {
-                events.extend(crate::answer_proposals(game, other));
+                events.extend(crate::settle(game, me, other));
             }
         }
         // An ally joins the wars of its friend.

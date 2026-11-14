@@ -2,8 +2,9 @@
 //! worth and whether a side can hand it over.
 //!
 //! A trade is two bundles of [`Goods`]: what the proposer gives and what it gets. A bundle holds
-//! gold, a spell, an item (of the vault or the award list) and a unit (of a city, not a hero),
-//! each of them optional. The rules check that every thing can be handed over (`Game::check_proposal`);
+//! gold, a spell, an item (of the vault or the award list), a unit (of a city, not a hero) and a
+//! hero (of a city), each of them optional. A negotiation (`Proposal::round`) builds a bundle up
+//! one category at a time. The rules check that every thing can be handed over (`Game::check_proposal`);
 //! the worth below is for whoever decides, a human or an AI, and the same for both.
 //!
 //! **The baseline** is one gold = one research point = one production = one mana. A spell is its
@@ -13,7 +14,9 @@
 //! - a spell is worth more with more books in its realm;
 //! - an item is worth more when a hero of the holder has a free slot it fits, a little more when
 //!   a hero has a slot for it that is taken, and half when no hero could use it;
-//! - a unit is worth more to a wizard at war.
+//! - a unit is worth more to a wizard at war, and more for every level and every part of a level
+//!   it has earned (a quarter of its cost for a level, the hire price of a hero is the same
+//!   rule); a hero is worth its hire cost the same way, plus the items it carries.
 //!
 //! Tests: in diplomacy/tests.rs.
 
@@ -54,6 +57,10 @@ pub struct Goods {
     /// A unit that is not a hero, standing in a city of the giver, by creation number.
     #[serde(default)]
     pub unit: Option<Serial>,
+    /// A hero that stands in a city of the giver, by creation number. It keeps its level,
+    /// experience and the items it carries.
+    #[serde(default)]
+    pub hero: Option<Serial>,
 }
 
 impl Goods {
@@ -62,6 +69,7 @@ impl Goods {
         spell: None,
         item: None,
         unit: None,
+        hero: None,
     };
 
     pub fn gold(amount: i32) -> Goods {
@@ -92,13 +100,36 @@ impl Goods {
         }
     }
 
+    pub fn hero(hero: Serial) -> Goods {
+        Goods {
+            hero: Some(hero),
+            ..Goods::NONE
+        }
+    }
+
+    /// The same bundle with `other`'s parts added where this one has none (a counter that adds a
+    /// category). A category both hold keeps this one's.
+    pub fn with(self, other: Goods) -> Goods {
+        Goods {
+            gold: if self.gold > 0 { self.gold } else { other.gold },
+            spell: self.spell.or(other.spell),
+            item: self.item.or(other.item),
+            unit: self.unit.or(other.unit),
+            hero: self.hero.or(other.hero),
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         *self == Goods::NONE
     }
 
     /// Nothing but gold.
     pub fn is_only_gold(&self) -> bool {
-        self.gold > 0 && self.spell.is_none() && self.item.is_none() && self.unit.is_none()
+        self.gold > 0
+            && self.spell.is_none()
+            && self.item.is_none()
+            && self.unit.is_none()
+            && self.hero.is_none()
     }
 }
 
@@ -123,6 +154,20 @@ pub fn giveable_unit(view: &Game, owner: PlayerId, serial: Serial) -> Option<hec
         .and_then(|c| view.economy().city_owner(c))
         == Some(owner);
     (mine && !hero && in_city).then_some(unit)
+}
+
+/// The hero with this creation number if `owner` may give it: in its service and in one of its
+/// cities.
+pub fn giveable_hero(view: &Game, owner: PlayerId, serial: Serial) -> Option<hecs::Entity> {
+    let hero = view.units().entity_of_serial(serial)?;
+    let mine = view.units().hero_units(owner).contains(&hero);
+    let pos = view.units().unit_position(hero)?;
+    let in_city = view
+        .economy()
+        .city_at(pos)
+        .and_then(|c| view.economy().city_owner(c))
+        == Some(owner);
+    (mine && in_city).then_some(hero)
 }
 
 /// Where a unit standing at `from` appears when it is given to `receiver`: the receiver's city
@@ -179,6 +224,15 @@ pub fn can_hand_over(view: &Game, owner: PlayerId, receiver: PlayerId, goods: Go
             return false;
         }
     }
+    if let Some(hero) = goods.hero {
+        if giveable_hero(view, owner, hero)
+            .and_then(|u| view.units().unit_position(u))
+            .and_then(|from| delivery_square(view, receiver, from))
+            .is_none()
+        {
+            return false;
+        }
+    }
     true
 }
 
@@ -193,6 +247,9 @@ pub fn worth(view: &Game, holder: PlayerId, goods: Goods) -> i32 {
     }
     if let Some(unit) = goods.unit {
         total += unit_worth(view, holder, unit);
+    }
+    if let Some(hero) = goods.hero {
+        total += hero_worth(view, holder, hero);
     }
     total
 }
@@ -243,13 +300,50 @@ pub fn item_worth(view: &Game, holder: PlayerId, item: &Item) -> i32 {
     item.cost as i32 * pct / 100
 }
 
-/// A unit: its production cost, more to a wizard at war.
+/// A unit: its production cost, more for its level and experience, and more to a wizard at war.
 fn unit_worth(view: &Game, holder: PlayerId, serial: Serial) -> i32 {
     let Some(unit) = view.units().entity_of_serial(serial) else {
         return 0;
     };
     let cost = view.units().unit_def(unit).map_or(0, |d| d.cost as i32);
-    unit_cost_worth(view, holder, cost)
+    unit_cost_worth(view, holder, veteran_cost(view, unit, cost))
+}
+
+/// A hero: its hire cost, more for its level and experience, plus the items it carries, and more
+/// to a wizard at war (the items too: they fight with it).
+fn hero_worth(view: &Game, holder: PlayerId, serial: Serial) -> i32 {
+    let Some(hero) = view.units().entity_of_serial(serial) else {
+        return 0;
+    };
+    let hire = view
+        .units()
+        .unit_def(hero)
+        .and_then(|d| d.hero.as_ref())
+        .map_or(0, |h| h.hire_cost as i32);
+    let items: i32 = view
+        .items()
+        .carried(hero)
+        .iter()
+        .map(|(_, i)| i.cost as i32)
+        .sum();
+    unit_cost_worth(view, holder, veteran_cost(view, hero, hire) + items)
+}
+
+/// What a unit of this base cost is worth with the level and experience it has: a quarter of the
+/// cost for every level (the hire price of a hero grows the same way) and the part of the next
+/// quarter its points towards the next level make up.
+pub fn veteran_cost(view: &Game, unit: hecs::Entity, base: i32) -> i32 {
+    let Some(path) = view.units().unit_level_path(unit) else {
+        return base;
+    };
+    let xp = view.units().unit_experience(unit);
+    let level = path.levels.iter().rposition(|l| l.xp <= xp).unwrap_or(0);
+    let part = path.levels.get(level + 1).map_or(0, |next| {
+        let from = path.levels[level].xp;
+        let span = next.xp.saturating_sub(from).max(1);
+        (xp.saturating_sub(from).min(span) as i32) * (base / 4) / span as i32
+    });
+    base + base * level as i32 / 4 + part
 }
 
 /// A unit of this production cost to `holder`.

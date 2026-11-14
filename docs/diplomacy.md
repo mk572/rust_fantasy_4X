@@ -379,17 +379,31 @@ has seen, the treaties and the proposals.
    one research point = one production = one mana. A spell is worth its research cost (5 percent more for each book of its
    realm the holder has, at most 8), an item its value in gold (150 percent to a holder with a hero that has a free slot for it,
    100 with a hero whose slot for it is taken, 50 with no hero that could carry it), a unit its production cost (125 percent to
-   a wizard at war). The worth is for *whoever holds it*, so the same thing is worth different amounts to the two sides, and
-   the human sees the same numbers on the trade menu (`Trade` on the diplomacy screen: the prices offered are 110, 130 and 160
-   percent of a seller's worth when buying and 100, 80 and 60 percent of the buyer's when selling). The AI accepts when what it
+   a wizard at war; a unit or a hero is worth a quarter of its cost more for every level it has earned and the part of the next
+   quarter its points towards the next level make up, a hero is its hire cost, and what it carries counts). The worth is for
+   *whoever holds it*, so the same thing is worth different amounts to the two sides, and
+   the human sees the same numbers on the trade menu (the label of each thing says what it is worth to the other). The AI accepts when what it
    gets is worth at least a *margin* of what it gives: 98 percent between strangers, 95 with a pact, 90 with an alliance, less
    one point for every ten of relation and of goodwill (`trade::margin`), so allies accept a trade that is a little short of fair and
    strangers a fair one. (Each side judges by what the thing is worth to itself, so two margins over 100 would leave almost
    no trade; a first soak with 110, 103 and 95 had 0.02 trades a game.) A swap is the pair of spells that leaves the less content side
-   the most content. It offers the best of a spell swap, a spell bought or sold for gold and an item sold for gold, at a price both
-   margins allow (`trade::offer`), and never a trade that arms an enemy (`arms_enemy`). The AI neither proposes unit trades nor
-   buys items (it cannot see another wizard's vault or army) but answers them by the same rule. The human proposes
-   buying a spell, selling a spell, an item or a unit; the neutral races deal in units only.
+   the most content. It never makes a trade that arms an enemy (`arms_enemy`), and gives no unit or hero while at war, none that is the last
+   defender of a city and not its last hero (`will_give`). A bundle holds at most one of each category (so a spell, an item, a unit,
+   a hero and gold may all be in one), a hero keeps its level, experience and items, and units and heroes appear in the receiver's closest city with room.
+   **Negotiation** (the trade negotiation task). A trade may be answered with a trade of the receiver's own: `DiplomacyCommand::Counter`
+   replaces the pending proposal by one from the receiver to the proposer, one round later (`Proposal::round`, at most `MAX_ROUNDS` = 4 messages;
+   the last one can only be accepted or refused). A side left empty is an open question: *what will you give for this?*
+   (the proposer's own side is empty) or *what do you want for that?* (the other side is empty); an open trade cannot be accepted, only
+   answered with a counter or refused. The AI answers by `trade::respond`: a full offer that clears its margin is accepted; a
+   short one is countered by asking the proposer for one more category, the one that costs the proposer least and clears the gap,
+   or by asking less of itself; an open question is answered by naming a price (gold, or a thing and the gold that makes it up) or by naming
+   the thing it would give; anything else is refused. A counter is only made when the proposer, if an AI, would take it. Two AIs run the
+   rounds in one turn (`f4x_ai::settle`), a human answers on the diplomacy screen, which lists what the wizard has put (`Their Offer`: agree, change it, no deal).
+   The AI also opens with an open question for the thing of the other's that is worth the most more to it than to the other, when no
+   full offer clears both margins (`trade::open_ask`). The human puts a trade together on the `Trade` menu by adding gold, a spell, an item,
+   a unit or a hero to each side.
+   **Gold to pay with.** The AI keeps a treasury of `AIK_GOLD_RESERVE_BASE` (40) plus `AIK_GOLD_RESERVE_INCOME` (3) turns of its net gold
+   income when it buys production (`economy::gold_reserve`), so a richer wizard saves more; trades spend that stack down to 40.
 6. *Remarks and memory.* `DiplomacyCommand::Remark` (`DiplomacyEvent::Remarked`) tells the other wizard why: the human sees
    one line in the log (`diplomacy.remark_*`). `affinity` counts a treaty the other broke with it against the other
    (15), and the soak tally counts each remark (`wars on a weaker neighbour`, `appeasements`, `coalition requests`,

@@ -1,5 +1,6 @@
-//! The human side of a trade (tasks 504 and 597): the goods in words, the things the human can
-//! offer or ask for, and the prices to pick from. The worth is the core's
+//! The human side of a trade (tasks 504, 597 and the negotiation): the goods in words, a draft
+//! of what the human gives and asks, and the things and amounts to add to it, one category at a
+//! time. The worth is the core's
 //! (`f4x_core::diplomacy::trade`), the same as the AI's, so a price near the worth is one that is
 //! likely to be taken.
 
@@ -7,21 +8,76 @@ use crate::text::Args;
 use f4x_core::diplomacy::trade::{self, Goods};
 use f4x_core::player::PlayerId;
 
-use crate::view::{App, HUMAN};
+use crate::view::App;
 
-/// What the human trades in this menu.
+/// A side of the draft: what the human gives or what it asks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TradeSort {
-    BuySpell,
-    SellSpell,
-    SellItem,
-    SellUnit,
+pub(crate) enum Side {
+    Give,
+    Ask,
 }
 
-/// What a buyer offers, in percent of what the seller holds the thing to be worth.
-const BUY_PERCENTS: [i32; 3] = [110, 130, 160];
-/// What a seller asks, in percent of what the buyer holds the thing to be worth.
-const SELL_PERCENTS: [i32; 3] = [100, 80, 60];
+/// A category of goods to add.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Cat {
+    Gold,
+    Spell,
+    Item,
+    Unit,
+    Hero,
+}
+
+impl Cat {
+    pub(crate) const ALL: [Cat; 5] = [Cat::Gold, Cat::Spell, Cat::Item, Cat::Unit, Cat::Hero];
+
+    /// The key of the row that opens the category.
+    pub(crate) fn key(self) -> &'static str {
+        match self {
+            Cat::Gold => "diplomacy.trade_cat_gold",
+            Cat::Spell => "diplomacy.trade_cat_spell",
+            Cat::Item => "diplomacy.trade_cat_item",
+            Cat::Unit => "diplomacy.trade_cat_unit",
+            Cat::Hero => "diplomacy.trade_cat_hero",
+        }
+    }
+}
+
+/// The trade the human is putting together.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct Draft {
+    pub give: Goods,
+    pub ask: Goods,
+    /// The draft answers a trade the wizard has made (a counter) and not a new offer.
+    pub counter: bool,
+}
+
+impl Draft {
+    pub(crate) fn side(&self, side: Side) -> Goods {
+        match side {
+            Side::Give => self.give,
+            Side::Ask => self.ask,
+        }
+    }
+
+    /// `add` goes into the side: its category replaces what the side had of it.
+    pub(crate) fn add(&mut self, side: Side, add: Goods) {
+        let mut base = self.side(side);
+        if add.gold > 0 {
+            base.gold = add.gold;
+        }
+        base.spell = add.spell.or(base.spell);
+        base.item = add.item.or(base.item);
+        base.unit = add.unit.or(base.unit);
+        base.hero = add.hero.or(base.hero);
+        match side {
+            Side::Give => self.give = base,
+            Side::Ask => self.ask = base,
+        }
+    }
+}
+
+/// The gold amounts a side can be given.
+const GOLD_STEPS: [i32; 7] = [25, 50, 100, 200, 400, 800, 1600];
 /// The most things a list shows.
 const SHOWN: usize = 6;
 
@@ -56,15 +112,25 @@ impl App {
             }
         }
         if let Some(serial) = goods.unit {
-            if let Some(def) = self
-                .game
-                .units()
-                .entity_of_serial(serial)
-                .and_then(|u| self.game.units().unit_def(u))
-            {
-                let name = self.names.unit(def.num).to_string();
-                parts
-                    .push(self.text_with("diplomacy.goods_unit", &Args::new().text("name", &name)));
+            if let Some(unit) = self.game.units().entity_of_serial(serial) {
+                if let Some(def) = self.game.units().unit_def(unit) {
+                    let name = self.names.unit(def.num).to_string();
+                    let level = self.game.units().unit_level(unit) as i32;
+                    parts.push(self.text_with(
+                        "diplomacy.goods_unit",
+                        &Args::new().text("name", &name).count("level", level + 1),
+                    ));
+                }
+            }
+        }
+        if let Some(serial) = goods.hero {
+            if let Some(hero) = self.game.units().entity_of_serial(serial) {
+                let name = self.game.units().hero_name(hero).unwrap_or_default();
+                let level = self.game.units().unit_level(hero) as i32;
+                parts.push(self.text_with(
+                    "diplomacy.goods_hero",
+                    &Args::new().text("name", &name).count("level", level + 1),
+                ));
             }
         }
         if parts.is_empty() {
@@ -73,76 +139,93 @@ impl App {
         parts.join(&self.text("diplomacy.goods_join"))
     }
 
-    /// What the human could buy or sell of this sort: a label and the thing, the dearest first.
-    pub(crate) fn trade_things(&self, with: PlayerId, sort: TradeSort) -> Vec<(String, Goods)> {
+    /// What `owner` could hand `to` of this category: a label with its worth to the one who
+    /// would get it, and the thing, the dearest first.
+    pub(crate) fn pick_things(
+        &self,
+        owner: PlayerId,
+        to: PlayerId,
+        cat: Cat,
+    ) -> Vec<(String, Goods)> {
         let rules = &self.game.content().rules;
         let mut out: Vec<(i32, String, Goods)> = Vec::new();
-        match sort {
-            TradeSort::BuySpell | TradeSort::SellSpell => {
-                let (owner, other) = if sort == TradeSort::BuySpell {
-                    (with, HUMAN)
-                } else {
-                    (HUMAN, with)
-                };
-                let (Some(mine), Some(theirs)) = (self.game.wizard(owner), self.game.wizard(other))
-                else {
-                    return Vec::new();
-                };
-                for (id, def) in rules.spells.iter() {
-                    if mine.knows(id) && !theirs.knows(id) && theirs.books_allow(def) {
-                        let label = self.names.spell(def.num).to_string();
-                        out.push((def.research_cost as i32, label, Goods::spell(id)));
+        let mut put = |goods: Goods, label: String| {
+            let worth = trade::worth(&self.game, to, goods);
+            let label = self.text_with(
+                "diplomacy.pick_label",
+                &Args::new().text("name", &label).count("worth", worth),
+            );
+            out.push((worth, label, goods));
+        };
+        match cat {
+            Cat::Gold => {}
+            Cat::Spell => {
+                if let (Some(mine), Some(theirs)) = (self.game.wizard(owner), self.game.wizard(to))
+                {
+                    for (id, def) in rules.spells.iter() {
+                        if mine.knows(id) && !theirs.knows(id) && theirs.books_allow(def) {
+                            put(Goods::spell(id), self.names.spell(def.num).to_string());
+                        }
                     }
                 }
             }
-            TradeSort::SellItem => {
+            Cat::Item => {
                 for (entity, item) in self.game.items().held(|h| {
                     matches!(h,
                         f4x_core::item::entity::HeldBy::Vault(p, _)
-                        | f4x_core::item::entity::HeldBy::Award(p) if p == HUMAN)
+                        | f4x_core::item::entity::HeldBy::Award(p) if p == owner)
                 }) {
-                    let label = self.names.item_name(&item, &self.texts);
-                    out.push((
-                        item.cost as i32,
-                        label,
+                    put(
                         Goods::item(self.game.serial_of(entity)),
-                    ));
+                        self.names.item_name(&item, &self.texts),
+                    );
                 }
             }
-            TradeSort::SellUnit => {
-                for unit in self.game.units().player_units(HUMAN) {
+            Cat::Unit => {
+                for unit in self.game.units().player_units(owner) {
                     let serial = self.game.serial_of(unit);
-                    if trade::giveable_unit(&self.game, HUMAN, serial).is_none() {
+                    if trade::giveable_unit(&self.game, owner, serial).is_none() {
                         continue;
                     }
                     if let Some(def) = self.game.units().unit_def(unit) {
-                        out.push((
-                            def.cost as i32,
-                            self.names.unit(def.num).to_string(),
+                        let level = self.game.units().unit_level(unit) + 1;
+                        put(
                             Goods::unit(serial),
-                        ));
+                            format!("{} {level}", self.names.unit(def.num)),
+                        );
                     }
                 }
             }
+            Cat::Hero => {
+                for hero in self.game.units().hero_units(owner) {
+                    let serial = self.game.serial_of(hero);
+                    if trade::giveable_hero(&self.game, owner, serial).is_none() {
+                        continue;
+                    }
+                    let name = self.game.units().hero_name(hero).unwrap_or_default();
+                    let level = self.game.units().unit_level(hero) + 1;
+                    put(Goods::hero(serial), format!("{name} {level}"));
+                }
+            }
         }
-        out.sort_by_key(|(cost, label, _)| (std::cmp::Reverse(*cost), label.clone()));
+        out.retain(|(_, _, g)| trade::can_hand_over(&self.game, owner, to, *g));
+        out.sort_by_key(|(worth, label, _)| (std::cmp::Reverse(*worth), label.clone()));
         out.into_iter()
             .take(SHOWN)
             .map(|(_, label, goods)| (label, goods))
             .collect()
     }
 
-    /// The gold prices offered for `thing`, with a worth the other holds it to have: a buyer
-    /// offers more than the seller's worth, a seller asks less than the buyer's.
-    pub(crate) fn trade_prices(&self, with: PlayerId, thing: Goods, buying: bool) -> Vec<i32> {
-        let (percents, holder) = if buying {
-            (BUY_PERCENTS, with)
-        } else {
-            (SELL_PERCENTS, with)
-        };
-        let worth = trade::worth(&self.game, holder, thing);
-        let mut prices: Vec<i32> = percents.iter().map(|p| (worth * p / 100).max(1)).collect();
-        prices.dedup();
-        prices
+    /// The gold amounts to pick from.
+    pub(crate) fn gold_steps(&self) -> [i32; 7] {
+        GOLD_STEPS
+    }
+
+    /// Whether `owner` has any of the category to hand over.
+    pub(crate) fn can_pick(&self, owner: PlayerId, to: PlayerId, cat: Cat) -> bool {
+        match cat {
+            Cat::Gold => true,
+            _ => !self.pick_things(owner, to, cat).is_empty(),
+        }
     }
 }

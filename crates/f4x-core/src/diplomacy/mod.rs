@@ -188,7 +188,12 @@ pub struct Proposal {
     pub from: PlayerId,
     pub to: PlayerId,
     pub kind: ProposalKind,
+    /// How many times a trade has been countered on the way here (0: the first offer).
+    pub round: u8,
 }
+
+/// The most messages a negotiation takes: the offer and the counters that follow it.
+pub const MAX_ROUNDS: u8 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiplomacyError {
@@ -252,6 +257,12 @@ pub enum DiplomacyEvent {
         treaty: Treaty,
     },
     ProposalMade(Proposal),
+    /// The receiver of `old` answered a trade with another one, `new`, which now waits for the
+    /// first proposer.
+    ProposalCountered {
+        old: Proposal,
+        new: Proposal,
+    },
     ProposalAnswered {
         proposal: Proposal,
         accepted: bool,
@@ -304,6 +315,13 @@ pub enum DiplomacyCommand {
         player: PlayerId,
         from: PlayerId,
         accept: bool,
+    },
+    /// The receiver answers the trade `from` made it with a trade of its own: what it would give
+    /// and what it would ask. An empty side is an open question (what would you give for this?).
+    Counter {
+        player: PlayerId,
+        from: PlayerId,
+        kind: ProposalKind,
     },
     /// End a pact or alliance (the oath breaker's penalties follow).
     BreakTreaty {
@@ -493,6 +511,11 @@ pub enum Outcome {
     Unit {
         to: PlayerId,
         unit: crate::game::serial::Serial,
+    },
+    /// A hero changes owner the same way, with its experience and its items.
+    Hero {
+        to: PlayerId,
+        hero: crate::game::serial::Serial,
     },
     /// Move gold from one wizard's treasury to another's.
     Gold {
@@ -1005,9 +1028,9 @@ impl Diplomacy {
                     && self.treaty(to, third) == Treaty::Alliance
             }
             ProposalKind::Trade { give, get } => {
+                // An empty side is an open question to be answered with a counter.
                 status != Treaty::War
-                    && !give.is_empty()
-                    && !get.is_empty()
+                    && !(give.is_empty() && get.is_empty())
                     && !(give.is_only_gold() && get.is_only_gold())
                     // Each side can hand over its part (the books for a spell, a vault for an
                     // item, a city for a unit, a treasury for gold).
@@ -1033,9 +1056,54 @@ impl Diplomacy {
         if self.proposals.iter().any(|p| p.from == from && p.to == to) {
             return Err(DiplomacyError::AlreadyPending);
         }
-        let proposal = Proposal { from, to, kind };
+        let proposal = Proposal {
+            from,
+            to,
+            kind,
+            round: 0,
+        };
         self.proposals.push(proposal);
         self.queue.push(DiplomacyEvent::ProposalMade(proposal));
+        Ok(())
+    }
+
+    /// The receiver of a trade answers with a trade of its own (a negotiation, `MAX_ROUNDS`).
+    fn counter(
+        &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
+        player: PlayerId,
+        from: PlayerId,
+        kind: ProposalKind,
+    ) -> Result<(), DiplomacyError> {
+        let at = self
+            .proposals
+            .iter()
+            .position(|p| p.from == from && p.to == player)
+            .ok_or(DiplomacyError::NothingPending)?;
+        let old = self.proposals[at];
+        let both_trades = matches!(old.kind, ProposalKind::Trade { .. })
+            && matches!(kind, ProposalKind::Trade { .. });
+        if !both_trades || old.round + 1 >= MAX_ROUNDS {
+            return Err(DiplomacyError::NotAllowed);
+        }
+        self.check_proposal(ctx.view, player, from, kind)?;
+        if self
+            .proposals
+            .iter()
+            .any(|p| p.from == player && p.to == from)
+        {
+            return Err(DiplomacyError::AlreadyPending);
+        }
+        self.proposals.remove(at);
+        let new = Proposal {
+            from: player,
+            to: from,
+            kind,
+            round: old.round + 1,
+        };
+        self.proposals.push(new);
+        self.queue
+            .push(DiplomacyEvent::ProposalCountered { old, new });
         Ok(())
     }
 
@@ -1052,6 +1120,13 @@ impl Diplomacy {
             .iter()
             .position(|p| p.from == from && p.to == player)
             .ok_or(DiplomacyError::NothingPending)?;
+        // An open trade (one side empty) is not a deal: it can only be countered or turned down.
+        if accept
+            && matches!(self.proposals[at].kind, ProposalKind::Trade { give, get }
+                if give.is_empty() || get.is_empty())
+        {
+            return Err(DiplomacyError::NotAllowed);
+        }
         let proposal = self.proposals.remove(at);
         // Asking wears down the receiver's patience with the asker, whoever answers and
         // whatever the answer is (the original does it inside the AI's rating, and not for a
@@ -1161,6 +1236,9 @@ impl Diplomacy {
         if let Some(unit) = goods.unit {
             ctx.out.push(Outcome::Unit { to, unit });
         }
+        if let Some(hero) = goods.hero {
+            ctx.out.push(Outcome::Hero { to, hero });
+        }
     }
 
     fn give_gold(
@@ -1259,7 +1337,9 @@ impl Diplomacy {
     ) -> Vec<Event> {
         // A banished wizard starts nothing with the others; it may still answer an offer.
         let actor = match command {
-            DiplomacyCommand::Greeted { .. } | DiplomacyCommand::Answer { .. } => None,
+            DiplomacyCommand::Greeted { .. }
+            | DiplomacyCommand::Answer { .. }
+            | DiplomacyCommand::Counter { .. } => None,
             DiplomacyCommand::BreakTreaty { player, .. }
             | DiplomacyCommand::DeclareWar { player, .. } => Some(player),
             DiplomacyCommand::Propose { from, .. }
@@ -1291,6 +1371,9 @@ impl Diplomacy {
                 from,
                 accept,
             } => self.answer(ctx, player, from, accept),
+            DiplomacyCommand::Counter { player, from, kind } => {
+                self.counter(ctx, player, from, kind)
+            }
             DiplomacyCommand::BreakTreaty { player, with } => {
                 if matches!(self.treaty(player, with), Treaty::Pact | Treaty::Alliance) {
                     self.break_treaties(ctx, player, with);
@@ -1851,6 +1934,7 @@ impl Game {
                 Outcome::Spell { player, spell } => self.learn_spell(player, spell),
                 Outcome::Item { from, to, item } => self.pass_item(from, to, item),
                 Outcome::Unit { to, unit } => self.pass_unit(to, unit),
+                Outcome::Hero { to, hero } => self.pass_hero(to, hero),
                 Outcome::DropCityCurses { a, b } => self.drop_city_curses(a, b),
             }
         }
@@ -1882,6 +1966,12 @@ impl Game {
         self.set_owner(unit, to);
         let _ = self.world.insert_one(unit, at);
         let _ = self.world.remove_one::<crate::unit::Order>(unit);
+    }
+
+    /// A hero of a city goes to `to` (a trade): like a unit, and it keeps its experience and
+    /// the items it carries.
+    fn pass_hero(&mut self, to: PlayerId, serial: crate::game::serial::Serial) {
+        self.pass_unit(to, serial);
     }
 
     /// Take off every city the spells that `a` and `b` cast on each other's cities.
@@ -2084,6 +2174,8 @@ pub struct ProposalSave {
     pub from: u8,
     pub to: u8,
     pub kind: KindSave,
+    #[serde(default)]
+    pub round: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2129,6 +2221,7 @@ impl Diplomacy {
                 .map(|p| ProposalSave {
                     from: p.from.0,
                     to: p.to.0,
+                    round: p.round,
                     kind: match p.kind {
                         ProposalKind::Pact => KindSave::Pact,
                         ProposalKind::Alliance => KindSave::Alliance,
@@ -2177,6 +2270,7 @@ impl Diplomacy {
                     from: PlayerId(p.from),
                     to: PlayerId(p.to),
                     kind,
+                    round: p.round,
                 }
             })
             .collect();

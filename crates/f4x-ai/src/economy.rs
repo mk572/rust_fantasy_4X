@@ -5,6 +5,7 @@ use f4x_core::city::production::ProductionItem;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::player::PlayerId;
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::Ability;
 
@@ -400,11 +401,21 @@ fn plan_for(
     }
 }
 
+/// The gold the wizard keeps in the treasury when it buys production: a base and some turns of
+/// its net income, so that a richer wizard saves more and has something to pay a trade with
+/// (`AIK_GOLD_RESERVE_BASE`, `AIK_GOLD_RESERVE_INCOME`).
+pub(crate) fn gold_reserve(game: &Game, me: PlayerId) -> i32 {
+    let net = PlayerView::new(game, me).budget().net_gold().floor().max(0);
+    let base = crate::knob("GOLD_RESERVE_BASE", 40.0) as i32;
+    let turns = crate::knob("GOLD_RESERVE_INCOME", 3.0) as i32;
+    base + turns * net
+}
+
 /// Buy what is being built when the treasury has gold to spare, settlers and the first
 /// guard of each city before the rest.
 fn spend_gold(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    const RESERVE: i32 = 40;
+    let reserve = gold_reserve(game, me);
     let wanted = {
         let view = PlayerView::new(game, me);
         let mut wanted: Vec<(u32, HalfInt, hecs::Entity)> = Vec::new();
@@ -428,7 +439,7 @@ fn spend_gold(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     for (_, cost, city) in wanted {
         let gold = PlayerView::new(game, me).treasury().gold;
-        if gold - cost >= RESERVE {
+        if gold - cost >= HalfInt::from_int(reserve) {
             ai.order(game, Command::BuyProduction { city }, events);
         }
     }
