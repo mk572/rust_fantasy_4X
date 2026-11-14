@@ -504,7 +504,7 @@ pub(crate) mod tests {
     #[test]
     fn a_hero_has_mana_from_skill_level_and_items_and_half_of_it_helps_at_the_fortress(
     ) -> TestResult {
-        use crate::item::{Item, ItemBonus};
+        use crate::item::Item;
         use crate::rules::ItemKind;
         let mut g = world();
         g.wiz_mut(0)
@@ -522,31 +522,30 @@ pub(crate) mod tests {
         assert_eq!(g.units().hero_mana(h), 3 * level * 5 / 2);
         // An item's spell skill adds to it.
         let before = g.units().hero_mana(h);
-        let staff = Item {
-            name: "Staff".into(),
-            kind: ItemKind::Staff,
-            cost: 100,
-            icon: 0,
-            bonus: ItemBonus {
-                spell_skill: 7,
-                ..ItemBonus::default()
-            },
-            powers: Vec::new(),
-            charges: None,
-            prefab: None,
-            made: None,
+        // A shipped staff with spell skill adds it to the hero's mana.
+        let staff = {
+            let content = shipped();
+            let (_, def) = content
+                .rules
+                .items
+                .iter()
+                .filter(|(_, d)| d.kind == ItemKind::Staff && d.spell_skill > 0)
+                .min_by_key(|(_, d)| d.num)
+                .expect("the content has a staff with spell skill");
+            Item::from_def(def)
         };
+        let skill = staff.bonus.spell_skill;
         g.arm_hero(h, [Some(staff), None, None]);
-        assert_eq!(g.units().hero_mana(h), before + 7);
+        assert_eq!(g.units().hero_mana(h), before + skill);
         // Away from the fortress the hero adds nothing; another wizard's hero never does.
-        assert_eq!(g.hero_casting_skill(P0), (before + 7) / 2);
+        assert_eq!(g.hero_casting_skill(P0), (before + skill) / 2);
         // The Beastmaster has casting skill 1: (1 + 1) * 1 * 5 / 2.
         let beast = kind_of(&g, 4 /* beastmaster */);
         let away = g
             .spawn_hero(P0, at(5, 5), beast)
             .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.units().hero_mana(away), 5);
-        assert_eq!(g.hero_casting_skill(P0), (before + 7) / 2);
+        assert_eq!(g.hero_casting_skill(P0), (before + skill) / 2);
         assert_eq!(g.hero_casting_skill(P1), 0);
         // A hero with no casting skill has no mana, whatever its items.
         g.world.get::<&mut Hero>(away)?.casting_skill = 0;
@@ -878,18 +877,17 @@ pub(crate) mod tests {
         Ok(())
     }
 
+    /// A shipped sword, the first one of the content.
     fn sword() -> crate::item::Item {
-        crate::item::Item {
-            name: "Sword".into(),
-            kind: crate::rules::ItemKind::Sword,
-            cost: 100,
-            icon: 0,
-            bonus: crate::item::ItemBonus::default(),
-            powers: Vec::new(),
-            charges: None,
-            prefab: None,
-            made: None,
-        }
+        let content = shipped();
+        let (_, def) = content
+            .rules
+            .items
+            .iter()
+            .filter(|(_, d)| d.kind == crate::rules::ItemKind::Sword)
+            .min_by_key(|(_, d)| d.num)
+            .expect("the content has a sword");
+        crate::item::Item::from_def(def)
     }
 
     fn armed_hero(g: &mut Game, owner: PlayerId) -> hecs::Entity {
@@ -914,7 +912,7 @@ pub(crate) mod tests {
         let events = g.drain_item_awards();
         assert!(matches!(
             events.as_slice(),
-            [Event::ItemsAwarded { player, items, lost: 0 }] if *player == P0 && items == &["Sword"]
+            [Event::ItemsAwarded { player, items, lost: 0 }] if *player == P0 && items.len() == 1
         ));
         let gone = armed_hero(&mut g, P0);
         g.remove_unit(gone, Fate::Gone);

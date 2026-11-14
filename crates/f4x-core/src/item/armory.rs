@@ -381,7 +381,6 @@ impl Game {
 mod tests {
     use super::*;
     use crate::game::testutil::{num, shipped};
-    use crate::item::ItemBonus;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::{HeroKind, ItemKind};
     use f4x_def::testdir::TestResult;
@@ -397,18 +396,31 @@ mod tests {
         }
     }
 
-    fn item(name: &str, kind: ItemKind) -> Item {
-        Item {
-            name: name.into(),
-            kind,
-            cost: 100,
-            icon: 0,
-            bonus: ItemBonus::default(),
-            powers: Vec::new(),
-            charges: None,
-            prefab: None,
-            made: None,
-        }
+    /// A shipped item of this kind with no special power, the cheapest one.
+    fn item(_what: &str, kind: ItemKind) -> Item {
+        let content = shipped();
+        let (_, def) = content
+            .rules
+            .items
+            .iter()
+            .filter(|(_, d)| d.kind == kind && d.powers.is_empty() && d.charges.is_none())
+            .min_by_key(|(_, d)| (d.cost, d.num))
+            .unwrap_or_else(|| panic!("the content has a plain {kind:?} item"));
+        Item::from_def(def)
+    }
+
+    /// A shipped item of this kind that has the item power numbered `power`.
+    fn item_with_power(kind: ItemKind, power: u16) -> Item {
+        let content = shipped();
+        let id = crate::rules::ItemPowerId::new(power);
+        let (_, def) = content
+            .rules
+            .items
+            .iter()
+            .filter(|(_, d)| d.kind == kind && d.powers.contains(&id))
+            .min_by_key(|(_, d)| (d.cost, d.num))
+            .unwrap_or_else(|| panic!("the content has a {kind:?} item with power {power}"));
+        Item::from_def(def)
     }
 
     /// Row 4 of a 14x8 map is grass up to x4, then sea to x9. A warrior hero and a mage hero.
@@ -479,14 +491,14 @@ mod tests {
     #[test]
     fn the_anvil_gives_half_the_value_in_mana() {
         let mut g = world();
-        let mut staff = item("Staff", ItemKind::Staff);
-        staff.cost = 900;
+        let staff = item("Staff", ItemKind::Staff);
+        let half = (staff.cost / 2) as i32;
         g.give_item(P0, staff);
         assert_eq!(
             g.scrap_item(P0, Spot::Vault(0)).map(|(_, mana)| mana),
-            Ok(450)
+            Ok(half)
         );
-        assert_eq!(g.tr(0).mana, 550);
+        assert_eq!(g.tr(0).mana, 100 + half);
         assert_eq!(
             g.scrap_item(P0, Spot::Vault(0)),
             Err(ItemError::Empty),
@@ -621,16 +633,16 @@ mod tests {
                 .flatten()
                 .as_ref()
                 .ok_or("as_ref is missing")?
-                .name,
-            "Sword"
+                .kind,
+            ItemKind::Sword
         );
-        assert_eq!(g.items().carried(w)[0].1.name, "Axe");
+        assert_eq!(g.items().carried(w)[0].1.kind, ItemKind::Axe);
         // Armour does not go in the sword slot, and nothing changes.
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(2), ItemSpot::Hero(w, 0), false),
             Err(ItemError::WrongSlot)
         );
-        assert_eq!(g.items().carried(w)[0].1.name, "Axe");
+        assert_eq!(g.items().carried(w)[0].1.kind, ItemKind::Axe);
         assert_eq!(
             g.items()
                 .armory(P0)
@@ -640,8 +652,8 @@ mod tests {
                 .flatten()
                 .as_ref()
                 .ok_or("as_ref is missing")?
-                .name,
-            "Plate"
+                .kind,
+            ItemKind::Platemail
         );
         Ok(())
     }
@@ -718,9 +730,7 @@ mod tests {
         let mut g = world();
         // The hero stands on the sea with Flight in a misc slot; it is not a flier itself.
         let m = hero(&mut g, 0 /* dwarf */, at(6, 4));
-        let mut boots = item("Boots", ItemKind::Misc);
-        boots.powers = vec![crate::rules::ItemPowerId::new(63) /* flight */];
-        g.give_item(P0, boots);
+        g.give_item(P0, item_with_power(ItemKind::Misc, 63 /* flight */));
         g.wiz_mut(0)
             .put(Some(crate::wizard::fortress::Fortress(at(6, 4))));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(m, 2), false)
@@ -738,10 +748,7 @@ mod tests {
     fn the_vault_the_award_list_and_a_heros_items_are_saved() -> TestResult {
         let mut g = world();
         let w = hero(&mut g, 0 /* dwarf */, at(1, 1));
-        let mut sword = item("Sword", ItemKind::Sword);
-        sword.bonus.attack = 2;
-        sword.powers = vec![crate::rules::ItemPowerId::new(33) /* flaming */];
-        g.give_item(P0, sword);
+        g.give_item(P0, item_with_power(ItemKind::Sword, 33 /* flaming */));
         g.give_item(P0, item("Ring", ItemKind::Misc));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(w, 0), false)
             .map_err(|e| format!("{e:?}"))?;
@@ -894,7 +901,7 @@ mod tests {
             false,
         )
         .map_err(|e| format!("{e:?}"))?;
-        assert_eq!(swap.other.as_ref().map(|i| i.name.as_str()), Some("Old"));
+        assert_eq!(swap.other.as_ref().map(|i| i.kind), Some(ItemKind::Sword));
         // Heroes on one square trade for free; the sword cannot go into a misc slot.
         let trade = plan_move(
             &w,

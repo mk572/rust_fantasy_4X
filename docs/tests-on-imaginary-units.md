@@ -15,7 +15,7 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 24 tests. Part 2: 90 tests. Of 2160 in all.**
+**Part 1: 24 tests. Part 2: 61 tests. Of 2160 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
@@ -89,10 +89,7 @@ Helpers that make things up: `m` (line 280).
 | File | Tests |
 |---|---|
 | `crates/f4x-core/src/feature/lair/tests.rs` | 19 |
-| `crates/f4x-core/src/item/armory.rs` | 14 |
-| `crates/f4x-core/src/item/mod.rs` | 9 |
 | `crates/f4x-core/src/battle/tests.rs` | 8 |
-| `crates/f4x-core/src/hero/game.rs` | 7 |
 | `crates/f4x-core/src/threat/tests.rs` | 7 |
 | `crates/f4x-core/src/city/mod.rs` | 5 |
 | `crates/f4x-core/src/player/offer/tests.rs` | 3 |
@@ -103,6 +100,7 @@ Helpers that make things up: `m` (line 280).
 | `crates/f4x-core/src/wizard/magic_command/tests.rs` | 2 |
 | `crates/f4x-ai/src/monster.rs` | 1 |
 | `crates/f4x-core/src/game/tests.rs` | 1 |
+| `crates/f4x-core/src/hero/game.rs` | 1 |
 | `crates/f4x-core/src/spell/global_enchantment.rs` | 1 |
 | `crates/f4x-core/src/spell/wizard/tests.rs` | 1 |
 | `crates/f4x-core/src/wizard/fortress/tests.rs` | 1 |
@@ -199,56 +197,11 @@ Helpers that make things up: `lair` (line 68), `put_lair` (line 45), `rich_lair`
 |---|---|---|---|---|
 | `strip_on_an_entity_that_is_gone_stops_a_debug_build` | 51 | hand-built entity (`spawn` with components) | itself | |
 
-## `crates/f4x-core/src/hero/game.rs` (7)
-
-Helpers that make things up: `armed_hero` (line 895), `sword` (line 881).
+## `crates/f4x-core/src/hero/game.rs` (1)
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_hero_has_mana_from_skill_level_and_items_and_half_of_it_helps_at_the_fortress` | 505 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `a_hero_let_go_can_be_hired_by_anyone_with_the_experience_it_has` | 725 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `the_items_of_a_slain_hero_go_to_its_wizard_and_those_of_a_gone_one_are_destroyed` | 909 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `armed_hero` | |
-| `dismissing_a_hero_lets_it_go_and_keeps_its_items` | 926 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `armed_hero` | |
-| `the_victor_takes_the_items_of_a_hero_that_fell_in_a_battle_unless_it_is_the_monsters` | 942 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `armed_hero` | |
-| `an_armory_with_many_items_loses_nothing` | 969 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `sword`, `armed_hero` | |
-| `a_hero_killed_in_a_battle_leaves_its_items_to_the_winner` | 986 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `armed_hero` | |
-
-## `crates/f4x-core/src/item/armory.rs` (14)
-
-Helpers that make things up: `fake` (line 809), `item` (line 400), `vault_with` (line 829).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `the_vault_has_no_limit_and_items_fill_the_first_free_slot` | 454 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `the_anvil_gives_half_the_value_in_mana` | 480 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `a_scrap_that_cannot_be_paid_leaves_the_item_where_it_is` | 498 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `a_sale_that_cannot_be_paid_leaves_the_item_where_it_is` | 513 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `a_hero_takes_what_fits_its_slots` | 556 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `a_mage_has_a_staff_slot_and_two_misc_slots` | 584 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `a_full_slot_swaps_with_the_item_put_in_it` | 605 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `a_hero_far_from_the_fortress_costs_mana` | 650 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `two_heroes_on_one_square_trade_for_free` | 678 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `the_heroes_of_another_wizard_are_out_of_reach` | 699 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `an_item_that_keeps_a_hero_afloat_cannot_be_taken_away` | 717 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `the_vault_the_award_list_and_a_heros_items_are_saved` | 738 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `the_rules_need_no_game_to_allow_or_refuse_a_move` | 841 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `fake`, `vault_with` | |
-| `a_swap_must_fit_the_old_place_and_the_cost_needs_consent_and_mana` | 883 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `fake`, `vault_with` | |
-
-## `crates/f4x-core/src/item/mod.rs` (9)
-
-Helpers that make things up: `item` (line 399).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `the_slot_follows_the_kind` | 423 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `a_sword_adds_attack_to_melee_only` | 432 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `a_bow_needs_arrows_and_a_staff_needs_magic` | 444 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `a_misc_item_counts_for_both_attacks` | 460 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `a_thrown_axe_counts_for_the_ranged_attack` | 472 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `flaming_and_giant_strength_add_to_the_blow` | 485 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `defence_resistance_and_moves_count_for_every_item` | 505 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `powers_become_lasting_spells_and_attacks` | 518 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `the_anvil_gives_half_the_value` | 546 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
+| `a_hero_let_go_can_be_hired_by_anyone_with_the_experience_it_has` | 724 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
 
 ## `crates/f4x-core/src/player/offer/tests.rs` (3)
 

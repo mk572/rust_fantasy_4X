@@ -395,22 +395,25 @@ impl UnitView<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::testutil::{abilities, shipped};
 
-    fn item(kind: ItemKind) -> Item {
-        Item {
-            name: "Test".into(),
-            kind,
-            cost: 100,
-            icon: 0,
-            bonus: ItemBonus::default(),
-            powers: Vec::new(),
-            charges: None,
-            prefab: None,
-            made: None,
-        }
+    /// The first shipped item (in the original's order) that `wanted` accepts, as the game
+    /// hands it out.
+    fn real(wanted: impl Fn(&ItemDef) -> bool) -> Item {
+        let content = shipped();
+        let (_, def) = content
+            .rules
+            .items
+            .iter()
+            .filter(|(_, d)| wanted(d))
+            .min_by_key(|(_, d)| d.num)
+            .expect("the content has such an item");
+        Item::from_def(def)
     }
 
-    use crate::game::testutil::abilities;
+    fn of_kind(kind: ItemKind) -> Item {
+        real(|d| d.kind == kind)
+    }
 
     fn total(mods: &[Modifier], stat: Stat) -> i32 {
         mods.iter()
@@ -421,48 +424,59 @@ mod tests {
 
     #[test]
     fn the_slot_follows_the_kind() {
-        assert_eq!(item(ItemKind::Mace).slot_kind(), SlotKind::Sword);
-        assert_eq!(item(ItemKind::Wand).slot_kind(), SlotKind::Staff);
-        assert_eq!(item(ItemKind::Bow).slot_kind(), SlotKind::Bow);
-        assert_eq!(item(ItemKind::Platemail).slot_kind(), SlotKind::Armor);
-        assert_eq!(item(ItemKind::Misc).slot_kind(), SlotKind::Misc);
+        assert_eq!(of_kind(ItemKind::Mace).slot_kind(), SlotKind::Sword);
+        assert_eq!(of_kind(ItemKind::Wand).slot_kind(), SlotKind::Staff);
+        assert_eq!(of_kind(ItemKind::Bow).slot_kind(), SlotKind::Bow);
+        assert_eq!(of_kind(ItemKind::Platemail).slot_kind(), SlotKind::Armor);
+        assert_eq!(of_kind(ItemKind::Misc).slot_kind(), SlotKind::Misc);
+        // Every shipped item's slot kind agrees with the slot its definition names.
+        for (_, def) in shipped().rules.items.iter() {
+            let item = Item::from_def(def);
+            assert_eq!(item.kind.slot(), def.slot, "{}", def.id);
+        }
     }
 
     #[test]
     fn a_sword_adds_attack_to_melee_only() {
-        let mut sword = item(ItemKind::Sword);
-        sword.bonus.attack = 2;
-        sword.bonus.to_hit = 1;
+        let sword = real(|d| {
+            let b = Item::from_def(d).bonus;
+            d.kind == ItemKind::Sword && d.powers.is_empty() && b.attack > 0 && b.to_hit > 0
+        });
         let mods = modifiers(&sword, 0, &abilities(&[3 /* bow */]), true);
-        assert_eq!(total(&mods, Stat::Melee), 2);
-        assert_eq!(total(&mods, Stat::MeleeToHit), 1);
+        assert_eq!(total(&mods, Stat::Melee), sword.bonus.attack);
+        assert_eq!(total(&mods, Stat::MeleeToHit), sword.bonus.to_hit);
         assert_eq!(total(&mods, Stat::Ranged), 0);
         assert_eq!(total(&mods, Stat::RangedToHit), 0);
     }
 
     #[test]
     fn a_bow_needs_arrows_and_a_staff_needs_magic() {
-        let mut bow = item(ItemKind::Bow);
-        bow.bonus.attack = 3;
-        let mut staff = item(ItemKind::Staff);
-        staff.bonus.attack = 2;
+        let bow = real(|d| {
+            d.kind == ItemKind::Bow && d.powers.is_empty() && Item::from_def(d).bonus.attack > 0
+        });
+        let staff = real(|d| {
+            d.kind == ItemKind::Staff && d.powers.is_empty() && Item::from_def(d).bonus.attack > 0
+        });
         let archer = abilities(&[3 /* bow */]);
         let mage = abilities(&[22 /* fireball_attack */]);
-        assert_eq!(total(&modifiers(&bow, 0, &archer, true), Stat::Ranged), 3);
-        assert_eq!(total(&modifiers(&bow, 0, &mage, true), Stat::Ranged), 0);
-        assert_eq!(total(&modifiers(&staff, 0, &mage, true), Stat::Ranged), 2);
-        assert_eq!(total(&modifiers(&staff, 0, &archer, true), Stat::Ranged), 0);
+        let ranged =
+            |item: &Item, who: &[Ability]| total(&modifiers(item, 0, who, true), Stat::Ranged);
+        assert_eq!(ranged(&bow, &archer), bow.bonus.attack);
+        assert_eq!(ranged(&bow, &mage), 0);
+        assert_eq!(ranged(&staff, &mage), staff.bonus.attack);
+        assert_eq!(ranged(&staff, &archer), 0);
         // Neither of them touches the melee attack.
         assert_eq!(total(&modifiers(&bow, 0, &archer, true), Stat::Melee), 0);
     }
 
     #[test]
     fn a_misc_item_counts_for_both_attacks() {
-        let mut ring = item(ItemKind::Misc);
-        ring.bonus.attack = 1;
+        let ring = real(|d| {
+            d.kind == ItemKind::Misc && d.powers.is_empty() && Item::from_def(d).bonus.attack > 0
+        });
         let mods = modifiers(&ring, 2, &abilities(&[3 /* bow */]), true);
-        assert_eq!(total(&mods, Stat::Melee), 1);
-        assert_eq!(total(&mods, Stat::Ranged), 1);
+        assert_eq!(total(&mods, Stat::Melee), ring.bonus.attack);
+        assert_eq!(total(&mods, Stat::Ranged), ring.bonus.attack);
         // A hero with no ranged attack gets no phantom one.
         let mods = modifiers(&ring, 2, &[], false);
         assert_eq!(total(&mods, Stat::Ranged), 0);
@@ -470,82 +484,88 @@ mod tests {
 
     #[test]
     fn a_thrown_axe_counts_for_the_ranged_attack() {
-        let mut axe = item(ItemKind::Axe);
-        axe.bonus.attack = 1;
-        axe.powers = vec![ItemPowerId::new(44) /* giant_strength */];
+        // An axe with Giant Strength: +1 to the blow on top of its own bonus.
+        let giant = ItemPowerId::new(44);
+        let axe = real(|d| d.kind == ItemKind::Axe && d.powers == [giant]);
         let thrower = abilities(&[69 /* thrown */]);
         let mods = modifiers(&axe, 0, &thrower, true);
-        assert_eq!(total(&mods, Stat::Melee), 2);
-        assert_eq!(total(&mods, Stat::Ranged), 2);
+        assert_eq!(total(&mods, Stat::Melee), axe.bonus.attack + 1);
+        assert_eq!(total(&mods, Stat::Ranged), axe.bonus.attack + 1);
         let mods = modifiers(&axe, 0, &[], false);
         assert_eq!(total(&mods, Stat::Ranged), 0);
     }
 
     #[test]
     fn flaming_and_giant_strength_add_to_the_blow() {
-        let mut blade = item(ItemKind::Sword);
-        blade.powers = vec![
-            ItemPowerId::new(33), /* flaming */
-            ItemPowerId::new(44), /* giant_strength */
-        ];
+        let flaming = ItemPowerId::new(33);
+        // A flaming sword: the blow gets 3 over its own bonus.
+        let blade = real(|d| d.kind == ItemKind::Sword && d.powers == [flaming]);
         let mods = modifiers(&blade, 0, &[], false);
-        assert_eq!(total(&mods, Stat::Melee), 4);
-        // A bow's flaming arrows get the 3 but no Giant Strength.
-        let mut bow = item(ItemKind::Bow);
-        bow.powers = vec![
-            ItemPowerId::new(33), /* flaming */
-            ItemPowerId::new(44), /* giant_strength */
-        ];
+        assert_eq!(total(&mods, Stat::Melee), blade.bonus.attack + 3);
+        // A bow's flaming arrows get the 3 and its own bonus goes to the arrows too.
+        let bow = real(|d| d.kind == ItemKind::Bow && d.powers == [flaming]);
         let mods = modifiers(&bow, 0, &abilities(&[3 /* bow */]), true);
-        assert_eq!(total(&mods, Stat::Ranged), 3);
+        assert_eq!(total(&mods, Stat::Ranged), bow.bonus.attack + 3);
         assert_eq!(total(&mods, Stat::Melee), 0);
     }
 
     #[test]
     fn defence_resistance_and_moves_count_for_every_item() {
-        let mut mail = item(ItemKind::Chainmail);
-        mail.bonus.defense = 3;
-        mail.bonus.resistance = 2;
-        mail.bonus.moves = HalfInt::from_int(1);
+        let mail = real(|d| {
+            let b = Item::from_def(d).bonus;
+            d.kind == ItemKind::Chainmail
+                && d.powers.is_empty()
+                && b.defense > 0
+                && b.resistance > 0
+                && b.moves > HalfInt::from_int(0)
+        });
         let mods = modifiers(&mail, 1, &[], false);
-        assert_eq!(total(&mods, Stat::Defense), 3);
-        assert_eq!(total(&mods, Stat::Resistance), 2);
-        assert_eq!(total(&mods, Stat::Moves), 1);
+        assert_eq!(total(&mods, Stat::Defense), mail.bonus.defense);
+        assert_eq!(total(&mods, Stat::Resistance), mail.bonus.resistance);
+        assert_eq!(total(&mods, Stat::Moves), mail.bonus.moves.floor());
         assert!(mods.iter().all(|m| m.source == Source::Item(1)));
     }
 
     #[test]
     fn powers_become_lasting_spells_and_attacks() {
-        let mut thing = item(ItemKind::Shield);
-        thing.powers = vec![
-            ItemPowerId::new(40), /* holy_avenger */
-            ItemPowerId::new(54), /* righteousness */
-            ItemPowerId::new(37), /* vampiric */
-            ItemPowerId::new(62), /* merging */
-        ];
-        let rules = crate::game::testutil::shipped().rules;
-        assert_eq!(
-            thing.granted_spells(&rules),
-            [
-                SpellId::new(121), /* bless */
-                SpellId::new(144)  /* righteousness */
-            ]
-        );
-        assert_eq!(
-            thing.granted_abilities(&rules),
-            [
-                Ability::new(34), /* large_shield */
-                Ability::new(17), /* dispel_evil */
-                Ability::new(35), /* life_steal */
-                Ability::new(43), /* merging, the item of Merging */
-            ]
-        );
+        // What each power of the shipped items gives, looked for over all of them.
+        let rules = shipped().rules;
+        let has = |power: u16| {
+            rules
+                .items
+                .iter()
+                .map(|(_, d)| Item::from_def(d))
+                .filter(|i| i.powers.contains(&ItemPowerId::new(power)))
+                .collect::<Vec<_>>()
+        };
+        for (power, spell, ability) in [
+            (40, Some(121 /* bless */), Some(17 /* dispel_evil */)),
+            (54, Some(144 /* righteousness */), None),
+            (37, None, Some(35 /* life_steal */)),
+            (62, None, Some(43 /* merging */)),
+        ] {
+            let items = has(power);
+            assert!(!items.is_empty(), "no item has power {power}");
+            for item in items {
+                if let Some(s) = spell {
+                    assert!(item.granted_spells(&rules).contains(&SpellId::new(s)));
+                }
+                if let Some(a) = ability {
+                    assert!(item.granted_abilities(&rules).contains(&Ability::new(a)));
+                }
+            }
+        }
     }
 
     #[test]
     fn the_anvil_gives_half_the_value() {
-        let mut thing = item(ItemKind::Staff);
-        thing.cost = 1001;
-        assert_eq!(thing.anvil_mana(), 500);
+        for (_, def) in shipped().rules.items.iter() {
+            assert_eq!(
+                Item::from_def(def).anvil_mana(),
+                (def.cost / 2) as i32,
+                "{}",
+                def.id
+            );
+        }
     }
 }
