@@ -253,10 +253,11 @@ pub struct BattleUnit {
     /// Lasting spells cast on it in this battle, in the order cast, with who cast them and what
     /// they do to its numbers. They last until the battle ends or a dispel takes them off.
     pub lasting: Vec<Lasting>,
-    /// What it started the battle with, kept while it has lasting spells: its numbers are those
-    /// and the effect of the list (`BattleUnit::recompute`).
+    /// What it started the battle with, kept from the first time something changes its numbers
+    /// (a lasting spell, or a request of the battlefield spells): its numbers are those, the
+    /// effect of the list and the field's request (`BattleUnit::recompute`).
     pub base: Option<BaseStats>,
-    /// What the battlefield spells have changed (`field.rs`).
+    /// What the battlefield spells ask of its numbers (`field.rs`).
     pub field: FieldBonus,
     /// Confusion has put it under the enemy's orders for their next turn.
     pub seized: bool,
@@ -315,6 +316,10 @@ impl BattleUnit {
         self.enchantments.push(spell);
         let effects = crate::spell::unit_effect::UnitEffects::of(rules.spells.get(spell));
         self.effects.union(effects);
+        if let Some(base) = &mut self.base {
+            base.enchantments.push(spell);
+            base.effects.union(effects);
+        }
         if effects.contains(crate::spell::unit_effect::UnitEffect::Web) {
             self.web_closes();
         }

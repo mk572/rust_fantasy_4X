@@ -2042,7 +2042,7 @@ mod casting {
             (u.moves, u.melee, u.first_strike),
             (before.moves, before.melee, false)
         );
-        assert!(u.combat_spells().is_empty() && u.base.is_none());
+        assert!(u.combat_spells().is_empty());
         assert!(u.abilities.is_empty() && u.enchantments.is_empty());
         Ok(())
     }
@@ -2422,6 +2422,129 @@ mod fields {
         b.fields[0].clear();
         b.refresh_fields();
         assert_eq!(b.units[1].melee, 0, "not -1 + 1");
+    }
+
+    /// A unit's numbers, and whether the field makes it invisible or blurs it.
+    type Seen = (Numbers, bool, bool);
+
+    /// The numbers of the first unit of each side, and what the field asks of them.
+    fn both_sides(g: &Game) -> Result<Vec<Seen>, Box<dyn std::error::Error>> {
+        let b = g.battle().ok_or("no battle")?;
+        [0, 1]
+            .into_iter()
+            .map(|i| {
+                let u = b.unit(i).ok_or("no unit")?;
+                Ok((numbers(u), u.field.invisible, u.field.blur))
+            })
+            .collect()
+    }
+
+    fn cast_field(g: &mut Game, spell: SpellId) -> Result<(), Box<dyn std::error::Error>> {
+        g.battle.as_mut().ok_or("no battle")?.battle.set_caster(
+            Side::Attacker,
+            crate::battle::BattleCaster::new(2000, 2000, 10),
+        );
+        g.battle_command(BattleCommand::Cast {
+            spell,
+            aim: SpellAim::None,
+            mana: 0,
+        })
+        .map_err(|e| format!("casting {}: {e:?}", spell.num()))?;
+        Ok(())
+    }
+
+    /// What a battlefield spell does to a unit does not depend on what else is on it or in what
+    /// order they came (task 605). Every battlefield spell of the shipped content, cast by a
+    /// wizard, with a lasting spell on our first unit (Giant Strength; Flame Blade, whose magical
+    /// weapons Metal Fires must not take away, where the game allows it), on four pairs of shipped units: the field and the
+    /// spell in either order give the same numbers, taking the field down leaves exactly the
+    /// unit with the spell, dispelling the spell leaves exactly the unit with the field, and
+    /// taking both off leaves the unit as it was. The pairs: plain cavalry, a life creature against
+    /// a death creature (light and darkness), a unit with no melee attack (no phantom plus when
+    /// the field goes down) and one that shoots arrows (Metal Fires).
+    #[test]
+    fn a_field_and_a_lasting_spell_are_independent_in_any_order_for_every_field() -> TestResult {
+        let rules = &crate::game::testutil::shipped().rules;
+        let fields: Vec<(SpellId, Field)> = rules
+            .spells
+            .iter()
+            .filter_map(|(id, def)| Field::of(def).map(|f| (id, f)))
+            .collect();
+        assert!(
+            fields.len() >= 12,
+            "the shipped battlefield spells: {}",
+            fields.len()
+        );
+        // Flame Blade is for normal units and heroes only, so not for the angel.
+        let pairs: [(u16, u16, &[u16]); 4] = [
+            (107, 107, &[4, 94]), // high_men_cavalry against the same
+            (177, 165, &[4]),     // angel (life) against skeletons (death)
+            (73, 107, &[4, 94]),  // draconian_settlers, no melee attack
+            (69, 107, &[4, 94]),  // draconian_bowmen, arrows
+        ];
+        let mut changed = 0;
+        for (ours, foe, lasting_spells) in pairs {
+            for &lasting in lasting_spells {
+                for &(spell, field) in &fields {
+                    let case =
+                        format!("{field:?} with spell {lasting} on unit {ours} against unit {foe}");
+                    let teach = [spell.num(), lasting];
+                    let build = || -> Result<Game, Box<dyn std::error::Error>> {
+                        Ok(wizard_battle_versus(ours, &teach, foe, 1))
+                    };
+                    let plain = both_sides(&build()?)?;
+                    let mut field_only = build()?;
+                    cast_field(&mut field_only, spell)?;
+                    changed += usize::from(both_sides(&field_only)? != plain);
+                    let mut spell_only = build()?;
+                    cast_on(&mut spell_only, lasting, 0).map_err(|e| format!("{e:?}"))?;
+                    let spell_only_numbers = both_sides(&spell_only)?;
+
+                    let mut field_first = build()?;
+                    cast_field(&mut field_first, spell)?;
+                    cast_on(&mut field_first, lasting, 0).map_err(|e| format!("{e:?}"))?;
+                    let mut spell_first = build()?;
+                    cast_on(&mut spell_first, lasting, 0).map_err(|e| format!("{e:?}"))?;
+                    cast_field(&mut spell_first, spell)?;
+                    assert_eq!(
+                        both_sides(&field_first)?,
+                        both_sides(&spell_first)?,
+                        "order: {case}"
+                    );
+
+                    field_first
+                        .battle
+                        .as_mut()
+                        .ok_or("no battle")?
+                        .battle
+                        .take_down_field(Side::Attacker, field);
+                    assert_eq!(
+                        both_sides(&field_first)?,
+                        spell_only_numbers,
+                        "the field down: {case}"
+                    );
+
+                    spell_first.dispel_battle_unit(0, 10_000, D);
+                    assert_eq!(
+                        both_sides(&spell_first)?,
+                        both_sides(&field_only)?,
+                        "the spell dispelled: {case}"
+                    );
+                    spell_first
+                        .battle
+                        .as_mut()
+                        .ok_or("no battle")?
+                        .battle
+                        .take_down_field(Side::Attacker, field);
+                    assert_eq!(both_sides(&spell_first)?, plain, "both off: {case}");
+                }
+            }
+        }
+        assert!(
+            changed >= 20,
+            "the fields change the numbers: {changed} cases"
+        );
+        Ok(())
     }
 
     #[test]
@@ -2826,17 +2949,16 @@ mod fields {
     /// What Wrack did to a unit of eight figures with plenty of hit points over ten turns: the
     /// points of each of its strikes.
     fn wrack_strikes(resistance: i32, abilities: &[u16]) -> Vec<i32> {
-        let mut b = pair(
-            of(Side::Attacker, None, (3, 5)),
-            of(Side::Defender, None, (17, 5)),
-        );
-        b.units[1].resistance = resistance;
-        b.units[1].figures_start = 8;
-        b.units[1].figures = 8;
-        b.units[1].hits = 1000;
+        // The unit is made as the test wants it before the battle begins.
+        let mut victim = of(Side::Defender, None, (17, 5));
+        victim.resistance = resistance;
+        victim.figures_start = 8;
+        victim.figures = 8;
+        victim.hits = 1000;
         for &a in abilities {
-            b.units[1].abilities.push(Ability::new(a));
+            victim.abilities.push(Ability::new(a));
         }
+        let mut b = pair(of(Side::Attacker, None, (3, 5)), victim);
         b.raise_field(Side::Attacker, Field::Wrack, spell());
         end_turns(&mut b, 10)
             .iter()
@@ -2869,24 +2991,48 @@ mod fields {
         );
     }
 
+    /// Wraiths are non-corporeal and immune to normal weapons, as a unit under Wraith Form is:
+    /// the bolts of Call Lightning are spells, and still hurt them.
     #[test]
-    fn call_lightning_strikes_a_unit_under_wraith_form() {
-        let mut b = pair(
-            of(Side::Attacker, None, (3, 5)),
-            of(Side::Defender, None, (17, 5)),
+    fn call_lightning_strikes_wraiths_that_weapons_cannot_hurt() -> TestResult {
+        let mut g =
+            wizard_battle_versus(107, &[35 /* call_lightning */], 170 /* wraiths */, 1);
+        let spell = g
+            .content
+            .rules
+            .spells
+            .id_numbered(35)
+            .ok_or("call_lightning is not in the content")?;
+        g.battle.as_mut().ok_or("no battle")?.battle.set_caster(
+            Side::Attacker,
+            crate::battle::BattleCaster::new(2000, 2000, 10),
         );
-        b.units[1].defense = 0;
-        b.units[1].hits = 100;
-        b.units[1].abilities.push(Ability::new(49));
-        b.units[1].abilities.push(Ability::new(72));
-        b.units[1].put_enchantment(SpellId::new(181));
-        b.raise_field(Side::Attacker, Field::CallLightning, spell());
-        let events = end_turns(&mut b, 8);
-        let struck = events
-            .iter()
-            .filter(|e| matches!(e, BattleEvent::SpellDamaged { unit: 1, dealt, .. } if *dealt > 0))
-            .count();
-        assert!(struck > 0, "no bolt hurt the unit under Wraith Form");
+        g.battle_command(BattleCommand::Cast {
+            spell,
+            aim: SpellAim::None,
+            mana: 0,
+        })
+        .map_err(|e| format!("{e:?}"))?;
+        let mut struck = 0;
+        for _ in 0..16 {
+            if !g.in_battle() {
+                break;
+            }
+            let events = g
+                .battle_command(BattleCommand::EndTurn)
+                .map_err(|e| format!("{e:?}"))?;
+            struck += events
+                .iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        Event::Battle(BattleEvent::SpellDamaged { unit: 1, dealt, .. }) if *dealt > 0
+                    )
+                })
+                .count();
+        }
+        assert!(struck > 0, "no bolt hurt the wraiths");
+        Ok(())
     }
 
     #[test]
@@ -3184,11 +3330,16 @@ fn hero_unit(g: &mut Game, spells: &[u16], skill: u8) -> hecs::Entity {
 }
 
 fn begin(g: &mut Game, attacker: hecs::Entity) {
+    begin_versus(g, attacker, 107);
+}
+
+/// [`begin`] against one unit of the kind `foe` (a unit number) of player D.
+fn begin_versus(g: &mut Game, attacker: hecs::Entity, foe: u16) {
     let walker = g
         .content
         .rules
         .units
-        .id_numbered(107)
+        .id_numbered(foe)
         .expect("id_of succeeds");
     let d1 = g.spawn_unit(D, at(5, 4), walker);
     g.apply(Command::BeginBattle {
@@ -3709,9 +3860,14 @@ fn a_spell_save_makes_the_resistance_checks_of_the_cast_harder() {
 /// A game whose hero (casting skill 4, so mana for several casts) has the real spell `id`. The
 /// battle is on; the enemy is battle unit 1.
 fn hook_game(id: u16) -> Game {
+    hook_game_against(id, 107)
+}
+
+/// [`hook_game`] against one unit of the kind `foe`.
+fn hook_game_against(id: u16, foe: u16) -> Game {
     let mut g = game();
     let hero = hero_unit(&mut g, &[id], 4);
-    begin(&mut g, hero);
+    begin_versus(&mut g, hero, foe);
     g.battle.as_mut().expect("as_mut succeeds").battle.units[0].mana = 1000;
     g
 }
@@ -3826,16 +3982,20 @@ fn disrupt_destroys_one_wall_section_and_only_where_a_wall_stands() -> TestResul
 
 #[test]
 fn cracks_call_never_swallows_a_merging_unit() -> TestResult {
-    let mut g = hook_game(11 /* cracks_call */);
+    // The great wyrm merges.
+    let mut g = hook_game_against(11 /* cracks_call */, 189 /* great_wyrm */);
     let enemy_cell = g
         .battle()
         .ok_or("battle is missing")?
         .unit(1)
         .ok_or("unit is missing")?
         .cell;
-    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1]
-        .abilities
-        .push(Ability::new(43) /* merging */);
+    assert!(g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(1)
+        .ok_or("unit is missing")?
+        .has(Ability::new(43) /* merging */));
     for _ in 0..30 {
         cast_unit(
             &mut g,
@@ -3857,15 +4017,14 @@ fn cracks_call_never_swallows_a_merging_unit() -> TestResult {
 #[test]
 fn cracks_call_swallows_a_walker_one_time_in_four_but_not_a_flier_and_breaks_a_wall() -> TestResult
 {
-    let mut g = hook_game(11 /* cracks_call */);
+    // A flier (pegasai) is never touched.
+    let mut g = hook_game_against(11 /* cracks_call */, 103 /* high_elf_pegasai */);
     let enemy_cell = g
         .battle()
         .ok_or("battle is missing")?
         .unit(1)
         .ok_or("unit is missing")?
         .cell;
-    // A flier is never touched; a walker falls in sooner or later.
-    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1].flies = true;
     for _ in 0..40 {
         cast_unit(
             &mut g,
@@ -3881,7 +4040,14 @@ fn cracks_call_swallows_a_walker_one_time_in_four_but_not_a_flier_and_breaks_a_w
             .ok_or("unit is missing")?
             .is_active());
     }
-    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1].flies = false;
+    // A walker (cavalry) falls in sooner or later.
+    let mut g = hook_game(11 /* cracks_call */);
+    let enemy_cell = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(1)
+        .ok_or("unit is missing")?
+        .cell;
     let mut died = false;
     for _ in 0..60 {
         let events = cast_unit(
@@ -5120,6 +5286,11 @@ fn wizard_battle(unit: u16, spells: &[u16]) -> Game {
 
 /// [`wizard_battle`] against `foes` cavalry of player D.
 fn wizard_battle_against(unit: u16, spells: &[u16], foes: usize) -> Game {
+    wizard_battle_versus(unit, spells, 107, foes)
+}
+
+/// [`wizard_battle`] against `foes` units of the kind `foe` (a unit number) of player D.
+fn wizard_battle_versus(unit: u16, spells: &[u16], foe: u16, foes: usize) -> Game {
     let mut g = game();
     g.treasury_mut(A).expect("treasury_mut succeeds").mana =
         f4x_def::half_int::HalfInt::from_int(2000);
@@ -5127,6 +5298,8 @@ fn wizard_battle_against(unit: u16, spells: &[u16], foes: usize) -> Game {
         A,
         &[
             (RealmId::new(0 /* nature */), 5),
+            (RealmId::new(1 /* sorcery */), 5),
+            (RealmId::new(2 /* chaos */), 5),
             (RealmId::new(3 /* life */), 5),
             (RealmId::new(4 /* death */), 5),
         ],
@@ -5163,7 +5336,7 @@ fn wizard_battle_against(unit: u16, spells: &[u16], foes: usize) -> Game {
         .content
         .rules
         .units
-        .id_numbered(107)
+        .id_numbered(foe)
         .expect("id_of succeeds");
     let defenders: Vec<_> = (0..foes)
         .map(|_| g.spawn_unit(D, at(5, 4), walker))
@@ -5452,7 +5625,7 @@ fn a_dispel_leaves_exactly_the_unit_with_the_spells_that_remain_cast_on_it() -> 
     Ok(())
 }
 
-/// The curses of the matrix: they land on an enemy unit with no resistance.
+/// The curses of the matrix: each is cast on the enemy unit until it takes.
 const CURSES: [u16; 6] = [
     162, // weakness
     53,  // vertigo
@@ -5462,13 +5635,23 @@ const CURSES: [u16; 6] = [
     5,   // web
 ];
 
-/// A battle in which the enemy unit (no resistance: a roll never beats it) has had the
-/// `casts` cast on it in turn by the first wizard.
+/// A battle in which the enemy unit has had the `casts` cast on it in turn by the first wizard.
+/// A curse the unit resists is cast again until it takes.
 fn enemy_with_curses(casts: &[u16]) -> Result<Game, Box<dyn std::error::Error>> {
     let mut g = wizard_battle(107 /* high_men_cavalry */, &CURSES);
-    g.battle.as_mut().ok_or("no battle")?.battle.units[1].resistance = 0;
     for &spell in casts {
-        let _ = cast_on(&mut g, spell, 1);
+        let landed = |g: &Game| -> Result<bool, Box<dyn std::error::Error>> {
+            let u = g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?;
+            Ok(u.combat_spells().iter().any(|(s, _)| s.num() == spell))
+        };
+        let mut tries = 0;
+        while !landed(&g)? {
+            tries += 1;
+            if tries > 200 {
+                return Err(format!("curse {spell} never took in 200 casts").into());
+            }
+            let _ = cast_on(&mut g, spell, 1);
+        }
     }
     Ok(g)
 }
@@ -5582,16 +5765,27 @@ fn a_creature_binding_that_is_dispelled_returns_the_unit_and_takes_only_its_own_
 #[test]
 fn a_warp_creature_that_is_dispelled_takes_its_warp_and_its_numbers_with_it() -> TestResult {
     let mut g = wizard_battle(107 /* high_men_cavalry */, &[89 /* warp_creature */]);
-    g.battle.as_mut().ok_or("no battle")?.battle.units[1].resistance = 0;
     let pristine = numbers(g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?);
-    cast_on(&mut g, 89 /* warp_creature */, 1).map_err(|e| format!("{e:?}"))?;
+    // The unit may resist: cast again until the warp takes.
+    for _ in 0..200 {
+        if g.battle()
+            .ok_or("no battle")?
+            .unit(1)
+            .ok_or("no unit")?
+            .warp
+            .is_some()
+        {
+            break;
+        }
+        let _ = cast_on(&mut g, 89 /* warp_creature */, 1);
+    }
     let warped = g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?;
     assert!(warped.warp.is_some());
     assert_ne!(numbers(warped), pristine);
     g.dispel_battle_unit(1, 10_000, D);
     let after = g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?;
     assert_eq!(numbers(after), pristine);
-    assert!(after.warp.is_none() && after.base.is_none());
+    assert!(after.warp.is_none() && after.combat_spells().is_empty());
     Ok(())
 }
 
@@ -5741,44 +5935,92 @@ fn a_dispelled_haste_takes_the_second_attack_with_it() -> TestResult {
     Ok(())
 }
 
+/// A game in a battle, the first unit's melee and maximum hit points before its spell.
+type Overhealed = (Game, i32, i32);
+
+/// A battle of death knights (who have life steal) with Giant Strength on the first, against
+/// `foes` cavalry, fought turn after turn until a blow has healed that knight past its maximum.
+/// `None` if the fight ended or the knight fell before that: the dice decide, so the caller
+/// fights again.
+fn knights_overhealed_by_life_steal(
+    foes: usize,
+) -> Result<Option<Overhealed>, Box<dyn std::error::Error>> {
+    let mut g = wizard_battle_versus(
+        172, /* death_knights */
+        &[4 /* giant_strength */],
+        107, /* high_men_cavalry */
+        foes,
+    );
+    let (plain_melee, plain_max) = {
+        let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
+        (u.melee, u.max_hit_points())
+    };
+    cast_on_first(&mut g, 4 /* giant_strength */).map_err(|e| format!("{e:?}"))?;
+    for _ in 0..40 {
+        let Some(b) = g.battle() else {
+            return Ok(None);
+        };
+        match b.unit(0) {
+            Some(u) if u.is_active() && u.extra_hits > 0 => {
+                return Ok(Some((g, plain_melee, plain_max)))
+            }
+            Some(u) if !u.is_active() => return Ok(None),
+            _ => {}
+        }
+        let side = b.active;
+        let ids: Vec<usize> = b.active_units(side).map(|u| u.id).collect();
+        for id in ids {
+            let Some(b) = g.battle() else {
+                return Ok(None);
+            };
+            let Some((target, cell)) = b.active_units(side.other()).next().map(|t| (t.id, t.cell))
+            else {
+                break;
+            };
+            let step = b
+                .reachable(id)
+                .into_iter()
+                .min_by_key(|(p, _)| crate::battle::map::distance(*p, cell))
+                .map(|(p, _)| p);
+            if let Some(to) = step {
+                g.apply(Command::Battle(BattleCommand::Move { unit: id, to }));
+            }
+            g.apply(Command::Battle(BattleCommand::Attack { unit: id, target }));
+        }
+        g.apply(Command::Battle(BattleCommand::EndTurn));
+    }
+    Ok(None)
+}
+
 /// The extra hit points life steal gave are no spell's: the dispel of an unrelated spell leaves
 /// them, and the unit's maximum stays what it was (before task 604 the extras were lost and the
 /// maximum went negative, which healed the unit fully when the battle was written back).
 #[test]
 fn life_steal_hit_points_survive_the_dispel_of_an_unrelated_spell() -> TestResult {
-    use crate::rules::{ModOp, Modifier, Source, Stat};
-    let m = |stat, op, value| Modifier::new(stat, op, value, Source::Other);
-    let mut b = duel(
-        spearman(Side::Attacker, (3, 5)),
-        spearman(Side::Defender, (8, 5)),
-        1,
+    let mut found = None;
+    for _ in 0..40 {
+        found = knights_overhealed_by_life_steal(6)?;
+        if found.is_some() {
+            break;
+        }
+    }
+    let (mut g, plain_melee, plain_max) =
+        found.ok_or("life steal never overhealed in 40 fights")?;
+    let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
+    assert!(u.melee > plain_melee, "giant strength is on");
+    assert_eq!(
+        u.max_hit_points(),
+        plain_max,
+        "this spell gives no hit points"
     );
-    b.enchant_unit(
-        0,
-        crate::rules::SpellId::new(1),
-        A,
-        crate::spell::unit_effect::UnitEffects::NONE,
-        &[m(Stat::Melee, ModOp::Add, 1)],
-        &[],
-    );
-    let max = b.units[0].max_hit_points();
-    let mut state = b.units[0].defender_state();
-    state.heal_overflow(9);
-    b.units[0].set_from(&state);
-    let (hits, extra, hp) = (
-        b.units[0].hits,
-        b.units[0].extra_hits,
-        b.units[0].hit_points(),
-    );
-    assert!(
-        extra > 0 && hp > max,
-        "life steal healed past the maximum: {hp} of {max}"
-    );
-    let base = b.units[0].base.clone().ok_or("no base")?;
-    b.rebuild_unit(0, base, Vec::new());
-    let u = &b.units[0];
-    assert_eq!((u.hits, u.extra_hits, u.hit_points()), (hits, extra, hp));
-    assert_eq!(u.max_hit_points(), max);
+    let (extra, hp) = (u.extra_hits, u.hit_points());
+    assert!(hp > plain_max, "{hp} of {plain_max}");
+    g.dispel_battle_unit(0, 10_000, D);
+    let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
+    assert_eq!(u.melee, plain_melee, "the dispel took Giant Strength off");
+    assert_eq!(u.extra_hits, extra, "the extras are no spell's");
+    assert_eq!(u.max_hit_points(), plain_max);
+    assert_eq!(u.hit_points(), hp);
     Ok(())
 }
 

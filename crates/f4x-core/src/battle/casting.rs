@@ -535,7 +535,8 @@ impl Battle {
         unit.base = Some(base);
         unit.lasting = lasting;
         unit.recompute();
-        if unit.lasting.is_empty() {
+        // With no spell and no field left, nothing changes its numbers: it is as it was made.
+        if unit.lasting.is_empty() && unit.field == Default::default() {
             unit.base = None;
         }
     }
@@ -577,29 +578,28 @@ impl BattleUnit {
         self.lasting.iter().map(|l| (l.spell, l.caster)).collect()
     }
 
-    /// Keep what the unit started the battle with, before its first lasting spell: the numbers
-    /// without the changes of the battlefield spells, which are put on again by
-    /// `Battle::refresh_fields`, and without the extra hit points of life steal, which the unit
-    /// keeps whatever happens to its spells.
+    /// Keep what the unit started the battle with, once, before anything changes its numbers:
+    /// no lasting spell, no battlefield spell (`Battle::refresh_fields` keeps it first) and no
+    /// extra hit points of life steal, which the unit keeps whatever happens to its spells.
     pub(super) fn keep_base(&mut self) {
         if self.base.is_none() {
-            self.take_off_field();
             self.base = Some(BaseStats::of(self));
         }
     }
 
-    /// Work the unit's numbers out again from what it started the battle with and its lasting
-    /// spells. The numbers are a function of those two and nothing else, so whatever a dispel
-    /// takes off, the rest is untouched. The damage taken is kept, and the unit is dead if its
-    /// hit points do not cover it any longer (`settle_hit_points`). The battlefield spells'
-    /// changes are gone with the numbers and put on again by the caller (`refresh_fields`).
+    /// Work the unit's numbers out again from what it started the battle with, its lasting
+    /// spells and what the battlefield spells ask of it (`field`, set by `refresh_fields`). The
+    /// numbers are a function of those three and nothing else, so whatever a dispel or a field
+    /// spell going down takes off, the rest is untouched, and nothing is remembered to be taken
+    /// off again. The damage taken is kept, and the unit is dead if its hit points do not cover
+    /// it any longer (`settle_hit_points`).
     pub(super) fn recompute(&mut self) {
         let Some(base) = self.base.clone() else {
             return;
         };
         let (ceiling, hit_points) = (self.hit_point_ceiling(), self.hit_points());
         let moves_before = self.moves;
-        self.field = Default::default();
+        let hasted_before = self.has(Ability::new(26));
         self.melee = base.melee;
         self.ranged = base.ranged;
         self.defense = base.defense;
@@ -626,16 +626,18 @@ impl BattleUnit {
         }
         // Life steal's extra hit points are no spell's: they stay.
         self.hits += self.extra_hits;
+        self.apply_field();
         // What is left of this turn's moves follows the change in the moves of the turn.
         if self.moves >= moves_before {
             self.moves_left += self.moves - moves_before;
         } else {
             self.moves_left = self.moves_left.min(self.moves);
         }
-        // Haste: a unit that has not attacked yet may attack twice this turn; without it, never.
+        // Haste: a unit that has not attacked yet may attack twice the turn it gets it; without
+        // it, never.
         if !self.has(Ability::new(26)) {
             self.extra_attack = false;
-        } else if !self.attacked {
+        } else if !hasted_before && !self.attacked {
             self.extra_attack = true;
         }
         self.sync_abilities();

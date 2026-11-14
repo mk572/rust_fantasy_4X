@@ -3,8 +3,9 @@
 //! They follow the original's `Battle_Unit_Regular_Stats` (the stat changes), `Combat_Next_Turn`
 //! (what happens at the start of each turn) and `Battle_Unit_Process_Attack` (Blur).
 //!
-//! - **Stat changes** are kept as a [`FieldBonus`] on each unit and recomputed whenever a spell
-//!   goes up or a unit changes (`Battle::refresh_fields`), so they never pile up: True Light and
+//! - **Stat changes** are kept as a [`FieldBonus`] request on each unit and put on its numbers by
+//!   `BattleUnit::recompute` whenever a spell goes up or a unit changes (`Battle::refresh_fields`), so
+//!   they never pile up: True Light and
 //!   Darkness (on both sides' creatures of life and death, and cancelling each other), Warp
 //!   Reality (every unit but chaos creatures), Black Prayer (the caster's enemies), Prayer and
 //!   High Prayer (the caster's units), Metal Fires (the caster's non-fantastic units without a
@@ -123,8 +124,9 @@ impl Field {
     }
 }
 
-/// What the battlefield spells have changed about a unit's numbers; kept so it can be taken off
-/// again (`BattleUnit::field`).
+/// What the battlefield spells ask of a unit's numbers (`BattleUnit::field`). It is only a
+/// request: `BattleUnit::recompute` puts it on the numbers worked out from the unit's base and
+/// its lasting spells, so there is nothing to take off again.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct FieldBonus {
     pub melee: i32,
@@ -133,7 +135,7 @@ pub struct FieldBonus {
     pub resistance: i32,
     pub to_hit: i32,
     pub to_block: i32,
-    /// Metal Fires made its weapons magical (it had none that were).
+    /// Metal Fires makes its weapons magical.
     pub magical: bool,
     /// Mass Invisibility makes it invisible.
     pub invisible: bool,
@@ -142,44 +144,16 @@ pub struct FieldBonus {
 }
 
 impl BattleUnit {
-    /// Take the battlefield spells' changes off the unit's numbers.
-    pub(super) fn take_off_field(&mut self) {
-        let old = std::mem::take(&mut self.field);
-        self.melee -= old.melee;
-        self.ranged -= old.ranged;
-        self.defense -= old.defense;
-        self.resistance -= old.resistance;
-        self.to_hit -= old.to_hit;
-        self.to_block -= old.to_block;
-        if old.magical {
-            self.magical_weapon = false;
-        }
-    }
-
-    fn put_on_field(&mut self, wanted: FieldBonus) {
-        // A stat never goes below nothing, so a loss may be less than asked.
-        let melee = wanted.melee.max(-self.melee);
-        let ranged = wanted.ranged.max(-self.ranged);
-        let defense = wanted.defense.max(-self.defense);
-        let resistance = wanted.resistance.max(-self.resistance);
-        self.melee += melee;
-        self.ranged += ranged;
-        self.defense += defense;
-        self.resistance += resistance;
+    /// Put the field's request on the numbers: a stat never goes below nothing.
+    pub(super) fn apply_field(&mut self) {
+        let wanted = self.field;
+        self.melee = (self.melee + wanted.melee).max(0);
+        self.ranged = (self.ranged + wanted.ranged).max(0);
+        self.defense = (self.defense + wanted.defense).max(0);
+        self.resistance = (self.resistance + wanted.resistance).max(0);
         self.to_hit += wanted.to_hit;
         self.to_block += wanted.to_block;
-        let magical = wanted.magical && !self.magical_weapon;
-        if magical {
-            self.magical_weapon = true;
-        }
-        self.field = FieldBonus {
-            melee,
-            ranged,
-            defense,
-            resistance,
-            magical,
-            ..wanted
-        };
+        self.magical_weapon |= wanted.magical;
     }
 
     /// Whether the creature belongs to a realm (a summoned or fantastic creature, not one of a
@@ -351,9 +325,18 @@ impl Battle {
     /// Bring every unit's numbers in line with the enchantments on the field.
     pub fn refresh_fields(&mut self) {
         for i in 0..self.units.len() {
-            self.units[i].take_off_field();
+            // What the field wants depends on the unit's numbers without it. A unit with
+            // nothing changing its numbers has no base and needs none.
+            if self.units[i].base.is_some() {
+                self.units[i].field = FieldBonus::default();
+                self.units[i].recompute();
+            }
             let wanted = self.field_bonus_for(&self.units[i]);
-            self.units[i].put_on_field(wanted);
+            if wanted != FieldBonus::default() || self.units[i].base.is_some() {
+                self.units[i].keep_base();
+                self.units[i].field = wanted;
+                self.units[i].recompute();
+            }
             // Invisibility that begins now hides the unit at once.
             let invisible = self.units[i].is_invisible();
             if invisible && !self.units[i].was_invisible {
