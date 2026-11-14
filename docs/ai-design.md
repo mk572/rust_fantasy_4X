@@ -643,6 +643,12 @@ gold (the computer wizards spend it). The first margins (110, 103 and 95) gave t
 holds them back; trades with the human are by the same rule (`diplomacy.md` section 8). The soak line now has `trades offered`,
 `trades done`, `trades with gold`, `trades of items or units` and `items scrapped` for the next look.
 
+**Trade negotiation and the gold reserve, 14 November 2026 (task 599).** 42 games (same four setups, three seed offsets): 23 won,
+7 by conquest, 47 trades offered, 17 counters, 18 trades done, 0.43 a game (before: 0.02). Nearly all trades were counters that
+added a category or gold; 17 of the 18 included an item, unit or hero. The reserve (40 + 3 times net gold a turn) and the lower
+trade reserve (40) were not tested alone (a run with `AIK_GOLD_RESERVE_INCOME=0` would isolate them). Wins fell from 24 to 23
+of 42, within the noise of this sample.
+
 ### 12.3 Open issues
 
 1. **The AI hardly fights.** Most two-wizard games have 0 or 1 war and 0 to 4 cities taken in 300 turns.
