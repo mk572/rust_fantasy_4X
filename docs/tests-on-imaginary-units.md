@@ -15,13 +15,12 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 59 tests. Part 2: 97 tests. Of 2166 in all.**
+**Part 1: 46 tests. Part 2: 97 tests. Of 2166 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
 | File | Tests |
 |---|---|
-| `crates/f4x-ai/src/battle/order.rs` | 13 |
 | `crates/f4x-def/src/load/rules.rs` | 13 |
 | `crates/f4x-core/src/wizard/retort.rs` | 7 |
 | `crates/f4x-def/src/rules/stats.rs` | 7 |
@@ -39,26 +38,6 @@ The `Decision` column is for the walk through the list.
 |---|---|---|---|---|
 | `the_scripted_side_steers_its_vortex_onto_an_enemy_once_and_leaves_the_enemys_alone` | 897 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | itself | |
 | `warp_wood_is_worth_something_only_against_archers_with_arrows` | 1304 | hand-made battle unit (`BattleUnit::simple`) | itself | |
-
-## `crates/f4x-ai/src/battle/order.rs` (13)
-
-Helpers that make things up: `duel` (line 430), `merging_unit` (line 617), `shooter` (line 438).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_side_that_the_enemy_outweighs_four_to_one_flees_and_an_even_one_fights` | 447 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `a_unit_hits_the_enemy_it_can_finish_rather_than_the_first_one` | 479 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `a_shooter_with_shots_left_stays_put_instead_of_walking_into_melee` | 505 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `shooter` | |
-| `a_shooter_out_of_shots_walks_up_to_the_enemy` | 527 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `shooter` | |
-| `a_defender_behind_walls_holds_its_ground` | 542 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `a_walker_expects_nothing_from_a_flier_in_melee_unless_the_setting_allows_it` | 562 | hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `expected_damage_falls_with_defence_and_is_nothing_against_an_immunity` | 573 | hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `walks_towards_the_enemy_then_attacks` | 593 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel` | |
-| `a_walker_outmatched_by_fliers_it_cannot_hurt_holds_its_place` | 603 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel` | |
-| `a_hurt_merging_unit_with_an_enemy_near_goes_under_and_comes_up_beside_a_target` | 624 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `merging_unit` | |
-| `attacks_when_adjacent` | 660 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel` | |
-| `a_whole_fight_ends` | 669 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel` | |
-| `the_battle_ai_takes_a_walled_city` | 683 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | itself | |
 
 ## `crates/f4x-client/src/temp_effect_view.rs` (1)
 

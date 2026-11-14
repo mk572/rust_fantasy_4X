@@ -61,6 +61,11 @@ pub const ENEMY_CITY: (u32, u32) = (28, 6);
 /// Two islands, a city for each player at the given squares of the player-0 island and
 /// the east island, and nothing else.
 pub fn game(city0: (u32, u32), race: u16) -> Game {
+    game_seeded(city0, race, 7)
+}
+
+/// [`game`] whose dice start from `seed`.
+pub fn game_seeded(city0: (u32, u32), race: u16, seed: u64) -> Game {
     let content = content();
     let ocean = content.terrains.id_numbered(8).expect("ocean");
     let grass = content.terrains.id_numbered(4).expect("grassland");
@@ -78,7 +83,7 @@ pub fn game(city0: (u32, u32), race: u16) -> Game {
         .races
         .id_numbered(race)
         .expect("the race exists");
-    let mut game = Game::new(7);
+    let mut game = Game::new(seed);
     game.set_content(content);
     game.set_map(Map::new(build(), build()));
     game.add_player(P0, "West");
@@ -190,4 +195,52 @@ pub fn build(game: &mut Game, pos: Position, buildings: &[u16]) {
             .unwrap_or_else(|| panic!("no building {id}"));
         game.scenario_set_building(city, b, true);
     }
+}
+
+/// A battle of the real game between shipped units: `ours` of player 0 and `theirs` of player 1,
+/// each a unit number of the content and the square it stands on. The game sets it up
+/// (`BeginBattle`), so the units have their real numbers, rules and owners; only the squares are
+/// chosen, on open ground, so that the squares a test names are free, and the units are numbered
+/// in the order of the lists. The dice start from `seed`.
+pub fn real_battle(
+    ours: &[(u16, f4x_core::battle::map::Pos)],
+    theirs: &[(u16, f4x_core::battle::map::Pos)],
+    seed: u64,
+) -> f4x_core::battle::Battle {
+    use f4x_core::battle::{map::BattleMap, Side};
+    let mut g = game_seeded(COAST_CITY, 7, seed);
+    let mut spawn_all = |owner: PlayerId, x: u32, list: &[(u16, f4x_core::battle::map::Pos)]| {
+        list.iter()
+            .map(|&(number, _)| spawn(&mut g, owner, at(x, 4), number, 1)[0])
+            .collect::<Vec<_>>()
+    };
+    let attackers = spawn_all(P0, 4, ours);
+    let defenders = spawn_all(P1, 5, theirs);
+    g.apply(Command::BeginBattle {
+        attackers,
+        defenders,
+    });
+    let mut b = g.battle().expect("a battle began").clone();
+    b.map = BattleMap::open();
+    let mut placed = vec![false; b.units.len()];
+    let mut order = Vec::new();
+    for (side, list) in [(Side::Attacker, ours), (Side::Defender, theirs)] {
+        for &(number, cell) in list {
+            let kind = g.content().rules.units.id_numbered(number);
+            let at = b
+                .units
+                .iter()
+                .position(|u| u.side == side && u.unit_id == kind && !placed[u.id])
+                .expect("the battle has the unit");
+            placed[at] = true;
+            b.units[at].cell = cell;
+            order.push(at);
+        }
+    }
+    let mut units: Vec<_> = order.iter().map(|&i| b.units[i].clone()).collect();
+    for (id, u) in units.iter_mut().enumerate() {
+        u.id = id;
+    }
+    b.units = units;
+    b
 }

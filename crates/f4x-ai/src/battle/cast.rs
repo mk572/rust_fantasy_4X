@@ -895,12 +895,11 @@ mod tests {
 
     #[test]
     fn the_scripted_side_steers_its_vortex_onto_an_enemy_once_and_leaves_the_enemys_alone() {
-        use f4x_core::battle::map::BattleMap;
-        let units = vec![
-            BattleUnit::simple(Side::Attacker, 3, 2, 3, 2).at((3, 10)),
-            BattleUnit::simple(Side::Defender, 3, 2, 3, 2).at((10, 10)),
-        ];
-        let mut b = Battle::new(P0, P1, BattleMap::open(), units, 5);
+        let mut b = crate::testworld::real_battle(
+            &[(105 /* high_men_swordsmen */, (3, 10))],
+            &[(105, (10, 10))],
+            5,
+        );
         b.make_vortex(Side::Attacker, (9, 10));
         assert_eq!(
             steer_choice(&b),
@@ -1310,10 +1309,16 @@ mod tests {
             .id_numbered(81)
             .ok_or("no warp wood")?;
         let def = g.content().rules.spells.get(wood);
-        let mut archer = BattleUnit::simple(Side::Defender, 6, 1, 1, 1);
+        // Longbowmen of the other side, numbered 7 for the aim.
+        let mut archer = crate::testworld::real_battle(
+            &[(107 /* high_men_cavalry */, (3, 10))],
+            &[(101 /* high_elf_longbowmen */, (10, 10))],
+            1,
+        )
+        .units[1]
+            .clone();
+        assert_eq!(archer.ranged_kind, RangedKind::Missile);
         archer.id = 7;
-        archer.ranged_kind = RangedKind::Missile;
-        archer.ammo = 4;
         let mut spent = archer.clone();
         spent.ammo = 0;
         let mut plain = archer.clone();

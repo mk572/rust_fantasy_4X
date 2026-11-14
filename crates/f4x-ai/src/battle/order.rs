@@ -422,55 +422,39 @@ fn approach(battle: &Battle, unit: &BattleUnit, goal: &BattleUnit) -> Option<Pos
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testworld::real_battle;
     use f4x_core::battle::map::BattleMap;
-    use f4x_core::battle::{BattleUnit, Side};
-    use f4x_core::player::PlayerId;
+    use f4x_core::battle::Side;
     use f4x_def::testdir::TestResult;
 
-    fn duel(a: Pos, d: Pos) -> Battle {
-        let units = vec![
-            BattleUnit::simple(Side::Attacker, 1, 5, 5, 2).at(a),
-            BattleUnit::simple(Side::Defender, 1, 5, 5, 2).at(d),
-        ];
-        Battle::new(PlayerId(0), PlayerId(1), BattleMap::open(), units, 1)
-    }
+    const SPEARMEN: u16 = 104; // high_men_spearmen
+    const SWORDSMEN: u16 = 105; // high_men_swordsmen
+    const LONGBOWMEN: u16 = 101; // high_elf_longbowmen
+    const PEGASAI: u16 = 103; // high_elf_pegasai, fliers
+    const SETTLERS: u16 = 111; // high_men_settlers: no attack
+    const PALADINS: u16 = 113; // high_men_paladins
+    const GREAT_WYRM: u16 = 189; // has Merging
 
-    fn shooter(side: Side, cell: Pos) -> BattleUnit {
-        let mut u = BattleUnit::simple(side, 3, 1, 1, 1).at(cell);
-        u.ranged = 3;
-        u.ammo = 5;
-        u.ranged_kind = RangedKind::Missile;
-        u
+    fn duel(a: Pos, d: Pos) -> Battle {
+        real_battle(&[(SWORDSMEN, a)], &[(SPEARMEN, d)], 1)
     }
 
     #[test]
     fn a_side_that_the_enemy_outweighs_four_to_one_flees_and_an_even_one_fights() {
-        let strong = |side, cell| BattleUnit::simple(side, 4, 3, 4, 3).at(cell);
-        let weak = |side, cell| BattleUnit::simple(side, 1, 1, 1, 1).at(cell);
-        let fight = |units| Battle::new(PlayerId(0), PlayerId(1), BattleMap::open(), units, 1);
-        let lopsided = fight(vec![
-            weak(Side::Attacker, (3, 5)),
-            weak(Side::Attacker, (3, 6)),
-            strong(Side::Defender, (10, 5)),
-            strong(Side::Defender, (10, 6)),
-        ]);
+        let (weak, strong) = (SETTLERS, GREAT_WYRM);
+        let lopsided = real_battle(
+            &[(weak, (3, 5)), (weak, (3, 6))],
+            &[(strong, (10, 5)), (strong, (10, 6))],
+            1,
+        );
         assert_eq!(retreat(&lopsided), Some(BattleCommand::Flee));
-        let even = fight(vec![
-            strong(Side::Attacker, (3, 5)),
-            strong(Side::Defender, (10, 5)),
-        ]);
+        let even = real_battle(&[(strong, (3, 5))], &[(strong, (10, 5))], 1);
         assert_eq!(retreat(&even), None);
         // A lone unit fights its duel out.
-        let lone = fight(vec![
-            weak(Side::Attacker, (3, 5)),
-            strong(Side::Defender, (10, 5)),
-        ]);
+        let lone = real_battle(&[(weak, (3, 5))], &[(strong, (10, 5))], 1);
         assert_eq!(retreat(&lone), None);
         // The strong side does not run from the weak one.
-        let mut strong_turn = fight(vec![
-            weak(Side::Attacker, (3, 5)),
-            strong(Side::Defender, (4, 5)),
-        ]);
+        let mut strong_turn = real_battle(&[(weak, (3, 5))], &[(strong, (4, 5))], 1);
         strong_turn.active = Side::Defender;
         assert_eq!(retreat(&strong_turn), None);
     }
@@ -479,17 +463,13 @@ mod tests {
     fn a_unit_hits_the_enemy_it_can_finish_rather_than_the_first_one() {
         // Two enemies stand next to the attacker: a full-strength unit and a nearly dead one of
         // the same kind. The wounded one gives the bigger share of a kill.
-        let mut strong = BattleUnit::simple(Side::Defender, 3, 3, 3, 2).at((6, 5));
-        let mut weak = BattleUnit::simple(Side::Defender, 3, 3, 3, 2).at((6, 6));
-        weak.figures = 1;
-        weak.front_damage = 2;
-        strong.id = 0;
-        let units = vec![
-            BattleUnit::simple(Side::Attacker, 3, 3, 3, 2).at((5, 5)),
-            strong,
-            weak,
-        ];
-        let b = Battle::new(PlayerId(0), PlayerId(1), BattleMap::open(), units, 1);
+        let mut b = real_battle(
+            &[(SWORDSMEN, (5, 5))],
+            &[(PALADINS, (6, 5)), (PALADINS, (6, 6))],
+            1,
+        );
+        b.units[2].figures = 1;
+        b.units[2].front_damage = b.units[2].hits - 1;
         assert_eq!(
             next_command(&b),
             BattleCommand::Attack { unit: 0, target: 2 }
@@ -503,11 +483,7 @@ mod tests {
 
     #[test]
     fn a_shooter_with_shots_left_stays_put_instead_of_walking_into_melee() -> TestResult {
-        let units = vec![
-            shooter(Side::Attacker, (3, 5)),
-            BattleUnit::simple(Side::Defender, 3, 3, 3, 2).at((12, 5)),
-        ];
-        let mut b = Battle::new(PlayerId(0), PlayerId(1), BattleMap::open(), units, 1);
+        let mut b = real_battle(&[(LONGBOWMEN, (3, 5))], &[(SPEARMEN, (12, 5))], 1);
         assert_eq!(
             next_command(&b),
             BattleCommand::Shoot { unit: 0, target: 1 }
@@ -525,13 +501,8 @@ mod tests {
 
     #[test]
     fn a_shooter_out_of_shots_walks_up_to_the_enemy() {
-        let mut archer = shooter(Side::Attacker, (3, 5));
-        archer.ammo = 0;
-        let units = vec![
-            archer,
-            BattleUnit::simple(Side::Defender, 3, 3, 3, 2).at((12, 5)),
-        ];
-        let b = Battle::new(PlayerId(0), PlayerId(1), BattleMap::open(), units, 1);
+        let mut b = real_battle(&[(LONGBOWMEN, (3, 5))], &[(SPEARMEN, (12, 5))], 1);
+        b.units[0].ammo = 0;
         assert!(matches!(
             next_command(&b),
             BattleCommand::Move { unit: 0, .. }
@@ -540,17 +511,8 @@ mod tests {
 
     #[test]
     fn a_defender_behind_walls_holds_its_ground() -> TestResult {
-        let units = vec![
-            BattleUnit::simple(Side::Attacker, 3, 3, 3, 2).at((3, 12)),
-            BattleUnit::simple(Side::Defender, 3, 3, 3, 2).at((13, 11)),
-        ];
-        let mut b = Battle::new(
-            PlayerId(0),
-            PlayerId(1),
-            BattleMap::open().with_city(true),
-            units,
-            1,
-        );
+        let mut b = real_battle(&[(SWORDSMEN, (3, 12))], &[(SPEARMEN, (13, 11))], 1);
+        b.map = BattleMap::open().with_city(true);
         b.apply(BattleCommand::EndTurn)
             .map_err(|e| format!("{e:?}"))?;
         assert_eq!(b.active, Side::Defender);
@@ -560,10 +522,10 @@ mod tests {
 
     #[test]
     fn a_walker_expects_nothing_from_a_flier_in_melee_unless_the_setting_allows_it() {
-        let walker = BattleUnit::simple(Side::Attacker, 4, 2, 6, 1);
-        let mut bat = BattleUnit::simple(Side::Defender, 4, 2, 6, 1);
-        bat.flies = true;
-        let expect = |rule| expected_damage(&walker, &bat, false, rule);
+        let b = real_battle(&[(SWORDSMEN, (3, 5))], &[(PEGASAI, (10, 5))], 1);
+        let (walker, bat) = (&b.units[0], &b.units[1]);
+        assert!(bat.flies);
+        let expect = |rule| expected_damage(walker, bat, false, rule);
         assert_eq!(expect(MeleeVsFliers::Zero), 0.0);
         assert!(expect(MeleeVsFliers::Half) > 0.0);
         assert!(expect(MeleeVsFliers::Full) > expect(MeleeVsFliers::Half));
@@ -571,22 +533,25 @@ mod tests {
 
     #[test]
     fn expected_damage_falls_with_defence_and_is_nothing_against_an_immunity() {
-        let a = BattleUnit::simple(Side::Attacker, 4, 1, 4, 1);
-        let soft = BattleUnit::simple(Side::Defender, 4, 1, 1, 0);
-        let hard = BattleUnit::simple(Side::Defender, 4, 1, 1, 4);
-        assert!(
-            expected_damage(&a, &soft, false, MeleeVsFliers::default())
-                > expected_damage(&a, &hard, false, MeleeVsFliers::default())
+        // Paladins strike spearmen (defence 2) and klackon spearmen (defence 4, as many figures
+        // with as many hit points), and werewolves, which are immune to normal weapons.
+        let b = real_battle(
+            &[(PALADINS, (3, 5))],
+            &[
+                (SPEARMEN, (10, 5)),
+                (114 /* klackon_spearmen */, (10, 6)),
+                (168 /* werewolves */, (10, 7)),
+            ],
+            1,
         );
-        let mut stone = BattleUnit::simple(Side::Defender, 4, 1, 1, 0);
-        stone.abilities.push(f4x_core::rules::Ability::new(72));
-        assert_eq!(
-            expected_damage(&a, &stone, false, MeleeVsFliers::default()),
-            0.0
-        );
+        let (a, soft, hard, stone) = (&b.units[0], &b.units[1], &b.units[2], &b.units[3]);
+        assert!(soft.defense < hard.defense);
+        let rule = MeleeVsFliers::default();
+        assert!(expected_damage(a, soft, false, rule) > expected_damage(a, hard, false, rule));
+        assert_eq!(expected_damage(a, stone, false, rule), 0.0);
         let mut magic = a.clone();
         magic.magical_weapon = true;
-        assert!(expected_damage(&magic, &stone, false, MeleeVsFliers::default()) > 0.0);
+        assert!(expected_damage(&magic, stone, false, rule) > 0.0);
     }
 
     #[test]
@@ -601,34 +566,33 @@ mod tests {
 
     #[test]
     fn a_walker_outmatched_by_fliers_it_cannot_hurt_holds_its_place() {
-        let mut b = duel((3, 5), (10, 5));
-        b.units[1].flies = true;
         // As strong as it is: the walk goes on (it blocks and fights what comes).
+        let b = real_battle(
+            &[(SWORDSMEN, (3, 5))],
+            &[(
+                66, /* draconian_spearmen: fliers no stronger than ours */
+                (10, 5),
+            )],
+            1,
+        );
         assert!(matches!(
             next_command(&b),
             BattleCommand::Move { unit: 0, .. }
         ));
-        // Stronger, and out of reach for a walker's melee: it stays.
-        b.units[1].melee = 9;
-        b.units[1].defense = 9;
+        // Stronger (a sky drake), and out of reach for a walker's melee: it stays.
+        let b = real_battle(&[(SWORDSMEN, (3, 5))], &[(196 /* sky_drake */, (10, 5))], 1);
+        assert!(b.units[1].flies);
         assert_eq!(next_command(&b), BattleCommand::Done { unit: 0 });
-    }
-
-    fn merging_unit(side: Side, cell: Pos) -> BattleUnit {
-        let mut u = BattleUnit::simple(side, 4, 3, 4, 2).at(cell);
-        u.abilities.push(f4x_core::rules::Ability::new(43));
-        u
     }
 
     #[test]
     fn a_hurt_merging_unit_with_an_enemy_near_goes_under_and_comes_up_beside_a_target() -> TestResult
     {
-        let units = vec![
-            merging_unit(Side::Attacker, (5, 5)),
-            BattleUnit::simple(Side::Attacker, 1, 1, 1, 1).at((2, 2)),
-            BattleUnit::simple(Side::Defender, 4, 3, 4, 2).at((6, 5)),
-        ];
-        let mut b = Battle::new(PlayerId(0), PlayerId(1), BattleMap::open(), units, 1);
+        let mut b = real_battle(
+            &[(GREAT_WYRM, (5, 5)), (SPEARMEN, (2, 2))],
+            &[(PALADINS, (6, 5))],
+            1,
+        );
         assert_eq!(merge_order(&b), None, "whole: it fights");
         b.units[0].figures = 1;
         b.units[0].front_damage = b.units[0].hits - 1;
@@ -683,24 +647,23 @@ mod tests {
     fn the_battle_ai_takes_a_walled_city() -> TestResult {
         // Attackers with a crusher against a few guards behind the wall: the fight ends, and the
         // crusher has opened the walls or the army has come through the gate.
-        let crusher = {
-            let mut u = BattleUnit::simple(Side::Attacker, 1, 20, 8, 3).at((6, 12));
-            u.abilities = vec![f4x_core::rules::Ability::new(70) /* wall_crusher */];
-            u
-        };
-        let guard = |cell| BattleUnit::simple(Side::Defender, 4, 3, 3, 3).at(cell);
         let mut results = (0, 0);
         for seed in 0..12 {
-            let attackers = [
-                crusher.clone(),
-                BattleUnit::simple(Side::Attacker, 4, 4, 4, 3).at((6, 11)),
-                BattleUnit::simple(Side::Attacker, 4, 4, 4, 3).at((6, 13)),
-                BattleUnit::simple(Side::Attacker, 4, 4, 4, 3).at((5, 12)),
-            ];
-            let defenders = [guard((12, 12)), guard((13, 11)), guard((13, 12))];
-            let units = attackers.into_iter().chain(defenders).collect();
-            let map = BattleMap::open().with_city(true);
-            let mut b = Battle::new(PlayerId(0), PlayerId(1), map, units, seed);
+            let mut b = real_battle(
+                &[
+                    (110 /* high_men_engineers: wall crusher */, (6, 12)),
+                    (PALADINS, (6, 11)),
+                    (PALADINS, (6, 13)),
+                    (PALADINS, (5, 12)),
+                ],
+                &[
+                    (SPEARMEN, (12, 12)),
+                    (SPEARMEN, (13, 11)),
+                    (SPEARMEN, (13, 12)),
+                ],
+                seed,
+            );
+            b.map = BattleMap::open().with_city(true);
             for _ in 0..5_000 {
                 if b.winner.is_some() {
                     break;
