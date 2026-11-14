@@ -205,7 +205,11 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .find(|&t| match march(ai, game, &units, t, events) {
                     Ok(()) => true,
                     Err(why) => {
-                        ai.note_failure(game, format!("march to {t:?}"), format!("{why:?}"));
+                        // A site the party cannot walk to is passed over by design (the next
+                        // candidate is tried), so it is not a refused order worth logging.
+                        if !matches!(why, crate::assault::MarchError::Unreachable) {
+                            ai.note_failure(game, format!("march to {t:?}"), format!("{why:?}"));
+                        }
                         false
                     }
                 })
