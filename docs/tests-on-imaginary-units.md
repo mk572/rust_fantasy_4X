@@ -15,13 +15,13 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 152 tests. Part 2: 134 tests. Of 2166 in all.**
+**Part 1: 120 tests. Part 2: 119 tests. Of 2166 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
 | File | Tests |
 |---|---|
-| `crates/f4x-core/src/battle/tests.rs` | 91 |
+| `crates/f4x-core/src/battle/tests.rs` | 59 |
 | `crates/f4x-ai/src/battle/order.rs` | 13 |
 | `crates/f4x-def/src/load/rules.rs` | 13 |
 | `crates/f4x-core/src/wizard/retort.rs` | 7 |
@@ -67,103 +67,71 @@ Helpers that make things up: `duel` (line 430), `merging_unit` (line 617), `shoo
 |---|---|---|---|---|
 | `a_unit_lists_its_effects_with_their_length_and_a_lasting_one_says_none` | 126 | hand-made spell modifier (`Modifier::new`) | itself | |
 
-## `crates/f4x-core/src/battle/tests.rs` (91)
+## `crates/f4x-core/src/battle/tests.rs` (59)
 
-Helpers that make things up: `after_the_hit_points_are_taken_off` (line 2054), `caster` (line 4592), `crowd` (line 4221), `crusher` (line 1524), `damage_over_seeds` (line 1323), `duel` (line 23), `dummy` (line 1348), `ghost` (line 5102), `guard` (line 1542), `hero_unit` (line 3307), `instant_unit` (line 949), `merging_battle` (line 957), `of` (line 2164), `pair` (line 2172), `play_out` (line 409), `siege` (line 1538), `spearman` (line 19), `unit_with` (line 1978), `webbed_pair` (line 2696), `wrack_strikes` (line 2951).
+Helpers that make things up: `after_the_hit_points_are_taken_off` (line 2071), `caster` (line 4615), `crowd` (line 4250), `crusher` (line 1541), `duel` (line 24), `dummy` (line 1356), `ghost` (line 5125), `guard` (line 1559), `of` (line 2181), `pair` (line 2189), `siege` (line 1555), `spearman` (line 20), `unit_with` (line 1995), `webbed_pair` (line 2713), `wrack_strikes` (line 2968).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_new_battle_starts_with_the_attacker_and_full_moves` | 28 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `units_walk_within_their_moves_and_not_through_others` | 52 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `bad_orders_are_refused` | 86 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `a_melee_attack_hurts_both_sides_and_uses_up_the_turn` | 128 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `killing_the_last_enemy_wins_and_ends_the_battle` | 152 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel` | |
-| `turns_alternate_and_moves_come_back` | 182 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `fleeing_hands_the_battle_to_the_other_side` | 230 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `archers_shoot_with_ammunition_and_range_costs_accuracy` | 254 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `a_walkers_melee_against_a_flier_follows_the_setting_and_the_flier_hits_back` | 322 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel` | |
-| `a_battle_replays_exactly_from_the_same_seed` | 351 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `a_stalemate_ends_at_the_turn_limit_in_the_defenders_favour` | 381 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `scripted_battles_always_finish` | 459 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `play_out` | |
-| `the_stronger_side_usually_wins` | 477 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `play_out` | |
-| `obstacles_shape_where_units_can_go` | 490 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman` | |
-| `a_merged_unit_leaves_the_field_and_comes_up_on_the_next_turn_wherever_it_likes` | 973 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `merging_battle` | |
-| `merging_needs_the_ability_and_half_a_move` | 1050 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `merging_battle` | |
-| `a_side_with_only_merged_units_loses_and_they_get_away_whole` | 1074 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `instant_unit` | |
-| `merged_units_of_the_winner_come_up_when_the_battle_is_won` | 1099 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `instant_unit` | |
-| `teleporting_units_go_anywhere_free_for_one_move` | 1123 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `instant_unit` | |
-| `a_teleporter_cannot_go_into_rock_and_a_walker_cannot_teleport` | 1179 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `instant_unit` | |
-| `units_deploy_melee_first_and_shooters_behind_them` | 1214 | hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `a_nodes_aura_helps_its_realms_creatures_on_both_sides` | 1239 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `a_node_stops_spells_of_other_realms_but_not_its_own` | 1264 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `counter_magic_resists_by_its_strength_and_loses_five_per_attempt` | 1287 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `weapon_immunity_blunts_normal_blows_but_not_magical_ones` | 1356 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `damage_over_seeds`, `dummy` | |
-| `missile_immunity_stops_arrows_completely` | 1371 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `damage_over_seeds`, `dummy` | |
-| `magic_immunity_stops_a_bolt_that_a_fire_immunity_does_not` | 1386 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `damage_over_seeds`, `dummy` | |
-| `fire_breath_is_stopped_by_fire_immunity_and_magic_immunity` | 1404 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `damage_over_seeds`, `dummy` | |
-| `an_illusion_ignores_armor_unless_the_defender_sees_through_it` | 1422 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `damage_over_seeds`, `dummy` | |
-| `a_defender_with_a_gaze_stones_the_attackers_before_they_strike` | 1440 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel` | |
-| `a_life_stealing_shot_heals_the_shooter` | 1474 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel`, `dummy` | |
-| `a_power_drain_shot_takes_two_to_twenty_mana_from_a_caster_that_fails_its_check` | 1496 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel`, `dummy`, `caster` | |
-| `a_wall_crusher_brings_a_wall_down_half_the_time_in_melee` | 1547 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crusher`, `siege`, `guard` | |
-| `shooting_a_wall_works_a_quarter_of_the_time_and_costs_a_shot` | 1575 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crusher`, `siege`, `guard` | |
-| `only_attacking_wall_crushers_may_strike_a_standing_wall` | 1596 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crusher`, `siege`, `guard` | |
-| `a_wall_crusher_hitting_a_unit_on_the_wall_may_bring_the_wall_down_too` | 1670 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crusher`, `siege`, `guard` | |
-| `walls_add_three_to_the_defense_on_the_wall_and_one_behind_it_against_attackers_outside` | 1687 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `siege` | |
-| `with_walls_covering_the_city_a_unit_behind_the_wall_gets_three_not_one` | 1734 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `siege` | |
-| `attackers_inside_the_city_hurt_it_each_turn` | 1771 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `siege`, `guard` | |
-| `a_mana_budget_caps_what_the_wizard_can_afford_and_is_used_up_by_casting` | 1839 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `caster` | |
-| `magic_immunity_and_righteousness_turn_spells_away` | 1985 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `unit_with` | |
-| `a_lasting_spell_changes_the_numbers_and_a_rebuild_takes_it_off_again` | 2007 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`); hand-made spell modifier (`Modifier::new`) | `spearman`, `duel` | |
-| `a_unit_whose_borrowed_hit_points_go_with_the_damage_it_took_dies` | 2078 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`); hand-made spell modifier (`Modifier::new`) | `after_the_hit_points_are_taken_off` | |
-| `the_figures_of_a_unit_are_only_its_hit_points_so_the_whole_unit_dies_at_zero` | 2090 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`); hand-made spell modifier (`Modifier::new`) | `after_the_hit_points_are_taken_off` | |
-| `a_hurt_unit_that_has_hit_points_left_keeps_them_in_fewer_figures` | 2100 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`); hand-made spell modifier (`Modifier::new`) | `after_the_hit_points_are_taken_off` | |
-| `healing_brings_figures_back_and_a_new_creature_arrives_ready_to_act` | 2113 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `creatures_appear_only_on_a_free_square_of_the_casters_half` | 2131 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `light_helps_life_and_hurts_death_and_darkness_does_the_opposite` | 2177 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
-| `torin_is_a_life_creature_to_light_and_darkness` | 2218 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
-| `holy_bonus_and_resistance_to_all_help_the_whole_side_and_do_not_add_up` | 2241 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
-| `a_heros_leadership_and_prayermaster_help_the_side_and_only_the_best_counts` | 2291 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
-| `a_charmed_heros_resistance_passes_every_check` | 2339 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
-| `refreshing_does_not_pile_the_bonuses_up_and_they_come_off_again` | 2357 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
-| `black_prayer_curses_the_enemy_and_warp_reality_every_unit_but_chaos` | 2392 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
-| `a_loss_never_takes_a_stat_below_nothing_and_comes_back_whole` | 2416 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
-| `metal_fires_arms_ordinary_units_only` | 2551 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of` | |
-| `entangle_costs_a_move_and_terror_can_freeze_the_enemy` | 2586 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel`, `of`, `pair` | |
-| `black_sleep_and_web_hold_a_unit_and_ground_a_flyer` | 2655 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`); hand-made spell modifier (`Modifier::new`) | `of`, `pair` | |
-| `a_held_unit_spends_each_turn_tearing_at_the_web_until_it_is_free` | 2705 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `webbed_pair` | |
-| `a_unit_that_cannot_hurt_the_web_stays_held` | 2737 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `webbed_pair` | |
-| `a_web_cast_again_on_a_unit_that_broke_free_closes_round_it_anew` | 2745 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `webbed_pair` | |
-| `what_a_unit_brings_to_the_web_follows_its_attacks` | 2767 | hand-made battle unit (`BattleUnit::simple`) | `of` | |
-| `a_bound_unit_fights_for_the_caster_and_goes_home_when_the_battle_ends` | 2804 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman` | |
-| `a_creature_still_bound_when_the_battle_ends_is_destroyed` | 2838 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman` | |
-| `confusion_picks_one_of_four_acts_and_can_lend_the_unit_to_the_enemy` | 2860 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel`, `of` | |
-| `wrack_and_call_lightning_hurt_the_casters_enemies_at_the_start_of_each_turn` | 2905 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
-| `wrack_deals_one_point_for_each_figure_that_fails_its_roll_and_not_the_square_of_that` | 2973 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `wrack_strikes` | |
-| `wrack_spares_a_resistance_of_nine_and_the_immune_and_hurts_a_resistance_of_eight` | 2981 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `wrack_strikes` | |
-| `mana_leak_drains_the_enemy_wizard_and_its_spell_shots` | 3039 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair`, `caster` | |
-| `blur_takes_one_off_the_chance_to_hit_unless_the_attacker_sees_through_illusions` | 3056 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
-| `an_invisible_creature_is_harder_to_hit_unless_the_attacker_sees_through_illusions` | 3074 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
-| `figures_that_fail_their_resistance_are_destroyed` | 3095 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
-| `a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn` | 3548 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal); hand-made battle unit (`BattleUnit::simple`) | `hero_unit`, `caster` | |
-| `a_spell_save_makes_the_resistance_checks_of_the_cast_harder` | 3841 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers` | 4226 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crowd` | |
-| `striking_into_a_city_behind_a_wall_of_fire_burns_the_attacker` | 4283 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crowd` | |
-| `a_wall_of_darkness_stops_shots_into_the_city_unless_the_shooter_sees_through` | 4306 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crowd` | |
-| `a_flying_fortress_shuts_the_city_to_walkers_and_its_walkers_in` | 4345 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crowd` | |
-| `the_legal_commands_are_exactly_what_apply_accepts` | 4413 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman` | |
-| `the_legal_commands_cover_walls_crushers_and_darkness` | 4443 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crusher`, `siege`, `guard` | |
-| `a_large_shield_turns_missiles_but_not_blows` | 4565 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `damage_over_seeds`, `dummy` | |
-| `a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot` | 4602 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel`, `dummy`, `caster` | |
-| `regenerating_units_heal_a_hit_as_their_sides_turn_begins` | 4636 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `dummy` | |
-| `healing_cannot_bring_back_what_was_destroyed` | 4901 | hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `extra_hits_do_not_count_as_the_units_real_strength` | 4929 | hand-made battle unit (`BattleUnit::simple`) | itself | |
-| `a_vortex_crushes_the_unit_it_lands_on_and_is_steered_once_a_turn_by_its_owner` | 4939 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `vortices_wander_three_squares_each_turn_and_there_are_at_most_ten` | 4985 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `an_invisible_unit_is_unseen_and_cannot_be_aimed_at_until_it_gives_itself_away` | 5109 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `ghost` | |
-| `an_invisible_unit_shows_after_it_attacks_until_its_next_turn_and_to_those_who_see_through` | 5135 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `ghost` | |
-| `invisibility_that_begins_in_battle_hides_the_unit_at_once` | 5174 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
-| `a_hasted_unit_attacks_twice_in_a_turn` | 6493 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
+| `counter_magic_resists_by_its_strength_and_loses_five_per_attempt` | 1290 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
+| `a_wall_crusher_brings_a_wall_down_half_the_time_in_melee` | 1564 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crusher`, `siege`, `guard` | |
+| `shooting_a_wall_works_a_quarter_of_the_time_and_costs_a_shot` | 1592 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crusher`, `siege`, `guard` | |
+| `only_attacking_wall_crushers_may_strike_a_standing_wall` | 1613 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crusher`, `siege`, `guard` | |
+| `a_wall_crusher_hitting_a_unit_on_the_wall_may_bring_the_wall_down_too` | 1687 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crusher`, `siege`, `guard` | |
+| `walls_add_three_to_the_defense_on_the_wall_and_one_behind_it_against_attackers_outside` | 1704 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `siege` | |
+| `with_walls_covering_the_city_a_unit_behind_the_wall_gets_three_not_one` | 1751 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `siege` | |
+| `attackers_inside_the_city_hurt_it_each_turn` | 1788 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `siege`, `guard` | |
+| `a_mana_budget_caps_what_the_wizard_can_afford_and_is_used_up_by_casting` | 1856 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `caster` | |
+| `magic_immunity_and_righteousness_turn_spells_away` | 2002 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `unit_with` | |
+| `a_lasting_spell_changes_the_numbers_and_a_rebuild_takes_it_off_again` | 2024 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`); hand-made spell modifier (`Modifier::new`) | `spearman`, `duel` | |
+| `a_unit_whose_borrowed_hit_points_go_with_the_damage_it_took_dies` | 2095 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`); hand-made spell modifier (`Modifier::new`) | `after_the_hit_points_are_taken_off` | |
+| `the_figures_of_a_unit_are_only_its_hit_points_so_the_whole_unit_dies_at_zero` | 2107 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`); hand-made spell modifier (`Modifier::new`) | `after_the_hit_points_are_taken_off` | |
+| `a_hurt_unit_that_has_hit_points_left_keeps_them_in_fewer_figures` | 2117 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`); hand-made spell modifier (`Modifier::new`) | `after_the_hit_points_are_taken_off` | |
+| `healing_brings_figures_back_and_a_new_creature_arrives_ready_to_act` | 2130 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
+| `creatures_appear_only_on_a_free_square_of_the_casters_half` | 2148 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
+| `light_helps_life_and_hurts_death_and_darkness_does_the_opposite` | 2194 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
+| `torin_is_a_life_creature_to_light_and_darkness` | 2235 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
+| `holy_bonus_and_resistance_to_all_help_the_whole_side_and_do_not_add_up` | 2258 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
+| `a_heros_leadership_and_prayermaster_help_the_side_and_only_the_best_counts` | 2308 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
+| `a_charmed_heros_resistance_passes_every_check` | 2356 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
+| `refreshing_does_not_pile_the_bonuses_up_and_they_come_off_again` | 2374 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
+| `black_prayer_curses_the_enemy_and_warp_reality_every_unit_but_chaos` | 2409 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
+| `a_loss_never_takes_a_stat_below_nothing_and_comes_back_whole` | 2433 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
+| `metal_fires_arms_ordinary_units_only` | 2568 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of` | |
+| `entangle_costs_a_move_and_terror_can_freeze_the_enemy` | 2603 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel`, `of`, `pair` | |
+| `black_sleep_and_web_hold_a_unit_and_ground_a_flyer` | 2672 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`); hand-made spell modifier (`Modifier::new`) | `of`, `pair` | |
+| `a_held_unit_spends_each_turn_tearing_at_the_web_until_it_is_free` | 2722 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `webbed_pair` | |
+| `a_unit_that_cannot_hurt_the_web_stays_held` | 2754 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `webbed_pair` | |
+| `a_web_cast_again_on_a_unit_that_broke_free_closes_round_it_anew` | 2762 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `webbed_pair` | |
+| `what_a_unit_brings_to_the_web_follows_its_attacks` | 2784 | hand-made battle unit (`BattleUnit::simple`) | `of` | |
+| `a_bound_unit_fights_for_the_caster_and_goes_home_when_the_battle_ends` | 2821 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman` | |
+| `a_creature_still_bound_when_the_battle_ends_is_destroyed` | 2855 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman` | |
+| `confusion_picks_one_of_four_acts_and_can_lend_the_unit_to_the_enemy` | 2877 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel`, `of` | |
+| `wrack_and_call_lightning_hurt_the_casters_enemies_at_the_start_of_each_turn` | 2922 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
+| `wrack_deals_one_point_for_each_figure_that_fails_its_roll_and_not_the_square_of_that` | 2990 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `wrack_strikes` | |
+| `wrack_spares_a_resistance_of_nine_and_the_immune_and_hurts_a_resistance_of_eight` | 2998 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `wrack_strikes` | |
+| `mana_leak_drains_the_enemy_wizard_and_its_spell_shots` | 3056 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair`, `caster` | |
+| `blur_takes_one_off_the_chance_to_hit_unless_the_attacker_sees_through_illusions` | 3073 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
+| `an_invisible_creature_is_harder_to_hit_unless_the_attacker_sees_through_illusions` | 3091 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
+| `figures_that_fail_their_resistance_are_destroyed` | 3112 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `of`, `pair` | |
+| `a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn` | 3577 | hand-made battle unit (`BattleUnit::simple`) | `caster` | |
+| `a_spell_save_makes_the_resistance_checks_of_the_cast_harder` | 3870 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | itself | |
+| `a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers` | 4255 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crowd` | |
+| `striking_into_a_city_behind_a_wall_of_fire_burns_the_attacker` | 4312 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crowd` | |
+| `a_wall_of_darkness_stops_shots_into_the_city_unless_the_shooter_sees_through` | 4335 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crowd` | |
+| `a_flying_fortress_shuts_the_city_to_walkers_and_its_walkers_in` | 4374 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crowd` | |
+| `the_legal_commands_are_exactly_what_apply_accepts` | 4442 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman` | |
+| `the_legal_commands_cover_walls_crushers_and_darkness` | 4472 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `crusher`, `siege`, `guard` | |
+| `a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot` | 4625 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `duel`, `dummy`, `caster` | |
+| `regenerating_units_heal_a_hit_as_their_sides_turn_begins` | 4659 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `dummy` | |
+| `healing_cannot_bring_back_what_was_destroyed` | 4924 | hand-made battle unit (`BattleUnit::simple`) | itself | |
+| `extra_hits_do_not_count_as_the_units_real_strength` | 4952 | hand-made battle unit (`BattleUnit::simple`) | itself | |
+| `a_vortex_crushes_the_unit_it_lands_on_and_is_steered_once_a_turn_by_its_owner` | 4962 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
+| `vortices_wander_three_squares_each_turn_and_there_are_at_most_ten` | 5008 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
+| `an_invisible_unit_is_unseen_and_cannot_be_aimed_at_until_it_gives_itself_away` | 5132 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `ghost` | |
+| `an_invisible_unit_shows_after_it_attacks_until_its_next_turn_and_to_those_who_see_through` | 5158 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel`, `ghost` | |
+| `invisibility_that_begins_in_battle_hides_the_unit_at_once` | 5197 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
+| `a_hasted_unit_attacks_twice_in_a_turn` | 6516 | hand-made battle (`Battle::new`); hand-made battle unit (`BattleUnit::simple`) | `spearman`, `duel` | |
 
 ## `crates/f4x-core/src/city/economy.rs` (6)
 
@@ -268,11 +236,11 @@ Helpers that make things up: `m` (line 280).
 
 | File | Tests |
 |---|---|
-| `crates/f4x-core/src/battle/tests.rs` | 23 |
 | `crates/f4x-core/src/feature/lair/tests.rs` | 19 |
 | `crates/f4x-core/src/hero/game.rs` | 16 |
 | `crates/f4x-core/src/item/armory.rs` | 14 |
 | `crates/f4x-core/src/item/mod.rs` | 9 |
+| `crates/f4x-core/src/battle/tests.rs` | 8 |
 | `crates/f4x-client/src/offer_prompt.rs` | 7 |
 | `crates/f4x-core/src/threat/tests.rs` | 7 |
 | `crates/f4x-core/src/city/mod.rs` | 5 |
@@ -322,35 +290,20 @@ Helpers that make things up: `open_test_offer` (line 142).
 | `a_summoned_hero_is_named_then_joins_for_nothing` | 679 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `open_test_offer` | |
 | `rejecting_a_summoned_hero_sends_it_away_and_the_spell_is_spent` | 704 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `open_test_offer` | |
 
-## `crates/f4x-core/src/battle/tests.rs` (23)
+## `crates/f4x-core/src/battle/tests.rs` (8)
 
-Helpers that make things up: `battle_in_the_middle` (line 6237), `hero_unit` (line 3307), `hook_game` (line 3862), `hook_game_against` (line 3867), `necromancy_battle` (line 6830).
+Helpers that make things up: `battle_in_the_middle` (line 6260).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle` | 3169 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots` | 3243 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hero_unit` | |
-| `an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item` | 3636 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hero_unit` | |
-| `earth_to_mud_makes_open_ground_in_five_by_five_cost_a_walker_all_its_moves` | 3898 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hook_game` | |
-| `disrupt_destroys_one_wall_section_and_only_where_a_wall_stands` | 3955 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hook_game` | |
-| `cracks_call_never_swallows_a_merging_unit` | 3984 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hook_game_against` | |
-| `cracks_call_swallows_a_walker_one_time_in_four_but_not_a_flier_and_breaks_a_wall` | 4018 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hook_game_against`, `hook_game` | |
-| `life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune` | 4084 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hook_game` | |
-| `word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero` | 4130 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hook_game` | |
-| `magic_vortex_is_cast_on_a_free_square` | 5005 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hook_game` | |
-| `a_battle_is_saved_and_read_back_with_its_spells_and_items` | 6175 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hero_unit` | |
-| `a_game_saved_in_a_battle_continues_exactly_like_the_unsaved_one` | 6287 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
-| `a_game_saved_outside_a_battle_holds_no_battle` | 6319 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
-| `a_save_whose_battle_names_a_unit_that_is_gone_is_refused` | 6326 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
-| `a_replay_can_start_in_a_battle` | 6338 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
-| `the_legal_unit_casts_are_the_castable_spells_with_the_units_they_can_hit` | 6699 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hero_unit` | |
-| `a_curse_the_target_is_immune_to_is_refused_before_it_costs_mana` | 6719 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hook_game` | |
-| `warp_wood_asks_for_a_missile_attack_and_not_for_a_kind_of_unit` | 6737 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hook_game` | |
-| `warp_creature_takes_any_unit_that_is_not_warped_already` | 6762 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `hook_game` | |
-| `raise_dead_brings_a_fallen_soldier_back_with_half_its_figures_on_its_own_side` | 6881 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `necromancy_battle` | |
-| `animate_dead_raises_a_fallen_soldier_as_undead_at_full_strength` | 6913 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `necromancy_battle` | |
-| `the_dead_that_cannot_be_raised_are_refused_without_spending_anything` | 6939 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `necromancy_battle` | |
-| `neither_spell_takes_a_unit_that_is_still_alive` | 6980 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `necromancy_battle` | |
+| `a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle` | 3186 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots` | 3260 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item` | 3665 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `a_battle_is_saved_and_read_back_with_its_spells_and_items` | 6198 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `a_game_saved_in_a_battle_continues_exactly_like_the_unsaved_one` | 6310 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
+| `a_game_saved_outside_a_battle_holds_no_battle` | 6342 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
+| `a_save_whose_battle_names_a_unit_that_is_gone_is_refused` | 6349 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
+| `a_replay_can_start_in_a_battle` | 6361 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
 
 ## `crates/f4x-core/src/city/mod.rs` (5)
 
