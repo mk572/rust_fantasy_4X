@@ -119,6 +119,7 @@ impl Game {
     /// research has now. Called each turn, when a wizard is made and when books are added.
     pub fn refill_research(&mut self, player: PlayerId) {
         let income = self.income(player).research;
+        let mastery_open = self.mastery_open_to(player);
         let (content, rng) = (&self.content, &mut self.rng);
         if let Some(mut w) = self
             .player_index
@@ -126,7 +127,7 @@ impl Game {
             .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
             .map(|e| crate::wizard::sheet::WizardMut::new(&mut self.world, e))
         {
-            w.refill_research(content, rng, income);
+            w.refill_research(content, rng, income, mastery_open);
         }
     }
 
@@ -338,6 +339,10 @@ impl Game {
         let def = self.content.rules.spells.get(spell);
         if !def.contexts.contains(&CastContext::Overland) {
             return Err(MagicError::NotOverland);
+        }
+        // The game's rules may close the Spell of Mastery to this wizard.
+        if def.has_hook(crate::spell::special::SPELL_OF_MASTERY) && !self.mastery_open_to(player) {
+            return Err(MagicError::NotAvailable);
         }
         let needs_target = self.spell_needs_target(player, spell);
         if self.spell_has_hook(spell, crate::item::crafting::CRAFT_ITEM) {

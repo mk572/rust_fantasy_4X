@@ -185,6 +185,24 @@ impl Game {
         }
     }
 
+    /// Whether the Spell of Mastery is open to the wizard (`RuleSettings::spell_of_mastery`):
+    /// to research it and to cast it.
+    pub fn mastery_open_to(&self, player: PlayerId) -> bool {
+        self.settings()
+            .rules
+            .spell_of_mastery
+            .allows(self.human() == Some(player))
+    }
+
+    /// Whether the wizard may cast the Spell of Return when banished
+    /// (`RuleSettings::spell_of_return`); if not, banishment defeats them.
+    pub fn return_open_to(&self, player: PlayerId) -> bool {
+        self.settings()
+            .rules
+            .spell_of_return
+            .allows(self.human() == Some(player))
+    }
+
     /// The wizards now casting the Spell of Mastery and the mana each still has to pay. Every
     /// wizard is told when one starts, so this is public knowledge.
     pub fn mastery_casters(&self) -> Vec<(PlayerId, i32)> {

@@ -895,6 +895,41 @@ fn the_dispel_and_disjunction_spells_take_extra_mana_and_no_other_does() {
 }
 
 #[test]
+fn the_rules_decide_who_may_cast_the_spell_of_mastery() -> TestResult {
+    use f4x_def::settings::SpellAccess;
+    // (the rule, whether P0 is the human, whether the cast starts)
+    for (access, human, starts) in [
+        (SpellAccess::All, false, true),
+        (SpellAccess::Off, true, false),
+        (SpellAccess::HumanOnly, false, false),
+        (SpellAccess::HumanOnly, true, true),
+    ] {
+        let mut g = world();
+        g.settings.rules.spell_of_mastery = access;
+        g.set_human(human.then_some(P0));
+        let mastery = spell(&g, 213 /* spell_of_mastery */);
+        g.wizard_mut(P0)
+            .ok_or("wizard_mut is missing")?
+            .get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(mastery);
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+            f4x_def::half_int::HalfInt::from_int(10_000);
+        let result = g.start_cast_with(P0, mastery, None, 0);
+        if starts {
+            assert!(result.is_ok(), "{access:?}, human {human}: {result:?}");
+        } else {
+            assert_eq!(
+                result,
+                Err(MagicError::NotAvailable),
+                "{access:?}, human {human}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn extra_mana_is_part_of_the_price_and_only_for_a_spell_that_takes_it() -> TestResult {
     let mut g = world();
     let area = spell(&g, 204 /* disenchant_area */);

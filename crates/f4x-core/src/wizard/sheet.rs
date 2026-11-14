@@ -690,7 +690,13 @@ impl<'a> WizardMut<'a> {
     /// spell goes on offer), drop spells that are no longer researchable, and sort the offer by
     /// the time each would take at `income` research points a turn. Called each turn, when a
     /// wizard is made and when books are added.
-    pub fn refill_research(&mut self, content: &Content, rng: &mut GameRng, income: i32) {
+    pub fn refill_research(
+        &mut self,
+        content: &Content,
+        rng: &mut GameRng,
+        income: i32,
+        mastery_open: bool,
+    ) {
         let researchable = self.view().researchable();
         let mut candidates: Vec<SpellId> = self
             .view()
@@ -708,8 +714,9 @@ impl<'a> WizardMut<'a> {
             candidates.push(pick);
             *self.get_mut::<Candidates>() = Candidates(candidates.clone());
         }
-        // With nothing left to offer, the Spell of Mastery is: the last thing to research.
-        if candidates.len() < RESEARCH_SLOTS {
+        // With nothing left to offer, the Spell of Mastery is: the last thing to research (when
+        // the game's rules open it to this wizard).
+        if mastery_open && candidates.len() < RESEARCH_SLOTS {
             if let Some(som) = content.rules.spells.id_numbered(213)
             /* spell_of_mastery */
             {

@@ -14,7 +14,7 @@ use crate::text::{Args, Texts};
 use crate::ui;
 use crate::view::{App, Screen};
 use f4x_core::game::setting::{
-    EventFrequency, GameSettings, MeleeVsFliers, SettingsDef, MAP_HEIGHTS, MAP_WIDTHS,
+    EventFrequency, GameSettings, MeleeVsFliers, SettingsDef, SpellAccess, MAP_HEIGHTS, MAP_WIDTHS,
     MAX_OPPONENTS, MAX_TILE_LIMIT,
 };
 use f4x_def::half_int::HalfInt;
@@ -54,11 +54,33 @@ pub(crate) enum Row {
     Field(Field),
 }
 
+/// A spell access setting as the number of its choice word, and back.
+fn access_value(access: SpellAccess) -> i32 {
+    match access {
+        SpellAccess::All => 0,
+        SpellAccess::HumanOnly => 1,
+        SpellAccess::Off => 2,
+    }
+}
+
+fn access_of(value: i32) -> SpellAccess {
+    match value {
+        0 => SpellAccess::All,
+        1 => SpellAccess::HumanOnly,
+        _ => SpellAccess::Off,
+    }
+}
+
 const MAGIC_WORDS: &[&str] = &["options.weak", "options.normal", "options.powerful"];
 const MELEE_WORDS: &[&str] = &[
     "custom.melee_zero",
     "custom.melee_half",
     "custom.melee_full",
+];
+const ACCESS_WORDS: &[&str] = &[
+    "custom.access_all",
+    "custom.access_human_only",
+    "custom.access_off",
 ];
 const FREQUENCY_WORDS: &[&str] = &[
     "custom.frequency_half",
@@ -415,6 +437,18 @@ pub(crate) fn rows() -> Vec<Row> {
             "custom.limit_ai_races",
             |s| s.rules.limit_ai_races.into(),
             |s, v| s.rules.limit_ai_races = v != 0,
+        ),
+        choice(
+            "custom.spell_of_mastery",
+            ACCESS_WORDS,
+            |s| access_value(s.rules.spell_of_mastery),
+            |s, v| s.rules.spell_of_mastery = access_of(v),
+        ),
+        choice(
+            "custom.spell_of_return",
+            ACCESS_WORDS,
+            |s| access_value(s.rules.spell_of_return),
+            |s, v| s.rules.spell_of_return = access_of(v),
         ),
         choice(
             "custom.melee_vs_fliers",

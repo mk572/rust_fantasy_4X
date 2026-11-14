@@ -407,7 +407,12 @@ impl Game {
             fortress_falls(&mut w);
         }
         self.take_fortress_prize(loser, winner);
-        if self.economy().city_count(loser) == 0 || skill < RESIGN_BELOW_SKILL || mana < 1 {
+        // The game's rules may leave this wizard no Spell of Return (`RuleSettings::spell_of_return`).
+        if self.economy().city_count(loser) == 0
+            || skill < RESIGN_BELOW_SKILL
+            || mana < 1
+            || !self.return_open_to(loser)
+        {
             return self.defeat(loser, winner);
         }
         self.conquest_relations(winner, loser, false);

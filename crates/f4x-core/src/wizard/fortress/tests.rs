@@ -798,6 +798,35 @@ fn a_strong_computer_wizard_is_banished_and_keeps_its_cities() {
 }
 
 #[test]
+fn the_rules_decide_who_may_cast_the_spell_of_return() {
+    use f4x_def::settings::SpellAccess;
+    // (the rule, whether P0 is the human, whether P0 is banished and not defeated)
+    for (access, human, banished) in [
+        (SpellAccess::All, false, true),
+        (SpellAccess::All, true, true),
+        (SpellAccess::HumanOnly, false, false),
+        (SpellAccess::HumanOnly, true, true),
+        (SpellAccess::Off, false, false),
+        (SpellAccess::Off, true, false),
+    ] {
+        let (mut g, capital, _) = banish_world(40);
+        g.settings.rules.spell_of_return = access;
+        g.set_human(human.then_some(P0));
+        let events = g.capture_city(capital, P1);
+        assert_eq!(
+            events.contains(&Event::WizardBanished { player: P0, by: P1 }),
+            banished,
+            "{access:?}, human {human}: {events:?}"
+        );
+        assert_eq!(
+            events.contains(&Event::WizardDefeated { player: P0 }),
+            !banished,
+            "{access:?}, human {human}: {events:?}"
+        );
+    }
+}
+
+#[test]
 fn a_banished_human_may_resign() -> TestResult {
     let (mut g, capital, town) = banish_world(40);
     g.set_human(Some(P0));

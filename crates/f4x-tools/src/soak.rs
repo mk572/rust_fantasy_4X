@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use crate::contestant::{self, Contestant, Version};
 use crate::metrics::{add_casts, casts_line, never_cast, Metrics, Standing, Tally};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6] [--mastery all|human|off] [--return all|human|off]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -58,8 +58,23 @@ pub struct Options {
     pub land: Option<u8>,
     pub magic: Option<u8>,
     pub difficulty: Option<u8>,
+    /// Who may research and cast the Spell of Mastery, and who may cast the Spell of Return
+    /// (none: the rule set's). The games have no human wizard, so "human" is nobody.
+    pub mastery: Option<f4x_def::settings::SpellAccess>,
+    pub spell_return: Option<f4x_def::settings::SpellAccess>,
     /// The rules the games are played with; 1.31, the original's, unless asked otherwise.
     pub rules: f4x_def::settings::RuleSet,
+}
+
+/// `all`, `human` or `off`: who a special spell is open to.
+fn spell_access(text: &str) -> Result<f4x_def::settings::SpellAccess, String> {
+    use f4x_def::settings::SpellAccess;
+    match text {
+        "all" => Ok(SpellAccess::All),
+        "human" => Ok(SpellAccess::HumanOnly),
+        "off" => Ok(SpellAccess::Off),
+        other => Err(format!("{other:?} is not all, human or off")),
+    }
 }
 
 impl Options {
@@ -88,6 +103,8 @@ impl Options {
             land: None,
             magic: None,
             difficulty: None,
+            mastery: None,
+            spell_return: None,
             rules: Default::default(),
         };
         let mut it = args.iter();
@@ -153,6 +170,8 @@ impl Options {
                             .map_err(|_| "bad difficulty")?,
                     )
                 }
+                "--mastery" => o.mastery = Some(spell_access(&value("--mastery")?)?),
+                "--return" => o.spell_return = Some(spell_access(&value("--return")?)?),
                 other => return Err(format!("unknown option {other:?}\n{usage}")),
             }
         }
@@ -324,6 +343,12 @@ pub fn game(
                 spec.settings.basic.opponents = opponents;
             }
             spec.settings = opts.rules.applied(spec.settings, &content.settings);
+            if let Some(access) = opts.mastery {
+                spec.settings.rules.spell_of_mastery = access;
+            }
+            if let Some(access) = opts.spell_return {
+                spec.settings.rules.spell_of_return = access;
+            }
             let basic = &mut spec.settings.basic;
             if let Some((w, h)) = opts.map {
                 (basic.map_width, basic.map_height) = (w, h);

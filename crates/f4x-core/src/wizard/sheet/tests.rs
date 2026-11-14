@@ -74,7 +74,7 @@ fn the_library_depends_on_the_seed_and_the_books_alone() -> TestResult {
         let content = g.content.clone();
         let mut w = g.wizard_mut(P0).expect("wizard_mut succeeds");
         w.init_library(&content, &mut rng, None);
-        w.refill_research(&content, &mut rng, 1);
+        w.refill_research(&content, &mut rng, 1, true);
         let v = w.view();
         (v.known(), v.researchable(), v.candidates())
     };
@@ -170,7 +170,7 @@ fn the_spell_of_mastery_is_offered_last_and_costs_less_for_each_spell_known() ->
     let mut rng = GameRng::new(3);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
-        .refill_research(&content, &mut rng, 5);
+        .refill_research(&content, &mut rng, 5, true);
     assert!(
         !g.wizard(P0)
             .ok_or("wizard is missing")?
@@ -190,7 +190,7 @@ fn the_spell_of_mastery_is_offered_last_and_costs_less_for_each_spell_known() ->
         w.learn(next);
         learned += 1;
         assert!(learned < 500, "the pool runs dry");
-        w.refill_research(&content, &mut rng, 5);
+        w.refill_research(&content, &mut rng, 5, true);
     }
     let w = g.wizard(P0).ok_or("wizard is missing")?;
     let listed = content.rules.spells.get(mastery).research_cost as i32;
@@ -212,6 +212,42 @@ fn the_spell_of_mastery_is_offered_last_and_costs_less_for_each_spell_known() ->
 }
 
 #[test]
+fn the_spell_of_mastery_is_not_offered_when_the_rules_close_it() -> TestResult {
+    use f4x_def::settings::SpellAccess;
+    // Off closes it for everyone; human only closes it for a computer wizard but not for the human.
+    for (access, human, offered) in [
+        (SpellAccess::All, false, true),
+        (SpellAccess::Off, false, false),
+        (SpellAccess::Off, true, false),
+        (SpellAccess::HumanOnly, false, false),
+        (SpellAccess::HumanOnly, true, true),
+    ] {
+        let mut g = game_with(&[(RealmId::new(3 /* life */), 1)], &[]);
+        g.settings.rules.spell_of_mastery = access;
+        g.set_human(human.then_some(P0));
+        let mastery = spell(&g, 213 /* spell_of_mastery */);
+        let mut learned = 0;
+        loop {
+            g.refill_research(P0);
+            let offer = g.wizard(P0).ok_or("wizard is missing")?.candidates();
+            let Some(&next) = offer.iter().find(|&&s| s != mastery) else {
+                break;
+            };
+            g.wizard_mut(P0).ok_or("wizard_mut is missing")?.learn(next);
+            learned += 1;
+            assert!(learned < 500, "the pool runs dry");
+        }
+        let offer = g.wizard(P0).ok_or("wizard is missing")?.candidates();
+        assert_eq!(
+            offer.contains(&mastery),
+            offered,
+            "{access:?}, human {human}: {offer:?}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn research_runs_from_choice_to_a_known_spell() -> TestResult {
     let mut g = game_with(
         &[(RealmId::new(3 /* life */), 3)],
@@ -221,7 +257,7 @@ fn research_runs_from_choice_to_a_known_spell() -> TestResult {
     let mut rng = GameRng::new(3);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
-        .refill_research(&content, &mut rng, 5);
+        .refill_research(&content, &mut rng, 5, true);
     let pick = *g
         .wizard(P0)
         .ok_or("wizard is missing")?
@@ -354,7 +390,7 @@ fn power_reaches_the_reserve_the_research_and_the_skill() -> TestResult {
     let mut rng = GameRng::new(3);
     let target = spell(&g, 125 /* healing */);
     let mut w = g.wizard_mut(P0).ok_or("wizard_mut is missing")?;
-    w.refill_research(&content, &mut rng, 1);
+    w.refill_research(&content, &mut rng, 1, true);
     *w.get_mut::<Research>() = Research {
         spell: Some(target),
         remaining: 10,
@@ -530,7 +566,7 @@ fn with_the_patch_setting_only_so_many_arcane_spells_are_on_offer_at_once() -> T
     let plain = g.content.clone();
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
-        .refill_research(&plain, &mut rng, 5);
+        .refill_research(&plain, &mut rng, 5, true);
     assert!(arcane_on_offer(&g) > 0);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
@@ -539,7 +575,7 @@ fn with_the_patch_setting_only_so_many_arcane_spells_are_on_offer_at_once() -> T
         .clear();
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
-        .refill_research(&content, &mut rng, 5);
+        .refill_research(&content, &mut rng, 5, true);
     assert!(arcane_on_offer(&g) <= 4);
     Ok(())
 }

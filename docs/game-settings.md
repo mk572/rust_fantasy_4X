@@ -145,8 +145,8 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | rules | `suppress_spares_return` | bool | off (on in v1.6) | `spell/dispel.rs` `suppressed_by`: off (the original), an enemy's Suppress Magic can counter the Spell of Return like any spell; on (patch 1.40, IW114), it never does |
 | rules | `limit_ai_races` | bool | on (v1.31 and v1.6) | `f4x-newgame/src/setup.rs` race pick: on (the original, `Generate_Home_Cities`), above Normal difficulty an Arcanus computer wizard is Halfling, High Elf, High Men, Klackon or Nomad; off, any Arcanus race. Myrror and the human are never limited; independent cities are not affected (task 379) |
 | rules | `melee_vs_fliers` | `zero` / `half` / `full` | zero | `battle/mod.rs` `Battle::fighter`: a unit that does not fly deals no melee damage to a flier (`zero`, the original), half strength rounded up (`half`, a planned mod, what the game did before) or its full strength (`full`, the rule is off); the flier hits back in full, thrown and breath attacks are unchanged. The battle AI's `expected_damage` follows it |
-| victory | `spell_of_mastery` | on / off | on | always on |
-| victory | `spell_of_return` | `Off` / `HumanOnly` / `All` | `All` | always all |
+| rules | `spell_of_mastery` | `all` / `human_only` / `off` (`SpellAccess`) | all | built (task 584): `Game::mastery_open_to`; `wizard/sheet.rs` `refill_research` does not offer the spell last in research to a wizard it is closed to, and `start_cast_with` refuses it; the Custom screen has a row; `soak --mastery all\|human\|off`. A soak has no human wizard, so `human` there is the same as `off` |
+| rules | `spell_of_return` | `all` / `human_only` / `off` (`SpellAccess`) | all | built (task 585): `Game::return_open_to`; `wizard/fortress.rs` `banish` defeats a banished wizard it is closed to, at once (its cities turn neutral); the Custom screen has a row; `soak --return all\|human\|off` |
 | victory | `hardcore` | bool | off | `PLANNED.md` 8 |
 | events | `random_events` | on / off | on | task 68 |
 | events | `event_frequency` | `Half` / `Normal` / `Double` | `Normal` | task 68 |
@@ -391,6 +391,9 @@ is a second copy of the same 9, and `battle/game.rs` caps the raised dead by `MA
   changes the cap they are checked against.
 
 ### 4.4 Spell of Mastery victory on / off
+
+(Built as `rules.spell_of_mastery`, task 584: three values, all wizards, the human only, nobody. Where
+the text below says `victory.spell_of_mastery = false` it is "nobody".)
 
 Today the Spell of Mastery is always in the spell pool (the research list offers it last, see
 `wizard/magic.rs`; `game/endgame.rs` ends the game when it is cast). With `victory.spell_of_mastery = false`:

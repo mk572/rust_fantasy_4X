@@ -377,6 +377,8 @@ The same run per seed, from the soak lines (cities `c`, units `u` at the end):
 | 7 | no winner; 4 battles | no winner; 8 battles |
 | 8 | no winner; 35 battles | **p0 wins by conquest, turn 269** |
 
+`soak --mastery off` or `--return off` closes the spell to every wizard of a soak (no human plays there; `human` is the same as `off`); see task 584.
+
 `soak --grant-mastery 40` gives every wizard the Spell of Mastery and its mana at turn 40: the
 AI starts it at once and finishes it (seed 1: turn 134; seed 2: turn 136), so the cast path works
 in a whole game. Without the grant nobody gets it in 400 turns (60,000 research points).

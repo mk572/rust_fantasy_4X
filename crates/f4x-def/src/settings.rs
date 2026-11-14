@@ -347,6 +347,48 @@ pub struct RuleSettings {
     /// off, any Arcanus race. Myrror races are never limited. On in v1.31 and v1.6.
     #[serde(default = "default_true")]
     pub limit_ai_races: bool,
+    /// Who may research and cast the Spell of Mastery (the spell that wins the game). All: every
+    /// wizard (the original). Human only: the AI wizards never get it. Off: nobody does, and a
+    /// game is won by conquest only.
+    #[serde(default = "fb_spell_of_mastery")]
+    pub spell_of_mastery: SpellAccess,
+    /// Who may cast the Spell of Return after the fortress falls. All: every banished wizard
+    /// (the original). Human only: an AI wizard is defeated when banished. Off: banishment is
+    /// final for everyone.
+    #[serde(default = "fb_spell_of_return")]
+    pub spell_of_return: SpellAccess,
+}
+
+/// Who a special spell is open to (`RuleSettings::spell_of_mastery`, `spell_of_return`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpellAccess {
+    /// Every wizard (the original's rule).
+    #[default]
+    All,
+    /// The human wizard only.
+    HumanOnly,
+    /// Nobody.
+    Off,
+}
+
+impl SpellAccess {
+    /// Whether a wizard may use the spell; `human` says whether the wizard is the human one.
+    pub fn allows(self, human: bool) -> bool {
+        match self {
+            SpellAccess::All => true,
+            SpellAccess::HumanOnly => human,
+            SpellAccess::Off => false,
+        }
+    }
+}
+
+fn fb_spell_of_mastery() -> SpellAccess {
+    fallback(|g| g.rules.spell_of_mastery, SpellAccess::default())
+}
+
+fn fb_spell_of_return() -> SpellAccess {
+    fallback(|g| g.rules.spell_of_return, SpellAccess::default())
 }
 
 fn default_true() -> bool {
