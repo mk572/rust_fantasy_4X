@@ -87,7 +87,7 @@ pub fn accepted(texts: &Texts, kind: ProposalKind, salt: usize) -> String {
         ProposalKind::Peace => pick(texts, "diplomacy.accepted_peace", salt),
         ProposalKind::WarOn(_) => line(texts, "diplomacy.accepted_war"),
         ProposalKind::BreakAllianceWith(_) => line(texts, "diplomacy.accepted_break"),
-        ProposalKind::Exchange { .. } => line(texts, "diplomacy.accepted_exchange"),
+        ProposalKind::Trade { .. } => line(texts, "diplomacy.accepted_trade"),
         ProposalKind::Threat => line(texts, "diplomacy.accepted_threat"),
         ProposalKind::Demand { .. } => line(texts, "diplomacy.gold_thanks"),
     }
@@ -106,7 +106,7 @@ pub fn refused(texts: &Texts, kind: ProposalKind, level: usize, salt: usize) -> 
         ProposalKind::Peace => line(texts, "diplomacy.refused_peace"),
         ProposalKind::WarOn(_) => line(texts, "diplomacy.refused_war"),
         ProposalKind::BreakAllianceWith(_) => line(texts, "diplomacy.refused_break"),
-        ProposalKind::Exchange { .. } => line(texts, "diplomacy.refused_exchange"),
+        ProposalKind::Trade { .. } => line(texts, "diplomacy.refused_trade"),
         ProposalKind::Threat => line(texts, "diplomacy.refused_threat"),
         ProposalKind::Demand { .. } => line(texts, "diplomacy.refused_threat"),
     }

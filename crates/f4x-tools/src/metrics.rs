@@ -35,6 +35,7 @@ pub struct Metrics {
     pub mercenaries_hired: u32,
     pub items_made: u32,
     pub items_sold: u32,
+    pub items_scrapped: u32,
     pub wars_declared: u32,
     /// Wizards the player has met.
     pub contacts_made: u32,
@@ -48,7 +49,12 @@ pub struct Metrics {
     pub alliance_offers: u32,
     pub war_requests: u32,
     pub alliance_break_requests: u32,
+    /// Trades offered (a spell swap, gold, an item or a unit), and the ones answered yes: all, those
+    /// with gold, and those with an item or a unit.
     pub spell_exchanges: u32,
+    pub trades_done: u32,
+    pub trades_gold: u32,
+    pub trades_goods: u32,
     pub threats: u32,
     pub demands: u32,
     pub warnings: u32,
@@ -89,7 +95,7 @@ pub struct Metrics {
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 47] {
+    pub fn rows(&self) -> [(&'static str, u32); 51] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -105,6 +111,7 @@ impl Metrics {
             ("mercenaries hired", self.mercenaries_hired),
             ("items made", self.items_made),
             ("items sold", self.items_sold),
+            ("items scrapped", self.items_scrapped),
             ("wars declared", self.wars_declared),
             ("wizards met", self.contacts_made),
             ("diplomacy started", self.diplomacy_started),
@@ -113,7 +120,10 @@ impl Metrics {
             ("alliance offers", self.alliance_offers),
             ("war requests", self.war_requests),
             ("alliance-break requests", self.alliance_break_requests),
-            ("spell exchanges offered", self.spell_exchanges),
+            ("trades offered", self.spell_exchanges),
+            ("trades done", self.trades_done),
+            ("trades with gold", self.trades_gold),
+            ("trades of items or units", self.trades_goods),
             ("threats", self.threats),
             ("tribute demands", self.demands),
             ("warnings", self.warnings),
@@ -199,6 +209,7 @@ impl AddAssign for Metrics {
             mercenaries_hired,
             items_made,
             items_sold,
+            items_scrapped,
             wars_declared,
             contacts_made,
             diplomacy_started,
@@ -208,6 +219,9 @@ impl AddAssign for Metrics {
             war_requests,
             alliance_break_requests,
             spell_exchanges,
+            trades_done,
+            trades_gold,
+            trades_goods,
             threats,
             demands,
             warnings,
@@ -248,6 +262,7 @@ impl AddAssign for Metrics {
         self.mercenaries_hired += mercenaries_hired;
         self.items_made += items_made;
         self.items_sold += items_sold;
+        self.items_scrapped += items_scrapped;
         self.wars_declared += wars_declared;
         self.contacts_made += contacts_made;
         self.diplomacy_started += diplomacy_started;
@@ -257,6 +272,9 @@ impl AddAssign for Metrics {
         self.war_requests += war_requests;
         self.alliance_break_requests += alliance_break_requests;
         self.spell_exchanges += spell_exchanges;
+        self.trades_done += trades_done;
+        self.trades_gold += trades_gold;
+        self.trades_goods += trades_goods;
         self.threats += threats;
         self.demands += demands;
         self.warnings += warnings;
@@ -547,6 +565,7 @@ impl Tally {
                 }
                 Event::ItemMade { player, .. } => self.bump(*player, |m| m.items_made += 1),
                 Event::ItemSold { player, .. } => self.bump(*player, |m| m.items_sold += 1),
+                Event::ItemScrapped { player, .. } => self.bump(*player, |m| m.items_scrapped += 1),
                 Event::Diplomacy(DiplomacyEvent::WarDeclared { attacker, .. }) => {
                     self.bump(*attacker, |m| {
                         m.wars_declared += 1;
@@ -566,7 +585,7 @@ impl Tally {
                             ProposalKind::Peace => m.peace_offers += 1,
                             ProposalKind::WarOn(_) => m.war_requests += 1,
                             ProposalKind::BreakAllianceWith(_) => m.alliance_break_requests += 1,
-                            ProposalKind::Exchange { .. } => m.spell_exchanges += 1,
+                            ProposalKind::Trade { .. } => m.spell_exchanges += 1,
                             ProposalKind::Threat => m.threats += 1,
                             ProposalKind::Demand { .. } => m.demands += 1,
                         }
@@ -576,6 +595,16 @@ impl Tally {
                 }) => self.bump(proposal.from, |m| {
                     if *accepted {
                         m.proposals_accepted += 1;
+                        if let ProposalKind::Trade { give, get } = proposal.kind {
+                            m.trades_done += 1;
+                            m.trades_gold += u32::from(give.gold > 0 || get.gold > 0);
+                            m.trades_goods += u32::from(
+                                give.item.is_some()
+                                    || give.unit.is_some()
+                                    || get.item.is_some()
+                                    || get.unit.is_some(),
+                            );
+                        }
                     } else {
                         m.proposals_refused += 1;
                     }
@@ -818,9 +847,9 @@ mod tests {
                 offer(ProposalKind::Alliance),
                 offer(ProposalKind::WarOn(c)),
                 offer(ProposalKind::BreakAllianceWith(c)),
-                offer(ProposalKind::Exchange {
-                    give: spell,
-                    get: spell,
+                offer(ProposalKind::Trade {
+                    give: f4x_core::diplomacy::Goods::spell(spell),
+                    get: f4x_core::diplomacy::Goods::spell(spell),
                 }),
                 offer(ProposalKind::Threat),
                 offer(ProposalKind::Demand { gold: 5 }),

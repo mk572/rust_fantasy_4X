@@ -36,6 +36,7 @@ mod spellhelper;
 mod statecraft;
 #[cfg(test)]
 mod testworld;
+mod trade;
 mod view;
 mod wizardry;
 

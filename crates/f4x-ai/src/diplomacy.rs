@@ -92,15 +92,11 @@ pub(crate) fn rate(
             175 + game.relation(judge, third),
             (relation <= 24).then_some(Verdict::Maybe),
         ),
-        // The original swaps spells without a test: both must have one the other lacks. A
-        // wizard does not arm an enemy.
-        ProposalKind::Exchange { .. } => (
+        // A trade is by worth: what the judge gets must be worth enough of what it gives, and a
+        // wizard does not arm an enemy (`crate::trade`).
+        ProposalKind::Trade { give, get } => (
             0,
-            Some(if crate::statecraft::arms_enemy(game, judge, asker) {
-                Verdict::Refused
-            } else {
-                Verdict::Accepted
-            }),
+            Some(crate::trade::verdict(game, judge, asker, give, get)),
         ),
         // A threat has its own rule, a demand is the human's to answer.
         ProposalKind::Threat => (
@@ -546,7 +542,7 @@ fn gift(
         return;
     }
     if game.roll(3) == 1 {
-        if let Some(ProposalKind::Exchange { give, .. }) = spell_swap(game, me, human) {
+        if let Some(give) = crate::trade::spell_to_give(game, me, human) {
             ai.order(
                 game,
                 Command::Diplomacy(DiplomacyCommand::GiveSpell {
@@ -621,10 +617,7 @@ fn answer_threat(game: &mut Game, judge: PlayerId, asker: PlayerId) -> bool {
                 amount: pay,
             })))
     } else {
-        let spell = spell_swap(game, judge, asker).and_then(|k| match k {
-            ProposalKind::Exchange { give, .. } => Some(give),
-            _ => None,
-        });
+        let spell = crate::trade::spell_to_give(game, judge, asker);
         spell.is_none_or(|spell| {
             given(game.apply(Command::Diplomacy(DiplomacyCommand::GiveSpell {
                 from: judge,
@@ -687,7 +680,7 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         };
         let kind = kind.or_else(|| {
             (treaty != Treaty::War && stance.exchange_patience + 80 < score)
-                .then(|| spell_swap(game, me, other))
+                .then(|| crate::trade::offer(game, me, other))
                 .flatten()
         });
         if let Some(kind) = kind {
@@ -731,8 +724,6 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
     }
 }
-
-use crate::statecraft::spell_swap;
 
 #[cfg(test)]
 mod tests {
@@ -903,7 +894,8 @@ mod tests {
             rate(&mut g, HUMAN, AI, ProposalKind::Alliance),
             Verdict::Refused
         );
-        // A spell swap is granted unrated.
+        // A trade is rated by worth, not by patience: a spell for much gold is taken, for a
+        // little is not.
         let (spell, _) = g
             .content()
             .rules
@@ -911,18 +903,12 @@ mod tests {
             .iter()
             .next()
             .ok_or("the shipped content has spells")?;
-        assert_eq!(
-            rate(
-                &mut g,
-                HUMAN,
-                AI,
-                ProposalKind::Exchange {
-                    give: spell,
-                    get: spell
-                }
-            ),
-            Verdict::Accepted
-        );
+        let trade = |gold| ProposalKind::Trade {
+            give: f4x_core::diplomacy::Goods::gold(gold),
+            get: f4x_core::diplomacy::Goods::spell(spell),
+        };
+        assert_eq!(rate(&mut g, HUMAN, AI, trade(5000)), Verdict::Accepted);
+        assert_eq!(rate(&mut g, HUMAN, AI, trade(1)), Verdict::Refused);
         Ok(())
     }
 

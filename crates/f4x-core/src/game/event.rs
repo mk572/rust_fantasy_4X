@@ -376,6 +376,12 @@ pub enum Event {
         item: item::Item,
         gold: i32,
     },
+    /// A wizard broke an item up at the anvil for `mana`.
+    ItemScrapped {
+        player: player::PlayerId,
+        item: item::Item,
+        mana: i32,
+    },
     /// A company of mercenaries joined the army at the summoning circle.
     MercenariesHired {
         player: player::PlayerId,

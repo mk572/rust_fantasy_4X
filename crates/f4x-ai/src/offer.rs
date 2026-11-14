@@ -4,26 +4,55 @@
 
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::item::armory::ItemSpot;
+use f4x_core::item::Item;
 use f4x_core::player::offer::{ai_accepts_hero, ai_accepts_item, ai_accepts_mercenaries, Offer};
 use f4x_core::player::view::PlayerView;
+use f4x_core::player::PlayerId;
+use f4x_def::half_int::HalfInt;
 
 use crate::Ai;
 
 /// Mana the wizard must hold to send an item to a hero away from the fortress.
 const FAR_RESERVE: i32 = 120;
 
-/// Put the items in the vault and on the award list on the heroes that have a free slot for
-/// them. Moving an item to a hero away from the fortress costs mana (the item screen's 20), which
-/// the wizard pays when it has [`FAR_RESERVE`] to spare. The one worth most of those that fit is
-/// taken.
+/// What an item is worth to this hero, in gold: its value, half as much again when it suits the
+/// hero's trade (a caster likes spell skill and charges, a fighter attack and defence) and half
+/// when it does not.
+pub(crate) fn use_value(game: &Game, hero: hecs::Entity, item: &Item) -> i32 {
+    let caster = game.units().hero_mana(hero) > 0;
+    let b = &item.bonus;
+    let magic = b.spell_skill + b.spell_save + i32::from(item.charges.is_some());
+    let melee = b.attack + b.to_hit + b.defense + b.resistance;
+    let cost = item.cost as i32;
+    match (caster, magic > 0, melee > 0) {
+        (true, true, _) | (false, _, true) => cost * USE_SUITS_PCT / 100,
+        (false, true, false) => cost * USE_MISFIT_PCT / 100,
+        _ => cost,
+    }
+}
+
+/// The percent of an item's value a hero it suits and a hero it does not suit count it for.
+const USE_SUITS_PCT: i32 = 150;
+const USE_MISFIT_PCT: i32 = 50;
+/// An item that takes the place of the one a hero carries must be worth this percent of it.
+const BETTER_PCT: i32 = 130;
+/// The unusable items the vault may hold before the wizard scraps the cheapest.
+const KEEP_UNUSABLE: usize = 2;
+
+/// Put the items of the vault and the award list on the heroes that use them best: a free slot
+/// takes the item of the most use to that hero that fits, and a slot already taken gives its item
+/// up for one worth at least [`BETTER_PCT`] percent of it (the old one goes back to the vault).
+/// Moving an item to a hero away from the fortress costs mana (the item screen's 20), which the
+/// wizard pays when it has [`FAR_RESERVE`] to spare.
 pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+    use f4x_core::item::armory::ItemWorld;
     let (heroes, fortress) = {
         let view = PlayerView::new(game, ai.player);
         (view.my_heroes(), view.fortress())
     };
     for hero in heroes {
         let mut far = false;
-        let free = {
+        let slots = {
             let view = PlayerView::new(game, ai.player);
             if view.unit_position(hero) != fortress {
                 far = true;
@@ -31,13 +60,19 @@ pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     continue;
                 }
             }
-            view.hero_free_slots(hero)
+            game.items()
+                .hero_slots(ai.player, hero)
+                .map_or_else(Vec::new, |s| s.into_iter().enumerate().collect::<Vec<_>>())
         };
-        for (slot, kind) in free {
+        for (slot, kind) in slots {
             let from = {
-                let view = PlayerView::new(game, ai.player);
-                let armory = view.armory();
-                // The fitting item worth most.
+                let carried = game
+                    .items()
+                    .carried(hero)
+                    .into_iter()
+                    .find(|(s, _)| usize::from(*s) == slot)
+                    .map(|(_, item)| use_value(game, hero, &item));
+                let armory = game.items().armory(ai.player);
                 let vault = armory
                     .vault
                     .iter()
@@ -48,10 +83,13 @@ pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .iter()
                     .enumerate()
                     .map(|(i, item)| (ItemSpot::Award(i), item));
+                // The fitting item of most use to this hero, if it beats what the slot holds.
                 vault
                     .chain(awards)
                     .filter(|(_, item)| kind.fits(item.kind))
-                    .max_by_key(|(_, item)| item.cost)
+                    .map(|(spot, item)| (spot, use_value(game, hero, item)))
+                    .max_by_key(|&(_, value)| value)
+                    .filter(|&(_, value)| carried.is_none_or(|c| value * 100 >= c * BETTER_PCT))
                     .map(|(spot, _)| spot)
             };
             if let Some(from) = from {
@@ -68,7 +106,78 @@ pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
         }
     }
+    scrap(ai, game, events);
 }
+
+/// Break up the items that no hero of the wizard could carry, the cheapest first, once more than
+/// [`KEEP_UNUSABLE`] of them lie in the armory (a hero hired later might use them, and a
+/// neighbour might buy them: `crate::trade`), for mana.
+fn scrap(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+    use f4x_core::item::armory::{ItemWorld, Spot};
+    loop {
+        let doomed = {
+            let heroes = PlayerView::new(game, ai.player).my_heroes();
+            if heroes.is_empty() {
+                return;
+            }
+            let kinds: Vec<_> = heroes
+                .iter()
+                .filter_map(|&h| game.items().hero_slots(ai.player, h))
+                .flatten()
+                .collect();
+            let armory = game.items().armory(ai.player);
+            let vault = armory
+                .vault
+                .iter()
+                .enumerate()
+                .filter_map(|(i, item)| Some((Spot::Vault(i), item.as_ref()?)));
+            let awards = armory
+                .awards
+                .iter()
+                .enumerate()
+                .map(|(i, item)| (Spot::Award(i), item));
+            let mut unusable: Vec<(Spot, u32)> = vault
+                .chain(awards)
+                .filter(|(_, item)| !kinds.iter().any(|k| k.fits(item.kind)))
+                .map(|(spot, item)| (spot, item.cost))
+                .collect();
+            if unusable.len() <= KEEP_UNUSABLE {
+                return;
+            }
+            unusable.sort_by_key(|&(_, cost)| cost);
+            unusable[0].0
+        };
+        if !ai
+            .send(
+                game,
+                Command::ScrapItem {
+                    player: ai.player,
+                    from: doomed,
+                },
+                events,
+            )
+            .is_ok()
+        {
+            return;
+        }
+    }
+}
+
+/// Whether an item on offer is worth its price to the wizard: it can afford it (the price is at
+/// most half its gold), and the item is worth to it, with the heroes it has to carry it, at least
+/// [`WORTH_PCT`] percent of the price.
+fn item_wanted(game: &Game, player: PlayerId, item: &Item, price: i32, gold: HalfInt) -> bool {
+    let heroes = PlayerView::new(game, player).my_heroes().len();
+    ai_accepts_item(price, gold, heroes)
+        && f4x_core::diplomacy::trade::item_worth(game, player, item) * MARKUP * 100
+            >= price * WORTH_PCT
+}
+
+/// What an item must be worth to the wizard to buy it, in percent of the price without the
+/// merchant's markup (`MARKUP`, `player::offer::item_price`): a hero with a free slot for it makes
+/// it worth more than that, a hero with a taken slot as much, no hero half.
+const WORTH_PCT: i32 = 100;
+const MARKUP: i32 = 3;
 
 /// Answer every offer waiting: hire or decline. The last offer goes first, so that an answer
 /// does not move the ones still to be given.
@@ -87,11 +196,9 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             // A summoned hero is already paid for in mana.
             Offer::Summoned { .. } => true,
             Offer::Mercenaries { price, .. } => ai_accepts_mercenaries(turn, *price, gold),
-            Offer::Item { price, .. } | Offer::Resale { price, .. } => ai_accepts_item(
-                *price,
-                gold,
-                PlayerView::new(game, ai.player).my_heroes().len(),
-            ),
+            Offer::Item { item, price } | Offer::Resale { item, price, .. } => {
+                item_wanted(game, ai.player, item, *price, gold)
+            }
         };
         let command = if accept {
             Command::AcceptOffer {
@@ -142,7 +249,7 @@ pub fn answer_resales(game: &mut Game) -> Vec<Event> {
         }
         for player in waiting {
             let ai = Ai::new(player);
-            let (index, price, heroes, gold) = {
+            let (index, price, item, gold) = {
                 let view = PlayerView::new(game, player);
                 let Some(index) = view
                     .offers()
@@ -151,10 +258,12 @@ pub fn answer_resales(game: &mut Game) -> Vec<Event> {
                 else {
                     continue;
                 };
-                let price = view.offers()[index].price();
-                (index, price, view.my_heroes().len(), view.treasury().gold)
+                let Offer::Resale { item, price, .. } = view.offers()[index].clone() else {
+                    continue;
+                };
+                (index, price, item, view.treasury().gold)
             };
-            let command = if ai_accepts_item(price, gold, heroes) {
+            let command = if item_wanted(game, player, &item, price, gold) {
                 Command::AcceptOffer {
                     player,
                     index,
@@ -378,6 +487,78 @@ mod tests {
             "the buyer pays what the seller was paid"
         );
         assert_eq!(g.items().armory(P1).vault.iter().flatten().count(), 1);
+        Ok(())
+    }
+
+    /// A made-up item of this kind and value, with a bonus of attack if `attack` is set.
+    fn made(kind: f4x_def::rules::ItemKind, cost: u32, attack: i32) -> f4x_core::item::Item {
+        f4x_core::item::Item {
+            name: format!("made{cost}"),
+            kind,
+            cost,
+            icon: 0,
+            bonus: f4x_core::item::ItemBonus {
+                attack,
+                ..Default::default()
+            },
+            powers: Vec::new(),
+            charges: None,
+            prefab: None,
+            made: None,
+        }
+    }
+
+    /// A wizard with a hero at its fortress and the mana to move items.
+    fn with_hero() -> Result<(Game, Ai, hecs::Entity), Box<dyn std::error::Error>> {
+        let mut g = game()?;
+        set_gold(&mut g, P1, 100_000)?;
+        offer_hero(&mut g);
+        let mut events = Vec::new();
+        let ai = Ai::new(P1);
+        answer(&ai, &mut g, &mut events);
+        let hero = *PlayerView::new(&g, P1)
+            .my_heroes()
+            .first()
+            .ok_or("the wizard hired a hero")?;
+        Ok((g, ai, hero))
+    }
+
+    #[test]
+    fn a_hero_gives_up_an_item_for_one_that_suits_it_a_good_deal_better() -> TestResult {
+        use f4x_def::rules::ItemKind::Sword;
+        let (mut g, ai, hero) = with_hero()?;
+        g.give_item(P1, made(Sword, 100, 1));
+        equip(&ai, &mut g, &mut Vec::new());
+        assert_eq!(g.items().carried(hero).len(), 1);
+        // A little better is not enough to change.
+        g.give_item(P1, made(Sword, 120, 1));
+        equip(&ai, &mut g, &mut Vec::new());
+        assert_eq!(g.items().carried(hero)[0].1.cost, 100);
+        // A good deal better is, and the old one goes back to the vault.
+        g.give_item(P1, made(Sword, 400, 3));
+        equip(&ai, &mut g, &mut Vec::new());
+        assert_eq!(g.items().carried(hero)[0].1.cost, 400);
+        assert!(g.items().armory(P1).items().any(|i| i.cost == 100));
+        Ok(())
+    }
+
+    #[test]
+    fn items_no_hero_can_carry_are_scrapped_for_mana_but_two_are_kept() -> TestResult {
+        use f4x_def::rules::ItemKind::Staff;
+        let (mut g, ai, _) = with_hero()?;
+        // The hired hero is a fighter: its slots take swords, armour and trinkets, not staves.
+        for cost in [50, 60, 70, 80] {
+            g.give_item(P1, made(Staff, cost, 0));
+        }
+        let mana = g.player(P1).ok_or("a player")?.treasury().mana;
+        equip(&ai, &mut g, &mut Vec::new());
+        let left: Vec<u32> = g.items().armory(P1).items().map(|i| i.cost).collect();
+        assert_eq!(left.len(), 2, "{left:?}");
+        assert!(
+            left.iter().all(|&c| c >= 70),
+            "the cheapest go first: {left:?}"
+        );
+        assert!(g.player(P1).ok_or("a player")?.treasury().mana > mana);
         Ok(())
     }
 }

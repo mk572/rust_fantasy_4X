@@ -367,13 +367,13 @@ impl Game {
 
     /// The anvil: destroy the item in a vault slot or on the award list for half its value in
     /// mana. Returns the mana gained, or why not (the item stays where it was).
-    pub fn scrap_item(&mut self, player: PlayerId, from: Spot) -> Result<i32, ItemError> {
+    pub fn scrap_item(&mut self, player: PlayerId, from: Spot) -> Result<(Item, i32), ItemError> {
         let item = self.take_item_to_sell(player, from)?;
         let mana = item.anvil_mana();
         if let Some(treasury) = self.treasury_mut(player) {
             treasury.mana += mana;
         }
-        Ok(mana)
+        Ok((item, mana))
     }
 }
 
@@ -482,7 +482,10 @@ mod tests {
         let mut staff = item("Staff", ItemKind::Staff);
         staff.cost = 900;
         g.give_item(P0, staff);
-        assert_eq!(g.scrap_item(P0, Spot::Vault(0)), Ok(450));
+        assert_eq!(
+            g.scrap_item(P0, Spot::Vault(0)).map(|(_, mana)| mana),
+            Ok(450)
+        );
         assert_eq!(g.tr(0).mana, 550);
         assert_eq!(
             g.scrap_item(P0, Spot::Vault(0)),

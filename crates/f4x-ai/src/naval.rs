@@ -119,7 +119,7 @@ fn my_ships(view: &PlayerView) -> Vec<hecs::Entity> {
 /// A landing for `city`: the land square nearest to it (by steps over land) that touches the sea,
 /// and a sea square beside that. The troops walk the rest of the way. `None` if no coast is
 /// known on its land mass.
-fn landing(view: &PlayerView, city: Position) -> Option<(Position, Position)> {
+pub(crate) fn landing(view: &PlayerView, city: Position) -> Option<(Position, Position)> {
     use f4x_core::map::terrain::TerrainClass;
     use std::collections::{HashSet, VecDeque};
     let mut seen: HashSet<Position> = HashSet::new();

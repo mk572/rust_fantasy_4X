@@ -282,7 +282,7 @@ trait): there is none (the chances, prices and the computer's answers are plain 
 `Game` rolls the offers); `Offer::Mercenaries` carries the unit's id and a 0-based level; an offer
 waits in `Player::offers` (saved) until `AcceptOffer { player, index, name }` or `RejectOffer`, and
 lapses at the next turn change. `determine_offers` runs last in `process_turn`. Every wizard
-meets the merchant; the computer wizards answer in `f4x-ai/src/offer.rs`. The console has `offers`,
+meets the merchant; the computer wizards answer in `f4x-ai/src/offer.rs` (by what the item is worth to them, task 504). The console has `offers`,
 `accept`, `reject` and the override `offer <hero|mercenaries|item>`; the client shows a box over the map
 (`offer_prompt.rs`, `--offer KIND` with `--shot`). The fixes of the original's bugs are in
 `divergences.md` section 11.

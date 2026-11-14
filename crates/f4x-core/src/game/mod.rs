@@ -642,7 +642,7 @@ impl Game {
                 Err(e) => vec![Event::Rejected(Rejection::Craft(e))],
             },
             Command::ScrapItem { player, from } => match self.scrap_item(player, from) {
-                Ok(_) => Vec::new(),
+                Ok((item, mana)) => vec![Event::ItemScrapped { player, item, mana }],
                 Err(e) => vec![Event::Rejected(Rejection::Item(e))],
             },
             Command::AcceptOffer {

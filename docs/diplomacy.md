@@ -351,7 +351,7 @@ applies). Each part reads only what a human can see: the army scores of the Astr
 has seen, the treaties and the proposals.
 1. *Dominant war.* From turn 40, with no war on and no treaty, it declares war on the weakest neighbour it holds 160
    percent of the army and 150 percent of the known cities of (and at least three cities of its own), once one of its
-   fighters can walk to one of that neighbour's cities. The chance in a hundred each turn is 12, plus 12 for a fighting
+   fighters can walk to one of that neighbour's cities, or it has a port and a coast is known beside one of them (the landing plan of `naval.rs` then takes it by ship). The chance in a hundred each turn is 12, plus 12 for a fighting
    temper and objective, plus 10 when the target leads the game, plus up to 20 for the size of the edge, less the
    `affinity` it feels for the target. No war on two fronts; the armies then go for that wizard's cities as for any
    quarrel (`Ai::quarrel`). The human is told why (`Remark::DominantWar`).
@@ -363,19 +363,33 @@ has seen, the treaties and the proposals.
    plus 100 a city) is 130 percent of the next best's. The weaker wizards ask each other for a pact, then an alliance
    (one turn in six per wizard met; one it is not on good enough terms with for a pact gets a gift of gold first, no oftener
    than once in 20 turns), and two wizards that fear the same leader are 30 points more
-   willing to say yes (`goodwill`). *Not done:* the alliance is not broken when the threat ends; breaking a treaty costs the
-   breaker standing with every wizard (`break_treaties`), so friends stay friends.
+   willing to say yes (`goodwill`). When the leader no longer leads, the asking stops; `AIK_DIPLO_COALITION_END=1` breaks the alliance (task 597; the default is measured in `ai-design.md` 12.2). Breaking a treaty costs the
+   breaker standing with every wizard (`break_treaties`).
 4. *War and peace.* A war that is lost (it lost more cities than it took and has under 80 percent of the other's army, or
    two cities more than it took, or under 60 percent of the other's power), or the more dangerous of two fronts, is offered
    peace one turn in three, at most once in 25 turns per wizard (`Remark::WarWeary`). `peace_ok` is the other side: a wizard
    far ahead (130 percent of the power) does not accept peace while the war has taken no city from the other and is
    under 80 turns old. (The stalled war is task 561.) The core keeps when a war began and the cities each side held
    (`Pair::war_since`, `Pair::war_cities`, `Game::war_age`, `Game::war_gain`).
-5. *Trades.* `spell_swap` values a spell for the wizard that gets it (research cost, up to a third more for a realm it holds
-   many books in), asks for the best one the other has and offers the cheapest one the other lacks, when what it gets is
-   worth at least nine tenths of what the other gets. `arms_enemy` refuses a trade with a wizard at war with it or with
-   one of its allies, or with the leader, both in making it and in answering. *Not done:* choosing by the spell
-   helper's intents (task 509 is not built), and gold-for-spell trades (a proposal carries no gold).
+5. *Trades* (tasks 504 and 597, `f4x-ai/src/trade.rs`, `f4x-core/src/diplomacy/trade.rs`). A proposal `ProposalKind::Trade { give, get }`
+   is two bundles of `Goods`: gold, a spell, an item of the vault or award list, a unit that is not a hero and stands in a city,
+   each optional (a swap of two spells, a spell for gold and an item for a unit are all one kind). The core checks that each
+   side can hand over its part (treasury; the receiver's books for a spell; a vault; a city and a square with room at the
+   receiver's closest city with room for a unit) and moves it when the answer is yes. **The baseline:** one gold =
+   one research point = one production = one mana. A spell is worth its research cost (5 percent more for each book of its
+   realm the holder has, at most 8), an item its value in gold (150 percent to a holder with a hero that has a free slot for it,
+   100 with a hero whose slot for it is taken, 50 with no hero that could carry it), a unit its production cost (125 percent to
+   a wizard at war). The worth is for *whoever holds it*, so the same thing is worth different amounts to the two sides, and
+   the human sees the same numbers on the trade menu (`Trade` on the diplomacy screen: the prices offered are 110, 130 and 160
+   percent of a seller's worth when buying and 100, 80 and 60 percent of the buyer's when selling). The AI accepts when what it
+   gets is worth at least a *margin* of what it gives: 98 percent between strangers, 95 with a pact, 90 with an alliance, less
+   one point for every ten of relation and of goodwill (`trade::margin`), so allies accept a trade that is a little short of fair and
+   strangers a fair one. (Each side judges by what the thing is worth to itself, so two margins over 100 would leave almost
+   no trade; a first soak with 110, 103 and 95 had 0.02 trades a game.) A swap is the pair of spells that leaves the less content side
+   the most content. It offers the best of a spell swap, a spell bought or sold for gold and an item sold for gold, at a price both
+   margins allow (`trade::offer`), and never a trade that arms an enemy (`arms_enemy`). The AI neither proposes unit trades nor
+   buys items (it cannot see another wizard's vault or army) but answers them by the same rule. The human proposes
+   buying a spell, selling a spell, an item or a unit; the neutral races deal in units only.
 6. *Remarks and memory.* `DiplomacyCommand::Remark` (`DiplomacyEvent::Remarked`) tells the other wizard why: the human sees
    one line in the log (`diplomacy.remark_*`). `affinity` counts a treaty the other broke with it against the other
    (15), and the soak tally counts each remark (`wars on a weaker neighbour`, `appeasements`, `coalition requests`,

@@ -505,6 +505,10 @@ pub fn event(game: &Game, e: &Event) -> String {
             let name = item_label(game, item);
             format!("{} sells the item {name} for {gold} gold", player(game, *p))
         }
+        Event::ItemScrapped { player: p, item, mana } => {
+            let name = item_label(game, item);
+            format!("{} breaks up the item {name} for {mana} mana", player(game, *p))
+        }
         Event::MercenariesHired { player: p, units } => {
             format!("{} hires {} mercenaries", player(game, *p), units.len())
         }
@@ -595,6 +599,28 @@ fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
     }
 }
 
+/// A bundle of goods in words: "100 gold, the spell Haste, the item Sword of Doom".
+pub fn goods(game: &Game, goods: f4x_core::diplomacy::Goods) -> String {
+    let mut parts = Vec::new();
+    if goods.gold > 0 {
+        parts.push(format!("{} gold", goods.gold));
+    }
+    if let Some(s) = goods.spell {
+        parts.push(format!("the spell {}", spell(game, s)));
+    }
+    if goods.item.is_some() {
+        parts.push("an item".to_string());
+    }
+    if goods.unit.is_some() {
+        parts.push("a unit".to_string());
+    }
+    if parts.is_empty() {
+        "nothing".into()
+    } else {
+        parts.join(", ")
+    }
+}
+
 /// What a proposal asks, in words.
 pub fn proposal(game: &Game, kind: f4x_core::diplomacy::ProposalKind) -> String {
     use f4x_core::diplomacy::ProposalKind as K;
@@ -604,10 +630,10 @@ pub fn proposal(game: &Game, kind: f4x_core::diplomacy::ProposalKind) -> String 
         K::Peace => "peace".into(),
         K::WarOn(t) => format!("war on {}", player(game, t)),
         K::BreakAllianceWith(t) => format!("breaking the alliance with {}", player(game, t)),
-        K::Exchange { give, get } => format!(
-            "a swap: their {} for {}",
-            spell(game, get),
-            spell(game, give)
+        K::Trade { give, get } => format!(
+            "a trade: their {} for {}",
+            goods(game, get),
+            goods(game, give)
         ),
         K::Threat => "a threat to attack".into(),
         K::Demand { gold } => format!("{gold} gold as tribute"),

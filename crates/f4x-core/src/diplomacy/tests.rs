@@ -1019,9 +1019,9 @@ fn spells_are_exchanged_one_for_one() -> TestResult {
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
         .insert(gaia);
-    let kind = ProposalKind::Exchange {
-        give: famine,
-        get: gaia,
+    let kind = ProposalKind::Trade {
+        give: Goods::spell(famine),
+        get: Goods::spell(gaia),
     };
     // Without a book of the spell's realm the receiver cannot be given it.
     for p in [P0, P1] {
@@ -1117,9 +1117,9 @@ fn a_spell_swap_is_not_a_test_of_patience_and_wears_none_when_answered_no() -> T
     g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
         from: P0,
         to: P1,
-        kind: ProposalKind::Exchange {
-            give: spell,
-            get: spell,
+        kind: ProposalKind::Trade {
+            give: Goods::spell(spell),
+            get: Goods::spell(spell),
         },
     }));
     g.apply(Command::Diplomacy(DiplomacyCommand::Answer {
@@ -1526,9 +1526,9 @@ fn diplomacy_survives_a_save() -> TestResult {
     g.diplomacy.proposals.push(Proposal {
         from: P1,
         to: P2,
-        kind: ProposalKind::Exchange {
-            give: famine,
-            get: gaia,
+        kind: ProposalKind::Trade {
+            give: Goods::spell(famine),
+            get: Goods::spell(gaia),
         },
     });
     g.drain_diplomacy_events();
@@ -1779,4 +1779,276 @@ fn the_cities_allowed_grow_with_the_map_and_the_land() {
     g.settings.basic.map_width = 90;
     g.settings.basic.map_height = 60;
     assert_eq!(city_allowance(&g), 20);
+}
+
+// ---- trades (tasks 504 and 597) ----------------------------------------------------
+
+use crate::item::{Item, ItemBonus};
+use crate::rules::ItemKind;
+
+/// Two spells of the sorcery realm (the books of the wizards) that a wizard with two books may
+/// learn, the costlier first.
+fn two_spells(g: &Game) -> Result<(SpellId, SpellId), Box<dyn std::error::Error>> {
+    let sorcery = RealmId::new(1);
+    let mut found: Vec<_> = g
+        .content
+        .rules
+        .spells
+        .iter()
+        .filter(|(_, d)| d.realm == sorcery && d.rarity <= crate::rules::Rarity::Rare)
+        .map(|(id, d)| (d.research_cost, id))
+        .collect();
+    found.sort();
+    let (cheap, dear) = (
+        found.first().ok_or("a spell")?,
+        found.last().ok_or("a spell")?,
+    );
+    Ok((dear.1, cheap.1))
+}
+
+fn teach(g: &mut Game, p: PlayerId, spell: SpellId) -> TestResult {
+    g.wizard_mut(p)
+        .ok_or("wizard_mut is missing")?
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .insert(spell);
+    Ok(())
+}
+
+fn forget(g: &mut Game, p: PlayerId, spell: SpellId) -> TestResult {
+    g.wizard_mut(p)
+        .ok_or("wizard_mut is missing")?
+        .get_mut::<crate::wizard::sheet::KnownSpells>()
+        .known
+        .remove(&spell);
+    Ok(())
+}
+
+fn fortress(g: &mut Game, p: PlayerId, pos: Position) -> TestResult {
+    g.wizard_mut(p)
+        .ok_or("wizard_mut is missing")?
+        .put(Some(crate::wizard::fortress::Fortress(pos)));
+    Ok(())
+}
+
+fn gold_of(g: &Game, p: PlayerId) -> Result<i32, Box<dyn std::error::Error>> {
+    Ok(g.player(p).ok_or("a player")?.treasury().gold.floor())
+}
+
+fn sword() -> Item {
+    Item {
+        name: "Blade".into(),
+        kind: ItemKind::Sword,
+        cost: 200,
+        icon: 0,
+        bonus: ItemBonus::default(),
+        powers: Vec::new(),
+        charges: None,
+        prefab: None,
+        made: None,
+    }
+}
+
+fn set_gold(g: &mut Game, p: PlayerId, gold: i32) -> TestResult {
+    g.treasury_mut(p).ok_or("a treasury")?.gold = HalfInt::from_int(gold);
+    Ok(())
+}
+
+fn trade(give: Goods, get: Goods) -> ProposalKind {
+    ProposalKind::Trade { give, get }
+}
+
+#[test]
+fn goods_are_worth_the_baseline_and_a_modifier() -> TestResult {
+    let mut g = world();
+    let (dear, _) = two_spells(&g)?;
+    let cost = g.content.rules.spells.get(dear).research_cost as i32;
+    // Gold is gold; a spell is its research cost, a twentieth more for each book of its realm
+    // (two books here).
+    assert_eq!(trade::worth(&g, P0, Goods::gold(120)), 120);
+    assert_eq!(
+        trade::worth(&g, P0, Goods::spell(dear)),
+        cost * (100 + 2 * trade::SPELL_BOOK_PCT) / 100
+    );
+    // An item is worth half to a wizard with no hero to carry it, more with a hero that has a
+    // free slot for it.
+    let blade = sword();
+    assert_eq!(
+        trade::item_worth(&g, P0, &blade),
+        200 * trade::ITEM_NO_USER_PCT / 100
+    );
+    fortress(&mut g, P0, at(1, 1))?;
+    g.add_hero(0).ok_or("a hero")?;
+    g.spawn_hero(P0, at(1, 1), 0)
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(
+        trade::item_worth(&g, P0, &blade),
+        200 * trade::ITEM_FREE_SLOT_PCT / 100
+    );
+    // A unit costs its production; more to a wizard at war.
+    assert_eq!(trade::unit_cost_worth(&g, P0, 100), 100);
+    met(&mut g, P0, P1);
+    command(&mut g, DiplomacyCommand::DeclareWar { player: P0, on: P1 });
+    assert_eq!(
+        trade::unit_cost_worth(&g, P0, 100),
+        100 * trade::UNIT_AT_WAR_PCT / 100
+    );
+    Ok(())
+}
+
+#[test]
+fn a_trade_hands_over_gold_a_spell_an_item_and_a_unit() -> TestResult {
+    let mut g = world();
+    met(&mut g, P0, P1);
+    let (dear, _) = two_spells(&g)?;
+    teach(&mut g, P1, dear)?;
+    forget(&mut g, P0, dear)?;
+    set_gold(&mut g, P0, 500)?;
+    set_gold(&mut g, P1, 0)?;
+    fortress(&mut g, P0, at(1, 1))?;
+    fortress(&mut g, P1, at(5, 5))?;
+    city(&mut g, P1, at(5, 5));
+    // Two cities of the buyer: the unit goes to the closer one.
+    city(&mut g, P0, at(1, 1));
+    city(&mut g, P0, at(20, 15));
+    let spearmen = g.content.rules.units.id_numbered(95).ok_or("spearmen")?;
+    let soldier = g.spawn_unit(P1, at(5, 5), spearmen);
+    let soldier_serial = g.serial_of(soldier);
+    g.give_item(P1, sword());
+    let blade = g
+        .items()
+        .held(|h| matches!(h, crate::item::entity::HeldBy::Vault(p, _) if p == P1))
+        .first()
+        .map(|(e, _)| g.serial_of(*e))
+        .ok_or("an item serial")?;
+    // The spell, the sword and the soldier of P1 for 400 gold of P0.
+    let get = Goods {
+        gold: 0,
+        spell: Some(dear),
+        item: Some(blade),
+        unit: Some(soldier_serial),
+    };
+    let kind = trade(Goods::gold(400), get);
+    assert_eq!(g.check_proposal(P0, P1, kind), Ok(()));
+    command(
+        &mut g,
+        DiplomacyCommand::Propose {
+            from: P0,
+            to: P1,
+            kind,
+        },
+    );
+    let events = command(
+        &mut g,
+        DiplomacyCommand::Answer {
+            player: P1,
+            from: P0,
+            accept: true,
+        },
+    );
+    assert!(rejected(&events).is_none(), "{events:?}");
+    assert_eq!(gold_of(&g, P0)?, 100);
+    assert_eq!(gold_of(&g, P1)?, 400);
+    assert!(g.wizard(P0).ok_or("a wizard")?.knows(dear));
+    assert_eq!(g.items().armory(P1).items().count(), 0);
+    assert_eq!(g.items().armory(P0).items().count(), 1);
+    assert_eq!(g.units().unit_owner(soldier), Some(P0));
+    assert_eq!(g.units().unit_position(soldier), Some(at(1, 1)));
+    Ok(())
+}
+
+#[test]
+fn a_trade_a_side_cannot_hand_over_is_refused() -> TestResult {
+    let mut g = world();
+    met(&mut g, P0, P1);
+    let (dear, cheap) = two_spells(&g)?;
+    teach(&mut g, P1, dear)?;
+    forget(&mut g, P0, dear)?;
+    set_gold(&mut g, P0, 50)?;
+    // More gold than the treasury holds.
+    assert_eq!(
+        g.check_proposal(P0, P1, trade(Goods::gold(60), Goods::spell(dear))),
+        Err(DiplomacyError::NotAllowed)
+    );
+    // Two bundles of gold only, or an empty one.
+    assert_eq!(
+        g.check_proposal(P0, P1, trade(Goods::gold(10), Goods::gold(20))),
+        Err(DiplomacyError::NotAllowed)
+    );
+    assert_eq!(
+        g.check_proposal(P0, P1, trade(Goods::gold(10), Goods::NONE)),
+        Err(DiplomacyError::NotAllowed)
+    );
+    assert_eq!(
+        g.check_proposal(P0, P1, trade(Goods::gold(50), Goods::spell(dear))),
+        Ok(())
+    );
+    // A spell the receiver cannot learn: no books of its realm.
+    g.wizard_mut(P0)
+        .ok_or("a wizard")?
+        .get_mut::<crate::wizard::sheet::Books>()
+        .0
+        .clear();
+    assert_eq!(
+        g.check_proposal(P0, P1, trade(Goods::gold(50), Goods::spell(dear))),
+        Err(DiplomacyError::NotAllowed)
+    );
+    // An item that is not in the giver's vault, and a hero as a unit.
+    let _ = cheap;
+    assert_eq!(
+        g.check_proposal(
+            P0,
+            P1,
+            trade(
+                Goods::gold(10),
+                Goods::item(crate::game::serial::Serial(999))
+            )
+        ),
+        Err(DiplomacyError::NotAllowed)
+    );
+    city(&mut g, P1, at(5, 5));
+    g.add_hero(0).ok_or("a hero")?;
+    let hero = g
+        .spawn_hero(P1, at(5, 5), 0)
+        .map_err(|e| format!("{e:?}"))?;
+    let serial = g.serial_of(hero);
+    assert_eq!(
+        g.check_proposal(P0, P1, trade(Goods::gold(10), Goods::unit(serial))),
+        Err(DiplomacyError::NotAllowed)
+    );
+    Ok(())
+}
+
+#[test]
+fn a_saved_trade_and_an_old_swap_both_come_back() -> TestResult {
+    let mut g = world();
+    met(&mut g, P0, P1);
+    let (dear, cheap) = two_spells(&g)?;
+    let wanted = Goods {
+        gold: 40,
+        spell: Some(dear),
+        item: Some(crate::game::serial::Serial(7)),
+        unit: Some(crate::game::serial::Serial(9)),
+    };
+    g.diplomacy.proposals.push(Proposal {
+        from: P0,
+        to: P1,
+        kind: trade(Goods::spell(cheap), wanted),
+    });
+    let save = g.diplomacy.to_save();
+    let mut d = Diplomacy::default();
+    d.restore(save);
+    assert_eq!(d.proposals, g.diplomacy.proposals);
+    // The text of a swap as saved before trades.
+    let mut old = g.diplomacy.to_save();
+    old.proposals[0].kind = KindSave::Exchange {
+        give: cheap,
+        get: dear,
+    };
+    d.restore(old);
+    assert_eq!(
+        d.proposals[0].kind,
+        trade(Goods::spell(cheap), Goods::spell(dear))
+    );
+    Ok(())
 }

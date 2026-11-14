@@ -626,6 +626,23 @@ asks for (no war on two fronts, peace for a lost war), not a loss of strength; t
 while the war is young and has taken nothing (`peace_ok`). The soak prints four new counts after the diplomacy kinds: `wars on a
 weaker neighbour`, `appeasements`, `coalition requests`, `war-weary peace offers`.
 
+**Trades, items and coalitions, 14 November 2026 (tasks 504 and 597).** 42 games (`small-2p`, `crowded-5p`, `islands-3p`, `hard-3p`,
+three rounds of seeds), the same games in each run, so the games differ only by what changed:
+
+| Run | Games won | By conquest | Trades done a game | Alliances ended |
+|---|---|---|---|---|
+| `AIK_DIPLO_COALITION_END=0` (the asking stops) | 24 of 42 | 11 | 0.02 | 0 |
+| `AIK_DIPLO_COALITION_END=1` (the alliance is broken) | 24 of 42 | 11 | 0.02 | 0 |
+| trade margins 98, 95, 90 and the best swap pair | 24 of 42 | 11 | 0.02 | 0 |
+
+The two coalition runs are the same game for game: in 42 games no alliance made against a leader lasted until the leader
+stopped leading (an alliance forms about 1.4 times a game, a request for one 4.8 times), so breaking one never came up and the default stays
+the quiet end. The trades are rare for two reasons seen with a debug line in one game: the wizards' books differ, so one side
+usually has several spells the other can learn and the other has none (`swap gives 0 gets 3`), and a sale for gold needs a buyer with the
+gold (the computer wizards spend it). The first margins (110, 103 and 95) gave the same count, so the margin is not what
+holds them back; trades with the human are by the same rule (`diplomacy.md` section 8). The soak line now has `trades offered`,
+`trades done`, `trades with gold`, `trades of items or units` and `items scrapped` for the next look.
+
 ### 12.3 Open issues
 
 1. **The AI hardly fights.** Most two-wizard games have 0 or 1 war and 0 to 4 cities taken in 300 turns.
@@ -641,9 +658,15 @@ weaker neighbour`, `appeasements`, `coalition requests`, `war-weary peace offers
    or stack, never uses city protection, Spell of Return (task 339 note), item crafting or the
    enchanting spells, and does not choose research by what its enemies do. Mana sits unspent in
    long games.
-4. **Heroes and items are used little.** The AI hires the heroes it can pay for and equips them by
-   worth (`offer.rs`), but heroes march with the army as ordinary units, are not kept out of lair
-   fights, and the AI never trades or crafts items.
+4. **Heroes and items are used little.** The AI hires the heroes it can pay for, but heroes march with
+   the army as ordinary units, are not kept out of lair fights, and the AI never crafts items.
+   Items (task 504, `offer.rs`): the merchant's item is bought when it is worth its price to the wizard
+   (the worth of `f4x_core::diplomacy::trade::item_worth`: more with a hero that has a free slot for it, half with none,
+   against the price less the merchant's markup of three); a hero takes the item of most use to it (a caster likes spell
+   skill and charges, a fighter attack and defence) and gives its item up for one worth 130 percent of it, the old one
+   returning to the vault; more than two items no hero could carry are broken up for mana, the cheapest first
+   (`items scrapped` in the soak); a wizard sells items and spells to the others by the priced trade of
+   `diplomacy.md` section 8.
 5. **Battle AI.** It does not retreat or flee, does not sally from a city, and its attackers do badly at
    the three magic nodes (12 to 27 percent wins in the situations table: the guards there are strong, as
    they should be, but the AI does not weigh a lair before it attacks it with a small party; `site.rs`

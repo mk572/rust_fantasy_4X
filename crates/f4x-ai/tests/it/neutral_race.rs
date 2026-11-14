@@ -159,9 +159,9 @@ fn a_neutral_player_meets_answers_proposals_and_trades_no_spells() {
     let swap = g.check_proposal(
         PlayerId(0),
         race,
-        ProposalKind::Exchange {
-            give: f4x_core::rules::SpellId::new(1),
-            get: f4x_core::rules::SpellId::new(2),
+        ProposalKind::Trade {
+            give: f4x_core::diplomacy::Goods::spell(f4x_core::rules::SpellId::new(1)),
+            get: f4x_core::diplomacy::Goods::spell(f4x_core::rules::SpellId::new(2)),
         },
     );
     assert!(swap.is_err(), "{swap:?}");

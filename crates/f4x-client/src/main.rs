@@ -38,6 +38,7 @@ mod diplomacy_list_screen;
 mod diplomacy_prompt;
 mod diplomacy_screen;
 mod diplomacy_text;
+mod diplomacy_trade;
 mod end_scene;
 mod enemy_city_screen;
 mod event_message;

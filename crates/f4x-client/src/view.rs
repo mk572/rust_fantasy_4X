@@ -1461,6 +1461,7 @@ impl App {
             | Event::HeroSummoned { player, .. }
             | Event::MercenariesHired { player, .. }
             | Event::ItemSold { player, .. }
+            | Event::ItemScrapped { player, .. }
             | Event::OfferMade { player, .. }
             | Event::HeroSpellFailed { player, .. }
             | Event::SpellLearned { player, .. }

@@ -16,6 +16,9 @@
 //!
 //! Tests: in diplomacy/tests.rs.
 
+pub mod trade;
+pub use trade::Goods;
+
 use crate::rules::Ability;
 use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
@@ -164,10 +167,11 @@ pub enum ProposalKind {
     WarOn(PlayerId),
     /// Ask the receiver to break its alliance with a third wizard.
     BreakAllianceWith(PlayerId),
-    /// Swap `give` (the proposer's spell) for `get` (the receiver's).
-    Exchange {
-        give: SpellId,
-        get: SpellId,
+    /// A trade (`trade.rs`): the proposer hands `give` to the receiver and gets `get`. A swap of
+    /// two spells is one, and so is a spell for gold.
+    Trade {
+        give: Goods,
+        get: Goods,
     },
     /// The proposer threatens to attack the receiver (`Threaten to Attack`): the receiver
     /// yields (accepts) and is left in peace for a few turns, or does not.
@@ -479,6 +483,17 @@ pub struct DiplomacyCtx<'a> {
 /// A change diplomacy asks of the rest of the game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outcome {
+    /// An item of `from`'s vault or award list goes to `to`'s.
+    Item {
+        from: PlayerId,
+        to: PlayerId,
+        item: crate::game::serial::Serial,
+    },
+    /// A unit changes owner and appears in `to`'s closest city with room.
+    Unit {
+        to: PlayerId,
+        unit: crate::game::serial::Serial,
+    },
     /// Move gold from one wizard's treasury to another's.
     Gold {
         from: PlayerId,
@@ -989,15 +1004,15 @@ impl Diplomacy {
                     && known_third(third)
                     && self.treaty(to, third) == Treaty::Alliance
             }
-            ProposalKind::Exchange { give, get } => {
+            ProposalKind::Trade { give, get } => {
                 status != Treaty::War
-                    && view.wizard(from).is_some_and(|m| m.knows(give))
-                    && view.wizard(to).is_some_and(|m| m.knows(get))
-                    && view.wizard(to).is_some_and(|m| !m.knows(give))
-                    && view.wizard(from).is_some_and(|m| !m.knows(get))
-                    // Each side needs the books for what it would receive.
-                    && view.wizard(to).is_some_and(|m| m.books_allow(view.content().rules.spells.get(give)))
-                    && view.wizard(from).is_some_and(|m| m.books_allow(view.content().rules.spells.get(get)))
+                    && !give.is_empty()
+                    && !get.is_empty()
+                    && !(give.is_only_gold() && get.is_only_gold())
+                    // Each side can hand over its part (the books for a spell, a vault for an
+                    // item, a city for a unit, a treasury for gold).
+                    && trade::can_hand_over(view, from, to, give)
+                    && trade::can_hand_over(view, to, from, get)
             }
         };
         if ok {
@@ -1042,7 +1057,7 @@ impl Diplomacy {
         // whatever the answer is (the original does it inside the AI's rating, and not for a
         // spell swap, which it grants unrated).
         match proposal.kind {
-            ProposalKind::Exchange { .. } | ProposalKind::Demand { .. } => {}
+            ProposalKind::Trade { .. } | ProposalKind::Demand { .. } => {}
             ProposalKind::Threat => {}
             _ => {
                 let wear = 20 + ctx.rng.roll(30) as i32;
@@ -1111,18 +1126,13 @@ impl Diplomacy {
             }),
             ProposalKind::WarOn(third) => self.declare_war(ctx, p.to, third),
             ProposalKind::BreakAllianceWith(third) => self.break_treaties(ctx, p.to, third),
-            ProposalKind::Exchange { give, get } => {
-                ctx.out.push(Outcome::Spell {
-                    player: p.to,
-                    spell: give,
-                });
-                ctx.out.push(Outcome::Spell {
-                    player: p.from,
-                    spell: get,
-                });
-                // Giving the better spell pleases the receiver.
-                let cost = |s: SpellId| ctx.view.content().rules.spells.get(s).research_cost;
-                if cost(give) > cost(get) {
+            ProposalKind::Trade { give, get } => {
+                Self::hand_over(ctx, p.from, p.to, give);
+                Self::hand_over(ctx, p.to, p.from, get);
+                // Giving the better half pleases the receiver (and a trade between allies is
+                // fair by the worth, so it pleases neither more).
+                let worth = |holder, goods| trade::worth(ctx.view, holder, goods);
+                if worth(p.to, give) > worth(p.from, get) {
                     self.change_relations(ctx, 5, p.from, p.to, Action::Friendship, None);
                 }
                 let s = self.stance_mut(p.from, p.to);
@@ -1130,6 +1140,26 @@ impl Diplomacy {
                 s.exchange_patience = (s.exchange_patience - 30).min(50);
                 s.peace_patience -= 20;
             }
+        }
+    }
+
+    /// What `from` hands to `to` in a trade: the outcomes that move it.
+    fn hand_over(ctx: &mut DiplomacyCtx<'_>, from: PlayerId, to: PlayerId, goods: Goods) {
+        if goods.gold > 0 {
+            ctx.out.push(Outcome::Gold {
+                from,
+                to,
+                amount: goods.gold,
+            });
+        }
+        if let Some(spell) = goods.spell {
+            ctx.out.push(Outcome::Spell { player: to, spell });
+        }
+        if let Some(item) = goods.item {
+            ctx.out.push(Outcome::Item { from, to, item });
+        }
+        if let Some(unit) = goods.unit {
+            ctx.out.push(Outcome::Unit { to, unit });
         }
     }
 
@@ -1819,10 +1849,39 @@ impl Game {
                     }
                 }
                 Outcome::Spell { player, spell } => self.learn_spell(player, spell),
+                Outcome::Item { from, to, item } => self.pass_item(from, to, item),
+                Outcome::Unit { to, unit } => self.pass_unit(to, unit),
                 Outcome::DropCityCurses { a, b } => self.drop_city_curses(a, b),
             }
         }
         result
+    }
+
+    /// An item of `from` goes to `to` (a trade): out of the armory, into the other's.
+    fn pass_item(&mut self, from: PlayerId, to: PlayerId, serial: crate::game::serial::Serial) {
+        let Some((entity, item)) = trade::armory_item(self, from, serial) else {
+            return;
+        };
+        self.despawn_item(entity);
+        self.give_item(to, item);
+    }
+
+    /// A unit of a city goes to `to` (a trade): it changes owner, appears at the delivery square
+    /// and drops its orders.
+    fn pass_unit(&mut self, to: PlayerId, serial: crate::game::serial::Serial) {
+        let Some(unit) = self.units().entity_of_serial(serial) else {
+            return;
+        };
+        let Some(at) = self
+            .units()
+            .unit_position(unit)
+            .and_then(|from| trade::delivery_square(self, to, from))
+        else {
+            return;
+        };
+        self.set_owner(unit, to);
+        let _ = self.world.insert_one(unit, at);
+        let _ = self.world.remove_one::<crate::unit::Order>(unit);
     }
 
     /// Take off every city the spells that `a` and `b` cast on each other's cities.
@@ -2034,9 +2093,19 @@ pub enum KindSave {
     Peace,
     WarOn(u8),
     BreakAllianceWith(u8),
-    Exchange { give: SpellId, get: SpellId },
+    /// A swap of two spells, as saved before trades (`Trade`).
+    Exchange {
+        give: SpellId,
+        get: SpellId,
+    },
+    Trade {
+        give: Goods,
+        get: Goods,
+    },
     Threat,
-    Demand { gold: i32 },
+    Demand {
+        gold: i32,
+    },
 }
 
 impl Diplomacy {
@@ -2068,7 +2137,7 @@ impl Diplomacy {
                         ProposalKind::BreakAllianceWith(t) => KindSave::BreakAllianceWith(t.0),
                         ProposalKind::Threat => KindSave::Threat,
                         ProposalKind::Demand { gold } => KindSave::Demand { gold },
-                        ProposalKind::Exchange { give, get } => KindSave::Exchange { give, get },
+                        ProposalKind::Trade { give, get } => KindSave::Trade { give, get },
                     },
                 })
                 .collect(),
@@ -2098,7 +2167,11 @@ impl Diplomacy {
                     KindSave::BreakAllianceWith(t) => ProposalKind::BreakAllianceWith(PlayerId(t)),
                     KindSave::Threat => ProposalKind::Threat,
                     KindSave::Demand { gold } => ProposalKind::Demand { gold },
-                    KindSave::Exchange { give, get } => ProposalKind::Exchange { give, get },
+                    KindSave::Exchange { give, get } => ProposalKind::Trade {
+                        give: Goods::spell(give),
+                        get: Goods::spell(get),
+                    },
+                    KindSave::Trade { give, get } => ProposalKind::Trade { give, get },
                 };
                 Proposal {
                     from: PlayerId(p.from),
@@ -2142,6 +2215,10 @@ impl Game {
             KindSave::Exchange { give, get } => {
                 spells.id_numbered(give.num()).is_some() && spells.id_numbered(get.num()).is_some()
             }
+            KindSave::Trade { give, get } => [give.spell, get.spell]
+                .into_iter()
+                .flatten()
+                .all(|s| spells.id_numbered(s.num()).is_some()),
             _ => true,
         });
         self.diplomacy.restore(save);

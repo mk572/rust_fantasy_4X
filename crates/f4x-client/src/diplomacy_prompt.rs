@@ -33,7 +33,7 @@ pub(crate) fn question_key(kind: ProposalKind) -> &'static str {
         ProposalKind::Peace => "diplomacy.ai_proposes_peace",
         ProposalKind::WarOn(_) => "diplomacy.ai_proposes_war",
         ProposalKind::BreakAllianceWith(_) => "diplomacy.ai_proposes_break",
-        ProposalKind::Exchange { .. } => "diplomacy.ai_proposes_exchange",
+        ProposalKind::Trade { .. } => "diplomacy.ai_proposes_trade",
         ProposalKind::Demand { .. } => "diplomacy.ai_demands",
         // A threat is only ever made by the human.
         ProposalKind::Threat => "diplomacy.refused_threat",
@@ -71,13 +71,10 @@ impl App {
             ProposalKind::WarOn(third) | ProposalKind::BreakAllianceWith(third) => {
                 args = args.text("third", self.diplo_name(third));
             }
-            ProposalKind::Exchange { give, get } => {
-                let spells = &self.game.content().rules.spells;
-                let (give, get) = (
-                    self.names.spell(spells.get(give).num).to_string(),
-                    self.names.spell(spells.get(get).num).to_string(),
-                );
-                args = args.text("give", &give).text("get", &get);
+            ProposalKind::Trade { give, get } => {
+                args = args
+                    .text("give", self.goods_text(give))
+                    .text("get", self.goods_text(get));
             }
             ProposalKind::Demand { gold } => args = args.count("gold", gold),
             _ => {}
@@ -117,9 +114,9 @@ mod tests {
             ProposalKind::Peace,
             ProposalKind::WarOn(PlayerId(2)),
             ProposalKind::BreakAllianceWith(PlayerId(2)),
-            ProposalKind::Exchange {
-                give: spell,
-                get: spell,
+            ProposalKind::Trade {
+                give: f4x_core::diplomacy::Goods::spell(spell),
+                get: f4x_core::diplomacy::Goods::spell(spell),
             },
             ProposalKind::Demand { gold: 50 },
             ProposalKind::Threat,

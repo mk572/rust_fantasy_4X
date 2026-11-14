@@ -1,5 +1,5 @@
 use super::*;
-use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
+use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
 use f4x_core::diplomacy::DiplomacyEvent;
 use f4x_core::game::Event;
 use f4x_core::rules::RealmId;
@@ -246,6 +246,58 @@ fn the_weaker_wizards_ally_against_the_one_that_leads() -> TestResult {
 }
 
 #[test]
+fn an_alliance_against_a_leader_ends_when_the_leader_no_longer_leads() -> TestResult {
+    for end in [0, 1] {
+        let mut g = lopsided()?;
+        spawn(&mut g, P1, at(WEST_RIVAL.0, WEST_RIVAL.1), SPEARMEN, 8);
+        g.add_player(P2, "Leader");
+        found(&mut g, P2, 32, 3);
+        wizard(&mut g, P2, &[(RealmId::new(LIFE), 3)], &[], None);
+        g.make_contact(P0, P2);
+        g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
+            from: P0,
+            to: P1,
+            kind: ProposalKind::Alliance,
+        }));
+        g.apply(Command::Diplomacy(DiplomacyCommand::Answer {
+            player: P1,
+            from: P0,
+            accept: true,
+        }));
+        assert_eq!(g.treaty(P0, P1), Treaty::Alliance);
+        // The alliance was asked for against P2; nobody leads now (P2 has no army).
+        assert_eq!(leader_of(&g, P0), None);
+        let mut ai = Ai::new(P0);
+        ai.statecraft.coalitions.push((P1, P2, g.turn));
+        let k = Knobs {
+            coalition_end: end,
+            ..Knobs::current()
+        };
+        end_coalitions(&mut ai, &mut g, &mut Vec::new(), &k);
+        assert!(ai.statecraft.coalitions.is_empty());
+        let expected = if end == 1 {
+            Treaty::None
+        } else {
+            Treaty::Alliance
+        };
+        assert_eq!(g.treaty(P0, P1), expected, "coalition_end {end}");
+    }
+    Ok(())
+}
+
+#[test]
+fn a_wizard_far_ahead_attacks_a_neighbour_on_another_island_by_sea() -> TestResult {
+    let mut g = lopsided_at(None)?;
+    // P1 holds only the east island; P0 has seen its city and a coast beside it.
+    g.explore(P0, at(ENEMY_CITY.0, ENEMY_CITY.1), HalfInt::from_raw(4));
+    let mut ai = Ai::new(P0);
+    let events = run_turns(&mut g, &mut ai, 400);
+    assert_eq!(g.treaty(P0, P1), Treaty::War, "no war in 400 turns");
+    assert_eq!(remarks(&events, Remark::DominantWar), 1);
+    Ok(())
+}
+
+#[test]
 fn the_factors_ease_a_treaty_a_little_and_a_broken_one_is_remembered() -> TestResult {
     let mut g = lopsided()?;
     let plain = affinity(&g, P0, P1);
@@ -288,32 +340,15 @@ fn the_factors_ease_a_treaty_a_little_and_a_broken_one_is_remembered() -> TestRe
 }
 
 #[test]
-fn no_trade_arms_an_enemy_and_a_trade_is_by_worth() -> TestResult {
+fn no_trade_arms_an_enemy() -> TestResult {
     let mut g = lopsided()?;
-    let spells = |g: &Game, n: usize| -> Vec<f4x_def::rules::SpellId> {
-        g.content()
-            .rules
-            .spells
-            .iter()
-            .filter(|(_, d)| d.realm == RealmId::new(LIFE))
-            .map(|(id, _)| id)
-            .take(n)
-            .collect()
-    };
-    let [a, b] = spells(&g, 2)[..] else {
-        return Err("two life spells".into());
-    };
-    wizard(&mut g, P0, &[(RealmId::new(LIFE), 5)], &[], Some(&[a]));
-    wizard(&mut g, P1, &[(RealmId::new(LIFE), 5)], &[], Some(&[b]));
-    assert!(
-        matches!(spell_swap(&g, P0, P1), Some(ProposalKind::Exchange { give, get }) if give == a && get == b)
-    );
+    wizard(&mut g, P0, &[(RealmId::new(LIFE), 5)], &[], None);
     // At war with it: nothing is traded.
     g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
         player: P0,
         on: P1,
     }));
-    assert_eq!(spell_swap(&g, P0, P1), None);
+    assert!(crate::trade::offer(&g, P0, P1).is_none());
     assert!(arms_enemy(&g, P0, P1));
     Ok(())
 }

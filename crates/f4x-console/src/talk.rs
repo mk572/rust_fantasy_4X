@@ -2,7 +2,9 @@
 //!
 //! Tests: in `tests.rs`, through the console.
 
-use f4x_core::diplomacy::{relation_key, DiplomacyCommand, DiplomacyError, ProposalKind, Treaty};
+use f4x_core::diplomacy::{
+    relation_key, DiplomacyCommand, DiplomacyError, Goods, ProposalKind, Treaty,
+};
 use f4x_core::game::Command;
 use f4x_core::player::PlayerId;
 
@@ -179,7 +181,10 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn propose(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let to = ctx.other_wizard(a, 0)?;
-    let kind = match a.need(1, "pact, alliance, peace, threat, war, break or swap")? {
+    let kind = match a.need(
+        1,
+        "pact, alliance, peace, threat, war, break, swap, buy or sell",
+    )? {
         "pact" => ProposalKind::Pact,
         "alliance" => ProposalKind::Alliance,
         "peace" => ProposalKind::Peace,
@@ -190,12 +195,34 @@ fn propose(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             let spells = &ctx.game.content().rules.spells;
             let give = resolve(spells, a.need(2, "your spell")?, |d| &d.id, "spell")?;
             let get = resolve(spells, a.need(3, "their spell")?, |d| &d.id, "spell")?;
-            ProposalKind::Exchange { give, get }
+            ProposalKind::Trade {
+                give: Goods::spell(give),
+                get: Goods::spell(get),
+            }
+        }
+        // `propose <wizard> buy <their spell> <gold>` and `sell <your spell> <gold>`.
+        "buy" => {
+            let spells = &ctx.game.content().rules.spells;
+            let get = resolve(spells, a.need(2, "their spell")?, |d| &d.id, "spell")?;
+            let gold = a.int(3, "gold")? as i32;
+            ProposalKind::Trade {
+                give: Goods::gold(gold),
+                get: Goods::spell(get),
+            }
+        }
+        "sell" => {
+            let spells = &ctx.game.content().rules.spells;
+            let give = resolve(spells, a.need(2, "your spell")?, |d| &d.id, "spell")?;
+            let gold = a.int(3, "gold")? as i32;
+            ProposalKind::Trade {
+                give: Goods::spell(give),
+                get: Goods::gold(gold),
+            }
         }
         other => {
             return Err(ConsoleError::Usage(format!(
-                "propose pact, alliance, peace, threat, war, break or swap, not {other:?}"
-            )))
+            "propose pact, alliance, peace, threat, war, break, swap, buy or sell, not {other:?}"
+        )))
         }
     };
     let from = ctx.session.player;

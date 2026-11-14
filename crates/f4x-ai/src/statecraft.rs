@@ -11,7 +11,7 @@
 //! 4. [`wars`]: peace for a war that is lost, and for one of two fronts; [`peace_ok`] is the
 //!    other side of it, a peace not given to a wizard that is losing a war of its own making
 //!    before the gain is spent.
-//! 5. [`spell_swap`]: exchanges by what each spell is worth to the one who gets it; [`arms_enemy`]
+//! 5. Trades are by worth (`crate::trade`); [`arms_enemy`]
 //!    refuses the ones that arm an enemy.
 //! 6. Remarks (`DiplomacyCommand::Remark`: the human is told why) and memory ([`affinity`]
 //!    counts a broken treaty against the wizard who broke it).
@@ -45,6 +45,9 @@ pub(crate) struct State {
     /// The turn of the last offer of peace to each wizard.
     #[serde(default)]
     pub peace_offered: Vec<(PlayerId, u32)>,
+    /// The alliances it asked for against a leader: the ally, the leader and the turn it asked.
+    #[serde(default)]
+    pub coalitions: Vec<(PlayerId, PlayerId, u32)>,
 }
 
 /// The cities each side held when the war was first seen.
@@ -68,6 +71,9 @@ pub(crate) struct Knobs {
     pub on_peace_gate: bool,
     pub on_factors: bool,
     pub on_arms: bool,
+    /// What an alliance made against a leader does when the leader no longer leads (task 597):
+    /// 0 it stays and only the asking stops, 1 it is broken (the oath breaker's penalty).
+    pub coalition_end: i32,
     /// A city's worth in army points, to weigh cities against armies.
     pub city_power: i32,
     /// Dominant war: percent of the neighbour's army, and of its cities, the AI must hold.
@@ -130,6 +136,7 @@ impl Knobs {
             on_peace_gate: on("ON_PEACE_GATE"),
             on_factors: on("ON_FACTORS"),
             on_arms: on("ON_ARMS"),
+            coalition_end: k("COALITION_END", 0),
             city_power: k("CITY_POWER", 100),
             dominant_army: k("DOMINANT_ARMY", 160),
             dominant_cities: k("DOMINANT_CITIES", 150),
@@ -453,6 +460,7 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     if k.on_coalition {
         coalition(ai, game, events, &k, &scene);
+        end_coalitions(ai, game, events, &k);
     }
     if k.on_dominant {
         dominant_war(ai, game, events, &k, &scene);
@@ -582,7 +590,7 @@ fn appease(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, k: &Knobs, sce
                 events,
             )
             .is_ok()
-        } else if let Some(ProposalKind::Exchange { give, .. }) = spell_swap(game, me, r) {
+        } else if let Some(give) = crate::trade::spell_to_give(game, me, r) {
             ai.send(
                 game,
                 Command::Diplomacy(DiplomacyCommand::GiveSpell {
@@ -634,9 +642,46 @@ fn coalition(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, k: &Knobs, s
         if relation > floor {
             if propose(ai, game, events, w, kind) {
                 remark(ai, game, events, w, Remark::Coalition);
+                if kind == ProposalKind::Alliance {
+                    ai.statecraft.coalitions.retain(|&(a, _, _)| a != w);
+                    ai.statecraft.coalitions.push((w, leader, game.turn));
+                }
             }
         } else {
             gift_gold(ai, game, events, k, w, Remark::Coalition);
+        }
+    }
+}
+
+/// Part 3, the end: an alliance asked for against a leader is over when the leader no longer
+/// leads. With `coalition_end` 1 it is broken (the allies part; the oath breaker's penalty
+/// follows); with 0 it stays and nothing more is asked of it. A request that was never
+/// accepted is forgotten after a few turns.
+fn end_coalitions(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, k: &Knobs) {
+    let me = ai.player;
+    let mut over: Vec<PlayerId> = Vec::new();
+    ai.statecraft.coalitions.retain(|&(ally, leader, asked)| {
+        let allied = game.treaty(me, ally) == Treaty::Alliance;
+        if !allied {
+            return game.turn <= asked + 3;
+        }
+        if leader_of(game, me) == Some(leader) {
+            return true;
+        }
+        over.push(ally);
+        false
+    });
+    if k.coalition_end == 1 {
+        for ally in over {
+            ai.send(
+                game,
+                Command::Diplomacy(DiplomacyCommand::BreakTreaty {
+                    player: me,
+                    with: ally,
+                }),
+                events,
+            )
+            .ok();
         }
     }
 }
@@ -752,7 +797,19 @@ fn dominant_war(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, k: &Knobs
                 .any(|c| view.can_reach(&[u], c))
         })
     };
-    if !reachable {
+    // Or a city on another land mass that a ship could land beside, from a port of its own.
+    let by_sea = !reachable && {
+        let view = PlayerView::new(game, me);
+        let port = view
+            .my_cities()
+            .into_iter()
+            .any(|(_, p)| crate::view::is_coastal(&view, p));
+        port && scene
+            .cities_of(target)
+            .into_iter()
+            .any(|c| crate::naval::landing(&view, c).is_some())
+    };
+    if !reachable && !by_sea {
         return;
     }
     if ai
@@ -769,35 +826,6 @@ fn dominant_war(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, k: &Knobs
         ai.quarrel = Some(target);
         remark(ai, game, events, target, Remark::DominantWar);
     }
-}
-
-/// A swap of spells `me` could offer `other`, by what each is worth to the one who gets it: it
-/// asks for the best spell the other has that it lacks (a realm it has books in counts for more)
-/// and gives the cheapest one for the other that the other lacks, when the swap is not worse
-/// for it than the other's. None when the swap would arm an enemy ([`arms_enemy`]).
-pub(crate) fn spell_swap(game: &Game, me: PlayerId, other: PlayerId) -> Option<ProposalKind> {
-    if arms_enemy(game, me, other) {
-        return None;
-    }
-    let (mine, theirs) = (game.wizard(me)?, game.wizard(other)?);
-    let value = |w: &f4x_core::wizard::entity::Wizard<'_>, def: &f4x_core::rules::SpellDef| {
-        def.research_cost as i32 * (100 + 10 * w.books_in(def.realm)) / 100
-    };
-    let spells = &game.content().rules.spells;
-    let give = spells
-        .iter()
-        .filter(|&(id, def)| mine.knows(id) && !theirs.knows(id) && theirs.books_allow(def))
-        .min_by_key(|&(_, def)| (value(&theirs, def), def.num))?;
-    let get = spells
-        .iter()
-        .filter(|&(id, def)| theirs.knows(id) && !mine.knows(id) && mine.books_allow(def))
-        .max_by_key(|&(_, def)| (value(&mine, def), std::cmp::Reverse(def.num)))?;
-    // Favourable: what it gets is worth, to it, at least nine tenths of what it gives is worth
-    // to the other.
-    (value(&mine, get.1) * 10 >= value(&theirs, give.1) * 9).then_some(ProposalKind::Exchange {
-        give: give.0,
-        get: get.0,
-    })
 }
 
 #[cfg(test)]

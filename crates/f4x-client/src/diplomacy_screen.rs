@@ -9,12 +9,13 @@
 //! as it does on this screen in the original.
 
 use crate::audio::{diplomacy_entry, Track};
+use crate::diplomacy_trade::TradeSort;
 use crate::font::Style;
 use crate::input::Input;
 use crate::page::Page;
 use crate::text::Args;
 use crate::ui;
-use f4x_core::diplomacy::{relation_level, ProposalKind, Stage, Treaty};
+use f4x_core::diplomacy::{relation_level, Goods, ProposalKind, Stage, Treaty};
 use f4x_core::game::{Command, Event};
 use f4x_core::player::PlayerId;
 use f4x_def::rules::{RealmId, SpellId};
@@ -81,6 +82,15 @@ pub(crate) enum Menu {
     ExchangeGet(usize),
     /// What is offered for the spell wanted.
     ExchangeGive(SpellId),
+    /// The kinds of trade for gold.
+    Trade,
+    /// The things of this sort to pick from.
+    TradeThings(TradeSort),
+    /// The prices for the thing picked; `buying` is true when the human buys it.
+    TradePrice {
+        thing: Goods,
+        buying: bool,
+    },
     /// The wizard has answered; a click goes back to the main menu (or leaves).
     Reply,
 }
@@ -96,6 +106,11 @@ enum Act {
     Swap {
         give: SpellId,
         get: SpellId,
+    },
+    /// A trade of one thing for gold, or the reverse.
+    Trade {
+        give: Goods,
+        get: Goods,
     },
     Back,
     Leave,
@@ -533,6 +548,7 @@ impl DiploUi {
                         !war,
                         Act::Go(Menu::ExchangeRealm),
                     ),
+                    row(app.text("diplomacy.trade"), !war, Act::Go(Menu::Trade)),
                     row(app.text("diplomacy.good_bye"), true, Act::Leave),
                 ];
                 // A neutral player has no spells to trade (task 522).
@@ -719,6 +735,66 @@ impl DiploUi {
                 rows.push(forget());
                 (say::exchange_give_prompt(app.texts()), rows)
             }
+            Menu::Trade => {
+                let neutral = app.game.race_of_player(with).is_some();
+                let mut rows = Vec::new();
+                for (key, sort) in [
+                    ("diplomacy.trade_buy_spell", TradeSort::BuySpell),
+                    ("diplomacy.trade_sell_spell", TradeSort::SellSpell),
+                    ("diplomacy.trade_sell_item", TradeSort::SellItem),
+                    ("diplomacy.trade_sell_unit", TradeSort::SellUnit),
+                ] {
+                    // A neutral race has no spells and no vault: it deals in units only.
+                    let kind_ok = !neutral || sort == TradeSort::SellUnit;
+                    let any = kind_ok && !app.trade_things(with, sort).is_empty();
+                    rows.push(row(
+                        app.text(key),
+                        any,
+                        if any {
+                            Act::Go(Menu::TradeThings(sort))
+                        } else {
+                            Act::Nothing
+                        },
+                    ));
+                }
+                rows.push(forget());
+                (app.text("diplomacy.trade_prompt"), rows)
+            }
+            Menu::TradeThings(sort) => {
+                let buying = sort == TradeSort::BuySpell;
+                let mut rows: Vec<Row> = app
+                    .trade_things(with, sort)
+                    .into_iter()
+                    .map(|(label, thing)| {
+                        row(label, true, Act::Go(Menu::TradePrice { thing, buying }))
+                    })
+                    .collect();
+                rows.push(forget());
+                (app.text("diplomacy.trade_which_prompt"), rows)
+            }
+            Menu::TradePrice { thing, buying } => {
+                let mut rows: Vec<Row> = app
+                    .trade_prices(with, thing, buying)
+                    .into_iter()
+                    .map(|gold| {
+                        let (give, get) = if buying {
+                            (Goods::gold(gold), thing)
+                        } else {
+                            (thing, Goods::gold(gold))
+                        };
+                        row(
+                            app.text_with(
+                                "diplomacy.trade_price",
+                                &Args::new().count("gold", gold),
+                            ),
+                            ok(ProposalKind::Trade { give, get }),
+                            Act::Trade { give, get },
+                        )
+                    })
+                    .collect();
+                rows.push(forget());
+                (app.text("diplomacy.trade_price_prompt"), rows)
+            }
             Menu::Greeting | Menu::Reply => (self.message.clone(), Vec::new()),
         }
     }
@@ -843,9 +919,14 @@ impl DiploUi {
                     self.diplo_say(said, Mood::Good, false);
                 }
             }
-            Act::Swap { give, get } => {
-                self.diplo_propose(app, ProposalKind::Exchange { give, get })
-            }
+            Act::Swap { give, get } => self.diplo_propose(
+                app,
+                ProposalKind::Trade {
+                    give: Goods::spell(give),
+                    get: Goods::spell(get),
+                },
+            ),
+            Act::Trade { give, get } => self.diplo_propose(app, ProposalKind::Trade { give, get }),
         }
     }
 }
