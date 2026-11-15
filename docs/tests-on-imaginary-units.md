@@ -15,7 +15,7 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 24 tests. Part 2: 10 tests. Of 2160 in all.**
+**Part 1: 24 tests. Part 2: 5 tests. Of 2160 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
@@ -91,11 +91,6 @@ Helpers that make things up: `m` (line 280).
 | `crates/f4x-core/src/city/economy.rs` | 2 |
 | `crates/f4x-core/src/wizard/magic_command/tests.rs` | 2 |
 | `crates/f4x-core/src/game/tests.rs` | 1 |
-| `crates/f4x-core/src/hero/game.rs` | 1 |
-| `crates/f4x-core/src/player/offer/tests.rs` | 1 |
-| `crates/f4x-core/src/wizard/fortress/tests.rs` | 1 |
-| `crates/f4x-core/src/wizard/tests.rs` | 1 |
-| `crates/f4x-learn/tests/it/battle_spells.rs` | 1 |
 
 ## `crates/f4x-core/src/city/economy.rs` (2)
 
@@ -110,24 +105,6 @@ Helpers that make things up: `m` (line 280).
 |---|---|---|---|---|
 | `strip_on_an_entity_that_is_gone_stops_a_debug_build` | 51 | hand-built entity (`spawn` with components) | itself | |
 
-## `crates/f4x-core/src/hero/game.rs` (1)
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_hero_let_go_can_be_hired_by_anyone_with_the_experience_it_has` | 724 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-
-## `crates/f4x-core/src/player/offer/tests.rs` (1)
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing` | 255 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-
-## `crates/f4x-core/src/wizard/fortress/tests.rs` (1)
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_banished_wizard_returns_and_takes_the_cities_race` | 657 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-
 ## `crates/f4x-core/src/wizard/magic_command/tests.rs` (2)
 
 Helpers that make things up: `treasury` (line 8).
@@ -136,15 +113,3 @@ Helpers that make things up: `treasury` (line 8).
 |---|---|---|---|---|
 | `alchemy_is_two_for_one_without_the_retort_and_one_for_one_with_it` | 16 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `treasury` | |
 | `alchemy_refuses_what_the_wizard_cannot_pay_and_changes_nothing` | 28 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `treasury` | |
-
-## `crates/f4x-core/src/wizard/tests.rs` (1)
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `an_independent_city_has_no_wizard_and_is_called_by_its_city` | 28 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-
-## `crates/f4x-learn/tests/it/battle_spells.rs` (1)
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `every_battle_spell_that_is_offered_is_accepted_and_the_fight_goes_on` | 22 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |

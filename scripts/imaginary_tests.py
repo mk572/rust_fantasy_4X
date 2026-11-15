@@ -49,7 +49,7 @@ MADE_UP = [
 ]
 HAND_BUILT = [
     (
-        r"\b(?:Item|Hero|City|Treasury)\s*\{\s*[a-z_]+\s*:",
+        r"(?<!::)\b(?:Item|Hero|City|Treasury)\s*\{\s*[a-z_]+\s*:",
         "hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal)",
     ),
     (r"\.spawn\(\(\s*[^)\s]", "hand-built entity (`spawn` with components)"),

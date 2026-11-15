@@ -31,15 +31,17 @@ fn an_independent_city_has_no_wizard_and_is_called_by_its_city() -> TestResult {
     g.add_neutral_player(town);
     assert!(g.wizard(town).is_none());
     assert_eq!(g.player(town).ok_or("player is missing")?.name(), "");
-    let serial = g.take_serial();
-    let owner = g.player_entity(town).ok_or("player_entity is missing")?;
-    g.world.spawn((
-        crate::city::City {
-            name: "Free Town".into(),
+    g.spawn_city(
+        town,
+        crate::map::Position {
+            plane: crate::map::Plane::Arcanus,
+            x: 2,
+            y: 2,
         },
-        crate::player::Owner(owner),
-        serial,
-    ));
+        "Free Town".into(),
+        None,
+        4,
+    );
     assert_eq!(
         g.player(town).ok_or("player is missing")?.name(),
         "Free Town"
