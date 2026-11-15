@@ -277,7 +277,23 @@ The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fando
 | 683 Dialog for the spells found in a conquered Wizard's Fortress corrupts memory (682: crash with too many learnable spells) | **Not applicable** as memory corruption. `conquest_spells` takes at most two spells and returns them as events, so no list outgrows a fixed buffer. |
 | 684 The combat map has (much) fewer trees than intended | **Present, intended count unknown.** `scatter_trees` (`battle/map/layout.rs`) is the original's `Scatter_Tree_Scenery` line by line: `Random(20)` trees on plains, hills and tundra, `Random(10)` desert, `Random(40)` mountains, 30 + `Random(30)` forest, laid in patches of `count / patches`. The note does not say what the intended number is, so nothing changed. Related: 685 (rocks use the tree count) is not present, our rock list has its own count. Decided 15 November 2026: more trees, with more terrain, wider rivers, 3D hills, a larger fortress, more houses and wide walls, belong to task 607 (low priority). |
 
-Next: the group 139, 140, 144, 145, 146, 152, 153, 154, 155 and 156 (dispel of granted abilities, Invisibility, undead immunities, Berserk, Black Sleep, Weapon Immunity, special attacks, Immolation, walls, Blur).
+### Walked on 15 November 2026: 139, 140, 144, 145, 146, 152, 153, 154, 155, 156
+
+The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fandom.html`. Row 154 has no text of its own in the note list; it is read with 153 (special attacks).
+
+| Rows | Verdict |
+|---|---|
+| 139 Dispelling spells removes the ability they granted (Guardian Wind, Magic Immunity, Immolation, Wraith Form, True Sight) | **Not present.** A unit's abilities are worked out from the spells on it: a battle unit keeps each lasting spell with the abilities it grants and recomputes when one goes, and overland the abilities come from the spells on the unit (`spell/temp_effect.rs`). Tests `a_dispel_leaves_exactly_the_unit_with_the_spells_that_remain_cast_on_it`, `a_dispel_leaves_exactly_the_enemy_unit_with_the_curses_that_remain_on_it` and the others around `battle/tests.rs` 5332 to 5821. |
+| 140 Invisibility always and everywhere | **Not present.** An invisible unit is hidden from every viewer who has no unit immune to illusions in sight of it (`map/vision.rs`, test `invisible_units_hide_from_everyone_but_those_who_see_through_illusions`), and in a battle it is harder to hit at any distance. |
+| 144 Undead have Illusion, Death, Cold and Poison Immunity | **Not present.** `UNDEAD_IMMUNITIES` gives all four to a unit made undead or black channeled (`divergences`/`help-vs-implementation-conflicts.md` B10); test `an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities`. |
+| 145 Berserk sets defence 0, not -20 | **Not present.** `Modify(Defense, Set, 0)` in `spells.ron`, and `defense_versus` rolls 0 for a berserk unit. |
+| 146 Black Sleep: the unit loses its movement types | **Not present, and the note is not clear.** A sleeping unit loses its turn (`attacked`), takes every blow at full strength (`asleep()`) and is always lost when its side flees. It is a target like any other unit, which is what the help says; the note's "preventing attacks to it" would make it unattackable, which we do not do. |
+| 152 Thrown no longer ignores Weapon Immunity | **Not present.** `AttackNature::of_unit_attack`: thrown and boulders are stopped by weapon immunity unless the weapon is magical. |
+| 153, 154 Gaze and other special attacks fail when the attack strength is 0 | **Present, fixed.** `thrown_combatant` returned nothing for a unit with no ranged strength, so a basilisk under Weakness or Mind Storm (its strength 1 down to 0) never gazed. A gaze needs no strength now. Test `a_gaze_works_when_the_attack_strength_is_down_to_zero`. |
+| 155 City Walls bonus only in battles at cities | **Not present.** The wall exists only on a map made with `with_city(walled)`, and `walls_cover_city` reads that map. |
+| 156 Blur: no rolls lost on successes, Illusion Immunity checked on the right unit | **Not present.** Blur is one off the chance to hit, not a roll thrown away, and `blur_penalty` checks the attacker's Illusion Immunity (test `blur_takes_one_off_the_chance_to_hit_unless_the_attacker_sees_through_illusions`). |
+
+Next: the group 141, 218, 219, 251, 253, 272, 273, 276, 515 and 607 (Chaos Surge, Evil Presence, AI targeting, Miner's Guild, event generation, volcano minerals, Prosperity and swamp food).
 
 ## P2 code review: first pass
 

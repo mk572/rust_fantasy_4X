@@ -1471,6 +1471,28 @@ fn a_defender_with_a_gaze_stones_the_attackers_before_they_strike() -> TestResul
 }
 
 #[test]
+fn a_gaze_works_when_the_attack_strength_is_down_to_zero() -> TestResult {
+    // A basilisk under Weakness or Mind Storm has no ranged strength left, but its gaze does
+    // not need any (1.50 note 153).
+    let mut start = real_battle(&[(SPEARMEN, (3, 10))], &[(182 /* basilisk */, (4, 10))], 1);
+    start.units[1].ranged = 0;
+    let mut plain = without(&start, 1, 64 /* stoning_gaze */);
+    plain.units[1].ranged = 0;
+    let figures = start.units[0].figures;
+    let (mut lost, mut gazeless_lost) = (0, 0);
+    for seed in 0..100 {
+        for (battle, total) in [(&start, &mut lost), (&plain, &mut gazeless_lost)] {
+            let mut b = reseeded(battle, seed);
+            b.apply(BattleCommand::Attack { unit: 0, target: 1 })
+                .map_err(|e| format!("{e:?}"))?;
+            *total += figures - b.unit(0).ok_or("unit is missing")?.figures;
+        }
+    }
+    assert!(lost * 2 > gazeless_lost * 3, "{lost} vs {gazeless_lost}");
+    Ok(())
+}
+
+#[test]
 fn a_life_stealing_shot_heals_the_shooter() -> TestResult {
     // A demon lord, hurt, shoots a spearman.
     let mut start = real_battle(

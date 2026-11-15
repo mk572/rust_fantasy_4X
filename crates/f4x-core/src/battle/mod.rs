@@ -660,7 +660,9 @@ impl BattleUnit {
     }
 
     fn thrown_combatant(&self) -> Option<Combatant> {
-        (self.ranged_kind == RangedKind::Short && self.ranged > 0).then(|| {
+        // A gaze needs no attack strength (1.50 note 153): a unit weakened to none still gazes.
+        let gazes = self.special_attacks().gaze != Gaze::None;
+        (self.ranged_kind == RangedKind::Short && (self.ranged > 0 || gazes)).then(|| {
             // Only a thrown weapon gains the plus, not breath or a gaze.
             let plus = if self.has(Ability::new(69)) {
                 self.weapon_plus()
