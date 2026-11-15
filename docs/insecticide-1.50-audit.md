@@ -332,7 +332,13 @@ The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fando
 |---|---|
 | 210 A building destroyed and built again the same turn has no effect | **Not present.** The city holds only its list of buildings and the economy reads it each time; no effect is stored on the city. Test `a_building_destroyed_and_built_again_in_the_same_turn_works` (the marketplace's gold goes with the building and comes back with it). |
 
-Next: row 220 and the rest of the table in order.
+### Walked on 15 November 2026: 220
+
+| Rows | Verdict |
+|---|---|
+| 220 Negative growth cannot reduce a city at its maximum population | **Not present.** `grow_population` applies the cap to the upward loop only; the downward loop has none. Test `a_city_at_its_largest_still_shrinks`. |
+
+Next: rows 255 and 262 (Confusion), then 261 and 444, and the rest of the table in order.
 
 ## P2 code review: first pass
 

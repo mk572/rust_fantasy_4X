@@ -16,6 +16,13 @@ fn tens_turn_into_citizens_up_to_the_cap() {
     );
 }
 
+/// Patch 1.50, note 220: the cap holds back growth only; a city at its largest still shrinks.
+#[test]
+fn a_city_at_its_largest_still_shrinks() {
+    assert_eq!(grow_population(pop(25, 10), -30, 25), pop(24, 80));
+    assert_eq!(grow_population(pop(25, 50), -30, 25), pop(25, 20));
+}
+
 #[test]
 fn a_shrinking_city_loses_citizens_but_keeps_one() {
     assert_eq!(grow_population(pop(3, 10), -30, 25), pop(2, 80));
