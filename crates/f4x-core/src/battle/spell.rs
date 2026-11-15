@@ -1060,6 +1060,8 @@ impl Game {
         u.side == side
             && u.status == super::Status::Dead
             && u.fate() != super::Fate::Gone
+            // Death Immunity keeps a unit from rising as undead (1.50 notes 496, 498).
+            && !u.has(Ability::new(16 /* death_immunity */))
             && self
                 .units()
                 .unit_def(entity)

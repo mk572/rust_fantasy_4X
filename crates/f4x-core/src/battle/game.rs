@@ -1102,6 +1102,7 @@ impl Game {
             return false;
         };
         u.fate() != super::Fate::Gone
+            && !u.has(Ability::new(16 /* death_immunity */))
             && self.units().unit_def(entity).map(|d| d.kind) == Some(UnitKind::Normal)
             && self.has_global_effect(
                 battle.player_of(winner),
@@ -1122,6 +1123,7 @@ impl Game {
             || (winner != u.side
                 && u.fate() == super::Fate::Drained
                 && u.realm != Some(Realm::Death)
+                && !u.has(Ability::new(16 /* death_immunity */))
                 && kind.is_some_and(|k| k != UnitKind::Hero))
     }
 

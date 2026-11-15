@@ -1673,6 +1673,31 @@ fn only_attacking_wall_crushers_may_strike_a_standing_wall() -> TestResult {
     Ok(())
 }
 
+/// 1.50 note 476: a wall crusher can strike a wall section with an enemy standing right behind it:
+/// the wall has its own target path, not the one of a unit hit.
+#[test]
+fn a_wall_crusher_strikes_a_wall_with_a_defender_standing_behind_it() -> TestResult {
+    let mut b = siege(&[(ENGINEERS, (11, 11))], &[(SPEARMEN, (13, 11))], true, 1);
+    let events = b
+        .apply(BattleCommand::AttackWall {
+            unit: 0,
+            cell: (12, 11),
+        })
+        .map_err(|e| format!("{e:?}"))?;
+    assert!(matches!(
+        events.first(),
+        Some(BattleEvent::WallAttacked { unit: 0, .. })
+    ));
+    assert!(
+        !events.iter().any(|e| matches!(
+            e,
+            BattleEvent::Attacked { .. } | BattleEvent::UnitDied { .. }
+        )),
+        "no unit is hit: {events:?}"
+    );
+    Ok(())
+}
+
 #[test]
 fn a_wall_crusher_hitting_a_unit_on_the_wall_may_bring_the_wall_down_too() -> TestResult {
     let mut fell = 0;
@@ -7001,6 +7026,24 @@ fn animate_dead_raises_a_fallen_soldier_as_undead_at_full_strength() -> TestResu
         g.units().unit_is_undead(cavalry),
         "overland it is undead for good"
     );
+    Ok(())
+}
+
+/// 1.50 notes 496, 498: Death Immunity keeps a fallen unit from rising as undead, by Animate Dead,
+/// Raise Dead or the winner's Zombie Mastery.
+#[test]
+fn a_fallen_unit_with_death_immunity_is_not_raised_as_undead() -> TestResult {
+    let (mut g, _) = necromancy_battle()?;
+    let dead = fallen_cavalry(&mut g, Fate::Slain)?;
+    g.battle.as_mut().ok_or("no battle")?.battle.units[dead]
+        .abilities
+        .push(Ability::new(16 /* death_immunity */));
+    for spell in [137 /* raise_dead */, 195 /* animate_dead */] {
+        let refused = cast_unit(&mut g, spell, SpellAim::Unit(dead), 0);
+        assert!(refused.is_err(), "spell {spell}: death immunity");
+    }
+    let b = g.battle().ok_or("no battle")?;
+    assert!(!b.unit(dead).ok_or("no unit")?.is_active(), "still dead");
     Ok(())
 }
 

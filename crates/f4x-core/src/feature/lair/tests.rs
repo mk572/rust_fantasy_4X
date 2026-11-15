@@ -368,7 +368,7 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() -> TestResult {
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![(165 /* skeletons */, 2)],
+        vec![(104 /* high_men_spearmen */, 2)],
     );
     let walker = g
         .content
@@ -413,7 +413,6 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() -> TestResult {
             b.units[id].figures = 0;
             b.units[id].damage_kinds = kinds;
         }
-        // The test guards are skeletons, creatures of the Death realm, which are not raised.
         b.units[drained.0].realm = None;
     }
     let events = g.apply(Command::Battle(BattleCommand::EndTurn));
@@ -485,6 +484,61 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() -> TestResult {
     assert_eq!(g.units().unit_owner(guards[0].1), Some(P0));
     assert!(g.units().unit_is_undead(guards[0].1));
     assert!(!g.world.contains(guards[1].1), "the destroyed one is gone");
+    Ok(())
+}
+
+/// 1.50 notes 496, 498: Zombie Mastery does not take a dead unit that has Death Immunity.
+#[test]
+fn zombie_mastery_leaves_the_death_immune_dead() -> TestResult {
+    use crate::battle::Status;
+    let mut g = world(7);
+    put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![(104 /* high_men_spearmen */, 1)],
+    );
+    let zm = g
+        .content
+        .rules
+        .spells
+        .id_numbered(188)
+        .ok_or("zombie_mastery is not in the content")?;
+    g.add_global(P0, zm);
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_numbered(107)
+        .ok_or("high_men_cavalry is not in the content")?;
+    let w = g.spawn_unit(P0, at(4, 5), walker);
+    g.apply(Command::EnterSite {
+        units: vec![w],
+        to: at(5, 5),
+    });
+    let guard = {
+        let a = g.battle.as_ref().ok_or("as_ref is missing")?;
+        a.battle
+            .units
+            .iter()
+            .find(|u| u.side == Side::Defender)
+            .map(|u| (u.id, a.sources[u.source.expect("source succeeds")]))
+            .ok_or("no guard")?
+    };
+    {
+        let b = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle;
+        let u = &mut b.units[guard.0];
+        u.status = Status::Dead;
+        u.figures = 0;
+        u.damage_kinds = [4, 0, 0];
+        u.realm = None;
+        u.abilities
+            .push(crate::rules::Ability::new(16 /* death_immunity */));
+    }
+    g.apply(Command::Battle(BattleCommand::EndTurn));
+    assert!(!g.units().unit_is_undead(guard.1), "not raised");
+    assert_ne!(g.units().unit_owner(guard.1), Some(P0));
     Ok(())
 }
 

@@ -465,7 +465,21 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | 457 Floating Island visible in combat and covering the area where units start | **Not present.** A Floating Island is a ship with a deck, and the land units aboard start on the deck, not on a smaller area behind them; the deck is drawn (a brown diamond until a picture is used). Test `the_land_units_of_a_ship_start_a_sea_fight_on_its_deck` (a ship, the island is the same kind of deck). |
 | 458 Ships in cities appear in combat only with Wraith Form; ships on land (no city) only with Flight or Wraith Form | **Was present, fixed.** A plain ship in a city fought as a unit that could not move (sailing costs nothing on land). Now a sailing unit with neither Flight nor Non-Corporeal sits out any fight that is not on the sea (`Game::is_landlocked_ship`, `battle/game.rs`) and goes down with its side. A city held by nothing but a ship has no defenders and falls. Test `a_ship_in_a_city_fights_only_when_flight_or_wraith_form_lets_it_move_on_land`. |
 
-Next: rows 468, 490 and the rest of the table in order.
+### Walked on 15 November 2026: 468, 490, 470, 475, 476, 477, 481, 492, 493, 496, 498
+
+| Rows | Verdict |
+|---|---|
+| 468, 490 AI storm and stasis spells target random, missing or friendly units | **Not present.** Overland the AI aims Stasis at a real enemy stack near its own city, tested by `can_aim` (`wizardry::pick_target`, test `a_wizard_holds_an_enemy_stack_near_its_city_only_while_at_war_and_stronger_than_the_garrison`); it casts no Ice Storm, Fire Storm or Black Wind at all. In battle it chooses only among `legal_battle_casts()` and `legal_unit_casts()`, which the game lists, so no stale index or friendly target is ever sent. |
+| 470 Illusion Immunity does not allow ranged attacks through Wall of Darkness | **Not present.** `Battle::blocked_by_darkness` lets a shooter with Illusion Immunity through. Test `a_wall_of_darkness_stops_shots_into_the_city_unless_the_shooter_sees_through`. |
+| 475 Human secondary realm defaults to Nature | **Not present.** The wizard screen sets the books of each realm by its own count (`newgame_picks`), with no secondary-realm default to fall back on. |
+| 476 Wall Crusher cannot attack a wall with a defender behind it | **Not present.** Walls have their own command (`AttackWall`, `check_wall_attacker`) that does not look at who stands behind. New test `a_wall_crusher_strikes_a_wall_with_a_defender_standing_behind_it`. |
+| 477 Blood drawn on the wall | **Not present.** A wall strike is a `WallAttacked` event (a log line); blood belongs to unit hits (`battle_anim::blood`). |
+| 481 AI remembers enemy details from previous battles | **Not present in the scripted AI**, which is a function of the battle in front of it. One stale memory in the learned brain: see task 613. |
+| 492 Gaia's Blessing changes Chaos Node terrain | **Not present.** It turns desert to grassland and a volcano to hills only (`process_gaias_blessing`); test `gaias_blessing_cleans_land_and_greens_deserts`. |
+| 493 Gaia's Blessing reports food that does not exist | **Not present.** The city's food is the sum of its squares' food times one and a half (`city/economy.rs`), so it reports what the land gives. |
+| 496, 498 Death Immunity fails to prevent raising as undead | **Was present, fixed.** Animate Dead, Raise Dead, a victor's Zombie Mastery and the drained dead of Life Steal or Create Undead all took units with Death Immunity. All four now check it (`can_animate`, `is_zombified`, `is_raised_by`). Tests `a_fallen_unit_with_death_immunity_is_not_raised_as_undead`, `zombie_mastery_leaves_the_death_immune_dead`. |
+
+Next: the rows after 498 in order of the table in order.
 
 
 ### Walked on 15 November 2026: 445, 447, 451, 495
