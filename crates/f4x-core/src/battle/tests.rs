@@ -3128,7 +3128,7 @@ fn mithril_and_adamantium_weapons_add_to_the_attack_defence_and_to_hit() -> Test
 
 #[test]
 fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestResult {
-    use crate::item::{Item, ItemBonus};
+    use crate::item::Item;
     use crate::rules::ItemKind;
     let mut g = game();
     // Only a hero carries items: the game's first hero, the Dwarf.
@@ -3142,60 +3142,39 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
     let plain = g
         .battle_unit_from(unit, Side::Attacker, 0)
         .ok_or("battle_unit_from is missing")?;
-    let item = |kind, bonus: ItemBonus, powers: &[u16]| Item {
-        name: "Test".into(),
-        kind,
-        cost: 100,
-        icon: 0,
-        bonus,
-        powers: powers
-            .iter()
-            .map(|p| {
-                shipped()
-                    .rules
-                    .item_powers
-                    .id_numbered(*p)
-                    .expect("a shipped power")
-            })
-            .collect(),
-        charges: None,
-        prefab: None,
-        made: None,
-    };
-    let sword = item(
-        ItemKind::Sword,
-        ItemBonus {
-            attack: 2,
-            to_hit: 1,
-            ..ItemBonus::default()
-        },
-        &[37 /* vampiric */, 33 /* flaming */],
-    );
-    let shield = item(
-        ItemKind::Shield,
-        ItemBonus {
-            defense: 2,
-            resistance: 1,
-            ..ItemBonus::default()
-        },
-        &[],
-    );
+    let sword = real_item(|d| {
+        d.kind == ItemKind::Sword
+            && d.powers
+                .contains(&crate::rules::ItemPowerId::new(33 /* flaming */))
+            && Item::from_def(d).bonus.attack > 0
+    });
+    let shield = real_item(|d| {
+        let b = Item::from_def(d).bonus;
+        d.kind == ItemKind::Shield && d.powers.is_empty() && b.defense > 0 && b.resistance > 0
+    });
+    let (sword_bonus, shield_bonus) = (sword.bonus.clone(), shield.bonus.clone());
+    let granted = sword.granted_abilities(&shipped().rules);
     g.arm_hero(unit, [Some(sword), Some(shield), None]);
     let armed = g
         .battle_unit_from(unit, Side::Attacker, 0)
         .ok_or("battle_unit_from is missing")?;
-    assert_eq!(armed.melee, plain.melee + 2 + 3, "attack and Flaming");
-    assert_eq!(armed.melee_plus, 1);
+    assert_eq!(
+        armed.melee,
+        plain.melee + sword_bonus.attack + 3,
+        "attack and Flaming"
+    );
+    assert_eq!(armed.melee_plus, sword_bonus.to_hit);
     assert_eq!(armed.ranged_plus, 0);
-    assert_eq!(armed.defense, plain.defense + 2);
-    assert_eq!(armed.resistance, plain.resistance + 1);
-    assert!(armed.has(Ability::new(35)));
-    assert!(armed.has(Ability::new(34)));
-    assert!(!plain.has(Ability::new(35)));
+    assert_eq!(armed.defense, plain.defense + shield_bonus.defense);
+    assert_eq!(armed.resistance, plain.resistance + shield_bonus.resistance);
+    assert!(armed.has(Ability::new(34)), "the shield's own ability");
+    for a in granted {
+        assert!(armed.has(a), "{a:?} from the sword's powers");
+    }
     // The plus to hit counts for the melee blow, not for a shot.
     assert_eq!(
         armed.melee_combatant().to_hit,
-        plain.melee_combatant().to_hit + 1
+        plain.melee_combatant().to_hit + sword_bonus.to_hit
     );
     Ok(())
 }
@@ -3203,7 +3182,6 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
 #[test]
 fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestResult {
     use crate::hero::Hero;
-    use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = game();
     let walker = g
@@ -3232,34 +3210,50 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestRes
         .ok_or("battle_unit_from is missing")?;
     assert_eq!((bare.mana, bare.hero_caster), (7, true));
     // An item's spell skill adds to it.
-    let staff = Item {
-        name: "Staff".into(),
-        kind: ItemKind::Staff,
-        cost: 100,
-        icon: 0,
-        bonus: ItemBonus {
-            spell_skill: 5,
-            ..ItemBonus::default()
-        },
-        powers: Vec::new(),
-        charges: None,
-        prefab: None,
-        made: None,
-    };
+    let staff = real_item(|d| d.kind == ItemKind::Staff && d.spell_skill > 0);
+    let skill = staff.bonus.spell_skill;
     g.arm_hero(unit, [Some(staff), None, None]);
     let mut armed = g
         .battle_unit_from(unit, Side::Attacker, 0)
         .ok_or("battle_unit_from is missing")?;
-    assert_eq!(armed.mana, 12);
+    let mana = 7 + skill;
+    assert_eq!(armed.mana, mana);
     // A magic shot costs the hero three mana, and its shots follow its mana.
     armed.ranged_kind = RangedKind::Magic;
     armed.ammo = armed.mana / SHOT_MANA;
-    assert_eq!(armed.ammo, 4);
+    assert_eq!(armed.ammo, mana / SHOT_MANA);
     armed.spend_shot();
-    assert_eq!((armed.mana, armed.ammo), (9, 3));
+    assert_eq!(
+        (armed.mana, armed.ammo),
+        (mana - SHOT_MANA, (mana - SHOT_MANA) / SHOT_MANA)
+    );
     armed.leak_mana(5);
-    assert_eq!((armed.mana, armed.ammo), (4, 1));
+    let left = (mana - SHOT_MANA - 5).max(0);
+    assert_eq!((armed.mana, armed.ammo), (left, left / SHOT_MANA));
     Ok(())
+}
+
+/// The shipped wand with two charges of Dispel Magic True.
+fn charged_wand() -> crate::item::Item {
+    let wand = real_item(|d| d.num == 227);
+    assert_eq!(
+        wand.charges.map(|(spell, n)| (spell.num(), n)),
+        Some((42, 2))
+    );
+    wand
+}
+
+/// The first shipped item (in the original's order) that `wanted` accepts.
+fn real_item(wanted: impl Fn(&f4x_def::rules::ItemDef) -> bool) -> crate::item::Item {
+    let content = shipped();
+    let (_, def) = content
+        .rules
+        .items
+        .iter()
+        .filter(|(_, d)| wanted(d))
+        .min_by_key(|(_, d)| d.num)
+        .expect("the content has such an item");
+    crate::item::Item::from_def(def)
 }
 
 /// A hero of player A that serves at (4, 4), made the way the game makes one: a hero type in the
@@ -3527,7 +3521,7 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() -> TestRes
         .rules
         .spells
         .id_numbered(83)
-        .ok_or("fire_bolt is not in the content")?;
+        .ok_or("dispel_magic_true is not in the content")?;
     let mend = g
         .content
         .rules
@@ -3607,40 +3601,26 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() -> TestRes
 
 #[test]
 fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() -> TestResult {
-    use crate::item::{Item, ItemBonus};
-    use crate::rules::ItemKind;
     let mut g = game();
     let hero = hero_unit(&mut g, &[], 0);
-    let wand = |slot_name: &str| Item {
-        name: slot_name.into(),
-        kind: ItemKind::Wand,
-        cost: 100,
-        icon: 0,
-        bonus: ItemBonus {
-            spell_save: 2,
-            ..ItemBonus::default()
-        },
-        powers: Vec::new(),
-        charges: Some((SpellId::new(83) /* fire_bolt */, 2)),
-        prefab: None,
-        made: None,
-    };
+    let wand = charged_wand();
+    let save = wand.bonus.spell_save;
     // The spell is in the second slot: any slot works, not only the first.
-    g.arm_hero(hero, [None, Some(wand("Wand")), None]);
+    g.arm_hero(hero, [None, Some(wand), None]);
     begin(&mut g, hero);
     let zap = g
         .content
         .rules
         .spells
-        .id_numbered(83)
-        .ok_or("fire_bolt is not in the content")?;
+        .id_numbered(42)
+        .ok_or("dispel_magic_true is not in the content")?;
     let b = g.battle().ok_or("battle is missing")?;
     assert_eq!(
         b.unit(0).ok_or("unit is missing")?.mana,
         0,
         "no casting skill, no mana"
     );
-    assert_eq!(b.unit(0).ok_or("unit is missing")?.casting.spell_save, 2);
+    assert_eq!(b.unit(0).ok_or("unit is missing")?.casting.spell_save, save);
     let list = g.battle_unit_spells(0);
     assert_eq!(list.len(), 1);
     let wand_entity = g
@@ -3678,7 +3658,7 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() -> TestResul
     let items = g.items().hero_items(hero);
     assert_eq!(
         items.0[1].as_ref().ok_or("as_ref is missing")?.charges,
-        Some((SpellId::new(83) /* fire_bolt */, 1))
+        Some((SpellId::new(42) /* dispel_magic_true */, 1))
     );
     Ok(())
 }
@@ -6074,29 +6054,17 @@ fn heroism_cast_in_a_battle_raises_the_unit_to_the_level_it_gives() -> TestResul
 
 #[test]
 fn a_battle_is_saved_and_read_back_with_its_spells_and_items() -> TestResult {
-    use crate::item::{Item, ItemBonus};
-    use crate::rules::ItemKind;
     let mut g = game();
     let hero = hero_unit(&mut g, &[], 0);
-    let wand = Item {
-        name: "Wand".into(),
-        kind: ItemKind::Wand,
-        cost: 100,
-        icon: 0,
-        bonus: ItemBonus::default(),
-        powers: Vec::new(),
-        charges: Some((SpellId::new(83) /* fire_bolt */, 2)),
-        prefab: None,
-        made: None,
-    };
+    let wand = charged_wand();
     g.arm_hero(hero, [Some(wand), None, None]);
     begin(&mut g, hero);
     let zap = g
         .content
         .rules
         .spells
-        .id_numbered(83)
-        .ok_or("fire_bolt is not in the content")?;
+        .id_numbered(42)
+        .ok_or("dispel_magic_true is not in the content")?;
     g.battle_command(BattleCommand::UnitCast {
         unit: 0,
         spell: zap,
@@ -6136,28 +6104,16 @@ fn a_battle_is_saved_and_read_back_with_its_spells_and_items() -> TestResult {
 
 /// A battle between a hero with a charged wand and a spear, the hero's first spell cast.
 fn battle_in_the_middle() -> (Game, hecs::Entity) {
-    use crate::item::{Item, ItemBonus};
-    use crate::rules::ItemKind;
     let mut g = game();
     let hero = hero_unit(&mut g, &[], 0);
-    let wand = Item {
-        name: "Wand".into(),
-        kind: ItemKind::Wand,
-        cost: 100,
-        icon: 0,
-        bonus: ItemBonus::default(),
-        powers: Vec::new(),
-        charges: Some((SpellId::new(83) /* fire_bolt */, 2)),
-        prefab: None,
-        made: None,
-    };
+    let wand = charged_wand();
     g.arm_hero(hero, [Some(wand), None, None]);
     begin(&mut g, hero);
     let zap = g
         .content
         .rules
         .spells
-        .id_numbered(83)
+        .id_numbered(42)
         .expect("id_of succeeds");
     g.battle_command(BattleCommand::UnitCast {
         unit: 0,
@@ -6599,7 +6555,7 @@ fn the_legal_unit_casts_are_the_castable_spells_with_the_units_they_can_hit() ->
         .rules
         .spells
         .id_numbered(83)
-        .ok_or("fire_bolt is not in the content")?;
+        .ok_or("dispel_magic_true is not in the content")?;
     // 7 mana pay the Fire Bolt (5), not Healing (15).
     let legal = g.legal_unit_casts();
     assert_eq!(legal.len(), 1);

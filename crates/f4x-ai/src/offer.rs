@@ -490,22 +490,15 @@ mod tests {
         Ok(())
     }
 
-    /// A made-up item of this kind and value, with a bonus of attack if `attack` is set.
-    fn made(kind: f4x_def::rules::ItemKind, cost: u32, attack: i32) -> f4x_core::item::Item {
-        f4x_core::item::Item {
-            name: format!("made{cost}"),
-            kind,
-            cost,
-            icon: 0,
-            bonus: f4x_core::item::ItemBonus {
-                attack,
-                ..Default::default()
-            },
-            powers: Vec::new(),
-            charges: None,
-            prefab: None,
-            made: None,
-        }
+    /// The shipped item numbered `num`.
+    fn shipped_item(num: u16) -> f4x_core::item::Item {
+        let content = crate::testworld::shipped();
+        let id = content
+            .rules
+            .items
+            .id_numbered(num)
+            .expect("the content has the item");
+        f4x_core::item::Item::from_def(content.rules.items.get(id))
     }
 
     /// A wizard with a hero at its fortress and the mana to move items.
@@ -525,37 +518,44 @@ mod tests {
 
     #[test]
     fn a_hero_gives_up_an_item_for_one_that_suits_it_a_good_deal_better() -> TestResult {
-        use f4x_def::rules::ItemKind::Sword;
         let (mut g, ai, hero) = with_hero()?;
-        g.give_item(P1, made(Sword, 100, 1));
+        let (base, little, much) = (
+            shipped_item(1 /* sword_of_mallana */),
+            shipped_item(160 /* sword_of_cannae, as good */),
+            shipped_item(163 /* the_revenge_of_orculs */),
+        );
+        let (base_cost, much_cost) = (base.cost, much.cost);
+        g.give_item(P1, base);
         equip(&ai, &mut g, &mut Vec::new());
         assert_eq!(g.items().carried(hero).len(), 1);
-        // A little better is not enough to change.
-        g.give_item(P1, made(Sword, 120, 1));
+        // An equal sword is no reason to change.
+        g.give_item(P1, little);
         equip(&ai, &mut g, &mut Vec::new());
-        assert_eq!(g.items().carried(hero)[0].1.cost, 100);
+        assert_eq!(g.items().carried(hero)[0].1.cost, base_cost);
         // A good deal better is, and the old one goes back to the vault.
-        g.give_item(P1, made(Sword, 400, 3));
+        g.give_item(P1, much);
         equip(&ai, &mut g, &mut Vec::new());
-        assert_eq!(g.items().carried(hero)[0].1.cost, 400);
-        assert!(g.items().armory(P1).items().any(|i| i.cost == 100));
+        assert_eq!(g.items().carried(hero)[0].1.cost, much_cost);
+        assert!(g.items().armory(P1).items().any(|i| i.cost == base_cost));
         Ok(())
     }
 
     #[test]
     fn items_no_hero_can_carry_are_scrapped_for_mana_but_two_are_kept() -> TestResult {
-        use f4x_def::rules::ItemKind::Staff;
         let (mut g, ai, _) = with_hero()?;
         // The hired hero is a fighter: its slots take swords, armour and trinkets, not staves.
-        for cost in [50, 60, 70, 80] {
-            g.give_item(P1, made(Staff, cost, 0));
+        let staves: Vec<_> = [40, 41, 128, 204].map(shipped_item).into();
+        let mut costs: Vec<u32> = staves.iter().map(|i| i.cost).collect();
+        costs.sort();
+        for staff in staves {
+            g.give_item(P1, staff);
         }
         let mana = g.player(P1).ok_or("a player")?.treasury().mana;
         equip(&ai, &mut g, &mut Vec::new());
         let left: Vec<u32> = g.items().armory(P1).items().map(|i| i.cost).collect();
         assert_eq!(left.len(), 2, "{left:?}");
         assert!(
-            left.iter().all(|&c| c >= 70),
+            left.iter().all(|&c| c >= costs[2]),
             "the cheapest go first: {left:?}"
         );
         assert!(g.player(P1).ok_or("a player")?.treasury().mana > mana);

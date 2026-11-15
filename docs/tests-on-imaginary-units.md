@@ -15,7 +15,7 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 24 tests. Part 2: 20 tests. Of 2160 in all.**
+**Part 1: 24 tests. Part 2: 10 tests. Of 2160 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
@@ -88,8 +88,6 @@ Helpers that make things up: `m` (line 280).
 
 | File | Tests |
 |---|---|
-| `crates/f4x-core/src/battle/tests.rs` | 8 |
-| `crates/f4x-ai/src/offer.rs` | 2 |
 | `crates/f4x-core/src/city/economy.rs` | 2 |
 | `crates/f4x-core/src/wizard/magic_command/tests.rs` | 2 |
 | `crates/f4x-core/src/game/tests.rs` | 1 |
@@ -98,30 +96,6 @@ Helpers that make things up: `m` (line 280).
 | `crates/f4x-core/src/wizard/fortress/tests.rs` | 1 |
 | `crates/f4x-core/src/wizard/tests.rs` | 1 |
 | `crates/f4x-learn/tests/it/battle_spells.rs` | 1 |
-
-## `crates/f4x-ai/src/offer.rs` (2)
-
-Helpers that make things up: `made` (line 494).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_hero_gives_up_an_item_for_one_that_suits_it_a_good_deal_better` | 527 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `made` | |
-| `items_no_hero_can_carry_are_scrapped_for_mana_but_two_are_kept` | 546 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `made` | |
-
-## `crates/f4x-core/src/battle/tests.rs` (8)
-
-Helpers that make things up: `battle_in_the_middle` (line 6138).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle` | 3130 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots` | 3204 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item` | 3609 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `a_battle_is_saved_and_read_back_with_its_spells_and_items` | 6076 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `a_game_saved_in_a_battle_continues_exactly_like_the_unsaved_one` | 6188 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
-| `a_game_saved_outside_a_battle_holds_no_battle` | 6220 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
-| `a_save_whose_battle_names_a_unit_that_is_gone_is_refused` | 6227 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
-| `a_replay_can_start_in_a_battle` | 6239 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `battle_in_the_middle` | |
 
 ## `crates/f4x-core/src/city/economy.rs` (2)
 
