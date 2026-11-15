@@ -309,7 +309,14 @@ The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fando
 | 515 Prosperity on a dwarf city shows more gold than it should | **Not present.** The city screen and the treasury read the same `city_economy`, so the display cannot differ from the income. |
 | 607 Swamps give half a food | **Not present.** The swamp has food 0.5 in `terrain.ron` and the economy test checks "swamp: half a food". |
 
-Next: row 159 and 160 (diplomatic reaction to all battle casualties; carried units fleeing without their ship), then 170, 174 and 275, 175, 176 and 465, 177 and the rest of the table in order.
+### Walked on 15 November 2026: 159, 160
+
+| Rows | Verdict |
+|---|---|
+| 159 Every unit killed in a battle counts for the diplomatic reaction | **Not present.** `battle_loss_relations` goes over every defender that is dead or fled (a hero 20, another unit a d20, a settler up to 10 more) and makes one change of relations from the sum. Test `the_dislike_a_battle_breeds_counts_every_unit_that_fell`. |
+| 160 Carried units no longer die for certain when they flee, leaving only the ship | **Not present.** Every unit of a fleeing side rolls for itself in `overland_aftermath` (half the troops, a quarter of the heroes), passengers and ship alike; nobody is lost for certain. When the ship is lost and the passengers live, `drown_stranded` lets them scramble ashore where free land lies beside them (the 1.50 side effect), otherwise they drown. Test `passengers_of_a_lost_ship_beside_the_shore_may_scramble_ashore`. |
+
+Next: row 170, 174 and 275, 175, 176 and 465, 177 and the rest of the table in order.
 
 ## P2 code review: first pass
 

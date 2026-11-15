@@ -7042,3 +7042,35 @@ fn wraith_form_is_no_shelter_from_flame_strike_death_spell_and_holy_word() -> Te
     }
     Ok(())
 }
+
+/// Patch 1.50, note 159: every unit of the losing wizard that fell counts for his dislike of the
+/// attacker, not one of them (a Great Drake kills eight spearmen; each is worth 1 to 20).
+#[test]
+fn the_dislike_a_battle_breeds_counts_every_unit_that_fell() -> TestResult {
+    let mut g = game();
+    let units = &g.content.rules.units;
+    let drake = units
+        .id_numbered(164)
+        .ok_or("great_drake is not in the content")?;
+    let spearman = units
+        .id_numbered(104)
+        .ok_or("high_men_spearmen is not in the content")?;
+    let attacker = g.spawn_unit(A, at(4, 4), drake);
+    let defenders: Vec<hecs::Entity> = (0..8)
+        .map(|_| g.spawn_unit(D, at(5, 4), spearman))
+        .collect();
+    let before = g.relation(D, A);
+    g.auto_resolve(&[attacker], &defenders);
+    let fallen = defenders
+        .iter()
+        .filter(|&&d| g.world.get::<&crate::unit::Unit>(d).is_err())
+        .count();
+    assert!(fallen >= 6, "the drake wins ({fallen} fell)");
+    // One unit is worth at most 20; the fallen of the whole stack are worth more than that.
+    assert!(
+        before - g.relation(D, A) > 20,
+        "{before} to {}",
+        g.relation(D, A)
+    );
+    Ok(())
+}
