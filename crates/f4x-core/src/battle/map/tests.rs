@@ -429,3 +429,28 @@ fn every_square_of_an_ocean_map_is_open_to_ships_and_to_nobody_on_foot() {
         }
     }
 }
+
+/// 1.50 notes 685, 686: a field gets about the trees and rocks its terrain asks for (the draw of
+/// the count, less what the patches' rounding leaves out), not a fraction of them.
+#[test]
+fn a_field_gets_the_trees_and_rocks_its_terrain_asks_for() {
+    // (terrain, mean of the draw for the trees, for the rocks)
+    for (class, trees, rocks) in [
+        (TerrainClass::Grassland, 10.5, 2.0),
+        (TerrainClass::Forest, 45.5, 4.5),
+        (TerrainClass::Mountains, 20.5, 6.5),
+    ] {
+        let (mut t, mut r) = (0.0, 0.0);
+        for seed in 0..300 {
+            let m = BattleMap::generate(Some(class), &mut Pcg64Mcg::seed_from_u64(seed));
+            let look = m.look().expect("a generated map has a look");
+            t += look.trees.len() as f32 / 300.0;
+            r += look.rocks.len() as f32 / 300.0;
+        }
+        assert!(
+            t > trees * 0.8 && t <= trees + 0.5,
+            "{class:?}: {t} trees of {trees}"
+        );
+        assert!((r - rocks).abs() < 0.8, "{class:?}: {r} rocks of {rocks}");
+    }
+}

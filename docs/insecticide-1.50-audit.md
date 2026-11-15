@@ -515,6 +515,17 @@ Next: row 635 (and 637, 638, 639), then 636, 651, 666 to 670, 674, 682, 685, 686
 | 445 Diagonal combat movement inconsistently costs half a move | **Was present, fixed (I first judged it not present, which was wrong).** The wiki ("Movement Type") and ReMoM agree that combat adds half a move for a diagonal step; ReMoM adds it in `Combat_Move_Path_Find` (the path) but not in `Combat_Move_Path_Valid` (the reachable squares), the inconsistency of the note. Ours charged nothing for diagonals anywhere. `BattleMap::reachable_as` now adds `DIAGONAL_EXTRA` to every diagonal step of every mover (not mud), and it is the one search for highlights, the AI and walking. Test `reach_follows_move_points_diagonals_and_obstacles`. |
 | 447, 451, 495 Auto-combat free turn, extra initial end-turn, spellcasting skipped when units are immobilised | **Not present.** A battle turn changes hands only by `EndTurn` (`Battle::apply`); nothing ends it because units cannot move, and casting does not look at moves (the AI casts before it orders units, `cast::next_command`). A battle starts on the attacker's turn 1 with full moves. Tests `a_new_battle_starts_with_the_attacker_and_full_moves`, and new `a_side_whose_units_cannot_move_keeps_its_turn_and_its_casting`. |
 
+### Walked on 15 November 2026: 635 to 639, 651, 685, 686
+
+| Rows | Verdict |
+|---|---|
+| 635 Ships and catapults ignore Weapon Immunity | **Not present.** `unit_has_magical_weapon` treats a sailing or siege unit as a plain weapon, so weapon immunity stops it. |
+| 637 Weapon Immunity +50 instead of +10 against thrown, boulder, missile | **Not present.** `effective_defense` raises the defence to at least 10 against any normal weapon, ranged or not. |
+| 638 Weakness does not affect Thrown attacks | **Not present.** Weakness modifies Melee and Ranged, and a thrown attack is the Ranged stat. Test `weakness_weakens_a_thrown_attack_too`. |
+| 639 Shatter obscures the unit's original attack | **Not present.** Shatter is a `Max 1` modifier on the stats; the base value is kept underneath. |
+| 651 AI research bonuses wrong | **Not present.** The AI's research score uses `research_cost` of the wizard, which holds the bonuses. |
+| 685, 686 Too few trees, wrong number of rocks on the combat map | **Not present.** The scatter follows `Scatter_Tree_Scenery` and `Scatter_Rock_Scenery` of ReMoM (counts, patches, forbidden squares); the means of 300 generated fields match the draws. Test `a_field_gets_the_trees_and_rocks_its_terrain_asks_for`. |
+
 ## P2 code review: first pass
 
 This pass checks the current source architecture against the most consequential 1.50 themes. It is not a claim that every issue in the table has a dedicated regression test.

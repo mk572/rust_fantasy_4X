@@ -5599,6 +5599,53 @@ fn an_outpost_with_city_walls_is_fought_round_its_walls() -> TestResult {
     Ok(())
 }
 
+/// 1.50 note 638: Weakness takes two from a thrown attack as it does from blows.
+#[test]
+fn weakness_weakens_a_thrown_attack_too() -> TestResult {
+    let mut g = wizard_battle_versus(
+        107, /* high_men_cavalry */
+        &[162 /* weakness */],
+        45, /* barbarian_berserkers, thrown 3 */
+        1,
+    );
+    let foe = |g: &Game| -> Result<(i32, i32), String> {
+        let b = g.battle().ok_or("no battle")?;
+        let u = b
+            .units
+            .iter()
+            .find(|u| u.side == Side::Defender)
+            .ok_or("no defender")?;
+        Ok((u.melee, u.ranged))
+    };
+    let (melee, ranged) = foe(&g)?;
+    assert!(ranged >= 3, "the berserkers throw: {ranged}");
+    // The save is a die roll: cast until it takes.
+    for _ in 0..40 {
+        let id = g
+            .battle()
+            .and_then(|b| {
+                b.units
+                    .iter()
+                    .find(|u| u.side == Side::Defender)
+                    .map(|u| u.id)
+            })
+            .ok_or("no defender")?;
+        let _ = cast_on(&mut g, 162, id);
+        if foe(&g)?.0 < melee {
+            break;
+        }
+        g.battle.as_mut().ok_or("no battle")?.battle.casters[0] =
+            Some(crate::battle::BattleCaster::new(2000, 2000, 10));
+    }
+    let (m2, r2) = foe(&g)?;
+    assert_eq!(
+        (melee - m2, ranged - r2),
+        (2, 2),
+        "melee and thrown both fall by two"
+    );
+    Ok(())
+}
+
 #[test]
 fn a_lasting_spell_is_cast_on_a_unit_once() -> TestResult {
     let mut g = wizard_battle(107 /* high_men_cavalry */, &[4 /* giant_strength */]);
