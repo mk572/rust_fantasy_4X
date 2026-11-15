@@ -1,0 +1,12 @@
+[package]
+name = "f4x-setup"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+# The setup program (task 176, `docs/installer-design.md`): finds the player's copy of the original
+# game and extracts the pictures (later the sound and the music) into the player's data folder.
+# It depends on the extractor only, never on the game.
+
+[dependencies]
+f4x-extract = { workspace = true, features = ["extract"] }

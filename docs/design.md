@@ -28,6 +28,7 @@ crates/f4x-master/   the flow of a game: rounds and turns per player (`turn-stru
 crates/f4x-learn/    the learning environment of the AIs (`learning-ai.md`)
 crates/f4x-console/  the text console: every action as a line of text (`console.md`)
 crates/f4x-client/   rendering, input, UI (macroquad); `extract/` reads the original's art
+crates/f4x-setup/    the setup program: finds the player's copy of the original and extracts its pictures (later sound and music) into the data folder; depends on `f4x-extract` only (`installer-design.md`)
 crates/f4x-tools/    validator, map preview, soak runner, other tools
 crates/f4x-ai-ref/   a frozen copy of the AI, outside the workspace, for AI battles (`ai-design.md` 8.1a)
 scripts/             helper scripts (table in `scripts.md`)

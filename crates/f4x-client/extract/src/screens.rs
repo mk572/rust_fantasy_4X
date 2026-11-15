@@ -110,6 +110,11 @@ impl Placer {
     /// (`<place>_<frame>.png`), or `None` to leave it in `art/<lbx>/`. A picture of `unused.tsv`
     /// goes to the same place in `assets-unused/`, beside `assets-local/` (`art/<lbx>/NNN` when it
     /// has none).
+    /// Whether the picture is one of `unused.tsv`.
+    pub fn is_unused(&self, lbx: &str, entry: usize) -> bool {
+        self.unused.iter().any(|(l, e)| l == lbx && *e == entry)
+    }
+
     pub fn place(&self, lbx: &str, entry: usize) -> Option<String> {
         let place = self.place_used(lbx, entry);
         if self.unused.iter().any(|(l, e)| l == lbx && *e == entry) {

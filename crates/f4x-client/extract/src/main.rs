@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use f4x_extract::{
-    art, audio, font_tool, pack_build, refile, screens, spell_art, unit_art, wizard_art,
+    art, audio, font_tool, pack_build, paths, refile, screens, spell_art, unit_art, wizard_art,
 };
 
 /// The units', spells' and wizards' pictures.
@@ -50,7 +50,11 @@ fn main() -> ExitCode {
                     return Ok(());
                 }
                 let root = out.parent().unwrap_or(Path::new("."));
-                let r = pack_build::pack_tree(root, Path::new("crates/f4x-def/content"), false)?;
+                let r = pack_build::pack_tree(
+                    root,
+                    &paths::game_file("crates/f4x-def/content"),
+                    false,
+                )?;
                 println!("{} sprite packs ({} pictures)", r.packs, r.pictures);
                 Ok(())
             }),
@@ -67,15 +71,17 @@ fn main() -> ExitCode {
                 .find(|a| !a.starts_with("--"))
                 .map_or_else(|| PathBuf::from("assets-local"), PathBuf::from);
             let keep = args.iter().any(|a| a == "--keep");
-            pack_build::pack_tree(&root, Path::new("crates/f4x-def/content"), keep).map(|r| {
-                println!(
-                    "{} packs, {} pictures, {} KB of PNG files became {} KB",
-                    r.packs,
-                    r.pictures,
-                    r.bytes_before / 1024,
-                    r.bytes_after / 1024
-                );
-            })
+            pack_build::pack_tree(&root, &paths::game_file("crates/f4x-def/content"), keep).map(
+                |r| {
+                    println!(
+                        "{} packs, {} pictures, {} KB of PNG files became {} KB",
+                        r.packs,
+                        r.pictures,
+                        r.bytes_before / 1024,
+                        r.bytes_after / 1024
+                    );
+                },
+            )
         }
         Some("unpack") => {
             let root = dir(1, "assets-local");
@@ -103,7 +109,8 @@ fn main() -> ExitCode {
 
 /// The tables of which game element uses which picture, from `crates/f4x-client/content/`.
 fn tables() -> Result<TableSet, String> {
-    let content = [Path::new("crates/f4x-client/content")];
+    let client_content = paths::game_file("crates/f4x-client/content");
+    let content = [client_content.as_path()];
     Ok((
         unit_art::load_unit_art(&content)?,
         spell_art::load_spell_art(&content)?,

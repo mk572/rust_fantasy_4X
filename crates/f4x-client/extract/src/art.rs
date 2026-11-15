@@ -478,7 +478,9 @@ fn extract_font_atlases(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<(
     if lbx.len() <= PALETTE_ENTRY {
         return Ok(());
     }
-    let ramps = match fs::read_to_string("crates/f4x-client/content/font_colour_ramps.ron") {
+    let ramps = match fs::read_to_string(crate::paths::game_file(
+        "crates/f4x-client/content/font_colour_ramps.ron",
+    )) {
         Ok(text) => crate::fonts::read_ramps(&text)?,
         Err(_) => Vec::new(),
     };
@@ -588,6 +590,19 @@ pub fn extract(
     spell_art: &SpellArt,
     wizards: &[WizardArt],
 ) -> Result<(), String> {
+    extract_with(game_dir, out_dir, units, spell_art, wizards, false)
+}
+
+/// Like [`extract`]; with `skip_unused` the pictures of `unused.tsv` (which the game never draws)
+/// are not written at all, instead of going to `assets-unused/`. The player's setup does that.
+pub fn extract_with(
+    game_dir: &Path,
+    out_dir: &Path,
+    units: &[UnitArt],
+    spell_art: &SpellArt,
+    wizards: &[WizardArt],
+    skip_unused: bool,
+) -> Result<(), String> {
     let base = base_palette(game_dir)?;
     let mut lbx_files: Vec<_> = fs::read_dir(game_dir)
         .map_err(|e| format!("{}: {e}", game_dir.display()))?
@@ -650,6 +665,9 @@ pub fn extract(
             }
             // A picture with a place of its own goes there; a copy left in `art/` by an earlier
             // run is removed.
+            if skip_unused && placer.is_unused(&stem, i) {
+                continue;
+            }
             let placed = placer.place(&stem, i);
             let (target, name) = match &placed {
                 Some(place) => {
