@@ -444,3 +444,23 @@ All rows **present** or **n/a** but the Artificer treasure above: fleeing withou
 | Edge scrolling (and its delay, 1.60 settings 3) | **new**: a client preference, off by default, 0.4 s delay (`edge_scroll.rs`) |
 | Next / Previous Control (Tab) | **left** as task 615 |
 | Allow Duplicate Keys, Legacy Pointer Movement | **left**, in task 615's input layer |
+
+### Sections 4 and 5 (walked 15 November 2026, in progress)
+
+Section 4: the audio rows (synthesizer glitches, event tracks that loop, the negative-food music) are **client checks** (task 610); the graphics-engine, DOS-memory rows are **n/a**; the in-game item editor is **left** (modding tools).
+
+Section 5, the patch features:
+
+| Feature | Verdict |
+|---|---|
+| Adamant Alchemy | **new**: setting `adamant_alchemy`, off. Alchemy costs two picks (`apply_content_settings` changes the rules' cost, the creation screen follows) and an Alchemy wizard's cities work Mithril and Adamantium without a guild (`new_unit_start`). Tests in `turn/tests.rs`, `wizard/tests.rs` |
+| 2-Pick Myrran | **new**: setting `two_pick_myrran`, off. Myrran costs two picks and the fortress on Myrror adds no mana (`myrror_fortress_power` in `rules_settings.ron`, 5 by default). Tests in `wizard/tests.rs`, `magic_income/tests.rs`, `f4x-newgame/tests/it/shipped_game.rs` |
+| No AI Race Restriction, v1.51 Treasure, Life And Death, Old Tower and Old Node Generator, Strict Retort Reqs | **present** (`limit_ai_races`, `treasure_patch_150`, `ban_life_and_death`, `original_map_generator`, the shared `retort_available`); the two old generators are one switch here |
+| Extra Node Power | **left** (768, decided earlier) |
+| No Double Towers, Common Elves, More Precise Neutrals, Non-11 Book Matching, More 11-Book AIs, Item Theming, Cheaper Misc Stats, Five Power Items, Charge Any Weapon, Lesser Hero Powerup, Better Failed Rewards (the spell and prisoner cases), Last Profile Reload, Load Last Banner, v1.51 Default Relations | **not present**; waiting for the user to say which to build |
+| No Snow Swimming, No Deep Tundra, Mountains Of Grass | **to check** (tundra costs 2 for every walker; the rest is not verified) |
+| Custom Worlds, Different Planes | **to decide**: the Custom screen has separate Arcanus and Myrror values for nodes and minerals |
+
+Decisions of the same day, 15 November 2026: **Lesser Hero Powerup**: the staff part is **done** (the Healer and Golden One are `SwordOrStaff` heroes in `units.ron`, no setting); the extra random abilities are **left** until the patch's details are known. **Last Profile Reload and Load Last Banner** are task 616. **Item Theming, Cheaper Misc Stats, Five Power Items, Charge Any Weapon and More Random Items** are task 617 (a correction: More Random Items was listed as present above; our generator draws only the 33 attribute powers of 66, so it is not). Common Elves: the user proposed swapping the neutral races to the best-fitting terrain after placement (High Elf to forest, Dwarf to mountains, Halfling to hills, Lizardman to swamp); waiting for answers on the design.
+
+Common Elves and More Precise Neutrals, 15 November 2026: Common Elves is **done in another way**: neutral races go to the land that suits them (`divergences.md` 47), so High Elves appear like any race and sit among forest; the landmass favourite race is gone. More Precise Neutrals is still **not present**.
