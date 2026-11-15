@@ -58,7 +58,7 @@ Measured or read in this repository:
 | 6 | Get the MT-32 ROMs | by hand | | `reference/Roland MT-32/rom-new/` |
 | 7 | Render the songs to OGG | `tools/xmi-play -R` (Rust, own workspace, LGPL `mt32-rs`) | the ROMs; `oggenc` or `ffmpeg`; about 2 minutes | `music/*.ogg` (129 MB) |
 | 8 | Build the game | `cargo build --release -p f4x-client` via `make_app.sh` | Rust toolchain, a C toolchain, system libraries | `target/release/f4x-client` (12.6 MB) |
-| 9 | Place content, assets and saves where the game finds them | `make_app.sh` launcher (macOS only) | | `~/Library/Application Support/Fantasy4X/` |
+| 9 | Place content, assets and saves where the game finds them | the client itself (`f4x_extract::paths`, 16 November 2026); `make_app.sh` makes the `.app` | | `~/Library/Application Support/Fantasy4X/` |
 
 After extraction the game needs about 270 MB on disk (art 86 MB, screens 53 MB, audio 132 MB, of
 which the music is 129 MB).
@@ -127,9 +127,10 @@ design does to keep it as clean as it can be:
 ### 3.5 Where the game finds its files
 
 `crates/f4x-client/src/main.rs` looks for `assets-local/art`,
-`assets-local/audio` and `saves/` **relative to the working directory**. On macOS the launcher script
-links the data folder and starts the game from there. That does not carry over to Windows and Linux.
-Needed: a **data folder per user**, found by the program itself:
+`assets-local/audio` and `saves/` **relative to the working directory**. Until 16 November 2026 a macOS
+launcher script linked the data folder and started the game from there; `f4x_extract::paths` now does
+this in the client (step 2 of section 7). What it does, for each system:
+Needed originally: a **data folder per user**, found by the program itself:
 
 | OS | Data folder (saves, imported art and text, rendered music) | Read-only game files (`crates/f4x-def/content/`, the binary) |
 |---|---|---|

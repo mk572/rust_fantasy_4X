@@ -3,7 +3,7 @@
 Each marker is a place where the original code departs from what the manual or the
 author's intent describes, so the index is a worklist for deciding which behaviour
 the new game follows (see docs/help-vs-implementation-conflicts.md). The index
-repeats ReMoM's comment text, so it is written to the gitignored `content-local/`.
+repeats ReMoM's comment text, so it is written to the gitignored `reference/content-local-archive/`.
 
 Usage:
     python3 -I scripts/list_ogbugs.py [--remom DIR] [--out FILE]
@@ -72,7 +72,7 @@ def render(found: list[tuple[str, int, str]]) -> str:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--remom", type=Path, default=DEFAULT_REMOM)
-    parser.add_argument("--out", type=Path, default=REPO / "content-local/OGBUG_INDEX.md")
+    parser.add_argument("--out", type=Path, default=REPO / "reference/content-local-archive/OGBUG_INDEX.md")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     found = collect(args.remom)

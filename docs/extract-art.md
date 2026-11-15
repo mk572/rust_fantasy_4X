@@ -351,8 +351,8 @@ The table is a guide. For anything with an index not listed here read the loader
   `local-assets.md`, `sound.md`).
 - **Data tables (names and numbers), once read to make the rules in `crates/f4x-def/content/`, now kept
   by hand:** `SPELLDAT`, `BUILDDAT`, `ITEMDATA`, `TERRSTAT`. `CITYNAME`, `EVENTMSG`, `DIPLOMSG` and
-  `BUILDESC` are prose (IP): `scripts/import_mom_text.py` writes them to `content-local/` for
-  comparison, and the game does not read them.
+  `BUILDESC` are prose (IP): the retired `scripts/import_mom_text.py` wrote them to `content-local/` for
+  comparison (the last output is in `reference/content-local-archive/`), and the game does not read them.
 - **Data and text not read yet:** `HERODATA`, `ITEMPOW`, `LISTDAT`, `DESC`, `BUILDESC`,
   `DIPLOMSG`, `NAMES`, `CONFIG.MOM`.
 - **Videos:** the opening and ending are frame sequences (`intro` has 13 scenes of full-screen

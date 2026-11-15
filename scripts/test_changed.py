@@ -43,7 +43,7 @@ SLOW = {
     ],
 }
 
-EVERYTHING = ("crates/f4x-def/content/", "Cargo.toml", "Cargo.lock", "content-local/")
+EVERYTHING = ("crates/f4x-def/content/", "Cargo.toml", "Cargo.lock")
 DOC_CHECKS = ("docs/", "README.md", "CLAUDE.md")
 
 

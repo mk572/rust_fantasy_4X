@@ -2,7 +2,8 @@
 
 `read_lbx` splits an archive into entries, `read_records` splits a data-table entry into its
 records, `cstr` reads a zero-terminated string, `slug` and `ron_str` write ids and RON strings.
-The text import that used to live here is `scripts/import_mom_text.py`.
+The text import that used to live here (`import_mom_text.py`) is retired; its last output is in
+`reference/content-local-archive/`.
 """
 
 from __future__ import annotations

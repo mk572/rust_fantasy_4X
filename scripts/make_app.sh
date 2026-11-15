@@ -1,35 +1,44 @@
 #!/bin/sh
-# Build a local macOS app: target/Fantasy4X.app (release build of f4x-client plus a copy of
-# content/, content-local/ and assets-local/art, screens and audio; without the sources the game
-# never reads, see the prune step below). For play on this machine only: it carries the
-# local-only original art and text, so do not share it. Saves go to
-# ~/Library/Application Support/Fantasy4X/saves.
+# Build the macOS app for Apple silicon: target/Fantasy4X.app, with none of the original's files
+# (docs/installer-design.md sections 6.5 and 10). The release client, the shipped rules, texts and
+# client tables, an icon and an Info.plist, signed ad hoc (no developer account; the right-click
+# Open steps are in packaging/macos/README-macOS.txt).
 #
-#   scripts/make_app.sh [--open]
+#   scripts/make_app.sh [--dist] [--link-assets] [--open]
 #   scripts/make_app.sh -h | --help
 set -eu
 usage() {
     cat <<'USAGE'
-Usage: make_app.sh [--open]
+Usage: make_app.sh [--dist] [--link-assets] [--open]
        make_app.sh -h | --help
 
-Build a local macOS app, target/Fantasy4X.app: a release build of f4x-client plus a copy of
-content/, content-local/ and assets-local/art, screens and audio. For play on this machine only: it carries the
-local-only original art and text, so do not share it. Saves go to
-~/Library/Application Support/Fantasy4X/saves.
+Build target/Fantasy4X.app (Apple silicon): the release build of f4x-client, the shipped files
+(crates/f4x-def/content, crates/f4x-lang/content, crates/f4x-client/content), the icon and an
+Info.plist, signed ad hoc. It carries nothing of the original game. The game finds the player's
+pictures and sounds, and writes its saves, in ~/Library/Application Support/Fantasy4X/.
 
 Options:
-  --open        open the app when it is built
-  -h, --help    print this help and exit
+  --dist          also make target/Fantasy4X-<version>-macos-arm64.dmg and .zip
+                  (the app, README-macOS.txt, LICENSE and a link to Applications)
+  --link-assets   for play on this machine: point ~/Library/Application Support/Fantasy4X/assets-local
+                  at this repository's assets-local (the original's art and sound, extracted by
+                  f4x-extract); this is outside the project, so it only happens when asked for
+  --open          open the app when it is built
+  -h, --help      print this help and exit
 
-Needs: cargo (a release build of f4x-client), run from anywhere (it changes to the repo root).
-Writes: target/Fantasy4X.app, replacing a previous one. Exit status 2 for a usage error.
+Needs: cargo and an Apple silicon Mac (a release build, codesign, hdiutil, ditto). Runs from anywhere
+(it changes to the repo root). Writes: target/Fantasy4X.app, replacing a previous one, and with
+--dist the dmg and zip. Exit status 2 for a usage error.
 USAGE
 }
+dist=0
+link_assets=0
 open_after=0
 for arg in "$@"; do
     case "$arg" in
         -h|--help) usage; exit 0 ;;
+        --dist) dist=1 ;;
+        --link-assets) link_assets=1 ;;
         --open) open_after=1 ;;
         *) echo "make_app: unknown option: $arg (see --help)" >&2; exit 2 ;;
     esac
@@ -37,70 +46,71 @@ done
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.cargo/bin:$PATH"
 
+if [ "$(uname -m)" != "arm64" ]; then
+    echo "make_app: this builds the Apple silicon app and needs an Apple silicon Mac" >&2
+    exit 1
+fi
+version=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version *= *"\(.*\)"/\1/p' Cargo.toml)
+[ -n "$version" ] || { echo "make_app: no workspace version in Cargo.toml" >&2; exit 1; }
+
 cargo build --release -p f4x-client
 
 app=target/Fantasy4X.app
-rm -rf target/Fantasy4X.app
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/assets-local"
-cp target/release/f4x-client "$app/Contents/MacOS/f4x-client"
-mkdir -p "$app/Contents/Resources/crates/f4x-def"
-cp -R crates/f4x-def/content "$app/Contents/Resources/crates/f4x-def/content"
-# The client's own tables and texts (hotkeys, art tables, text/); the game finds them at crates/f4x-client/content.
-mkdir -p "$app/Contents/Resources/crates/f4x-client"
-cp -R crates/f4x-client/content "$app/Contents/Resources/crates/f4x-client/content"
-# The texts of the game (every language); the client finds them at crates/f4x-lang/content.
-mkdir -p "$app/Contents/Resources/crates/f4x-lang"
-cp -R crates/f4x-lang/content "$app/Contents/Resources/crates/f4x-lang/content"
-[ -d content-local ] && cp -R content-local "$app/Contents/Resources/content-local"
-[ -d assets-local/art ] && cp -R assets-local/art "$app/Contents/Resources/assets-local/art"
-[ -f assets-local/index.tsv ] && cp assets-local/index.tsv "$app/Contents/Resources/assets-local/index.tsv"
-[ -f assets-local/packs.tsv ] && cp assets-local/packs.tsv "$app/Contents/Resources/assets-local/packs.tsv"
-[ -d assets-local/screens ] && cp -R assets-local/screens "$app/Contents/Resources/assets-local/screens"
-[ -d assets-local/audio ] && cp -R assets-local/audio "$app/Contents/Resources/assets-local/audio"
-
-# Leave out what the game never reads: the XMI songs and instrument banks the OGG music was
-# rendered from, the extraction manifests and reports, backups of edited files and Finder litter.
 res="$app/Contents/Resources"
-rm -rf "$res/assets-local/audio/timbres"
-rm -f "$res/assets-local/audio/index.tsv" "$res/assets-local/art/manifest.tsv"
-# The fonts are compiled into the client (crates/f4x-client/assets/fonts); the extractor output is dev-side only.
-rm -rf "$res/assets-local/art/fonts"
-rm -f "$res/content-local/IMPORT_REPORT.txt" "$res/content-local/OGBUG_INDEX.md"
-find "$res" \( -name '*.xmi' -o -name '*.orig' -o -name '.DS_Store' \) -type f -delete
+rm -rf target/Fantasy4X.app
+mkdir -p "$app/Contents/MacOS" "$res/crates/f4x-def" "$res/crates/f4x-lang" "$res/crates/f4x-client"
+cp target/release/f4x-client "$app/Contents/MacOS/f4x-client"
+cp -R crates/f4x-def/content "$res/crates/f4x-def/content"
+cp -R crates/f4x-lang/content "$res/crates/f4x-lang/content"
+cp -R crates/f4x-client/content "$res/crates/f4x-client/content"
+cp packaging/macos/Fantasy4X.icns "$res/Fantasy4X.icns"
+find "$app" \( -name '.DS_Store' -o -name '*.orig' \) -type f -delete
 
-# The game finds crates/f4x-def/content, content-local/, assets-local/, crates/f4x-client/content, crates/f4x-lang/content and saves/ relative to the working
-# directory, so the launcher runs it from a folder that links to the bundled copies.
-cat > "$app/Contents/MacOS/Fantasy4X" <<'LAUNCH'
-#!/bin/sh
-here="$(cd "$(dirname "$0")" && pwd)"
-res="$here/../Resources"
-data="$HOME/Library/Application Support/Fantasy4X"
-mkdir -p "$data/saves"
-for d in content-local assets-local crates; do
-    rm -f "$data/$d"
-    [ -e "$res/$d" ] && ln -s "$res/$d" "$data/$d"
-done
-cd "$data"
-exec "$here/f4x-client" "$@"
-LAUNCH
-chmod +x "$app/Contents/MacOS/Fantasy4X"
-
-cat > "$app/Contents/Info.plist" <<'PLIST'
+cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleName</key><string>Fantasy 4X</string>
 <key>CFBundleDisplayName</key><string>Fantasy 4X</string>
-<key>CFBundleIdentifier</key><string>local.fantasy4x</string>
-<key>CFBundleExecutable</key><string>Fantasy4X</string>
+<key>CFBundleIdentifier</key><string>io.github.fantasy4x</string>
+<key>CFBundleExecutable</key><string>f4x-client</string>
+<key>CFBundleIconFile</key><string>Fantasy4X</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleVersion</key><string>0.1.0</string>
-<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleVersion</key><string>$version</string>
+<key>CFBundleShortVersionString</key><string>$version</string>
 <key>LSMinimumSystemVersion</key><string>11.0</string>
+<key>LSApplicationCategoryType</key><string>public.app-category.strategy-games</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
 
-echo "built $app"
+# Ad hoc signature: seals the bundle so Apple silicon starts it; it is not a developer signature.
+codesign --force --deep --sign - "$app"
+codesign --verify --deep --strict "$app"
+
+if [ "$dist" = 1 ]; then
+    name="Fantasy4X-$version-macos-arm64"
+    stage=target/dmg-stage
+    rm -rf target/dmg-stage
+    mkdir -p "$stage"
+    ditto "$app" "$stage/Fantasy4X.app"
+    cp packaging/macos/README-macOS.txt LICENSE "$stage/"
+    ln -s /Applications "$stage/Applications"
+    rm -f "target/$name.dmg" "target/$name.zip"
+    hdiutil create -quiet -volname "Fantasy 4X" -srcfolder "$stage" -format UDZO "target/$name.dmg"
+    ditto -c -k --keepParent "$app" "target/$name.zip"
+    rm -rf target/dmg-stage
+    echo "made target/$name.dmg and target/$name.zip"
+fi
+
+if [ "$link_assets" = 1 ]; then
+    data="$HOME/Library/Application Support/Fantasy4X"
+    mkdir -p "$data"
+    rm -f "$data/assets-local"
+    ln -s "$PWD/assets-local" "$data/assets-local"
+    echo "linked $data/assets-local -> $PWD/assets-local"
+fi
+
+echo "built $app ($version)"
 [ "$open_after" = 1 ] && open "$app"
 exit 0

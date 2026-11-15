@@ -18,7 +18,7 @@ behaviour reference. A private full-history mirror is on GitHub as `ReMoM-refere
 reference projects are listed in [`references.md`](references.md).
 
 The scripts default to these paths. Nothing in `reference/`, `assets-local/` or
-`content-local/` is committed.
+`content-local/` is committed (`content-local/` itself is retired; its last files are in `reference/content-local-archive/`).
 
 ## Art: `assets-local/art/`
 
@@ -101,30 +101,19 @@ from outside the repository are the pictures and sounds (`assets-local/art`, `as
 The data loader's tests read `crates/f4x-def/content/` alone; there is no separate test rule set, so a
 test cannot pass on data the game no longer has.
 
-## The original's prose: `content-local/` (gitignored, developer only)
-
-The game reads **no text of the original**: its texts, event sentences, diplomacy lines, city names and
-help are its own files in `crates/f4x-lang/content/text/`. For comparing them with the original's,
-a developer can write the original's prose to `content-local/`, which nothing reads:
-
-```
-python3 -I scripts/import_mom_text.py [--game DIR] [--remom DIR]
-```
-
-It writes `text/en/name/city.ron` (`CITYNAME.LBX`), `event_texts.ron` (`EVENTMSG.LBX`), `diplomsg.ron`
-(`DIPLOMSG.LBX`), `building_texts.ron` (`BUILDESC.LBX`) and `IMPORT_REPORT.txt` (everything it could
-not map). It cross-checks the building descriptions against the effects in `buildings.ron`; each
-difference is a `[check]` line in the report. `scripts/import_mom.py` is only the shared reader of the
-`.lbx` files (`read_lbx`, `read_records`, `cstr`) that the export scripts import. Never commit
-`content-local/`.
-
 ## Local Mac app
 
-`scripts/make_app.sh [--open]` builds `target/Fantasy4X.app`: the release client plus copies of
-`crates/f4x-def/content/`, `content-local/` and `assets-local/art` and `screens`. A launcher script links them into
-`~/Library/Application Support/Fantasy4X/` and runs the game from there, so saves land in
-`~/Library/Application Support/Fantasy4X/saves/`. It contains the local-only original art and
-text: for play on this machine, not for sharing. No icon, signing or universal binary yet (task 81).
+`scripts/make_app.sh [--dist] [--link-assets] [--open]` builds `target/Fantasy4X.app` for Apple silicon: the
+release client, the shipped `crates/*/content` folders (in `Contents/Resources`), the icon and an
+Info.plist, signed ad hoc. It carries **nothing of the original**. The game finds `assets-local/` (the
+extracted art and sound) and writes its saves in `~/Library/Application Support/Fantasy4X/`
+(`f4x_extract::paths`; `--data DIR` overrides it). On this machine,
+`scripts/make_app.sh --link-assets` links this repository's `assets-local/` there. `--dist` also makes
+`target/Fantasy4X-<version>-macos-arm64.dmg` and `.zip` for distribution. Design and decisions:
+[`installer-design.md`](installer-design.md).
+
+`content-local/` is retired: the game reads no text of the original, and the old import script is gone.
+The last files are in `reference/content-local-archive/` (gitignored).
 
 ## Exception: the battlefield river pictures
 
