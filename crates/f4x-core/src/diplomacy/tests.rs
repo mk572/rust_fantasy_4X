@@ -1959,6 +1959,54 @@ fn a_trade_hands_over_gold_a_spell_an_item_and_a_unit() -> TestResult {
     Ok(())
 }
 
+/// A trade pleases whoever gets the better deal by its own worth: the buyer who pays less than the
+/// spell is worth to it, the seller who gets more; an even trade pleases neither.
+#[test]
+fn the_side_with_the_better_deal_likes_the_other_more() -> TestResult {
+    let after = |delta: i32, human: Option<PlayerId>| -> Result<i32, Box<dyn std::error::Error>> {
+        let mut g = world();
+        g.set_human(human);
+        met(&mut g, P0, P1);
+        let (dear, _) = two_spells(&g)?;
+        teach(&mut g, P1, dear)?;
+        forget(&mut g, P0, dear)?;
+        set_gold(&mut g, P0, 5000)?;
+        set_gold(&mut g, P1, 0)?;
+        let price = trade::worth(&g, P0, Goods::spell(dear)) + delta;
+        let before = g.relation(P0, P1);
+        command(
+            &mut g,
+            DiplomacyCommand::Propose {
+                from: P0,
+                to: P1,
+                kind: trade(Goods::gold(price), Goods::spell(dear)),
+            },
+        );
+        command(
+            &mut g,
+            DiplomacyCommand::Answer {
+                player: P1,
+                from: P0,
+                accept: true,
+            },
+        );
+        assert!(g.wizard(P0).ok_or("a wizard")?.knows(dear), "it was a deal");
+        Ok(g.relation(P0, P1) - before)
+    };
+    // Two computer wizards: either side that gets the better deal likes the other more.
+    assert_eq!(after(0, None)?, 0, "an even trade changes nothing");
+    assert!(after(100, None)? > 0, "the seller is overpaid");
+    assert!(after(-100, None)? > 0, "the buyer got the spell cheap");
+    // With the human buying, only the computer wizard has feelings to move.
+    assert!(after(100, Some(P0))? > 0, "the computer seller is overpaid");
+    assert_eq!(
+        after(-100, Some(P0))?,
+        0,
+        "the human buyer's pleasure is not kept"
+    );
+    Ok(())
+}
+
 #[test]
 fn a_trade_a_side_cannot_hand_over_is_refused() -> TestResult {
     let mut g = world();

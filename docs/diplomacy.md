@@ -390,6 +390,7 @@ has seen, the treaties and the proposals.
    the most content. It never makes a trade that arms an enemy (`arms_enemy`), and gives no unit or hero while at war, none that is the last
    defender of a city and not its last hero (`will_give`). A bundle holds at most one of each category (so a spell, an item, a unit,
    a hero and gold may all be in one), a hero keeps its level, experience and items, and units and heroes appear in the receiver's closest city with room.
+   **What a deal does to relations** (`Diplomacy::carry_out`): whoever gets the better deal by its own worth (what it gets minus what it gives, by `trade::worth` for that wizard) likes its partner more, +5 through `Change_Relations` (`Action::Friendship`, with its diminishing returns), on either side of the table; a fair deal pleases neither, and a computer wizard is the only one whose feelings are kept, as everywhere in `Change_Relations`. The original's rule is the one-sided case of its spell swap (the human gives the dearer spell: the AI likes the human +5). Afterwards both sides' treaty and peace patience fall by 20 and the exchange patience by 30, capped at 50.
    **Negotiation** (the trade negotiation task). A trade may be answered with a trade of the receiver's own: `DiplomacyCommand::Counter`
    replaces the pending proposal by one from the receiver to the proposer, one round later (`Proposal::round`, at most `MAX_ROUNDS` = 4 messages;
    the last one can only be accepted or refused). A side left empty is an open question: *what will you give for this?*

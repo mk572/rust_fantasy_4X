@@ -1204,11 +1204,17 @@ impl Diplomacy {
             ProposalKind::Trade { give, get } => {
                 Self::hand_over(ctx, p.from, p.to, give);
                 Self::hand_over(ctx, p.to, p.from, get);
-                // Giving the better half pleases the receiver (and a trade between allies is
-                // fair by the worth, so it pleases neither more).
+                // Whoever gets the better deal, by its own worth of what it gets and gives, likes
+                // its partner more (the original's spell swap does it for the one who is
+                // overpaid; here it goes both ways, and a fair trade pleases neither).
                 let worth = |holder, goods| trade::worth(ctx.view, holder, goods);
-                if worth(p.to, give) > worth(p.from, get) {
+                let proposer_gain = worth(p.from, get) - worth(p.from, give);
+                let receiver_gain = worth(p.to, give) - worth(p.to, get);
+                if receiver_gain > 0 {
                     self.change_relations(ctx, 5, p.from, p.to, Action::Friendship, None);
+                }
+                if proposer_gain > 0 {
+                    self.change_relations(ctx, 5, p.to, p.from, Action::Friendship, None);
                 }
                 let s = self.stance_mut(p.from, p.to);
                 s.treaty_patience -= 20;
