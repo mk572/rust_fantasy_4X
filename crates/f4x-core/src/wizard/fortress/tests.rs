@@ -1034,17 +1034,19 @@ fn one_new_spell_is_all_that_there_is_to_take() -> TestResult {
 }
 
 #[test]
-fn a_banished_computer_wizard_loses_spells_but_a_banished_human_keeps_them() {
-    let (mut g, capital, _) = spell_world(2);
-    let events = g.capture_city(capital, P1);
-    assert!(events.contains(&Event::WizardBanished { player: P0, by: P1 }));
-    assert_eq!(spells_taken(&events).map(|s| s.len()), Some(2));
-
-    let (mut g, capital, _) = spell_world(2);
-    g.set_human(Some(P0));
-    let events = g.capture_city(capital, P1);
-    assert!(events.contains(&Event::WizardBanished { player: P0, by: P1 }));
-    assert_eq!(spells_taken(&events), None);
+fn a_banished_wizard_loses_two_spells_to_the_winner_human_or_computer() {
+    // The same for every pairing of human and computer wizards (1.50 note 502).
+    for human in [None, Some(P0), Some(P1)] {
+        let (mut g, capital, _) = spell_world(2);
+        g.set_human(human);
+        let events = g.capture_city(capital, P1);
+        assert!(events.contains(&Event::WizardBanished { player: P0, by: P1 }));
+        assert_eq!(
+            spells_taken(&events).map(|s| s.len()),
+            Some(2),
+            "human {human:?}"
+        );
+    }
 }
 
 #[test]

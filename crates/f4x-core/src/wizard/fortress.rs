@@ -428,11 +428,10 @@ impl Game {
             player: loser,
             by: winner,
         }];
-        // As in the original, a banished human's spells stay with them: the winner takes spells
-        // only from a computer wizard (the human is asked whether to resign instead).
-        if self.human() != Some(loser) {
-            events.extend(self.conquest_spells(winner, loser));
-        }
+        // The spoils of a banishment go to the winner whoever it is and whoever loses: the game
+        // does not tell the human from a computer wizard (1.50 note 502; the original took them
+        // from the banished wizard unless it was the one whose turn it was).
+        events.extend(self.conquest_spells(winner, loser));
         events
     }
 
