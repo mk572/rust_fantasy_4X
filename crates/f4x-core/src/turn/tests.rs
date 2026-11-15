@@ -424,9 +424,20 @@ fn mines_add_gold_mana_and_cheaper_units() -> TestResult {
             .city_economy(city)
             .ok_or("city_economy is missing")?
             .unit_cost_percent,
-        93,
-        "the 5 percent of iron, up by half and rounded down: 7"
+        90,
+        "the original: the guild doubles the 5 percent of iron"
     );
+    // Patch 1.50 (note 251): the guild adds half, 5 percent to 7 (rounded down), coal 10 to 15.
+    g.settings.rules.miners_guild_half_ore = true;
+    assert_eq!(
+        g.economy()
+            .city_economy(city)
+            .ok_or("city_economy is missing")?
+            .unit_cost_percent,
+        93,
+        "with the setting: iron 5 up by half and rounded down is 7"
+    );
+    g.settings.rules.miners_guild_half_ore = false;
     // A second city sharing the gold ore's tile halves what each gets from it.
     let before = g
         .economy()

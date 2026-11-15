@@ -339,6 +339,11 @@ pub struct RuleSettings {
     /// the wall sections give, not just the +1 of the original, against attackers outside.
     #[serde(default = "fb_walls_cover_city")]
     pub walls_cover_city: bool,
+    /// Patch 1.50 (note 251): a Miner's Guild adds half to the unit-cost saving of iron and coal,
+    /// as it does to the gold and mana of the other minerals. Off (the original): it doubles the
+    /// saving, iron 5 to 10 percent and coal 10 to 20.
+    #[serde(default = "fb_miners_guild_half_ore")]
+    pub miners_guild_half_ore: bool,
     /// Patch 1.40 (IW114): an enemy's Suppress Magic does not counter the Spell of Return.
     #[serde(default = "fb_suppress_spares_return")]
     pub suppress_spares_return: bool,
@@ -461,6 +466,10 @@ fn fb_ban_life_and_death() -> bool {
 
 fn fb_walls_cover_city() -> bool {
     fallback(|g| g.rules.walls_cover_city, false)
+}
+
+fn fb_miners_guild_half_ore() -> bool {
+    fallback(|g| g.rules.miners_guild_half_ore, false)
 }
 
 fn fb_suppress_spares_return() -> bool {
@@ -629,6 +638,7 @@ impl RuleSet {
                     trireme_capacity: MAX_SHIP_CAPACITY,
                     galley_capacity: MAX_SHIP_CAPACITY,
                     walls_cover_city: true,
+                    miners_guild_half_ore: true,
                     suppress_spares_return: true,
                     ..base.rules
                 },

@@ -111,6 +111,9 @@ pub struct SquareCtx {
     pub miners: bool,
     /// A race that mines well: mine yields doubled.
     pub dwarf: bool,
+    /// The setting `miners_guild_half_ore`: a miners' guild adds half to the saving of iron and
+    /// coal, not double.
+    pub half_ore: bool,
 }
 
 /// What one square gives a city that works it, from `Economy::square_yield`.
@@ -138,6 +141,7 @@ impl SquareCtx {
         gaia: false,
         blight_proof: false,
         miners: false,
+        half_ore: false,
         dwarf: false,
     };
 }
@@ -201,6 +205,8 @@ pub struct Economy<'a> {
     pub(crate) settlers_cost_citizen: bool,
     /// Most units on one square (`RuleSettings::max_tile`).
     pub(crate) max_tile: usize,
+    /// A miners' guild adds half to iron and coal, not double (`RuleSettings::miners_guild_half_ore`).
+    pub(crate) miners_half_ore: bool,
     /// For a path search: the squares where this player has a ship with a free place, worked
     /// out once, so the search need not look for ships at every sea square.
     pub(crate) ship_room: Option<(PlayerId, &'a crate::fast::FastSet<Position>)>,
@@ -219,6 +225,7 @@ impl<'a> Economy<'a> {
             diagonal_extra: false,
             settlers_cost_citizen: true,
             max_tile: crate::unit::MAX_TILE_LIMIT,
+            miners_half_ore: false,
             ship_room: None,
             own_cities: None,
         }
@@ -227,6 +234,12 @@ impl<'a> Economy<'a> {
     /// The same view with the game's limit of units on one square.
     pub fn with_max_tile(mut self, max: usize) -> Self {
         self.max_tile = max;
+        self
+    }
+
+    /// The same view with the game's rule for a miners' guild on iron and coal.
+    pub fn with_miners_half_ore(mut self, half: bool) -> Self {
+        self.miners_half_ore = half;
         self
     }
 
@@ -691,6 +704,7 @@ impl<'a> Economy<'a> {
                 crate::rules::BuildingId::new(34), /* miners_guild */
             ),
             dwarf: race.is_some_and(|r| r.double_mining),
+            half_ore: self.miners_half_ore,
         })
     }
 
@@ -749,14 +763,14 @@ impl<'a> Economy<'a> {
             } else {
                 b.food.raw()
             });
-            // A miners' guild adds half to the ore too, as it does to gold and mana (the original
-            // doubled iron and coal, which the help does not say; 1.50 note 251).
+            // A miners' guild doubles the saving of iron and coal (the original); with
+            // `miners_guild_half_ore` (1.50 note 251) it adds half, as it does to gold and mana.
             let mut cut = b.unit_cost_percent;
             if ctx.dwarf {
                 cut *= 2;
             }
             if ctx.miners {
-                cut = cut * 3 / 2;
+                cut = if ctx.half_ore { cut * 3 / 2 } else { cut * 2 };
             }
             if shared {
                 cut /= 2;
@@ -1078,6 +1092,7 @@ impl<'a> Economy<'a> {
             blight_proof,
             miners: _,
             dwarf,
+            half_ore: _,
         } = ctx;
 
         // Worked tiles: food, production bonus, mines.
@@ -1305,6 +1320,7 @@ impl Game {
             .with_diagonal_extra(self.settings.basic.diagonal_extra_cost)
             .with_settlers_cost_citizen(self.settings.rules.settlers_cost_citizen)
             .with_max_tile(self.settings.rules.max_tile)
+            .with_miners_half_ore(self.settings.rules.miners_guild_half_ore)
     }
 
     /// Most units that may stand on one square in this game (the `max_tile` setting).

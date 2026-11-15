@@ -227,6 +227,7 @@ fn v131_has_the_originals_ships_and_monster_turn_and_v160_has_eight_carrying_shi
     assert!(v160.validate().is_empty(), "{:?}", v160.validate());
     assert!(v160.rules.walls_cover_city && v160.rules.suppress_spares_return);
     assert!(!v131.rules.walls_cover_city && !v131.rules.suppress_spares_return);
+    assert!(v160.rules.miners_guild_half_ore && !v131.rules.miners_guild_half_ore);
     assert!(v160.rules.limit_ai_races && v131.rules.limit_ai_races);
     assert!(v160.rules.ban_life_and_death && v131.rules.ban_life_and_death);
     // The shipped units hold the originals' numbers for the default.

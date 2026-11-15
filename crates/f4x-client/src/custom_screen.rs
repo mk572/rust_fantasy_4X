@@ -429,6 +429,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.walls_cover_city = v != 0,
         ),
         flag(
+            "custom.miners_guild_half_ore",
+            |s| s.rules.miners_guild_half_ore.into(),
+            |s, v| s.rules.miners_guild_half_ore = v != 0,
+        ),
+        flag(
             "custom.suppress_spares_return",
             |s| s.rules.suppress_spares_return.into(),
             |s, v| s.rules.suppress_spares_return = v != 0,
