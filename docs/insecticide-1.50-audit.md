@@ -457,7 +457,15 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | 443, 459 Runemaster's dispel bonus not granted, or granted without the retort in combat | **Present: we have no such bonus.** The original's Runemaster also strengthens its holder's dispels (help text silent); `retorts.ron` has only the cost and research of Arcane spells. Task 611. |
 | 484 Arcanus starting cities have Enchanted Roads under them | **Not present.** The roads of a new world (`roads_at_start`, on in v1.31 and v1.6, `map/start_road.rs`) are plain on Arcanus and enchanted between cities on Myrror only; the squares under the cities are plain on both planes. |
 
-Next: rows 456, 457, 458 and the rest of the table in order.
+### Walked on 15 November 2026: 456, 457, 458
+
+| Rows | Verdict |
+|---|---|
+| 456 Some tiles in naval combat are only available for walking units | **Not present.** An ocean field is all sailable and swimmable water, and no square of it can be walked (the decks are the only walkable ground, laid by `layout::ship_decks`). Test `every_square_of_an_ocean_map_is_open_to_ships_and_to_nobody_on_foot`. |
+| 457 Floating Island visible in combat and covering the area where units start | **Not present.** A Floating Island is a ship with a deck, and the land units aboard start on the deck, not on a smaller area behind them; the deck is drawn (a brown diamond until a picture is used). Test `the_land_units_of_a_ship_start_a_sea_fight_on_its_deck` (a ship, the island is the same kind of deck). |
+| 458 Ships in cities appear in combat only with Wraith Form; ships on land (no city) only with Flight or Wraith Form | **Was present, fixed.** A plain ship in a city fought as a unit that could not move (sailing costs nothing on land). Now a sailing unit with neither Flight nor Non-Corporeal sits out any fight that is not on the sea (`Game::is_landlocked_ship`, `battle/game.rs`) and goes down with its side. A city held by nothing but a ship has no defenders and falls. Test `a_ship_in_a_city_fights_only_when_flight_or_wraith_form_lets_it_move_on_land`. |
+
+Next: rows 468, 490 and the rest of the table in order.
 
 
 ### Walked on 15 November 2026: 445, 447, 451, 495

@@ -328,7 +328,8 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   that stays at its bow and cannot sail off; the land units it carries stand on the rest of the
   deck and fight. A walker on a deck may **jump** the single square of water to another deck
   (diagonals too) for two moves (4 half-moves), always possible with any move left, as with rough
-  ground (`BattleMap::reachable_as`, `JUMP_COST`). Land units not aboard a ship that has a deck
+  ground (`BattleMap::reachable_as`, `JUMP_COST`). A ship in a city or on land (a fight that is not on the sea) sits out unless it has Flight or
+  Wraith Form (1.50 note 458). Land units not aboard a ship that has a deck
   sit the fight out and go down with their side if it loses (`ActiveBattle::left_out`); Wind
   Walking still carries a stack through the air. The decks are drawn as brown diamonds
   (`battle_ground.rs`) until a ship picture is used. Summoning onto the sea is not possible.

@@ -4795,8 +4795,8 @@ fn a_very_rare_fantastic_foe_is_worth_a_point_of_fame_and_costs_its_owner_one() 
 
 #[test]
 fn a_fantastic_foe_below_the_rare_cost_and_a_normal_foe_give_no_fame() -> TestResult {
-    // A galley (fantastic, 100) and a cavalry (normal, 200).
-    assert_eq!(fame_after_killing(&[36])?, (0, 5));
+    // A catapult (fantastic, 100) and a cavalry (normal, 200).
+    assert_eq!(fame_after_killing(&[37])?, (0, 5));
     assert_eq!(fame_after_killing(&[107])?, (0, 5));
     Ok(())
 }
@@ -5339,6 +5339,141 @@ fn a_side_whose_units_cannot_move_keeps_its_turn_and_its_casting() -> TestResult
         .map_err(|e| format!("{e:?}"))?;
     let b = g.battle().ok_or("no battle")?;
     assert_eq!((b.active, b.turn), (Side::Attacker, 2));
+    Ok(())
+}
+
+/// 1.50 note 458: a ship on land (in a city) is no fighter unless it flies or is non-corporeal
+/// (Flight, Wraith Form); a plain ship cannot move there and stays out of the battle.
+#[test]
+fn a_ship_in_a_city_fights_only_when_flight_or_wraith_form_lets_it_move_on_land() -> TestResult {
+    let fighters = |power: Option<u16>| -> Result<usize, String> {
+        let mut g = game();
+        g.spawn_city(D, at(5, 4), "Port".into(), None, 3);
+        let trireme = g
+            .content
+            .rules
+            .units
+            .id_numbered(35)
+            .ok_or("trireme is not in the content")?;
+        let ship = g.spawn_unit(D, at(5, 4), trireme);
+        let guard = g.spawn_unit(
+            D,
+            at(5, 4),
+            g.content
+                .rules
+                .units
+                .id_numbered(107)
+                .ok_or("cavalry is not in the content")?,
+        );
+        if let Some(a) = power {
+            g.grant_temp_ability(
+                crate::rules::exec::Target::Unit(ship),
+                crate::rules::Ability::new(a),
+            );
+        }
+        let attacker = g.spawn_unit(
+            A,
+            at(4, 4),
+            g.content
+                .rules
+                .units
+                .id_numbered(107)
+                .ok_or("cavalry is not in the content")?,
+        );
+        g.apply(Command::BeginBattle {
+            attackers: vec![attacker],
+            defenders: vec![guard, ship],
+        });
+        let b = g.battle().ok_or("no battle")?;
+        Ok(b.active_units(Side::Defender).count())
+    };
+    assert_eq!(fighters(None)?, 1, "a plain ship sits out");
+    // A city held by nothing but a plain ship has no one to fight: the battle still starts and
+    // the ship is lost with the city.
+    let mut g = game();
+    g.spawn_city(D, at(5, 4), "Port".into(), None, 3);
+    let ship = g.spawn_unit(
+        D,
+        at(5, 4),
+        g.content
+            .rules
+            .units
+            .id_numbered(35)
+            .ok_or("trireme is not in the content")?,
+    );
+    let attacker = g.spawn_unit(
+        A,
+        at(4, 4),
+        g.content
+            .rules
+            .units
+            .id_numbered(107)
+            .ok_or("cavalry is not in the content")?,
+    );
+    let events = g.auto_resolve(&[attacker], &[ship]);
+    assert!(!g.in_battle(), "{events:?}");
+    assert_eq!(
+        g.economy()
+            .city_at(at(5, 4))
+            .and_then(|c| g.economy().city_owner(c)),
+        Some(A),
+        "the attacker takes the port"
+    );
+    Ok(())
+}
+
+/// 1.50 notes 456, 457: a fight on the sea lays each side's ship as a deck and the land units
+/// aboard start on it (a Floating Island is a ship that carries its stack the same way), where the
+/// battle starts; the water between the decks is open to ships, never to walkers.
+#[test]
+fn the_land_units_of_a_ship_start_a_sea_fight_on_its_deck() -> TestResult {
+    use crate::unit::transport::Aboard;
+    let mut g = game();
+    let ocean = g
+        .content
+        .terrains
+        .id_numbered(num::terrain::OCEAN)
+        .ok_or("ocean is not in the content")?;
+    for x in 4..=6 {
+        g.map
+            .as_mut()
+            .ok_or("no map")?
+            .plane_mut(Plane::Arcanus)
+            .set(x, 4, ocean);
+    }
+    let kind = |g: &Game, n: u16| {
+        g.content
+            .rules
+            .units
+            .id_numbered(n)
+            .ok_or_else(|| format!("unit {n} is not in the content"))
+    };
+    let side = |g: &mut Game, owner, x| -> Result<(hecs::Entity, hecs::Entity), String> {
+        let ship = g.spawn_unit(owner, at(x, 4), kind(g, 35 /* trireme */)?);
+        let walker = g.spawn_unit(owner, at(x, 4), kind(g, 107 /* high_men_cavalry */)?);
+        let serial = g.units().serial_of(ship);
+        crate::game::put_in(&mut g.world, walker, Aboard(serial));
+        Ok((ship, walker))
+    };
+    let (ship_a, walker_a) = side(&mut g, A, 4)?;
+    let (ship_d, walker_d) = side(&mut g, D, 5)?;
+    g.apply(Command::BeginBattle {
+        attackers: vec![ship_a, walker_a],
+        defenders: vec![ship_d, walker_d],
+    });
+    let b = g.battle().ok_or("no battle")?;
+    assert_eq!(b.units.len(), 4, "both ships and both walkers fight");
+    for u in b.units.iter().filter(|u| !u.sails) {
+        assert!(
+            b.map.is_ship_deck(u.cell),
+            "{:?} stands on its deck",
+            u.cell
+        );
+        assert!(
+            b.map.enter_cost_as(u.cell, u.mover()).is_some(),
+            "and can walk there"
+        );
+    }
     Ok(())
 }
 

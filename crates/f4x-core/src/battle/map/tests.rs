@@ -405,3 +405,27 @@ fn a_walker_jumps_the_water_between_two_decks_for_two_moves() -> TestResult {
         .contains_key(&gap));
     Ok(())
 }
+
+/// 1.50 note 456: on an ocean map no square is open to walkers only. Every square of the field is
+/// sailable and swimmable, and none can be walked.
+#[test]
+fn every_square_of_an_ocean_map_is_open_to_ships_and_to_nobody_on_foot() {
+    for seed in 0..5 {
+        let m = BattleMap::generate(None, &mut Pcg64Mcg::seed_from_u64(seed));
+        let ship = Mover {
+            sails: true,
+            ..Mover::default()
+        };
+        for y in 0..GRID_H {
+            for x in 0..GRID_W {
+                let sails = m.enter_cost_as((x, y), ship);
+                let walks = m.enter_cost_as((x, y), walker());
+                if m.get((x, y)) == Some(Cell::Void) {
+                    continue;
+                }
+                assert!(sails.is_some(), "({x},{y}) seed {seed} is shut to ships");
+                assert!(walks.is_none(), "({x},{y}) seed {seed} can be walked");
+            }
+        }
+    }
+}

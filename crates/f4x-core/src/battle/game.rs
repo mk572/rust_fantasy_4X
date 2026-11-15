@@ -579,7 +579,13 @@ impl Game {
                         .economy()
                         .carrier_of(u)
                         .is_some_and(|c| ship_decks.iter().any(|(ship, _)| *ship == c));
-                    let keep = !ocean || carried || on_deck || self.can_fight_at_sea(u);
+                    let keep = if ocean {
+                        carried || on_deck || self.can_fight_at_sea(u)
+                    } else {
+                        // A ship that cannot move on land (Flight, Wraith Form) is no fighter
+                        // in a city or on land (1.50 note 458).
+                        !self.is_landlocked_ship(u)
+                    };
                     if !keep {
                         left_out.push((side, u));
                     }
@@ -751,6 +757,16 @@ impl Game {
             attackers: pick(&a, laid.attackers),
             defenders: pick(&d, laid.defenders),
         }
+    }
+
+    /// Whether the unit is a ship that cannot move on land: only Flight or Wraith Form
+    /// (non-corporeal) lets a ship stand and fight there.
+    fn is_landlocked_ship(&self, unit: hecs::Entity) -> bool {
+        self.units()
+            .unit_def(unit)
+            .is_some_and(|d| d.movement == MovementType::Sailing)
+            && !self.units().unit_has_ability(unit, Ability::new(24))
+            && !self.units().unit_has_ability(unit, Ability::new(49))
     }
 
     /// Whether a unit may fight on the sea: a ship (it carries others or sails), a flier or a
