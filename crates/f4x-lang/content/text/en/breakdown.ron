@@ -1,0 +1,27 @@
+// Player-facing messages of the window that shows where a city's resource comes from (a click on
+// its row on the city screen). One key is in one file only (docs/text.md).
+{
+    "breakdown.food": "Food",
+    "breakdown.production": "Production",
+    "breakdown.gold": "Gold",
+    "breakdown.power": "Power",
+    "breakdown.research": "Research",
+    "breakdown.farmers": "Farmers",
+    "breakdown.workers": "Workers",
+    "breakdown.taxes": "Taxes",
+    "breakdown.dwarves": "Dwarven taxes",
+    "breakdown.mines": "Mines",
+    "breakdown.trade": "Trade",
+    "breakdown.terrain": "Terrain",
+    "breakdown.wild_game": "Wild Game",
+    "breakdown.citizens": "Citizens",
+    "breakdown.trade_goods": "Trade Goods",
+    "breakdown.beyond_land": "Beyond the land's food",
+    "breakdown.other": "Other",
+    "breakdown.adjustment": "Difficulty and limits",
+    "breakdown.total": "Total",
+    "breakdown.eaten": "Eaten by the citizens",
+    "breakdown.upkeep": "Upkeep",
+    "breakdown.net": "Net",
+    "breakdown.title": "{resource} of {city}",
+}

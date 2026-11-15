@@ -32,6 +32,9 @@ use crate::unit::UnitView;
 
 use crate::game::Game;
 
+mod breakdown;
+pub use breakdown::{Breakdown, Item, Line, Resource};
+
 /// Citizens plus tens of people (0..100), so one citizen is 100 tens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Population {
@@ -1079,8 +1082,7 @@ impl<'a> Economy<'a> {
         let race_id = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
         let rules = &self.content.rules;
         let race: Option<&RaceDef> = race_id.map(|r| rules.races.get(r));
-        let map = self.map?;
-        let grid = map.plane(at.plane);
+        self.map?;
         let mods = self.city_modifiers(city);
         let figures = pop.figures;
         let farmers = farmers.min(figures);
@@ -1155,25 +1157,7 @@ impl<'a> Economy<'a> {
             gold = gold * 2;
         }
         gold += mine_gold;
-        let coast = (-1i32..=1).any(|dy| {
-            (-1i32..=1).any(|dx| {
-                (dx != 0 || dy != 0)
-                    && grid
-                        .get(at.x as i32 + dx, at.y as i32 + dy)
-                        .and_then(|t| self.content.terrains.get(t))
-                        .is_some_and(|d| d.class == TerrainClass::Ocean)
-            })
-        });
-        // Shore 10, river 20, river mouth 30 (Square_Gold_Bonus in the original).
-        let river = grid.has_river(at.x as i32, at.y as i32);
-        let site_bonus = (match (river, coast) {
-            (false, false) => 0,
-            (false, true) => 10,
-            (true, false) => 20,
-            (true, true) => 30,
-        } + self.road_trade(city, at, race_id)
-            + race.map_or(0, |r| r.trade_percent))
-        .min(figures as i32 * 3);
+        let site_bonus = self.site_trade_percent(city, at, race_id, figures);
         let mut gold_mods = mods.clone();
         gold_mods.push(Modifier::new(
             Stat::CityGold,
@@ -1249,6 +1233,41 @@ impl<'a> Economy<'a> {
             growth_tens,
             unit_cost_percent: (100 - cost_reduction).max(50),
         })
+    }
+
+    /// The percent of the gold a site's trade adds: shore 10, river 20, river mouth 30
+    /// (`Square_Gold_Bonus` in the original), the roads and the race, at most 3 percent for each
+    /// citizen.
+    pub(crate) fn site_trade_percent(
+        &self,
+        city: hecs::Entity,
+        at: Position,
+        race_id: Option<crate::rules::RaceId>,
+        figures: u32,
+    ) -> i32 {
+        let Some(map) = self.map else {
+            return 0;
+        };
+        let grid = map.plane(at.plane);
+        let race: Option<&RaceDef> = race_id.map(|r| self.content.rules.races.get(r));
+        let coast = (-1i32..=1).any(|dy| {
+            (-1i32..=1).any(|dx| {
+                (dx != 0 || dy != 0)
+                    && grid
+                        .get(at.x as i32 + dx, at.y as i32 + dy)
+                        .and_then(|t| self.content.terrains.get(t))
+                        .is_some_and(|d| d.class == TerrainClass::Ocean)
+            })
+        });
+        let river = grid.has_river(at.x as i32, at.y as i32);
+        (match (river, coast) {
+            (false, false) => 0,
+            (false, true) => 10,
+            (true, false) => 20,
+            (true, true) => 30,
+        } + self.road_trade(city, at, race_id)
+            + race.map_or(0, |r| r.trade_percent))
+        .min(figures as i32 * 3)
     }
 
     /// Gold the buildings of a city cost to maintain (replaced buildings are free).

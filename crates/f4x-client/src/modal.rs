@@ -51,6 +51,7 @@ pub(crate) mod kind {
     pub(crate) const CHANCELLOR: &str = "chancellor";
     pub(crate) const CAST_ANYWAY: &str = "cast_anyway";
     pub(crate) const CROWD: &str = "crowd";
+    pub(crate) const BREAKDOWN: &str = "breakdown";
 }
 
 pub(crate) trait Modal {

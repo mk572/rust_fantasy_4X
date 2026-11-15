@@ -10,7 +10,7 @@ elsewhere is in `reference/CREDITS.md`.
 | Project | Link | Use |
 |---|---|---|
 | **ReMoM** (jbalcomb) | <https://github.com/jbalcomb/ReMoM> | A reverse-engineering of the original's code in C. Our main reference: unit, race and building tables, the rules in `MoM/src/*.c`, the notes in `doc/`. Cloned at `~/projects/ReMoM`; the export scripts read it (`--remom DIR`). A private full-history mirror is `ReMoM-reference` on GitHub. |
-| **openmom** (Jakz) | <https://github.com/Jakz/openmom> | A reimplementation in Java. A second opinion when ReMoM is unclear or has a gap. Not cloned yet. |
+| **openmom** (Jakz) | <https://github.com/Jakz/openmom> | A reimplementation in C++14 with SDL2. A second opinion when ReMoM is unclear or has a gap. Cloned (shallow) at `~/projects/openmom`; it has no resource breakdown window (the city screen only draws icons). |
 | **master-of-magic** (kazzmir) | <https://github.com/kazzmir/master-of-magic> | A remake in Go. Another cross-check for rules and screens. Not cloned yet. |
 
 ## Tools and libraries

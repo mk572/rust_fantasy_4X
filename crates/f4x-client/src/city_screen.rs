@@ -7,6 +7,7 @@ use crate::input::Input;
 use crate::page::Page;
 use crate::text::Args;
 use crate::ui;
+use f4x_core::city::economy::Resource;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
@@ -158,6 +159,31 @@ impl App {
                     }
                     None => self.selection.push(unit),
                 }
+            }
+        }
+        // A left-click on a row of the resources opens the window that says what makes it up.
+        if input.mouse_pressed(MouseButton::Left) && !choosing {
+            let rows = [
+                Resource::Food,
+                Resource::Production,
+                Resource::Gold,
+                Resource::Power,
+                Resource::Research,
+            ];
+            let over = rows.into_iter().enumerate().find(|(i, _)| {
+                ui::hit(
+                    lay.rect(6.0, 53.5 + *i as f32 * 8.6, 130.0, 8.6),
+                    true,
+                    input,
+                )
+                .hovered()
+            });
+            if let Some((_, resource)) = over {
+                self.modals
+                    .open(crate::resource_breakdown::ResourceWindow::new(
+                        city, resource,
+                    ));
+                return;
             }
         }
         if !selling
