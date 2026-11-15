@@ -444,6 +444,16 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.roads_at_start = v != 0,
         ),
         flag(
+            "custom.two_pick_myrran",
+            |s| s.rules.two_pick_myrran.into(),
+            |s, v| s.rules.two_pick_myrran = v != 0,
+        ),
+        flag(
+            "custom.adamant_alchemy",
+            |s| s.rules.adamant_alchemy.into(),
+            |s, v| s.rules.adamant_alchemy = v != 0,
+        ),
+        flag(
             "custom.color_wheel_relations",
             |s| s.rules.color_wheel_relations.into(),
             |s, v| s.rules.color_wheel_relations = v != 0,

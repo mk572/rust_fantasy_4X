@@ -1312,6 +1312,46 @@ fn units_are_trained_with_the_cities_weapons_and_alchemy_gives_magic() -> TestRe
 }
 
 #[test]
+fn with_adamant_alchemy_an_alchemy_wizards_ore_works_without_a_guild() -> TestResult {
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 3 /* barracks */);
+    put_ore(&mut g, num::feature::MITHRIL_ORE, 11, 6);
+    let spear = g
+        .content
+        .rules
+        .units
+        .id_numbered(95)
+        .ok_or("high_elf_spearmen is not in the content")?;
+    let train = |g: &mut Game| {
+        g.set_production(city, ProductionItem::Unit(spear))
+            .expect("set_production succeeds");
+        g.apply_production(city, f4x_def::half_int::HalfInt::from_int(100));
+        g.units()
+            .units_at(at(10, 6))
+            .into_iter()
+            .last()
+            .expect("last succeeds")
+    };
+    let alchemy = crate::wizard::magic::Retort::new(0);
+    g.wizard_mut(P0)
+        .ok_or("wizard_mut is missing")?
+        .get_mut::<crate::wizard::sheet::Retorts>()
+        .0
+        .insert(alchemy);
+    // Off: Alchemy gives magic weapons and the ore needs the guild.
+    let before = train(&mut g);
+    assert_eq!(g.units().unit_weapon_quality(before), 1);
+    // On: the same wizard's city works the ore with no guild; the setting also costs two picks.
+    g.settings.rules.adamant_alchemy = true;
+    g.apply_content_settings();
+    let after = train(&mut g);
+    assert_eq!(g.units().unit_weapon_quality(after), 2, "mithril, no guild");
+    assert_eq!(crate::wizard::retort_cost(&g.content.rules, alchemy), 2);
+    Ok(())
+}
+
+#[test]
 fn replaced_buildings_cost_nothing_to_keep() {
     let mut g = world();
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);

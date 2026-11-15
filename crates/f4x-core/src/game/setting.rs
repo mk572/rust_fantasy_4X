@@ -8,6 +8,10 @@ pub use f4x_def::settings::*;
 use crate::player::PlayerId;
 use f4x_def::half_int::HalfInt;
 
+/// The Alchemy and Myrran retorts' numbers (`retorts.ron`).
+const ALCHEMY_RETORT: u16 = 0;
+const MYRRAN_RETORT: u16 = 9;
+
 impl crate::game::Game {
     /// Copy the settings that the rules read from the content (half upkeep, the arcane spell
     /// cap) into this game's own copy of the content, so a game keeps the choices it was made or
@@ -16,6 +20,20 @@ impl crate::game::Game {
         let rules = self.settings.rules;
         self.content.settings.half_upkeep.enabled = rules.half_upkeep;
         self.content.settings.spell_library.arcane_candidate_cap = rules.arcane_candidate_cap;
+        // Adamant Alchemy: the retort costs two picks, for the creation screen, the computer
+        // wizards and the treasure alike (they all read the cost from the rules).
+        if rules.adamant_alchemy {
+            if let Some(alchemy) = self.content.rules.retorts.by_num_mut(ALCHEMY_RETORT) {
+                alchemy.cost = 2;
+            }
+        }
+        // 2-Pick Myrran: two picks, and the fortress on Myrror makes no more mana.
+        if rules.two_pick_myrran {
+            if let Some(myrran) = self.content.rules.retorts.by_num_mut(MYRRAN_RETORT) {
+                myrran.cost = 2;
+            }
+            self.content.settings.myrror_fortress_power = 0;
+        }
         for (num, capacity) in [
             (TRIREME_UNIT, rules.trireme_capacity),
             (GALLEY_UNIT, rules.galley_capacity),

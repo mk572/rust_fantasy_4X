@@ -368,6 +368,17 @@ pub struct RuleSettings {
     /// weigh by how their realm stands to the other's (`docs/diplomacy.md`).
     #[serde(default = "fb_color_wheel_relations")]
     pub color_wheel_relations: bool,
+    /// Community patch, Adamant Alchemy. Off (the original): the Alchemy retort costs one pick,
+    /// gives every unit its wizard builds at least magic weapons, and Mithril and Adamantium ore
+    /// work only in a city with an Alchemists' Guild. On: Alchemy costs two picks and the ore
+    /// works for an Alchemy wizard's cities without the guild.
+    #[serde(default = "fb_adamant_alchemy")]
+    pub adamant_alchemy: bool,
+    /// Community patch, 2-Pick Myrran. Off (the original): the Myrran retort costs three picks
+    /// and the fortress on Myrror makes five more mana. On: it costs two picks and the fortress
+    /// makes no more mana than anywhere else.
+    #[serde(default = "fb_two_pick_myrran")]
+    pub two_pick_myrran: bool,
     /// Patch 1.50 (notes 013, 015, 001): stronger lairs. Off (the original): the budgets, divisors,
     /// creature costs and difficulty scale of version 1.31. On: those of the patch (towers and
     /// sites with far larger budgets, up to six of the first kind of guard, the patch's costs, the
@@ -511,6 +522,14 @@ fn fb_miners_guild_half_ore() -> bool {
 
 fn fb_spell_binding_always_succeeds() -> bool {
     fallback(|g| g.rules.spell_binding_always_succeeds, false)
+}
+
+fn fb_two_pick_myrran() -> bool {
+    fallback(|g| g.rules.two_pick_myrran, false)
+}
+
+fn fb_adamant_alchemy() -> bool {
+    fallback(|g| g.rules.adamant_alchemy, false)
 }
 
 fn fb_color_wheel_relations() -> bool {
@@ -784,6 +803,9 @@ pub struct SettingsDef {
     /// Half the food and gold upkeep for the basic troops (a divergence inspired by the Caster of
     /// Magic mod). Off when the file has no such entry.
     pub half_upkeep: HalfUpkeep,
+    /// The mana the fortress adds to the power base when it stands on Myrror (the original's
+    /// five; the setting `two_pick_myrran` takes it to zero in a game).
+    pub myrror_fortress_power: i32,
     /// The land sizes the options step offers, smallest first.
     pub land_sizes: Vec<LandSize>,
     /// The map sizes the options step offers, smallest first.
@@ -953,6 +975,7 @@ impl Default for SettingsDef {
             new_game: BasicSettings::default(),
             max_opponents: MAX_OPPONENTS,
             half_upkeep: HalfUpkeep::default(),
+            myrror_fortress_power: 5,
             land_sizes: vec![
                 size("small", LAND_SMALL),
                 size("medium", LAND_MEDIUM),

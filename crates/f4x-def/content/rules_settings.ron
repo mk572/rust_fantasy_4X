@@ -27,6 +27,8 @@
     // ones with an odd serial number, the order the units were made in). Set `enabled: false` for
     // the original's full upkeep, or change `units` (names of the units, the same for every race).
     half_upkeep: (enabled: false, units: ["spearmen", "swordsmen"]),
+    // The mana a fortress on Myrror adds to the power base (`two_pick_myrran` takes it away).
+    myrror_fortress_power: 5,
 
     // The most computer wizards a new game can have (1 to 9; more wizards need more start
     // positions).

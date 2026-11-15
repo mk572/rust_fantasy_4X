@@ -315,11 +315,19 @@ impl Economy<'_> {
     /// without an alchemists guild (built or replaced), magic with one, mithril or adamantium
     /// when the city works such an ore on a square not spoiled by corruption (adamantium wins).
     pub fn city_weapon_quality(&self, city: hecs::Entity) -> u8 {
+        self.city_weapon_quality_with(city, false)
+    }
+
+    /// [`city_weapon_quality`](Self::city_weapon_quality), with the guild not needed when
+    /// `without_guild` (Adamant Alchemy: the city's owner has Alchemy).
+    pub fn city_weapon_quality_with(&self, city: hecs::Entity, without_guild: bool) -> u8 {
         use crate::unit::{WEAPON_ADAMANTIUM, WEAPON_MAGIC, WEAPON_MITHRIL};
-        if !self.city_has_building(
-            city,
-            crate::rules::BuildingId::new(19), /* alchemists_guild */
-        ) {
+        if !without_guild
+            && !self.city_has_building(
+                city,
+                crate::rules::BuildingId::new(19), /* alchemists_guild */
+            )
+        {
             return 0;
         }
         let (Some(map), Ok(at)) = (self.map, self.world.get::<&Position>(city).map(|p| *p)) else {
@@ -428,8 +436,19 @@ impl Economy<'_> {
 
     /// What a unit finished in this city starts with: its experience and the quality of its
     /// weapons (a wizard with Alchemy gives every unit at least magic weapons: `StartingWeapons`).
-    pub(crate) fn new_unit_start(&self, city: hecs::Entity, owner: PlayerId) -> (u32, u8) {
-        let mut weapons = self.city_weapon_quality(city);
+    /// With `adamant_alchemy` (the setting) an Alchemy wizard's cities work the ores without the
+    /// guild.
+    pub(crate) fn new_unit_start(
+        &self,
+        city: hecs::Entity,
+        owner: PlayerId,
+        adamant_alchemy: bool,
+    ) -> (u32, u8) {
+        let alchemist = adamant_alchemy
+            && self.wizard(owner).is_some_and(|m| {
+                m.stat(&self.content.rules, crate::rules::Stat::StartingWeapons, 0) >= 1
+            });
+        let mut weapons = self.city_weapon_quality_with(city, alchemist);
         if let Some(m) = self.wizard(owner) {
             let better = m.stat(
                 &self.content.rules,
@@ -595,7 +614,9 @@ impl Game {
                 };
             }
             ProductionItem::Unit(u) => {
-                let (xp, weapons) = self.economy().new_unit_start(city, owner);
+                let (xp, weapons) =
+                    self.economy()
+                        .new_unit_start(city, owner, self.settings.rules.adamant_alchemy);
                 if self.economy().costs_a_citizen(u) {
                     let pop = self.city_population(city);
                     self.put(

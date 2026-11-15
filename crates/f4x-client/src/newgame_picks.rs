@@ -142,7 +142,7 @@ impl CreateState {
     /// Set the number of books of a realm, within the picks left and the Life and Death rule.
     fn set_books(&mut self, app: &mut App, realm: RealmId, wanted: u8) {
         let current = i32::from(self.books_of(realm));
-        let left = i32::from(self.build.picks_left(&app.game.content().rules));
+        let left = i32::from(self.picks_left(app));
         let n = i32::from(wanted).min(current + left).clamp(0, 11) as u8;
         if n == self.books_of(realm) {
             return;
@@ -185,13 +185,40 @@ impl CreateState {
         }
     }
 
+    /// What a retort costs in this game's settings: Alchemy is two picks with Adamant Alchemy,
+    /// Myrran with 2-Pick Myrran.
+    /// The game that exists while the wizard is made has the default settings, so the costs of
+    /// the rules are corrected here, as `Game::apply_content_settings` does for the real game.
+    fn retort_cost(&self, app: &App, retort: Retort) -> u8 {
+        let rules = &app.game.content().rules;
+        let chosen = app.options.settings(&app.game.content().settings).rules;
+        if (chosen.adamant_alchemy && retort == Retort::new(0 /* alchemy */))
+            || (chosen.two_pick_myrran && retort == Retort::new(9 /* myrran */))
+        {
+            return 2;
+        }
+        retort_cost(rules, retort)
+    }
+
+    /// Picks still to spend, with those costs.
+    fn picks_left(&self, app: &App) -> i16 {
+        let rules = &app.game.content().rules;
+        let extra: i16 = self
+            .build
+            .retorts
+            .iter()
+            .map(|&r| i16::from(self.retort_cost(app, r)) - i16::from(retort_cost(rules, r)))
+            .sum();
+        self.build.picks_left(rules) - extra
+    }
+
     /// Take or drop a retort, with the original's refusals.
     fn click_retort(&mut self, app: &mut App, retort: Retort) {
         if self.build.retorts.remove(&retort) {
             return;
         }
-        let left = i32::from(self.build.picks_left(&app.game.content().rules));
-        let cost = i32::from(retort_cost(&app.game.content().rules, retort));
+        let left = i32::from(self.picks_left(app));
+        let cost = i32::from(self.retort_cost(app, retort));
         let message = if left <= 0 {
             Some(app.text("picks.all_made"))
         } else if self.build.retorts.len() >= MAX_RETORTS {
@@ -225,7 +252,7 @@ impl CreateState {
         let mouse: Vec2 = input.mouse_position().into();
         let live = self.ng_input();
         let dragging = live && !self.ignore_drag;
-        let left = self.build.picks_left(&app.game.content().rules);
+        let left = self.picks_left(app);
 
         // The rows of books: a drag sets the count (eight pixels a book).
         let mut slide = None;
@@ -269,7 +296,7 @@ impl CreateState {
             let known = self.build.retorts.contains(&retort);
             let rules = &app.game.content().rules;
             let open = retort_available(rules, retort, &self.build.books)
-                && left >= i16::from(retort_cost(rules, retort))
+                && left >= i16::from(self.retort_cost(app, retort))
                 && self.build.retorts.len() < MAX_RETORTS;
             // `COL_NewG_Ret_Known` 178, `COL_Available_3` 50, `COL_NEWG_NA2` 22, the shadow 16.
             let ink = if known {
@@ -296,7 +323,7 @@ impl CreateState {
         }
 
         // The picks left, the abilities, the name and the OK button.
-        let left = self.build.picks_left(&app.game.content().rules);
+        let left = self.picks_left(app);
         let count = app.text_with("picks.left", &Args::new().count("n", left));
         // `m_dark_colors` (31) on `m_light_colors` (187), the light one pixel right and below.
         app.draw_styled(view, &ng_ink(3, 187).center(), &count, 222.0, 186.0);

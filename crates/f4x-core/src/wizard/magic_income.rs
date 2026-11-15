@@ -58,13 +58,14 @@ pub struct Income {
     pub mana_upkeep: HalfInt,
 }
 
-/// Mana from the wizard's cities, plus the fortress (a point per book, five more on Myrror),
+/// Mana from the wizard's cities, plus the fortress (a point per book, five more on Myrror: `myrror_fortress_power`),
 /// the volcanoes and the nodes.
 fn base_from(view: &impl IncomeView, player: PlayerId, city_mana: HalfInt) -> HalfInt {
     let fortress = match view.fortress_plane(player) {
         Some(plane) => {
             let books = view.wizard(player).map_or(0, |m| m.total_books());
-            books + if plane == Plane::Myrror { 5 } else { 0 }
+            let myrror = view.content().settings.myrror_fortress_power;
+            books + if plane == Plane::Myrror { myrror } else { 0 }
         }
         None => 0,
     };

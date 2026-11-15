@@ -97,6 +97,26 @@ fn retorts_cost_one_two_or_three_picks() {
 }
 
 #[test]
+fn the_myrran_and_alchemy_options_change_what_the_retorts_cost_in_a_game() {
+    let mut g = game();
+    let (alchemy, myrran) = (Retort::new(0), Retort::new(9));
+    assert_eq!(retort_cost(&g.content.rules, myrran), 3);
+    assert_eq!(g.content.settings.myrror_fortress_power, 5);
+    g.settings.rules.two_pick_myrran = true;
+    g.apply_content_settings();
+    assert_eq!(retort_cost(&g.content.rules, myrran), 2);
+    assert_eq!(
+        retort_cost(&g.content.rules, alchemy),
+        1,
+        "Alchemy is not changed"
+    );
+    assert_eq!(g.content.settings.myrror_fortress_power, 0);
+    g.settings.rules.adamant_alchemy = true;
+    g.apply_content_settings();
+    assert_eq!(retort_cost(&g.content.rules, alchemy), 2);
+}
+
+#[test]
 fn some_retorts_need_books() {
     let rules = &shipped().rules;
     let none = BTreeMap::new();

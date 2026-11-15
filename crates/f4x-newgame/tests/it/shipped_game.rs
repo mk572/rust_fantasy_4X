@@ -141,3 +141,29 @@ fn the_settings_cap_the_neutral_cities_of_each_plane() -> TestResult {
     );
     Ok(())
 }
+
+#[test]
+fn a_myrran_wizard_of_nine_books_needs_the_two_pick_option_to_be_made() -> TestResult {
+    use f4x_core::rules::RealmId as Realm;
+    use f4x_core::wizard::magic::Retort;
+    let make = |two_pick: bool| {
+        let mut spec = NewGame {
+            seed: 5,
+            books: [(Realm::new(3 /* nature */), 9)].into(),
+            retorts: [Retort::new(9 /* myrran */)].into(),
+            ..Default::default()
+        };
+        spec.settings.rules.two_pick_myrran = two_pick;
+        new_game(shipped(), &spec)
+    };
+    assert!(
+        make(false).is_err(),
+        "nine books and Myrran are twelve picks"
+    );
+    let g = make(true)?;
+    assert_eq!(
+        f4x_core::wizard::retort_cost(&g.content().rules, Retort::new(9)),
+        2
+    );
+    Ok(())
+}

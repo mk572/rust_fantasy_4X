@@ -83,6 +83,17 @@ fn the_power_base_adds_cities_fortress_volcanoes_and_nodes() {
 }
 
 #[test]
+fn two_pick_myrran_takes_the_extra_mana_of_a_fortress_on_myrror_away() {
+    let mut v = fake();
+    v.fortress = Some(Plane::Myrror);
+    assert_eq!(income(&v, P0).power_base, 4 + 2 + 5);
+    v.content.settings.myrror_fortress_power = 0;
+    assert_eq!(income(&v, P0).power_base, 4 + 2, "as on Arcanus");
+    v.fortress = Some(Plane::Arcanus);
+    assert_eq!(income(&v, P0).power_base, 4 + 2);
+}
+
+#[test]
 fn the_power_is_split_by_the_percentages_and_the_cities_add_research() -> TestResult {
     let mut v = fake();
     v.fortress = Some(Plane::Arcanus);
