@@ -375,7 +375,15 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | 285 Summon Champion falls back to a Hero | **Not present.** `hero::kind::pick` tries the champions, then goes on to any hero (`Class::Champion` to `Class::Any`), and the spell is refused only when no hero at all is free. Test `summon_champion_brings_a_hero_when_no_champion_is_free` (the existing `summon_champion_is_refused_when_nobody_is_left` covers the end). 293 was already recorded above. |
 | 302 Dispelling Web restores the movement type | **Not present.** A unit's numbers are rebuilt from its base and the lasting spells that remain (`rebuild_unit`), so a flyer flies again once Web goes, and the web's hit points go with it. Test `dispelling_a_web_gives_a_flyer_its_flight_back`. |
 
-Next: row 310 and the rest of the table in order.
+### Walked on 15 November 2026: 310, 314, 317
+
+| Rows | Verdict |
+|---|---|
+| 310 Lawful wizard razes at Hidden Relation zero | **Not present, and we differ from both.** The AI's lawful wizard razes only the cities of a wizard it is at war with (`f4x-ai/src/raze.rs`, `score`), whatever the hidden relation: the code comment calls the original's test a slip for being at war. The 1.50 reading (raze only when the relation is below its start) is not used. Left as it is; if the v1.6 walk wants the relation test, it is a small change in that one arm. |
+| 314 Terror counts Resistance buffs twice | **Not present.** Terror rolls one resistance check against the unit's effective resistance (`side_turn_effects`, `defender_state`), which every buff is already folded into once; there is no second add. |
+| 317 Floating Island has the wrong realm and name | **Not present.** The unit's name is "Floating Island" (`name/unit.ron`, 190), a plain name with no realm in it; its realm is Sorcery (1) in `units.ron`, which is the original's. |
+
+Next: row 318 and the rest of the table in order.
 
 ## P2 code review: first pass
 
