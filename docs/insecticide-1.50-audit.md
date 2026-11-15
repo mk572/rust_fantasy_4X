@@ -431,7 +431,19 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | 479 Flying ships and other units cannot move together | **Not present** (`a_ship_with_wraith_form_crosses_land_for_half_a_move`, `wind_walking_carries_the_whole_stack_over_water`, `ships_sail_over_the_seam` and the stack tests above). |
 | 371, 411, 489 Path search cannot enter squares it should, such as leaving a ship | **Not present.** The search and the step share `step_entry`. Test `a_walker_aboard_a_ship_leaves_it_for_the_shore_and_boards_again` (path and move, off and on again). |
 
-Next: row 384 and the rest of the table in order.
+### Walked on 15 November 2026: 384 to 391, 401
+
+| Rows | Verdict |
+|---|---|
+| 384 Visible Relation overflows from Hate to Harmony | **Not present.** `change_relations` clamps the visible relation to -100..100. |
+| 385 Starting and continuing an audience use different tests | **Not present.** One test, `audience_refused` (the worst patience below -100), serves the greeting and the click that follows it. |
+| 386 Cancel in the Threaten menu costs a penalty | **Not present.** Opening the menu is a client step (`Act::Go`); only the chosen threat sends a proposal. |
+| 387 Gold given because of a threat is not taken from the giver | **Not present.** `answer_threat` pays by `GiveGold` from the wizard to the asker; test `a_threat_is_answered_by_war_a_refusal_or_a_payment` checks the treasury falls. |
+| 388 Starting Relation overflows after many wars | **Not present.** The pair's default only falls, floored at -100 (`break_treaties`, `declare_war`), and starts at no less than -90. |
+| 391 AIs penalise each other for the human's city count | **Not present.** The overextension penalty is applied by the wizard with too many cities as the attacker and skips the human as the one who judges; it never runs between two AIs on the human's account. |
+| 401 Various other diplomacy bugs | **Not applicable** (no case named); the diplomacy rows above and the cluster walked on 14 November cover the notes that name one. |
+
+Next: row 416 and the rest of the table in order.
 
 ## P2 code review: first pass
 
