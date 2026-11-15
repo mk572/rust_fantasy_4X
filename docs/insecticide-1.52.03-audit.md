@@ -99,14 +99,22 @@ Verdicts for the rows of the three tables above, by reading the code; rows not n
 | 770 Armageddon unrest | **Present as the patch has it.** Two unrest, building pacification stays (`ARMAGEDDON_UNREST`). |
 | 784, 785 Webs damaged by ranged magic or Immolation | **Not applicable.** A web's 12 hit points are taken off only by the held unit's own turn (`WEB_HITS`); nobody else attacks it. |
 | 801 / IM200, 802 | **Not present.** Heroes: see above. Casting on turn one has no lockout in the code. |
-| 780, 781 Tower spell and the treasure budget | **Differs.** The v1.31 path (`create.rs`) takes the tower's spell first and pays for it out of the rest; the budget may go below zero and later draws check `<= loot`. The 1.50 path asks that the tower qualifies. Neither lowers the rarity to fit the budget as the 1.52 note says. Left as it is: the v1.31 and 1.50 rules are the two the setting offers. |
+| 780, 781 Tower spell and spell treasure under the budget | **Differs, left as it is (decided 15 November 2026).** 1.52 changes the original's rule: a tower's guaranteed spell is checked against the budget and its rarity lowered to fit (780), and a spell roll that is too dear is tried at a lower rarity instead of dropped (781). The default v1.31 path (`create.rs`) pays for the tower's spell with no check, so the budget can go below zero, and drops a too-dear spell roll. The optional 1.50 path (`treasure_patch_150`) gives a tower no spell it cannot afford. Standard rules stay. |
 | 796, 797, 804, 805, 795, 798, 756, 776, 786, 788 | **Client or audio.** Not walked. |
 | 791 Starting site and food | **Not present.** A fortress site is refused where `site_max_size` (the live economy's number) is under 8 (`setup/original.rs`). |
 | 792 Extra experience for starting units | **Not present.** Starting units are spawned with no experience; nothing in `setup` sets any. |
 | 793 Invisible units on the gate tile | **Not present.** `Battle::seen_by` is one rule for every square and side: seen when revealed, adjacent, or an own unit sees invisible. |
 | 782, 783 AI healing target and the 25-target limit | **Not present.** The AI chooses among the casts the cast check allows (`legal_battle_casts`), and a target list is a `Vec`. |
 | 775 (162) Gold from a captured town | Walked with row 162 of the 1.50 audit. |
-| 799, 800, 803, 778, 779, 790, 028, 765, 772, 787, 794 | **Not walked yet** (map graphics and specials, lair realms and guardians, island growth, AI wizard profiles and tactics). |
+| 799, 818 (graphics half) Tundra and Grassland graphics | **Not applicable.** One terrain per class in `terrain.ron`; the client picks the tile from the neighbour mask. |
+| 800 Hills with a special turned to Grassland | **Not present.** Minerals are a layer of their own (`grid.mineral`) placed after the terrain; nothing rewrites the terrain under one. |
+| 790 Island growth | **Not present.** `extend_islands` refuses only a target square holding a node or tower; it also fixes the original's east-and-south-only growth. |
+| 778 Lair realms | **Not present.** Data in `lairs.ron` (wild: death 2, chaos 2, nature 1; holy: death 3, life 1). |
+| 779 Dearest guardian first | **Not present.** The first kind drawn is the dearest that fits a share of the budget. |
+| 803, 787, 794 AI wizard profiles | **Not present.** The main realm is the realm with most books by data; merging, erasure and Myrran balancing treat every preset alike and never look at difficulty. |
+| 028 AI guaranteed summoning spell | **Present** as a setting (`guaranteed_summoning_spell`, `ai_main_realm_known`), computer wizards only. |
+| 765 AI unit strength | **Not present.** `strength` uses effective attack, defence and hits only. It ignores abilities such as First Strike (a valuation gap, not this bug). |
+| 772 AI flying "stall" tactic at a fortress | **Not applicable, unsure.** The original's tactic is not known to us; our battle AI has no scripted tactic, and a stalled assault ends with the active side fleeing (`assault.rs`). |
 
 ## Optional
 
