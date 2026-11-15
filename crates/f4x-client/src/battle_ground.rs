@@ -67,7 +67,7 @@ const FORTRESS_CLOUD: usize = 113;
 /// The `rising` kind of a Wall of Stone (0 is fire, 1 darkness).
 pub(crate) const STONE: u8 = 2;
 
-/// What the depth sort puts in order: scenery, walls and units.
+/// What the draw order puts in order: scenery, walls and the figures of the units.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Piece {
     Tree(usize),
@@ -82,25 +82,27 @@ pub(crate) enum Piece {
     MagicWall(u8, usize),
     /// A section of a magic wall that is rising: its kind, which of the fourteen and the frame.
     RisingWall(u8, usize, usize),
-    Unit(usize),
+    /// One figure of a unit: the unit, which figure, and whether it is the fading twin of a
+    /// teleporter.
+    Figure(usize, usize, bool),
 }
 
 /// The fourteen pictures of a magic wall (`citywall` 36 for fire, 50 for darkness) and where each
-/// stands: the cell, the point's offset, the anchor (`None` for half the picture's width), and
-/// whether it is drawn in front of the units (`Spawn_Fire_Wall_Entities` and the dark one).
-type MagicSection = ((i32, i32), (f32, f32), (Option<f32>, f32), bool);
+/// stands: the cell, the point's offset and the anchor (`None` for half the picture's width)
+/// (`Spawn_Fire_Wall_Entities` and the dark one).
+type MagicSection = ((i32, i32), (f32, f32), (Option<f32>, f32));
 
 fn magic_section(itr: usize) -> MagicSection {
     use layout::{MAX_CGX_CITY as X1, MAX_CGY_CITY as Y1, MIN_CGX_CITY as X0, MIN_CGY_CITY as Y0};
     let i = itr as i32;
     match itr {
-        0 => ((X0, Y0), (1.0, 1.0), (None, 19.0), false),
-        1..=3 => ((X0, Y0 + i), (1.0, 1.0), (Some(17.0), 18.0), false),
-        4..=6 => (((2 + i), Y0), (1.0, 0.0), (Some(17.0), 17.0), false),
-        7..=9 => (((i - 1), Y1), (0.0, 14.0), (Some(16.0), 29.0), true),
-        10 | 11 => ((X1, i + 1), (0.0, 14.0), (Some(16.0), 29.0), true),
-        12 => ((X0, Y1), (0.0, 14.0), (Some(16.0), 30.0), true),
-        _ => ((X1, Y0), (0.0, 14.0), (Some(16.0), 30.0), true),
+        0 => ((X0, Y0), (1.0, 1.0), (None, 19.0)),
+        1..=3 => ((X0, Y0 + i), (1.0, 1.0), (Some(17.0), 18.0)),
+        4..=6 => (((2 + i), Y0), (1.0, 0.0), (Some(17.0), 17.0)),
+        7..=9 => (((i - 1), Y1), (0.0, 14.0), (Some(16.0), 29.0)),
+        10 | 11 => ((X1, i + 1), (0.0, 14.0), (Some(16.0), 29.0)),
+        12 => ((X0, Y1), (0.0, 14.0), (Some(16.0), 30.0)),
+        _ => ((X1, Y0), (0.0, 14.0), (Some(16.0), 30.0)),
     }
 }
 const FIRE_WALL: usize = 36;
@@ -166,10 +168,20 @@ fn wall_sprite(cgx: i32, cgy: i32) -> Option<WallSprite> {
     })
 }
 
-/// The depth a piece sorts by: far cells first, the nearer ones over them. Scaled by a hundred so
-/// that the offsets inside a cell can be told apart.
-pub(crate) fn depth_of(cgx: i32, cgy: i32, extra: i32) -> i32 {
-    (cgx + cgy) * 100 + extra
+/// The value a picture sorts by (`Combat_Grid_Entity_Create`, `Set_Entity_Draw_Order`): its
+/// anchor point `(x, y)` in the original's screen frame, less the grid's origin `(158, -80)`, read
+/// back as a cell and the offset inside it (`Screen_To_Combat_Grid_Cell_X_And_Offset` and the Y
+/// one). The original draws row by row (`cgy`), then column by column (`cgx`), then by the
+/// offsets inside the cell; it does not draw along the diagonals.
+pub(crate) fn draw_order(x: i32, y: i32) -> i32 {
+    let across = x / 2 + y;
+    let down = y - x / 2;
+    (down / 16) * 8000 + (across / 16) * 320 + (down % 16) * 16 + across % 16
+}
+
+/// [`draw_order`] of an anchor given as a [`point`] (which is fourteen across the cell's corner).
+pub(crate) fn order_of((px, py): (f32, f32)) -> i32 {
+    draw_order(px.round() as i32 - 14, py.round() as i32)
 }
 
 impl App {
@@ -391,64 +403,57 @@ impl App {
         );
     }
 
-    /// The scenery and walls of the field with the depth each sorts by, to be put in order with
-    /// the units: `(depth, rank, square, piece)`, the rank putting scenery before walls before
-    /// units on one depth.
+    /// The scenery and walls of the field with the value each sorts by ([`draw_order`], from the
+    /// anchor the original gives the picture), to be put in order with the figures of the units:
+    /// `(order, piece)`.
     pub(crate) fn scenery_pieces(
         &self,
         battle: &Battle,
         rising: Option<(u8, usize)>,
-    ) -> Vec<(i32, u8, Pos, Piece)> {
+    ) -> Vec<(i32, Piece)> {
         let mut out = Vec::new();
         if let Some(look) = battle.map.look() {
             for (i, t) in look.trees.iter().enumerate() {
-                let d = depth_of(t.cell.0, t.cell.1, (t.sub.0 + t.sub.1) as i32 * 4);
-                out.push((d, 0, core_pos(t.cell.0, t.cell.1), Piece::Tree(i)));
+                let (px, py) = point(t.cell.0, t.cell.1, (i32::from(t.sub.0), i32::from(t.sub.1)));
+                out.push((order_of((px - 5.0, py)), Piece::Tree(i)));
             }
             for (i, r) in look.rocks.iter().enumerate() {
-                let d = depth_of(r.cell.0, r.cell.1, (r.sub.0 + r.sub.1) as i32 * 4);
-                out.push((d, 0, core_pos(r.cell.0, r.cell.1), Piece::Rock(i)));
+                let (px, py) = point(r.cell.0, r.cell.1, (i32::from(r.sub.0), i32::from(r.sub.1)));
+                out.push((order_of((px - 5.0, py)), Piece::Rock(i)));
             }
             for (i, h) in look.houses.iter().enumerate() {
-                out.push((
-                    depth_of(h.cell.0, h.cell.1, 20),
-                    0,
-                    core_pos(h.cell.0, h.cell.1),
-                    Piece::House(i),
-                ));
+                let (px, py) = point(h.cell.0, h.cell.1, (0, 0));
+                out.push((order_of((px, py + 2.0)), Piece::House(i)));
             }
             let has_building = matches!(look.site, Site::Outpost)
                 || (look.site == Site::City && look.structure == Structure::Fortress);
             if has_building && structure_entry(look.structure).is_some() {
                 let (x, y) = layout::STRUCTURE;
-                out.push((depth_of(x, y, 0), 0, core_pos(x, y), Piece::Structure));
+                out.push((order_of(point(x, y, (0, 0))), Piece::Structure));
             }
         }
-        // Walls, back to front: the stone wall's far side, the darkness, the fire, then (over the
-        // units standing there) the fire, the darkness and the stone wall's near side. Equal
-        // depths keep the order they were pushed in.
-        let stone = |near: bool, out: &mut Vec<(i32, u8, Pos, Piece)>| {
-            for cgy in 0..H {
-                for cgx in 0..W {
-                    let pos = core_pos(cgx, cgy);
-                    if battle.map.wall(pos) == Wall::None {
-                        continue;
-                    }
-                    if let Some((_, (_, dy), _)) = wall_sprite(cgx, cgy) {
-                        if (dy > 1.0) == near {
-                            let extra = if near { 50 } else { 10 };
-                            let piece = match rising.filter(|&(k, _)| k == STONE) {
-                                Some((_, frame)) => Piece::RisingStone(pos, frame),
-                                None => Piece::Wall(pos),
-                            };
-                            out.push((depth_of(cgx, cgy, extra), 1, pos, piece));
-                        }
-                    }
+        // Walls: each section sorts by the point the original puts it at (the corner of its
+        // square and the section's offset), so a figure standing on a square near the wall is
+        // drawn over or under it by its own anchor.
+        for cgy in 0..H {
+            for cgx in 0..W {
+                let pos = core_pos(cgx, cgy);
+                if battle.map.wall(pos) == Wall::None {
+                    continue;
+                }
+                if let Some((_, (dx, dy), _)) = wall_sprite(cgx, cgy) {
+                    let piece = match rising.filter(|&(k, _)| k == STONE) {
+                        Some((_, frame)) => Piece::RisingStone(pos, frame),
+                        None => Piece::Wall(pos),
+                    };
+                    let (px, py) = point(cgx, cgy, (0, 0));
+                    out.push((order_of((px + dx, py + dy)), piece));
                 }
             }
-        };
-        // The wall being raised by the spell that is playing: its kind (0 fire, 1 darkness) and frame.
-        let magic = |kind: u8, near: bool, out: &mut Vec<(i32, u8, Pos, Piece)>| {
+        }
+        // The magic walls, and the one being raised by the spell that is playing: its kind (0
+        // fire, 1 darkness) and frame.
+        for kind in [1, 0] {
             let on = if kind == 0 {
                 battle.wall_of_fire
             } else {
@@ -456,27 +461,18 @@ impl App {
             };
             let rise = rising.filter(|&(k, _)| k == kind).map(|(_, frame)| frame);
             if !on && rise.is_none() {
-                return;
+                continue;
             }
             for itr in 0..14 {
-                let ((cgx, cgy), _, _, front) = magic_section(itr);
-                if front == near {
-                    let extra = if near { 50 } else { 10 };
-                    let pos = core_pos(cgx, cgy);
-                    let piece = match rise {
-                        Some(frame) => Piece::RisingWall(kind, itr, frame),
-                        None => Piece::MagicWall(kind, itr),
-                    };
-                    out.push((depth_of(cgx, cgy, extra), 1, pos, piece));
-                }
+                let ((cgx, cgy), (dx, dy), _) = magic_section(itr);
+                let piece = match rise {
+                    Some(frame) => Piece::RisingWall(kind, itr, frame),
+                    None => Piece::MagicWall(kind, itr),
+                };
+                let (px, py) = point(cgx, cgy, (0, 0));
+                out.push((order_of((px + dx, py + dy)), piece));
             }
-        };
-        stone(false, &mut out);
-        magic(1, false, &mut out);
-        magic(0, false, &mut out);
-        magic(0, true, &mut out);
-        magic(1, true, &mut out);
-        stone(true, &mut out);
+        }
         out
     }
 
@@ -592,7 +588,7 @@ impl App {
                 )
             }
             Piece::MagicWall(kind, itr) => {
-                let ((cgx, cgy), (dx, dy), (hang_x, hang_y), _) = magic_section(itr);
+                let ((cgx, cgy), (dx, dy), (hang_x, hang_y)) = magic_section(itr);
                 let entry = if kind == 0 { FIRE_WALL } else { DARK_WALL } + itr;
                 let frame = (get_time() * 6.0) as usize % 4;
                 let Some(size) = self
@@ -611,7 +607,7 @@ impl App {
                 )
             }
             Piece::RisingWall(kind, itr, frame) => {
-                let ((cgx, cgy), (dx, dy), (hang_x, hang_y), _) = magic_section(itr);
+                let ((cgx, cgy), (dx, dy), (hang_x, hang_y)) = magic_section(itr);
                 let entry = if kind == 0 { FIRE_WALL } else { DARK_WALL } + itr;
                 let frames = self.art.frames("wallrise", entry).max(1);
                 let Some(size) = self
@@ -629,7 +625,7 @@ impl App {
                     (px + dx - hang_x.unwrap_or(size.x / 2.0), py + dy - hang_y),
                 )
             }
-            Piece::Unit(_) => return,
+            Piece::Figure(..) => return,
         };
         if let Piece::RisingStone(_, step) = piece {
             let shown = (step + 1) as f32 / crate::battle_anim::STONE_RISE_FRAMES as f32;
@@ -688,6 +684,21 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn the_draw_order_runs_row_by_row_then_column_by_column() {
+        // `cgy * 8000 + cgx * 320` for the corner of a cell (`Combat_Grid_Entity_Create`).
+        for (cgx, cgy) in [(0, 0), (6, 5), (13, 2), (3, 17)] {
+            assert_eq!(order_of(point(cgx, cgy, (0, 0))), cgy * 8000 + cgx * 320);
+        }
+        // A cell of a later row is drawn over every cell of an earlier one, even one lower on
+        // the screen (the original does not sort along the diagonals).
+        assert!(order_of(point(0, 6, (0, 0))) > order_of(point(15, 5, (0, 0))));
+        // Inside a cell, the offsets order the pictures: a figure further along `x` or `y`
+        // is drawn later.
+        assert!(order_of(point(6, 5, (4, 0))) > order_of(point(6, 5, (0, 0))));
+        assert!(order_of(point(6, 5, (0, 4))) > order_of(point(6, 5, (0, 0))));
     }
 
     #[test]

@@ -368,6 +368,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 - **The other side** is played by `f4x-ai/src/battle/order.rs` after a short delay per order: each unit attacks
   an adjacent enemy, else shoots, else walks to the reachable square nearest the closest enemy,
   else is done. This is a placeholder for the real battle AI (task 46).
+- **Draw order** is the original's (`Set_Entity_Draw_Order`): every picture (tree, rock, house, structure, wall section and each *figure* of a unit stack) sorts by its anchor point, row by row (`cgy`), then column by column (`cgx`), then by the offset inside the cell (`battle_ground::draw_order`). Not along the diagonals, as we did before (units were drawn under houses). Curses, health bars and counts, missiles, vortices and spell animations are drawn over the lot.
 - `--battle` together with `--shot FILE` opens a test fight for screenshots. `--battle-field vortex` adds a Magic Vortex (the
   original's whirlwind, `cmbtfx` 18, role `Vortex` in `spell_art.ron`; the cast picture is `cmbtfx` 25);
   `--shot-after 0.45` takes the shot once its animation has moved past the first, small frame.

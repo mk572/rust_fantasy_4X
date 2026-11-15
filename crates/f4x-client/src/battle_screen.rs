@@ -1979,7 +1979,10 @@ impl App {
             diamond(sx, sy, scale, Color::new(1.0, 1.0, 1.0, 0.8), false);
         }
 
-        // Scenery, walls and units, far rows first so near ones cover them.
+        // Scenery, walls and the figures of the units, in the original's order
+        // (`Set_Entity_Draw_Order`): row by row, then column by column, by the anchor of each
+        // picture. Every figure is its own picture, so a house can stand between the figures of
+        // one stack. Equal values draw the later made first.
         // A Wall of Stone that is rising is not in the battle being shown yet: take its squares
         // from the battle as it stands.
         let rising = ui.rising_wall();
@@ -1987,7 +1990,7 @@ impl App {
             .filter(|&(kind, _)| kind == battle_ground::STONE)
             .and_then(|_| self.game.battle().cloned());
         let mut items = self.scenery_pieces(after.as_ref().unwrap_or(battle), rising);
-        let mut looks: HashMap<usize, Visual> = HashMap::new();
+        let mut looks: HashMap<(usize, bool), Visual> = HashMap::new();
         let viewer = Self::human_side(battle);
         // A merged unit that is coming up is not active in the battle shown, but is drawn.
         let rising_unit = match &ui.playing {
@@ -1999,33 +2002,64 @@ impl App {
                 && viewer.is_none_or(|v| battle.seen_by(v, u.id))
         }) {
             let vis = self.visual_of(ui, battle, u.id);
-            let depth = ((GRID_W - 1) as f32 - vis.at.0 + vis.at.1) * 100.0;
-            items.push((depth.round() as i32, 2, u.cell, Piece::Unit(u.id)));
-            looks.insert(u.id, vis);
-        }
-        items.sort_by_key(|&(depth, rank, pos, _)| (depth, rank, pos));
-        for (_, _, pos, piece) in items {
-            match piece {
-                Piece::Unit(id) => {
-                    let idle = ui.selected == Some(id) && my_turn;
-                    let look = looks[&id];
-                    self.draw_unit(ui, battle, id, look, idle, (ox, oy, scale), my_turn);
-                    // A teleporter is on two squares while it fades out and in.
-                    if let Some((at, alpha)) = look.twin {
-                        let twin = Visual {
-                            at,
-                            alpha,
-                            twin: None,
-                            ..look
-                        };
-                        self.draw_unit(ui, battle, id, twin, idle, (ox, oy, scale), my_turn);
-                    }
+            looks.insert((u.id, false), vis);
+            // A teleporter is on two squares while it fades out and in.
+            let mut shown = vec![(false, vis.at)];
+            if let Some((at, alpha)) = vis.twin {
+                looks.insert(
+                    (u.id, true),
+                    Visual {
+                        at,
+                        alpha,
+                        twin: None,
+                        ..vis
+                    },
+                );
+                shown.push((true, at));
+            }
+            let count = u.figures_start as usize;
+            for (twin, at) in shown {
+                let (x, y) = cell_origin_f(at);
+                for i in 0..(u.figures as usize).max(1) {
+                    let (fx, fy) = battle_anim::figure_offset(count, i);
+                    let anchor = (x + 14.0 + fx as f32, y + fy as f32);
+                    items.push((
+                        battle_ground::order_of(anchor),
+                        Piece::Figure(u.id, i, twin),
+                    ));
                 }
-                Piece::Wall(_) if self.wall_picture_missing(battle, plane, pos) => {
+            }
+        }
+        let mut order: Vec<usize> = (0..items.len()).collect();
+        order.sort_by_key(|&i| (items[i].0, std::cmp::Reverse(i)));
+        let mut keys: Vec<(usize, bool)> = looks.keys().copied().collect();
+        keys.sort();
+        for &key in &keys {
+            self.draw_unit_base(battle, key.0, looks[&key], (ox, oy, scale));
+        }
+        for i in order {
+            match items[i].1 {
+                Piece::Figure(id, index, twin) => {
+                    let idle = ui.selected == Some(id) && my_turn;
+                    let look = looks[&(id, twin)];
+                    self.draw_unit_figure(
+                        ui,
+                        battle,
+                        (id, index),
+                        look,
+                        idle,
+                        (ox, oy, scale),
+                        my_turn,
+                    );
+                }
+                Piece::Wall(pos) if self.wall_picture_missing(battle, plane, pos) => {
                     draw_wall(battle.map.wall(pos), at(pos), scale);
                 }
                 piece => self.draw_piece(battle, plane, piece, (ox, oy, scale)),
             }
+        }
+        for &key in &keys {
+            self.draw_unit_overlay(battle, key.0, looks[&key], (ox, oy, scale));
         }
         self.draw_missile(ui, battle, (ox, oy, scale));
         self.draw_spell_fx(ui, (ox, oy, scale));
@@ -2141,11 +2175,42 @@ impl App {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn draw_unit(
+    /// The coloured base in the owner's banner, flat on the ground under a unit's figures.
+    fn draw_unit_base(
+        &mut self,
+        battle: &Battle,
+        id: usize,
+        vis: Visual,
+        (ox, oy, scale): (f32, f32, f32),
+    ) {
+        let Some(u) = battle.unit(id) else {
+            return;
+        };
+        let (x, y) = cell_origin_f(vis.at);
+        let (sx, sy) = (ox + x * scale, oy + y * scale);
+        let banner = self.banner_color(battle.player_of(u.side).0);
+        let fade = vis.alpha;
+        diamond(
+            sx,
+            sy,
+            scale,
+            Color {
+                a: 0.55 * fade,
+                ..banner
+            },
+            true,
+        );
+        diamond(sx, sy, scale, Color { a: fade, ..banner }, false);
+    }
+
+    /// One figure of a unit (`(unit, figure)`), standing where the formation puts it. A unit
+    /// whose figures are not extracted is drawn as its overland picture, with its first figure.
+    #[allow(clippy::too_many_arguments)]
+    fn draw_unit_figure(
         &mut self,
         ui: &mut BattleUi,
         battle: &Battle,
-        id: usize,
+        (id, index): (usize, usize),
         vis: Visual,
         idle: bool,
         (ox, oy, scale): (f32, f32, f32),
@@ -2159,19 +2224,6 @@ impl App {
         let owner = battle.player_of(u.side).0;
         let banner = self.banner_color(owner);
         let banner_index = self.banner_index(owner);
-        let fade = vis.alpha;
-        // A coloured base in the owner's banner.
-        diamond(
-            sx,
-            sy,
-            scale,
-            Color {
-                a: 0.55 * fade,
-                ..banner
-            },
-            true,
-        );
-        diamond(sx, sy, scale, Color { a: fade, ..banner }, false);
         let units = &self.game.content().rules.units;
         let art = u
             .unit_id
@@ -2190,111 +2242,86 @@ impl App {
             shade,
             shade * (1.0 - 0.6 * vis.hurt),
             shade * (1.0 - 0.6 * vis.hurt),
-            fade,
+            vis.alpha,
         );
-        let cx = sx + CELL_W * scale / 2.0;
         let ids = self.unit_spell_ids(u);
-        let mut drew = false;
+        let mut has_art = false;
         if let Some(ty) = unit_type {
-            // Every figure the unit still has, the back ones first.
             let count = u.figures_start as usize;
-            let mut spots: Vec<(usize, (i32, i32))> = (0..u.figures as usize)
-                .map(|i| (i, battle_anim::figure_offset(count, i)))
-                .collect();
-            spots.sort_by_key(|&(_, (_, fy))| fy);
+            let (fx, fy) = battle_anim::figure_offset(count, index);
             let blood = self.blood_of(ui, u);
-            for (index, (fx, fy)) in spots {
-                let bleeding = blood
-                    .filter(|b| index < b.lost)
-                    .and_then(|b| battle_anim::blood_frame(u.id, index, b).map(|f| (b.gibs, f)));
-                // The fourth frame of the blood: the figure is gone.
-                if bleeding.is_some_and(|(_, f)| f == 3) {
-                    continue;
-                }
-                let glow = enchantment_realm(u, &ids);
-                let step = (get_time() * 8.0) as usize;
-                let figure = (ty, vis.facing, frame, banner_index);
-                // Black Sleep greys a figure, Warp Creature turns it red and inside out.
-                let effect = if u.is_invisible() {
-                    Some(FigureEffect::Revealed)
-                } else if u.effects.contains(UnitEffect::WarpCreature) {
-                    Some(FigureEffect::Warped)
-                } else if u.effects.contains(UnitEffect::BlackSleep) {
-                    Some(FigureEffect::Asleep)
-                } else {
-                    None
-                };
-                let tex = match (effect, glow) {
-                    (Some(effect), _) => self.art.affected_figure(figure, effect),
-                    (None, Some(realm)) => self.art.glowing_figure(figure, realm, step),
-                    (None, None) => self.art.figure(ty, vis.facing, frame, banner_index),
-                };
-                if let Some(tex) = tex {
-                    let native = crate::resolution::logical_size(tex);
-                    // A unit sinking into the ground is drawn lower and cut off at the line
-                    // its feet stood on.
-                    let sunk = vis.sink.clamp(0.0, native.y);
-                    let size = vec2(native.x, native.y - sunk) * scale;
-                    // Standing on the bottom corner of the square, the figure rising from
-                    // there; the formation's offsets only move the figures about it (a lone
-                    // figure's offset is (1, 8)).
-                    draw_texture_ex(
-                        tex,
-                        sx + (CELL_W / 2.0 - native.x / 2.0 + (fx - 1) as f32) * scale,
-                        sy + (CELL_H - native.y + sunk + (fy - 8) as f32) * scale,
-                        tint,
-                        DrawTextureParams {
-                            dest_size: Some(size),
-                            source: Some(crate::resolution::pixel_rect(Rect::new(
-                                0.0,
-                                0.0,
-                                native.x,
-                                native.y - sunk,
-                            ))),
-                            ..Default::default()
-                        },
+            let bleeding = blood
+                .filter(|b| index < b.lost)
+                .and_then(|b| battle_anim::blood_frame(u.id, index, b).map(|f| (b.gibs, f)));
+            // The fourth frame of the blood: the figure is gone.
+            let gone = bleeding.is_some_and(|(_, f)| f == 3);
+            let glow = enchantment_realm(u, &ids);
+            let step = (get_time() * 8.0) as usize;
+            let figure = (ty, vis.facing, frame, banner_index);
+            // Black Sleep greys a figure, Warp Creature turns it red and inside out.
+            let effect = if u.is_invisible() {
+                Some(FigureEffect::Revealed)
+            } else if u.effects.contains(UnitEffect::WarpCreature) {
+                Some(FigureEffect::Warped)
+            } else if u.effects.contains(UnitEffect::BlackSleep) {
+                Some(FigureEffect::Asleep)
+            } else {
+                None
+            };
+            let tex = match (effect, glow) {
+                (Some(effect), _) => self.art.affected_figure(figure, effect),
+                (None, Some(realm)) => self.art.glowing_figure(figure, realm, step),
+                (None, None) => self.art.figure(ty, vis.facing, frame, banner_index),
+            };
+            has_art = tex.is_some() && index < u.figures as usize;
+            if let Some(tex) = tex.filter(|_| !gone && index < u.figures as usize) {
+                let native = crate::resolution::logical_size(tex);
+                // A unit sinking into the ground is drawn lower and cut off at the line
+                // its feet stood on.
+                let sunk = vis.sink.clamp(0.0, native.y);
+                let size = vec2(native.x, native.y - sunk) * scale;
+                // Standing on the bottom corner of the square, the figure rising from
+                // there; the formation's offsets only move the figures about it (a lone
+                // figure's offset is (1, 8)).
+                draw_texture_ex(
+                    tex,
+                    sx + (CELL_W / 2.0 - native.x / 2.0 + (fx - 1) as f32) * scale,
+                    sy + (CELL_H - native.y + sunk + (fy - 8) as f32) * scale,
+                    tint,
+                    DrawTextureParams {
+                        dest_size: Some(size),
+                        source: Some(crate::resolution::pixel_rect(Rect::new(
+                            0.0,
+                            0.0,
+                            native.x,
+                            native.y - sunk,
+                        ))),
+                        ..Default::default()
+                    },
+                );
+                if let Some((gibs, f)) = bleeding {
+                    let top = (
+                        sx + (CELL_W / 2.0 - native.x / 2.0 + (fx - 1) as f32 + 10.0) * scale,
+                        sy + (CELL_H - native.y + (fy - 8) as f32 + 12.0) * scale,
                     );
-                    drew = true;
-                    if let Some((gibs, f)) = bleeding {
-                        let top = (
-                            sx + (CELL_W / 2.0 - native.x / 2.0 + (fx - 1) as f32 + 10.0) * scale,
-                            sy + (CELL_H - native.y + (fy - 8) as f32 + 12.0) * scale,
+                    if let Some(blood) = self.art.picture("cmbtcity", 23 + gibs, f) {
+                        draw_texture_ex(
+                            blood,
+                            top.0,
+                            top.1,
+                            WHITE,
+                            DrawTextureParams {
+                                dest_size: Some(crate::resolution::logical_size(blood) * scale),
+                                ..Default::default()
+                            },
                         );
-                        if let Some(blood) = self.art.picture("cmbtcity", 23 + gibs, f) {
-                            draw_texture_ex(
-                                blood,
-                                top.0,
-                                top.1,
-                                WHITE,
-                                DrawTextureParams {
-                                    dest_size: Some(crate::resolution::logical_size(blood) * scale),
-                                    ..Default::default()
-                                },
-                            );
-                        }
                     }
                 }
             }
         }
-        if let Some(entry) = crate::unit_sheet::curse_picture(&ids) {
-            // Over the square, as the original's curse entity: 13 across and 15 down from the
-            // cell's point.
-            let frame = (get_time() * 8.0) as usize % 8;
-            if let Some(tex) = self.art.picture("chriver", entry, frame) {
-                draw_texture_ex(
-                    tex,
-                    sx + (14.0 - 13.0) * scale,
-                    sy - 15.0 * scale,
-                    Color::new(1.0, 1.0, 1.0, vis.alpha),
-                    DrawTextureParams {
-                        dest_size: Some(crate::resolution::logical_size(tex) * scale),
-                        ..Default::default()
-                    },
-                );
-            }
-        }
-        if !drew {
+        if !has_art && index == 0 {
             // No figures extracted: the overland picture stands in.
+            let cx = sx + CELL_W * scale / 2.0;
             let icon = art.and_then(|(lbx, entry)| self.art.picture(&lbx, entry, 0));
             let base = sy + CELL_H * scale;
             match icon {
@@ -2312,6 +2339,42 @@ impl App {
                     );
                 }
                 None => draw_circle(cx, base - 6.0 * scale, 6.0 * scale, banner),
+            }
+        }
+    }
+
+    /// What goes over everything on the field: a curse's picture over the square, and the health
+    /// bar and figure count under the feet.
+    fn draw_unit_overlay(
+        &mut self,
+        battle: &Battle,
+        id: usize,
+        vis: Visual,
+        (ox, oy, scale): (f32, f32, f32),
+    ) {
+        let Some(u) = battle.unit(id) else {
+            return;
+        };
+        let (x, y) = cell_origin_f(vis.at);
+        let (sx, sy) = (ox + x * scale, oy + y * scale);
+        let fade = vis.alpha;
+        let cx = sx + CELL_W * scale / 2.0;
+        let ids = self.unit_spell_ids(u);
+        if let Some(entry) = crate::unit_sheet::curse_picture(&ids) {
+            // Over the square, as the original's curse entity: 13 across and 15 down from the
+            // cell's point.
+            let frame = (get_time() * 8.0) as usize % 8;
+            if let Some(tex) = self.art.picture("chriver", entry, frame) {
+                draw_texture_ex(
+                    tex,
+                    sx + (14.0 - 13.0) * scale,
+                    sy - 15.0 * scale,
+                    Color::new(1.0, 1.0, 1.0, vis.alpha),
+                    DrawTextureParams {
+                        dest_size: Some(crate::resolution::logical_size(tex) * scale),
+                        ..Default::default()
+                    },
+                );
             }
         }
         if fade < 1.0 {
