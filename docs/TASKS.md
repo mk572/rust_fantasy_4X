@@ -23,7 +23,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 
 | # | Priority | Area | Summary |
 |---|---|---|---|
-| 81 | Low | Housekeeping | Packaging for Mac |
 | 95 | Low | Client | Tutorial |
 | 115 | Low | Client | Cityscape: road masking |
 | 172 | Low | Meta | Learning AI: battle AI follow-ups |
@@ -126,8 +125,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 623 | Low | Core | Walk the 1.60 settings checklist: tick each item built, left or tracked by a task, and check the ordinary settings, menu facilities and key-binding actions the audit walk did not reach |
 
 ## Descriptions
-
-**81. Packaging for Mac.** Build the Apple-silicon-only, unsigned `Fantasy4X.app` and a disk image or zip with a local script, as decided in `docs/installer-design.md` (sections 6.5, 7 and 8; what the package carries and leaves out: section 10). Includes retiring `content-local/` (listed in section 8). *Needs:* nothing.
 
 **95. Tutorial.** A first-game guide: highlighted steps for moving, founding a city, building,
 researching and casting, with a way to skip or switch it off.
