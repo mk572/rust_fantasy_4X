@@ -383,7 +383,15 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | 314 Terror counts Resistance buffs twice | **Not present.** Terror rolls one resistance check against the unit's effective resistance (`side_turn_effects`, `defender_state`), which every buff is already folded into once; there is no second add. |
 | 317 Floating Island has the wrong realm and name | **Not present.** The unit's name is "Floating Island" (`name/unit.ron`, 190), a plain name with no realm in it; its realm is Sorcery (1) in `units.ron`, which is the original's. |
 
-Next: row 318 and the rest of the table in order.
+### Walked on 15 November 2026: 318, 323, 325
+
+| Rows | Verdict |
+|---|---|
+| 318 Wraith Form protects against Flame Strike, Death Spell, Holy Word | **Not present.** Wraith Form grants Non-corporeal (49) and Weapon Immunity (72). The immunities of the three spells are in their content: Flame Strike resists on 21 and 40 (fire), Death Spell on 16 (Death Immunity), Holy Word on none (it only slays the fantastic). Neither of Wraith Form's abilities is in any of the lists. |
+| 323 Holy Weapon has no effect in combat | **Not present.** The spell is a lasting enchantment whose numbers are rebuilt from the base and the spells on the unit, in a battle as on the map; it is in the model matrix of task 604 (`OWN_UNIT_SPELLS`), which checks that casting and dispelling leave exactly the right unit. |
+| 325 Cancelling Spell Charge leaves a free, uncounted power | **Not present.** The design of the item holds the charges in one field (`ItemDesign::charges`); cancelling sets it to `None`, and both the places used (`CraftUi::used`) and the price read that field. Nothing stays behind. |
+
+Next: the row after 325 and the rest of the table in order.
 
 ## P2 code review: first pass
 
