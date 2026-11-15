@@ -443,7 +443,21 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | 391 AIs penalise each other for the human's city count | **Not present.** The overextension penalty is applied by the wizard with too many cities as the attacker and skips the human as the one who judges; it never runs between two AIs on the human's account. |
 | 401 Various other diplomacy bugs | **Not applicable** (no case named); the diplomacy rows above and the cluster walked on 14 November cover the notes that name one. |
 
-Next: row 416 and the rest of the table in order.
+### Walked on 15 November 2026: 416, 421, 425, 431, 432, 440, 442, 443, 459, 484
+
+| Rows | Verdict |
+|---|---|
+| 416 The AI cancels Spell of Return (fortress targeting logic) | **Not present.** A banished wizard pays for the Return and aims it at a city of its own (`a_banished_wizard_that_has_paid_for_the_return_aims_it_at_a_city`); no fortress is compared. |
+| 421 Artificer halves the merchant's price twice | **Not present.** The price is made once with the wizard's percent (`item_price`, `hire_percent`) and the gold is checked against that price when the offer is accepted (`NoGold`). |
+| 425 Neutral units gain no Resistance to All | **Not present.** The bonus is read from the standing units of a battle side (`battle/field.rs`), whoever owns them. |
+| 431 Dispel Magic always removes unit curses | **Not present.** Every enchantment in a list, curses included, is attacked with the same `dispel_roll`. |
+| 432 Crusade gives two levels in the health calculation | **Not present.** The level is worked out once (`level_with`: experience, Heroism, Warlord, Crusade +1) and both the bonuses and the hit points read it. |
+| 440 Death Immunity does not protect from Terror | **Not present** (`side_turn_effects` skips units with Death Immunity). |
+| 442 Difficulties below Extreme make fewer guardians | **Not present.** The budgets of lairs, towers and nodes (`newgame/lair.rs`) do not read the difficulty at all. |
+| 443, 459 Runemaster's dispel bonus not granted, or granted without the retort in combat | **Present: we have no such bonus.** The original's Runemaster also strengthens its holder's dispels (help text silent); `retorts.ron` has only the cost and research of Arcane spells. Task 611. |
+| 484 Arcanus starting cities have Enchanted Roads under them | **Not present.** The new game lays no roads. |
+
+Next: row 445 and the rest of the table in order.
 
 ## P2 code review: first pass
 
