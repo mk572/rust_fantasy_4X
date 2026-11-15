@@ -63,6 +63,8 @@
     "custom.walls_cover_city": "Walls protect the whole city (+3)",
     "custom.miners_guild_half_ore": "Miner's Guild adds half to iron and coal (not double)",
     "custom.spell_binding_always_succeeds": "Spell Binding always succeeds",
+    "custom.stronger_lairs": "Stronger lairs and towers (patch 1.50)",
+    "custom.treasure_patch_150": "Lair treasure of patch 1.50",
     "custom.suppress_spares_return": "Suppress Magic spares Spell of Return",
     "custom.defaults_title": "Default Game Settings",
     "custom.limit_ai_races": "Limit AI race picks at higher difficulties",

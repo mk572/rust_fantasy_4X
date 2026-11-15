@@ -24,3 +24,46 @@ Differences from the original (gap tasks in TASKS.md):
   - *The roaming monsters* (`f4x_ai::monster`, run by `NeutralSeat`): a stack next to a city attacks it when it is as strong as the defence it expects (an empty city is walked into); next to an empty stand it settles in it; otherwise it heads for the nearest stand or city it knows and is strong enough for, and scouts when it knows none. A stand is empty when it is an intact lair with no guards, or a cleared node or tower nobody holds (`Game::vacant_zone`): the stack arriving there is despawned and becomes the guards (`Lair.intact` again, no treasure).
   - *A city the monsters win* (`Game::rampage_city`, after `Rampage_Combat_City`): it keeps its owner but loses citizens and buildings (the toll counts 40 more damage than the battle did: the original adds 50 percent to both); half of the time, never for a wizard's fortress, it is razed instead and the two dearest kinds of the monsters settle in a `ruins` site on its square with the city's share of its owner's gold as the hoard. The monsters are gone from the map either way (the original's "disappear into the wilderness"). Monsters never hold a city.
   - *Messages.* `RaidersRaised`, `MonstersSettled` and `CityRampaged` are news lines in the log where the human has explored (`log.*`), and the Combat results scroll has a line for a rampage, ruins and raiders (`combat.*`, results 666 to 668; `--results rampage|ruins|raiders`). Battles of these attackers against the human are fought by the human: the host passes `[HUMAN]` to `play_neutrals_for` and gets the attacks back.
+
+## Patch 1.50 (settings `stronger_lairs` and `treasure_patch_150`)
+
+Source: the wiki's Encounter Zone article (`reference/Encounter Zone ...html`, sections "Encounter
+Zone Budgets", "Primary Creatures", "Treasure Budget", "Treasure Types") and the 1.50 release notes
+(001, 013, 015 to 025). Both switches are off in v1.31 and in v1.6 (the community patch reverses
+the budgets and the treasure). The numbers are in `lairs.ron`, `patch_150`; the code reads them
+through `LairStyle` (`f4x_def::rules::lair`), which the new-game setup takes from the two settings.
+
+**Stronger lairs** (`stronger_lairs`). What changes: the budget of a tower and of strong and weak
+encounter sites (nodes keep theirs); the primary divisor, which is `Random(6)` (not 4), and at most
+six of the first kind; the divisor of the second kind, nine less the first kind (not ten); the
+creature costs of the lairs' guards (11 units: Gorgons 600, Cockatrices 300, Giant Spiders 225,
+Earth Elemental 150, Phantom Warriors 50, Air Elemental 200, Phantom Beast 325, Guardian Spirit 75,
+Demon 125, Night Stalker 200, Werewolves 300), which makes the costs of a realm all different so
+that the units with equal costs, which could never be a primary guard, can be one; and the share of
+the budget the guards get by difficulty level, 25, 50, 75, 100, 125, 150 percent for Intro, Easy,
+Average, Hard, Extreme, Impossible (the setting `lair_guard_percent` is not read).
+
+- *Budgets.* The article gives only ranges for the patch (towers 700 to 3,050; weak sites 30 to 600
+  on Arcanus and 900 on Myrror; strong sites 300 to 4,250 and 4,750). The steps are those that
+  fit them: tower `650 + 50 x Random(48)`, weak `30 x Random(20)` and `30 x Random(30)`, strong
+  `250 + 50 x Random(80)` and `250 + 50 x Random(90)`. A different formula with the same ranges
+  would give other averages; replace the numbers in `lairs.ron` if the patch's code is found.
+- *Costs.* The article lists the costs of a realm in order, not by unit. The Night Stalker and the
+  Werewolves, both 250 in 1.31, are 200 and 300 in some order; this is a guess (Night Stalker 200).
+  The costs change only the guards of new lairs, not the units' own cost, and not the monsters a
+  rampage buys (`threat/monster.rs` keeps the 1.31 costs).
+
+**Patch treasure** (`treasure_patch_150`, `fill_hoard_150`). The hoard's value is the guards' full
+cost (the second kind at 100 percent, not 50), times 100 percent on Arcanus and 125 on Myrror (towers
+count as Arcanus), plus 75: nothing random and no reverse of the difficulty. (The article says the
+patch's code adds only 30, so a site can be empty; the notes say 75, which is used.) The table is of
+15: gold 3, mana 3, item 3, prisoner 1, spell 4, book or retort 1. Gold is `50 x Random(20)` and mana
+`40 x Random(20)`, at most what is left, and cost exactly what they give; an item is worth
+`100 + 100 x Random(50)` at most what is left and is made at up to 120 percent of that; a prisoner
+costs 400; a spell of rarity r costs `150 r r`, there is one at most and the rolls do not add up; a
+book or retort costs 800 (two picks from 2,000 left), 44 percent of the rolls for it are thrown
+back, and it takes the place of a spell but no longer clears the gold, mana, items and prisoner. A
+tower rolls a spell first, without the 100 discount, and has none when it cannot afford the rarity.
+Not done: letting a prisoner be freed with a full stack of nine (the notes' 021 is about the
+cost), and the 1.51 fix of the empty sites.
+

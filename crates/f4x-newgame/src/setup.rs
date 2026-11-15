@@ -103,6 +103,10 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         original_generator: settings.basic.original_map_generator,
         lair_guard_percent: settings.world.lair_guard_percent,
         lair_treasure_percent: settings.world.lair_treasure_percent,
+        lair_style: f4x_core::rules::lair::LairStyle {
+            stronger: settings.rules.stronger_lairs,
+            treasure: settings.rules.treasure_patch_150,
+        },
         ..GenParams::sized(
             u32::from(settings.basic.map_width),
             u32::from(settings.basic.map_height),

@@ -29,7 +29,21 @@ pub fn generate_lairs(
     content: &Content,
 ) -> Vec<(Position, Lair)> {
     let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x1A12_5EED_600D_5CA1);
-    let guards = i32::from(params.lair_guard_percent.min(300));
+    let style = params.lair_style;
+    // Patch 1.50's scale of the guards by difficulty replaces the setting's percent; its treasure
+    // has no reverse of the difficulty.
+    let guards = if style.stronger {
+        content
+            .rules
+            .lairs
+            .patch_150
+            .guard_percent
+            .get(usize::from(params.difficulty))
+            .copied()
+            .unwrap_or(100)
+    } else {
+        i32::from(params.lair_guard_percent.min(300))
+    };
     let treasure = i32::from(params.lair_treasure_percent.min(500));
     let magic = i32::from(params.magic_strength.min(2));
     let mut lairs: Vec<(Position, Lair)> = Vec::new();
@@ -48,7 +62,7 @@ pub fn generate_lairs(
                     continue;
                 }
                 seen_towers.push((x, y));
-                let budget = create::tower_budget(&mut rng, content);
+                let budget = create::tower_budget(&mut rng, content, style);
                 let lair = create::create(
                     &mut rng,
                     content,
@@ -57,6 +71,7 @@ pub fn generate_lairs(
                     budget,
                     guards,
                     treasure,
+                    style,
                 );
                 lairs.push((
                     Position {
@@ -79,6 +94,7 @@ pub fn generate_lairs(
             budget,
             guards,
             treasure,
+            style,
         );
         lairs.push((*pos, lair));
     }
@@ -113,7 +129,7 @@ pub fn generate_lairs(
         flags
     };
     for (i, &(plane, x, y, def)) in sites.iter().enumerate() {
-        let budget = create::site_budget(&mut rng, content, plane, strong[i]);
+        let budget = create::site_budget(&mut rng, content, plane, strong[i], style);
         let lair = create::create(
             &mut rng,
             content,
@@ -122,6 +138,7 @@ pub fn generate_lairs(
             budget,
             guards,
             treasure,
+            style,
         );
         lairs.push((Position { plane, x, y }, lair));
     }
@@ -241,5 +258,93 @@ mod tests {
     #[test]
     fn generated_lairs_for_a_seed_stay_the_same() {
         assert_eq!(lair_checksum(), 11_489_091_015_628_393_938);
+    }
+
+    /// The two switches of patch 1.50 on a busy map: the guards are stronger and follow the
+    /// patch's scale of difficulty (not `lair_guard_percent`), the treasure ignores
+    /// `lair_treasure_percent`, and each switch alone leaves the other's numbers as they were.
+    #[test]
+    fn the_patch_switches_change_the_guards_and_the_treasure_of_a_new_world() {
+        use f4x_core::rules::lair::LairStyle;
+        let c = shipped();
+        let map = grass_map(c, 24, 14);
+        let mut placed = Placed::new(24, 14);
+        let id = |n: u16| c.features.id_numbered(n).expect("id_numbered succeeds");
+        for (i, plane) in Plane::all().enumerate() {
+            for k in 0..10u32 {
+                placed.set(plane, 1 + k, 1 + 4 * i as u32, id(MONSTER_LAIR));
+            }
+        }
+        let make = |style: LairStyle, guard_percent: u16, treasure_percent: u16| {
+            let params = GenParams {
+                strong_sites: 10,
+                weak_sites: 10,
+                difficulty: 3, // Hard: 100 percent of the guards in both scales
+                lair_guard_percent: guard_percent,
+                lair_treasure_percent: treasure_percent,
+                lair_style: style,
+                ..GenParams::default()
+            };
+            generate_lairs(5, &params, &map, &placed, &[], c)
+        };
+        let guards =
+            |lairs: &[(Position, Lair)]| lairs.iter().map(|(_, l)| l.guard_count()).sum::<u32>();
+        let treasure = |lairs: &[(Position, Lair)]| {
+            lairs
+                .iter()
+                .map(|(_, l)| l.gold + l.mana + l.items.iter().sum::<u32>())
+                .sum::<u32>()
+        };
+        let original = make(LairStyle::default(), 100, 100);
+        let stronger = make(
+            LairStyle {
+                stronger: true,
+                treasure: false,
+            },
+            25,
+            100,
+        );
+        assert!(
+            guards(&stronger) > guards(&original),
+            "stronger budgets, whatever the setting says"
+        );
+        assert_eq!(
+            stronger,
+            make(
+                LairStyle {
+                    stronger: true,
+                    treasure: false
+                },
+                300,
+                100
+            ),
+            "the percent of the setting is not read"
+        );
+        let patch_treasure = make(
+            LairStyle {
+                stronger: false,
+                treasure: true,
+            },
+            100,
+            100,
+        );
+        assert_eq!(
+            patch_treasure,
+            make(
+                LairStyle {
+                    stronger: false,
+                    treasure: true
+                },
+                100,
+                400
+            ),
+            "the treasure percent is not read"
+        );
+        assert_ne!(treasure(&patch_treasure), treasure(&original));
+        assert_ne!(
+            original,
+            make(LairStyle::default(), 100, 400),
+            "the original reads it"
+        );
     }
 }

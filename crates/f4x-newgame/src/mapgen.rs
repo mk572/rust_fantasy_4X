@@ -42,6 +42,8 @@ pub struct GenParams {
     pub lair_guard_percent: u16,
     /// Treasure of lairs as a percent (`world.lair_treasure_percent`).
     pub lair_treasure_percent: u16,
+    /// Which of patch 1.50's lair changes apply (`rules.stronger_lairs`, `rules.treasure_patch_150`).
+    pub lair_style: f4x_core::rules::lair::LairStyle,
     /// The game's node setting, 0 weak to 2 powerful.
     pub magic_strength: u8,
     /// Make the land with the original's random-walk generator (`mapgen/original.rs`) instead of
@@ -63,6 +65,7 @@ impl Default for GenParams {
             difficulty: 2,
             lair_guard_percent: 75,
             lair_treasure_percent: 133,
+            lair_style: f4x_core::rules::lair::LairStyle::default(),
             magic_strength: 1,
             original_generator: false,
             planes: [

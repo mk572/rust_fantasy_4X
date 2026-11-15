@@ -349,6 +349,19 @@ pub struct RuleSettings {
     /// always succeeds but can fail.
     #[serde(default = "fb_spell_binding_always_succeeds")]
     pub spell_binding_always_succeeds: bool,
+    /// Patch 1.50 (notes 013, 015, 001): stronger lairs. Off (the original): the budgets, divisors,
+    /// creature costs and difficulty scale of version 1.31. On: those of the patch (towers and
+    /// sites with far larger budgets, up to six of the first kind of guard, the patch's costs, the
+    /// guards at 150 percent on Impossible). `docs/lairs.md`, "Patch 1.50".
+    #[serde(default = "fb_stronger_lairs")]
+    pub stronger_lairs: bool,
+    /// Patch 1.50 (notes 016 to 025): the patch's treasure. Off (the original): the budget is the
+    /// guards' value with a random share and a reverse of the difficulty, a table of 2 gold, 2
+    /// mana, 5 items, 1 prisoner, 3 spells and 2 books or retorts of 15. On: the budget is the
+    /// guards' value plus 75, nothing random, no reverse of the difficulty, and the table, prices
+    /// and amounts of the patch.
+    #[serde(default = "fb_treasure_patch_150")]
+    pub treasure_patch_150: bool,
     /// Patch 1.40 (IW114): an enemy's Suppress Magic does not counter the Spell of Return.
     #[serde(default = "fb_suppress_spares_return")]
     pub suppress_spares_return: bool,
@@ -479,6 +492,14 @@ fn fb_miners_guild_half_ore() -> bool {
 
 fn fb_spell_binding_always_succeeds() -> bool {
     fallback(|g| g.rules.spell_binding_always_succeeds, false)
+}
+
+fn fb_stronger_lairs() -> bool {
+    fallback(|g| g.rules.stronger_lairs, false)
+}
+
+fn fb_treasure_patch_150() -> bool {
+    fallback(|g| g.rules.treasure_patch_150, false)
 }
 
 fn fb_suppress_spares_return() -> bool {

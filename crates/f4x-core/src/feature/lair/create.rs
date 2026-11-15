@@ -10,7 +10,7 @@ use rand_pcg::Pcg64Mcg;
 use super::Lair;
 use crate::feature::def::FeatureKind;
 use crate::map::Plane;
-use crate::rules::lair::{HoardKind, LairRules};
+use crate::rules::lair::{HoardKind, LairRules, LairStyle, Roll};
 use crate::rules::{RealmId, UnitId};
 use f4x_def::content::Content;
 
@@ -85,9 +85,21 @@ fn dearest_under(
 fn pick_guards(
     rng: &mut Pcg64Mcg,
     rules: &LairRules,
+    style: LairStyle,
     list: &[(UnitId, i32)],
     mut budget: i32,
 ) -> (Vec<(UnitId, u32)>, i32, i32) {
+    // The patch's divisors and number of the first kind (1.50, note 015).
+    let (max_first, first_spread, second_spread) = if style.stronger {
+        let p = &rules.patch_150;
+        (p.max_first_guards, p.first_spread, p.second_spread)
+    } else {
+        (
+            rules.max_first_guards,
+            rules.first_spread,
+            rules.second_spread,
+        )
+    };
     let mut guards: Vec<(UnitId, u32)> = Vec::new();
     let draw = |rng: &mut Pcg64Mcg, budget: i32, spread: i32, not: Option<UnitId>| {
         for _ in 0..200 {
@@ -101,12 +113,12 @@ fn pick_guards(
     let mut first_value = 0;
     let mut second_value = 0;
     let mut first_count = 0;
-    if let Some((id, cost)) = draw(rng, budget, rules.first_spread, None) {
+    if let Some((id, cost)) = draw(rng, budget, first_spread, None) {
         let mut count = budget / cost;
         if count > 1 && random(rng, 2) == 1 {
             count -= 1;
         }
-        count = count.min(rules.max_first_guards);
+        count = count.min(max_first);
         budget -= cost * count;
         first_count = count;
         first_value = cost * count;
@@ -114,12 +126,7 @@ fn pick_guards(
     }
     if first_count > 0 {
         let first_id = guards[0].0;
-        if let Some((id, cost)) = draw(
-            rng,
-            budget,
-            rules.second_spread - first_count,
-            Some(first_id),
-        ) {
+        if let Some((id, cost)) = draw(rng, budget, second_spread - first_count, Some(first_id)) {
             let count = (budget / cost).min(rules.max_guards as i32 - first_count);
             if count > 0 {
                 second_value = cost * count;
@@ -135,6 +142,7 @@ fn pick_guards(
 fn fill_hoard(
     rng: &mut Pcg64Mcg,
     rules: &LairRules,
+    style: LairStyle,
     lair: &mut Lair,
     site: SiteType,
     plane: Plane,
@@ -142,6 +150,17 @@ fn fill_hoard(
     second_value: i32,
     treasure_percent: i32,
 ) {
+    if style.treasure {
+        fill_hoard_150(
+            rng,
+            rules,
+            lair,
+            site,
+            plane,
+            guard_value + second_value * rules.patch_150.second_share / 100,
+        );
+        return;
+    }
     let mut loot = guard_value + second_value * rules.second_share / 100;
     loot = loot * treasure_percent / 100;
     let plane_loot = rules.plane_loot[plane.index()];
@@ -228,6 +247,97 @@ fn fill_hoard(
     lair.special = special as u8;
 }
 
+/// The hoard of patch 1.50 (notes 016 to 025): a budget with nothing random in it, a table with
+/// more gold, mana and spells and fewer books and retorts, and a price for each kind that is the
+/// amount itself. `value` is the guards' value, the second kind at its full cost.
+fn fill_hoard_150(
+    rng: &mut Pcg64Mcg,
+    rules: &LairRules,
+    lair: &mut Lair,
+    site: SiteType,
+    plane: Plane,
+    value: i32,
+) {
+    let p = &rules.patch_150;
+    let mut loot = value * p.plane_loot_percent[plane.index()] / 100 + p.bonus;
+    // A spell (rarity 1 to 4) or a book or retort (5 and 6) shares one place; the book or retort
+    // replaces the spell and no longer clears the rest.
+    let mut special = 0i32;
+    let spell_price = |rarity: i32| rarity * rarity * p.spell_cost;
+    if site == SiteType::Tower {
+        // A tower tries for a spell first, with no discount, and must qualify for it.
+        let rarity = random(rng, rules.spell_rarities);
+        if spell_price(rarity) <= loot {
+            loot -= spell_price(rarity);
+            special = rarity;
+        }
+    }
+    let total: i32 = p.hoard.iter().map(|(_, w)| *w as i32).sum();
+    // An amount of `step * Random(coin_rolls)`, at most what is left, whole tens.
+    let coin = |rng: &mut Pcg64Mcg, step: i32, loot: i32| {
+        (random(rng, p.coin_rolls) * step).min(loot) / 10 * 10
+    };
+    let mut guard = 0;
+    while loot >= rules.min_loot && guard < 2000 {
+        guard += 1;
+        let mut slot = random(rng, total);
+        let kind = p
+            .hoard
+            .iter()
+            .find(|(_, w)| {
+                slot -= *w as i32;
+                slot <= 0
+            })
+            .map(|(k, _)| *k);
+        match kind {
+            Some(HoardKind::Gold) => {
+                let amount = coin(rng, p.gold_step, loot);
+                loot -= amount;
+                lair.gold += amount as u32;
+            }
+            Some(HoardKind::Mana) => {
+                let amount = coin(rng, p.mana_step, loot);
+                loot -= amount;
+                lair.mana += amount as u32;
+            }
+            Some(HoardKind::Item) => {
+                if lair.items.len() < rules.max_items && loot >= rules.item_min {
+                    let price =
+                        (p.item_base + random(rng, p.item_rolls) * p.item_step).min(loot) / 10 * 10;
+                    loot -= price;
+                    lair.items.push((price * p.item_max_percent / 100) as u32);
+                }
+            }
+            Some(HoardKind::Prisoner) => {
+                if loot >= rules.prisoner_min && !lair.prisoner {
+                    lair.prisoner = true;
+                    loot -= p.prisoner_cost;
+                }
+            }
+            Some(HoardKind::Spell) => {
+                // One spell a hoard, and none beside a book or retort; the rolls do not add up.
+                let rarity = random(rng, rules.spell_rarities);
+                if special == 0 && spell_price(rarity) <= loot {
+                    loot -= spell_price(rarity);
+                    special = rarity;
+                }
+            }
+            Some(HoardKind::Special) => {
+                // Most are thrown back and the table is rolled again.
+                if random(rng, 100) <= p.special_discard_percent {
+                    continue;
+                }
+                if special <= rules.spell_total && loot >= p.special_cost {
+                    special = if loot >= p.special_double_sure { 6 } else { 5 };
+                    loot -= p.special_cost;
+                }
+            }
+            None => {}
+        }
+    }
+    lair.special = special as u8;
+}
+
 /// Make one lair from its budget (the original's `Create_Lair`): the guards and the hoard.
 /// `guard_percent` and `treasure_percent` are the game's difficulty settings.
 #[allow(clippy::too_many_arguments)]
@@ -239,12 +349,20 @@ pub fn create(
     budget: i32,
     guard_percent: i32,
     treasure_percent: i32,
+    style: LairStyle,
 ) -> Lair {
     let rules = &content.rules.lairs;
     let budget = budget * guard_percent / 100;
-    let list = guard_realm(rng, site, content)
+    let mut list = guard_realm(rng, site, content)
         .map_or_else(Vec::new, |realm| super::candidates(content, realm));
-    let (guards, first, second) = pick_guards(rng, rules, &list, budget);
+    if style.stronger {
+        for (id, cost) in &mut list {
+            if let Some(&(_, new)) = rules.patch_150.costs.iter().find(|(n, _)| *n == id.num()) {
+                *cost = new;
+            }
+        }
+    }
+    let (guards, first, second) = pick_guards(rng, rules, style, &list, budget);
     let mut lair = Lair {
         intact: true,
         guards,
@@ -258,6 +376,7 @@ pub fn create(
     fill_hoard(
         rng,
         rules,
+        style,
         &mut lair,
         site,
         plane,
@@ -269,8 +388,13 @@ pub fn create(
 }
 
 /// The budget of a tower: the one lair the tower has on both planes.
-pub fn tower_budget(rng: &mut Pcg64Mcg, content: &Content) -> i32 {
-    let b = &content.rules.lairs.tower_budget;
+pub fn tower_budget(rng: &mut Pcg64Mcg, content: &Content, style: LairStyle) -> i32 {
+    let rules = &content.rules.lairs;
+    let b = if style.stronger {
+        &rules.patch_150.tower_budget
+    } else {
+        &rules.tower_budget
+    };
     b.base + b.step * random(rng, b.rolls)
 }
 
@@ -282,12 +406,23 @@ pub fn node_budget(rng: &mut Pcg64Mcg, content: &Content, power: i32, magic: i32
 }
 
 /// The budget of an encounter site on `plane`, a strong one or a weak one.
-pub fn site_budget(rng: &mut Pcg64Mcg, content: &Content, plane: Plane, strong: bool) -> i32 {
+pub fn site_budget(
+    rng: &mut Pcg64Mcg,
+    content: &Content,
+    plane: Plane,
+    strong: bool,
+    style: LairStyle,
+) -> i32 {
     let rules = &content.rules.lairs;
-    let roll = if strong {
-        rules.strong_budget[plane.index()]
+    let (strong_rolls, weak_rolls) = if style.stronger {
+        (&rules.patch_150.strong_budget, &rules.patch_150.weak_budget)
     } else {
-        rules.weak_budget[plane.index()]
+        (&rules.strong_budget, &rules.weak_budget)
+    };
+    let roll: Roll = if strong {
+        strong_rolls[plane.index()]
+    } else {
+        weak_rolls[plane.index()]
     };
     roll.base + random(rng, roll.rolls) * roll.step
 }
@@ -368,7 +503,8 @@ mod tests {
         let mut rng = Pcg64Mcg::seed_from_u64(1);
         for budget in [0, 20, 60, 200, 700, 1500, 4000] {
             for _ in 0..50 {
-                let (guards, first, second) = pick_guards(&mut rng, rules, &list, budget);
+                let (guards, first, second) =
+                    pick_guards(&mut rng, rules, LairStyle::default(), &list, budget);
                 let total: u32 = guards.iter().map(|g| g.1).sum();
                 assert!(total <= rules.max_guards, "{total} guards for {budget}");
                 assert!(first + second <= budget, "{first}+{second} over {budget}");
@@ -379,7 +515,7 @@ mod tests {
             }
         }
         // A budget below the cheapest unit buys nothing.
-        let (guards, ..) = pick_guards(&mut rng, rules, &list, 20);
+        let (guards, ..) = pick_guards(&mut rng, rules, LairStyle::default(), &list, 20);
         assert!(guards.is_empty());
     }
 
@@ -451,6 +587,7 @@ mod tests {
                 200 + (i % 40) * 100,
                 75,
                 133,
+                LairStyle::default(),
             );
             assert_eq!(l.gold % 10, 0);
             assert_eq!(l.mana % 10, 0);
@@ -480,11 +617,159 @@ mod tests {
                         900,
                         guard_percent,
                         100,
+                        LairStyle::default(),
                     )
                     .guard_count()
                 })
                 .sum::<u32>()
         };
         assert!(value(125) > value(25));
+    }
+
+    const STRONGER: LairStyle = LairStyle {
+        stronger: true,
+        treasure: false,
+    };
+    const TREASURE_150: LairStyle = LairStyle {
+        stronger: false,
+        treasure: true,
+    };
+
+    /// Patch 1.50's budgets, from the ranges of the wiki's Encounter Zone article.
+    #[test]
+    fn the_stronger_lairs_have_the_patchs_budget_ranges() {
+        let c = crate::game::testutil::shipped();
+        let span = |f: &dyn Fn(&mut Pcg64Mcg) -> i32| {
+            let mut rng = Pcg64Mcg::seed_from_u64(3);
+            let v: Vec<i32> = (0..6000).map(|_| f(&mut rng)).collect();
+            (*v.iter().min().unwrap_or(&0), *v.iter().max().unwrap_or(&0))
+        };
+        assert_eq!(span(&|r| tower_budget(r, &c, STRONGER)), (700, 3050));
+        assert_eq!(
+            span(&|r| tower_budget(r, &c, LairStyle::default())),
+            (700, 1200)
+        );
+        let site = |plane, strong| span(&|r| site_budget(r, &c, plane, strong, STRONGER));
+        assert_eq!(site(Plane::Arcanus, false), (30, 600));
+        assert_eq!(site(Plane::Myrror, false), (30, 900));
+        assert_eq!(site(Plane::Arcanus, true), (300, 4250));
+        assert_eq!(site(Plane::Myrror, true), (300, 4750));
+    }
+
+    #[test]
+    fn the_stronger_lairs_have_six_of_the_first_kind_and_the_patchs_costs() {
+        let c = crate::game::testutil::shipped();
+        let rules = &c.rules.lairs;
+        let mut rng = Pcg64Mcg::seed_from_u64(4);
+        // A death guard list with the patch's costs: no two units of one cost.
+        let mut list = super::super::candidates(&c, realm(4 /* death */));
+        for (id, cost) in &mut list {
+            if let Some(&(_, new)) = rules.patch_150.costs.iter().find(|(n, _)| *n == id.num()) {
+                *cost = new;
+            }
+        }
+        let mut costs: Vec<i32> = list.iter().map(|c| c.1).collect();
+        costs.sort_unstable();
+        assert_eq!(costs, [25, 30, 80, 125, 200, 300, 325, 500, 600, 900]);
+        for budget in [200, 700, 1500, 4000, 8000] {
+            for _ in 0..80 {
+                let (guards, first, second) = pick_guards(&mut rng, rules, STRONGER, &list, budget);
+                assert!(first + second <= budget);
+                assert!(guards.iter().map(|g| g.1).sum::<u32>() <= rules.max_guards);
+                if let Some(g) = guards.first() {
+                    assert!(g.1 <= 6, "{} of the first kind", g.1);
+                }
+            }
+        }
+        // The costs of every realm are all different, as the patch meant.
+        for r in 0..5 {
+            let mut list = super::super::candidates(&c, realm(r));
+            for (id, cost) in &mut list {
+                if let Some(&(_, new)) = rules.patch_150.costs.iter().find(|(n, _)| *n == id.num())
+                {
+                    *cost = new;
+                }
+            }
+            let mut costs: Vec<i32> = list.iter().map(|c| c.1).collect();
+            costs.sort_unstable();
+            costs.dedup();
+            assert_eq!(costs.len(), list.len(), "realm {r}");
+        }
+    }
+
+    /// Patch 1.50's treasure: nothing random in the budget, the second kind at its full cost,
+    /// 75 more, and a book or retort does not clear the rest.
+    #[test]
+    fn the_patchs_treasure_has_no_random_budget_and_keeps_the_rest_beside_a_book() {
+        let c = crate::game::testutil::shipped();
+        let mut rng = Pcg64Mcg::seed_from_u64(8);
+        let (mut book_with_more, mut saw_items) = (false, false);
+        for i in 0..4000 {
+            let plane = if i % 2 == 0 {
+                Plane::Arcanus
+            } else {
+                Plane::Myrror
+            };
+            let l = create(
+                &mut rng,
+                &c,
+                plane,
+                SiteType::Wild,
+                300 + (i % 60) * 150,
+                100,
+                // The setting's treasure percent is not read.
+                400,
+                TREASURE_150,
+            );
+            assert_eq!(l.gold % 10, 0);
+            assert_eq!(l.mana % 10, 0);
+            assert!(l.items.len() <= 3 && l.special <= 6);
+            // An item is kept at 120 percent of a price of 200 or more (the article: 240 to 6,120).
+            assert!(l.items.iter().all(|&v| (240..=6120).contains(&v)));
+            saw_items |= !l.items.is_empty();
+            if l.special > 4 && (l.gold + l.mana > 0 || !l.items.is_empty() || l.prisoner) {
+                book_with_more = true;
+            }
+        }
+        assert!(saw_items && book_with_more);
+        // The value of a hoard follows the guards alone: the same guards on Myrror give a quarter
+        // more, whatever the difficulty's percent.
+        let total = |plane, percent| {
+            let mut rng = Pcg64Mcg::seed_from_u64(21);
+            (0..300)
+                .map(|_| {
+                    let l = create(
+                        &mut rng,
+                        &c,
+                        plane,
+                        SiteType::Wild,
+                        1500,
+                        100,
+                        percent,
+                        TREASURE_150,
+                    );
+                    l.gold + l.mana + l.items.iter().sum::<u32>() + l.special as u32 * 1000
+                })
+                .sum::<u32>()
+        };
+        assert_eq!(total(Plane::Arcanus, 400), total(Plane::Arcanus, 100));
+        assert!(total(Plane::Myrror, 100) > total(Plane::Arcanus, 100));
+        // A site that guards nothing still has its 75 for a little gold or mana.
+        let mut gifts = 0;
+        for _ in 0..300 {
+            let l = create(
+                &mut rng,
+                &c,
+                Plane::Arcanus,
+                SiteType::Wild,
+                0,
+                100,
+                100,
+                TREASURE_150,
+            );
+            assert!(l.items.is_empty() && !l.prisoner && l.special == 0);
+            gifts += l.gold + l.mana;
+        }
+        assert!(gifts > 0);
     }
 }

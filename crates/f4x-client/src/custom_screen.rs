@@ -439,6 +439,16 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.spell_binding_always_succeeds = v != 0,
         ),
         flag(
+            "custom.stronger_lairs",
+            |s| s.rules.stronger_lairs.into(),
+            |s, v| s.rules.stronger_lairs = v != 0,
+        ),
+        flag(
+            "custom.treasure_patch_150",
+            |s| s.rules.treasure_patch_150.into(),
+            |s, v| s.rules.treasure_patch_150 = v != 0,
+        ),
+        flag(
             "custom.suppress_spares_return",
             |s| s.rules.suppress_spares_return.into(),
             |s, v| s.rules.suppress_spares_return = v != 0,

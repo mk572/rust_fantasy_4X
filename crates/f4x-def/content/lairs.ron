@@ -64,4 +64,43 @@
     special_double_min: 3000,
     special_double_sure: 2000,
     special_min: 1000,
+
+    // Patch 1.50 (`docs/lairs.md`), used by the settings `stronger_lairs` and `treasure_patch_150`.
+    patch_150: (
+        // Stronger lairs. The wiki's Encounter Zone article gives the ranges (tower 700 to 3,050,
+        // weak sites 30 to 600 and 900, strong sites 300 to 4,250 and 4,750); the steps are the
+        // ones that fit them.
+        tower_budget: (base: 650, rolls: 48, step: 50),
+        strong_budget: ((base: 250, rolls: 80, step: 50), (base: 250, rolls: 90, step: 50)),
+        weak_budget: ((base: 0, rolls: 20, step: 30), (base: 0, rolls: 30, step: 30)),
+        max_first_guards: 6,
+        first_spread: 6,
+        second_spread: 9,
+        // The share of the budget by difficulty level: Intro, Easy, Average, Hard, Extreme, Impossible.
+        guard_percent: [25, 50, 75, 100, 125, 150],
+        // The creature costs the patch changed (unit number, cost). The patch's table lists the
+        // costs of a realm in order; the Night Stalker and the Werewolves, both 250 before, are
+        // taken as 200 and 300.
+        costs: [
+            (186, 600), (181, 300), (183, 225), (187, 150), (192, 50), (194, 200),
+            (191, 325), (176, 75), (169, 125), (167, 200), (168, 300),
+        ],
+        // Treasure.
+        second_share: 100,
+        plane_loot_percent: (100, 125),
+        bonus: 75,
+        hoard: [(Gold, 3), (Mana, 3), (Item, 3), (Prisoner, 1), (Spell, 4), (Special, 1)],
+        coin_rolls: 20,
+        gold_step: 50,
+        mana_step: 40,
+        item_base: 100,
+        item_rolls: 50,
+        item_step: 100,
+        item_max_percent: 120,
+        prisoner_cost: 400,
+        spell_cost: 150,
+        special_cost: 800,
+        special_discard_percent: 44,
+        special_double_sure: 2000,
+    ),
 )
