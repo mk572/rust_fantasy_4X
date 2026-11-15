@@ -2263,3 +2263,22 @@ fn the_income_shown_is_the_gold_the_turn_change_pays() -> TestResult {
     }
     Ok(())
 }
+
+/// Patch 1.50, note 210: a building destroyed and built again in the same turn works. Nothing is
+/// cached on the city: the economy reads the list of buildings each time.
+#[test]
+fn a_building_destroyed_and_built_again_in_the_same_turn_works() -> TestResult {
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 6);
+    add_building(&mut g, city, 8 /* smithy */);
+    add_building(&mut g, city, 26 /* marketplace */);
+    let gold = |g: &Game| g.economy().city_economy(city).map(|e| e.gold);
+    let with = gold(&g);
+    let market = building(&g, 26 /* marketplace */);
+    g.destroy_building(city, market)
+        .map_err(|e| format!("{e:?}"))?;
+    assert!(gold(&g) < with, "the marketplace counted");
+    add_building(&mut g, city, 26 /* marketplace */);
+    assert_eq!(gold(&g), with);
+    Ok(())
+}

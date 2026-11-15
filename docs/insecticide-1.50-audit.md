@@ -326,7 +326,13 @@ The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fando
 | 176, 465 Call Lightning's bolts; sound-off crash | **Not present.** Three to five bolts, each try on a random unit (an even chance of using it), up to 30 tries between bolts; the test `wrack_and_call_lightning_hurt_the_casters_enemies_at_the_start_of_each_turn` checks it. Sound is not in the rules code. |
 | 177 Call Chaos disintegrates units that resist | **Not present.** Outcome 8 is Disintegrate's own effect: the unit goes only when its resistance is under 10. Test `disintegrate_as_call_chaos_throws_it_spares_the_unit_that_resists`. |
 
-Next: row 210 and the rest of the table in order.
+### Walked on 15 November 2026: 210
+
+| Rows | Verdict |
+|---|---|
+| 210 A building destroyed and built again the same turn has no effect | **Not present.** The city holds only its list of buildings and the economy reads it each time; no effect is stored on the city. Test `a_building_destroyed_and_built_again_in_the_same_turn_works` (the marketplace's gold goes with the building and comes back with it). |
+
+Next: row 220 and the rest of the table in order.
 
 ## P2 code review: first pass
 
