@@ -537,8 +537,38 @@ pub fn wizards(view: &Game) -> Vec<PlayerId> {
     out
 }
 
-/// The relation two wizards start with, from their books (`Init_Diplomatic_Relations`).
+/// How a book of realm `x` stands to a book of realm `y` on the colour wheel, per book of the
+/// smaller side: the same realm is kin, the two realms next to it on the wheel are allies and
+/// the other two are opposed. The wheel runs Chaos, Nature, Life, Sorcery, Death and back to
+/// Chaos (so Chaos is allied with Nature and Death and opposes Life and Sorcery, and so on).
+fn wheel_affinity(x: RealmId, y: RealmId) -> i32 {
+    // The realms' numbers in wheel order: chaos, nature, life, sorcery, death.
+    const WHEEL: [u16; 5] = [2, 0, 3, 1, 4];
+    let place = |r: RealmId| WHEEL.iter().position(|&n| n == r.num());
+    let (Some(i), Some(j)) = (place(x), place(y)) else {
+        return 0;
+    };
+    match (i + 5 - j) % 5 {
+        0 => 2,
+        1 | 4 => 1,
+        _ => -3,
+    }
+}
+
+/// The relation two wizards start with, from their books (`Init_Diplomatic_Relations`), or
+/// from the colour wheel when the setting `color_wheel_relations` is on.
 fn start_relation(view: &Game, a: PlayerId, b: PlayerId) -> i32 {
+    if view.settings.rules.color_wheel_relations {
+        let realms = [2u16, 0, 3, 1, 4].map(RealmId::new);
+        let books =
+            |p: PlayerId, r: RealmId| -> i32 { view.wizard(p).map_or(0, |m| m.books_in(r)) };
+        let score: i32 = realms
+            .iter()
+            .flat_map(|&x| realms.iter().map(move |&y| (x, y)))
+            .map(|(x, y)| books(a, x).min(books(b, y)) * wheel_affinity(x, y))
+            .sum();
+        return score.max(-90);
+    }
     let books =
         |p: PlayerId, realm: RealmId| -> i32 { view.wizard(p).map_or(0, |m| m.books_in(realm)) };
     let death = RealmId::new(4); // death

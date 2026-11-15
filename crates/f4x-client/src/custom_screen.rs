@@ -444,6 +444,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.roads_at_start = v != 0,
         ),
         flag(
+            "custom.color_wheel_relations",
+            |s| s.rules.color_wheel_relations.into(),
+            |s, v| s.rules.color_wheel_relations = v != 0,
+        ),
+        flag(
             "custom.defeat_loot",
             |s| s.rules.defeat_loot.into(),
             |s, v| s.rules.defeat_loot = v != 0,

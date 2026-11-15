@@ -90,6 +90,15 @@ smaller of their books. The score is raised to at least -90 (`SETMIN(score, -90)
 `SETMIN` is a maximum), becomes both the visible and the default relation, and the peace
 duration starts at 0.
 
+**Colour wheel (our own option, `color_wheel_relations`, off by default).** The realms sit on a
+wheel, Chaos, Nature, Life, Sorcery, Death and back to Chaos. Each realm is allied with its two
+neighbours and opposed to the other two: Chaos allies Nature and Death and opposes Life and
+Sorcery; Nature allies Life and Chaos, opposes Sorcery and Death; Life allies Nature and Sorcery,
+opposes Chaos and Death; Sorcery allies Life and Death, opposes Nature and Chaos; Death allies
+Sorcery and Chaos, opposes Life and Nature. The start score adds, for every pair of books (one of
+each wizard), the smaller count times +2 for the same realm, +1 for an ally and -3 for an opposed
+realm, and is raised to at least -90 as above. The numbers are ours (`wheel_affinity`).
+
 ## 3. Contact
 
 Wizards are *contacted* when one of them scouts a square holding the other's city or a visible

@@ -97,6 +97,47 @@ fn the_scale_runs_from_hate_to_harmony() {
 }
 
 #[test]
+fn the_colour_wheel_allies_and_opposes_the_realms() -> TestResult {
+    use crate::rules::RealmId;
+    // The wheel from the design: (realm, its two allies, its two opposed), by realm number.
+    // nature 0, sorcery 1, chaos 2, life 3, death 4.
+    let wheel = [
+        (2, [0, 4], [3, 1]),
+        (0, [3, 2], [1, 4]),
+        (3, [0, 1], [2, 4]),
+        (1, [3, 4], [0, 2]),
+        (4, [1, 2], [3, 0]),
+    ];
+    let mut g = world();
+    g.settings.rules.color_wheel_relations = true;
+    let start = |g: &mut Game, x: u16, y: u16| -> Result<i32, String> {
+        g.init_wizard(P0, &[(RealmId::new(x), 2)], &[], None)
+            .map_err(|e| format!("{e:?}"))?;
+        g.init_wizard(P1, &[(RealmId::new(y), 2)], &[], None)
+            .map_err(|e| format!("{e:?}"))?;
+        Ok(g.relation(P0, P1))
+    };
+    for (realm, allies, opposed) in wheel {
+        assert_eq!(start(&mut g, realm, realm)?, 4, "{realm} with itself");
+        for other in allies {
+            assert_eq!(
+                start(&mut g, realm, other)?,
+                2,
+                "{realm} allied with {other}"
+            );
+            assert_eq!(start(&mut g, other, realm)?, 2, "and the other way round");
+        }
+        for other in opposed {
+            assert_eq!(start(&mut g, realm, other)?, -6, "{realm} opposes {other}");
+        }
+    }
+    // Off, it is the original's formula: life against death.
+    g.settings.rules.color_wheel_relations = false;
+    assert_eq!(start(&mut g, 3, 4)?, -20);
+    Ok(())
+}
+
+#[test]
 fn start_relations_come_from_the_books() -> TestResult {
     let mut g = world();
     // Life against death: -(life + death) * 5, no shared realm.

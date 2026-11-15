@@ -233,6 +233,8 @@ fn v131_has_the_originals_ships_and_monster_turn_and_v160_has_eight_carrying_shi
     assert!(v131.rules.roads_at_start && v160.rules.roads_at_start);
     // Half the loser's gold and mana to the victor of a wizard: the original's, on in both.
     assert!(v131.rules.defeat_loot && v160.rules.defeat_loot);
+    // The colour wheel is our own option: off in both.
+    assert!(!v131.rules.color_wheel_relations && !v160.rules.color_wheel_relations);
     // The community patch undoes patch 1.50's lair and treasure changes: both off in both.
     assert!(!v131.rules.stronger_lairs && !v160.rules.stronger_lairs);
     assert!(!v131.rules.treasure_patch_150 && !v160.rules.treasure_patch_150);

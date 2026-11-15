@@ -362,6 +362,12 @@ pub struct RuleSettings {
     /// nothing and the loser's treasury is lost with them.
     #[serde(default = "fb_defeat_loot")]
     pub defeat_loot: bool,
+    /// How two wizards' relations start. Off (the original, `Init_Diplomatic_Relations`): from
+    /// their books, Life against Death hostile, Chaos a penalty, shared realms a bonus. On: the
+    /// colour wheel, each realm allied with two others and opposed to two, and a wizard's books
+    /// weigh by how their realm stands to the other's (`docs/diplomacy.md`).
+    #[serde(default = "fb_color_wheel_relations")]
+    pub color_wheel_relations: bool,
     /// Patch 1.50 (notes 013, 015, 001): stronger lairs. Off (the original): the budgets, divisors,
     /// creature costs and difficulty scale of version 1.31. On: those of the patch (towers and
     /// sites with far larger budgets, up to six of the first kind of guard, the patch's costs, the
@@ -505,6 +511,10 @@ fn fb_miners_guild_half_ore() -> bool {
 
 fn fb_spell_binding_always_succeeds() -> bool {
     fallback(|g| g.rules.spell_binding_always_succeeds, false)
+}
+
+fn fb_color_wheel_relations() -> bool {
+    fallback(|g| g.rules.color_wheel_relations, false)
 }
 
 fn fb_defeat_loot() -> bool {
