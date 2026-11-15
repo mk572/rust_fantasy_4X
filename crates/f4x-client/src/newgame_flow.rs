@@ -767,6 +767,15 @@ impl CreateState {
             self.build
                 .retorts
                 .insert(f4x_core::wizard::magic::Retort::new(0) /* alchemy */);
+            // `custom-longpicks`: six retorts with the longest names, for the abilities line.
+            if name == "longpicks" {
+                self.build.retorts.clear();
+                for n in [4, 3, 2, 11, 12, 5] {
+                    self.build
+                        .retorts
+                        .insert(f4x_core::wizard::magic::Retort::new(n));
+                }
+            }
         } else {
             self.pick_preset(app, Some(0));
             self.custom = false;
@@ -775,7 +784,7 @@ impl CreateState {
         self.step = match name {
             "portrait" => Step::Portrait,
             "name" => Step::Name,
-            "picks" => Step::Picks,
+            "picks" | "longpicks" => Step::Picks,
             "spells" => {
                 self.next_spells(app, 0);
                 self.step
