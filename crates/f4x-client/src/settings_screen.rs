@@ -41,10 +41,11 @@ const ROWS: &[(Pref, f32, f32)] = &[
     (Pref::ExpandingHelp, 192.0, 134.0),
     (Pref::LeftClickMoves, 192.0, 145.0),
     (Pref::DimBehindBoxes, 192.0, 156.0),
+    (Pref::EdgeScrolling, 192.0, 165.0),
 ];
 
 /// The help topic of a switch: the original's topics (`settings Help` in `help_screens.ron`)
-/// and 807 to 809 for the switches it has not got. The area table of the original is not used
+/// and 807 to 810 for the switches it has not got. The area table of the original is not used
 /// on this screen, because our rows sit elsewhere.
 pub(crate) fn help_topic(pref: Pref) -> u16 {
     match pref {
@@ -67,6 +68,7 @@ pub(crate) fn help_topic(pref: Pref) -> u16 {
         Pref::ExpandingHelp => 692,
         Pref::LeftClickMoves => 808,
         Pref::DimBehindBoxes => 809,
+        Pref::EdgeScrolling => 810,
     }
 }
 

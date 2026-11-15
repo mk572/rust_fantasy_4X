@@ -105,6 +105,9 @@ pub struct Snapshot {
     /// computer players that start afresh.
     #[serde(default)]
     pub plans: Vec<(crate::player::PlayerId, String)>,
+    /// The map locations the players saved (`Game::locations`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub locations: Vec<(crate::player::PlayerId, u8, crate::map::Position)>,
     /// Override (cheat) commands used in this game.
     pub override_log: Vec<String>,
     /// The prefab items already given out (`Make_Item` gives each once a game).
@@ -1033,6 +1036,7 @@ impl Game {
             threat: self.threat,
             flow: self.flow.clone(),
             plans: self.plans.clone(),
+            locations: self.locations.clone(),
             override_log: self.override_log.clone(),
             prefab_taken: self.prefab_taken.clone(),
             map,
@@ -1209,6 +1213,7 @@ impl Snapshot {
         game.threat = self.threat;
         game.flow = self.flow;
         game.plans = self.plans;
+        game.locations = self.locations;
         game.next_serial = self.next_serial;
         // Resume the random stream where it stopped.
         game.rng = crate::game::rng::GameRng::resume(self.seed, self.draws);

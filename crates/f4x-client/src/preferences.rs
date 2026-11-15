@@ -1,6 +1,6 @@
 //! The player's preferences: the original's Settings screen, `MAGIC.SET`, and two of
-//! ours (Left Click Moves Units; off: a right click moves; Play Intro; Dim Behind Boxes).
-//! Nineteen switches that change how the game is shown or asked about, not its rules. They live outside
+//! ours (Left Click Moves Units; off: a right click moves; Play Intro; Dim Behind Boxes; Edge Scrolling).
+//! Twenty switches that change how the game is shown or asked about, not its rules. They live outside
 //! the saves, in `saves/preferences.txt`, one `name=0|1` line each, so every game shares them.
 
 use std::collections::BTreeMap;
@@ -28,6 +28,7 @@ pub(crate) enum Pref {
     LeftClickMoves,
     PlayIntro,
     DimBehindBoxes,
+    EdgeScrolling,
 }
 
 pub(crate) const PREFS: &[Pref] = &[
@@ -50,6 +51,7 @@ pub(crate) const PREFS: &[Pref] = &[
     Pref::LeftClickMoves,
     Pref::PlayIntro,
     Pref::DimBehindBoxes,
+    Pref::EdgeScrolling,
 ];
 
 impl Pref {
@@ -75,6 +77,7 @@ impl Pref {
             Pref::LeftClickMoves => "left_click_moves",
             Pref::PlayIntro => "play_intro",
             Pref::DimBehindBoxes => "dim_behind_boxes",
+            Pref::EdgeScrolling => "edge_scrolling",
         }
     }
 
@@ -100,12 +103,14 @@ impl Pref {
             Pref::LeftClickMoves => "preferences.left_click_moves",
             Pref::PlayIntro => "preferences.play_intro",
             Pref::DimBehindBoxes => "preferences.dim_behind_boxes",
+            Pref::EdgeScrolling => "preferences.edge_scrolling",
         }
     }
 
-    /// The state without a `client_settings.ron`: everything is on except strategic combat.
+    /// The state without a `client_settings.ron`: everything is on except strategic combat and
+    /// edge scrolling.
     fn default_on(self) -> bool {
-        self != Pref::StrategicCombatOnly
+        !matches!(self, Pref::StrategicCombatOnly | Pref::EdgeScrolling)
     }
 }
 
@@ -217,10 +222,10 @@ mod tests {
     use f4x_def::testdir::{TestDir, TestResult};
 
     #[test]
-    fn everything_is_on_but_strategic_combat() {
+    fn everything_is_on_but_strategic_combat_and_edge_scrolling() {
         let p = Preferences::default();
         assert!(p.get(Pref::SoundEffects) && p.get(Pref::SpellAnimations));
-        assert!(!p.get(Pref::StrategicCombatOnly));
+        assert!(!p.get(Pref::StrategicCombatOnly) && !p.get(Pref::EdgeScrolling));
     }
 
     #[test]

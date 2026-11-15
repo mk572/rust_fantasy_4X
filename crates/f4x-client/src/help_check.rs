@@ -172,9 +172,9 @@ mod tests {
                 .iter()
                 .filter_map(|r| r.help.map(i32::from)),
         );
-        // The three switches of the Settings screen the original has no topic for (the screen's
+        // The four switches of the Settings screen the original has no topic for (the screen's
         // `help_topic` in the client names them).
-        opened.extend([807, 808, 809]);
+        opened.extend([807, 808, 809, 810]);
         for t in &help.topics {
             assert!(
                 opened.contains(&i32::from(t.index)),

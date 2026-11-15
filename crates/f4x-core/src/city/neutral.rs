@@ -127,6 +127,9 @@ impl Game {
         if d > 2 && self.roll(5) == 1 {
             population = bonus + self.roll(10);
         }
+        // No more people than the land holds (1.60: neutral cities respect the terrain's
+        // maximum population).
+        population = population.min(self.economy().site_max_size(pos).max(1));
         let name = self.unused_city_name(race);
         let owner = self.race_player(race);
         let city = self.spawn_city(owner, pos, name, Some(race), population);

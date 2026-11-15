@@ -1,4 +1,4 @@
-// f4x save, version 4, game 0.0.7, checksum 3139859a84ab5697
+// f4x save, version 4, game 0.0.7, checksum df17bfc885616e55
 (
     version: 4,
     game_version: "0.0.7",
@@ -766,9 +766,9 @@
         name: "beastmen_city_11",
         owner: 101,
         pos: (plane: Myrror, x: 30, y: 14),
-        figures: 6,
+        figures: 5,
         tens: 0,
-        farmers: 4,
+        farmers: 3,
         race: Some(1),
         buildings: [3, 8, 32, 4],
         wards: [],

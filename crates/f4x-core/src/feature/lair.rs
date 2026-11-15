@@ -498,7 +498,14 @@ impl Game {
                 _ => {}
             }
         }
-        if !loot.books.is_empty() {
+        // A retort found brings the spells the retort starts a wizard with (an Artificer's
+        // Enchant Item and Create Artifact).
+        let found: Vec<_> = loot.retorts.clone();
+        let gifted: Vec<SpellId> = found
+            .into_iter()
+            .flat_map(|r| self.grant_retort_spells(player, r))
+            .collect();
+        if !loot.books.is_empty() || !gifted.is_empty() {
             self.refill_research(player);
         }
         // A hoard of a book or a retort that gave nothing (nothing left to give) pays an item
@@ -610,6 +617,33 @@ impl Game {
 }
 
 pub mod create;
+
+impl Game {
+    /// The spells a retort starts a wizard with (`spell_library.retort_known`), taught to a wizard
+    /// who gains the retort later and does not know them yet. Returns the spells learned.
+    pub(crate) fn grant_retort_spells(
+        &mut self,
+        player: PlayerId,
+        retort: crate::wizard::magic::Retort,
+    ) -> Vec<SpellId> {
+        let spells = self
+            .content
+            .settings
+            .spell_library
+            .retort_known
+            .get(&retort)
+            .cloned()
+            .unwrap_or_default();
+        let Some(mut w) = self.wizard_mut(player) else {
+            return Vec::new();
+        };
+        let new: Vec<SpellId> = spells.into_iter().filter(|&s| !w.view().knows(s)).collect();
+        for &spell in &new {
+            w.learn(spell);
+        }
+        new
+    }
+}
 
 #[cfg(test)]
 mod tests;

@@ -290,7 +290,7 @@ impl Page for MainMenuPage {
                 app.open_settings();
             }
             Some(Entry::Fame) => app.open_hall_of_fame(),
-            Some(Entry::Quit) => app.modals.open(QuitAsk),
+            Some(Entry::Quit) => app.modals.open(QuitAsk("menu.quit_question")),
             None => {}
         }
     }
@@ -298,7 +298,7 @@ impl Page for MainMenuPage {
 
 /// "Quit to the desktop?" over the start menu. Yes ends the program. The game that was left
 /// for this menu is already in the auto-save (leaving it writes one), so a quit loses nothing.
-pub(crate) struct QuitAsk;
+pub(crate) struct QuitAsk(pub(crate) &'static str);
 
 impl Modal for QuitAsk {
     fn kind(&self) -> &'static str {
@@ -306,7 +306,7 @@ impl Modal for QuitAsk {
     }
     fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
         let lay = Layout::new();
-        let text = app.text("menu.quit_question");
+        let text = app.text(self.0);
         let answer = app.confirmation_box(&lay, &text, input);
         self.answered(app, answer)
     }
@@ -496,8 +496,8 @@ mod tests {
     fn the_quit_question_has_its_text_and_is_one_modal_at_a_time() {
         assert!(crate::test_app::shipped::texts().has("menu.quit_question"));
         let mut stack = crate::modal::ModalStack::default();
-        stack.open(QuitAsk);
-        stack.open(QuitAsk);
+        stack.open(QuitAsk("menu.quit_question"));
+        stack.open(QuitAsk("menu.quit_question"));
         assert!(stack.has("quit"));
         assert_eq!(stack.take_top().map(|(at, _)| at), Some(0));
         assert!(stack.take_top().is_none());
@@ -507,7 +507,9 @@ mod tests {
     fn yes_to_the_quit_question_quits_and_no_does_not() {
         let answer = |answer| {
             let mut app = App::for_test();
-            let kept = Box::new(QuitAsk).answered(&mut app, answer).is_some();
+            let kept = Box::new(QuitAsk("menu.quit_question"))
+                .answered(&mut app, answer)
+                .is_some();
             (kept, app.quit)
         };
         assert_eq!(answer(None), (true, false));

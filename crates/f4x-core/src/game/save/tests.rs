@@ -457,6 +457,40 @@ fn the_computer_players_plans_survive_a_save_and_an_old_save_has_none() -> TestR
 }
 
 #[test]
+fn the_saved_map_locations_survive_a_save_and_are_limited_to_eight_squares_on_the_map() -> TestResult
+{
+    use crate::map::Position;
+    use crate::player::PlayerId;
+    let mut g = game();
+    let at = |x, y| Position {
+        plane: Plane::Arcanus,
+        x,
+        y,
+    };
+    assert!(g.locations(PlayerId(0)).is_empty());
+    assert!(g.save_location(PlayerId(0), 0, at(3, 4)));
+    assert!(g.save_location(PlayerId(0), 7, at(5, 6)));
+    // A slot holds one square, and each player has their own.
+    assert!(g.save_location(PlayerId(0), 0, at(1, 2)));
+    assert!(g.save_location(PlayerId(1), 0, at(9, 9)));
+    assert!(!g.save_location(PlayerId(0), 8, at(1, 1)), "eight slots");
+    assert!(
+        !g.save_location(PlayerId(0), 1, at(10_000, 0)),
+        "a square off the map"
+    );
+    let text = g.snapshot().to_text()?;
+    let back = Snapshot::from_text(&text)?.restore(g.content().clone())?;
+    assert_eq!(
+        back.locations(PlayerId(0)),
+        vec![(0, at(1, 2)), (7, at(5, 6))]
+    );
+    assert_eq!(back.locations(PlayerId(1)), vec![(0, at(9, 9))]);
+    // A game with none writes no field, so older saves and fixtures stay as they were.
+    assert!(!game().snapshot().to_text()?.contains("locations"));
+    Ok(())
+}
+
+#[test]
 fn every_setting_survives_a_save() -> TestResult {
     let mut g = Game::new(5);
     g.settings.basic = crate::game::setting::BasicSettings {

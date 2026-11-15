@@ -4,6 +4,9 @@
 //!
 //! Tests: below, and in setup/original.rs for the original's fortress sites.
 
+/// The least maximum population of a fortress's land, kept through every pass but the last.
+const MIN_START_SIZE: u32 = 5;
+
 use f4x_def::half_int::HalfInt;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -533,7 +536,15 @@ fn start_player(
     let passes: &[(u32, u32, u32)] = if site.is_some() {
         &[(0, 0, 0)]
     } else {
-        &[(16, 3, need), (10, 3, need), (10, 1, need), (0, 0, 0)]
+        &[
+            (16, 3, need),
+            (10, 3, need),
+            (10, 1, need),
+            // Last, any distance but still land that feeds five (1.60: a starting city always
+            // has a maximum population of at least 5); only then anywhere at all.
+            (0, 0, MIN_START_SIZE),
+            (0, 0, 0),
+        ]
     };
     if let Some(site) = site {
         spots = vec![(site.x, site.y)];

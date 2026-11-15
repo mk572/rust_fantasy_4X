@@ -53,6 +53,13 @@ pub(crate) const ACTIONS: &[&str] = &[
     "move_up_left",
     "move_up",
     "move_up_right",
+    "find_next_army",
+    "find_previous_army",
+    "next_city",
+    "previous_city",
+    "save_location",
+    "recall_location",
+    "quit_without_saving",
 ];
 
 /// The key names the file accepts.
@@ -435,10 +442,10 @@ mod tests {
         }
         // Arrows are shared on purpose: they scroll or move the stack, depending on a selection.
         let shared_on_purpose = ["scroll_", "move_"];
-        let mut seen: HashMap<(KeyCode, bool), &str> = HashMap::new();
+        let mut seen: HashMap<(KeyCode, bool, bool, bool), &str> = HashMap::new();
         for (action, chords) in keys.all() {
             for c in chords {
-                if let Some(other) = seen.insert((c.key, c.ctrl), action) {
+                if let Some(other) = seen.insert((c.key, c.ctrl, c.shift, c.alt), action) {
                     let both = |p: &str| action.starts_with(p) && other.starts_with(p);
                     let scroll_and_move = [action, &other]
                         .iter()

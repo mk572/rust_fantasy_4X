@@ -35,6 +35,11 @@ the table shows the defaults.
 | B | Build (outpost; with engineers a road: click the far end, a blue line (red if water blocks it) shows the path and the side panel the turns, then OK, O, Enter or B builds, Escape or right-click cancels); the Purify and Meld buttons have no key | done (Meld also on B for a spirit) |
 | C | Centre the map on the selected stack | done |
 | Q or U | Unselect the stack | done |
+| F, Shift+F | (none; patch 1.60 Find Next / Previous Army) | **extra**: the view steps through your stacks outside cities, in reading order, without selecting one |
+| V, Shift+V | (none; patch 1.60 Next / Previous City) | **extra**: the same for your cities, without entering one |
+| K, then 1 to 8 | (none; patch 1.60 Save Location) | **extra**: saves the middle of the map in view as place 1 to 8, kept in the save file; another key calls it off |
+| L, then 1 to 8 | (none; patch 1.60 Recall Location) | **extra**: the view goes to the saved place |
+| Ctrl+Q | (none; patch 1.60 Quit Without Saving) | **extra**: asks, then ends the program without the auto-save that leaving a game writes |
 | Numpad 1 to 9 and the arrow keys (the source calls them the eight direction keys) | Move the selected stack one square | done |
 | X | nothing | none |
 | Z, T | Debug and test keys | none |

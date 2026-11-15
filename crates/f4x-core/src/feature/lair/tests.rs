@@ -1055,3 +1055,23 @@ fn a_game_saved_in_a_lair_fight_goes_on_to_clear_the_site() -> TestResult {
     assert_eq!(g.snapshot().to_text()?, loaded.snapshot().to_text()?);
     Ok(())
 }
+
+#[test]
+fn an_artificer_found_in_a_hoard_brings_the_crafting_spells() -> TestResult {
+    let mut g = world(4);
+    let artificer = crate::wizard::magic::Retort::new(17);
+    let spells = |g: &Game| -> Vec<_> {
+        [207, 211]
+            .into_iter()
+            .filter_map(|n| g.content.rules.spells.id_numbered(n))
+            .filter(|&s| g.wizard(P0).is_some_and(|w| w.knows(s)))
+            .collect()
+    };
+    assert!(spells(&g).is_empty(), "a plain wizard has neither spell");
+    let learned = g.grant_retort_spells(P0, artificer);
+    assert_eq!(learned.len(), 2);
+    assert_eq!(spells(&g).len(), 2, "Enchant Item and Create Artifact");
+    // Nothing more to learn the second time.
+    assert!(g.grant_retort_spells(P0, artificer).is_empty());
+    Ok(())
+}

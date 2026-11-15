@@ -17,6 +17,8 @@
     "quick_load": ["Ctrl+L"],
     "undo": ["Ctrl+Z"],
     "console": ["GraveAccent"],
+    // Asks, and then ends the program without the automatic save that leaving a game makes.
+    "quit_without_saving": ["Ctrl+Q"],
 
     // The screens.
     "magic": ["M"],
@@ -42,6 +44,15 @@
     "scroll_right": ["Right"],
     "scroll_up": ["Up"],
     "scroll_down": ["Down"],
+    // The view steps through your armies (the stacks outside a city) or your cities, without
+    // selecting or entering one. The Shift key steps back.
+    "find_next_army": ["F"],
+    "find_previous_army": ["Shift+F"],
+    "next_city": ["V"],
+    "previous_city": ["Shift+V"],
+    // Eight places to come back to, kept with the game: press the first key and then 1 to 8.
+    "save_location": ["K"],
+    "recall_location": ["L"],
 
     // The selected stack.
     "unselect": ["Q", "U"],

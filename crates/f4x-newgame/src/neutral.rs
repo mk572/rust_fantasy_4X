@@ -483,4 +483,30 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn no_independent_city_starts_with_more_people_than_its_land_holds() -> TestResult {
+        // The hardest difficulty gives the biggest cities (a tenth of them up to ten people).
+        for seed in 1..8u64 {
+            let mut spec = NewGame {
+                seed,
+                all_ai: true,
+                ..Default::default()
+            };
+            spec.settings.basic.difficulty = 5;
+            let g = new_game(shipped(), &spec)?;
+            for (e, info, pos) in g.economy().cities() {
+                if g.is_neutral_player(info.owner) {
+                    let people = g.city_population(e).figures;
+                    let room = g.economy().site_max_size(pos);
+                    assert!(
+                        people <= room,
+                        "seed {seed}: {} has {people} of {room}",
+                        info.name
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
 }

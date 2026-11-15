@@ -52,6 +52,9 @@ pub(crate) enum NetGoldMemo {
     Known(player::PlayerId, f4x_def::half_int::HalfInt),
 }
 
+/// How many map locations a player can save.
+pub const MAP_LOCATIONS: u8 = 8;
+
 pub struct Game {
     pub(crate) world: hecs::World,
     pub turn: u32,
@@ -98,6 +101,8 @@ pub struct Game {
     flow: Option<String>,
     /// What each computer player has in mind, as text the AI wrote (see [`Game::plans`]).
     plans: Vec<(player::PlayerId, String)>,
+    /// The map locations each player saved to come back to, by slot (see [`Game::locations`]).
+    locations: Vec<(player::PlayerId, u8, map::Position)>,
     /// Items that fell to wizards from slain heroes since the last command ended: the wizard,
     /// the item's name and whether the armory had room for it.
     pub(crate) item_awards: Vec<(hecs::Entity, String, bool)>,
@@ -199,6 +204,7 @@ impl Game {
             threat: threat::Threat::default(),
             flow: None,
             plans: Vec::new(),
+            locations: Vec::new(),
             item_awards: Vec::new(),
             override_log: Vec::new(),
             prefab_taken: Vec::new(),
@@ -234,6 +240,39 @@ impl Game {
     /// last call.
     pub fn set_plans(&mut self, plans: Vec<(player::PlayerId, String)>) {
         self.plans = plans;
+    }
+
+    /// The map locations a player saved, as (slot, square) in the order of the slots. A square
+    /// that is not on the map any more (a save of another map) is left out.
+    pub fn locations(&self, player: player::PlayerId) -> Vec<(u8, map::Position)> {
+        let mut found: Vec<_> = self
+            .locations
+            .iter()
+            .filter(|(who, _, at)| *who == player && self.on_map(*at))
+            .map(|&(_, slot, at)| (slot, at))
+            .collect();
+        found.sort_by_key(|&(slot, _)| slot);
+        found
+    }
+
+    /// Save a map location in a slot (0 to [`MAP_LOCATIONS`] - 1) of a player, replacing what
+    /// the slot held. Returns false, and changes nothing, for a slot out of range or a square
+    /// that is not on the map.
+    pub fn save_location(&mut self, player: player::PlayerId, slot: u8, at: map::Position) -> bool {
+        if slot >= MAP_LOCATIONS || !self.on_map(at) {
+            return false;
+        }
+        self.locations
+            .retain(|&(who, s, _)| !(who == player && s == slot));
+        self.locations.push((player, slot, at));
+        true
+    }
+
+    fn on_map(&self, at: map::Position) -> bool {
+        self.map.as_ref().is_some_and(|m| {
+            let plane = m.plane(at.plane);
+            at.x < plane.width() && at.y < plane.height()
+        })
     }
 
     /// The settings the game is played with.

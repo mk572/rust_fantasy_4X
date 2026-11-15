@@ -390,3 +390,57 @@ These findings explicitly supersede or reverse an earlier patch behavior. Do not
 | Source section | Change | Assessment | Priority | Original status |
 |---|---|---|:---:|---|
 | World generation and world state | Dark Elf neutral-city garrisons are not too small | Verify Dark Elf population-to-garrison scaling independently; the note explicitly reverses the prior IM192 behavior, so do not inherit that earlier rule as the new baseline. | P2 | Verify |
+
+## Walked on 15 November 2026 (task 457), sections 1 to 3
+
+Sections 4 to 7 and `insecticide-1.60-settings-checklist.md` are not walked yet. Verdicts: **present** (matches the code), **fixed** (a gap, closed with a test), **new** (a feature the user asked for), **left** (decided not to do), **client check** (cannot be automated, in task 610), **n/a**.
+
+### Section 1: world generation
+
+| Row | Verdict |
+|---|---|
+| Seeded random streams per subsystem | **present**: separate `Pcg64Mcg` streams for lairs, towers, nodes, sites and islands (XOR salts) |
+| Towers at least 4 from nodes; nodes only on land | **present**: `NODE_SPACING`, node candidates are land |
+| Towers prefer land on both planes, then one | **left**: ours picks any square 10 apart; a water square becomes one grass tile that island growth extends |
+| Encounter zones not adjacent to each other, nodes, towers or starting cities | **present**: `SITE_SPACING`, `clear_of_sites` in `setup.rs` |
+| Starting city has a maximum population of at least 5 | **fixed**: the passes relaxed to "anywhere" without the food check; a pass that keeps "feeds 5" now comes before it (`MIN_START_SIZE`) |
+| Neutral city population respects the terrain's maximum | **fixed**: at difficulty 5 two of 76 cities had 6 people on land that holds 5; `found_neutral_city` caps the population (test `no_independent_city_starts_with_more_people_than_its_land_holds`) |
+| High Elf starting city on forest | **left**: neutral cities follow it; a wizard's fortress is placed before the terrain is considered; left for now by the user |
+| Barbarian Spearmen and Halfling/Beastmen/Nomad garrison scaling | **n/a**: garrisons are the best melee and ranged soldiers the race can recruit, population / 4 |
+| Two-pick special treasure, random item power count | **present** |
+| Rivers end at water or another river | **present**: `place_rivers` drops a river that does not |
+| Artificer found as treasure brings Enchant Item and Create Artifact | **fixed**: `grant_retort_spells` (test `an_artificer_found_in_a_hoard_brings_the_crafting_spells`) |
+
+### Section 2: combat, wizards, spells and items
+
+All rows **present** or **n/a** but the Artificer treasure above: fleeing without losses on easy levels (`safe_flee`), Famous fame from treasure, Divine/Infernal Power and opposite books (one `retort_available` for treasure and creation), crafting-spell cost and countering (1.50 rows 159 to 177), six retorts for computer wizards (`MAX_RETORTS`), the AI disbanding obsolete units after a load (**n/a**: our AI never disbands them).
+
+### Section 3: interface, input and settings
+
+| Row | Verdict |
+|---|---|
+| City rename; city cycling from the city screen | rename **present** (`RenameCity`); cycling from the city screen **left** with task 615 |
+| Enchantment list wraps at exactly 12, 18, 24 | **present** in code (`last / PAGE * PAGE`); boundary test not written: **client check** |
+| Income displays use the simulation's numbers, no per-frame work with no selection | **client check** |
+| Quick save has its own slot | **present** (`saves/quick.ron`, `saves/autosave.ron`) |
+| Meld/Build reselect; exhausted army not deselected; plane switch while targeting; Engineers from the other plane centre the view; road time counts the right Engineers; opening key closes advisor, mirror, spellbook; hiring-dialog hit areas; two mouse buttons; Ctrl+key; treasure text separator | **client check** (task 610) |
+| Units with no moves cannot be ordered through the opposite plane | **present**: 1.52 note 796 (movement keys act only on the plane in view) |
+| Right-click during a confirmation does not reach the screen below | **present**: an open modal takes the frame before the map's input |
+| Item creation context help; default name | **n/a** here: the in-game item editor is left for the modding tools |
+| Multi-page Settings screen with hover | **client check** |
+| End of Turn Wait, Auto Unit Information | **present** (`preferences.rs`) |
+| Show Node Owners | **present**, without a setting: the owner's aura is always drawn (`map_draw.rs`; the setting was removed on 24 October 2026) |
+| Automatic Combat reverts to Strategic Combat Only | **present** (`Pref::StrategicCombatOnly`) |
+| Backup Saves help text | **client check** |
+| Revolting Raiders, Monsters Gone Wild are chosen before the game | **present**: world settings, fixed for the game |
+| Key binding editor | **left**: bindings are the file `hotkeys.ron` (player's `saves/hotkeys.ron`, mods); no in-game editor |
+| Original hotkeys as dynamic bindings | **present** for the overland map (`hotkeys.ron`); the screens' own keys stay as they are |
+| Quick Load | **present** (Ctrl+L) |
+| Quit Without Saving | **new**: Ctrl+Q asks, then ends the program with no auto-save (`QuitAsk`) |
+| Default Item Editor | **left** by the user (modding tools) |
+| Find Next / Previous Army, Next / Previous City | **new**: F, Shift+F, V, Shift+V; the view steps in reading order and wraps, nothing is selected (`step_view.rs`, tests in `view.rs`) |
+| Save / Recall Location, eight places kept with the game | **new**: K or L, then 1 to 8; `Game::save_location`, `Game::locations`, saved in the save file (test `the_saved_map_locations_survive_a_save_and_are_limited_to_eight_squares_on_the_map`) |
+| Scroll Map Up/Down/Left/Right | **present**: `scroll_*` |
+| Edge scrolling (and its delay, 1.60 settings 3) | **new**: a client preference, off by default, 0.4 s delay (`edge_scroll.rs`) |
+| Next / Previous Control (Tab) | **left** as task 615 |
+| Allow Duplicate Keys, Legacy Pointer Movement | **left**, in task 615's input layer |

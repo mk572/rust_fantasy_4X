@@ -14,7 +14,7 @@ reads it.
   turns an action's key off.
   An unknown action or key name is reported on start-up and the shipped keys are used.
 - **Shared keys:** the arrows are in `move_*` and `scroll_*`: with a stack selected they move it, with
-  nothing selected (or Shift held) they scroll the map. Two other actions on one key both fire.
+  nothing selected (or Shift held) they scroll the map. Two other actions on one key both fire. A key and the same key with Shift (`F` and `Shift+F`) are two keys, but a plain chord also matches while Shift is held, so the code that handles a pair checks the Shift one first (`find_previous_army` before `find_next_army`).
 - **What is not in the file:** the keys of a screen's own boxes (Enter and Escape in a question, the
   arrows in a list, the letters of a screen's buttons) and the battle's keys stay where they are.
 - **Help:** the Keys topic (`crates/f4x-lang/content/text/en/help/help.ron`, topic 900, shown with the Game button's help) writes

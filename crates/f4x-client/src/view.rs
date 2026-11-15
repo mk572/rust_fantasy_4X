@@ -205,6 +205,15 @@ pub struct App {
     pub(crate) pages: crate::page::Pages,
     /// The player chose Quit on the start menu; the frame returns false.
     pub(crate) quit: bool,
+    /// Where the last Find Army / Next City step stopped (`step_view`), so the next one goes on
+    /// from there.
+    army_cursor: Option<Position>,
+    city_cursor: Option<Position>,
+    /// Save Location or Recall Location was pressed and waits for the digit of the place:
+    /// true to save, false to recall.
+    location_pending: Option<bool>,
+    /// How long the pointer has stayed on the edge of the window (`Pref::EdgeScrolling`).
+    edge_scroll: crate::edge_scroll::EdgeScroll,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
     /// unit's sheet instead of sending the stack anywhere.
     /// The player has seen the game-over screen and chose to look at the map.
@@ -391,6 +400,10 @@ impl App {
             item_pool_pending: false,
             pages: Default::default(),
             quit: false,
+            army_cursor: None,
+            city_cursor: None,
+            location_pending: None,
+            edge_scroll: Default::default(),
             game_over_seen: false,
             menu: Default::default(),
             help_ui: Default::default(),
@@ -2166,6 +2179,128 @@ impl App {
             .is_some_and(|p| keys_move_stack(p.plane, self.plane))
     }
 
+    /// The square at the middle of the map in view.
+    fn view_centre(&self) -> Position {
+        let (cols, rows) = self.visible_tiles();
+        let plane = self.game.map().map(|m| m.plane(self.plane));
+        let (w, h) = plane.map_or((1, 1), |p| (p.width() as i32, p.height() as i32));
+        Position {
+            plane: self.plane,
+            x: (self.cam.x + cols / 2.0).floor().rem_euclid(w as f32) as u32,
+            y: ((self.cam.y + rows / 2.0).floor() as i32).clamp(0, h - 1) as u32,
+        }
+    }
+
+    /// The keys that step the view through the player's armies and cities (patch 1.60), without
+    /// selecting a stack or entering a city. An army is a stack outside a city. Returns whether
+    /// one was pressed.
+    fn view_step_keys(&mut self, input: &Input) -> bool {
+        const KEYS: [&str; 4] = [
+            "find_previous_army",
+            "find_next_army",
+            "previous_city",
+            "next_city",
+        ];
+        if !KEYS.iter().any(|a| self.hotkeys.pressed(a, input)) {
+            return false;
+        }
+        let cities: Vec<Position> = self
+            .game
+            .economy()
+            .cities_of(HUMAN)
+            .into_iter()
+            .map(|(_, at)| at)
+            .collect();
+        for (action, forward, army) in [
+            ("find_previous_army", false, true),
+            ("find_next_army", true, true),
+            ("previous_city", false, false),
+            ("next_city", true, false),
+        ] {
+            if !self.hotkeys.pressed(action, input) {
+                continue;
+            }
+            let squares: Vec<Position> = if army {
+                self.game
+                    .units()
+                    .player_units(HUMAN)
+                    .into_iter()
+                    .filter_map(|u| self.game.units().unit_position(u))
+                    .filter(|at| !cities.contains(at))
+                    .collect()
+            } else {
+                cities.clone()
+            };
+            let cursor = if army {
+                &mut self.army_cursor
+            } else {
+                &mut self.city_cursor
+            };
+            match crate::step_view::step(&squares, *cursor, forward) {
+                Some(at) => {
+                    *cursor = Some(at);
+                    self.center_on(at);
+                }
+                None => self.log.push(self.text("log.nothing_to_find")),
+            }
+            return true;
+        }
+        false
+    }
+
+    /// Save Location and Recall Location: the key, then the digit 1 to 8 of the place; any other
+    /// key calls it off. The places are kept with the game. Returns whether the key was taken.
+    fn location_keys(&mut self, input: &Input) -> bool {
+        const DIGITS: [KeyCode; 8] = [
+            KeyCode::Key1,
+            KeyCode::Key2,
+            KeyCode::Key3,
+            KeyCode::Key4,
+            KeyCode::Key5,
+            KeyCode::Key6,
+            KeyCode::Key7,
+            KeyCode::Key8,
+        ];
+        let Some(save) = self.location_pending else {
+            let save = self.hotkeys.pressed("save_location", input);
+            if save || self.hotkeys.pressed("recall_location", input) {
+                self.location_pending = Some(save);
+                let key = if save {
+                    "log.location_pick_save"
+                } else {
+                    "log.location_pick_recall"
+                };
+                self.log.push(self.text(key));
+                return true;
+            }
+            return false;
+        };
+        let Some(slot) = DIGITS.iter().position(|&k| input.key_pressed(k)) else {
+            if !input.keys_pressed.is_empty() {
+                self.location_pending = None;
+            }
+            return !input.keys_pressed.is_empty();
+        };
+        self.location_pending = None;
+        let args = Args::new().count("slot", slot as u32 + 1);
+        if save {
+            let at = self.view_centre();
+            if self.game.save_location(HUMAN, slot as u8, at) {
+                self.log.push(self.text_with("log.location_saved", &args));
+            }
+        } else if let Some(&(_, at)) = self
+            .game
+            .locations(HUMAN)
+            .iter()
+            .find(|&&(s, _)| usize::from(s) == slot)
+        {
+            self.center_on(at);
+        } else {
+            self.log.push(self.text_with("log.location_empty", &args));
+        }
+        true
+    }
+
     pub(crate) fn selection_position(&self) -> Option<Position> {
         self.selection
             .first()
@@ -2194,6 +2329,23 @@ impl App {
             }
         }
         self.cam += pan * step;
+        if self.prefs.get(crate::preferences::Pref::EdgeScrolling) {
+            let edge = self.edge_scroll.step(
+                crate::edge_scroll::direction(
+                    input.mouse_position(),
+                    (screen_width(), screen_height()),
+                ),
+                get_frame_time(),
+            );
+            self.cam += edge * step;
+        }
+        if self.location_keys(input) || self.view_step_keys(input) {
+            return;
+        }
+        if self.hotkeys.pressed("quit_without_saving", input) {
+            self.modals
+                .open(crate::menu_screen::QuitAsk("menu.quit_unsaved_question"));
+        }
         if self.hotkeys.pressed("next_page", input) {
             self.next_stack_page();
         }
@@ -2909,6 +3061,82 @@ mod tests {
         assert!(super::keys_move_stack(Plane::Arcanus, Plane::Arcanus));
         assert!(!super::keys_move_stack(Plane::Myrror, Plane::Arcanus));
         assert!(!super::keys_move_stack(Plane::Arcanus, Plane::Myrror));
+    }
+
+    fn press(keys: &[KeyCode]) -> Input {
+        Input {
+            keys_pressed: keys.iter().copied().collect(),
+            keys_down: keys.iter().copied().collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn the_find_keys_step_the_view_through_the_cities_and_the_armies_outside_them() {
+        let mut app = App::for_test();
+        let cities = app.game.economy().cities_of(HUMAN);
+        assert!(!cities.is_empty(), "the test game gives the human a city");
+        let squares: Vec<Position> = cities.iter().map(|&(_, at)| at).collect();
+        let city = crate::step_view::step(&squares, None, true).expect("a city");
+        app.view_step_keys(&press(&[KeyCode::V]));
+        assert_eq!(app.city_cursor, Some(city));
+        assert_eq!(app.plane, city.plane);
+        assert!(
+            app.selection.is_empty(),
+            "the view moves, nothing is selected"
+        );
+        // Shift steps back: from the first city round to the last.
+        app.view_step_keys(&press(&[KeyCode::LeftShift, KeyCode::V]));
+        assert_eq!(
+            app.city_cursor,
+            crate::step_view::step(&squares, Some(city), false)
+        );
+        // An army: a stack of the human's outside a city; none stands in one.
+        let armies: Vec<Position> = app
+            .game
+            .units()
+            .player_units(HUMAN)
+            .into_iter()
+            .filter_map(|u| app.game.units().unit_position(u))
+            .filter(|at| !cities.iter().any(|&(_, c)| c == *at))
+            .collect();
+        app.view_step_keys(&press(&[KeyCode::F]));
+        assert_eq!(app.army_cursor, crate::step_view::step(&armies, None, true));
+    }
+
+    #[test]
+    fn a_saved_location_is_recalled_with_the_digit_and_kept_in_the_game() {
+        let mut app = App::for_test();
+        let at = Position {
+            plane: Plane::Arcanus,
+            x: 20,
+            y: 12,
+        };
+        app.center_on(at);
+        let centre = app.view_centre();
+        assert!(
+            app.location_keys(&press(&[KeyCode::K])),
+            "the key waits for a digit"
+        );
+        assert!(app.location_keys(&press(&[KeyCode::Key3])));
+        assert_eq!(app.game.locations(HUMAN), vec![(2, centre)]);
+        // Elsewhere, then back: the digit recalls the place; an empty place says so.
+        app.center_on(Position {
+            plane: Plane::Arcanus,
+            x: 2,
+            y: 2,
+        });
+        app.location_keys(&press(&[KeyCode::L]));
+        app.location_keys(&press(&[KeyCode::Key3]));
+        assert_eq!(app.view_centre(), centre);
+        app.location_keys(&press(&[KeyCode::L]));
+        app.location_keys(&press(&[KeyCode::Key4]));
+        assert!(app.log.last().is_some_and(|l| l.contains("empty")));
+        // Any other key calls it off.
+        app.location_keys(&press(&[KeyCode::K]));
+        assert!(app.location_keys(&press(&[KeyCode::X])));
+        assert!(app.location_pending.is_none());
+        assert_eq!(app.game.locations(HUMAN).len(), 1);
     }
 
     #[test]
