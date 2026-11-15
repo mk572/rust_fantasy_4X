@@ -261,8 +261,7 @@ Ordered so that each step is useful on its own. These are proposals, not tasks y
 
 1. **Windows build and CI.** Add `windows-latest` to `ci.yml`; fix what breaks (paths, saves, audio).
    First, because everything for Windows depends on it.
-2. **Data folder** (3.5): the client and `f4x-tools` find the per-user folder, with `--data` and the
-   current relative paths as the fallback. No change to tests.
+2. **Data folder** (3.5), **done 16 November 2026**: `f4x_extract::paths` (`locate`, `game_file`; shared with the future `f4x-setup`) and the client's `--data DIR`. The client works from the data folder (`assets-local/`, `saves/`) and reads the shipped files from the game folder; a checkout keeps the working directory as both. `f4x-tools` is a development tool and keeps the relative paths. Checked with the binary beside a copy of the shipped files, started from another folder.
 3. ~~The three local text files in Rust~~ **dropped**: the game has its own texts, so there is nothing to port; `scripts/import_mom_text.py` stays a developer tool.
 4. **Audio encoding without `oggenc`** (3.4), by spike.
 5. **`f4x-import` library**, then **`f4x-setup`** (6.2), with tests that run the unattended path on a

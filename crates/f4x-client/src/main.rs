@@ -132,11 +132,16 @@ use view::App;
 /// the only files read from outside the repository (`--assets`, `--audio`).
 const CLIENT_CONTENT: &str = "crates/f4x-client/content";
 
+/// A shipped file of the game, under the game folder (`f4x_extract::paths`).
+fn shipped(relative: &str) -> PathBuf {
+    f4x_extract::paths::game_file(relative)
+}
+
 /// The folder of the long messages (`event_texts.ron`) that holds `file` for a
 /// language, or the English one.
 fn message_dir(language: &str, file: &str) -> PathBuf {
     let folder = |lang: &str| {
-        Path::new(f4x_lang::LANG_CONTENT)
+        shipped(f4x_lang::LANG_CONTENT)
             .join("text")
             .join(lang)
             .join("message")
@@ -149,6 +154,8 @@ fn message_dir(language: &str, file: &str) -> PathBuf {
 }
 
 struct Options {
+    /// `--data DIR`: the folder of the pictures, sounds and saves, instead of the per-user one.
+    data: Option<PathBuf>,
     assets: PathBuf,
     seed: u64,
     /// `--seed` was given: every new game uses it. Without it each game gets a seed of its own.
@@ -317,6 +324,7 @@ struct Options {
 fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
     let mut args = args;
     let mut o = Options {
+        data: None,
         assets: "assets-local/art".into(),
         audio: "assets-local/audio".into(),
         mute: false,
@@ -419,6 +427,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
     while let Some(a) = args.next() {
         let mut value = |name: &str| args.next().ok_or(format!("{name} needs a value"));
         match a.as_str() {
+            "--data" => o.data = Some(value("--data")?.into()),
             "--assets" => o.assets = value("--assets")?.into(),
             "--audio" => o.audio = value("--audio")?.into(),
             "--mute" => o.mute = true,
@@ -645,17 +654,47 @@ fn window_conf() -> Conf {
     }
 }
 
+/// Decide the game and data folders (`f4x_extract::paths`), make the data folder with its `saves/`
+/// and make it the working directory, so `assets-local/` and `saves/` resolve there.
+fn enter_data_folder(data: Option<&Path>) -> Result<(), String> {
+    use f4x_extract::paths;
+    let cwd = std::env::current_dir().map_err(|e| format!("no working directory: {e}"))?;
+    let exe = std::env::current_exe().map_err(|e| format!("no program path: {e}"))?;
+    let env = |name: &str| std::env::var(name).ok();
+    let roots = paths::locate(&paths::Inputs {
+        os: paths::Os::current(),
+        cwd: &cwd,
+        exe: &exe,
+        env: &env,
+        data_override: data,
+    })?;
+    // An absolute game folder: the working directory is about to change.
+    let game = std::fs::canonicalize(&roots.game).unwrap_or(roots.game);
+    std::fs::create_dir_all(roots.data.join("saves"))
+        .map_err(|e| format!("cannot make {}: {e}", roots.data.display()))?;
+    std::env::set_current_dir(&roots.data)
+        .map_err(|e| format!("cannot enter {}: {e}", roots.data.display()))?;
+    paths::set_game_dir(game);
+    Ok(())
+}
+
 #[macroquad::main(window_conf)]
 async fn main() {
     f4x_ai::battle::install();
     let options = match parse_args(std::env::args().skip(1)) {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose|--choose-unit] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|mastery_lost|conquest|conquest_by_wizard|return|parade] [--shot-after SECONDS] [--magic] [--diplomacy] [--alchemy] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--custom] [--menu] [--slots] [--settings] [--game-settings [--menu]] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--hall-demo] [--warn-box] [--craft enchant|artifact] [--offer KIND] [--event KIND] [--fizzle] [--wrath [--global-by N] [--global-at SECONDS]] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--undead zombies|undead [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--extra-mana] [--breakdown food|production|gold|power|research (with --city)] [--wizard-pick] [--attack-box] [--pick-box] [--crowd (with --city: fourteen units in the city, list scrolled one row)] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--data DIR] [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose|--choose-unit] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|mastery_lost|conquest|conquest_by_wizard|return|parade] [--shot-after SECONDS] [--magic] [--diplomacy] [--alchemy] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--custom] [--menu] [--slots] [--settings] [--game-settings [--menu]] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--hall-demo] [--warn-box] [--craft enchant|artifact] [--offer KIND] [--event KIND] [--fizzle] [--wrath [--global-by N] [--global-at SECONDS]] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--undead zombies|undead [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--extra-mana] [--breakdown food|production|gold|power|research (with --city)] [--wizard-pick] [--attack-box] [--pick-box] [--crowd (with --city: fourteen units in the city, list scrolled one row)] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
-    let layers = [Path::new(CLIENT_CONTENT)];
+    // Find the shipped files and the player's folder (saves, pictures) and work from the latter.
+    if let Err(e) = enter_data_folder(options.data.as_deref()) {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+    let client_content = shipped(CLIENT_CONTENT);
+    let layers = [client_content.as_path()];
     let settings = match client_settings::ClientSettings::load(&layers) {
         Ok(s) => s,
         Err(e) => {
@@ -664,17 +703,19 @@ async fn main() {
         }
     };
     // The rules come from the shipped content alone.
-    let content = match f4x_def::load::load_content_layers(&[Path::new(f4x_def::SHIPPED_CONTENT)]) {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!(
-                "could not load content from {}: {e}",
-                f4x_def::SHIPPED_CONTENT
-            );
-            std::process::exit(1);
-        }
-    };
-    let lang_layers = [Path::new(f4x_lang::LANG_CONTENT)];
+    let content =
+        match f4x_def::load::load_content_layers(&[shipped(f4x_def::SHIPPED_CONTENT).as_path()]) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!(
+                    "could not load content from {}: {e}",
+                    f4x_def::SHIPPED_CONTENT
+                );
+                std::process::exit(1);
+            }
+        };
+    let lang_content = shipped(f4x_lang::LANG_CONTENT);
+    let lang_layers = [lang_content.as_path()];
     let texts = match text::load_texts(&lang_layers, &settings.language) {
         Ok(t) => t,
         Err(e) => {
