@@ -271,7 +271,9 @@ Ordered so that each step is useful on its own. These are proposals, not tasks y
 - *What the player's setup writes:* `assets-local/art`, `screens`, `index.tsv`, `packs.tsv`, `audio/{soundfx,cmbtsnd,newsound,music}` and `roms/`; `introsfx` and `introsnd` (never played) and the XMI songs are left out. Work happens in staging folders and replaces the old files only when finished. On the author's Steam copy the whole run is 47 seconds.
 - *Packaging:* `Fantasy 4X Setup.app` carries `f4x-setup`, `f4x-music` and the LGPL texts (`Contents/Resources/legal/`, with a note where the source is); it is in the dmg and the zip beside the game.
 - Command line: `--roms DIR`, `--download-roms`, `--no-music` answer the music question; without them the terminal asks.
-Still to do: the game starting the setup by itself when its data folder is empty (step 9), a check of a GOG copy, and the release workflow (step 7).
+*Release workflow (step 7, written 16 November 2026, not yet run):* `.github/workflows/release.yml` runs on a tag `vX.Y.Z` on a `macos-14` (Apple silicon) runner. It checks that the tag equals the version in `Cargo.toml`, runs the tests, runs `scripts/make_app.sh --dist` (the submodule `third_party/mt32-rs` is checked out for `f4x-music`), writes `SHA256SUMS.txt` and makes a GitHub release (a pre-release while the version is 0.x) with the dmg, the zip and the checksums. To release: raise the version in `Cargo.toml` (the doc-version test says where else), commit, `git tag v0.0.8 && git push origin v0.0.8`. The first run will show what a runner lacks; fix it there.
+*GOG:* the setup accepts any folder (or a folder one level below it) that has the 101 `.LBX` files with the right header, whatever the store. The author has no GOG copy, so it is **unverified** whether GOG's files are the same and where its installer puts them; a GOG player gets the plain "missing files" sentence if they differ. Open until someone with a copy runs `f4x-setup --check` on it.
+Still to do: the game starting the setup by itself when its data folder is empty (step 9).
 
 5. **`f4x-import` library**, then **`f4x-setup`** (6.2), with tests that run the unattended path on a
    fixture and on the author's real folder (not in CI; CI has no original files).
@@ -305,7 +307,7 @@ Decided by the author on 16 November 2026 (the table below keeps the earlier sug
 |---|---|---|
 | 1 | Players compile (A) or download a prebuilt game (B)? | B. A stays as the developer path and for platforms without a prebuilt |
 | 2 | Is the ROM download from archive.org acceptable, and which item? | The author decides and supplies the URL and the two SHA-256 values; the dialog and the "I have them" path are in the design either way |
-| 3 | Which versions of the original are supported? | Steam first (verified); GOG when the author has checked the file names and hashes |
+| 3 | Which versions of the original are supported? | Steam (verified). GOG: not verified, no copy available; `f4x-setup --check` tells a GOG player, and us, whether it passes |
 | 4 | The ReMoM inputs of the importer (3.4) | Decided by the user, 2 November 2026: the text import (`scripts/import_mom_text.py`) is for development only. The player path needs neither Python nor ReMoM, and needs no text import at all |
 | 5 | Sound encoder (3.4)? | A Rust binding with libvorbis compiled in, after the spike; `oggenc` shipped beside it as fallback |
 | 6 | Keep the embedded river pictures for a public release (3.1)? | Move them to the local extraction, so the binary is clean |
