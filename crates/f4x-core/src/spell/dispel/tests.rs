@@ -946,3 +946,30 @@ fn spell_binding_can_fail_unless_the_setting_makes_it_certain() -> TestResult {
     assert_eq!((failed, taken), (0, 400), "it never fails");
     Ok(())
 }
+
+/// 1.50 note 619: Creature Binding is taken off by an opposing wizard's dispel and never by the
+/// wizard who cast it (one rule for every enchantment: `dispel_list` skips the dispeller's own).
+#[test]
+fn creature_binding_is_dispelled_by_the_other_wizard_and_not_by_its_caster() -> TestResult {
+    let g = world();
+    let binding = g
+        .content
+        .rules
+        .spells
+        .id_numbered(73 /* creature_binding */)
+        .ok_or("creature_binding is not in the content")?;
+    // Strength far above the difficulty: the roll misses one time in 250 only.
+    let mut gone_by_other = 0;
+    for seed in 0..20 {
+        let mut r = rand_pcg::Pcg64Mcg::seed_from_u64(seed);
+        let (kept, gone) = g.dispel_list(vec![(binding, P0)], 100_000, P0, false, &mut r);
+        assert_eq!((kept.len(), gone.len()), (1, 0), "the caster cannot");
+        let (_, gone) = g.dispel_list(vec![(binding, P0)], 100_000, P1, false, &mut r);
+        gone_by_other += gone.len();
+    }
+    assert!(
+        gone_by_other >= 18,
+        "the opponent can: {gone_by_other} of 20"
+    );
+    Ok(())
+}

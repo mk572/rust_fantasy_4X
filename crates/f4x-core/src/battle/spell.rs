@@ -879,8 +879,12 @@ impl Game {
                     if !anyone && !self.battle_unit_is_hero(u) {
                         return Err(SpellError::Target(TargetError::RecallOnlyHeroes));
                     }
-                    if self.summon_point(battle.player_of(side)).is_none() {
+                    let Some(circle) = self.summon_point(battle.player_of(side)) else {
                         return Err(SpellError::Target(TargetError::NoCircle));
+                    };
+                    // A fight at the circle itself has nowhere to recall to (1.50 note 704).
+                    if battle.site == Some(circle) {
+                        return Err(SpellError::Target(TargetError::CircleHere));
                     }
                 }
                 if matches!(kind, Kind::Channel) {

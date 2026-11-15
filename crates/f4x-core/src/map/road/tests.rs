@@ -220,6 +220,38 @@ fn engineers_work_along_a_path() {
     assert_eq!(g.units().unit_position(e), Some(at(7, 5)));
 }
 
+/// 1.50 note 511: engineers whose next square is full wait for room and keep the order, with the
+/// work they have done; they do not drop the whole road.
+#[test]
+fn engineers_wait_for_a_full_square_instead_of_cancelling_the_road() -> TestResult {
+    let mut g = world();
+    let e = engineer(&mut g, 78 /* dwarven_engineers */, at(5, 5)); // 1 turn on grassland
+    let full = g.max_tile();
+    for _ in 0..full {
+        engineer(&mut g, 110, at(6, 5));
+    }
+    g.apply(Command::BuildRoad {
+        units: vec![e],
+        path: vec![at(5, 5), at(6, 5), at(7, 5)],
+    });
+    for _ in 0..3 {
+        let _ = g.world.insert_one(e, MovesLeft(HalfInt::from_int(2)));
+        g.process_road_work_all();
+    }
+    assert!(has_road(&g, at(5, 5)), "the first square is done");
+    assert!(g.world.get::<&RoadWork>(e).is_ok(), "the order is kept");
+    assert_eq!(g.units().unit_position(e), Some(at(5, 5)));
+    // Room appears: the engineers go on.
+    let squatter = g.units().units_at(at(6, 5))[0];
+    g.remove_unit(squatter, crate::hero::Fate::Slain);
+    for _ in 0..4 {
+        let _ = g.world.insert_one(e, MovesLeft(HalfInt::from_int(2)));
+        g.process_road_work_all();
+    }
+    assert!(has_road(&g, at(7, 5)), "the road is finished");
+    Ok(())
+}
+
 #[test]
 fn bad_orders_are_refused_and_moving_away_cancels() -> TestResult {
     let mut g = world();

@@ -4163,6 +4163,21 @@ fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() 
             TargetError::NotYourUnit
         )))
     );
+    // A fight at the circle itself has nowhere to recall to (1.50 note 704).
+    let site = g
+        .battle()
+        .and_then(|b| b.site)
+        .ok_or("the battle has no site")?;
+    g.wiz_mut(0)
+        .put(Some(crate::wizard::fortress::SummonAt(site)));
+    assert_eq!(
+        cast_unit(&mut g, 47 /* word_of_recall */, SpellAim::Unit(0), 0),
+        Err(BattleError::Spell(SpellError::Target(
+            TargetError::CircleHere
+        )))
+    );
+    g.wiz_mut(0)
+        .put(Some(crate::wizard::fortress::SummonAt(at(1, 1))));
     let events = cast_unit(&mut g, 47 /* word_of_recall */, SpellAim::Unit(0), 0)
         .map_err(|e| format!("{e:?}"))?;
     assert!(events
@@ -5499,6 +5514,88 @@ fn the_land_units_of_a_ship_start_a_sea_fight_on_its_deck() -> TestResult {
             "and can walk there"
         );
     }
+    Ok(())
+}
+
+/// 1.50 notes 655, 656: a dispel cannot be aimed at a dead unit, and Earth to Mud cannot be aimed at
+/// a square outside the field (a corner square or past the edge), so it makes no mud where nobody
+/// may walk.
+#[test]
+fn spells_are_not_aimed_at_the_dead_or_at_squares_outside_the_field() -> TestResult {
+    let mut g = wizard_battle(
+        107, /* high_men_cavalry */
+        &[202 /* dispel_magic */, 1 /* earth_to_mud */],
+    );
+    let dead = {
+        let b = &mut g.battle.as_mut().ok_or("no battle")?.battle;
+        let id = b
+            .units
+            .iter()
+            .position(|u| u.side == Side::Defender)
+            .ok_or("no defender")?;
+        b.units[id].status = Status::Dead;
+        b.units[id].figures = 0;
+        id
+    };
+    assert!(
+        cast_on(&mut g, 202, dead).is_err(),
+        "no dispel on a dead unit"
+    );
+    let mud = g
+        .content
+        .rules
+        .spells
+        .id_numbered(1)
+        .ok_or("earth_to_mud is not in the content")?;
+    assert!(
+        g.battle_command(BattleCommand::Cast {
+            spell: mud,
+            aim: SpellAim::Tile((10, 10)),
+            mana: 0,
+        })
+        .is_ok(),
+        "a square of the field is a fine target"
+    );
+    for cell in [(0, 0), (20, 0), (21, 5), (5, 22), (-1, 5), (100, 100)] {
+        let r = g.battle_command(BattleCommand::Cast {
+            spell: mud,
+            aim: SpellAim::Tile(cell),
+            mana: 0,
+        });
+        assert!(r.is_err(), "{cell:?} is outside the field");
+    }
+    Ok(())
+}
+
+/// 1.50 notes 541, 687: the walls of a city without citizens (an outpost) stand in its battles.
+#[test]
+fn an_outpost_with_city_walls_is_fought_round_its_walls() -> TestResult {
+    let mut g = game();
+    let city = g.spawn_city(D, at(5, 4), "Outpost".into(), None, 0);
+    g.world
+        .get::<&mut crate::city::economy::Buildings>(city)
+        .map_err(|e| format!("{e:?}"))?
+        .0
+        .push(crate::rules::BuildingId::new(35 /* city_walls */));
+    let kind = |g: &Game, n: u16| {
+        g.content
+            .rules
+            .units
+            .id_numbered(n)
+            .ok_or_else(|| format!("unit {n} is not in the content"))
+    };
+    let guard = g.spawn_unit(D, at(5, 4), kind(&g, 104)?);
+    let attacker = g.spawn_unit(A, at(4, 4), kind(&g, 107)?);
+    g.apply(Command::BeginBattle {
+        attackers: vec![attacker],
+        defenders: vec![guard],
+    });
+    let b = g.battle().ok_or("no battle")?;
+    assert!(b.map.is_walled(), "the logic has its walls");
+    assert!(
+        b.map.has_wall((12, 11)) || (0..21).any(|x| (0..22).any(|y| b.map.has_wall((x, y)))),
+        "and a wall stands somewhere"
+    );
     Ok(())
 }
 

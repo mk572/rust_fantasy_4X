@@ -263,7 +263,10 @@ impl Game {
                     work.rest.remove(0);
                     work.left = self.turns_for(next, points);
                 }
-                Err(MoveError::NoMovesLeft) => {
+                // A full square (or one the stack cannot step on yet) is waited out: the road
+                // under the engineers is done, the work stays and they try again next turn
+                // (1.50 note 511: it used to cancel the whole order).
+                Err(MoveError::NoMovesLeft | MoveError::StackFull) => {
                     // Step on next turn.
                     work.left = 0;
                     break;

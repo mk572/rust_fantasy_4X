@@ -479,7 +479,33 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | 493 Gaia's Blessing reports food that does not exist | **Not present.** The city's food is the sum of its squares' food times one and a half (`city/economy.rs`), so it reports what the land gives. |
 | 496, 498 Death Immunity fails to prevent raising as undead | **Was present, fixed.** Animate Dead, Raise Dead, a victor's Zombie Mastery and the drained dead of Life Steal or Create Undead all took units with Death Immunity. All four now check it (`can_animate`, `is_zombified`, `is_raised_by`). Tests `a_fallen_unit_with_death_immunity_is_not_raised_as_undead`, `zombie_mastery_leaves_the_death_immune_dead`. |
 
-Next: the rows after 498 in order of the table in order.
+### Walked on 15 November 2026: 501, 511, 521, 523, 528, 541, 619, 634, 655, 656, 663, 687, 688, 694, 695, 697, 701, 704, 705, 712, 715, 717
+
+| Rows | Verdict |
+|---|---|
+| 501 Flying Fortress can still be attacked into for some caster orderings | **Not present.** The fortress shuts the city area to walkers in the battle map itself (`shut_by_walls`), whoever cast it and whoever moves first. Test `a_flying_fortress_shuts_the_city_to_walkers_and_its_walkers_in`. |
+| 502 AI cannot find spells after banishing the human | **Not checked**: no code path found that depends on it; no test. Left as it is. |
+| 511 Engineers build roads slowly or cancel when blocked | **Cancelling was present, fixed.** Engineers whose next square was full dropped the whole order; now they keep it, and the work done, and try again next turn (`process_road_work_for`). Progress itself was kept already. Test `engineers_wait_for_a_full_square_instead_of_cancelling_the_road`. |
+| 521 Neutral cities under 4,000 citizens are taken for outposts | **Not present.** An outpost is a city with no citizens (`figures == 0`), the same test everywhere. |
+| 523 Cities without walls drawn as walled | **Not present.** The map picture and the city screen read the City Walls building (`map_draw.rs`). |
+| 528 Surveyor counts wild game wrong for unsettled places | **Not present.** The Surveyor and a real city use the same `square_yield`. |
+| 541, 687 Walls of Fire, Shadows, Stone and the Fortress in outposts | **Not present.** The wall enchantments are read from the city whether it has citizens or not, Wall of Stone gives the City Walls building, and the battle map takes its walls from that building. Test `an_outpost_with_city_walls_is_fought_round_its_walls`. |
+| 619 Creature Binding and Possession can be dispelled by their caster | **Not present.** One rule for every enchantment: a dispel never attacks the dispeller's own spells (`dispel_list`). Possession is instant. Test `creature_binding_is_dispelled_by_the_other_wizard_and_not_by_its_caster`. |
+| 634 Barbarian Swordsmen and Spearmen cannot appear as raiders | **Not present.** A raiding party is made of the fighting troops the neutral city holds (`raider_sources`), whatever their kind. |
+| 655 Dispel affects inactive units | **Not present.** The dead are not targets, and overland dead units leave the game. Test `spells_are_not_aimed_at_the_dead_or_at_squares_outside_the_field`. |
+| 656 Earth to Mud outside the battlefield | **Not present.** Same test: squares off the field and the corners are refused. |
+| 663 AI Plane Shift crashes on an invisible tile | **Not present** (no crash path; the AI aims by `can_aim`). Not tested. |
+| 688 Unit curses reveal invisible units | **Not present.** Only attacking, shooting, wall strikes and a unit's own casting reveal (`revealed`). |
+| 694 Righteousness items fail against ranged attacks | **Not present.** An item's spell is a lasting effect of the unit (`items().spells`), and `righteous_ward` turns a ranged chaos or death attack away. Test `righteousness_and_bonuses_change_the_defense_a_bolt_meets`. |
+| 695 Destroyed walls show up until the end of the turn | **Not present.** `break_wall` changes the map at once. |
+| 697 Wrack limited to 40 figures | **Not present.** It walks the units' own lists; no fixed array. |
+| 701 Summons miss battlefield-wide effects on their first turn | **Not present.** `add_summoned` calls `refresh_fields`. |
+| 704 Word of Recall at the Summoning Circle in battle | **Was present, fixed.** A fight at the circle itself now refuses Word of Recall and Recall Hero (`CircleHere`, as overland). Test `word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero`. |
+| 705 The Spell action strips a unit of short-range attacks | **Not present.** A cast is a command and does not change the unit's attacks. |
+| 712 Conquered Oracles do not reveal terrain | **Not present.** A city's sight is worked out from the buildings it has now (`vision.rs`), whoever built them. |
+| 715, 717 AI casts Resist Magic on Wraith Form units and Recall Hero at the Circle | **Not present.** The battle AI picks only among the game's legal casts; the Recall Hero at the circle case is refused now too (704). |
+
+Next: row 635 (and 637, 638, 639), then 636, 651, 666 to 670, 674, 682, 685, 686, 690, 689, 703, 711, 719 and the rest in order of the table in order.
 
 
 ### Walked on 15 November 2026: 445, 447, 451, 495
