@@ -103,7 +103,7 @@ test cannot pass on data the game no longer has.
 
 ## Local Mac app
 
-`scripts/make_app.sh [--dist] [--link-assets] [--open]` builds `target/Fantasy4X.app` for Apple silicon: the
+`scripts/make_app.sh [--dist] [--link-assets] [--open]` builds `target/Fantasy4X.app` and `target/Fantasy 4X Setup.app` (the setup program; it extracts the pictures into the data folder from the player's copy) for Apple silicon: the
 release client, the shipped `crates/*/content` folders (in `Contents/Resources`), the icon and an
 Info.plist, signed ad hoc. It carries **nothing of the original**. The game finds `assets-local/` (the
 extracted art and sound) and writes its saves in `~/Library/Application Support/Fantasy4X/`
