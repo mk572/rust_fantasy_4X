@@ -98,7 +98,7 @@ impl Game {
                 let def = self.content.rules.spells.get(spell);
                 let kind = self.battle_kind(spell, def)?;
                 let cost = if source == SpellSource::Mana {
-                    def.cost as i32
+                    self.unit_cast_cost(def)
                 } else {
                     0
                 };
@@ -114,6 +114,17 @@ impl Game {
                 })
             })
             .collect()
+    }
+
+    /// The mana a unit pays for a spell: its plain cost, and with Evil Omens in play half as
+    /// much again for a life or nature spell (1.50 note 720: caster units pay it too).
+    fn unit_cast_cost(&self, def: &SpellDef) -> i32 {
+        let cost = def.cost as i32;
+        if matches!(def.realm.num(), 0 | 3) && self.evil_omens_active() {
+            cost + cost / 2
+        } else {
+            cost
+        }
     }
 
     /// Every check a unit's cast must pass before it is paid for. Gives the spell's
@@ -147,7 +158,7 @@ impl Game {
         let kind = self
             .battle_kind(spell, &def)
             .ok_or(err(SpellError::Unsupported))?;
-        let least = def.cost as i32;
+        let least = self.unit_cast_cost(&def);
         let (paid, pool) = match source {
             SpellSource::Mana if kind.takes_extra_mana() => {
                 let pool = if mana == 0 { least } else { mana as i32 };
@@ -156,8 +167,9 @@ impl Game {
                 }
                 (pool, pool)
             }
-            SpellSource::Mana => (least, least),
-            _ => (0, least),
+            // Evil Omens dears the mana, not the strength a counter has to beat (1.50 note 720).
+            SpellSource::Mana => (least, def.cost as i32),
+            _ => (0, def.cost as i32),
         };
         if paid > u.mana {
             return Err(err(SpellError::TooExpensive));
@@ -194,7 +206,9 @@ impl Game {
                 if !s.castable {
                     continue;
                 }
-                let cost = self.content.rules.spells.get(s.spell).cost;
+                let cost = self
+                    .unit_cast_cost(self.content.rules.spells.get(s.spell))
+                    .max(0) as u32;
                 let most = if s.takes_extra_mana && s.source == SpellSource::Mana {
                     (mana.max(0) as u32).max(cost)
                 } else {

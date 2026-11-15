@@ -3586,6 +3586,33 @@ fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() -> TestResult {
     Ok(())
 }
 
+/// 1.50 note 720: with Evil Omens in play a caster unit pays half as much again for a life or
+/// nature spell, as a wizard does; a chaos spell costs the same.
+#[test]
+fn evil_omens_make_a_unit_pay_more_for_life_and_nature_spells() -> TestResult {
+    let mut g = game();
+    let hero = hero_unit(&mut g, &[83 /* fire_bolt */, 125 /* healing */], 2);
+    begin(&mut g, hero);
+    g.battle.as_mut().ok_or("no battle")?.battle.units[0].mana = 20;
+    let costs = |g: &Game| -> Vec<(i32, bool)> {
+        g.battle_unit_spells(0)
+            .iter()
+            .map(|s| (s.cost, s.castable))
+            .collect()
+    };
+    let plain = costs(&g);
+    let omens = SpellId::new(198 /* evil_omens */);
+    g.add_global(PlayerId(1), omens);
+    let dear = costs(&g);
+    assert_eq!(plain, [(5, true), (15, true)]);
+    assert_eq!(
+        dear,
+        [(5, true), (22, false)],
+        "healing costs 15 and a half"
+    );
+    Ok(())
+}
+
 #[test]
 fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() -> TestResult {
     let mut g = game();

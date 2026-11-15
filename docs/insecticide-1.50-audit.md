@@ -525,6 +525,9 @@ Next: row 635 (and 637, 638, 639), then 636, 651, 666 to 670, 674, 682, 685, 686
 | 639 Shatter obscures the unit's original attack | **Not present.** Shatter is a `Max 1` modifier on the stats; the base value is kept underneath. |
 | 651 AI research bonuses wrong | **Not present.** The AI's research score uses `research_cost` of the wizard, which holds the bonuses. |
 | 685, 686 Too few trees, wrong number of rocks on the combat map | **Not present.** The scatter follows `Scatter_Tree_Scenery` and `Scatter_Rock_Scenery` of ReMoM (counts, patches, forbidden squares); the means of 300 generated fields match the draws. Test `a_field_gets_the_trees_and_rocks_its_terrain_asks_for`. |
+| 720 Caster units ignore Evil Omens | **Was present, fixed.** A unit now pays half as much again for a life or nature spell while Evil Omens is in play (`unit_cast_cost`). Test `evil_omens_make_a_unit_pay_more_for_life_and_nature_spells`. |
+| 720 Evil Omens or cost cuts change how easily a spell is countered | **Not present for wizards, kept so for units.** The counter difficulty is the spell's base cost (or the mana put in), not the cost paid. |
+| 720 Ice Bolt ignores Evil Omens | **Not present.** A wizard's cast pays `casting_cost`, which keys on the realm, not the spell. |
 
 ## P2 code review: first pass
 
