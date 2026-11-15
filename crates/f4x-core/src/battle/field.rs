@@ -372,7 +372,7 @@ impl Battle {
     /// The side's wizard loses mana and its units with spell shots lose a shot.
     fn mana_leak(&mut self, victim: Side) -> Vec<BattleEvent> {
         if let Some(c) = self.casters[victim.index()].as_mut() {
-            c.mana = (c.mana - MANA_LEAK_DRAIN).max(0);
+            c.mana = (c.mana - MANA_LEAK_DRAIN).max(HalfInt::default());
         }
         for u in self
             .units

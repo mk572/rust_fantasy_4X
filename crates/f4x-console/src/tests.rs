@@ -1955,7 +1955,7 @@ fn a_spell_that_costs_more_than_the_wizard_has_is_refused() {
         .casters[Side::Attacker.index()]
     .as_mut()
     .expect("the value is there")
-    .mana = 1;
+    .mana = f4x_def::half_int::HalfInt::from_int(1);
     let r = cast(&mut g, &format!("bcast fire bolt unit:{enemy}"));
     assert!(!r.ok, "{}", r.text());
     assert!(
@@ -2384,7 +2384,7 @@ fn mana_leak_drains_the_rivals_reserve_in_the_game_too() {
         .casters[Side::Defender.index()]
     .as_mut()
     .expect("the value is there")
-    .mana = 100;
+    .mana = f4x_def::half_int::HalfInt::from_int(100);
     assert!(cast(&mut g, "bcast mana leak").ok);
     pass_turn(&mut g);
     // The rival's turn began a new turn: the attacker's.

@@ -1009,13 +1009,13 @@ mod tests {
                     side,
                     spell: bolt,
                     skill: 5,
-                    mana: 5,
+                    mana: f4x_def::half_int::HalfInt::from_int(5),
                 }),
                 Event::Battle(BattleEvent::SpellCast {
                     side,
                     spell: bolt,
                     skill: 5,
-                    mana: 5,
+                    mana: f4x_def::half_int::HalfInt::from_int(5),
                 }),
                 Event::Battle(BattleEvent::UnitSpellCast {
                     unit: 0,

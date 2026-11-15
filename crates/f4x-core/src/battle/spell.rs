@@ -36,6 +36,7 @@ use crate::rules::stats::{ModOp, Modifier, Source, Stat};
 use crate::rules::{SpellId, UnitId};
 use crate::spell::target_error::TargetError;
 use crate::spell::unit_effect::{UnitEffect, UnitEffects, UNIT_EFFECT};
+use f4x_def::half_int::HalfInt;
 
 mod unit_cast;
 pub use unit_cast::{SpellSource, UnitSpell};
@@ -521,9 +522,10 @@ impl Game {
             }
             battle.set_caster(
                 side,
-                BattleCaster::new(
+                BattleCaster::with_mana(
                     skill,
-                    self.player(player).map_or(0, |p| p.treasury().mana.floor()),
+                    self.player(player)
+                        .map_or(HalfInt::default(), |p| p.treasury().mana),
                     range,
                 ),
             );
@@ -536,13 +538,13 @@ impl Game {
         let Some(active) = self.battle.as_ref() else {
             return;
         };
-        let reserves: Vec<(PlayerId, i32)> = [Side::Attacker, Side::Defender]
+        let reserves: Vec<(PlayerId, HalfInt)> = [Side::Attacker, Side::Defender]
             .into_iter()
             .filter_map(|s| Some((active.battle.player_of(s), active.battle.caster(s)?.mana)))
             .collect();
         for (player, mana) in reserves {
             if let Some(t) = self.treasury_mut(player) {
-                t.set_whole_mana(mana);
+                t.mana = mana;
             }
         }
     }
@@ -690,7 +692,7 @@ impl Game {
         let paid = self
             .battle
             .as_mut()
-            .map_or(0, |a| a.battle.pay_for_spell(skill));
+            .map_or(HalfInt::default(), |a| a.battle.pay_for_spell(skill));
         self.sync_battle_mana();
         let mut events = vec![BattleEvent::SpellCast {
             side,

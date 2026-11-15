@@ -824,7 +824,7 @@ pub enum BattleEvent {
         side: Side,
         spell: SpellId,
         skill: i32,
-        mana: i32,
+        mana: HalfInt,
     },
     /// A unit cast a spell of its own, paying `mana` of its mana (none for an item's charge or
     /// an ability).

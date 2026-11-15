@@ -1855,11 +1855,11 @@ mod casting {
     fn a_mana_budget_caps_what_the_wizard_can_afford_and_is_used_up_by_casting() -> TestResult {
         let mut near = BattleCaster::new(20, 100, 10);
         assert_eq!(near.affordable(), 20);
-        near.budget = Some(8);
+        near.budget = Some(HalfInt::from_int(8));
         assert_eq!(near.affordable(), 8);
         // Two mana for each point of skill: a budget of 8 pays for 4.
         let mut far = BattleCaster::new(20, 100, 20);
-        far.budget = Some(8);
+        far.budget = Some(HalfInt::from_int(8));
         assert_eq!(far.affordable(), 4);
         // Casting spends it.
         let mut b = real_battle(&[(SPEARMEN, (3, 10))], &[(SPEARMEN, (17, 10))], 1);
@@ -1867,9 +1867,12 @@ mod casting {
         b.casters = Default::default();
         b.set_caster(Side::Attacker, BattleCaster::new(20, 100, 10));
         b.set_mana_budget(Side::Attacker, Some(8));
-        assert_eq!(b.pay_for_spell(5), 5);
+        assert_eq!(b.pay_for_spell(5), HalfInt::from_int(5));
         let c = b.caster(Side::Attacker).ok_or("caster is missing")?;
-        assert_eq!((c.budget, c.mana, c.skill_left), (Some(3), 95, 15));
+        assert_eq!(
+            (c.budget, c.mana, c.skill_left),
+            (Some(HalfInt::from_int(3)), HalfInt::from_int(95), 15)
+        );
         assert_eq!(c.affordable(), 3);
         // A side without a wizard has nothing to limit; no budget means no limit.
         b.set_mana_budget(Side::Defender, Some(1));
@@ -1890,11 +1893,11 @@ mod casting {
         assert_eq!(near.affordable(), 20);
         let far = BattleCaster::new(20, 30, 30);
         assert_eq!(far.affordable(), 10, "30 mana at three times pays for 10");
-        assert_eq!(far.mana_for(10), 30);
+        assert_eq!(far.mana_for(10), HalfInt::from_int(30));
         assert_eq!(
             BattleCaster::new(20, 100, 5).mana_for(7),
-            3,
-            "halved, rounded down"
+            HalfInt::from_raw(7),
+            "halved, to the half point"
         );
     }
 
@@ -7533,21 +7536,29 @@ fn invulnerability_can_be_dispelled_in_a_battle() -> TestResult {
     Ok(())
 }
 
-/// 1.50 note 720: a spell whose price in mana (rounded down at x0.5, x1.5, x2.5) is exactly what
-/// the reserve holds can be cast.
+/// 1.50 note 720: a reserve that holds exactly what a spell costs, halves included (x0.5, x1.5,
+/// x2.5 make them), casts it, and one half point less does not.
 #[test]
 fn a_reserve_that_exactly_pays_a_spell_casts_it_at_any_distance() {
+    let half = HalfInt::from_raw(1);
     for range in [5, 10, 15, 20, 25, 30] {
         for cost in 1..=20 {
             let paying = BattleCaster::new(100, 0, range).mana_for(cost);
-            let caster = BattleCaster::new(100, paying, range);
+            assert_eq!(
+                paying.raw(),
+                cost * range / 5,
+                "x{range}: {cost} costs exactly"
+            );
+            let caster = BattleCaster::with_mana(100, paying, range);
             assert!(
                 caster.affordable() >= cost,
-                "x{range}: {paying} mana pays {cost}, affordable {}",
-                caster.affordable()
+                "x{range}: {paying} pays {cost}"
             );
-            let dearer = BattleCaster::new(100, paying, range).affordable();
-            assert!(caster.mana_for(dearer) <= paying);
+            let short = BattleCaster::with_mana(100, paying - half, range);
+            assert!(
+                short.affordable() < cost,
+                "x{range}: less than {paying} pays {cost}"
+            );
         }
     }
 }

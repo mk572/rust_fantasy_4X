@@ -264,7 +264,7 @@ impl BattleEnv {
                 BattleEvent::SpellCast {
                     side, mana, spell, ..
                 } => {
-                    self.outcome.mana_spent[side.index()] += *mana;
+                    self.outcome.mana_spent[side.index()] += mana.ceil();
                     let seen = &mut self.cast[side.index()];
                     if !seen.contains(spell) {
                         seen.push(*spell);

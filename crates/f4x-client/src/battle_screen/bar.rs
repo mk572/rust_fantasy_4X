@@ -9,6 +9,7 @@ use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::frame::Layout;
 use crate::input::Input;
+use f4x_def::half_int::HalfInt;
 
 /// Top of the panel (`combat_background_bottom`), and of the buttons and text in it.
 const BAR_Y: f32 = 164.0;
@@ -216,8 +217,10 @@ impl App {
         self.bar_text(view, 0, &turn, (218.0, 167.0), Align::Center);
 
         // Skill, mana and range (`Draw_Spell_Information_Window`).
-        let (skill, mana, range) =
-            Self::my_caster(battle).map_or((0, 0, 10), |c| (c.skill_left, c.mana, c.range));
+        let (skill, mana, range) = Self::my_caster(battle)
+            .map_or((0, HalfInt::default(), 10), |c| {
+                (c.skill_left, c.mana, c.range)
+            });
         for (i, (label, value)) in [
             (self.text("battle.skill"), skill.to_string()),
             (self.text("battle.mana"), mana.to_string()),

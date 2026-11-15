@@ -1632,7 +1632,7 @@ impl App {
         let caster = Self::my_caster(battle);
         let limit = match unit.and_then(|u| battle.unit(u)) {
             Some(u) => u.mana,
-            None => caster.map_or(0, |c| c.skill_left.min(c.mana)),
+            None => caster.map_or(0, |c| c.skill_left.min(c.mana.floor())),
         };
         let entries: HashMap<SpellId, crate::spellbook::CombatEntry> = spells
             .iter()

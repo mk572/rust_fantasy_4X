@@ -70,14 +70,14 @@ pub(crate) fn damage_unit_with_spell(
 pub struct BattleCaster {
     /// Casting skill left to spend this battle.
     pub skill_left: i32,
-    /// Mana in the reserve.
-    pub mana: i32,
+    /// Mana in the reserve (halves count: a spell of 5 at x1.5 costs 7½).
+    pub mana: HalfInt,
     /// What each point of skill costs from the reserve, in tenths: 10 is one for one.
     pub range: i32,
     pub cast_this_turn: bool,
     /// The most reserve mana the wizard may still spend in this battle, if limited (the brief
     /// of the strategic AI, `docs/learning-ai.md` section 2). `None` is no limit.
-    pub budget: Option<i32>,
+    pub budget: Option<HalfInt>,
 }
 
 /// What a unit starts a battle with, before any lasting spell cast in the battle: the numbers
@@ -146,27 +146,33 @@ pub struct Lasting {
 }
 
 impl BattleCaster {
+    /// A caster with a whole number of mana in the reserve.
     pub fn new(skill: i32, mana: i32, range: i32) -> Self {
+        Self::with_mana(skill, HalfInt::from_int(mana.max(0)), range)
+    }
+
+    /// A caster whose reserve may hold half a point.
+    pub fn with_mana(skill: i32, mana: HalfInt, range: i32) -> Self {
         Self {
             skill_left: skill.max(0),
-            mana: mana.max(0),
+            mana: if mana < 0 { HalfInt::from_int(0) } else { mana },
             range: range.max(1),
             cast_this_turn: false,
             budget: None,
         }
     }
 
-    /// Mana from the reserve for `skill` points of casting.
-    pub fn mana_for(&self, skill: i32) -> i32 {
-        skill * self.range / 10
+    /// Mana from the reserve for `skill` points of casting, exact: `range` is a multiple of 5
+    /// tenths, so the price is a whole or a half number.
+    pub fn mana_for(&self, skill: i32) -> HalfInt {
+        HalfInt::from_raw(skill * self.range / 5)
     }
 
     /// The most skill a spell can cost now: what is left, and what the reserve pays for.
     pub fn affordable(&self) -> i32 {
-        // The most skill whose price in mana (`mana_for`, rounded down) the reserve covers: at
-        // x1.5 a spell of 5 costs 7 mana, so 7 mana is enough (1.50 note 720).
-        let skill_for = |mana: i32| ((mana + 1) * 10 - 1) / self.range;
-        let by_budget = self.budget.map_or(i32::MAX, |b| skill_for(b.max(0)));
+        // The most skill whose price in mana the reserve (or the budget) covers.
+        let skill_for = |mana: HalfInt| mana.raw().max(0) * 5 / self.range;
+        let by_budget = self.budget.map_or(i32::MAX, skill_for);
         self.skill_left.min(skill_for(self.mana)).min(by_budget)
     }
 }
@@ -276,7 +282,7 @@ impl Battle {
     /// Limit the mana `side`'s wizard may spend from the reserve in this battle.
     pub fn set_mana_budget(&mut self, side: Side, budget: Option<u32>) {
         if let Some(c) = self.casters[side.index()].as_mut() {
-            c.budget = budget.map(|b| b.min(i32::MAX as u32) as i32);
+            c.budget = budget.map(|b| HalfInt::from_int(b.min(i32::MAX as u32 / 4) as i32));
         }
     }
 
@@ -300,15 +306,15 @@ impl Battle {
 
     /// The active wizard casts: `skill` points of casting skill, paid for from the reserve.
     /// Returns the mana taken from the reserve.
-    pub fn pay_for_spell(&mut self, skill: i32) -> i32 {
+    pub fn pay_for_spell(&mut self, skill: i32) -> HalfInt {
         let Some(caster) = self.casters[self.active.index()].as_mut() else {
-            return 0;
+            return HalfInt::default();
         };
         let mana = caster.mana_for(skill).min(caster.mana);
         caster.skill_left -= skill;
         caster.mana -= mana;
         if let Some(b) = caster.budget.as_mut() {
-            *b = (*b - mana).max(0);
+            *b = (*b - mana).max(HalfInt::default());
         }
         caster.cast_this_turn = true;
         mana

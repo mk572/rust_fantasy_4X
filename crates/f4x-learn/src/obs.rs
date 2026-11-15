@@ -254,7 +254,7 @@ impl ObsSpec {
         };
         let globals = [
             caster.map_or(0.0, |c| c.skill_left as f32 / 50.0),
-            caster.map_or(0.0, |c| (c.mana as f32 / 500.0).min(4.0)),
+            caster.map_or(0.0, |c| (c.mana.as_f32() / 500.0).min(4.0)),
             caster.map_or(0.0, |c| c.range as f32 / 30.0),
             caster.map_or(0.0, |c| f32::from(c.cast_this_turn)),
             b.turn as f32 / 50.0,
@@ -268,7 +268,7 @@ impl ObsSpec {
             // The mana still allowed for the wizard in this battle.
             caster
                 .and_then(|c| c.budget)
-                .map_or(1.0, |m| (m as f32 / 500.0).min(4.0)),
+                .map_or(1.0, |m| (m.as_f32() / 500.0).min(4.0)),
             f32::from(caster.is_some_and(|c| c.budget.is_some())),
             brief.stakes,
             f32::from(brief.may_flee),
