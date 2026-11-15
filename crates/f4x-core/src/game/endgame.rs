@@ -240,7 +240,7 @@ impl Game {
 
     /// Clear away a defeated wizard's holdings: their heroes, creatures and remaining
     /// units go, their enchantments come off every city and unit, their spells stop, their
-    /// nodes are freed, and the conqueror takes half their gold.
+    /// nodes are freed, and the conqueror takes half their gold (the setting `defeat_loot`; the mana goes with the fortress).
     pub(crate) fn aftermath(&mut self, loser: PlayerId, winner: PlayerId) {
         // A defeated wizard has no city left, so none of their units is garrisoned: they are
         // all dismissed (the original turns garrisoned normal units neutral first). A hero that
@@ -259,9 +259,15 @@ impl Game {
                 }
             }
         }
-        let loot = self.player(loser).map_or(HalfInt::ZERO, |p| {
-            HalfInt::from_raw(p.treasury().gold.raw() / 2)
-        });
+        // The victor takes half the loser's gold (the mana half went with the fortress,
+        // `take_fortress_prize`), when the setting `defeat_loot` says so; off, the gold is lost
+        // with the wizard.
+        let loot = self
+            .player(loser)
+            .filter(|_| self.settings.rules.defeat_loot)
+            .map_or(HalfInt::ZERO, |p| {
+                HalfInt::from_raw(p.treasury().gold.raw() / 2)
+            });
         if let Some(t) = self.treasury_mut(loser) {
             t.gold -= loot;
         }

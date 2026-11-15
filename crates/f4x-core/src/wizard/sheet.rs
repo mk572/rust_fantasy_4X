@@ -442,6 +442,11 @@ impl<'a> Wizard<'a> {
     pub fn upkeep_percent(&self, rules: &Rules) -> i32 {
         retort::stat(rules, &self.retorts(), Stat::SpellUpkeepPercent, 100)
     }
+
+    /// The percent of a unit's mana upkeep the wizard pays: 75 for a Conjurer.
+    pub fn unit_upkeep_percent(&self, rules: &Rules) -> i32 {
+        retort::stat(rules, &self.retorts(), Stat::UnitManaUpkeepPercent, 100)
+    }
 }
 
 /// The mana a spell costs `wizard` (a player without a wizard pays the listed cost).

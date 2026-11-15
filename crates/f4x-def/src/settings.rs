@@ -356,6 +356,12 @@ pub struct RuleSettings {
     /// had).
     #[serde(default = "fb_roads_at_start")]
     pub roads_at_start: bool,
+    /// What defeating a wizard (taking the fortress of one who has no other way back, or the last
+    /// city) brings the victor: half the loser's gold and half their mana reserve
+    /// (`Conquer_Player`, patch 1.52 note 771). On in v1.31 and v1.6; off, the victor gets
+    /// nothing and the loser's treasury is lost with them.
+    #[serde(default = "fb_defeat_loot")]
+    pub defeat_loot: bool,
     /// Patch 1.50 (notes 013, 015, 001): stronger lairs. Off (the original): the budgets, divisors,
     /// creature costs and difficulty scale of version 1.31. On: those of the patch (towers and
     /// sites with far larger budgets, up to six of the first kind of guard, the patch's costs, the
@@ -499,6 +505,10 @@ fn fb_miners_guild_half_ore() -> bool {
 
 fn fb_spell_binding_always_succeeds() -> bool {
     fallback(|g| g.rules.spell_binding_always_succeeds, false)
+}
+
+fn fb_defeat_loot() -> bool {
+    fallback(|g| g.rules.defeat_loot, true)
 }
 
 fn fb_roads_at_start() -> bool {

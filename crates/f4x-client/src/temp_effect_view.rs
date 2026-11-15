@@ -31,6 +31,7 @@ fn stat_key(stat: Stat) -> &'static str {
         Stat::CastingSkill => "temp.stat_casting_skill",
         Stat::SpellCostPercent => "temp.stat_spell_cost_percent",
         Stat::SpellUpkeepPercent => "temp.stat_spell_upkeep_percent",
+        Stat::UnitManaUpkeepPercent => "temp.stat_unit_mana_upkeep_percent",
         Stat::StartingSkill => "temp.stat_starting_skill",
         Stat::SkillGainPercent => "temp.stat_skill_gain_percent",
         Stat::DispelMultiplier => "temp.stat_dispel_multiplier",

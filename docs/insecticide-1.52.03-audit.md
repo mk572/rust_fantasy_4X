@@ -116,6 +116,21 @@ Verdicts for the rows of the three tables above, by reading the code; rows not n
 | 765 AI unit strength | **Not present.** `strength` uses effective attack, defence and hits only. It ignores abilities such as First Strike (a valuation gap, not this bug). |
 | 772 AI flying "stall" tactic at a fortress | **Not applicable, unsure.** The original's tactic is not known to us; our battle AI has no scripted tactic, and a stalled assault ends with the active side fleeing (`assault.rs`). |
 
+## Optional rows walked on 15 November 2026 (task 457)
+
+| Rows | Verdict |
+|---|---|
+| 762, IW076 Conjurer upkeep rounding | **Was missing, added.** The Conjurer's 25 percent cut of its units' mana upkeep did not exist; it is `UnitManaUpkeepPercent` 75 on the retort, applied per unit and rounded up (`upkeep_items`). The round-down option is not offered. |
+| 771, 105 Looting a defeated wizard | **Present, now a setting.** The fortress prize takes half the loser's mana and the defeat half their gold. `defeat_loot` (on in v1.31 and v1.6) switches both; off gives nothing. (My first reading, that the mana half was missing, was wrong.) |
+| 763, 027 Starting relations | **Baseline.** `start_relation` is the original's book-count formula; the alternative formula is not offered. |
+| 759, IW049 Fleeing in the first turn | **Baseline.** Nothing blocks it. |
+| 757, IM185 AI races | **Present.** `limit_ai_races`, on in v1.31 and v1.6. |
+| 777 and the 013 to 025 bundle | **Present as two switches.** `stronger_lairs` and `treasure_patch_150`, both off. |
+| 773, 774 Swamps in combat | **Not built**, skipped by default as the audit says. |
+| 785 Immolation and Webs | **Not applicable**, see the walked rows above. |
+| 768, IM181 Node power 2.0 and 2.5 | **Open**, to discuss: ours has three levels (weak, normal, powerful). |
+| HOTKEY.TXT | **Client.** Not walked. |
+
 ## Optional
 
 These entries are selectable alternatives or compatibility variants, not mandatory baseline behavior.

@@ -8,7 +8,7 @@
 // `effects`: what it does, as the abilities and buildings say it. Only passive changes to the wizard
 // stats are understood (the loader names them): `SpellCostPercent` (added, so -15 is 15% off),
 // `ResearchIncome` and `ManaIncome` (percents of the research and the mana shares),
-// `SpellUpkeepPercent`, `SkillGainPercent`, `AlchemyPercent`, `DiplomacyGainPercent`,
+// `SpellUpkeepPercent`, `UnitManaUpkeepPercent`, `SkillGainPercent`, `AlchemyPercent`, `DiplomacyGainPercent`,
 // `DiplomacyLossPercent`, `HireCostPercent` and `ReligiousPercent` (percents), `CastingSkill`,
 // `StartingSkill`, `StartingFame`, `UnitLevels`, `DispelMultiplier`, `NodeImmunity` (above 0 it
 // holds), `OfferChancePercent`, `NodePowerDoublings` (per node, by its realm), `CastingDistance` and `StartingWeapons` (numbers). A condition on the spell:
@@ -30,7 +30,7 @@
     (num: 12, id: "node_mastery", help: Some(710), cost: 1, requires: [Books(2, 1), Books(1, 1), Books(0, 1)], effects: [(effect: Modify(stat: NodeImmunity, op: Add, value: 1)), (effect: Modify(stat: NodePowerDoublings, op: Add, value: 1))]),
     (num: 13, id: "famous", help: Some(702), cost: 2, requires: [], effects: [(effect: Modify(stat: StartingFame, op: Add, value: 10)), (effect: Modify(stat: OfferChancePercent, op: Percent, value: 100))]),
     (num: 14, id: "runemaster", help: Some(703), cost: 1, requires: [Realms(3, 2)], effects: [(condition: RealmIs(5), effect: Modify(stat: SpellCostPercent, op: Add, value: -25)), (condition: RealmIs(5), effect: Modify(stat: ResearchIncome, op: Percent, value: 25))]),
-    (num: 15, id: "conjurer", help: Some(698), cost: 1, requires: [], effects: [(condition: SpellIs(Summoning), effect: Modify(stat: SpellCostPercent, op: Add, value: -25)), (condition: SpellIs(Summoning), effect: Modify(stat: ResearchIncome, op: Percent, value: 25))]),
+    (num: 15, id: "conjurer", help: Some(698), cost: 1, requires: [], effects: [(condition: SpellIs(Summoning), effect: Modify(stat: SpellCostPercent, op: Add, value: -25)), (condition: SpellIs(Summoning), effect: Modify(stat: ResearchIncome, op: Percent, value: 25)), (effect: Modify(stat: UnitManaUpkeepPercent, op: Percent, value: -25))]),
     (num: 16, id: "charismatic", help: Some(704), cost: 1, requires: [], effects: [(effect: Modify(stat: DiplomacyGainPercent, op: Percent, value: 100)), (effect: Modify(stat: DiplomacyLossPercent, op: Percent, value: -50)), (effect: Modify(stat: HireCostPercent, op: Percent, value: -50))]),
     (num: 17, id: "artificer", help: Some(697), cost: 1, requires: [], effects: [(condition: SpellIs(Crafting), effect: Modify(stat: SpellCostPercent, op: Add, value: -50))]),
 ]

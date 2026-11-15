@@ -51,6 +51,9 @@ pub enum Stat {
     SpellCostPercent,
     /// Percent of the mana upkeep of the wizard's lasting spells that is paid (100 normally).
     SpellUpkeepPercent,
+    /// Percent of the mana upkeep of the wizard's units that is paid (100 normally); a fraction
+    /// of a mana is paid in full (the Conjurer's 75).
+    UnitManaUpkeepPercent,
     /// Casting skill a new wizard is made with, on top of twice the books.
     StartingSkill,
     /// Percent of the skill share of the power base that becomes casting skill (100 normally).
@@ -118,6 +121,7 @@ impl Stat {
             | Stat::CityUnrestPercent
             | Stat::SpellCostPercent
             | Stat::SpellUpkeepPercent
+            | Stat::UnitManaUpkeepPercent
             | Stat::UnitCostPercent => None,
             _ => Some(0),
         }

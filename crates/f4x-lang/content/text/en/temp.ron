@@ -28,6 +28,7 @@
     "temp.stat_casting_skill": "Casting skill",
     "temp.stat_spell_cost_percent": "Spell cost %",
     "temp.stat_spell_upkeep_percent": "Spell upkeep %",
+    "temp.stat_unit_mana_upkeep_percent": "Unit mana upkeep %",
     "temp.stat_starting_skill": "Starting casting skill",
     "temp.stat_skill_gain_percent": "Skill gain %",
     "temp.stat_dispel_multiplier": "Dispel resistance",

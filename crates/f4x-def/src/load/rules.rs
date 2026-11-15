@@ -332,6 +332,7 @@ pub fn validate_rules(r: &Rules) -> Vec<String> {
                     Effect::Modify {
                         stat: Stat::SpellCostPercent
                             | Stat::SpellUpkeepPercent
+                            | Stat::UnitManaUpkeepPercent
                             | Stat::ManaIncome
                             | Stat::ResearchIncome
                             | Stat::CastingSkill
@@ -355,7 +356,7 @@ pub fn validate_rules(r: &Rules) -> Vec<String> {
                 );
             if !fine {
                 p.push(format!(
-                    "retort {:?}: only passive changes to the wizard stats (SpellCostPercent, SpellUpkeepPercent, ManaIncome, ResearchIncome, CastingSkill and the others a wizard has) are understood",
+                    "retort {:?}: only passive changes to the wizard stats (SpellCostPercent, SpellUpkeepPercent, UnitManaUpkeepPercent, ManaIncome, ResearchIncome, CastingSkill and the others a wizard has) are understood",
                     retort.id
                 ));
             }

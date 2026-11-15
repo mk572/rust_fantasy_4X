@@ -444,6 +444,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.roads_at_start = v != 0,
         ),
         flag(
+            "custom.defeat_loot",
+            |s| s.rules.defeat_loot.into(),
+            |s, v| s.rules.defeat_loot = v != 0,
+        ),
+        flag(
             "custom.stronger_lairs",
             |s| s.rules.stronger_lairs.into(),
             |s, v| s.rules.stronger_lairs = v != 0,

@@ -349,9 +349,13 @@ impl Game {
     /// What the winner gets from a wizard who loses the fortress or the last city: 5 fame and
     /// half the loser's mana.
     fn take_fortress_prize(&mut self, loser: PlayerId, winner: PlayerId) {
-        let half = self
-            .treasury_mut(loser)
-            .map_or(HalfInt::ZERO, |t| t.take_half_mana());
+        // The mana is only taken when the setting `defeat_loot` is on.
+        let half = if self.settings.rules.defeat_loot {
+            self.treasury_mut(loser)
+                .map_or(HalfInt::ZERO, |t| t.take_half_mana())
+        } else {
+            HalfInt::ZERO
+        };
         self.add_fame(winner, FORTRESS_PRIZE_FAME);
         if let Some(t) = self.treasury_mut(winner) {
             t.mana += half;

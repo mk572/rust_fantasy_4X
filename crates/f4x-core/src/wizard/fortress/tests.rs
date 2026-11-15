@@ -455,6 +455,21 @@ fn taking_the_last_rivals_last_city_wins_by_conquest() -> TestResult {
 }
 
 #[test]
+fn with_the_loot_setting_off_the_victor_takes_nothing_of_a_defeated_wizard() -> TestResult {
+    let mut g = world();
+    g.settings.rules.defeat_loot = false;
+    let capital = place(&mut g, P0, at(5, 5));
+    let full = f4x_def::half_int::HalfInt::from_int(90);
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = full;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = full;
+    let before = g.player(P1).ok_or("player is missing")?.treasury();
+    g.capture_city(capital, P1);
+    let after = g.player(P1).ok_or("player is missing")?.treasury();
+    assert_eq!((after.gold, after.mana), (before.gold, before.mana));
+    Ok(())
+}
+
+#[test]
 fn the_game_goes_on_while_two_wizards_stand_unless_the_human_falls() {
     let mut g = world();
     g.add_player(PlayerId(2), "Third");

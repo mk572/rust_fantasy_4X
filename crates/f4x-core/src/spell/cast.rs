@@ -1110,6 +1110,11 @@ impl Game {
         if only_time_stop {
             return items;
         }
+        // A Conjurer pays three quarters of a unit's mana upkeep, a fraction of a mana rounded up
+        // (`Unit_Mana_Upkeep`: `(upkeep * 3 + 3) / 4`); the unit's own enchantments cost in full.
+        let unit_percent = self
+            .wizard(player)
+            .map_or(100, |w| w.unit_upkeep_percent(&self.content.rules));
         for unit in self.units().player_units(player) {
             let mut mana = self
                 .units()
@@ -1126,6 +1131,7 @@ impl Game {
             {
                 mana = mana * 3 / 2;
             }
+            mana = (mana * unit_percent + 99) / 100;
             if mana > 0 {
                 items.push(UpkeepItem {
                     kind: UpkeepKind::Unit(unit),

@@ -973,3 +973,32 @@ fn the_extra_mana_of_a_cast_in_progress_survives_a_save() -> TestResult {
     assert_eq!(back.cast_extra(P0), 20);
     Ok(())
 }
+
+#[test]
+fn a_conjurer_pays_three_quarters_of_a_units_mana_upkeep_rounded_up() -> TestResult {
+    let mut g = world();
+    found(&mut g, at(10, 6), 4);
+    let unit = |g: &Game, num| {
+        g.content
+            .rules
+            .units
+            .id_numbered(num)
+            .ok_or("the unit is not in the content")
+    };
+    let hydra = unit(&g, 163 /* hydra, upkeep 14 */)?;
+    let spawn = unit(&g, 159 /* chaos_spawn, upkeep 12 */)?;
+    let spirit = unit(&g, 154 /* magic_spirit, upkeep 1 */)?;
+    for id in [hydra, spawn, spirit] {
+        g.spawn_unit(P0, at(10, 6), id);
+    }
+    let upkeep = |g: &Game| g.upkeep_items(P0).iter().map(|i| i.mana).sum::<i32>();
+    assert_eq!(upkeep(&g), 14 + 12 + 1);
+    g.wizard_mut(P0)
+        .ok_or("wizard_mut is missing")?
+        .get_mut::<crate::wizard::sheet::Retorts>()
+        .0
+        .insert(Retort::new(15) /* conjurer */);
+    // 14 -> 10.5 -> 11, 12 -> 9, 1 -> 0.75 -> 1: the original's (upkeep * 3 + 3) / 4.
+    assert_eq!(upkeep(&g), 11 + 9 + 1);
+    Ok(())
+}
