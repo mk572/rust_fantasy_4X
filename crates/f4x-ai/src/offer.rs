@@ -516,6 +516,35 @@ mod tests {
         Ok((g, ai, hero))
     }
 
+    /// A wizard with a hired hero of this kind (which slots it has): the offer comes from the
+    /// game's random stream, so the stream is moved on until the hero is the kind asked for.
+    fn with_hero_of(
+        kind: f4x_def::rules::HeroKind,
+    ) -> Result<(Game, Ai, hecs::Entity), Box<dyn std::error::Error>> {
+        for burn in 0..200 {
+            let mut g = game()?;
+            for _ in 0..burn {
+                g.roll(2);
+            }
+            set_gold(&mut g, P1, 100_000)?;
+            offer_hero(&mut g);
+            let ai = Ai::new(P1);
+            answer(&ai, &mut g, &mut Vec::new());
+            let Some(&hero) = PlayerView::new(&g, P1).my_heroes().first() else {
+                continue;
+            };
+            let of_kind = g
+                .units()
+                .unit_def(hero)
+                .and_then(|d| d.hero.as_ref())
+                .is_some_and(|h| h.kind == kind);
+            if of_kind {
+                return Ok((g, ai, hero));
+            }
+        }
+        Err("no hero of that kind was offered".into())
+    }
+
     #[test]
     fn a_hero_gives_up_an_item_for_one_that_suits_it_a_good_deal_better() -> TestResult {
         let (mut g, ai, hero) = with_hero()?;
@@ -542,8 +571,8 @@ mod tests {
 
     #[test]
     fn items_no_hero_can_carry_are_scrapped_for_mana_but_two_are_kept() -> TestResult {
-        let (mut g, ai, _) = with_hero()?;
-        // The hired hero is a fighter: its slots take swords, armour and trinkets, not staves.
+        let (mut g, ai, _) = with_hero_of(f4x_def::rules::HeroKind::Warrior)?;
+        // The hired hero is a warrior: its slots take swords, armour and trinkets, not staves.
         let staves: Vec<_> = [40, 41, 128, 204].map(shipped_item).into();
         let mut costs: Vec<u32> = staves.iter().map(|i| i.cost).collect();
         costs.sort();

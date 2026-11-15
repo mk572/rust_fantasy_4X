@@ -371,7 +371,9 @@ mod tests {
                 count(HeroKind::SwordOrStaff),
                 count(HeroKind::Mage)
             ],
-            [19, 4, 3, 9]
+            // The Healer and the Golden One carry a staff too (community patch 1.60, Lesser Hero
+            // Powerup): two of the original's nineteen warriors are of the third kind.
+            [17, 4, 5, 9]
         );
         let hero = |num: u16| {
             units
@@ -379,6 +381,8 @@ mod tests {
                 .and_then(|u| u.hero.clone())
                 .expect("the hero unit exists")
         };
+        assert_eq!(hero(7 /* healer */).kind, HeroKind::SwordOrStaff);
+        assert_eq!(hero(19 /* golden_one */).kind, HeroKind::SwordOrStaff);
         assert_eq!(hero(16 /* ranger */).kind, HeroKind::Bow);
         // The bow hero is the Elven Archer and the melee hero the Knight (docs/divergences.md).
         assert_eq!(hero(30 /* elven_archer */).kind, HeroKind::Bow);
