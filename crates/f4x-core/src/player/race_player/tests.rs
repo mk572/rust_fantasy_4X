@@ -211,7 +211,7 @@ fn a_neutral_player_that_defeats_the_last_human_wizard_ends_the_game_as_a_loss()
     let mut g = world(7)?;
     g.set_human(Some(PlayerId(0)));
     let race = g.race_player(RaceId::new(2));
-    let events = g.defeat(PlayerId(0), race);
+    let events = g.defeat(PlayerId(0), race, crate::wizard::fortress::Fall::Defeated);
     assert!(
         events.iter().any(|e| matches!(
             e,
@@ -234,7 +234,7 @@ fn a_neutral_player_never_counts_as_the_last_wizard_standing() -> TestResult {
     // Every wizard but the first falls to the neutral player: the first one wins.
     let others: Vec<_> = g.living_wizards().into_iter().skip(1).collect();
     for w in others {
-        g.defeat(w, race);
+        g.defeat(w, race, crate::wizard::fortress::Fall::Defeated);
     }
     let over = g.game_over.ok_or("the game is not over")?;
     assert_eq!(over.winner, PlayerId(0));

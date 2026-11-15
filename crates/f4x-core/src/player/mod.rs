@@ -56,6 +56,13 @@ impl Treasury {
         self.mana = HalfInt::from_int(whole) + half;
     }
 
+    /// Take half the gold (rounded down) out of the treasury and return it.
+    pub fn take_half_gold(&mut self) -> HalfInt {
+        let half = HalfInt::from_raw(self.gold.raw() / 2);
+        self.gold -= half;
+        half
+    }
+
     /// Take half the mana (rounded down) out of the treasury and return it.
     pub fn take_half_mana(&mut self) -> HalfInt {
         let half = HalfInt::from_raw(self.mana.raw() / 2);

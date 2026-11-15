@@ -872,6 +872,31 @@ fn a_banished_human_may_resign() -> TestResult {
 }
 
 #[test]
+fn a_banished_wizard_who_resigns_loses_half_the_mana_again_and_half_the_gold() -> TestResult {
+    use f4x_def::half_int::HalfInt;
+    let (mut g, capital, _) = banish_world(40);
+    g.set_human(Some(P0));
+    let loser = g.treasury_mut(P0).ok_or("treasury_mut is missing")?;
+    loser.gold = HalfInt::from_int(80);
+    loser.mana = HalfInt::from_int(100);
+    let winner = g.player(P1).ok_or("player is missing")?.treasury();
+    g.capture_city(capital, P1);
+    // The banishment took half the mana.
+    let kept = g.player(P0).ok_or("player is missing")?.treasury();
+    assert_eq!(kept.mana, HalfInt::from_int(50));
+    assert_eq!(kept.gold, HalfInt::from_int(80));
+    g.apply(Command::Resign { player: P0 });
+    // Giving up takes half of what is left, and half the gold.
+    let gone = g.player(P0).ok_or("player is missing")?.treasury();
+    assert_eq!(gone.mana, HalfInt::from_int(25));
+    assert_eq!(gone.gold, HalfInt::from_int(40));
+    let won = g.player(P1).ok_or("player is missing")?.treasury();
+    assert_eq!(won.mana, winner.mana + HalfInt::from_int(75));
+    assert_eq!(won.gold, winner.gold + HalfInt::from_int(40));
+    Ok(())
+}
+
+#[test]
 fn the_banisher_is_remembered_across_a_save() -> TestResult {
     let (mut g, capital, _) = banish_world(40);
     g.capture_city(capital, P1);

@@ -157,6 +157,17 @@ pub(crate) fn fortress_falls(wizard: &mut WizardMut) {
     wizard.put::<SummonAt>(None);
 }
 
+/// How a wizard fell, which decides what the winner takes ([`Game::take_spoils`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Fall {
+    /// The fortress fell and the wizard may come back: fame, half the mana, spells.
+    Banished,
+    /// Defeated at once (the last city fell, or there is no way back): also half the gold.
+    Defeated,
+    /// A banished wizard gave up: as defeated, but the fame was paid with the banishment.
+    Resigned,
+}
+
 /// The fame the conqueror of a fortress city gains (and the loser's half of the mana).
 pub(crate) const FORTRESS_PRIZE_FAME: i32 = 5;
 
@@ -340,26 +351,36 @@ impl Game {
         } else if self.is_wizard(loser) && self.economy().city_count(loser) == 0 {
             // The last city fell, and it was not the fortress: the prize is the same
             // (`Resolve_Wizard_Conquest`).
-            self.take_fortress_prize(loser, winner);
-            events.extend(self.defeat(loser, winner));
+            events.extend(self.defeat(loser, winner, Fall::Defeated));
         }
         events
     }
 
-    /// What the winner gets from a wizard who loses the fortress or the last city: 5 fame and
-    /// half the loser's mana.
-    fn take_fortress_prize(&mut self, loser: PlayerId, winner: PlayerId) {
-        // The mana is only taken when the setting `defeat_loot` is on.
-        let half = if self.settings.rules.defeat_loot {
-            self.treasury_mut(loser)
-                .map_or(HalfInt::ZERO, |t| t.take_half_mana())
-        } else {
-            HalfInt::ZERO
-        };
-        self.add_fame(winner, FORTRESS_PRIZE_FAME);
-        if let Some(t) = self.treasury_mut(winner) {
-            t.mana += half;
+    /// Everything the winner takes from a wizard who falls, in one place (`Banish_Wizard` and
+    /// `Resolve_Wizard_Conquest`): 5 fame (not again from a wizard who gives up after a
+    /// banishment, which paid it), half the loser's mana, half their gold when they are
+    /// defeated, and up to two of their spells ([`Game::conquest_spells`]). The mana and the gold
+    /// are only taken when the setting `defeat_loot` is on; off, they are lost with the wizard.
+    fn take_spoils(&mut self, loser: PlayerId, winner: PlayerId, fall: Fall) -> Vec<Event> {
+        if fall != Fall::Resigned {
+            self.add_fame(winner, FORTRESS_PRIZE_FAME);
         }
+        if self.settings.rules.defeat_loot {
+            let (gold, mana) =
+                self.treasury_mut(loser)
+                    .map_or((HalfInt::ZERO, HalfInt::ZERO), |t| {
+                        let gold = match fall {
+                            Fall::Banished => HalfInt::ZERO,
+                            Fall::Defeated | Fall::Resigned => t.take_half_gold(),
+                        };
+                        (gold, t.take_half_mana())
+                    });
+            if let Some(t) = self.treasury_mut(winner) {
+                t.gold += gold;
+                t.mana += mana;
+            }
+        }
+        self.conquest_spells(winner, loser)
     }
 
     /// `Conquest_Spells`: the winner takes up to two spells chosen at random from those the loser
@@ -410,14 +431,13 @@ impl Game {
         if let Some(mut w) = self.wizard_mut(loser) {
             fortress_falls(&mut w);
         }
-        self.take_fortress_prize(loser, winner);
         // The game's rules may leave this wizard no Spell of Return (`RuleSettings::spell_of_return`).
         if self.economy().city_count(loser) == 0
             || skill < RESIGN_BELOW_SKILL
             || mana < 1
             || !self.return_open_to(loser)
         {
-            return self.defeat(loser, winner);
+            return self.defeat(loser, winner, Fall::Defeated);
         }
         self.conquest_relations(winner, loser, false);
         let spell = self.content.rules.spells.id_numbered(214) /* spell_of_return */;
@@ -435,7 +455,7 @@ impl Game {
         // The spoils of a banishment go to the winner whoever it is and whoever loses: the game
         // does not tell the human from a computer wizard (1.50 note 502; the original took them
         // from the banished wizard unless it was the one whose turn it was).
-        events.extend(self.conquest_spells(winner, loser));
+        events.extend(self.take_spoils(loser, winner, Fall::Banished));
         events
     }
 
@@ -452,7 +472,7 @@ impl Game {
             .filter(|w| self.has_player(*w))
             .or_else(|| self.living_wizards().into_iter().find(|w| *w != player))
             .unwrap_or(player);
-        Ok(self.defeat(player, winner))
+        Ok(self.defeat(player, winner, Fall::Resigned))
     }
 
     /// A defeated wizard's cities that are left (a wizard who resigned with cities) turn
@@ -502,7 +522,7 @@ impl Game {
         self.set_owner(city, neutral);
     }
 
-    pub(crate) fn defeat(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
+    pub(crate) fn defeat(&mut self, loser: PlayerId, winner: PlayerId, fall: Fall) -> Vec<Event> {
         if let Some(mut w) = self.wizard_mut(loser) {
             defeat_player(&mut w);
             w.clear_casting();
@@ -511,10 +531,10 @@ impl Game {
             self.put(e, crate::player::Defeat { by: Some(winner) });
         }
         self.cities_go_neutral(loser);
-        self.aftermath(loser, winner);
+        self.aftermath(loser);
         self.conquest_relations(winner, loser, true);
         let mut events = vec![Event::WizardDefeated { player: loser }];
-        events.extend(self.conquest_spells(winner, loser));
+        events.extend(self.take_spoils(loser, winner, fall));
         events.extend(self.check_conquest(winner));
         events
     }
@@ -565,7 +585,7 @@ impl Game {
         }
         let mut events = vec![Event::CityDestroyed { pos }];
         if self.economy().city_count(owner) == 0 {
-            events.extend(self.defeat(owner, owner));
+            events.extend(self.defeat(owner, owner, Fall::Defeated));
         }
         Ok(events)
     }

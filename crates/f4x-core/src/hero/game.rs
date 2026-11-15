@@ -724,7 +724,7 @@ pub(crate) mod tests {
         let h = g
             .spawn_hero(P1, at(3, 3), 4)
             .map_err(|e| format!("{e:?}"))?;
-        g.aftermath(P1, P0);
+        g.aftermath(P1);
         assert!(g.world.get::<&Unit>(h).is_err());
         assert_eq!(state(&g, 4), HeroState::Free);
         assert!(g.units().heroes(P1).is_empty());
