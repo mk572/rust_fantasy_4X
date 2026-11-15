@@ -1031,7 +1031,16 @@ mod tests {
         let neutrals = neutral_lines(&game, &tally);
         assert_eq!(neutrals.len(), 1);
         assert!(neutrals[0].contains("monsters "), "{neutrals:?}");
-        assert!(neutrals[0].contains("beastmen "), "{neutrals:?}");
+        // Which races the independent cities have is the map's: some race is named.
+        assert!(
+            game.content()
+                .rules
+                .races
+                .defs()
+                .iter()
+                .any(|r| neutrals[0].contains(&format!("{} ", r.id))),
+            "{neutrals:?}"
+        );
         Ok(())
     }
 

@@ -444,6 +444,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.roads_at_start = v != 0,
         ),
         flag(
+            "custom.mix_neutral_races",
+            |s| s.rules.mix_neutral_races.into(),
+            |s, v| s.rules.mix_neutral_races = v != 0,
+        ),
+        flag(
             "custom.two_pick_myrran",
             |s| s.rules.two_pick_myrran.into(),
             |s, v| s.rules.two_pick_myrran = v != 0,

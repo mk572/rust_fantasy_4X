@@ -597,23 +597,23 @@ mod tests {
         use f4x_def::settings::DefaultGame;
         let settings = shipped_settings();
         let mut rec = DefaultGame::factory(settings);
-        assert!(rec.settings.rules.limit_ai_races, "on in v1.31");
+        assert!(!rec.settings.rules.limit_ai_races, "off by default");
         // Untouched defaults change nothing.
         let mut o = OptionsState::from_settings(settings);
         o.base = Some(rec);
         o.difficulty = 3;
         o.changed_here(true, settings);
         assert!(o.custom.is_none());
-        // "Limit AI races" off in the defaults: the new game has it off, at any difficulty.
-        rec.settings.rules.limit_ai_races = false;
+        // "Limit AI races" on in the defaults: the new game has it on, at any difficulty.
+        rec.settings.rules.limit_ai_races = true;
         let mut o = OptionsState::from_settings(settings);
         o.base = Some(rec);
         o.keep_custom(rec.settings, rec.preset, settings);
-        assert!(!o.settings(settings).rules.limit_ai_races);
+        assert!(o.settings(settings).rules.limit_ai_races);
         o.difficulty = 4;
         o.changed_here(true, settings);
         let made = o.settings(settings);
-        assert!(!made.rules.limit_ai_races);
+        assert!(made.rules.limit_ai_races);
         assert_eq!(made.basic.difficulty, 4, "the level's own figures");
         assert_eq!(made.ai.production_percent, 300);
     }

@@ -374,6 +374,12 @@ pub struct RuleSettings {
     /// works for an Alchemy wizard's cities without the guild.
     #[serde(default = "fb_adamant_alchemy")]
     pub adamant_alchemy: bool,
+    /// Which races the independent cities are rolled from. Off (the original's way): the races
+    /// of the plane, each as likely as the next. On: all the races on both planes, by their
+    /// weights in `races.ron` (`neutral_weight`: each race has the same total, most of it on the
+    /// plane it belongs to).
+    #[serde(default = "fb_mix_neutral_races")]
+    pub mix_neutral_races: bool,
     /// Community patch, 2-Pick Myrran. Off (the original): the Myrran retort costs three picks
     /// and the fortress on Myrror makes five more mana. On: it costs two picks and the fortress
     /// makes no more mana than anywhere else.
@@ -397,8 +403,9 @@ pub struct RuleSettings {
     pub suppress_spares_return: bool,
     /// The original's limit on the races of the computer wizards above Normal difficulty: on,
     /// an AI wizard on Arcanus is Klackon, High Elf, Halfling, High Men or Nomad (`Generate_Home_Cities`);
-    /// off, any Arcanus race. Myrror races are never limited. On in v1.31 and v1.6.
-    #[serde(default = "default_true")]
+    /// off, any Arcanus race. Myrror races are never limited. Off by default in both rule sets
+    /// (our choice; the original has it on).
+    #[serde(default = "fb_limit_ai_races")]
     pub limit_ai_races: bool,
     /// The original's rule that a wizard does not combine Life and Death books: on, the new-wizard
     /// screen refuses the second realm and the computer wizards are never given both; off, both
@@ -449,8 +456,8 @@ fn fb_spell_of_return() -> SpellAccess {
     fallback(|g| g.rules.spell_of_return, SpellAccess::default())
 }
 
-fn default_true() -> bool {
-    fallback(|g| g.rules.limit_ai_races, true)
+fn fb_limit_ai_races() -> bool {
+    fallback(|g| g.rules.limit_ai_races, false)
 }
 
 /// The Arcanus races (`races.ron` numbers) a computer wizard may have above Normal difficulty
@@ -526,6 +533,10 @@ fn fb_spell_binding_always_succeeds() -> bool {
 
 fn fb_two_pick_myrran() -> bool {
     fallback(|g| g.rules.two_pick_myrran, false)
+}
+
+fn fb_mix_neutral_races() -> bool {
+    fallback(|g| g.rules.mix_neutral_races, false)
 }
 
 fn fb_adamant_alchemy() -> bool {

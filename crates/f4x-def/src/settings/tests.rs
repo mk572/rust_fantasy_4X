@@ -236,12 +236,14 @@ fn v131_has_the_originals_ships_and_monster_turn_and_v160_has_eight_carrying_shi
     // Adamant Alchemy is a community-patch option: off in both.
     assert!(!v131.rules.adamant_alchemy && !v160.rules.adamant_alchemy);
     assert!(!v131.rules.two_pick_myrran && !v160.rules.two_pick_myrran);
+    assert!(!v131.rules.mix_neutral_races && !v160.rules.mix_neutral_races);
     // The colour wheel is our own option: off in both.
     assert!(!v131.rules.color_wheel_relations && !v160.rules.color_wheel_relations);
     // The community patch undoes patch 1.50's lair and treasure changes: both off in both.
     assert!(!v131.rules.stronger_lairs && !v160.rules.stronger_lairs);
     assert!(!v131.rules.treasure_patch_150 && !v160.rules.treasure_patch_150);
-    assert!(v160.rules.limit_ai_races && v131.rules.limit_ai_races);
+    // Limiting the computer wizards' races is the original's; our default is off in both.
+    assert!(!v160.rules.limit_ai_races && !v131.rules.limit_ai_races);
     assert!(v160.rules.ban_life_and_death && v131.rules.ban_life_and_death);
     // The shipped units hold the originals' numbers for the default.
     let content = shipped();
@@ -276,18 +278,18 @@ fn a_setting_a_file_does_not_name_takes_the_fallback_and_else_the_built_in_value
     let def = settings();
     let full = at(2);
     let text = ron::to_string(&full).expect("settings serialize");
-    let without = text.replace(",limit_ai_races:true", "");
+    let without = text.replace(",limit_ai_races:false", "");
     assert!(!without.contains("limit_ai_races"), "{text}");
     let plain: GameSettings = ron::from_str(&without).expect("parses without the field");
-    assert!(plain.rules.limit_ai_races, "built-in: on");
+    assert!(!plain.rules.limit_ai_races, "built-in: off");
     let mut chosen = RuleSet::V160.applied(full, &def);
-    chosen.rules.limit_ai_races = false;
+    chosen.rules.limit_ai_races = true;
     chosen.rules.walls_cover_city = true;
     let loaded: GameSettings = with_fallback(chosen, || ron::from_str(&without)).expect("parses");
-    assert!(!loaded.rules.limit_ai_races, "the fallback's value");
+    assert!(loaded.rules.limit_ai_races, "the fallback's value");
     let back: GameSettings = ron::from_str(&without).expect("parses");
     assert!(
-        back.rules.limit_ai_races,
+        !back.rules.limit_ai_races,
         "the fallback is gone after the load"
     );
 }
@@ -300,8 +302,8 @@ fn the_default_game_settings_start_as_v131_and_a_file_gives_them_back() {
     assert_eq!(DefaultGame::load(&path), None);
     let mut rec = DefaultGame::factory(&def);
     assert_eq!(rec.preset, RuleSet::V131);
-    assert!(rec.settings.rules.limit_ai_races);
-    rec.settings.rules.limit_ai_races = false;
+    assert!(!rec.settings.rules.limit_ai_races);
+    rec.settings.rules.limit_ai_races = true;
     rec.save(&path).expect("saves");
     assert_eq!(DefaultGame::load(&path), Some(rec));
 }

@@ -64,6 +64,7 @@
     "custom.miners_guild_half_ore": "Miner's Guild adds half to iron and coal (not double)",
     "custom.spell_binding_always_succeeds": "Spell Binding always succeeds",
     "custom.roads_at_start": "Roads between independent cities at the start",
+    "custom.mix_neutral_races": "Independent cities of both planes' races on each plane",
     "custom.two_pick_myrran": "Myrran costs two picks and its fortress makes no extra mana",
     "custom.adamant_alchemy": "Alchemy costs two picks and works the ores without a guild",
     "custom.color_wheel_relations": "Starting relations by the colour wheel of the realms",

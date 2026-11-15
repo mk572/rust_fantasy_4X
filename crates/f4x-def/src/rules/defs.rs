@@ -13,6 +13,13 @@ use super::{Ability, BuildingId, RealmId};
 use crate::half_int::HalfInt;
 use crate::map::TerrainClass;
 
+/// A number for each plane.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlaneWeight {
+    pub arcanus: u32,
+    pub myrror: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RaceDef {
     /// The original's race number, the id the game passes around (and the row of the
@@ -34,6 +41,10 @@ pub struct RaceDef {
     /// Terrain the race's cities prefer; used by AI and map placement.
     #[serde(default)]
     pub home_terrain: Vec<TerrainClass>,
+    /// How often the race is rolled for an independent city on each plane when the setting
+    /// `mix_neutral_races` is on (every race has the same total across the two planes).
+    #[serde(default)]
+    pub neutral_weight: PlaneWeight,
     /// Applied to every city of the race.
     #[serde(default)]
     pub effects: Vec<EffectRule>,
