@@ -2077,6 +2077,9 @@ impl App {
         let Some(from) = self.selection_position() else {
             return;
         };
+        if !keys_move_stack(from.plane, self.plane) {
+            return;
+        }
         let shift = input.key_down(KeyCode::LeftShift) || input.key_down(KeyCode::RightShift);
         let Some(&(_, (dx, dy))) = [
             ("move_down_left", (-1, 1)),
@@ -2156,6 +2159,13 @@ impl App {
         }
     }
 
+    /// Whether the selected stack stands on the plane in view: only then do the movement keys
+    /// move it. Nothing selected is not in view.
+    fn selection_in_view(&self) -> bool {
+        self.selection_position()
+            .is_some_and(|p| keys_move_stack(p.plane, self.plane))
+    }
+
     pub(crate) fn selection_position(&self) -> Option<Position> {
         self.selection
             .first()
@@ -2168,7 +2178,9 @@ impl App {
         // The arrow keys move the selected stack, as in the original; they scroll the map when
         // nothing is selected, or with Shift held.
         let shift = input.key_down(KeyCode::LeftShift) || input.key_down(KeyCode::RightShift);
-        let scrolls = self.selection.is_empty() || shift;
+        // A stack on the other plane than the one in view does not take the keys either
+        // (patch 1.52 note 796): they scroll the map.
+        let scrolls = !self.selection_in_view() || shift;
         if scrolls {
             for (action, dir) in [
                 ("scroll_left", vec2(-1.0, 0.0)),
@@ -2884,8 +2896,21 @@ impl App {
     }
 }
 
+/// Whether the movement keys move a stack on plane `stack` while plane `view` is shown: not one
+/// on the plane out of sight (patch 1.52 note 796).
+fn keys_move_stack(stack: Plane, view: Plane) -> bool {
+    stack == view
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_movement_keys_move_only_a_stack_on_the_plane_in_view() {
+        assert!(super::keys_move_stack(Plane::Arcanus, Plane::Arcanus));
+        assert!(!super::keys_move_stack(Plane::Myrror, Plane::Arcanus));
+        assert!(!super::keys_move_stack(Plane::Arcanus, Plane::Myrror));
+    }
+
     #[test]
     fn a_cancelled_order_of_the_human_says_where_the_stack_stopped() {
         let mut app = App::for_test();
