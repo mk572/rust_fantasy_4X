@@ -341,7 +341,9 @@ impl Game {
             return None;
         }
         let difficulty = self.dispel_difficulty(spell, Some(victim));
-        if !dispel_roll(strength, difficulty, rng) {
+        // Spell Binding never fails when the setting says so (patch 1.50, note 269).
+        let certain = steal && self.settings.rules.spell_binding_always_succeeds;
+        if !certain && !dispel_roll(strength, difficulty, rng) {
             return Some(false);
         }
         self.despawn_spell(instance);

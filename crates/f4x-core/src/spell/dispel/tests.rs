@@ -898,3 +898,51 @@ fn suppress_magic_resists_the_mana_put_into_a_spell_not_only_its_base_cost() -> 
     );
     Ok(())
 }
+
+/// Spell Binding is a dispel roll of twenty times its cost (20,000), which almost always takes
+/// the enchantment but can fail (the original); with `spell_binding_always_succeeds` (patch 1.50,
+/// note 269) it never does. Time Stop (cost 1500) is hard enough to show a failure.
+#[test]
+fn spell_binding_can_fail_unless_the_setting_makes_it_certain() -> TestResult {
+    let tries = |always: bool| -> Result<(usize, usize), Box<dyn std::error::Error>> {
+        let mut g = world();
+        g.settings.rules.spell_binding_always_succeeds = always;
+        let time_stop = sp(&g, 80 /* time_stop */);
+        g.attach_enchantment(Target::Player(P1), time_stop, P1);
+        let (mut failed, mut taken) = (0, 0);
+        for _ in 0..400 {
+            let (holder, binder) = if g.wizard(P1).ok_or("wizard")?.has_global(time_stop) {
+                (P1, P0)
+            } else {
+                (P0, P1)
+            };
+            for who in [P0, P1] {
+                g.treasury_mut(who).expect("treasury").mana =
+                    f4x_def::half_int::HalfInt::from_int(20_000);
+                g.wizard_mut(who)
+                    .expect("wizard")
+                    .get_mut::<crate::wizard::sheet::Skill>()
+                    .left = 99_999;
+            }
+            let aim = global(&g, holder, time_stop);
+            let events = cast_as(&mut g, binder, 76, aim, 0);
+            if events
+                .iter()
+                .any(|e| matches!(e, Event::GlobalSpellTaken { .. }))
+            {
+                taken += 1;
+            } else {
+                failed += 1;
+            }
+        }
+        Ok((failed, taken))
+    };
+    let (failed, taken) = tries(false)?;
+    assert!(
+        failed > 0 && taken > 300,
+        "it can fail: {failed} failed, {taken} taken"
+    );
+    let (failed, taken) = tries(true)?;
+    assert_eq!((failed, taken), (0, 400), "it never fails");
+    Ok(())
+}

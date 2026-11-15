@@ -434,6 +434,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.miners_guild_half_ore = v != 0,
         ),
         flag(
+            "custom.spell_binding_always_succeeds",
+            |s| s.rules.spell_binding_always_succeeds.into(),
+            |s, v| s.rules.spell_binding_always_succeeds = v != 0,
+        ),
+        flag(
             "custom.suppress_spares_return",
             |s| s.rules.suppress_spares_return.into(),
             |s, v| s.rules.suppress_spares_return = v != 0,

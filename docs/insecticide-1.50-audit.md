@@ -352,7 +352,7 @@ The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fando
 | Rows | Verdict |
 |---|---|
 | 264 A hero found in a lair with nine units in the stack | **Not applicable.** A freed prisoner is not a unit put on the map: it is a hero offered for nothing (`docs/lairs.md`), hired at the summoning circle, so the stack limit never turns it away. |
-| 269 Spell Binding can no longer fail | **Present, decision open.** Spell Binding rolls like a dispel (`attack_global`, strength its cost against the enchantment's difficulty), as the original does (`Spell_Target_Global_Enchantment_Bind`: a roll of `Random(250)` against a threshold), so it can fail; 1.50 makes it always succeed. A rule difference like the Miner's Guild: a setting, or leave the original's roll. |
+| 269 Spell Binding can no longer fail | **Present; now a setting, and one bug fixed.** The original makes it a dispel roll of twenty times the spell's cost, 20,000 (`Spell_Target_Global_Enchantment_Bind`), which can still fail; the wiki says the same. Setting `spell_binding_always_succeeds` (`rules`): off in v1.31, on in v1.6 (decided with the user, 15 November 2026). Our strength was the cost times 1, a twentieth of the original's, so it failed often; the hook argument is 20 now. Test `spell_binding_can_fail_unless_the_setting_makes_it_certain`. |
 | 270 Create Artifact is resisted at too low a cost | **Present, fixed.** Suppress Magic and its kin were checked at the spell's own cost (Create Artifact costs 1, so every item was stopped), and an item made at once was not checked at all. Now both are resisted at the mana the item costs (`crafting_price`, `Game::suppressed_at_cost`). Test `suppress_magic_resists_a_crafting_spell_at_the_cost_of_the_item`. |
 | 271 The AI curses uncontacted or defeated players | **Not present.** The AI's targets are rivals at war, and a wizard it has not met cannot be at war with it. Test `a_wizard_blasts_nobody_it_has_not_met`. A defeated wizard has no cities and no spell in the making to aim at; not tested separately. |
 
@@ -368,7 +368,7 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | A spell cast from an item charge (`check_unit_cast`) | **Right.** It is cast at its base cost: no extra mana goes in, so the strength and the counter difficulty are the base cost and are not cut by the wizard's reductions. |
 | What an item with charges is worth (`crafting::cost`) | **Right as it stands.** The base cost of the spell times the charges times 20, whether or not the spell takes extra mana, so a variable spell is priced at its base. Not compared with the original; the rest of the cluster (IW720) is still to walk. |
 
-Next: row 269 once decided, then 285 and the rest of the table in order.
+Next: row 285 and the rest of the table in order.
 
 ## P2 code review: first pass
 

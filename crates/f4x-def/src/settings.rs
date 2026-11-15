@@ -344,6 +344,11 @@ pub struct RuleSettings {
     /// saving, iron 5 to 10 percent and coal 10 to 20.
     #[serde(default = "fb_miners_guild_half_ore")]
     pub miners_guild_half_ore: bool,
+    /// Patch 1.50 (note 269): Spell Binding always takes the enemy's global enchantment. Off (the
+    /// original): it is a dispel roll of twenty times the spell's cost (20,000), which almost
+    /// always succeeds but can fail.
+    #[serde(default = "fb_spell_binding_always_succeeds")]
+    pub spell_binding_always_succeeds: bool,
     /// Patch 1.40 (IW114): an enemy's Suppress Magic does not counter the Spell of Return.
     #[serde(default = "fb_suppress_spares_return")]
     pub suppress_spares_return: bool,
@@ -470,6 +475,10 @@ fn fb_walls_cover_city() -> bool {
 
 fn fb_miners_guild_half_ore() -> bool {
     fallback(|g| g.rules.miners_guild_half_ore, false)
+}
+
+fn fb_spell_binding_always_succeeds() -> bool {
+    fallback(|g| g.rules.spell_binding_always_succeeds, false)
 }
 
 fn fb_suppress_spares_return() -> bool {
@@ -639,6 +648,7 @@ impl RuleSet {
                     galley_capacity: MAX_SHIP_CAPACITY,
                     walls_cover_city: true,
                     miners_guild_half_ore: true,
+                    spell_binding_always_succeeds: true,
                     suppress_spares_return: true,
                     ..base.rules
                 },
