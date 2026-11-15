@@ -356,6 +356,18 @@ The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fando
 | 270 Create Artifact is resisted at too low a cost | **Present, fixed.** Suppress Magic and its kin were checked at the spell's own cost (Create Artifact costs 1, so every item was stopped), and an item made at once was not checked at all. Now both are resisted at the mana the item costs (`crafting_price`, `Game::suppressed_at_cost`). Test `suppress_magic_resists_a_crafting_spell_at_the_cost_of_the_item`. |
 | 271 The AI curses uncontacted or defeated players | **Not present.** The AI's targets are rivals at war, and a wizard it has not met cannot be at war with it. Test `a_wizard_blasts_nobody_it_has_not_met`. A defeated wizard has no cities and no spell in the making to aim at; not tested separately. |
 
+### Checked early on 15 November 2026, at the user's request: which cost an effect reads (part of the IW720 cluster)
+
+The rule: what a spell's cost decides (the dispel difficulty a counter rolls against) is the base cost plus the mana put into it, never the cost after reductions or Evil Omens.
+
+| Place | Verdict |
+|---|---|
+| Counter Magic and the node in a battle (`battle_cast`, `unit_cast`) | **Right.** The difficulty is the `pool`: the base cost plus the extra mana, from the unreduced numbers; the price paid is the separate, reduced figure. |
+| Disjunction and Spell Binding overland (`counter_effect`) | **Right.** `def.cost + extra`, times the spell's number. |
+| Suppress Magic, Life Force and Tranquility overland (`run_cast`) | **Wrong, fixed.** They read the base cost only, so mana put into a spell that takes extra did not make it harder to stop. Now the cost is the base plus the extra (the extra is at most as much again as the base). Test `suppress_magic_resists_the_mana_put_into_a_spell_not_only_its_base_cost`. Crafting is the same fix as row 270. |
+| A spell cast from an item charge (`check_unit_cast`) | **Right.** It is cast at its base cost: no extra mana goes in, so the strength and the counter difficulty are the base cost and are not cut by the wizard's reductions. |
+| What an item with charges is worth (`crafting::cost`) | **Right as it stands.** The base cost of the spell times the charges times 20, whether or not the spell takes extra mana, so a variable spell is priced at its base. Not compared with the original; the rest of the cluster (IW720) is still to walk. |
+
 Next: row 269 once decided, then 285 and the rest of the table in order.
 
 ## P2 code review: first pass

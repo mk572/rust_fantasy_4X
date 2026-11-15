@@ -915,6 +915,11 @@ impl Game {
         let crafted = crate::item::entity::crafting_of(&self.world, player)
             .filter(|_| self.spell_has_hook(spell, crate::item::crafting::CRAFT_ITEM))
             .map(|(_, item)| self.crafting_price(player, spell, item.cost).max(0) as u32);
+        // A spell that takes extra mana is resisted at its cost and the extra, as a counter in a
+        // battle is (the cost reductions do not make it easier).
+        let crafted = crafted.or_else(|| {
+            (extra > 0).then(|| self.content.rules.spells.get(spell).cost + extra as u32)
+        });
         if let Some((by, counter)) = self.suppressed_at_cost(player, spell, crafted) {
             return vec![Event::SpellSuppressed {
                 player,

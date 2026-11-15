@@ -850,3 +850,51 @@ fn suppress_magic_resists_a_crafting_spell_at_the_cost_of_the_item() {
     assert!((900..1100).contains(&dear), "half of 2000: {dear}");
     assert!(cheap > 1700, "nearly always: {cheap}");
 }
+
+/// Mana put into a spell that takes extra counts for the dispel difficulty that Suppress Magic
+/// rolls against: Disenchant Area (cost 50, and at most 50 more) with all the extra is resisted at
+/// 100, five times in six, not at 50 (eleven times in twelve).
+#[test]
+fn suppress_magic_resists_the_mana_put_into_a_spell_not_only_its_base_cost() -> TestResult {
+    let mut g = world();
+    let suppress = sp(&g, 79 /* suppress_magic */);
+    g.attach_enchantment(Target::Player(P1), suppress, P1);
+    let strength = sp(&g, 4 /* giant_strength */);
+    let unit = {
+        let spear = g
+            .content
+            .rules
+            .units
+            .id_numbered(95)
+            .ok_or("high_elf_spearmen is not in the content")?;
+        g.spawn_unit(P1, at(6, 6), spear)
+    };
+    let mut stopped = |extra: i32| -> usize {
+        (0..1000)
+            .filter(|_| {
+                g.treasury_mut(P0).expect("treasury").mana =
+                    f4x_def::half_int::HalfInt::from_int(20_000);
+                g.wizard_mut(P0)
+                    .expect("wizard")
+                    .get_mut::<crate::wizard::sheet::Skill>()
+                    .left = 99_999;
+                if g.units().unit_enchantments(unit).is_empty() {
+                    g.attach_enchantment(Target::Unit(unit), strength, P1);
+                }
+                cast_as(&mut g, P0, 204, Target::Tile(at(6, 6)), extra)
+                    .iter()
+                    .any(|e| matches!(e, Event::SpellSuppressed { .. }))
+            })
+            .count()
+    };
+    let (plain, with_extra) = (stopped(0), stopped(50));
+    assert!(
+        (890..940).contains(&plain),
+        "11 in 12 at the base cost: {plain}"
+    );
+    assert!(
+        (800..860).contains(&with_extra),
+        "5 in 6 at 100: {with_extra}"
+    );
+    Ok(())
+}
