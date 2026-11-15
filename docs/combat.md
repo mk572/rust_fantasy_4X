@@ -223,7 +223,12 @@ good.
 - The grid is **21 by 22** squares (the original's size). A square is open, rough (forest,
   swamp, rubble: two moves to enter), or blocked (trees, rocks: walkers cannot enter). Flying
   units pay one move everywhere. Moves are in half-moves like the overland map; a unit with
-  any move left may take a last step that costs more.
+  any move left may take a last step that costs more. **A diagonal step costs half a move more**
+  than a straight one, for walkers, swimmers, ships and fliers alike (wiki "Movement Type";
+  `DIAGONAL_EXTRA`); mud, which takes all the moves left, stays as it is. One search gives both the
+  squares a unit may reach and the cost of walking there (the original adds the half move only when
+  it plots the path, not when it marks the reachable squares: 1.50 note 445). The setting
+  `diagonal_extra_cost` is for the overland map only.
 - **Teleporting** units (`teleport`: unicorns, djinn) skip the path
   search: they may go to any free, unblocked square for one move (task 13).
 - **Merging** units (great wyrm, and a hero with an Item of Merging) walk like any other unit, and

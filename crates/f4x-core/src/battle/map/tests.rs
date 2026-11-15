@@ -34,10 +34,17 @@ fn walkers_pay_by_ground_and_flyers_pay_one_move_everywhere() {
 #[test]
 fn reach_follows_move_points_diagonals_and_obstacles() {
     let mut m = BattleMap::open();
-    // Two moves = four half-moves: two squares in any direction, diagonals included.
+    // Two moves: two squares straight on. A diagonal step costs half a move more (wiki "Movement
+    // Type"), so two diagonal steps cost three, and a unit with any move left may take the second.
     let r = m.reachable((10, 10), HalfInt::from_int(2), false, &none);
-    assert_eq!(r.get(&(12, 12)).map(|c| c.0), Some(HalfInt::from_int(2)));
+    assert_eq!(r.get(&(12, 10)).map(|c| c.0), Some(HalfInt::from_int(2)));
+    assert_eq!(r.get(&(11, 11)).map(|c| c.0), Some(HalfInt::from_raw(3)));
+    assert_eq!(r.get(&(12, 12)).map(|c| c.0), Some(HalfInt::from_int(3)));
     assert!(!r.contains_key(&(13, 10)));
+    // Fliers pay the same extra half move for a diagonal.
+    let r = m.reachable((10, 10), HalfInt::from_int(2), true, &none);
+    assert_eq!(r.get(&(11, 11)).map(|c| c.0), Some(HalfInt::from_raw(3)));
+    assert_eq!(r.get(&(12, 10)).map(|c| c.0), Some(HalfInt::from_int(2)));
     // A wall of rocks forces a detour (or stops the unit).
     for y in 8..=12 {
         m.set((11, y), Cell::Blocked);

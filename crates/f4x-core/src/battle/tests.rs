@@ -113,7 +113,11 @@ fn units_walk_within_their_moves_and_not_through_others() -> TestResult {
     let mut b = real_battle(&[(CAVALRY, (3, 10))], &[(SPEARMEN, (5, 10))], 1);
     // Cavalry has two moves: four half-moves, so two squares.
     let reach = b.reachable(0);
-    assert_eq!(reach.get(&(5, 11)), Some(&HalfInt::from_int(2)));
+    assert_eq!(
+        reach.get(&(5, 11)),
+        Some(&HalfInt::from_raw(5)),
+        "one diagonal step costs half a move more"
+    );
     assert!(!reach.contains_key(&(5, 10)), "occupied");
     assert!(!reach.contains_key(&(6, 10)));
     let events = b

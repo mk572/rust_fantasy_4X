@@ -23,6 +23,9 @@ use rand::Rng;
 
 /// Moves to jump the square of water between two ships' decks.
 pub const JUMP_COST: HalfInt = HalfInt::from_int(2);
+
+/// What a diagonal step costs beyond the square's own cost: half a move.
+pub const DIAGONAL_EXTRA: HalfInt = HalfInt::from_raw(1);
 pub const GRID_W: i32 = 21;
 pub const GRID_H: i32 = 22;
 
@@ -502,6 +505,13 @@ impl BattleMap {
                     };
                     if self.is_mud(next) && !mover.flying && !mover.ignores_mud {
                         step = MUD_COST;
+                    } else if dx != 0 && dy != 0 {
+                        // A diagonal step costs half a move more, for every kind of mover (wiki
+                        // "Movement Type"). The original charges it only when it plots the
+                        // path, not when it marks the squares a unit can reach (1.50 note 445):
+                        // here one search does both, so they agree. Mud takes all the moves left
+                        // anyway.
+                        step += DIAGONAL_EXTRA;
                     }
                     if occupied(next) || self.shut_by_walls(next, mover, inside) {
                         continue;

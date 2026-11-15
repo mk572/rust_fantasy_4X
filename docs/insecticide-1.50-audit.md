@@ -464,7 +464,7 @@ Next: rows 456, 457, 458 and the rest of the table in order.
 
 | Rows | Verdict |
 |---|---|
-| 445 Diagonal combat movement inconsistently costs half a move | **Not present.** One rule: a step costs the entered square's cost whatever the direction (`BattleMap::reachable_as`); `diagonal_extra_cost` is the overland map's only. Test `reach_follows_move_points_diagonals_and_obstacles`. |
+| 445 Diagonal combat movement inconsistently costs half a move | **Was present, fixed (I first judged it not present, which was wrong).** The wiki ("Movement Type") and ReMoM agree that combat adds half a move for a diagonal step; ReMoM adds it in `Combat_Move_Path_Find` (the path) but not in `Combat_Move_Path_Valid` (the reachable squares), the inconsistency of the note. Ours charged nothing for diagonals anywhere. `BattleMap::reachable_as` now adds `DIAGONAL_EXTRA` to every diagonal step of every mover (not mud), and it is the one search for highlights, the AI and walking. Test `reach_follows_move_points_diagonals_and_obstacles`. |
 | 447, 451, 495 Auto-combat free turn, extra initial end-turn, spellcasting skipped when units are immobilised | **Not present.** A battle turn changes hands only by `EndTurn` (`Battle::apply`); nothing ends it because units cannot move, and casting does not look at moves (the AI casts before it orders units, `cast::next_command`). A battle starts on the attacker's turn 1 with full moves. Tests `a_new_battle_starts_with_the_attacker_and_full_moves`, and new `a_side_whose_units_cannot_move_keeps_its_turn_and_its_casting`. |
 
 ## P2 code review: first pass
