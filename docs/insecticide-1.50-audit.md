@@ -528,6 +528,12 @@ Next: row 635 (and 637, 638, 639), then 636, 651, 666 to 670, 674, 682, 685, 686
 | 720 Caster units ignore Evil Omens | **Was present, fixed.** A unit now pays half as much again for a life or nature spell while Evil Omens is in play (`unit_cast_cost`). Test `evil_omens_make_a_unit_pay_more_for_life_and_nature_spells`. |
 | 720 Evil Omens or cost cuts change how easily a spell is countered | **Not present for wizards, kept so for units.** The counter difficulty is the spell's base cost (or the mana put in), not the cost paid. |
 | 720 Ice Bolt ignores Evil Omens | **Not present.** A wizard's cast pays `casting_cost`, which keys on the realm, not the spell. |
+| 720 Slider maximum wrong with cost modifiers; AI puts in more than its mana or skill | **Not present.** `battle_spell_most_mana` walks up by the real price (`battle_spell_price`) against `affordable`, and the AI takes its range from `legal_battle_casts`. |
+| 720 Heroes are not charged the extra mana they channel | **Not present.** A unit's cast pays the mana put in (`paid = pool`). |
+| 720 Over 16,383 mana stops casting at the fortress | **Not present.** Mana is `i32`. |
+| 720 A cost equal to the remaining mana is disabled at x0.5, x1.5, x2.5 | **Was present, fixed.** The price in mana is rounded down (`mana_for`) but `affordable` rounded the other way, so 7 mana could not pay a 5-point spell at x1.5. Test `a_reserve_that_exactly_pays_a_spell_casts_it_at_any_distance`. |
+| 720 Spell Charges open the spellbook with nothing castable | **Not checked** (a client matter; the rules list only castable spells). |
+| 720, 721 to 725, 728 Control-changed heroes use the wrong owner's records, items, skills | **Not present.** A battle unit carries its own casting, items, abilities and resistances, copied from the unit, not looked up by the owner. |
 
 ## P2 code review: first pass
 

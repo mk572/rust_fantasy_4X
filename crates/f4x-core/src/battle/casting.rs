@@ -163,10 +163,11 @@ impl BattleCaster {
 
     /// The most skill a spell can cost now: what is left, and what the reserve pays for.
     pub fn affordable(&self) -> i32 {
-        let by_budget = self.budget.map_or(i32::MAX, |b| b.max(0) * 10 / self.range);
-        self.skill_left
-            .min(self.mana * 10 / self.range)
-            .min(by_budget)
+        // The most skill whose price in mana (`mana_for`, rounded down) the reserve covers: at
+        // x1.5 a spell of 5 costs 7 mana, so 7 mana is enough (1.50 note 720).
+        let skill_for = |mana: i32| ((mana + 1) * 10 - 1) / self.range;
+        let by_budget = self.budget.map_or(i32::MAX, |b| skill_for(b.max(0)));
+        self.skill_left.min(skill_for(self.mana)).min(by_budget)
     }
 }
 

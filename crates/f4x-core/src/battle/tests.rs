@@ -7532,3 +7532,22 @@ fn invulnerability_can_be_dispelled_in_a_battle() -> TestResult {
     assert_eq!(numbers(after), pristine);
     Ok(())
 }
+
+/// 1.50 note 720: a spell whose price in mana (rounded down at x0.5, x1.5, x2.5) is exactly what
+/// the reserve holds can be cast.
+#[test]
+fn a_reserve_that_exactly_pays_a_spell_casts_it_at_any_distance() {
+    for range in [5, 10, 15, 20, 25, 30] {
+        for cost in 1..=20 {
+            let paying = BattleCaster::new(100, 0, range).mana_for(cost);
+            let caster = BattleCaster::new(100, paying, range);
+            assert!(
+                caster.affordable() >= cost,
+                "x{range}: {paying} mana pays {cost}, affordable {}",
+                caster.affordable()
+            );
+            let dearer = BattleCaster::new(100, paying, range).affordable();
+            assert!(caster.mana_for(dearer) <= paying);
+        }
+    }
+}
