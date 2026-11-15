@@ -101,7 +101,12 @@ Verdicts for the rows of the three tables above, by reading the code; rows not n
 | 801 / IM200, 802 | **Not present.** Heroes: see above. Casting on turn one has no lockout in the code. |
 | 780, 781 Tower spell and the treasure budget | **Differs.** The v1.31 path (`create.rs`) takes the tower's spell first and pays for it out of the rest; the budget may go below zero and later draws check `<= loot`. The 1.50 path asks that the tower qualifies. Neither lowers the rarity to fit the budget as the 1.52 note says. Left as it is: the v1.31 and 1.50 rules are the two the setting offers. |
 | 796, 797, 804, 805, 795, 798, 756, 776, 786, 788 | **Client or audio.** Not walked. |
-| The other rows | **Not walked yet:** 799, 800, 803, 775, 778, 779, 790, 791, 792, 028, 765, 772, 782, 783, 787, 793, 794. |
+| 791 Starting site and food | **Not present.** A fortress site is refused where `site_max_size` (the live economy's number) is under 8 (`setup/original.rs`). |
+| 792 Extra experience for starting units | **Not present.** Starting units are spawned with no experience; nothing in `setup` sets any. |
+| 793 Invisible units on the gate tile | **Not present.** `Battle::seen_by` is one rule for every square and side: seen when revealed, adjacent, or an own unit sees invisible. |
+| 782, 783 AI healing target and the 25-target limit | **Not present.** The AI chooses among the casts the cast check allows (`legal_battle_casts`), and a target list is a `Vec`. |
+| 775 (162) Gold from a captured town | Walked with row 162 of the 1.50 audit. |
+| 799, 800, 803, 778, 779, 790, 028, 765, 772, 787, 794 | **Not walked yet** (map graphics and specials, lair realms and guardians, island growth, AI wizard profiles and tactics). |
 
 ## Optional
 
