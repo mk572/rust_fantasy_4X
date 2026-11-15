@@ -26,6 +26,8 @@ pub mod image;
 pub mod lbx;
 #[cfg(feature = "extract")]
 pub mod map_art;
+#[cfg(feature = "extract")]
+pub mod ogg;
 pub mod pack;
 #[cfg(feature = "extract")]
 pub mod pack_build;

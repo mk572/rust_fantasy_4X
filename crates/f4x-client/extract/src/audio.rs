@@ -1,15 +1,14 @@
 //! `f4x-extract audio`: the original's sound effects as OGG and its music as the XMI files it stores.
 //!
 //! `SOUNDFX`, `CMBTSND`, `NEWSOUND` and `INTROSFX` hold Creative Voice (VOC) clips; each is decoded to
-//! 8-bit PCM here and encoded to OGG Vorbis by `oggenc` (vorbis-tools) or, failing that, `ffmpeg`. `MUSIC` and
-//! `INTROSND` hold XMI (Extended MIDI) songs; they are written unchanged as `.xmi`, because turning them
-//! into audio needs a synth. The MT-32 timbre banks (`FAT*`) are copied beside them.
+//! 8-bit PCM here and encoded to OGG Vorbis in this process (`ogg`, libvorbis through `vorbis_rs`; no
+//! `oggenc` or `ffmpeg` is needed). `MUSIC` and `INTROSND` hold XMI (Extended MIDI) songs; they are
+//! written unchanged as `.xmi`, because turning them into audio needs a synth (`tools/xmi-play`, the
+//! `f4x-music` program). The MT-32 timbre banks (`FAT*`) are copied beside them.
 //! What plays when is `docs/sound.md`.
 
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 
 use crate::lbx::Lbx;
 
@@ -397,89 +396,6 @@ pub fn wav_bytes(clip: &Clip) -> Vec<u8> {
     out
 }
 
-/// How OGG Vorbis is written.
-enum Encoder {
-    /// `oggenc` (vorbis-tools): the reference libvorbis encoder.
-    Oggenc,
-    /// `ffmpeg` with these codec arguments.
-    Ffmpeg(Vec<&'static str>),
-}
-
-fn runs(program: &str, arg: &str) -> bool {
-    Command::new(program)
-        .arg(arg)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok()
-}
-
-/// The best Vorbis encoder installed: `oggenc`, else `ffmpeg` built with libvorbis, else the
-/// encoder `ffmpeg` has of its own (experimental, stereo only).
-fn find_encoder() -> Result<Encoder, String> {
-    if runs("oggenc", "--version") {
-        return Ok(Encoder::Oggenc);
-    }
-    let out = Command::new("ffmpeg")
-        .args(["-hide_banner", "-encoders"])
-        .output()
-        .map_err(|e| format!("neither oggenc nor ffmpeg was found on the PATH ({e}); install one, e.g. `brew install vorbis-tools`"))?;
-    let list = String::from_utf8_lossy(&out.stdout);
-    if list.contains(" libvorbis ") {
-        Ok(Encoder::Ffmpeg(vec!["-c:a", "libvorbis", "-q:a", "5"]))
-    } else if list.contains(" vorbis ") {
-        Ok(Encoder::Ffmpeg(vec![
-            "-c:a", "vorbis", "-strict", "-2", "-ac", "2", "-b:a", "96k",
-        ]))
-    } else {
-        Err(
-            "this ffmpeg has no Vorbis encoder; install vorbis-tools (`brew install vorbis-tools`)"
-                .into(),
-        )
-    }
-}
-
-/// Encodes a WAV to the OGG file `dest`.
-fn encode_ogg(wav: &[u8], dest: &Path, encoder: &Encoder) -> Result<(), String> {
-    let mut command = match encoder {
-        Encoder::Oggenc => {
-            let mut c = Command::new("oggenc");
-            c.args(["-Q", "-q", "5", "-o"]).arg(dest).arg("-");
-            c
-        }
-        Encoder::Ffmpeg(args) => {
-            let mut c = Command::new("ffmpeg");
-            c.args(["-v", "error", "-y", "-f", "wav", "-i", "pipe:0"])
-                .args(args)
-                .arg(dest);
-            c
-        }
-    };
-    let mut child = command
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("encoder: {e}"))?;
-    child
-        .stdin
-        .take()
-        .ok_or("the encoder has no stdin")?
-        .write_all(wav)
-        .map_err(|e| format!("encoder: {e}"))?;
-    let out = child
-        .wait_with_output()
-        .map_err(|e| format!("encoder: {e}"))?;
-    if out.status.success() {
-        Ok(())
-    } else {
-        Err(format!(
-            "encoder: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        ))
-    }
-}
-
 /// The game's file named `stem` + `.LBX`, in any letter case.
 fn find_file(game_dir: &Path, name: &str) -> Option<PathBuf> {
     fs::read_dir(game_dir)
@@ -503,83 +419,146 @@ fn entry_name(stem: &str, i: usize) -> String {
     .to_string()
 }
 
-pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
-    let encoder = find_encoder()?;
-    fs::create_dir_all(out_dir).map_err(|e| e.to_string())?;
-    let mut index = String::from("file\tarchive\tentry\tformat\trate\tseconds\n");
-    let (mut effects, mut songs) = (0usize, 0usize);
-    let mut skipped = Vec::new();
+/// The effect archives the game plays (`docs/sound.md`); `INTROSFX` is not read by the game.
+pub const PLAYED_EFFECTS: [&str; 3] = ["SOUNDFX", "CMBTSND", "NEWSOUND"];
 
-    for stem in EFFECT_FILES {
-        let Some(path) = find_file(game_dir, &format!("{stem}.LBX")) else {
-            skipped.push(format!("{stem}.LBX: not found"));
+/// What an extraction step did.
+#[derive(Debug, Default)]
+pub struct Report {
+    /// Files written.
+    pub written: usize,
+    /// What was left out and why, one line each (an archive that is not there, an entry that is
+    /// not a sound).
+    pub skipped: Vec<String>,
+}
+
+/// The bytes of the archive `stem`, or `None` when the game has no such file.
+fn read_archive(game_dir: &Path, stem: &str) -> Result<Option<Vec<u8>>, String> {
+    let Some(path) = find_file(game_dir, &format!("{stem}.LBX")) else {
+        return Ok(None);
+    };
+    fs::read(&path)
+        .map(Some)
+        .map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Decode the effects of the archives `stems` and write each as `<out_dir>/<archive>/<entry>.ogg`.
+/// `index` gets a line for each (the dev listing `index.tsv`), when given.
+pub fn extract_effects(
+    game_dir: &Path,
+    out_dir: &Path,
+    stems: &[&str],
+    mut index: Option<&mut String>,
+) -> Result<Report, String> {
+    let mut report = Report::default();
+    for stem in stems {
+        let Some(data) = read_archive(game_dir, stem)? else {
+            report.skipped.push(format!("{stem}.LBX: not found"));
             continue;
         };
-        let data = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
         let lbx = Lbx::parse(&data).map_err(|e| format!("{stem}.LBX: {e}"))?;
         let dir = out_dir.join(stem.to_lowercase());
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         for i in 0..lbx.len() {
-            let entry = lbx.entry(i);
-            let voc = entry.get(ENTRY_HEADER..).unwrap_or_default();
+            let voc = lbx.entry(i).get(ENTRY_HEADER..).unwrap_or_default();
             let clip = match parse_voc(voc) {
                 Ok(c) => c,
                 Err(e) => {
-                    skipped.push(format!("{stem}.LBX {i}: {e}"));
+                    report.skipped.push(format!("{stem}.LBX {i}: {e}"));
                     continue;
                 }
             };
             let file = format!("{}.ogg", entry_name(stem, i));
-            encode_ogg(&wav_bytes(&clip), &dir.join(&file), &encoder)
+            crate::ogg::encode_mono_u8(clip.rate, &clip.samples, &dir.join(&file))
                 .map_err(|e| format!("{stem}.LBX {i}: {e}"))?;
-            let seconds = clip.samples.len() as f32 / clip.rate as f32;
-            index += &format!(
-                "{}/{file}\t{stem}\t{i}\togg\t{}\t{seconds:.2}\n",
-                stem.to_lowercase(),
-                clip.rate
-            );
-            effects += 1;
-        }
-    }
-
-    for stem in MUSIC_FILES {
-        let Some(path) = find_file(game_dir, &format!("{stem}.LBX")) else {
-            skipped.push(format!("{stem}.LBX: not found"));
-            continue;
-        };
-        let data = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let lbx = Lbx::parse(&data).map_err(|e| format!("{stem}.LBX: {e}"))?;
-        let dir = out_dir.join(stem.to_lowercase());
-        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-        for i in 0..lbx.len() {
-            let xmi = lbx.entry(i).get(ENTRY_HEADER..).unwrap_or_default();
-            if !xmi.starts_with(b"FORM") || xmi.get(8..16) != Some(b"XDIRINFO".as_slice()) {
-                skipped.push(format!("{stem}.LBX {i}: not an XMI file"));
-                continue;
+            if let Some(index) = index.as_deref_mut() {
+                let seconds = clip.samples.len() as f32 / clip.rate as f32;
+                *index += &format!(
+                    "{}/{file}\t{stem}\t{i}\togg\t{}\t{seconds:.2}\n",
+                    stem.to_lowercase(),
+                    clip.rate
+                );
             }
-            let file = format!("{}.xmi", entry_name(stem, i));
-            fs::write(dir.join(&file), xmi).map_err(|e| e.to_string())?;
-            index += &format!("{}/{file}\t{stem}\t{i}\txmi\t\t\n", stem.to_lowercase());
-            songs += 1;
+            report.written += 1;
         }
     }
+    Ok(report)
+}
 
-    let timbres = out_dir.join("timbres");
+/// Write the XMI songs of the archive `stem` unchanged as `<dir>/<number>_<name>.xmi`.
+/// `index` gets a line for each (the dev listing), when given.
+pub fn extract_songs(
+    game_dir: &Path,
+    stem: &str,
+    dir: &Path,
+    mut index: Option<&mut String>,
+) -> Result<Report, String> {
+    let mut report = Report::default();
+    let Some(data) = read_archive(game_dir, stem)? else {
+        report.skipped.push(format!("{stem}.LBX: not found"));
+        return Ok(report);
+    };
+    let lbx = Lbx::parse(&data).map_err(|e| format!("{stem}.LBX: {e}"))?;
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    for i in 0..lbx.len() {
+        let xmi = lbx.entry(i).get(ENTRY_HEADER..).unwrap_or_default();
+        if !xmi.starts_with(b"FORM") || xmi.get(8..16) != Some(b"XDIRINFO".as_slice()) {
+            report
+                .skipped
+                .push(format!("{stem}.LBX {i}: not an XMI file"));
+            continue;
+        }
+        let file = format!("{}.xmi", entry_name(stem, i));
+        fs::write(dir.join(&file), xmi).map_err(|e| e.to_string())?;
+        if let Some(index) = index.as_deref_mut() {
+            *index += &format!("{}/{file}\t{stem}\t{i}\txmi\t\t\n", stem.to_lowercase());
+        }
+        report.written += 1;
+    }
+    Ok(report)
+}
+
+/// Copy the timbre files of the DOS sound system (`FAT*`) that the MT-32 rendering reads into `dir`
+/// (lower-case names). Returns how many were there.
+pub fn extract_timbres(game_dir: &Path, dir: &Path) -> Result<usize, String> {
     let mut banks = 0usize;
     for name in TIMBRE_FILES {
         if let Some(path) = find_file(game_dir, name) {
-            fs::create_dir_all(&timbres).map_err(|e| e.to_string())?;
-            fs::copy(&path, timbres.join(name.to_lowercase())).map_err(|e| e.to_string())?;
+            fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+            fs::copy(&path, dir.join(name.to_lowercase())).map_err(|e| e.to_string())?;
             banks += 1;
         }
     }
+    Ok(banks)
+}
+
+/// The development extraction: every effect archive as OGG, every song as XMI and the timbre
+/// files, with the listing `index.tsv` (`f4x-extract audio`).
+pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
+    fs::create_dir_all(out_dir).map_err(|e| e.to_string())?;
+    let mut index = String::from("file\tarchive\tentry\tformat\trate\tseconds\n");
+    let effects = extract_effects(game_dir, out_dir, &EFFECT_FILES, Some(&mut index))?;
+    let mut songs = Report::default();
+    for stem in MUSIC_FILES {
+        let report = extract_songs(
+            game_dir,
+            stem,
+            &out_dir.join(stem.to_lowercase()),
+            Some(&mut index),
+        )?;
+        songs.written += report.written;
+        songs.skipped.extend(report.skipped);
+    }
+    let banks = extract_timbres(game_dir, &out_dir.join("timbres"))?;
     fs::write(out_dir.join("index.tsv"), index).map_err(|e| e.to_string())?;
     println!(
-        "{effects} effects (ogg), {songs} songs (xmi), {banks} timbre files -> {}",
+        "{} effects (ogg), {} songs (xmi), {banks} timbre files -> {}",
+        effects.written,
+        songs.written,
         out_dir.display()
     );
-    for s in &skipped {
-        eprintln!("skipped {s}");
+    for skipped in effects.skipped.iter().chain(&songs.skipped) {
+        eprintln!("skipped {skipped}");
     }
     Ok(())
 }

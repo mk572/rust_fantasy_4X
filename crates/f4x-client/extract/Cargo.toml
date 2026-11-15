@@ -18,10 +18,15 @@ required-features = ["extract"]
 
 [features]
 default = ["extract"]
-extract = ["dep:png", "dep:fontdue"]
+extract = ["dep:png", "dep:fontdue", "dep:vorbis_rs"]
 
 [dependencies]
 png = { workspace = true, optional = true }
 fontdue = { version = "0.9", optional = true }
+# OGG Vorbis in this process (libvorbis, BSD licence; built with the system C compiler).
+vorbis_rs = { version = "0.5", optional = true }
 serde.workspace = true
 ron.workspace = true
+
+[dev-dependencies]
+lewton = "0.10"
