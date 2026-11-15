@@ -535,6 +535,18 @@ Next: row 635 (and 637, 638, 639), then 636, 651, 666 to 670, 674, 682, 685, 686
 | 720 Spell Charges open the spellbook with nothing castable | **Not checked** (a client matter; the rules list only castable spells). |
 | 720, 721 to 725, 728 Control-changed heroes use the wrong owner's records, items, skills | **Not present.** A battle unit carries its own casting, items, abilities and resistances, copied from the unit, not looked up by the owner. |
 
+### Walked on 15 November 2026: 636, 682, 738, 742, 747, and the rows left to a task
+
+| Rows | Verdict |
+|---|---|
+| 636 Oracle overrides Nature's Eye for a town's sight | **Not present.** Sight is one modifier stat, `CitySight`, that both raise (`city_sight`); test `oracle_walls_and_natures_eye_widen_a_citys_sight`. |
+| 682 Razing from the scroll differs from the dialog | **Not present.** One path, `Game::raze_city`, for both. |
+| 738 Overland-only unit enchantments five times as hard to dispel in combat | **Not present.** A dispel in battle uses the spell's own difficulty for every enchantment (`dispel_list`). |
+| 742 Walls of Fire and Darkness cannot be dispelled in combat (cast there), or are too easy (cast overland) | **Was present, fixed.** The two walls are flags of the battle, not battlefield spells, and no dispel reached them. A dispel of the attacker now tries each at the spell's difficulty (`dispel_battle_fields`), whether it was cast in the battle or on the city before; it lasts for that battle. Test `dispel_magic_takes_down_the_defenders_walls_of_fire_and_darkness`. |
+| 747 Ranged attacks do not use up all movement | **Was present, fixed (standard rule).** A shot, and a shot at a wall, now leave no movement, as blows do. Test `a_ranged_attack_uses_up_the_rest_of_the_movement`; the AI test of a shooter that stays put was changed to match: after its shot it ends its turn. |
+| 740, 741, 744, 746 | **Not settled.** Task 614. |
+| 666 to 670, 674, 689, 690, 703, 711, 719, 733, 735, 737, 749 | **Not walked.** City-screen figures, map drawing, Call Chaos graphics and crashes, spellbook titles, animations, list selectors and ammo display belong to the client; the treasure randomisation (733) is a different design here (a seeded draw). Check by eye with tasks 610 and 614. |
+
 ## P2 code review: first pass
 
 This pass checks the current source architecture against the most consequential 1.50 themes. It is not a claim that every issue in the table has a dedicated regression test.

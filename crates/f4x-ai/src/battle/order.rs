@@ -490,12 +490,10 @@ mod tests {
         );
         b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
             .map_err(|e| format!("{e:?}"))?;
-        assert_eq!(next_command(&b), BattleCommand::Done { unit: 0 });
-        // The plain AI walks up after shooting.
-        assert!(matches!(
-            baseline_command(&b),
-            BattleCommand::Move { unit: 0, .. }
-        ));
+        // The shot used up its movement (1.50 note 747): nothing is left to do this turn, for the
+        // plain AI too, which no longer walks up after shooting.
+        assert_eq!(next_command(&b), BattleCommand::EndTurn);
+        assert_eq!(baseline_command(&b), BattleCommand::EndTurn);
         Ok(())
     }
 

@@ -1787,6 +1787,44 @@ impl Game {
                 }
             }
         }
+        // The defender's Wall of Fire and Wall of Darkness, cast in the battle or on the city
+        // before it, are battlefield spells too, as hard to dispel as the spells themselves (1.50
+        // note 742).
+        if theirs == Side::Defender {
+            for (number, wall) in [
+                (87 /* wall_of_fire */, true),
+                (178 /* wall_of_darkness */, false),
+            ] {
+                let up = self.battle.as_ref().is_some_and(|a| {
+                    if wall {
+                        a.battle.wall_of_fire
+                    } else {
+                        a.battle.wall_of_darkness
+                    }
+                });
+                let Some(spell) = self.content.rules.spells.id_numbered(number) else {
+                    continue;
+                };
+                if !up {
+                    continue;
+                }
+                let difficulty = self.dispel_difficulty(spell, Some(victim));
+                if !crate::spell::dispel::dispel_roll(strength, difficulty, &mut rng) {
+                    continue;
+                }
+                if let Some(active) = self.battle.as_mut() {
+                    if wall {
+                        active.battle.wall_of_fire = false;
+                    } else {
+                        active.battle.wall_of_darkness = false;
+                    }
+                    events.push(BattleEvent::FieldDispelled {
+                        side: theirs,
+                        spell,
+                    });
+                }
+            }
+        }
         events
     }
 

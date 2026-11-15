@@ -1325,9 +1325,8 @@ impl Battle {
         u.revealed = true;
         if ranged {
             u.spend_shot();
-        } else {
-            u.moves_left = HalfInt::ZERO;
         }
+        u.moves_left = HalfInt::ZERO;
         vec![BattleEvent::WallAttacked {
             unit,
             cell,
@@ -1770,6 +1769,8 @@ impl Battle {
         a.spend_shot();
         a.used_attack();
         a.revealed = true;
+        // A ranged attack uses up the rest of the movement, as blows do (1.50 note 747).
+        a.moves_left = HalfInt::ZERO;
         let mut events = vec![BattleEvent::Shot {
             attacker: att,
             defender: def,

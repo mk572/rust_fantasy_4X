@@ -303,6 +303,21 @@ fn fleeing_hands_the_battle_to_the_other_side() -> TestResult {
     Ok(())
 }
 
+/// 1.50 note 747: a ranged attack uses up all the unit's movement, as a melee attack does.
+#[test]
+fn a_ranged_attack_uses_up_the_rest_of_the_movement() -> TestResult {
+    let mut b = real_battle(
+        &[(101 /* high_elf_longbowmen */, (3, 10))],
+        &[(151 /* troll_settlers */, (8, 10))],
+        1,
+    );
+    assert!(b.unit(0).ok_or("no unit")?.moves_left > 0);
+    b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(b.unit(0).ok_or("no unit")?.moves_left, 0);
+    Ok(())
+}
+
 #[test]
 fn archers_shoot_with_ammunition_and_range_costs_accuracy() -> TestResult {
     // Longbowmen against a lone troll settler, who has the hit points to take every volley.
@@ -5277,6 +5292,39 @@ fn dispel_magic_takes_down_the_enemy_battlefield_spells_and_leaves_its_casters_o
         throws.iter().all(|&(_, own)| own),
         "a dispel never takes down the caster's own spells"
     );
+}
+
+/// 1.50 note 742: the defender's Wall of Fire and Wall of Darkness are battlefield spells that a
+/// strong dispel takes down.
+#[test]
+fn dispel_magic_takes_down_the_defenders_walls_of_fire_and_darkness() -> TestResult {
+    let mut downs = 0;
+    for burn in 0..8 {
+        let mut g = wizard_battle(107, &[202 /* dispel_magic */]);
+        for _ in 0..burn {
+            g.next_u64();
+        }
+        {
+            let b = &mut g.battle.as_mut().ok_or("no battle")?.battle;
+            b.set_caster(
+                Side::Attacker,
+                crate::battle::BattleCaster::new(2000, 2000, 10),
+            );
+            b.wall_of_fire = true;
+            b.wall_of_darkness = true;
+        }
+        let spell = g.content.rules.spells.id_numbered(202).ok_or("dispel")?;
+        g.battle_command(BattleCommand::Cast {
+            spell,
+            aim: SpellAim::Unit(1),
+            mana: 1500,
+        })
+        .map_err(|e| format!("{e:?}"))?;
+        let b = g.battle().ok_or("no battle")?;
+        downs += usize::from(!b.wall_of_fire && !b.wall_of_darkness);
+    }
+    assert!(downs >= 6, "{downs} of 8 took both walls down");
+    Ok(())
 }
 
 /// A battle of player A's wizard, who knows `spells` and has plenty to cast with; the first
