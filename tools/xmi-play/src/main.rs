@@ -4,19 +4,18 @@
 //! system's library (`fat.mt`, a Miles "GTL" file) and uploaded to the emulated unit by SysEx, as the
 //! DOS driver did, then the song is rendered to a WAV file and handed to `afplay` (macOS).
 //!
-//! Tests: `wav_bytes` below; the rest renders with the MT-32 ROMs (not in the repository) and plays sound.
+//! Tests: in the library (`wav_bytes`, the OGG writer); this renders with the MT-32 ROMs (not in the
+//! repository) and plays sound, so it is tried by hand.
 
 mod terminal;
-mod xmi;
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-use mt32_rs::analog::AnalogMode;
-use mt32_rs::engine::Engine;
-use mt32_rs::midi::Parser;
 use terminal::Key;
+use xmi_play::ogg;
+use xmi_play::render::{self, wav_bytes, Unit};
 
 const USAGE: &str = "usage: xmi-play [options] SONG.xmi|FOLDER
 
@@ -31,8 +30,8 @@ options:
   -t, --timbres FILE  the timbre library (default: ../../assets-local/audio/timbres/fat.mt)
   -o, --out FILE      write the WAV here (default: a temporary file)
   -n, --no-play       render only, do not play
-  -R, --render-all DIR  with a folder: render every song of it to DIR/NAME.ogg (needs oggenc or
-                      ffmpeg) for the game, and do not show the menu
+  -R, --render-all DIR  with a folder: render every song of it to DIR/NAME.ogg for the game, and do
+                      not show the menu (`f4x-music` does this several songs at once)
   -s, --sequence N    which song of the file (default 0)
   -v, --verbose       list the timbres and the events
   -h, --help          print this help";
@@ -94,14 +93,7 @@ fn run(args: &[String]) -> Result<(), Error> {
         }
     }
     let song = song.ok_or_else(|| Error::Usage("no song or folder given".into()))?;
-    let read = |p: &PathBuf| {
-        std::fs::read(p).map_err(|e| Error::Failed(format!("cannot read {}: {e}", p.display())))
-    };
-    let unit = Unit {
-        control: read(&roms.join("mt32_ctrl_2_07.rom"))?,
-        pcm: read(&roms.join("mt32_pcm.rom"))?,
-        library: read(&timbres)?,
-    };
+    let unit = Unit::read(&roms, &timbres).map_err(Error::Failed)?;
     let wav = out.unwrap_or_else(|| std::env::temp_dir().join("xmi-play.wav"));
     if let Some(dir) = render_all {
         return render_folder(&unit, &song, &dir, sequence);
@@ -116,13 +108,6 @@ fn run(args: &[String]) -> Result<(), Error> {
     Ok(())
 }
 
-/// The ROMs and the timbre library, read once.
-struct Unit {
-    control: Vec<u8>,
-    pcm: Vec<u8>,
-    library: Vec<u8>,
-}
-
 /// Render one song on a fresh unit into `wav`.
 fn render(
     unit: &Unit,
@@ -131,40 +116,14 @@ fn render(
     sequence: usize,
     verbose: bool,
 ) -> Result<(), Error> {
-    let bytes = std::fs::read(song)
-        .map_err(|e| Error::Failed(format!("cannot read {}: {e}", song.display())))?;
-    let file = xmi::parse(&bytes, sequence).map_err(Error::Failed)?;
-    let mut engine = Engine::open_with_analog(&unit.control, &unit.pcm, AnalogMode::Accurate)
-        .map_err(|e| Error::Failed(format!("the ROMs are not usable: {e}")))?;
-    let mut parser = Parser::new();
-    for sysex in xmi::timbre_setup(&file.timbres, &unit.library, verbose) {
-        parser.parse(&sysex, &mut engine);
-    }
-    let rate = engine.output_sample_rate();
-    let mut samples: Vec<(i16, i16)> = Vec::new();
-    let render = |engine: &mut Engine, frames: usize, samples: &mut Vec<(i16, i16)>| {
-        let at = samples.len();
-        samples.resize(at + frames, (0, 0));
-        engine.render(&mut samples[at..]);
-    };
-    for event in &file.events {
-        let due = (event.seconds * f64::from(rate)) as usize;
-        if due > samples.len() {
-            render(&mut engine, due - samples.len(), &mut samples);
-        }
-        if verbose {
-            println!("{:8.3}s {:02x?}", event.seconds, event.bytes);
-        }
-        parser.parse(&event.bytes, &mut engine);
-    }
-    render(&mut engine, 3 * rate as usize, &mut samples); // the release and the reverb
-    std::fs::write(wav, wav_bytes(&samples, rate))
+    let rendered = render::render(unit, song, sequence, verbose).map_err(Error::Failed)?;
+    std::fs::write(wav, wav_bytes(&rendered.samples, rendered.rate))
         .map_err(|e| Error::Failed(format!("cannot write {}: {e}", wav.display())))?;
     println!(
         "{}: {:.1} s, {} events, wrote {}",
         song.display(),
-        samples.len() as f64 / f64::from(rate),
-        file.events.len(),
+        rendered.samples.len() as f64 / f64::from(rendered.rate),
+        rendered.events,
         wav.display()
     );
     Ok(())
@@ -172,61 +131,24 @@ fn render(
 
 /// Render every song of `from` to an OGG in `to`, named like the song (`104_main_menu.xmi` to
 /// `104_main_menu.ogg`), which is where the game looks for it (`assets-local/audio/music`).
+/// `f4x-music` does the same for the setup, several songs at once.
 fn render_folder(unit: &Unit, from: &Path, to: &Path, sequence: usize) -> Result<(), Error> {
     let songs = xmi_files(from)?;
     std::fs::create_dir_all(to)
         .map_err(|e| Error::Failed(format!("cannot create {}: {e}", to.display())))?;
-    let wav = std::env::temp_dir().join("xmi-play-render.wav");
     for song in &songs {
+        let rendered = render::render(unit, song, sequence, false).map_err(Error::Failed)?;
         let ogg = to.join(song.with_extension("ogg").file_name().unwrap_or_default());
-        render(unit, song, &wav, sequence, false)?;
-        encode_ogg(&wav, &ogg)?;
+        ogg::write_stereo(&rendered.samples, rendered.rate, &ogg).map_err(Error::Failed)?;
+        println!("{}", ogg.display());
     }
-    let _ = std::fs::remove_file(&wav);
     println!("{} songs in {}", songs.len(), to.display());
     Ok(())
 }
 
-/// WAV to OGG Vorbis with `oggenc`, or else `ffmpeg`.
-fn encode_ogg(wav: &Path, ogg: &Path) -> Result<(), Error> {
-    let done = |r: std::io::Result<std::process::ExitStatus>| r.is_ok_and(|s| s.success());
-    let quiet = |c: &mut Command| {
-        c.stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-    };
-    if done(quiet(
-        Command::new("oggenc")
-            .args(["-q", "5", "-o"])
-            .arg(ogg)
-            .arg(wav),
-    )) || done(quiet(
-        Command::new("ffmpeg")
-            .args(["-y", "-i"])
-            .arg(wav)
-            .args(["-c:a", "libvorbis", "-q:a", "5"])
-            .arg(ogg),
-    )) {
-        Ok(())
-    } else {
-        Err(Error::Failed(
-            "cannot encode OGG: install oggenc (vorbis-tools) or ffmpeg".into(),
-        ))
-    }
-}
-
 /// The `.xmi` files of a folder, sorted.
 fn xmi_files(dir: &Path) -> Result<Vec<PathBuf>, Error> {
-    let mut songs: Vec<PathBuf> = std::fs::read_dir(dir)
-        .map_err(|e| Error::Failed(format!("cannot read {}: {e}", dir.display())))?
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("xmi")))
-        .collect();
-    songs.sort();
-    if songs.is_empty() {
-        return Err(Error::Failed(format!("no .xmi files in {}", dir.display())));
-    }
-    Ok(songs)
+    render::xmi_files(dir).map_err(Error::Failed)
 }
 
 /// Play a WAV with afplay. With `interruptible`, Esc (or q) stops it and the result is false.
@@ -301,47 +223,5 @@ fn menu(dir: &Path, unit: &Unit, wav: &Path, sequence: usize, verbose: bool) -> 
             Key::Esc | Key::Quit => return Ok(()),
             Key::None | Key::Other => {}
         }
-    }
-}
-
-/// A 16-bit stereo PCM WAV file.
-fn wav_bytes(samples: &[(i16, i16)], rate: u32) -> Vec<u8> {
-    let data = (samples.len() * 4) as u32;
-    let mut b = Vec::with_capacity(44 + data as usize);
-    b.extend(b"RIFF");
-    b.extend((36 + data).to_le_bytes());
-    b.extend(b"WAVEfmt ");
-    b.extend(16u32.to_le_bytes());
-    b.extend(1u16.to_le_bytes()); // PCM
-    b.extend(2u16.to_le_bytes()); // channels
-    b.extend(rate.to_le_bytes());
-    b.extend((rate * 4).to_le_bytes());
-    b.extend(4u16.to_le_bytes());
-    b.extend(16u16.to_le_bytes());
-    b.extend(b"data");
-    b.extend(data.to_le_bytes());
-    for (l, r) in samples {
-        b.extend(l.to_le_bytes());
-        b.extend(r.to_le_bytes());
-    }
-    b
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_wav_header_describes_stereo_16_bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
-        let wav = wav_bytes(&[(1, -1), (2, -2)], 32_000);
-        assert_eq!(&wav[0..4], b"RIFF");
-        assert_eq!(u32::from_le_bytes(wav[4..8].try_into()?), 36 + 8);
-        assert_eq!(u16::from_le_bytes(wav[22..24].try_into()?), 2, "channels");
-        assert_eq!(u32::from_le_bytes(wav[24..28].try_into()?), 32_000);
-        assert_eq!(u32::from_le_bytes(wav[28..32].try_into()?), 128_000);
-        assert_eq!(u32::from_le_bytes(wav[40..44].try_into()?), 8);
-        assert_eq!(wav.len(), 44 + 8);
-        assert_eq!(&wav[44..48], &[1, 0, 255, 255]);
-        Ok(())
     }
 }

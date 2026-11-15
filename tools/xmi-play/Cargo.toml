@@ -10,5 +10,19 @@ edition = "2021"
 license = "LGPL-2.1-or-later"
 publish = false
 
+[lib]
+name = "xmi_play"
+path = "src/lib.rs"
+
+[[bin]]
+name = "xmi-play"
+path = "src/main.rs"
+
+[[bin]]
+name = "f4x-music"
+path = "src/bin/f4x-music.rs"
+
 [dependencies]
 mt32-rs = { path = "../../third_party/mt32-rs" }
+# OGG Vorbis in this process (libvorbis, BSD licence).
+vorbis_rs = "0.5"
