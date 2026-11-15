@@ -114,6 +114,43 @@ fn a_diagonal_step_costs_one_and_a_half_times_a_straight_one_when_the_setting_sa
     );
 }
 
+/// The 1.60 patch fixes cheap tundra for swimmers and "deep" tundra and a grassland penalty for
+/// mountaineers (No Snow Swimming, No Deep Tundra, Mountains Of Grass). We never had them: tundra
+/// is one terrain at two moves for every land mover, and a mountaineer pays grassland's one move.
+#[test]
+fn tundra_costs_two_for_everyone_and_a_mountaineer_pays_one_on_grass() {
+    let mut g = world();
+    let tundra = g
+        .content
+        .terrains
+        .id_numbered(11)
+        .expect("id_numbered succeeds");
+    for x in 0..2 {
+        g.map
+            .as_mut()
+            .expect("the world has a map")
+            .plane_mut(Plane::Arcanus)
+            .set(x, 1, tundra);
+    }
+    let two = Ok(HalfInt::from_int(2));
+    let walker = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 2));
+    let swimmer = unit(&mut g, P0, 120 /* lizardman_spearmen */, at(1, 2));
+    let ranger = unit(&mut g, P0, 16 /* ranger */, at(1, 2));
+    assert_eq!(cost(&g, walker, at(1, 2), at(1, 1)), two, "a walker");
+    assert_eq!(cost(&g, swimmer, at(1, 2), at(1, 1)), two, "a swimmer");
+    assert_eq!(
+        cost(&g, swimmer, at(1, 1), at(0, 1)),
+        two,
+        "tundra between tundra costs the same"
+    );
+    assert_eq!(cost(&g, ranger, at(1, 2), at(1, 1)), two, "a mountaineer");
+    assert_eq!(
+        cost(&g, ranger, at(1, 1), at(1, 2)),
+        Ok(HalfInt::from_int(1)),
+        "a mountaineer on grassland"
+    );
+}
+
 #[test]
 fn abilities_change_costs() {
     let mut g = world();
