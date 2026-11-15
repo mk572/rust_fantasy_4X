@@ -107,7 +107,8 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | content | `half_upkeep` (`enabled`, `units`) | bool, unit ids without the race (`spearmen`) | off (30 October 2026: the AI learns on the original's rules), Spearmen and Swordsmen when on | `UnitView::pays_upkeep` (unit/mod.rs): the basic troops cost half the food and gold (about every second one, by serial number, is free); not saved with the game, it is read from the content |
 | basic | `magic_strength` | 0..=2 (Weak, Normal, Powerful) | 1 | `Game::magic_strength` |
 | wizards | `picks` | `Split`, 5..=20 | 11 / 11 | `wizard::PICKS` |
-| wizards | `max_books_per_realm` | 3..=11 | 11 | `wizard::MAX_BOOKS` |
+| wizards | `max_books_per_realm` | 5..=13 | 11 | `Game::check_wizard_build`, `create_screen.rs` / `newgame_picks.rs` `set_books`, `f4x-newgame/src/computer_wizard.rs` (`book_cap`: `add_books`, the merge of opposed realms, `fit_books` for a ready-made wizard over it, the refill's total of twelve books), `WizardMut::found`. One value for every wizard. A ready-made wizard over it loses the surplus and its picks are spent again (the computer wizard's by the refill, the human's by hand). The spell library stops at row 11: 12 and 13 books start with the spells of 11 |
+| wizards | `max_books_total` | 12..=65 | 12 | `f4x-core/src/feature/lair.rs` `award_special` (the original's `Book_Count > 12` in `Lair.c`: a wizard with more books than this finds no book in treasure, the reward turns into a retort, so a wizard reaches one over it), `f4x-newgame/src/computer_wizard.rs` `refill` (the original's `(Trait_Value + Book_Count) > 12` in `INITGAME.c`: the fill-up stops at it), `Game::check_wizard_build` (`TooManyBooksInAll`). One value for every wizard; 65 is five realms of 13. The original has no separate figure for the human: its 11 picks are the limit |
 | wizards | `starting_gold` | `Split`, 0..=2000 | 75 / 150 | `Player::new` (`gold: 100`) |
 | wizards | `starting_mana` | `Split`, 0..=2000 | 0 / 0 | `Player::new` (`mana: 0`) |
 | wizards | `starting_units` | `Split<Vec<StartUnit>>`, at most 12 entries, 20 units | Spearmen, Swordsmen | `f4x-newgame/src/setup.rs::start_player` |
@@ -225,7 +226,7 @@ All values are the original's where it has one (`INITGAME.c`, `EVENTS.c`, `CITYC
 | event pressure (derived from the level, not a setting) | 50% | 66% | 75% | 80% | 100% |
 | `random_events` | **off** | on | on | on | on |
 | `score_percent` | 50 | 75 | 100 | 200 | 300 |
-| `max_stack`, `starting_mana`, `max_books_per_realm` | no original effect: 9, 0, 11 at every level | | | | |
+| `max_stack`, `starting_mana`, `max_books_per_realm`, `max_books_total` | no original effect: 9, 0, 11, 12 at every level | | | | |
 
 Where `ai.mana_percent` applies (checked 24 October 2026 against `Players_Update_Magic_Power`, task 251): to the
 power of the wizard's **nodes** (phase 4) and to each city's mana. The cities' mana is added after

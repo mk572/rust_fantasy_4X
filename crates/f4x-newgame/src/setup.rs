@@ -168,8 +168,13 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                 build.clone()
             } else if let Some(&num) = spec.preset.as_ref() {
                 taken.push(num);
-                game.preset_build(num)
-                    .ok_or_else(|| format!("no ready-made wizard {num}"))?
+                let mut build = game
+                    .preset_build(num)
+                    .ok_or_else(|| format!("no ready-made wizard {num}"))?;
+                // Over the most books in a realm, it loses the surplus and has picks to spend:
+                // the pick rules then ask for them.
+                build.trim_books(settings.wizards.max_books_per_realm);
+                build
             } else if !spec.books.is_empty() {
                 WizardBuild {
                     name: spec.name.clone().unwrap_or_else(|| "Wizard".into()),
@@ -225,8 +230,9 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                 .get((spec.seed as usize + k) % free.len().max(1))
                 .and_then(|&&id| game.preset_build(id).map(|b| (id, b)));
             match pick {
-                Some((id, b)) => {
+                Some((id, mut b)) => {
                     taken.push(id);
+                    crate::computer_wizard::fit_books_and_refill(&mut game, &mut b);
                     b
                 }
                 None => plain_computer_build(&spec.names, spec.seed, k),

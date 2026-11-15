@@ -60,6 +60,10 @@
     // level at the start of a game copies these into the game's settings. Most figures are the
     // original's (`difficulty_modifiers_table` and the map generator). Notes:
     // - `starting_mana`: mana in the treasury at the start.
+    // - `max_books_total`: the most books in all realms (12 to 65; the original's 12): the
+    //   computer wizards are filled up to it, and treasure gives no book to a wizard over it.
+    // - `max_books_per_realm`: the most books a wizard starts with in one realm (5 to 13: two realms and a retort; the
+    //   original's 11).
     // - `start_reveal_radius`: how far a wizard sees around their capital at the start, in
     //   squares; a diagonal step counts 1.5, so 2.5 is a 5 by 5 block without its corners.
     // - `pressure_percent`: the share of the turns since the last event that count as pressure;
@@ -71,6 +75,8 @@
                 starting_gold: (human: 125, ai: 150),
                 starting_mana: (human: 0, ai: 0),
                 picks: (human: 11, ai: 11),
+                max_books_per_realm: 11,
+                max_books_total: 12,
             ),
             ai: (
                 growth_percent: 100,
@@ -109,6 +115,8 @@
                 starting_gold: (human: 100, ai: 150),
                 starting_mana: (human: 0, ai: 0),
                 picks: (human: 11, ai: 11),
+                max_books_per_realm: 11,
+                max_books_total: 12,
             ),
             ai: (
                 growth_percent: 100,
@@ -147,6 +155,8 @@
                 starting_gold: (human: 75, ai: 150),
                 starting_mana: (human: 0, ai: 0),
                 picks: (human: 11, ai: 11),
+                max_books_per_realm: 11,
+                max_books_total: 12,
             ),
             ai: (
                 growth_percent: 150,
@@ -185,6 +195,8 @@
                 starting_gold: (human: 50, ai: 150),
                 starting_mana: (human: 0, ai: 0),
                 picks: (human: 11, ai: 13),
+                max_books_per_realm: 11,
+                max_books_total: 12,
             ),
             ai: (
                 growth_percent: 200,
@@ -226,6 +238,8 @@
                 starting_gold: (human: 40, ai: 150),
                 starting_mana: (human: 0, ai: 0),
                 picks: (human: 11, ai: 14),
+                max_books_per_realm: 11,
+                max_books_total: 12,
             ),
             ai: (
                 growth_percent: 300,
@@ -264,6 +278,8 @@
                 starting_gold: (human: 25, ai: 150),
                 starting_mana: (human: 0, ai: 0),
                 picks: (human: 11, ai: 15),
+                max_books_per_realm: 11,
+                max_books_total: 12,
             ),
             ai: (
                 growth_percent: 400,

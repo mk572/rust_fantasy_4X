@@ -234,6 +234,38 @@ pub struct WizardSettings {
     /// Picks for books and retorts. The human's creation screen still spends 11 (it reads this
     /// in stage 3); the computer wizards' is read when they are made.
     pub picks: Split<u8>,
+    /// The most books a wizard may start with in one realm, 5 to 13 (two realms and a retort fit in the picks), the same for every wizard
+    /// (the original: 11, which the 11 picks already limit). A ready-made wizard with more in
+    /// a realm loses the surplus, and its picks are spent again. The spell library's rows stop
+    /// at 11 books, so 12 and 13 start with the spells of 11.
+    #[serde(default = "fb_max_books_per_realm")]
+    pub max_books_per_realm: u8,
+    /// The most books a wizard has in all realms, 12 to 65 (5 realms of 13). Computer wizards
+    /// are filled up to it and no more, and a ready-made wizard over it loses books. Treasure
+    /// is the original's rule: a wizard with more books than this finds no more (it turns the
+    /// reward into a retort), so a wizard reaches one over it. The original: 12.
+    #[serde(default = "fb_max_books_total")]
+    pub max_books_total: u8,
+}
+
+/// The most books in one realm the original allows, and the setting's default.
+pub const DEFAULT_MAX_BOOKS_PER_REALM: u8 = 11;
+/// The most books in all realms in the original, and the setting's default.
+pub const DEFAULT_MAX_BOOKS_TOTAL: u8 = 12;
+/// The range of `WizardSettings::max_books_total`: five realms of the most books each.
+pub const BOOKS_TOTAL_RANGE: std::ops::RangeInclusive<u8> = 12..=65;
+/// The range of `WizardSettings::max_books_per_realm`.
+pub const BOOKS_PER_REALM_RANGE: std::ops::RangeInclusive<u8> = 5..=13;
+
+fn fb_max_books_total() -> u8 {
+    fallback(|g| g.wizards.max_books_total, DEFAULT_MAX_BOOKS_TOTAL)
+}
+
+fn fb_max_books_per_realm() -> u8 {
+    fallback(
+        |g| g.wizards.max_books_per_realm,
+        DEFAULT_MAX_BOOKS_PER_REALM,
+    )
 }
 
 /// How the computer wizards are made (`docs/game-settings.md` 4.8, from the original's
@@ -1211,6 +1243,20 @@ impl GameSettings {
                 format!("{who} starting mana {mana} is not 0 to 2000"),
             );
         }
+        check(
+            BOOKS_PER_REALM_RANGE.contains(&w.max_books_per_realm),
+            format!(
+                "the most books in a realm {} is not 5 to 13",
+                w.max_books_per_realm
+            ),
+        );
+        check(
+            BOOKS_TOTAL_RANGE.contains(&w.max_books_total),
+            format!(
+                "the most books in all {} is not 12 to 65",
+                w.max_books_total
+            ),
+        );
         for (who, picks) in [("your", w.picks.human), ("the AI's", w.picks.ai)] {
             check(
                 (5..=20).contains(&picks),
@@ -1328,6 +1374,12 @@ impl GameSettings {
         w.starting_mana.ai = w.starting_mana.ai.clamp(0, 2000);
         w.picks.human = w.picks.human.clamp(5, 20);
         w.picks.ai = w.picks.ai.clamp(5, 20);
+        w.max_books_total = w
+            .max_books_total
+            .clamp(*BOOKS_TOTAL_RANGE.start(), *BOOKS_TOTAL_RANGE.end());
+        w.max_books_per_realm = w
+            .max_books_per_realm
+            .clamp(*BOOKS_PER_REALM_RANGE.start(), *BOOKS_PER_REALM_RANGE.end());
         let a = &mut self.ai;
         for v in [
             &mut a.growth_percent,

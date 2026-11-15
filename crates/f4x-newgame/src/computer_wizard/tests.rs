@@ -3,6 +3,7 @@ use f4x_core::game::setting::AiWizardSettings;
 use f4x_core::rules::RealmId;
 use f4x_core::rules::Rules;
 use f4x_core::rules::WizardDef;
+use f4x_core::wizard::MAX_BOOKS;
 use std::collections::BTreeSet;
 
 fn shipped() -> f4x_def::content::Content {
@@ -261,15 +262,33 @@ fn without_the_ban_the_refill_gives_life_and_death_to_one_wizard() {
 #[test]
 fn books_stop_at_the_limit_and_at_an_opposed_realm() {
     let mut b = build(&[(RealmId::new(3 /* life */), 9)], &[]);
-    add_books(&mut b, realm(3 /* life */), 4, Some(realm(4 /* death */)));
+    add_books(
+        &mut b,
+        realm(3 /* life */),
+        4,
+        Some(realm(4 /* death */)),
+        MAX_BOOKS,
+    );
     assert_eq!(books(&b, realm(3 /* life */)), MAX_BOOKS);
-    add_books(&mut b, realm(3 /* life */), 1, Some(realm(4 /* death */)));
+    add_books(
+        &mut b,
+        realm(3 /* life */),
+        1,
+        Some(realm(4 /* death */)),
+        MAX_BOOKS,
+    );
     assert_eq!(books(&b, realm(3 /* life */)), MAX_BOOKS);
 
     let mut b = build(&[(RealmId::new(3 /* life */), 2)], &[]);
-    add_books(&mut b, realm(4 /* death */), 3, Some(realm(3 /* life */)));
+    add_books(
+        &mut b,
+        realm(4 /* death */),
+        3,
+        Some(realm(3 /* life */)),
+        MAX_BOOKS,
+    );
     assert_eq!(books(&b, realm(4 /* death */)), 0);
-    add_books(&mut b, realm(0 /* nature */), 3, None);
+    add_books(&mut b, realm(0 /* nature */), 3, None, MAX_BOOKS);
     assert_eq!(books(&b, realm(0 /* nature */)), 3);
 }
 

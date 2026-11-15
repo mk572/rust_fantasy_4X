@@ -64,9 +64,9 @@ pub const MASTERY_DISCOUNT_BOOKS: i32 = 11;
 /// Research points off the Spell of Mastery for a wizard with [`MASTERY_DISCOUNT_BOOKS`] books
 /// of one realm.
 pub const MASTERY_DISCOUNT: i32 = 3000;
-/// A wizard with more books than this finds no more in treasure, so the most is one above it
-/// (the original refuses a book at `Book_Count > 12`).
-pub const BOOKS_BEFORE_LIMIT: i32 = 12;
+/// The original's figure for `WizardSettings::max_books_total`: a wizard with more books than
+/// this finds no more in treasure (`Book_Count > 12`), so the most is one above it.
+pub const BOOKS_BEFORE_LIMIT: i32 = f4x_def::settings::DEFAULT_MAX_BOOKS_TOTAL as i32;
 
 /// The spell being researched and the research points still to pay for it.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -521,7 +521,7 @@ impl<'a> WizardMut<'a> {
         let mut sheet = Books::default();
         for &(realm, n) in books {
             if n > 0 {
-                sheet.0.insert(realm, n.min(11));
+                sheet.0.insert(realm, n);
             }
         }
         let total: i32 = sheet.0.values().map(|&n| i32::from(n)).sum();

@@ -204,7 +204,7 @@ pub(crate) fn award_spell(
 }
 
 /// Spell book and retort treasure: three times in four a book of the site's realm (never life
-/// with death or the reverse, nor to a wizard with more than twelve books already), otherwise a retort. A two-pick hoard
+/// with death or the reverse, nor to a wizard with more than `books_limit` books already, `max_books_total`), otherwise a retort. A two-pick hoard
 /// gives a two-pick retort or two books. The original's version loops and awards oddly (its
 /// own comments call these bugs); this keeps the odds and the restrictions.
 pub(crate) fn award_special(
@@ -213,6 +213,7 @@ pub(crate) fn award_special(
     rng: &mut crate::game::rng::GameRng,
     lair: &LairInfo,
     picks: i32,
+    books_limit: i32,
     loot: &mut Loot,
 ) {
     let (life, death) = (
@@ -227,7 +228,7 @@ pub(crate) fn award_special(
     // the limit of six retorts or more than twelve books.
     let wants_retort = if wizard.view().retorts().len() >= crate::wizard::MAX_RETORTS {
         false
-    } else if wizard.view().total_books() > crate::wizard::sheet::BOOKS_BEFORE_LIMIT {
+    } else if wizard.view().total_books() > books_limit {
         true
     } else {
         rng.roll(100) > 75
@@ -255,7 +256,7 @@ pub(crate) fn award_special(
     for _ in 0..picks {
         let clash = (realm == life && wizard.view().books_in(death) > 0)
             || (realm == death && wizard.view().books_in(life) > 0);
-        if clash || wizard.view().total_books() > crate::wizard::sheet::BOOKS_BEFORE_LIMIT {
+        if clash || wizard.view().total_books() > books_limit {
             continue;
         }
         *wizard
@@ -480,6 +481,7 @@ impl Game {
                         &mut self.rng,
                         &lair,
                         picks,
+                        i32::from(self.settings.wizards.max_books_total),
                         &mut loot,
                     );
                     // A book found opens more of its realm's spells to research.

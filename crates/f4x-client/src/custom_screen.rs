@@ -256,6 +256,20 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.wizards.picks.ai.into(),
             |s, v| s.wizards.picks.ai = v as u8,
         ),
+        num(
+            "custom.max_books",
+            (5, 13, 1),
+            "",
+            |s| s.wizards.max_books_per_realm.into(),
+            |s, v| s.wizards.max_books_per_realm = v as u8,
+        ),
+        num(
+            "custom.max_books_total",
+            (12, 65, 1),
+            "",
+            |s| s.wizards.max_books_total.into(),
+            |s, v| s.wizards.max_books_total = v as u8,
+        ),
         Heading("custom.h_ai_cities"),
         num(
             "custom.ai_growth",

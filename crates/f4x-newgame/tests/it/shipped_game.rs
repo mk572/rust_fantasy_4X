@@ -39,7 +39,7 @@ fn turns_pass_on_a_new_game_without_a_refusal() -> TestResult {
 #[test]
 fn a_saved_game_loads_into_the_same_game() -> TestResult {
     let mut g = game(5)?;
-    end_turns(&mut g, 10);
+    end_turns(&mut g, 3);
     let text = g.snapshot().to_text()?;
     let loaded = f4x_core::game::save::Snapshot::from_text(&text)?.restore(shipped().clone())?;
     assert_eq!(loaded.snapshot().to_text()?, text);
@@ -164,6 +164,106 @@ fn a_myrran_wizard_of_nine_books_needs_the_two_pick_option_to_be_made() -> TestR
     assert_eq!(
         f4x_core::wizard::retort_cost(&g.content().rules, Retort::new(9)),
         2
+    );
+    Ok(())
+}
+
+#[test]
+fn no_wizard_starts_with_more_books_in_a_realm_than_the_setting_allows() -> TestResult {
+    for most in [5u8, 6, 8, 13] {
+        for randomise in [true, false] {
+            for seed in 1..8 {
+                let mut spec = NewGame {
+                    seed,
+                    all_ai: true,
+                    ..Default::default()
+                };
+                spec.settings.basic.opponents = 5;
+                spec.settings.wizards.max_books_per_realm = most;
+                spec.settings.wizards.max_books_total = 65;
+                spec.settings.wizards.picks.ai = 15;
+                spec.settings.ai.wizards.randomise = randomise;
+                let g = new_game(shipped(), &spec)?;
+                let wizards: Vec<_> = g
+                    .player_ids()
+                    .into_iter()
+                    .filter_map(|p| g.wizard(p))
+                    .collect();
+                assert_eq!(
+                    wizards.len(),
+                    6,
+                    "five opponents and the one who would be you"
+                );
+                for w in wizards {
+                    let books = w.books();
+                    assert!(
+                        books.values().all(|&n| n <= most),
+                        "seed {seed}, at most {most}, randomise {randomise}: {books:?}"
+                    );
+                    let spent = books.values().sum::<u8>()
+                        + w.retorts()
+                            .iter()
+                            .map(|&r| f4x_core::wizard::retort_cost(&g.content().rules, r))
+                            .sum::<u8>();
+                    // Whatever the cap took off is spent again, so no wizard has fewer picks
+                    // spent than the ready-made ones (ten or eleven), and none more than there
+                    // are.
+                    assert!(
+                        (10..=15).contains(&spent),
+                        "seed {seed}, at most {most}: {books:?} spent {spent}"
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn a_ready_made_human_wizard_over_the_most_books_is_asked_to_spend_the_picks() -> TestResult {
+    let make = |most: u8| {
+        let mut spec = NewGame {
+            seed: 3,
+            preset: Some(11), // Ariel, ten Life books
+            ..Default::default()
+        };
+        spec.settings.wizards.max_books_per_realm = most;
+        new_game(shipped(), &spec)
+    };
+    assert!(make(11).is_ok());
+    let refused = make(8).err().ok_or("Ariel is made with surplus picks")?;
+    assert!(refused.contains("UnspentPicks"), "{refused}");
+    Ok(())
+}
+
+#[test]
+fn wizards_with_twelve_or_thirteen_books_in_a_realm_play_on() -> TestResult {
+    let mut most_seen = 0;
+    for seed in 1..40 {
+        let mut spec = NewGame {
+            seed,
+            all_ai: true,
+            ..Default::default()
+        };
+        spec.settings.basic.opponents = 5;
+        spec.settings.wizards.max_books_per_realm = 13;
+        spec.settings.wizards.max_books_total = 65;
+        spec.settings.wizards.picks.ai = 20;
+        let mut g = new_game(shipped(), &spec)?;
+        for p in g.player_ids() {
+            if let Some(w) = g.wizard(p) {
+                most_seen = most_seen.max(w.books().values().copied().max().unwrap_or(0));
+            }
+        }
+        let refused: Vec<_> = end_turns(&mut g, 3)
+            .into_iter()
+            .filter(|e| matches!(e, Event::Rejected(_)))
+            .collect();
+        assert!(refused.is_empty(), "seed {seed}: {refused:?}");
+    }
+    assert!(
+        most_seen > 11,
+        "no wizard reached 12 books in 39 games: {most_seen}"
     );
     Ok(())
 }

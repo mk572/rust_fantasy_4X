@@ -97,6 +97,84 @@ fn retorts_cost_one_two_or_three_picks() {
 }
 
 #[test]
+fn a_build_may_hold_as_many_books_in_a_realm_as_the_game_allows() {
+    let life = RealmId::new(3);
+    let mut g = game();
+    // 12 books are over the original's 11 and under what a game set to 13 allows; the picks
+    // rule does not apply to a ready-made build, so only the books are checked.
+    let mut b = build(&[(life, 12)], &[]);
+    b.preset = true;
+    assert_eq!(
+        g.check_wizard_build(&b),
+        Err(BuildError::TooManyBooks(life))
+    );
+    g.settings.wizards.max_books_per_realm = 13;
+    assert_eq!(g.check_wizard_build(&b), Ok(()));
+    g.settings.wizards.max_books_per_realm = 8;
+    b.books.insert(life, 9);
+    assert_eq!(
+        g.check_wizard_build(&b),
+        Err(BuildError::TooManyBooks(life))
+    );
+}
+
+#[test]
+fn a_build_may_hold_as_many_books_in_all_as_the_game_allows() {
+    let (life, nature) = (RealmId::new(3), RealmId::new(0));
+    let mut g = game();
+    let mut b = build(&[(life, 7), (nature, 6)], &[]);
+    b.preset = true;
+    assert_eq!(g.check_wizard_build(&b), Err(BuildError::TooManyBooksInAll));
+    g.settings.wizards.max_books_total = 13;
+    assert_eq!(g.check_wizard_build(&b), Ok(()));
+}
+
+#[test]
+fn a_wizard_holds_no_more_books_in_a_realm_than_the_setting_allows() -> TestResult {
+    let life = RealmId::new(3);
+    for (most, wanted, held) in [(11, 15, 11), (13, 15, 13), (13, 12, 12), (5, 7, 5)] {
+        let mut g = game();
+        g.settings.wizards.max_books_per_realm = most;
+        g.init_wizard(P0, &[(life, wanted)], &[], None)
+            .map_err(|e| format!("{e:?}"))?;
+        let w = g.wizard(P0).ok_or("wizard is missing")?;
+        assert_eq!(w.books_in(life), held, "most {most}, wanted {wanted}");
+    }
+    Ok(())
+}
+
+#[test]
+fn a_ready_made_wizard_over_the_most_books_loses_the_surplus_and_the_picks_are_free() {
+    let g = game();
+    let (life, nature) = (RealmId::new(3), RealmId::new(0));
+    let mut ariel = g.preset_build(11).expect("Ariel is a ready-made wizard");
+    assert_eq!(ariel.books[&life], 10);
+    assert!(ariel.preset);
+    assert!(!ariel.trim_books(11), "nothing over 11");
+    assert!(ariel.preset, "and so still ready-made");
+    assert!(ariel.trim_books(8));
+    assert_eq!(ariel.books[&life], 8);
+    assert!(!ariel.preset, "the pick rules ask for the two picks");
+    let retorts: u8 = ariel
+        .retorts
+        .iter()
+        .map(|&r| retort_cost(&g.content.rules, r))
+        .sum();
+    assert_eq!(
+        ariel.picks_left(&g.content.rules),
+        i16::from(11 - 8 - retorts)
+    );
+    assert!(
+        ariel.picks_left(&g.content.rules) >= 2,
+        "the two surplus books' picks at least"
+    );
+    // A wizard with no realm over it is untouched.
+    let mut merlin = g.preset_build(0).expect("Merlin is a ready-made wizard");
+    assert!(!merlin.trim_books(8));
+    assert_eq!((merlin.books[&life], merlin.books[&nature]), (5, 5));
+}
+
+#[test]
 fn the_myrran_and_alchemy_options_change_what_the_retorts_cost_in_a_game() {
     let mut g = game();
     let (alchemy, myrran) = (Retort::new(0), Retort::new(9));

@@ -26,13 +26,16 @@ impl Game {
         start_spells: Option<&[SpellId]>,
     ) -> Result<(), MagicError> {
         let (content, rng) = (&self.content, &mut self.rng);
+        // No realm holds more books than the game's setting allows.
+        let most = self.settings.wizards.max_books_per_realm;
+        let books: Vec<(RealmId, u8)> = books.iter().map(|&(r, n)| (r, n.min(most))).collect();
         let entity = self
             .player_index
             .get(&player)
             .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
             .ok_or(MagicError::UnknownPlayer)?;
         let mut w = crate::wizard::sheet::WizardMut::new(&mut self.world, entity);
-        w.found(&content.rules, books, retorts);
+        w.found(&content.rules, &books, retorts);
         w.init_library(content, rng, start_spells);
         self.refill_research(player);
         Ok(())

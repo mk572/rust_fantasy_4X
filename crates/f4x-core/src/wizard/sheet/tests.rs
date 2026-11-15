@@ -55,7 +55,7 @@ fn a_new_wizard_has_skill_from_books_and_an_archmage_more() -> TestResult {
             .ok_or("wizard is missing")?
             .books_in(crate::game::testutil::realm(3 /* life */)),
         11,
-        "no more than eleven"
+        "no more than the game's setting, 11 unless it is set"
     );
     Ok(())
 }

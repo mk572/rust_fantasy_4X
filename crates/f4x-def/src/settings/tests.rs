@@ -107,6 +107,41 @@ fn without_levels_a_difficulty_is_the_default_game_at_that_level() {
 }
 
 #[test]
+fn the_most_books_in_a_realm_is_eleven_in_every_level_and_checked_between_five_and_thirteen() {
+    for level in 0..=MAX_DIFFICULTY {
+        assert_eq!(at(level).wizards.max_books_per_realm, 11, "level {level}");
+    }
+    let mut s = at(2);
+    for ok in [5, 11, 13] {
+        s.wizards.max_books_per_realm = ok;
+        assert!(s.validate().is_empty(), "{ok}");
+    }
+    for bad in [0, 4, 14] {
+        s.wizards.max_books_per_realm = bad;
+        assert_eq!(s.validate().len(), 1, "{bad}");
+        assert!(s.normalised().validate().is_empty(), "{bad}");
+    }
+}
+
+#[test]
+fn the_most_books_in_all_realms_is_twelve_in_every_level_and_checked_between_twelve_and_sixty_five()
+{
+    for level in 0..=MAX_DIFFICULTY {
+        assert_eq!(at(level).wizards.max_books_total, 12, "level {level}");
+    }
+    let mut s = at(2);
+    for ok in [12, 13, 65] {
+        s.wizards.max_books_total = ok;
+        assert!(s.validate().is_empty(), "{ok}");
+    }
+    for bad in [0, 11, 66] {
+        s.wizards.max_books_total = bad;
+        assert_eq!(s.validate().len(), 1, "{bad}");
+        assert!(s.normalised().validate().is_empty(), "{bad}");
+    }
+}
+
+#[test]
 fn the_units_per_square_stay_between_an_army_and_the_ceiling() {
     let mut s = at(2);
     assert_eq!(s.rules.max_tile, 12, "v1.31 allows twelve on a square");

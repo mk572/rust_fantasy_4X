@@ -143,15 +143,13 @@ impl CreateState {
     fn set_books(&mut self, app: &mut App, realm: RealmId, wanted: u8) {
         let current = i32::from(self.books_of(realm));
         let left = i32::from(self.picks_left(app));
-        let n = i32::from(wanted).min(current + left).clamp(0, 11) as u8;
+        let chosen = app.options.settings(&app.game.content().settings);
+        let most = i32::from(chosen.wizards.max_books_per_realm);
+        let n = i32::from(wanted).min(current + left).clamp(0, most) as u8;
         if n == self.books_of(realm) {
             return;
         }
-        let ban = app
-            .options
-            .settings(&app.game.content().settings)
-            .rules
-            .ban_life_and_death;
+        let ban = chosen.rules.ban_life_and_death;
         let rival = match realm.num() {
             3 /* life */ if ban => Some(RealmId::new(4) /* death */),
             4 /* death */ if ban => Some(RealmId::new(3) /* life */),

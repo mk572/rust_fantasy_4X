@@ -57,7 +57,22 @@ impl CreateState {
         match index {
             Some(i) => {
                 let num = app.game.content().rules.wizards.defs()[i].num;
-                if let Some(build) = app.game.preset_build(num) {
+                if let Some(mut build) = app.game.preset_build(num) {
+                    // More books in a realm than the game allows: the surplus is taken off and
+                    // the retorts the books no longer allow with it; the picks it frees are
+                    // the player's to spend.
+                    let most = app
+                        .options
+                        .settings(&app.game.content().settings)
+                        .wizards
+                        .max_books_per_realm;
+                    if build.trim_books(most) {
+                        let books = build.books.clone();
+                        let rules = &app.game.content().rules;
+                        build
+                            .retorts
+                            .retain(|&r| f4x_core::wizard::retort_available(rules, r, &books));
+                    }
                     self.build = build;
                     self.preset = Some(i);
                 }

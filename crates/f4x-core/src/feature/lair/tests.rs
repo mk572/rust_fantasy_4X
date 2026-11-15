@@ -210,7 +210,15 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
     )
     .ok_or("of_player is missing")?;
     let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
-    award_special(&g.content.rules, &mut w, &mut g.rng, &l, 1, &mut loot);
+    award_special(
+        &g.content.rules,
+        &mut w,
+        &mut g.rng,
+        &l,
+        1,
+        crate::wizard::sheet::BOOKS_BEFORE_LIMIT,
+        &mut loot,
+    );
     assert!(
         !loot.books.contains(&realm(4 /* death */)),
         "life and death exclude each other"
@@ -227,7 +235,15 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
         )
         .ok_or("of_player is missing")?;
         let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
-        award_special(&g.content.rules, &mut w, &mut g.rng, &l, 1, &mut loot);
+        award_special(
+            &g.content.rules,
+            &mut w,
+            &mut g.rng,
+            &l,
+            1,
+            crate::wizard::sheet::BOOKS_BEFORE_LIMIT,
+            &mut loot,
+        );
         books += loot.books.len();
         assert!(loot.books.iter().all(|&b| b == realm(3 /* life */)));
     }
@@ -758,15 +774,56 @@ fn a_hoard_of_books_obeys_the_realm_and_the_limit_without_a_game() {
     let mut l = info(18 /* ruins */, Some(4 /* death */));
     for _ in 0..30 {
         let mut loot = Loot::default();
-        award_special(&rules, &mut magic, &mut rng, &l, 1, &mut loot);
+        award_special(
+            &rules,
+            &mut magic,
+            &mut rng,
+            &l,
+            1,
+            crate::wizard::sheet::BOOKS_BEFORE_LIMIT,
+            &mut loot,
+        );
         assert!(loot.books.is_empty(), "death clashes with life");
     }
     l.site = FeatureId(3 /* ancient_temple */);
     l.reward = Some(RealmId::new(3 /* life */));
     for _ in 0..60 {
-        award_special(&rules, &mut magic, &mut rng, &l, 2, &mut Loot::default());
+        award_special(
+            &rules,
+            &mut magic,
+            &mut rng,
+            &l,
+            2,
+            crate::wizard::sheet::BOOKS_BEFORE_LIMIT,
+            &mut Loot::default(),
+        );
     }
     assert_eq!(magic.view().total_books(), 13);
+}
+
+#[test]
+fn treasure_stops_one_book_over_the_limit_of_the_setting() {
+    let rules = shipped().rules;
+    let mut l = info(15 /* nature_node */, Some(0 /* nature */));
+    l.site = FeatureId(3 /* ancient_temple */);
+    l.reward = Some(RealmId::new(0 /* nature */));
+    for (limit, most) in [(12, 13), (20, 21), (30, 31)] {
+        let (mut world, e) = sheet(&[(RealmId::new(0 /* nature */), 3)], &[]);
+        let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
+        let mut rng = crate::game::rng::GameRng::new(4);
+        for _ in 0..80 {
+            award_special(
+                &rules,
+                &mut magic,
+                &mut rng,
+                &l,
+                2,
+                limit,
+                &mut Loot::default(),
+            );
+        }
+        assert_eq!(magic.view().total_books(), most, "limit {limit}");
+    }
 }
 
 #[test]
@@ -790,7 +847,15 @@ fn the_limits_of_six_retorts_and_thirteen_books_decide_between_a_book_and_a_reto
     let mut rng = crate::game::rng::GameRng::new(9);
     for _ in 0..40 {
         let mut loot = Loot::default();
-        award_special(&rules, &mut magic, &mut rng, &l, 1, &mut loot);
+        award_special(
+            &rules,
+            &mut magic,
+            &mut rng,
+            &l,
+            1,
+            crate::wizard::sheet::BOOKS_BEFORE_LIMIT,
+            &mut loot,
+        );
         assert!(loot.retorts.is_empty());
     }
     assert_eq!(magic.view().retorts().len(), 6);
@@ -800,7 +865,15 @@ fn the_limits_of_six_retorts_and_thirteen_books_decide_between_a_book_and_a_reto
     let mut found = false;
     for _ in 0..40 {
         let mut loot = Loot::default();
-        award_special(&rules, &mut magic, &mut rng, &l, 1, &mut loot);
+        award_special(
+            &rules,
+            &mut magic,
+            &mut rng,
+            &l,
+            1,
+            crate::wizard::sheet::BOOKS_BEFORE_LIMIT,
+            &mut loot,
+        );
         found |= !loot.books.is_empty();
     }
     assert!(found, "a wizard with twelve books finds a thirteenth");
@@ -816,7 +889,15 @@ fn the_limits_of_six_retorts_and_thirteen_books_decide_between_a_book_and_a_reto
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     for _ in 0..40 {
         let mut loot = Loot::default();
-        award_special(&rules, &mut magic, &mut rng, &l, 1, &mut loot);
+        award_special(
+            &rules,
+            &mut magic,
+            &mut rng,
+            &l,
+            1,
+            crate::wizard::sheet::BOOKS_BEFORE_LIMIT,
+            &mut loot,
+        );
         assert!(loot.books.is_empty());
     }
     assert_eq!(magic.view().total_books(), 13);

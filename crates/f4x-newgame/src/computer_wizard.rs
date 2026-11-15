@@ -16,8 +16,7 @@ use f4x_core::game::Game;
 use f4x_core::rules::{RealmId, Rules};
 use f4x_core::wizard::magic::Retort;
 use f4x_core::wizard::{
-    all_retorts, preset_build_of, retort_available, retort_cost, WizardBuild, MAX_BOOKS,
-    MAX_RETORTS,
+    all_retorts, preset_build_of, retort_available, retort_cost, WizardBuild, MAX_RETORTS,
 };
 
 const NATURE: RealmId = RealmId::new(0) /* nature */;
@@ -44,6 +43,11 @@ const OPPOSED: &[(RealmId, RealmId)] = &[
 
 fn books(b: &WizardBuild, realm: RealmId) -> u8 {
     b.books.get(&realm).copied().unwrap_or(0)
+}
+
+/// The most books a wizard may have in one realm in this game (`max_books_per_realm`).
+fn book_cap(game: &Game) -> u8 {
+    game.settings().wizards.max_books_per_realm
 }
 
 fn book_total(b: &WizardBuild) -> u8 {
@@ -166,10 +170,12 @@ pub(crate) fn make(
             builds.push(fallback(i));
             continue;
         };
+        taken.push(id);
+        let mut build = build;
+        fit_books(game, &mut build);
         if build.retorts.contains(&Retort::new(9) /* myrran */) {
             myrrans += 1;
         }
-        taken.push(id);
         builds.push(build);
     }
 
@@ -189,7 +195,7 @@ pub(crate) fn make(
                 } else {
                     (second, first)
                 };
-                let sum = (x + y).min(MAX_BOOKS);
+                let sum = (x + y).min(book_cap(game));
                 b.books.insert(to, sum);
                 b.books.remove(&from);
             }
@@ -230,9 +236,34 @@ pub(crate) fn make(
     builds
 }
 
+/// A ready-made wizard with more books in a realm than the game allows loses the surplus, and
+/// the retorts the books no longer allow; the picks it frees are spent again by [`refill`].
+pub(crate) fn fit_books(game: &Game, b: &mut WizardBuild) {
+    if b.trim_books(book_cap(game)) {
+        drop_unavailable(&game.content().rules, b);
+        // Still a ready-made wizard to the pick rules: the refill spends what is left.
+        b.preset = true;
+    }
+}
+
+/// [`fit_books`] and then spend the freed picks, for a computer wizard taken as it is (the
+/// setting that draws no random ready-made wizards).
+pub(crate) fn fit_books_and_refill(game: &mut Game, b: &mut WizardBuild) {
+    let before = b.books.clone();
+    fit_books(game, b);
+    if b.books != before {
+        let (picks, ban) = (
+            game.settings().wizards.picks.ai,
+            game.settings().rules.ban_life_and_death,
+        );
+        refill(game, b, picks, ban);
+    }
+}
+
 /// The original's refill loop: five rolls in eight add two to five books to a realm, three in
 /// eight add a retort.
 fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8, ban: bool) {
+    let cap = book_cap(game);
     for _ in 0..500 {
         let used = picks_used(&game.content().rules, b);
         if used >= picks {
@@ -244,8 +275,10 @@ fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8, ban: bool) {
         if value + used > picks {
             value = picks - used;
         }
-        if value + book_count > 12 {
-            value = 12u8.saturating_sub(book_count);
+        // The refill stops at the most books in all (the original's twelve).
+        let all_books = game.settings().wizards.max_books_total;
+        if value + book_count > all_books {
+            value = all_books.saturating_sub(book_count);
         }
         if value == 0 {
             kind = 6;
@@ -254,22 +287,22 @@ fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8, ban: bool) {
             value = 1;
         }
         match kind {
-            1 => add_books(b, LIFE, value, ban.then_some(DEATH)),
-            2 => add_books(b, DEATH, value, ban.then_some(LIFE)),
-            3 => add_books(b, NATURE, value, None),
-            4 => add_books(b, SORCERY, value, None),
-            5 => add_books(b, CHAOS, value, None),
+            1 => add_books(b, LIFE, value, ban.then_some(DEATH), cap),
+            2 => add_books(b, DEATH, value, ban.then_some(LIFE), cap),
+            3 => add_books(b, NATURE, value, None, cap),
+            4 => add_books(b, SORCERY, value, None, cap),
+            5 => add_books(b, CHAOS, value, None, cap),
             _ => add_retort(game, b, picks),
         }
     }
 }
 
 /// Add books to `realm` (up to the limit), unless the wizard has books in the realm opposed to it.
-fn add_books(b: &mut WizardBuild, realm: RealmId, value: u8, opposed: Option<RealmId>) {
-    if books(b, realm) >= MAX_BOOKS || opposed.is_some_and(|o| books(b, o) > 0) {
+fn add_books(b: &mut WizardBuild, realm: RealmId, value: u8, opposed: Option<RealmId>, cap: u8) {
+    if books(b, realm) >= cap || opposed.is_some_and(|o| books(b, o) > 0) {
         return;
     }
-    let n = (books(b, realm) + value).min(MAX_BOOKS);
+    let n = (books(b, realm) + value).min(cap);
     b.books.insert(realm, n);
 }
 

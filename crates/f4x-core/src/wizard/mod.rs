@@ -30,8 +30,9 @@ use crate::wizard::magic::{MagicError, Retort};
 pub use f4x_def::settings::PICKS;
 /// Most retorts a wizard may have.
 pub const MAX_RETORTS: usize = 6;
-/// Most books in one realm.
-pub const MAX_BOOKS: u8 = 11;
+/// Most books in one realm in the original, and the setting's default
+/// (`WizardSettings::max_books_per_realm` is what a game uses).
+pub const MAX_BOOKS: u8 = f4x_def::settings::DEFAULT_MAX_BOOKS_PER_REALM;
 
 /// What a wizard is made of, before the game starts.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -70,6 +71,8 @@ pub enum BuildError {
     RetortNotAvailable(Retort),
     UnknownRealm(RealmId),
     TooManyBooks(RealmId),
+    /// More books in all realms than the game allows (`max_books_total`).
+    TooManyBooksInAll,
     /// A chosen spell is not a common spell of one of the wizard's realms, or too many.
     BadSpell(SpellId),
     Magic(MagicError),
@@ -93,6 +96,21 @@ pub fn retort_available(rules: &Rules, retort: Retort, books: &BTreeMap<RealmId,
 }
 
 impl WizardBuild {
+    /// Take the books above `most` in a realm away. A build that lost some is no longer a
+    /// ready-made wizard: its picks have to be spent again under the pick rules. Whether any
+    /// were taken.
+    pub fn trim_books(&mut self, most: u8) -> bool {
+        let mut cut = false;
+        for n in self.books.values_mut().filter(|n| **n > most) {
+            *n = most;
+            cut = true;
+        }
+        if cut {
+            self.preset = false;
+        }
+        cut
+    }
+
     /// Picks spent on books and retorts.
     pub fn picks_spent(&self, rules: &Rules) -> u8 {
         let books: u8 = self.books.values().sum();
@@ -133,13 +151,19 @@ impl WizardBuild {
 impl Game {
     /// Check a build against the pick rules (not the starting spells).
     pub fn check_wizard_build(&self, build: &WizardBuild) -> Result<(), BuildError> {
+        let most = self.settings.wizards.max_books_per_realm;
         for (&realm, &n) in &build.books {
             if n > 0 && self.content.rules.realms.id_numbered(realm.num()).is_none() {
                 return Err(BuildError::UnknownRealm(realm));
             }
-            if n > MAX_BOOKS {
+            if n > most {
                 return Err(BuildError::TooManyBooks(realm));
             }
+        }
+        if build.books.values().map(|&n| u16::from(n)).sum::<u16>()
+            > u16::from(self.settings.wizards.max_books_total)
+        {
+            return Err(BuildError::TooManyBooksInAll);
         }
         if build.preset {
             return Ok(());
