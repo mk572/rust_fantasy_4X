@@ -266,7 +266,18 @@ The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fando
 |---|---|
 | 138 Units with 0 health | **Present, fixed, with a different rule** (`divergences.md` 45). The note says living units at 0 health come from the malfunction of Lionheart and the removal of Charm of Life, and the patch sets them to one health when they enter a combat. Here a unit left at zero or less dies, in a battle (`settle_hit_points`) and overland after every command (`remove_units_without_hit_points`); tests `a_unit_whose_borrowed_hit_points_go_with_the_damage_it_took_dies` and `turning_charm_of_life_off_kills_the_units_that_were_standing_on_its_hit_points`. The one exception, by decision: Lycanthropy replaces a unit with another and does not end an effect, so a werewolf that cannot take the wounds is left on its last hit point (test `lycanthropy_leaves_a_werewolf_that_cannot_take_the_wounds_on_its_last_hit_point`). Found on the way, not in the original's notes: a dispel of an unrelated spell takes away the extra hit points life steal gave and leaves `extra_hits` stale (a negative maximum, and the write-back heals the unit fully); the cause is that a unit's numbers are changed in place and restored from a snapshot, so the fix is the model of tasks 604 to 606. |
 
-Next: row 148 (dead units cannot die again: the overland kill paths, drowning and the like), then 467, 683 and 684.
+### Walked on 15 November 2026: 148, 467, 683, 684
+
+The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fandom.html`.
+
+| Rows | Verdict |
+|---|---|
+| 148 Procedures that kill units (drowning and the like) do not check whether the unit is already dead and waiting for the end of the turn to be cleared from the array (memory corruption) | **Plain units: not present.** A unit is taken out of the game at once (`remove_unit`, `despawn`), there is no dead unit waiting in a list, and a second removal of a handle that is gone does nothing (`cheat_remove_unit` returns false, test in `game/cheat.rs`). **Heroes: present, fixed.** A hero's entity stays after its death with a state (Dead, Free, Gone), so a second `remove_unit` on a hero already slain (a slay, then a drowning or an earthquake from a list made before it) changed how it left: a slain hero made `Gone` could never be brought back. `remove_unit_to` now returns when a hero is not serving. Test `a_hero_that_is_already_out_of_the_army_is_not_taken_out_again`. |
+| 467 Another possible memory corruption bug | **Not applicable.** The note names no case, and the game is safe Rust: no out-of-bounds write, no use after free. |
+| 683 Dialog for the spells found in a conquered Wizard's Fortress corrupts memory (682: crash with too many learnable spells) | **Not applicable** as memory corruption. `conquest_spells` takes at most two spells and returns them as events, so no list outgrows a fixed buffer. |
+| 684 The combat map has (much) fewer trees than intended | **Present, intended count unknown.** `scatter_trees` (`battle/map/layout.rs`) is the original's `Scatter_Tree_Scenery` line by line: `Random(20)` trees on plains, hills and tundra, `Random(10)` desert, `Random(40)` mountains, 30 + `Random(30)` forest, laid in patches of `count / patches`. The note does not say what the intended number is, so nothing changed. Related: 685 (rocks use the tree count) is not present, our rock list has its own count. Open question for the user: whether to raise the tree counts, and to what. |
+
+Next: the group 139, 140, 144, 145, 146, 152, 153, 154, 155 and 156 (dispel of granted abilities, Invisibility, undead immunities, Berserk, Black Sleep, Weapon Immunity, special attacks, Immolation, walls, Blur).
 
 ## P2 code review: first pass
 

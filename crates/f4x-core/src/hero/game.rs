@@ -303,6 +303,17 @@ impl Game {
             self.despawn_with_spells(unit);
             return;
         }
+        // A hero that is not serving is already out of the army: dead, gone or free. Taking it
+        // out again would change how it left (a slain hero made `Gone` can never be brought
+        // back), which is the original's repeated death of a unit that is already dead
+        // (1.50 note 148).
+        if self
+            .world
+            .get::<&HeroState>(unit)
+            .is_ok_and(|state| *state != HeroState::Serving)
+        {
+            return;
+        }
         if let (Fate::Slain, Some(owner)) = (fate, owner) {
             let takes = heir.unwrap_or(owner);
             if takes != crate::player::MONSTERS {
@@ -901,6 +912,25 @@ pub(crate) mod tests {
     fn in_armory(g: &Game, player: PlayerId) -> usize {
         let a = g.items().armory(player);
         a.vault.iter().flatten().count() + a.awards.len()
+    }
+
+    #[test]
+    fn a_hero_that_is_already_out_of_the_army_is_not_taken_out_again() {
+        // Two kill paths on one hero in one turn (a slay, then a drowning or an earthquake on
+        // the list made before it): the first one counts (1.50 note 148).
+        let mut g = world();
+        let hero = armed_hero(&mut g, P0);
+        g.remove_unit(hero, Fate::Slain);
+        assert_eq!(g.units().hero_state(hero), Some(HeroState::Dead));
+        let armory = in_armory(&g, P0);
+        g.remove_unit(hero, Fate::Gone);
+        g.remove_unit(hero, Fate::Released);
+        assert_eq!(
+            g.units().hero_state(hero),
+            Some(HeroState::Dead),
+            "still slain, not gone or free"
+        );
+        assert_eq!(in_armory(&g, P0), armory, "the items were passed on once");
     }
 
     #[test]
