@@ -81,6 +81,28 @@ The 1.52 series is especially useful for identifying places where the rewrite sh
 
 
 
+## Walked on 15 November 2026 (task 457)
+
+Verdicts for the rows of the three tables above, by reading the code; rows not named here are not walked yet.
+
+| Rows | Verdict |
+|---|---|
+| 810 Random events after loading a game | **Not present.** The draw is `Determine_Event` on the game's own `turn` and `events` state (`world_event/game.rs`), both saved; nothing is reset by a load. |
+| 811 Node aura in combat | **Not present.** `start_battle` sets the node aura once (`node_realms_at`). |
+| 818 Razing and terrain changes restore movement costs | **Not present.** The cost of a step is derived from the terrain, road and city at the square when asked; nothing is cached. |
+| 801, 806 Arcane Power as a random hero ability | **Not present.** `hero/kind.rs`: a pick that does not apply is drawn again, one pick raises one tier (none to normal to super), and the test is "has a magic ranged attack", not a hero's name. |
+| 808 AI and a tower last used by an ally | **Not present.** A tower is open to any stack; its owner only records who sees it, and the AI's tower list (`PlayerView::towers`) asks only whether the tower is seen and unguarded. |
+| 812 Raise Dead or Animate Dead on a wall corner | **Not present.** The raised unit stands where it fell, and no unit stands on a wall corner; a summon refuses the corner (`is_summon_square`). |
+| 817 AI Transmute crash | **Not applicable.** Safe Rust: a target is a value checked by the same cast check as a human's. |
+| 767, 283 Monsters destroying a Fortress Town | **Not present.** `rampage_city` never razes a fortress city (`!is_fortress_city`). |
+| 758 Mastery research discount with 11 books | **Not present.** `research_cost` takes one flat discount when any realm has enough books, not one per book. |
+| 770 Armageddon unrest | **Present as the patch has it.** Two unrest, building pacification stays (`ARMAGEDDON_UNREST`). |
+| 784, 785 Webs damaged by ranged magic or Immolation | **Not applicable.** A web's 12 hit points are taken off only by the held unit's own turn (`WEB_HITS`); nobody else attacks it. |
+| 801 / IM200, 802 | **Not present.** Heroes: see above. Casting on turn one has no lockout in the code. |
+| 780, 781 Tower spell and the treasure budget | **Differs.** The v1.31 path (`create.rs`) takes the tower's spell first and pays for it out of the rest; the budget may go below zero and later draws check `<= loot`. The 1.50 path asks that the tower qualifies. Neither lowers the rarity to fit the budget as the 1.52 note says. Left as it is: the v1.31 and 1.50 rules are the two the setting offers. |
+| 796, 797, 804, 805, 795, 798, 756, 776, 786, 788 | **Client or audio.** Not walked. |
+| The other rows | **Not walked yet:** 799, 800, 803, 775, 778, 779, 790, 791, 792, 028, 765, 772, 782, 783, 787, 793, 794. |
+
 ## Optional
 
 These entries are selectable alternatives or compatibility variants, not mandatory baseline behavior.
