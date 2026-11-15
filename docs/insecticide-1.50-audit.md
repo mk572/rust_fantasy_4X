@@ -347,7 +347,16 @@ The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fando
 | 261 Invulnerability can be dispelled in combat | **Not present.** Test `invulnerability_can_be_dispelled_in_a_battle`. |
 | 444 Disenchant Area can dispel Invulnerability on the map | **Not present.** Test `disenchant_area_takes_invulnerability_off_a_unit`. |
 
-Next: rows 264, 269, 270, 271 and the rest of the table in order.
+### Walked on 15 November 2026: 264, 269, 270, 271
+
+| Rows | Verdict |
+|---|---|
+| 264 A hero found in a lair with nine units in the stack | **Not applicable.** A freed prisoner is not a unit put on the map: it is a hero offered for nothing (`docs/lairs.md`), hired at the summoning circle, so the stack limit never turns it away. |
+| 269 Spell Binding can no longer fail | **Present, decision open.** Spell Binding rolls like a dispel (`attack_global`, strength its cost against the enchantment's difficulty), as the original does (`Spell_Target_Global_Enchantment_Bind`: a roll of `Random(250)` against a threshold), so it can fail; 1.50 makes it always succeed. A rule difference like the Miner's Guild: a setting, or leave the original's roll. |
+| 270 Create Artifact is resisted at too low a cost | **Present, fixed.** Suppress Magic and its kin were checked at the spell's own cost (Create Artifact costs 1, so every item was stopped), and an item made at once was not checked at all. Now both are resisted at the mana the item costs (`crafting_price`, `Game::suppressed_at_cost`). Test `suppress_magic_resists_a_crafting_spell_at_the_cost_of_the_item`. |
+| 271 The AI curses uncontacted or defeated players | **Not present.** The AI's targets are rivals at war, and a wizard it has not met cannot be at war with it. Test `a_wizard_blasts_nobody_it_has_not_met`. A defeated wizard has no cities and no spell in the making to aim at; not tested separately. |
+
+Next: row 269 once decided, then 285 and the rest of the table in order.
 
 ## P2 code review: first pass
 

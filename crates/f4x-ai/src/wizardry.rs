@@ -1753,6 +1753,22 @@ mod tests {
         Ok(())
     }
 
+    /// Patch 1.50, note 271: the AI aims no curse at a wizard it has not met.
+    #[test]
+    fn a_wizard_blasts_nobody_it_has_not_met() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let blast = spell(58 /* spell_blast */)?;
+        g.cheat_learn_spell(P0, blast);
+        treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
+        g.scenario_casting(P1, spell(113 /* meteor_storm */)?, 100);
+        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+            player: P0,
+            on: P1,
+        }));
+        assert!(pick_target(&PlayerView::new(&g, P0), blast).is_none());
+        Ok(())
+    }
+
     #[test]
     fn a_wizard_holds_an_enemy_stack_near_its_city_only_while_at_war_and_stronger_than_the_garrison(
     ) -> TestResult {

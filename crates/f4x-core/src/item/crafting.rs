@@ -512,9 +512,7 @@ impl crate::game::Game {
             magic.check_can_cast(spell).map_err(CraftingError::Magic)?;
             check(design, craft, &magic, &self.content.rules).map_err(CraftingError::Design)?;
             let item = build(design, &self.content.rules);
-            let value = item.cost as i32;
-            let def = self.content.rules.spells.get(spell);
-            let price = value - value * magic.cost_reduction(&self.content.rules, def) / 100;
+            let price = self.crafting_price(player, spell, item.cost);
             let now = price <= magic.instant_budget(reserve.floor());
             (item, price, now)
         };
@@ -533,9 +531,37 @@ impl crate::game::Game {
         }
         self.begin_cast_relations(player, spell);
         if now {
+            // Another wizard's Suppress Magic resists the spell at the mana it cost, not at the
+            // spell's own small cost (patch 1.50, note 270); the mana is spent.
+            if let Some((by, counter)) =
+                self.suppressed_at_cost(player, spell, Some(price.max(0) as u32))
+            {
+                return Ok(vec![crate::game::Event::SpellSuppressed {
+                    player,
+                    spell,
+                    by,
+                    counter,
+                }]);
+            }
             Ok(self.finish_crafted(player, spell, item))
         } else {
             Ok(Vec::new())
+        }
+    }
+
+    /// The mana an item of `value` gold costs `player` to make with `spell`: the value less the
+    /// wizard's reduction for the spell.
+    pub(crate) fn crafting_price(
+        &self,
+        player: crate::player::PlayerId,
+        spell: crate::rules::SpellId,
+        value: u32,
+    ) -> i32 {
+        let value = value as i32;
+        let def = self.content.rules.spells.get(spell);
+        match self.wizard(player) {
+            Some(magic) => value - value * magic.cost_reduction(&self.content.rules, def) / 100,
+            None => value,
         }
     }
 

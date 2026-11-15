@@ -911,7 +911,11 @@ impl Game {
         target: Option<Target>,
         extra: i32,
     ) -> Vec<Event> {
-        if let Some((by, counter)) = self.suppressed_by(player, spell) {
+        // A crafting spell is resisted at the mana its item costs (patch 1.50, note 270).
+        let crafted = crate::item::entity::crafting_of(&self.world, player)
+            .filter(|_| self.spell_has_hook(spell, crate::item::crafting::CRAFT_ITEM))
+            .map(|(_, item)| self.crafting_price(player, spell, item.cost).max(0) as u32);
+        if let Some((by, counter)) = self.suppressed_at_cost(player, spell, crafted) {
             return vec![Event::SpellSuppressed {
                 player,
                 spell,

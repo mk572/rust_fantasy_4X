@@ -487,7 +487,7 @@ fn suppress_magic_spares_the_spell_of_return_only_when_the_rule_says_so() {
     let back = sp(&g, 214 /* spell_of_return */);
     let stopped = |g: &mut Game| {
         (0..400)
-            .filter(|_| g.suppressed_by(P0, back).is_some())
+            .filter(|_| g.suppressed_at_cost(P0, back, None).is_some())
             .count()
     };
     assert!(stopped(&mut g) > 0, "stopped in v1.31");
@@ -504,15 +504,15 @@ fn suppress_magic_stops_enemy_spells_with_its_strength_over_the_spells_cost() {
     let big = sp(&g, 213 /* spell_of_mastery */); // cost 5000 ...
     let mid = sp(&g, 65 /* storm_giant */); // cost 500
     let stopped = (0..2000)
-        .filter(|_| g.suppressed_by(P0, mid).is_some())
+        .filter(|_| g.suppressed_at_cost(P0, mid, None).is_some())
         .count();
     assert!((900..1100).contains(&stopped), "half of 2000: {stopped}");
     assert!(
-        g.suppressed_by(P1, mid).is_none(),
+        g.suppressed_at_cost(P1, mid, None).is_none(),
         "never against its own wizard"
     );
     let stopped_big = (0..2000)
-        .filter(|_| g.suppressed_by(P0, big).is_some())
+        .filter(|_| g.suppressed_at_cost(P0, big, None).is_some())
         .count();
     assert!(
         stopped_big < 400,
@@ -531,12 +531,15 @@ fn life_force_and_tranquility_guard_against_their_realms_only() {
     g.attach_enchantment(Target::Player(P1), life, P1);
     let n = |g: &mut Game, s| {
         (0..400)
-            .filter(|_| g.suppressed_by(P0, s).is_some())
+            .filter(|_| g.suppressed_at_cost(P0, s, None).is_some())
             .count()
     };
     assert!(n(&mut g, death) > 200, "death spells are checked");
     assert_eq!(n(&mut g, chaos), 0, "chaos spells are not");
-    assert!(g.suppressed_by(P1, death).is_none(), "never its own wizard");
+    assert!(
+        g.suppressed_at_cost(P1, death, None).is_none(),
+        "never its own wizard"
+    );
     let tranq = sp(&g, 157 /* tranquility */);
     g.attach_enchantment(Target::Player(P1), tranq, P1);
     assert!(n(&mut g, chaos) > 200, "Tranquility guards against chaos");
@@ -580,7 +583,7 @@ fn a_stopped_spell_names_the_enchantment_that_stopped_it() {
         let mut g = world();
         let (guard_id, spell_id) = (sp(&g, guard), sp(&g, spell));
         g.attach_enchantment(Target::Player(P1), guard_id, P1);
-        let named = (0..60).find_map(|_| g.suppressed_by(P0, spell_id));
+        let named = (0..60).find_map(|_| g.suppressed_at_cost(P0, spell_id, None));
         assert_eq!(named, Some((P1, guard_id)), "{guard} stops {spell}");
     }
 }
@@ -827,4 +830,23 @@ fn disenchant_area_takes_invulnerability_off_a_unit() -> TestResult {
     );
     assert!(g.units().unit_enchantments(unit).is_empty());
     Ok(())
+}
+
+/// Patch 1.50, note 270: Suppress Magic resists Create Artifact at the mana the item costs, not at
+/// the spell's own small cost: an item that costs 500 is stopped half the time, one that costs 50
+/// nearly always.
+#[test]
+fn suppress_magic_resists_a_crafting_spell_at_the_cost_of_the_item() {
+    let mut g = world();
+    let suppress = sp(&g, 79 /* suppress_magic */);
+    g.attach_enchantment(Target::Player(P1), suppress, P1);
+    let create = sp(&g, 211 /* create_artifact */);
+    let mut stopped = |cost: u32| {
+        (0..2000)
+            .filter(|_| g.suppressed_at_cost(P0, create, Some(cost)).is_some())
+            .count()
+    };
+    let (dear, cheap) = (stopped(500), stopped(50));
+    assert!((900..1100).contains(&dear), "half of 2000: {dear}");
+    assert!(cheap > 1700, "nearly always: {cheap}");
 }

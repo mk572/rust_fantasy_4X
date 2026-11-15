@@ -408,11 +408,14 @@ impl Game {
     /// Another wizard's standing dispel of strength 500 against every overland spell cast:
     /// Suppress Magic against all spells, Life Force against death spells, Tranquility against
     /// chaos spells. Returns the wizard whose enchantment stopped `spell`, and that enchantment,
-    /// if any.
-    pub(crate) fn suppressed_by(
+    /// if any. The dispel difficulty is read from `cost` when given: a crafting spell is
+    /// resisted at the mana the item costs, not at the spell's own small cost (patch 1.50, note
+    /// 270); `None`: the spell's own difficulty.
+    pub(crate) fn suppressed_at_cost(
         &mut self,
         caster: PlayerId,
         spell: SpellId,
+        cost: Option<u32>,
     ) -> Option<(PlayerId, SpellId)> {
         if self.settings.rules.suppress_spares_return && spell == SpellId::new(214) {
             return None; // spell_of_return (patch IW114)
@@ -442,7 +445,15 @@ impl Game {
                     .collect::<Vec<_>>()
             })
             .collect();
-        let difficulty = self.dispel_difficulty(spell, Some(caster));
+        let difficulty = match cost {
+            Some(cost) => {
+                cost * self.dispel_multiplier(
+                    Some(self.content.rules.spells.get(spell).realm),
+                    Some(caster),
+                )
+            }
+            None => self.dispel_difficulty(spell, Some(caster)),
+        };
         for (holder, guard) in holders {
             let chance = 250 * u64::from(SUPPRESS_MAGIC_STRENGTH)
                 / u64::from(SUPPRESS_MAGIC_STRENGTH + difficulty);
