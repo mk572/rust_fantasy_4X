@@ -7102,3 +7102,22 @@ fn disintegrate_as_call_chaos_throws_it_spares_the_unit_that_resists() -> TestRe
     assert!(slain.points > 0 && !b.units[spearmen].is_active());
     Ok(())
 }
+
+/// Patch 1.50, note 261: Invulnerability can be dispelled in a battle, and the unit goes back to
+/// its own numbers.
+#[test]
+fn invulnerability_can_be_dispelled_in_a_battle() -> TestResult {
+    let mut g = wizard_battle(
+        107, /* high_men_cavalry */
+        &[143 /* invulnerability */],
+    );
+    let pristine = numbers(g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?);
+    cast_on(&mut g, 143 /* invulnerability */, 0).map_err(|e| format!("{e:?}"))?;
+    let shielded = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
+    assert!(shielded.has(Ability::new(72)), "the spell took");
+    g.dispel_battle_unit(0, 10_000, D);
+    let after = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
+    assert!(!after.has(Ability::new(72)), "the shield is gone");
+    assert_eq!(numbers(after), pristine);
+    Ok(())
+}

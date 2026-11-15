@@ -803,3 +803,28 @@ fn a_spell_blast_is_refused_without_contact_or_the_mana_to_match() -> TestResult
     );
     Ok(())
 }
+
+/// Patch 1.50, note 444: Disenchant Area takes Invulnerability off a unit on the map.
+#[test]
+fn disenchant_area_takes_invulnerability_off_a_unit() -> TestResult {
+    let mut g = world();
+    let spear = g
+        .content
+        .rules
+        .units
+        .id_numbered(95)
+        .ok_or("high_elf_spearmen is not in the content")?;
+    let unit = g.spawn_unit(P0, at(6, 6), spear);
+    let shield = sp(&g, 143 /* invulnerability */);
+    g.attach_enchantment(Target::Unit(unit), shield, P0);
+    assert!(!g.units().unit_enchantments(unit).is_empty());
+    cast_until(
+        &mut g,
+        P1,
+        204, /* disenchant_area */
+        |_| Target::Tile(at(6, 6)),
+        |g| g.units().unit_enchantments(unit).is_empty(),
+    );
+    assert!(g.units().unit_enchantments(unit).is_empty());
+    Ok(())
+}

@@ -338,7 +338,16 @@ The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fando
 |---|---|
 | 220 Negative growth cannot reduce a city at its maximum population | **Not present.** `grow_population` applies the cap to the upward loop only; the downward loop has none. Test `a_city_at_its_largest_still_shrinks`. |
 
-Next: rows 255 and 262 (Confusion), then 261 and 444, and the rest of the table in order.
+### Walked on 15 November 2026: 255, 262, 261, 444
+
+| Rows | Verdict |
+|---|---|
+| 255 Confusion always returns control at the end of the turn or when dispelled | **Not present.** A unit that confusion lends to the enemy goes home as the next side's turn begins (`begin_side_turn`) and when the battle ends (`turned_from`); the enemy's turn is the only time it is lent, and the owner cannot dispel then, so no dispel path leaves it behind. Test `confusion_picks_one_of_four_acts_and_can_lend_the_unit_to_the_enemy`. |
+| 262 Confused AI units move randomly | **Not present.** The wander is rolled by the battle engine at the start of the unit's own side's turn (`Battle::confusion`), for every unit whatever commands it, so the AI cannot ignore it. Same test. |
+| 261 Invulnerability can be dispelled in combat | **Not present.** Test `invulnerability_can_be_dispelled_in_a_battle`. |
+| 444 Disenchant Area can dispel Invulnerability on the map | **Not present.** Test `disenchant_area_takes_invulnerability_off_a_unit`. |
+
+Next: rows 264, 269, 270, 271 and the rest of the table in order.
 
 ## P2 code review: first pass
 
