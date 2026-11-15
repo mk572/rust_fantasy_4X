@@ -316,7 +316,17 @@ The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fando
 | 159 Every unit killed in a battle counts for the diplomatic reaction | **Not present.** `battle_loss_relations` goes over every defender that is dead or fled (a hero 20, another unit a d20, a settler up to 10 more) and makes one change of relations from the sum. Test `the_dislike_a_battle_breeds_counts_every_unit_that_fell`. |
 | 160 Carried units no longer die for certain when they flee, leaving only the ship | **Not present.** Every unit of a fleeing side rolls for itself in `overland_aftermath` (half the troops, a quarter of the heroes), passengers and ship alike; nobody is lost for certain. When the ship is lost and the passengers live, `drown_stranded` lets them scramble ashore where free land lies beside them (the 1.50 side effect), otherwise they drown. Test `passengers_of_a_lost_ship_beside_the_shore_may_scramble_ashore`. |
 
-Next: row 170, 174 and 275, 175, 176 and 465, 177 and the rest of the table in order.
+### Walked on 15 November 2026: 170, 174, 275, 175, 176, 465, 177
+
+| Rows | Verdict |
+|---|---|
+| 170 Books from treasure give the same number and rank of spells as a starting book | **Not present.** A found book opens spells by the same table row as a starting book (`spell_library.researchable`, `open_book_spells`; test `a_found_book_opens_the_spells_its_realms_table_row_allows`, every count from 3 to 13 books). Not the same: a starting book also gives free known commons (`spell_library.known`); a found book only opens spells for research. The note does not say which it means; the ReMoM source was not checked for what a found book grants. |
+| 174, 275 Repeated Warp Creature casts crash | **Not present.** The warp is one `Option<WarpKind>` on the unit and the spell is a lasting enchantment keyed by spell; a second cast replaces it, so nothing grows or overflows. Tests `warp_creature_takes_any_unit_that_is_not_warped_already` and `a_warp_creature_that_is_dispelled_takes_its_warp_and_its_numbers_with_it`. |
+| 175 Wrack does squared damage | **Not present.** One hit point per figure that fails its roll. Test `wrack_deals_one_point_for_each_figure_that_fails_its_roll_and_not_the_square_of_that`. |
+| 176, 465 Call Lightning's bolts; sound-off crash | **Not present.** Three to five bolts, each try on a random unit (an even chance of using it), up to 30 tries between bolts; the test `wrack_and_call_lightning_hurt_the_casters_enemies_at_the_start_of_each_turn` checks it. Sound is not in the rules code. |
+| 177 Call Chaos disintegrates units that resist | **Not present.** Outcome 8 is Disintegrate's own effect: the unit goes only when its resistance is under 10. Test `disintegrate_as_call_chaos_throws_it_spares_the_unit_that_resists`. |
+
+Next: row 210 and the rest of the table in order.
 
 ## P2 code review: first pass
 

@@ -7074,3 +7074,31 @@ fn the_dislike_a_battle_breeds_counts_every_unit_that_fell() -> TestResult {
     );
     Ok(())
 }
+
+/// Patch 1.50, note 177: a unit that resists Call Chaos's Disintegrate is not destroyed. The spell
+/// is Disintegrate's own effect (the whole unit goes when its resistance is under 10), and a Great
+/// Drake (resistance 12) shrugs it off while spearmen do not.
+#[test]
+fn disintegrate_as_call_chaos_throws_it_spares_the_unit_that_resists() -> TestResult {
+    let mut b = real_battle(&[(164, (0, 0))], &[(SPEARMEN, (20, 20))], 1);
+    let drake = b
+        .units
+        .iter()
+        .position(|u| u.side == Side::Attacker)
+        .ok_or("no drake")?;
+    let spearmen = b
+        .units
+        .iter()
+        .position(|u| u.side == Side::Defender)
+        .ok_or("no spearmen")?;
+    let spared = b
+        .spell_slay(drake, Realm::Chaos, 0, &[], Some(10))
+        .ok_or("immune")?;
+    assert_eq!(spared.points, 0, "the drake resists");
+    assert!(b.units[drake].is_active());
+    let slain = b
+        .spell_slay(spearmen, Realm::Chaos, 0, &[], Some(10))
+        .ok_or("immune")?;
+    assert!(slain.points > 0 && !b.units[spearmen].is_active());
+    Ok(())
+}
