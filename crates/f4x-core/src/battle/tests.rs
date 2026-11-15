@@ -3152,7 +3152,7 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
         let b = Item::from_def(d).bonus;
         d.kind == ItemKind::Shield && d.powers.is_empty() && b.defense > 0 && b.resistance > 0
     });
-    let (sword_bonus, shield_bonus) = (sword.bonus.clone(), shield.bonus.clone());
+    let (sword_bonus, shield_bonus) = (sword.bonus, shield.bonus);
     let granted = sword.granted_abilities(&shipped().rules);
     g.arm_hero(unit, [Some(sword), Some(shield), None]);
     let armed = g
