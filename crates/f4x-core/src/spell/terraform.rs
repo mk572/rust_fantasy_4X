@@ -428,6 +428,37 @@ mod tests {
     }
 
     #[test]
+    fn the_mineral_a_new_volcano_brings_stays_when_the_volcano_cools() -> TestResult {
+        // One time in five a new volcano brings a mineral; it is not erased again by what
+        // follows (1.50 note 276), not even when the volcano goes out.
+        let mut g = world();
+        let mut brought = 0;
+        for x in 0..20u32 {
+            let pos = at(x, 4);
+            let mut rng = crate::game::rng::GameRng::new(u64::from(x));
+            g.make_volcano(P0, pos, &mut rng, false);
+            let grid = g
+                .map
+                .as_ref()
+                .ok_or("the map is missing")?
+                .plane(Plane::Arcanus);
+            let Some(mineral) = grid.mineral(x as i32, 4) else {
+                continue;
+            };
+            brought += 1;
+            g.remove_volcano(pos);
+            let grid = g
+                .map
+                .as_ref()
+                .ok_or("the map is missing")?
+                .plane(Plane::Arcanus);
+            assert_eq!(grid.mineral(x as i32, 4), Some(mineral), "square {x}");
+        }
+        assert!(brought > 0, "no volcano of twenty brought a mineral");
+        Ok(())
+    }
+
+    #[test]
     fn a_volcano_cannot_rise_on_a_river_and_a_node_cannot_be_changed() -> TestResult {
         let mut g = world();
         g.map

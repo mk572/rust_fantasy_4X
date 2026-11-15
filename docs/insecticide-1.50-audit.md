@@ -293,7 +293,23 @@ The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fando
 | 155 City Walls bonus only in battles at cities | **Not present.** The wall exists only on a map made with `with_city(walled)`, and `walls_cover_city` reads that map. |
 | 156 Blur: no rolls lost on successes, Illusion Immunity checked on the right unit | **Not present.** Blur is one off the chance to hit, not a roll thrown away, and `blur_penalty` checks the attacker's Illusion Immunity (test `blur_takes_one_off_the_chance_to_hit_unless_the_attacker_sees_through_illusions`). |
 
-Next: the group 141, 218, 219, 251, 253, 272, 273, 276, 515 and 607 (Chaos Surge, Evil Presence, AI targeting, Miner's Guild, event generation, volcano minerals, Prosperity and swamp food).
+### Walked on 15 November 2026: 141, 218, 219, 251, 253, 272, 273, 276, 515, 607
+
+The notes are in `reference/Unofficial Patch 1.50 _ Master of Magic Wiki _ Fandom.html`. Row 607 here is the patch's own note number (swamp food), not our task 607.
+
+| Rows | Verdict |
+|---|---|
+| 141 Chaos Surge works when an AI wizard casts it | **The effect is not AI-specific; the AI never casts it.** The effect is the global enchantment `chaos_surge` (`spell/global_enchantment.rs`) for any owner. The AI casts only the five good globals of `GOOD_GLOBALS` and the world spells, so Chaos Surge is `Kind::Other`, never wanted. Not a bug of the rules; it is part of task 509 (2), the niche spells that no soak ever casts. |
+| 218 Evil Presence works | **Not present.** `evil_presence_active` takes the magic power of the shrine, temple, parthenon and cathedral (tests `evil_presence_destroys_the_power_of_shrines_unless_the_owner_has_death_magic` and the refusal test in `spell/city/tests.rs`). |
+| 219 The AI targets cities of wizards without Death books | **Not present.** `curse_city` takes the biggest enemy city at war that `can_aim` accepts, and the aim is refused where the owner can use death magic (`evil_presence_is_wasted_on`), so a city of a wizard with Death books is never picked and one without is. |
+| 251 Miner's Guild adds 50 percent to Iron Ore and Coal, not 100 | **Present, fixed.** Gold and mana went up by half, but the unit-cost cut of iron and coal was doubled (`economy.rs`, `square_economy`). It is up by half now (iron 5 percent to 7, coal 10 to 15). The test in `turn/tests.rs` expected the doubled 90 percent and now expects 93. |
+| 253 Evil Presence's picture shows on Cathedrals in the city view | **Present, fixed.** The client marked the buildings 22 to 24 (shrine to parthenon), as the original does; it is 22 to 25 now. Test `evil_presence_marks_every_building_whose_power_it_destroys`. |
+| 272, 273 Depletion and New Mineral events can happen | **Not present.** Both are in `world_event` with our own rule (`divergences.md`, "Depletion and New Minerals"); test `a_depletion_removes_a_mineral_and_a_find_adds_one`. |
+| 276 New ore from Raise Volcano is not erased again | **Not present.** `make_volcano` sets the mineral on the grid and the volcano is a separate entity; a volcano going out removes only the entity. Test `the_mineral_a_new_volcano_brings_stays_when_the_volcano_cools`. |
+| 515 Prosperity on a dwarf city shows more gold than it should | **Not present.** The city screen and the treasury read the same `city_economy`, so the display cannot differ from the income. |
+| 607 Swamps give half a food | **Not present.** The swamp has food 0.5 in `terrain.ron` and the economy test checks "swamp: half a food". |
+
+Next: row 159 and 160 (diplomatic reaction to all battle casualties; carried units fleeing without their ship), then 170, 174 and 275, 175, 176 and 465, 177 and the rest of the table in order.
 
 ## P2 code review: first pass
 

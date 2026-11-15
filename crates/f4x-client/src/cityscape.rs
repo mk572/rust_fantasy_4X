@@ -410,9 +410,11 @@ pub const CITY_BLESSINGS: &[(u16, usize, f32)] = &[
 /// The height of the ward row below the top of the picture.
 pub const WARD_ROW: f32 = 83.0;
 
-/// The cityscape indexes Evil Presence marks (`bt_Shrine` to `bt_Parthenon`: the shrine, the
-/// temple and the parthenon, not the cathedral) and the picture drawn over them.
-pub const EVIL_PRESENCE_BUILDINGS: std::ops::RangeInclusive<i16> = 22..=24;
+/// The cityscape indexes Evil Presence marks (the shrine, the temple, the parthenon and the
+/// cathedral, the four whose power it destroys) and the picture drawn over them. The original
+/// stops at the parthenon (`bt_Shrine` to `bt_Parthenon`); the 1.50 patch marks the cathedral too
+/// (note 253).
+pub const EVIL_PRESENCE_BUILDINGS: std::ops::RangeInclusive<i16> = 22..=25;
 pub const EVIL_PRESENCE_PICTURE: usize = 82;
 
 /// Rubble of a sold building, by the building's shape (`cityscap.lbx` 105 to 108).
@@ -458,6 +460,22 @@ pub fn cell_position(row: usize, col: usize) -> (f32, f32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn evil_presence_marks_every_building_whose_power_it_destroys() {
+        let rules = &f4x_def::testdir::shipped().rules;
+        for id in ["shrine", "temple", "parthenon", "cathedral"] {
+            let (_, building) = rules
+                .buildings
+                .iter()
+                .find(|(_, b)| b.id == id)
+                .unwrap_or_else(|| panic!("no building {id}"));
+            assert!(
+                EVIL_PRESENCE_BUILDINGS.contains(&(building.num as i16)),
+                "{id} is not marked"
+            );
+        }
+    }
 
     fn info(population: u32, buildings: &[(i16, u8)]) -> CityInfo {
         CityInfo {

@@ -749,9 +749,14 @@ impl<'a> Economy<'a> {
             } else {
                 b.food.raw()
             });
-            let mut cut = b.unit_cost_percent * if ctx.miners { 2 } else { 1 };
+            // A miners' guild adds half to the ore too, as it does to gold and mana (the original
+            // doubled iron and coal, which the help does not say; 1.50 note 251).
+            let mut cut = b.unit_cost_percent;
             if ctx.dwarf {
                 cut *= 2;
+            }
+            if ctx.miners {
+                cut = cut * 3 / 2;
             }
             if shared {
                 cut /= 2;

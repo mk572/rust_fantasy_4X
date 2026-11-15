@@ -424,7 +424,8 @@ fn mines_add_gold_mana_and_cheaper_units() -> TestResult {
             .city_economy(city)
             .ok_or("city_economy is missing")?
             .unit_cost_percent,
-        90
+        93,
+        "the 5 percent of iron, up by half and rounded down: 7"
     );
     // A second city sharing the gold ore's tile halves what each gets from it.
     let before = g
