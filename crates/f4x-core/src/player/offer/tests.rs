@@ -442,25 +442,25 @@ fn the_commands_accept_and_reject() {
     ));
 }
 
-fn plain_item(cost: u32) -> Item {
-    Item {
-        name: "Sword".into(),
-        kind: crate::rules::ItemKind::Sword,
-        cost,
-        icon: 0,
-        bonus: crate::item::ItemBonus::default(),
-        powers: Vec::new(),
-        charges: None,
-        prefab: None,
-        made: None,
-    }
+/// A shipped sword that costs 1000.
+fn plain_item() -> Item {
+    let content = crate::game::testutil::shipped();
+    let (_, def) = content
+        .rules
+        .items
+        .iter()
+        .filter(|(_, d)| d.kind == crate::rules::ItemKind::Sword && d.cost == 1000)
+        .min_by_key(|(_, d)| d.num)
+        .expect("the content has a sword that costs 1000");
+    Item::from_def(def)
 }
 
 #[test]
 fn a_sold_item_pays_half_its_value_in_gold_and_the_next_wizard_may_buy_it() -> TestResult {
     use crate::item::armory::Spot;
     let mut g = world();
-    g.give_item(P0, plain_item(1000));
+    let half = (plain_item().cost / 2) as i32;
+    g.give_item(P0, plain_item());
     let (mine, theirs) = (
         g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold,
         g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold,
@@ -471,15 +471,11 @@ fn a_sold_item_pays_half_its_value_in_gold_and_the_next_wizard_may_buy_it() -> T
     });
     assert!(matches!(
         events[0],
-        Event::ItemSold {
-            player: P0,
-            gold: 500,
-            ..
-        }
+        Event::ItemSold { player: P0, gold, .. } if gold == half
     ));
     assert_eq!(
         g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold,
-        mine + 500
+        mine + half
     );
     assert!(g.items().armory(P0).vault.iter().all(Option::is_none));
     // The other wizard is offered it for what the seller got.
@@ -488,12 +484,8 @@ fn a_sold_item_pays_half_its_value_in_gold_and_the_next_wizard_may_buy_it() -> T
             &events[1],
             Event::OfferMade {
                 player: P1,
-                offer: Offer::Resale {
-                    price: 500,
-                    seller: P0,
-                    ..
-                }
-            }
+                offer: Offer::Resale { price, seller: P0, .. }
+            } if *price == half
         ),
         "{events:?}"
     );
@@ -509,7 +501,7 @@ fn a_sold_item_pays_half_its_value_in_gold_and_the_next_wizard_may_buy_it() -> T
     );
     assert_eq!(
         g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold,
-        theirs - 500
+        theirs - half
     );
     assert!(g.offers(P1).is_empty());
     assert_eq!(g.items().armory(P1).vault.iter().flatten().count(), 1);
@@ -520,7 +512,7 @@ fn a_sold_item_pays_half_its_value_in_gold_and_the_next_wizard_may_buy_it() -> T
 fn a_sold_item_nobody_buys_is_gone_and_one_nobody_can_pay_for_is_not_offered() -> TestResult {
     use crate::item::armory::Spot;
     let mut g = world();
-    g.give_item(P0, plain_item(1000));
+    g.give_item(P0, plain_item());
     g.apply(crate::game::Command::SellItem {
         player: P0,
         from: Spot::Vault(0),
@@ -533,7 +525,7 @@ fn a_sold_item_nobody_buys_is_gone_and_one_nobody_can_pay_for_is_not_offered() -
     assert_eq!(g.items().armory(P1).vault.iter().flatten().count(), 0);
     assert_eq!(g.items().armory(P0).vault.iter().flatten().count(), 0);
     // A buyer without the gold is not asked.
-    g.give_item(P0, plain_item(1000));
+    g.give_item(P0, plain_item());
     g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold =
         f4x_def::half_int::HalfInt::from_int(100);
     let events = g.apply(crate::game::Command::SellItem {

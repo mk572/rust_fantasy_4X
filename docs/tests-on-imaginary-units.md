@@ -15,7 +15,7 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 24 tests. Part 2: 61 tests. Of 2160 in all.**
+**Part 1: 24 tests. Part 2: 53 tests. Of 2160 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
@@ -92,17 +92,14 @@ Helpers that make things up: `m` (line 280).
 | `crates/f4x-core/src/battle/tests.rs` | 8 |
 | `crates/f4x-core/src/threat/tests.rs` | 7 |
 | `crates/f4x-core/src/city/mod.rs` | 5 |
-| `crates/f4x-core/src/player/offer/tests.rs` | 3 |
-| `crates/f4x-core/src/player/shortfall/tests.rs` | 3 |
 | `crates/f4x-ai/src/offer.rs` | 2 |
 | `crates/f4x-core/src/city/economy.rs` | 2 |
-| `crates/f4x-core/src/diplomacy/tests.rs` | 2 |
 | `crates/f4x-core/src/wizard/magic_command/tests.rs` | 2 |
 | `crates/f4x-ai/src/monster.rs` | 1 |
 | `crates/f4x-core/src/game/tests.rs` | 1 |
 | `crates/f4x-core/src/hero/game.rs` | 1 |
+| `crates/f4x-core/src/player/offer/tests.rs` | 1 |
 | `crates/f4x-core/src/spell/global_enchantment.rs` | 1 |
-| `crates/f4x-core/src/spell/wizard/tests.rs` | 1 |
 | `crates/f4x-core/src/wizard/fortress/tests.rs` | 1 |
 | `crates/f4x-core/src/wizard/tests.rs` | 1 |
 | `crates/f4x-learn/tests/it/battle_spells.rs` | 1 |
@@ -156,15 +153,6 @@ Helpers that make things up: `game` (line 136).
 | `minerals_do_not_block_cities` | 259 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `game` | |
 | `spacing_applies_per_plane_and_wraps` | 265 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `game` | |
 
-## `crates/f4x-core/src/diplomacy/tests.rs` (2)
-
-Helpers that make things up: `sword` (line 1840).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `goods_are_worth_the_baseline_and_a_modifier` | 1864 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `sword` | |
-| `a_trade_hands_over_gold_a_spell_an_item_and_a_unit` | 1902 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `sword` | |
-
 ## `crates/f4x-core/src/feature/lair/tests.rs` (19)
 
 Helpers that make things up: `lair` (line 68), `put_lair` (line 45), `rich_lair` (line 804).
@@ -203,37 +191,17 @@ Helpers that make things up: `lair` (line 68), `put_lair` (line 45), `rich_lair`
 |---|---|---|---|---|
 | `a_hero_let_go_can_be_hired_by_anyone_with_the_experience_it_has` | 724 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
 
-## `crates/f4x-core/src/player/offer/tests.rs` (3)
-
-Helpers that make things up: `plain_item` (line 445).
+## `crates/f4x-core/src/player/offer/tests.rs` (1)
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
 | `a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing` | 255 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `a_sold_item_pays_half_its_value_in_gold_and_the_next_wizard_may_buy_it` | 460 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `plain_item` | |
-| `a_sold_item_nobody_buys_is_gone_and_one_nobody_can_pay_for_is_not_offered` | 520 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `plain_item` | |
-
-## `crates/f4x-core/src/player/shortfall/tests.rs` (3)
-
-Helpers that make things up: `item` (line 12).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `the_wizard_sees_the_shortfall_and_picks_who_goes` | 27 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `a_released_heros_items_return_to_the_armory` | 67 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
-| `the_vault_has_room_for_all_so_nothing_overflows_and_scrapping_is_the_wizards_choice` | 87 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | `item` | |
 
 ## `crates/f4x-core/src/spell/global_enchantment.rs` (1)
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
 | `nature_awareness_and_natures_eye_show_who_guards_a_site` | 580 | hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
-
-## `crates/f4x-core/src/spell/wizard/tests.rs` (1)
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_storm_reaches_the_units_in_a_city` | 658 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal) | itself | |
 
 ## `crates/f4x-core/src/threat/tests.rs` (7)
 

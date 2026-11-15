@@ -1785,7 +1785,7 @@ fn the_cities_allowed_grow_with_the_map_and_the_land() {
 
 // ---- trades (tasks 504 and 597) ----------------------------------------------------
 
-use crate::item::{Item, ItemBonus};
+use crate::item::Item;
 use crate::rules::ItemKind;
 
 /// Two spells of the sorcery realm (the books of the wizards) that a wizard with two books may
@@ -1837,18 +1837,17 @@ fn gold_of(g: &Game, p: PlayerId) -> Result<i32, Box<dyn std::error::Error>> {
     Ok(g.player(p).ok_or("a player")?.treasury().gold.floor())
 }
 
+/// A shipped sword.
 fn sword() -> Item {
-    Item {
-        name: "Blade".into(),
-        kind: ItemKind::Sword,
-        cost: 200,
-        icon: 0,
-        bonus: ItemBonus::default(),
-        powers: Vec::new(),
-        charges: None,
-        prefab: None,
-        made: None,
-    }
+    let content = crate::game::testutil::shipped();
+    let (_, def) = content
+        .rules
+        .items
+        .iter()
+        .filter(|(_, d)| d.kind == ItemKind::Sword && d.powers.is_empty())
+        .min_by_key(|(_, d)| d.num)
+        .expect("the content has a sword");
+    Item::from_def(def)
 }
 
 fn set_gold(g: &mut Game, p: PlayerId, gold: i32) -> TestResult {
@@ -1877,7 +1876,7 @@ fn goods_are_worth_the_baseline_and_a_modifier() -> TestResult {
     let blade = sword();
     assert_eq!(
         trade::item_worth(&g, P0, &blade),
-        200 * trade::ITEM_NO_USER_PCT / 100
+        blade.cost as i32 * trade::ITEM_NO_USER_PCT / 100
     );
     fortress(&mut g, P0, at(1, 1))?;
     g.add_hero(0).ok_or("a hero")?;
@@ -1885,7 +1884,7 @@ fn goods_are_worth_the_baseline_and_a_modifier() -> TestResult {
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         trade::item_worth(&g, P0, &blade),
-        200 * trade::ITEM_FREE_SLOT_PCT / 100
+        blade.cost as i32 * trade::ITEM_FREE_SLOT_PCT / 100
     );
     // A unit costs its production; more to a wizard at war.
     assert_eq!(trade::unit_cost_worth(&g, P0, 100), 100);

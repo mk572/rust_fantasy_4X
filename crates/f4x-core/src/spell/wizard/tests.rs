@@ -657,15 +657,7 @@ fn magic_immunity_stops_a_storm_and_each_storm_has_its_own_element() {
 #[test]
 fn a_storm_reaches_the_units_in_a_city() -> TestResult {
     let mut g = world();
-    let owner = g.player_entity(P1).ok_or("player_entity is missing")?;
-    let city = g.world.spawn((
-        crate::city::City {
-            name: "Test".into(),
-        },
-        crate::player::Owner(owner),
-        at(7, 7),
-    ));
-    let _ = city;
+    g.spawn_city(P1, at(7, 7), "Test".into(), None, 3);
     let u = unit(&mut g, P1, 39 /* barbarian_spearmen */, at(7, 7));
     let before = g.units().unit_hits(u).0;
     let mut hurt = false;

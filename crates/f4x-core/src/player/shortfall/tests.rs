@@ -1,26 +1,30 @@
 use super::*;
 use crate::game::testutil::num;
 use crate::hero::game::tests::{at, world, P0};
-use crate::item::ItemBonus;
 use crate::map::{Grid, Map};
-use crate::rules::ItemKind;
 use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 
 use crate::unit::MovesLeft;
 
-fn item(name: &str, cost: u32) -> Item {
-    Item {
-        name: name.into(),
-        kind: ItemKind::Misc,
-        cost,
-        icon: 0,
-        bonus: ItemBonus::default(),
-        powers: Vec::new(),
-        charges: None,
-        prefab: None,
-        made: None,
-    }
+/// The shipped item numbered `num`.
+fn item(num: u16) -> Item {
+    let content = crate::game::testutil::shipped();
+    let id = content
+        .rules
+        .items
+        .id_numbered(num)
+        .expect("the content has the item");
+    Item::from_def(content.rules.items.get(id))
+}
+
+/// The prefab numbers of the items in the armory.
+fn prefabs(g: &Game) -> Vec<u16> {
+    g.items()
+        .armory(P0)
+        .items()
+        .filter_map(|i| i.prefab.map(|p| p.num()))
+        .collect()
 }
 
 #[test]
@@ -45,7 +49,7 @@ fn the_wizard_sees_the_shortfall_and_picks_who_goes() -> TestResult {
     assert_eq!(short.missing(&[a]), (HalfInt::ZERO, HalfInt::ZERO));
     assert!(short.troops.iter().all(|l| l.hero && l.gold == 2));
     // The wizard keeps the newest and gives up the first; its item comes home.
-    g.give_item(P0, item("Sword", 100));
+    g.give_item(P0, item(1 /* sword_of_mallana */));
     let events = g
         .release_troops(P0, &[a], &[])
         .map_err(|e| format!("{e:?}"))?;
@@ -69,17 +73,14 @@ fn a_released_heros_items_return_to_the_armory() -> TestResult {
     let h = g
         .spawn_hero(P0, at(1, 1), 0)
         .map_err(|e| format!("{e:?}"))?;
-    g.spawn_item(item("Axe", 200), crate::item::entity::HeldBy::Hero(h, 0));
+    g.spawn_item(
+        item(22 /* an axe */),
+        crate::item::entity::HeldBy::Hero(h, 0),
+    );
     g.tr_mut(0).gold = f4x_def::half_int::HalfInt::from_int(0);
     g.release_troops(P0, &[h], &[])
         .map_err(|e| format!("{e:?}"))?;
-    let names: Vec<_> = g
-        .items()
-        .armory(P0)
-        .items()
-        .map(|i| i.name.clone())
-        .collect();
-    assert_eq!(names, ["Axe"]);
+    assert_eq!(prefabs(&g), [22]);
     Ok(())
 }
 
@@ -87,13 +88,17 @@ fn a_released_heros_items_return_to_the_armory() -> TestResult {
 fn the_vault_has_room_for_all_so_nothing_overflows_and_scrapping_is_the_wizards_choice(
 ) -> TestResult {
     let mut g = world();
-    for i in 0..12 {
-        g.give_item(P0, item(&format!("Junk{i}"), 10 + 10 * i as u32));
+    // Twelve different shipped items in the vault; the seventh is the one scrapped.
+    let junk: Vec<u16> = (0..12).map(|i| 60 + i).collect();
+    for &num in &junk {
+        g.give_item(P0, item(num));
     }
+    let scrapped = item(junk[6]);
     let h = g
         .spawn_hero(P0, at(1, 1), 0)
         .map_err(|e| format!("{e:?}"))?;
-    g.spawn_item(item("Crown", 1000), crate::item::entity::HeldBy::Hero(h, 1));
+    let crown = item(234 /* a costly misc item */);
+    g.spawn_item(crown.clone(), crate::item::entity::HeldBy::Hero(h, 1));
     assert!(g.item_overflow(P0, &[]).is_none());
     assert!(
         g.item_overflow(P0, &[h]).is_none(),
@@ -103,8 +108,12 @@ fn the_vault_has_room_for_all_so_nothing_overflows_and_scrapping_is_the_wizards_
     g.tr_mut(0).mana = f4x_def::half_int::HalfInt::from_int(0);
     g.release_troops(P0, &[h], &[ItemSpot::Vault(6)])
         .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(g.tr(0).mana, 35, "Junk6, worth 70 gold, gives half in mana");
-    assert!(g.items().armory(P0).items().any(|i| i.name == "Crown"));
+    assert_eq!(
+        g.tr(0).mana,
+        (scrapped.cost / 2) as i32,
+        "half its value in mana"
+    );
+    assert!(prefabs(&g).contains(&crown.prefab.map(|p| p.num()).expect("a prefab")));
     Ok(())
 }
 
