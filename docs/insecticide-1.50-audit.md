@@ -408,8 +408,8 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | 350 The cursor stays an hourglass when the AI asks the player something | **Not present.** The pointer shows the hourglass only while `turn_pending > 0` (`pointer.rs`), a state the client clears when the turn comes back, so it cannot outlive the wait. Not tried by running the client. |
 | 362 "Unit enchantment dispelled" names the wrong unit | **Not present.** The event (`EnchantmentDispelled`) carries the victim wizard, the spell and the site, no unit; a unit lost for mana is announced with its unit kind taken before it is removed (`drop_upkeep_item`). |
 | 363 Disbanding a wind walking unit over the sea corrupts memory | **Not present.** Entities, no raw memory. What the walker carried is left at sea and is then handled as any stranded unit (ashore or drowned). Test `disbanding_the_wind_walker_over_the_sea_leaves_the_game_whole`. |
-| 464 The map shows units at the wrong place in enemy turns | **Not checked in the client.** Visual; left for a look when the client is next run (no separate display copy of positions was seen, but I did not trace the animation code). |
-| 681 Towns clip over units while they move; large cities at the left edge | **Not checked.** Drawing; same as 464. |
+| 464 The map shows units at the wrong place in enemy turns | **Not checked in the client.** Visual; task 610 lists what to look at (no separate display copy of positions was seen, but I did not trace the animation code). |
+| 681 Towns clip over units while they move; large cities at the left edge | **Not checked.** Drawing; task 610. |
 | 732 Rocks drawn over single-figure units | **Not present as far as the code goes.** Trees, rocks, houses and units share one depth order by each picture's anchor (`battle_ground.rs`, the draw order fixed on 15 November, rows 110 and 131); not tried by eye. |
 
 Next: row 351 and the rest of the table in order.
