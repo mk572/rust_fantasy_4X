@@ -400,7 +400,19 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | 347 Units keep moving during Time Stop | **Not present.** Every other wizard's units start the turn with no moves left while Time Stop lasts, so a standing order (`Order::GoTo`) is followed with nothing to spend and stays. Test `a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop`, which also checks that the keeper's own orders go on. |
 | 348 The ghost central structure stops the AI's melee | **Not present.** A battle has a structure square only for a lair, an outpost or a tower (`battle/map.rs`), and the AI's melee goes to units adjacent by position, not through the map's structure. |
 
-Next: row 349 and the rest of the table in order.
+### Walked on 15 November 2026: 349, 350, 362, 363, 464, 681, 732
+
+| Rows | Verdict |
+|---|---|
+| 349 Items with an ID of 128 or more vanish in the vault | **Not present.** The shipped items go to number 249 and an item's prefab is a `u16` id (`ItemId::new(def.num)`), not a signed byte; the vault is a list of items, not a table indexed by the id. |
+| 350 The cursor stays an hourglass when the AI asks the player something | **Not present.** The pointer shows the hourglass only while `turn_pending > 0` (`pointer.rs`), a state the client clears when the turn comes back, so it cannot outlive the wait. Not tried by running the client. |
+| 362 "Unit enchantment dispelled" names the wrong unit | **Not present.** The event (`EnchantmentDispelled`) carries the victim wizard, the spell and the site, no unit; a unit lost for mana is announced with its unit kind taken before it is removed (`drop_upkeep_item`). |
+| 363 Disbanding a wind walking unit over the sea corrupts memory | **Not present.** Entities, no raw memory. What the walker carried is left at sea and is then handled as any stranded unit (ashore or drowned). Test `disbanding_the_wind_walker_over_the_sea_leaves_the_game_whole`. |
+| 464 The map shows units at the wrong place in enemy turns | **Not checked in the client.** Visual; left for a look when the client is next run (no separate display copy of positions was seen, but I did not trace the animation code). |
+| 681 Towns clip over units while they move; large cities at the left edge | **Not checked.** Drawing; same as 464. |
+| 732 Rocks drawn over single-figure units | **Not present as far as the code goes.** Trees, rocks, houses and units share one depth order by each picture's anchor (`battle_ground.rs`, the draw order fixed on 15 November, rows 110 and 131); not tried by eye. |
+
+Next: row 351 and the rest of the table in order.
 
 ## P2 code review: first pass
 

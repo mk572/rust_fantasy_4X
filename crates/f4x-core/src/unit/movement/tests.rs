@@ -403,6 +403,24 @@ fn wind_walking_carries_the_whole_stack_over_water() {
 }
 
 #[test]
+fn disbanding_the_wind_walker_over_the_sea_leaves_the_game_whole() {
+    // Row 363 of the 1.50 notes: the original corrupted memory. Here the walker alone is gone
+    // and what it carried is left at sea: it scrambles ashore or drowns, as any stranded unit.
+    let mut g = world();
+    let mage = unit(&mut g, P0, 15 /* wind_mage */, at(6, 2));
+    let walker = unit(&mut g, P0, 107 /* high_men_cavalry */, at(6, 2));
+    assert_eq!(g.move_stack(&[mage, walker], at(7, 2)), Ok(Entry::Free));
+    g.remove_unit(mage, crate::hero::Fate::Released);
+    assert!(g.world.get::<&crate::unit::MovesLeft>(mage).is_err());
+    let events = g.drown_stranded(Some(P0));
+    let at_sea = g
+        .units()
+        .unit_position(walker)
+        .is_some_and(|p| g.economy().is_sea(p));
+    assert!(!at_sea, "{events:?}");
+}
+
+#[test]
 fn a_stack_with_a_wind_walker_moves_as_far_as_the_wind_walker_can() {
     let mut g = world();
     let mage = unit(&mut g, P0, 15 /* wind_mage */, at(5, 4));
