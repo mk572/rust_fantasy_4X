@@ -116,6 +116,15 @@ Verdicts for the rows of the three tables above, by reading the code; rows not n
 | 765 AI unit strength | **Not present.** `strength` uses effective attack, defence and hits only. It ignores abilities such as First Strike (a valuation gap, not this bug). |
 | 772 AI flying "stall" tactic at a fortress | **Not applicable, unsure.** The original's tactic is not known to us; our battle AI has no scripted tactic, and a stalled assault ends with the active side fleeing (`assault.rs`). |
 
+## Reverted / obsolete rows walked on 15 November 2026 (task 457)
+
+| Rows | Verdict |
+|---|---|
+| 816 Dijkstra for overland paths | **Present.** `path_grid.rs` is a shortest-path search, tested on random grids against a plain Dijkstra. |
+| 769, IW002 Raider costs apart from lair costs | **Present.** `threat/monster.rs` keeps the 1.31 costs; the lair costs of `stronger_lairs` change only new lairs (`docs/lairs.md`). |
+| 760, 045 Entangle and non-corporeal units | **Differs by an earlier decision** (`docs/combat.md`, Entangle table): the help is followed, so Entangle does not hold fliers or non-corporeal units, where the original's code takes the move from every unit and the Community Patch put non-corporeal units back under it. |
+| 761, IW070 Previous icon button | **Present.** `step_icon` in `craft_screen.rs` steps back and wraps, with a test. |
+
 ## Optional rows walked on 15 November 2026 (task 457)
 
 | Rows | Verdict |
