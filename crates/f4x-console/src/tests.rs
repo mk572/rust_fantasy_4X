@@ -2449,6 +2449,32 @@ fn flame_strike_hits_every_enemy_and_mass_healing_every_friend() {
 }
 
 #[test]
+fn mass_healing_still_heals_under_true_light() {
+    use f4x_core::battle::Side;
+    let mut g = casting_siege(&[128 /* true_light */, 149 /* mass_healing */]);
+    let r = cast(&mut g, "bcast true light");
+    assert!(r.ok, "{}", r.text());
+    let mine = battle_units_of(&g, Side::Attacker);
+    for &m in &mine {
+        g.battle.as_mut().expect("the value is there").battle.units[m].front_damage = 1;
+    }
+    pass_turn(&mut g);
+    let r = cast(&mut g, "bcast mass healing");
+    assert!(r.ok, "{}", r.text());
+    for &m in &mine {
+        assert_eq!(
+            g.battle()
+                .expect("a battle is on")
+                .unit(m)
+                .expect("the unit is alive")
+                .front_damage,
+            0,
+            "{m}"
+        );
+    }
+}
+
+#[test]
 fn death_spell_and_word_of_death_destroy_the_figures_that_cannot_resist() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&[194 /* death_spell */, 192 /* word_of_death */]);

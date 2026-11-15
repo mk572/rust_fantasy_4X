@@ -412,7 +412,26 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | 681 Towns clip over units while they move; large cities at the left edge | **Not checked.** Drawing; task 610. |
 | 732 Rocks drawn over single-figure units | **Not present as far as the code goes.** Trees, rocks, houses and units share one depth order by each picture's anchor (`battle_ground.rs`, the draw order fixed on 15 November, rows 110 and 131); not tried by eye. |
 
-Next: row 351 and the rest of the table in order.
+### Walked on 15 November 2026: 351, 370
+
+| Rows | Verdict |
+|---|---|
+| 351 AI turn order: simultaneous phases became sequential wizard turns | **Not present, by design** (`docs/turn-structure.md`). `f4x-master` runs a seat's whole turn (start, decisions, orders, end) before the next seat, in a fixed order, the neutral seat last; test `each_round_every_seat_plays_once_in_order`. |
+| 370 True Light blocks Mass Healing | **Not present.** True Light is a battlefield field (`Field::TrueLight`) that only shifts the Life and Death realm bonuses; Mass Healing's cast reads no field. Test `mass_healing_still_heals_under_true_light`. |
+
+### Walked on 15 November 2026: 368, 369, 397, 398, 407, 424, 433, 479, 371, 411, 489
+
+| Rows | Verdict |
+|---|---|
+| 368, 369, 433 Inconsistent checks for surviving over water (Wraith Form not counting; units drown on a flee or are disbanded by the AI; one crash) | **Present in one case, fixed.** One rule decides who needs a ship (`needs_ship`: a walker with no flight, no non-corporeality, no Water Walking) and the turn end, the flee and the AI's disbanding all go through `drown_stranded`; Flight, Water Walking and Wraith Form are enough, as the tests of the dispels show. The gap: a walker standing at sea in a stack with a **Wind Walker** was judged alone and drowned at the turn end although the stack moved there legally. `stranded` now asks the owner's stack at the square (`stack_flies`), as `stranded_ships` does. Test `units_that_need_no_ship_stay_afloat_at_the_turn_end`. |
+| 397 Units of the human that cannot swim, fly or be carried drown at the turn end over water | **Not present** (we do it for every player: `land_units_without_a_ship_drown`). |
+| 398 The patch's earlier movement-type fix (all non-corporeal units fly overland, the default type flips to non-corporeal) leaves units without moves with wrong paths | **Not present.** Flying and non-corporeal are two separate traits of a step profile (`StepFlags`); a path costs the same steps as the move and takes as many turns as the moves it costs (`a_path_takes_as_many_turns_as_the_moves_it_costs`). |
+| 407 Units try to move through towers holding enemy units as if empty | **Not present.** A tower is a square like any other for `hostile_at`; a hostile stack is gone round, and can only be the goal (`a_hostile_stack_stops_the_walk_but_can_be_the_goal`). |
+| 424 AI stack of different speeds separates | **Not present.** The AI sends one `GoTo` for the party; the orders are followed by group (same square, same path) with `move_stack`, which spends the slowest unit's allowance. Test `a_party_of_different_speeds_marches_as_one_stack`. |
+| 479 Flying ships and other units cannot move together | **Not present** (`a_ship_with_wraith_form_crosses_land_for_half_a_move`, `wind_walking_carries_the_whole_stack_over_water`, `ships_sail_over_the_seam` and the stack tests above). |
+| 371, 411, 489 Path search cannot enter squares it should, such as leaving a ship | **Not present.** The search and the step share `step_entry`. Test `a_walker_aboard_a_ship_leaves_it_for_the_shore_and_boards_again` (path and move, off and on again). |
+
+Next: row 384 and the rest of the table in order.
 
 ## P2 code review: first pass
 

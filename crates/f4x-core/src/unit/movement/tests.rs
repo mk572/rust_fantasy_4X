@@ -643,6 +643,59 @@ fn goto_orders_continue_over_turns() -> TestResult {
     Ok(())
 }
 
+/// Insecticide IW424 and IW479: units sent together with one order and different speeds march
+/// at the pace of the slowest and stay on one square, over any number of turns.
+#[test]
+fn a_party_of_different_speeds_marches_as_one_stack() -> TestResult {
+    let mut g = world();
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(1000);
+    let slow = unit(&mut g, P0, 0 /* dwarf */, at(0, 1));
+    let swift = unit(&mut g, P0, 17 /* draconian */, at(0, 1));
+    g.apply(Command::GoTo {
+        units: vec![slow, swift],
+        to: at(7, 1),
+    });
+    for turn in 0..8 {
+        assert_eq!(
+            g.units().unit_position(slow),
+            g.units().unit_position(swift),
+            "together after {turn} turns"
+        );
+        g.apply(Command::EndTurn);
+    }
+    assert_eq!(g.units().unit_position(slow), Some(at(7, 1)));
+    assert_eq!(g.units().unit_position(swift), Some(at(7, 1)));
+    Ok(())
+}
+
+/// Insecticide IW371, IW411, IW489: the original's path search sometimes left units unable to
+/// enter squares they could; one of its cases was a unit that could not leave its ship. Here
+/// the path and the step are one rule: a walker aboard a ship at sea finds a way to the shore
+/// beside it and walks off, and walks back aboard.
+#[test]
+fn a_walker_aboard_a_ship_leaves_it_for_the_shore_and_boards_again() -> TestResult {
+    let mut g = world();
+    let boat = unit(&mut g, P0, 35 /* trireme */, at(7, 2));
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(1000);
+    let w = unit(&mut g, P0, 0 /* dwarf */, at(7, 2));
+    let aboard = crate::unit::transport::Aboard(g.units().serial_of(boat));
+    crate::game::put_in(&mut g.world, w, aboard);
+    let path = g.find_path(&[w], at(6, 2)).ok_or("no way off the ship")?;
+    assert_eq!(path.last(), Some(&at(6, 2)));
+    assert_eq!(g.move_stack(&[w], at(6, 2)), Ok(Entry::Free));
+    assert_eq!(g.units().unit_position(w), Some(at(6, 2)));
+    assert!(g.economy().carrier_of(w).is_none(), "ashore, not aboard");
+    assert_eq!(g.units().unit_position(boat), Some(at(7, 2)));
+    g.apply(Command::EndTurn);
+    let path = g.find_path(&[w], at(7, 2)).ok_or("no way back aboard")?;
+    assert_eq!(path.last(), Some(&at(7, 2)));
+    assert_eq!(g.move_stack(&[w], at(7, 2)), Ok(Entry::Free));
+    assert_eq!(g.economy().carrier_of(w), Some(boat));
+    Ok(())
+}
+
 #[test]
 fn end_turn_refills_moves() -> TestResult {
     let mut g = world();

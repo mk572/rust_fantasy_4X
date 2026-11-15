@@ -181,6 +181,15 @@ impl Economy<'_> {
             if !self.is_sea(at) || !self.needs_ship(unit, false) {
                 continue;
             }
+            // A Wind Walker of the stack carries the others through the air.
+            let stack: Vec<hecs::Entity> = units
+                .units_at(at)
+                .into_iter()
+                .filter(|&u| units.unit_owner(u) == Some(owner))
+                .collect();
+            if self.stack_flies(&stack) {
+                continue;
+            }
             // Under a ship, or held by one standing on this square.
             let held = self
                 .carrier_of(unit)
@@ -908,6 +917,54 @@ mod tests {
         );
         assert!(g.drown_stranded(None).is_empty());
         assert!(g.units().unit_position(boat).is_some());
+        Ok(())
+    }
+
+    /// Insecticide IW368, IW369, IW433: what lets a unit stay at sea is one rule for the end of
+    /// the turn, the flee and the AI's disbanding: a flier, a water walker, a non-corporeal unit
+    /// (Wraith Form too) and the walkers of a stack that a Wind Walker carries never drown.
+    #[test]
+    fn units_that_need_no_ship_stay_afloat_at_the_turn_end() -> TestResult {
+        fn open_sea(g: &mut Game) -> TestResult {
+            let ocean = g
+                .content
+                .terrains
+                .id_numbered(num::terrain::OCEAN)
+                .ok_or("ocean is not in the content")?;
+            for x in 3..=7 {
+                for y in 3..=5 {
+                    g.map
+                        .as_mut()
+                        .ok_or("as_mut is missing")?
+                        .plane_mut(Plane::Arcanus)
+                        .set(x, y, ocean);
+                }
+            }
+            Ok(())
+        }
+        // Wraith Form (non-corporeal) and Water Walking on a lone walker.
+        for ability in [49 /* non_corporeal, from Wraith Form */, 71, 24] {
+            let mut g = world();
+            open_sea(&mut g)?;
+            let w = unit(&mut g, 107 /* high_men_cavalry */, at(5, 4));
+            g.grant_temp_ability(
+                crate::rules::exec::Target::Unit(w),
+                crate::rules::Ability::new(ability),
+            );
+            assert!(g.drown_stranded(None).is_empty(), "ability {ability}");
+            assert!(g.units().unit_position(w).is_some());
+        }
+        // A Wind Walker carries the walkers standing with it.
+        let mut g = world();
+        open_sea(&mut g)?;
+        let guide = unit(&mut g, 15 /* wind_mage */, at(5, 4));
+        let walker = unit(&mut g, 107 /* high_men_cavalry */, at(5, 4));
+        g.grant_temp_ability(
+            crate::rules::exec::Target::Unit(guide),
+            crate::rules::Ability::new(74),
+        );
+        assert!(g.drown_stranded(None).is_empty(), "the walker rides along");
+        assert!(g.units().unit_position(walker).is_some());
         Ok(())
     }
 
