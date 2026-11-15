@@ -229,6 +229,8 @@ fn v131_has_the_originals_ships_and_monster_turn_and_v160_has_eight_carrying_shi
     assert!(!v131.rules.walls_cover_city && !v131.rules.suppress_spares_return);
     assert!(v160.rules.miners_guild_half_ore && !v131.rules.miners_guild_half_ore);
     assert!(v160.rules.spell_binding_always_succeeds && !v131.rules.spell_binding_always_succeeds);
+    // Roads between the independent cities at the start: the original's, so on in both.
+    assert!(v131.rules.roads_at_start && v160.rules.roads_at_start);
     // The community patch undoes patch 1.50's lair and treasure changes: both off in both.
     assert!(!v131.rules.stronger_lairs && !v160.rules.stronger_lairs);
     assert!(!v131.rules.treasure_patch_150 && !v160.rules.treasure_patch_150);

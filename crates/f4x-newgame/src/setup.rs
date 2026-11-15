@@ -357,6 +357,12 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     for plane in [Plane::Arcanus, Plane::Myrror] {
         crate::neutral::generate_neutral_cities(&mut game, plane);
     }
+    // The roads between them come after every city of the start is down.
+    if settings.rules.roads_at_start {
+        for plane in [Plane::Arcanus, Plane::Myrror] {
+            game.lay_start_roads(plane);
+        }
+    }
     crate::temperament::assign_temperaments(&mut game);
     // The heroes' abilities are rolled last, so the map and the wizards' start stay as they were.
     init_heroes(&mut game);

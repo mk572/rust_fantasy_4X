@@ -357,7 +357,35 @@ mod tests {
     fn confirming_without_a_far_end_asks_for_the_road_under_the_stack_and_leaves_the_mode(
     ) -> TestResult {
         let mut app = App::for_test();
-        app.select_first_stack();
+        // The fortress stands on a road (a new world has roads under its cities): step off it.
+        let u = *app
+            .game
+            .units()
+            .player_units(crate::view::HUMAN)
+            .first()
+            .ok_or("no unit")?;
+        let from = app.game.units().unit_position(u).ok_or("no position")?;
+        let stack = app.game.units().units_at(from);
+        let off = app
+            .game
+            .reachable_squares(&[u])
+            .into_iter()
+            .find(|p| {
+                p.plane == from.plane
+                    && p.x.abs_diff(from.x) <= 1
+                    && p.y.abs_diff(from.y) <= 1
+                    && *p != from
+                    && app
+                        .game
+                        .map()
+                        .is_some_and(|m| !m.plane(p.plane).has_road(p.x as i32, p.y as i32))
+            })
+            .ok_or("no square beside the stack without a road")?;
+        app.game.apply(f4x_core::game::Command::MoveStack {
+            units: stack,
+            to: off,
+        });
+        app.select_at(off);
         app.start_road_plan();
         let plan = app.road_plan.as_ref().ok_or("the mode did not open")?;
         assert!(

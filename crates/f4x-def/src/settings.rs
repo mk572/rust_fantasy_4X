@@ -349,6 +349,13 @@ pub struct RuleSettings {
     /// always succeeds but can fail.
     #[serde(default = "fb_spell_binding_always_succeeds")]
     pub spell_binding_always_succeeds: bool,
+    /// Roads on the map at game start (`Generate_Roads`, wiki "Roads"): neutral cities on one
+    /// landmass at most ten squares apart are joined by a road unless it crosses water, enchanted
+    /// on Myrror, and every city stands on a road. On in v1.31 and v1.6; off, the new world has
+    /// no road at all (the community patch note 484 removed the enchanted roads Arcanus cities
+    /// had).
+    #[serde(default = "fb_roads_at_start")]
+    pub roads_at_start: bool,
     /// Patch 1.50 (notes 013, 015, 001): stronger lairs. Off (the original): the budgets, divisors,
     /// creature costs and difficulty scale of version 1.31. On: those of the patch (towers and
     /// sites with far larger budgets, up to six of the first kind of guard, the patch's costs, the
@@ -492,6 +499,10 @@ fn fb_miners_guild_half_ore() -> bool {
 
 fn fb_spell_binding_always_succeeds() -> bool {
     fallback(|g| g.rules.spell_binding_always_succeeds, false)
+}
+
+fn fb_roads_at_start() -> bool {
+    fallback(|g| g.rules.roads_at_start, true)
 }
 
 fn fb_stronger_lairs() -> bool {

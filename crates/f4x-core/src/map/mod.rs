@@ -3,6 +3,7 @@
 pub mod corruption;
 pub mod fog;
 pub mod road;
+pub mod start_road;
 pub mod survey;
 pub mod terrain;
 pub mod vision;

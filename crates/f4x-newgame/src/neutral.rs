@@ -376,4 +376,111 @@ mod tests {
         assert_ne!(places(11)?, places(12)?);
         Ok(())
     }
+
+    /// The roads a new world starts with (`roads_at_start`, `f4x_core::map::start_road`): every
+    /// city stands on a road; two neutral cities on one landmass within ten squares are joined
+    /// when the straight line between them is dry; Myrror's are enchanted; and with the setting
+    /// off there is no road at all.
+    #[test]
+    fn a_new_world_has_roads_between_near_neutral_cities_when_the_setting_is_on() -> TestResult {
+        use f4x_core::map::Plane;
+        let make = |seed, on: bool| {
+            let mut settings = f4x_def::settings::GameSettings::default();
+            settings.rules.roads_at_start = on;
+            new_game(
+                shipped(),
+                &NewGame {
+                    seed,
+                    all_ai: true,
+                    settings,
+                    ..Default::default()
+                },
+            )
+        };
+        let off = make(7, false)?;
+        for plane in Plane::all() {
+            let grid = off.map().ok_or("no map")?.plane(plane);
+            assert!(
+                grid.roads().iter().all(|&r| !r),
+                "no road with the setting off"
+            );
+        }
+        let g = make(7, true)?;
+        let map = g.map().ok_or("no map")?;
+        let cities = g.economy().cities();
+        for (_, _, p) in &cities {
+            assert!(map.plane(p.plane).has_road(p.x as i32, p.y as i32), "{p:?}");
+        }
+        let myrror = map.plane(Plane::Myrror);
+        let arcanus = map.plane(Plane::Arcanus);
+        let mut roads = 0;
+        for plane in Plane::all() {
+            let grid = map.plane(plane);
+            roads += grid.roads().iter().filter(|&&r| r).count();
+            let on_city = |x: i32, y: i32| {
+                cities
+                    .iter()
+                    .any(|(_, _, p)| p.plane == plane && (p.x as i32, p.y as i32) == (x, y))
+            };
+            for y in 0..grid.height() as i32 {
+                for x in 0..grid.width() as i32 {
+                    if plane == Plane::Arcanus {
+                        assert!(!arcanus.has_enchanted_road(x, y), "Arcanus roads are plain");
+                    }
+                    if plane == Plane::Myrror && myrror.has_road(x, y) && !on_city(x, y) {
+                        assert!(myrror.has_enchanted_road(x, y), "({x},{y}) on Myrror");
+                    }
+                }
+            }
+        }
+        assert!(
+            roads > cities.len(),
+            "roads beyond the squares under the cities"
+        );
+        // Every pair of near neutral cities on one landmass with a dry straight line is joined;
+        // over a few worlds there are such pairs.
+        let mut joined = 0;
+        for seed in 1..=6 {
+            let g = make(seed, true)?;
+            let map = g.map().ok_or("no map")?;
+            let cities = g.economy().cities();
+            for plane in Plane::all() {
+                let land = g.landmasses(plane);
+                let w = map.width();
+                let near: Vec<_> = cities
+                    .iter()
+                    .filter(|(_, i, p)| p.plane == plane && g.is_neutral_player(i.owner))
+                    .map(|(_, _, p)| *p)
+                    .collect();
+                for (i, a) in near.iter().enumerate() {
+                    for b in &near[i + 1..] {
+                        let mass = |p: &Position| land[(p.y * w + p.x) as usize];
+                        if mass(a) != mass(b) || range(w, a.x, a.y, b.x, b.y) > 10 {
+                            continue;
+                        }
+                        let line = f4x_core::map::start_road::path_wrap(
+                            a.x as i32, a.y as i32, b.x as i32, b.y as i32, w as i32,
+                        );
+                        let steps = &line[..line.len() - 1];
+                        let dry = steps.iter().all(|&(x, y)| {
+                            g.economy().terrain_class_at(Position {
+                                plane,
+                                x: x as u32,
+                                y: y as u32,
+                            }) != Some(f4x_core::map::terrain::TerrainClass::Ocean)
+                        });
+                        if dry {
+                            joined += 1;
+                            assert!(steps.iter().all(|&(x, y)| map.plane(plane).has_road(x, y)));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            joined > 0,
+            "some neutral cities are near enough to be joined"
+        );
+        Ok(())
+    }
 }
