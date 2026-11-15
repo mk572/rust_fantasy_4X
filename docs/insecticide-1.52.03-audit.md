@@ -123,7 +123,7 @@ Verdicts for the rows of the three tables above, by reading the code; rows not n
 |---|---|
 | 816 Dijkstra for overland paths | **Present.** `path_grid.rs` is a shortest-path search, tested on random grids against a plain Dijkstra. |
 | 769, IW002 Raider costs apart from lair costs | **Present.** `threat/monster.rs` keeps the 1.31 costs; the lair costs of `stronger_lairs` change only new lairs (`docs/lairs.md`). |
-| 760, 045 Entangle and non-corporeal units | **Differs by an earlier decision** (`docs/combat.md`, Entangle table): the help is followed, so Entangle does not hold fliers or non-corporeal units, where the original's code takes the move from every unit and the Community Patch put non-corporeal units back under it. |
+| 760, 045 Entangle and non-corporeal units | **Differs by decision, confirmed 15 November 2026** (`docs/combat.md`, Entangle table): the help is followed, so Entangle does not hold fliers or non-corporeal units, where the original's code takes the move from every unit and the Community Patch put non-corporeal units back under it. |
 | 761, IW070 Previous icon button | **Present.** `step_icon` in `craft_screen.rs` steps back and wraps, with a test. |
 
 ## Optional rows walked on 15 November 2026 (task 457)
