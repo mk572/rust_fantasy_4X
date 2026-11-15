@@ -723,6 +723,7 @@ pub(crate) fn preset_key(preset: Preset) -> &'static str {
     match preset {
         Preset::V131 => "custom.preset_v131",
         Preset::V160 => "custom.preset_v160",
+        Preset::MkMod => "custom.preset_mk_mod",
         Preset::Custom => "custom.preset_custom",
     }
 }

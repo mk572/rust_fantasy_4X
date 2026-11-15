@@ -702,12 +702,20 @@ pub enum RuleSet {
     V131,
     /// The community patch's rule changes.
     V160,
+    /// MK's mod: the options its author wants. It starts as a copy of v1.6 and takes its own
+    /// changes in [`RuleSet::applied`].
+    MkMod,
     /// Every setting by hand.
     Custom,
 }
 
 impl RuleSet {
-    pub const ALL: [RuleSet; 3] = [RuleSet::V131, RuleSet::V160, RuleSet::Custom];
+    pub const ALL: [RuleSet; 4] = [
+        RuleSet::V131,
+        RuleSet::V160,
+        RuleSet::MkMod,
+        RuleSet::Custom,
+    ];
 
     /// `work` with this rule set's rules: the difficulty level's figures for everything but the
     /// basic choices (the map, the opponents), which stay. `Custom` changes nothing.
@@ -720,22 +728,25 @@ impl RuleSet {
             },
             ..level
         };
+        // The patch's changes, as far as they are defined (task 530, from IW018 on still to
+        // check): ships carry eight (IW003).
+        let v160 = GameSettings {
+            rules: RuleSettings {
+                trireme_capacity: MAX_SHIP_CAPACITY,
+                galley_capacity: MAX_SHIP_CAPACITY,
+                walls_cover_city: true,
+                miners_guild_half_ore: true,
+                spell_binding_always_succeeds: true,
+                suppress_spares_return: true,
+                ..base.rules
+            },
+            ..base
+        };
         match self {
             RuleSet::V131 => base,
-            // The patch's changes, as far as they are defined (task 530, from IW018 on still to
-            // check): ships carry eight (IW003).
-            RuleSet::V160 => GameSettings {
-                rules: RuleSettings {
-                    trireme_capacity: MAX_SHIP_CAPACITY,
-                    galley_capacity: MAX_SHIP_CAPACITY,
-                    walls_cover_city: true,
-                    miners_guild_half_ore: true,
-                    spell_binding_always_succeeds: true,
-                    suppress_spares_return: true,
-                    ..base.rules
-                },
-                ..base
-            },
+            RuleSet::V160 => v160,
+            // A copy of v1.6 for now; MK's own options are set here, on top of it.
+            RuleSet::MkMod => v160,
             RuleSet::Custom => work,
         }
     }

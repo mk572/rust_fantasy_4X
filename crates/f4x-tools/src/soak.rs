@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use crate::contestant::{self, Contestant, Version};
 use crate::metrics::{add_casts, casts_line, never_cast, never_cast_in, Metrics, Standing, Tally};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6] [--mastery all|human|off] [--return all|human|off]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -158,8 +158,9 @@ impl Options {
                     o.rules = match value("--rules")?.as_str() {
                         "1.31" => f4x_def::settings::RuleSet::V131,
                         "1.6" => f4x_def::settings::RuleSet::V160,
+                        "mk" => f4x_def::settings::RuleSet::MkMod,
                         other => {
-                            return Err(format!("{other:?} is not a rule set: use 1.31 or 1.6"))
+                            return Err(format!("{other:?} is not a rule set: use 1.31, 1.6 or mk"))
                         }
                     }
                 }
@@ -1047,6 +1048,16 @@ mod tests {
     fn parse(line: &[&str]) -> Result<Options, String> {
         let args: Vec<String> = line.iter().map(|s| s.to_string()).collect();
         Options::parse(&args, "usage")
+    }
+
+    #[test]
+    fn the_rule_set_is_read_by_its_short_name() -> TestResult {
+        use f4x_def::settings::RuleSet;
+        assert_eq!(parse(&["--rules", "1.31"])?.rules, RuleSet::V131);
+        assert_eq!(parse(&["--rules", "1.6"])?.rules, RuleSet::V160);
+        assert_eq!(parse(&["--rules", "mk"])?.rules, RuleSet::MkMod);
+        assert!(parse(&["--rules", "2.0"]).is_err());
+        Ok(())
     }
 
     #[test]
