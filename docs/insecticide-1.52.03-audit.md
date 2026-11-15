@@ -128,7 +128,7 @@ Verdicts for the rows of the three tables above, by reading the code; rows not n
 | 777 and the 013 to 025 bundle | **Present as two switches.** `stronger_lairs` and `treasure_patch_150`, both off. |
 | 773, 774 Swamps in combat | **Not built**, skipped by default as the audit says. |
 | 785 Immolation and Webs | **Not applicable**, see the walked rows above. |
-| 768, IM181 Node power 2.0 and 2.5 | **Open**, to discuss: ours has three levels (weak, normal, powerful). |
+| 768, IM181 Node power 2.0 and 2.5 | **Skipped (decided 15 November 2026).** Ours has the original's three levels, 0.5, 1 and 1.5 per tile; the two higher ones are not offered. |
 | HOTKEY.TXT | **Client.** Not walked. |
 
 ## Optional
