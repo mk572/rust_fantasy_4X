@@ -1,6 +1,7 @@
 # Installers: design
 
-Status: proposal, 2 November 2026. Nothing here is built. Related tasks: 81 (packaging for Mac),
+Status: **accepted by the author, 16 November 2026**, with the decisions of section 8. Tasks 81 and 176 point
+here and carry no detail of their own: this file is the one source of truth. Written as a proposal on 2 November 2026. Related tasks: 81 (packaging for Mac),
 176 (Mac installer), 363 (music from the MT-32 emulation), 460 (what is shipped in the executable).
 Facts about this repository below were read from the code and measured; facts about other projects
 and tools are from memory and marked **(verify)**. The spikes in section 9 check them.
@@ -277,7 +278,19 @@ Ordered so that each step is useful on its own. These are proposals, not tasks y
 When the author accepts the design, tasks 81 and 176 are replaced by this list. Task 176's wording
 ("asks for the original files, extracts, builds a local app") is option A of section 5.
 
-## 8. Open decisions
+## 8. Decisions
+
+Decided by the author on 16 November 2026 (the table below keeps the earlier suggestions for the record):
+
+- **Prebuilt game (B)**, no compiling by players. **Apple silicon (arm64) only** for now; Intel maybe later, so no `lipo`/universal build yet (the suggestion of rows 1 and 8 stands for the other points).
+- **No Apple developer account, no app store.** The app is unsigned; the docs give the right-click Open and `xattr -cr` steps (row 7).
+- **No Python, no Rust toolchain, no ReMoM on the player's machine.** `content-local/` is retired: nothing reads it, and the old files are archived in `reference/content-local-archive/` (gitignored). Remove it from `make_app.sh`, `list_ogbugs.py`, `test_changed.py`, `local-assets.md` and `rival.ron`, and retire `import_mom_text.py`.
+- **Music is in**, rendered from the original's XMI files with the MT-32 ROMs (3.2). The ROM download is accepted, with the "I have them" path as the equal alternative. The player needs the original game files for both.
+- **Where things go on a Mac:** the app in `/Applications/Fantasy4X.app`, the data folder (extracted art, audio, music, saves) in `~/Library/Application Support/Fantasy4X/` (3.5).
+- **Build locally first**; the tag-triggered GitHub Actions release workflow (step 7) comes later.
+- **Row 6 is decided the other way:** the cleaned buttons, fonts and river pictures stay embedded in the binary (section 10).
+
+## 8a. Earlier suggestions (open decisions of 2 November)
 
 | # | Decision | Suggested answer |
 |---|---|---|
@@ -302,3 +315,27 @@ Each is a day or less and answers one "verify" above:
    the wrapper layer, so we do not hand-write it.
 4. Reading `CITYNAME.LBX`, `DIPLOMSG.LBX` and `EVENTMSG.LBX` in Rust and matching the script's output byte for byte.
 5. A universal macOS build of the client with `lipo` on the Apple silicon runner.
+
+## 10. What the executable and the package carry (task 460)
+
+Measured on 16 November 2026: `f4x-client` release binary 15 MB.
+
+**Embedded in the binary** (`include_bytes!`/`include_str!`, in the repository, CC0 by the author's choice):
+
+| What | Where | Note |
+|---|---|---|
+| the 8 font styles | `crates/f4x-client/assets/fonts/` | the original's glyphs, hand-fixed; accepted 16 November 2026 |
+| the text-free buttons | `assets/button/` (52 files) | copies of the original's buttons without lettering; the labels are text keys; accepted |
+| the battlefield river pictures | `assets/rivers/` (60) | accepted 17 October and 16 November 2026 |
+| the neutral races' pictures | `assets/neutral/` (56) | new art |
+| the summon scene picture | `assets/summoning/` | new art |
+
+**Shipped as files in the app** (`Contents/Resources`, found relative to the working directory today; 3.5 replaces that): `crates/f4x-def/content/` (304 KB, the rules), `crates/f4x-lang/content/` (460 KB, all texts), `crates/f4x-client/content/` (132 KB, hotkeys, art tables, text). These are needed and are not embedded; embedding them is possible later but not planned.
+
+**Local data written by the setup on the player's machine, never shipped:** `assets-local/art`, `screens`, `audio` (sound effects and music), `packs.tsv`, `index.tsv`. The extraction **leaves out what the game never draws**: the pictures of `crates/f4x-client/extract/unused.tsv` (today `f4x-extract art` files them in `assets-unused/` for the author's scripts; the player's setup does not write them), the XMI sources and instrument banks once the music is rendered, the manifests and reports, `neutral/`, `palette-swap/` and `shots/` (the author's working files), and `art/fonts/` (the fonts are embedded).
+
+**Kept in the game:** the in-game console with its cheats (`mode override`; every use is logged in the save), and the client's `--shot` and scene flags (not discussed with the author; they stay unless he says otherwise).
+
+**Not in the package, not built for players:** helper scripts (`scripts/`), `docs/`, tests and test data, `crates/f4x-ai-ref` (the frozen copy of the AI), `f4x-learn` and the learning tools, `f4x-tools` (soaks and development commands), the `reference/` and `assets-unused/` folders, `content-local/`.
+
+`f4x-client` today links `f4x-ai`, `f4x-console`, `f4x-master`, `f4x-newgame`, `f4x-def`, `f4x-lang`, `f4x-core` and `f4x-extract` without its `extract` feature (tables only). The extractor binary `f4x-extract` (crate `crates/f4x-client/extract`) already holds the reading of the original's files (`lbx`, `art`, `audio`, `sound`, `fonts`, `pack`...), so the "f4x-import library" of 6.1 is largely this crate; the split of step 5 is to check against it before anything is moved.
