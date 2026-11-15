@@ -49,8 +49,8 @@ MADE_UP = [
 ]
 HAND_BUILT = [
     (
-        r"\b(?:Item|Lair|Hero|City|Treasury)\s*\{\s*[a-z_]+\s*:",
-        "hand-built game object (`Item`, `Lair`, `Hero`, `City`, `Treasury` literal)",
+        r"\b(?:Item|Hero|City|Treasury)\s*\{\s*[a-z_]+\s*:",
+        "hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal)",
     ),
     (r"\.spawn\(\(\s*[^)\s]", "hand-built entity (`spawn` with components)"),
 ]
@@ -58,6 +58,8 @@ MADE_UP_LABELS = {label for _, label in MADE_UP}
 COMPILED = [(re.compile(p), label) for p, label in MADE_UP + HAND_BUILT]
 
 # Files `rust_coding_rules.md` names as allowed to build their own content, with its reason.
+# A `Lair` literal is not flagged: a test may fill the lair structure with the guards, hoard and
+# values it needs (agreed with the user), as long as it is the real structure.
 NAMED_EXCEPTIONS = {
     "crates/f4x-core/src/hook.rs": "validator test",
     "crates/f4x-core/src/game/save/tests.rs": "a save naming a unit the content lacks",
