@@ -7,9 +7,11 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+use crate::net::Http;
 use f4x_extract::paths::Roots;
 use f4x_lang::text::Args;
-use f4x_setup::flow::{self, Stopped, Ui};
+use f4x_setup::flow::{self, Job, MusicChoice, MusicPlan, Stopped, Ui};
+use f4x_setup::roms;
 use f4x_setup::say::Say;
 use macroquad::prelude::*;
 use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
@@ -59,6 +61,62 @@ impl Ui for Dialogs<'_> {
             .get("setup.try_again", &Args::new().text("problem", problem));
         self.ask(MessageLevel::Error, &text, "setup.choose_other")
     }
+
+    fn problem(&mut self, text: &str) {
+        MessageDialog::new()
+            .set_level(MessageLevel::Error)
+            .set_title(self.say.plain("setup.title"))
+            .set_description(text)
+            .set_buttons(MessageButtons::Ok)
+            .show();
+    }
+
+    fn music(&mut self) -> MusicChoice {
+        loop {
+            let (download, have, skip) = (
+                self.say.plain("setup.music_download"),
+                self.say.plain("setup.music_have"),
+                self.say.plain("setup.music_skip"),
+            );
+            let answer = MessageDialog::new()
+                .set_level(MessageLevel::Info)
+                .set_title(self.say.plain("setup.title"))
+                .set_description(self.say.plain("setup.music_ask"))
+                .set_buttons(MessageButtons::YesNoCancelCustom(
+                    download.clone(),
+                    have.clone(),
+                    skip,
+                ))
+                .show();
+            match answer {
+                MessageDialogResult::Custom(label) if label == download => {
+                    let names: Vec<String> = roms::FILES
+                        .iter()
+                        .map(|(name, _)| name.to_string())
+                        .collect();
+                    let text = self.say.get(
+                        "setup.music_confirm",
+                        &Args::new()
+                            .list("names", names)
+                            .text("page", roms::SOURCE_PAGE)
+                            .text("size", crate::terminal::megabytes(roms::ZIP_BYTES)),
+                    );
+                    if self.ask(MessageLevel::Warning, &text, "setup.music_download") {
+                        return MusicChoice::Download;
+                    }
+                }
+                MessageDialogResult::Custom(label) if label == have => {
+                    let picked = FileDialog::new()
+                        .set_title(self.say.plain("setup.choose_roms"))
+                        .pick_folder();
+                    if let Some(folder) = picked {
+                        return MusicChoice::Folder(folder);
+                    }
+                }
+                _ => return MusicChoice::Skip,
+            }
+        }
+    }
 }
 
 /// What the work window shows.
@@ -69,18 +127,33 @@ enum Progress {
 
 /// Choose the folder in dialogs, then run the work behind a progress window.
 pub fn run(say: Say, roots: Roots) -> Result<(), String> {
-    let folder = {
+    let (folder, plan) = {
         let mut ui = Dialogs { say: &say };
-        match flow::choose_original(&mut ui, &say, &roots.data, None) {
+        let folder = match flow::choose_original(&mut ui, &say, &roots.data, None) {
             Ok(folder) => folder,
             Err(Stopped::Cancelled | Stopped::Declined(_)) => return Ok(()),
-        }
+        };
+        let plan = match flow::choose_music(&mut ui, &say, &roots.data, None) {
+            Ok(plan) => plan,
+            Err(Stopped::Cancelled | Stopped::Declined(_)) => MusicPlan::Skip,
+        };
+        (folder, plan)
     };
     let (sender, receiver) = mpsc::channel();
     let work_say = Say::load(&roots.game)?;
     let (data, game) = (roots.data.clone(), roots.game.clone());
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     thread::spawn(move || {
-        let result = flow::run(&work_say, &folder, &data, &game, &mut |sentence| {
+        let job = Job {
+            say: &work_say,
+            original: &folder,
+            data: &data,
+            game: &game,
+            music: plan,
+            fetch: &Http,
+            exe: &exe,
+        };
+        let result = flow::run(&job, &mut |sentence| {
             let _ = sender.send(Progress::Working(sentence.to_string()));
         });
         let _ = sender.send(Progress::Finished(result));
@@ -89,7 +162,7 @@ pub fn run(say: Say, roots: Roots) -> Result<(), String> {
     let conf = Conf {
         window_title: say.plain("setup.title"),
         window_width: 720,
-        window_height: 260,
+        window_height: 300,
         window_resizable: false,
         ..Default::default()
     };
@@ -124,7 +197,7 @@ async fn window(say: Say, receiver: Receiver<Progress>, outcome: Arc<Mutex<Resul
     prevent_quit();
     let mut sentence = String::new();
     let mut finished: Option<Result<String, String>> = None;
-    let button = Rect::new(560.0, 200.0, 130.0, 36.0);
+    let button = Rect::new(560.0, 245.0, 130.0, 36.0);
     loop {
         loop {
             match receiver.try_recv() {

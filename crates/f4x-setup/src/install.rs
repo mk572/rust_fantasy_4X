@@ -74,6 +74,20 @@ pub struct Summary {
     pub folder: PathBuf,
 }
 
+/// `data/assets-local`, after checking that it is not a link: the work would end up somewhere else
+/// (the author's own working folder, for one).
+pub fn checked_assets(data: &Path) -> Result<PathBuf, InstallError> {
+    let assets = data.join(ASSETS);
+    if fs::symlink_metadata(&assets).is_ok_and(|m| m.file_type().is_symlink()) {
+        let target = fs::read_link(&assets).unwrap_or_default();
+        return Err(InstallError::Link {
+            folder: assets,
+            target,
+        });
+    }
+    Ok(assets)
+}
+
 /// Extract the pictures of the original in `original` into `data/assets-local/`.
 ///
 /// `game` is the folder with the game's own files (`crates/...`), which hold the tables saying which
@@ -84,15 +98,7 @@ pub fn install_art(
     game: &Path,
     stage: &mut dyn FnMut(Stage),
 ) -> Result<Summary, InstallError> {
-    let assets = data.join(ASSETS);
-    // A link would send the result somewhere else (the author's own working folder, for one).
-    if fs::symlink_metadata(&assets).is_ok_and(|m| m.file_type().is_symlink()) {
-        let target = fs::read_link(&assets).unwrap_or_default();
-        return Err(InstallError::Link {
-            folder: assets,
-            target,
-        });
-    }
+    let assets = checked_assets(data)?;
     paths::set_game_dir(game.to_path_buf());
     let client_content = game.join("crates/f4x-client/content");
     let content = [client_content.as_path()];

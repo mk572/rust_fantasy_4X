@@ -3,6 +3,7 @@
 //! * [`original`] finds the original's folder and checks that it is the right one.
 //! * [`install`] extracts the pictures into the data folder (`assets-local/`), leaving out what the
 //!   game never draws.
+//! * [`roms`] and [`sound`] make the sound effects and the music (the music needs the MT-32 ROMs).
 //! * [`say`] holds the player-facing sentences, read by key from `crates/f4x-lang/content/text/`.
 //! * [`flow`] is the order of things: welcome, choosing and checking the folder, the work. It talks
 //!   to the player through the [`flow::Ui`] trait, so it is tested without windows.
@@ -16,4 +17,6 @@
 pub mod flow;
 pub mod install;
 pub mod original;
+pub mod roms;
 pub mod say;
+pub mod sound;

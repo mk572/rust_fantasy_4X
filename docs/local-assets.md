@@ -74,10 +74,10 @@ on 13 November 2026: `art/` went from 19,414 files (108 MB on disk) to 455 files
 cargo run --release -p f4x-extract -- audio "reference/mom-classic/Master of Magic Official Release"
 ```
 
-Needs `oggenc` (`brew install vorbis-tools`; `ffmpeg` is the fallback). Writes the 154 effects of `SOUNDFX`, `CMBTSND`, `NEWSOUND` and `INTROSFX` as OGG
+Nothing else is needed: the OGG files are encoded in the program (libvorbis through `vorbis_rs`, no `oggenc` or `ffmpeg`). Writes the 154 effects of `SOUNDFX`, `CMBTSND`, `NEWSOUND` and `INTROSFX` as OGG
 (`<archive>/<entry>_<name>.ogg`), the 118 songs of `MUSIC` and `INTROSND` unchanged as XMI (`music/NNN_name.xmi`; they
 are not yet audio, task 363), the MT-32 timbre banks in `timbres/`, and `index.tsv`. What plays when: [`sound.md`](sound.md).
-Format code: `crates/f4x-tools/src/audio.rs`.
+Format code: `crates/f4x-client/extract/src/audio.rs` and `ogg.rs`. A player's setup (`f4x-setup`, `installer-design.md`) makes only what the game plays: `soundfx`, `cmbtsnd`, `newsound` and the rendered `music/*.ogg`; the songs are rendered by `tools/xmi-play`'s `f4x-music` (23 seconds on 8 cores).
 The client plays them (`crates/f4x-client/src/audio.rs`, macroquad's audio): `--audio DIR` names another folder, `--mute`
 plays nothing, `--hear soundfx:2` plays one sound and quits (a check that a file decodes). Without the folder the
 game is silent. Which entry a spell or unit plays is `crates/f4x-client/content/sound.ron` (`scripts/sound_table.py`).

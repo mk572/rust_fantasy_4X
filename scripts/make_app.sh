@@ -29,7 +29,7 @@ Options:
   -h, --help      print this help and exit
 
 Needs: cargo and an Apple silicon Mac (a release build, codesign, hdiutil, ditto). Runs from anywhere
-(it changes to the repo root). Writes: the two apps in target/, replacing earlier ones, and with
+(it changes to the repo root). Also builds tools/xmi-play (f4x-music). Writes: the two apps in target/, replacing earlier ones, and with
 --dist the dmg and zip. Exit status 2 for a usage error.
 USAGE
 }
@@ -58,14 +58,22 @@ version=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version *= *"\(.*\)"/\1/p' Ca
 # Two builds, not one: the setup does not need the game's sound, and one build would join the features.
 cargo build --release -p f4x-client
 cargo build --release -p f4x-setup
+# The music program is LGPL and has its own workspace (docs/installer-design.md 3.3); it only goes into the setup app.
+cargo build --release --manifest-path tools/xmi-play/Cargo.toml --bin f4x-music
 
-# make_bundle APP_DIR PROGRAM DISPLAY_NAME IDENTIFIER: one app with the shipped files, icon and plist.
+# make_bundle APP_DIR PROGRAM DISPLAY_NAME IDENTIFIER [EXTRA_PROGRAM]: one app with the shipped files, icon
+# and plist; an extra program (the music program) goes beside the main one with its licence files.
 make_bundle() {
     bundle=$1
     program=$2
     res="$bundle/Contents/Resources"
     mkdir -p "$bundle/Contents/MacOS" "$res/crates/f4x-def" "$res/crates/f4x-lang" "$res/crates/f4x-client"
     cp "target/release/$program" "$bundle/Contents/MacOS/$program"
+    if [ -n "${5:-}" ]; then
+        cp "$5" "$bundle/Contents/MacOS/"
+        mkdir -p "$res/legal"
+        cp third_party/mt32-rs/LGPL21.txt third_party/mt32-rs/AUTHORS.txt packaging/macos/MUSIC-LICENSE.txt "$res/legal/"
+    fi
     cp -R crates/f4x-def/content "$res/crates/f4x-def/content"
     cp -R crates/f4x-lang/content "$res/crates/f4x-lang/content"
     cp -R crates/f4x-client/content "$res/crates/f4x-client/content"
@@ -98,7 +106,7 @@ setup_app="target/Fantasy 4X Setup.app"
 rm -rf target/Fantasy4X.app
 rm -rf "target/Fantasy 4X Setup.app"
 make_bundle "$app" f4x-client "Fantasy 4X" io.github.fantasy4x
-make_bundle "$setup_app" f4x-setup "Fantasy 4X Setup" io.github.fantasy4x.setup
+make_bundle "$setup_app" f4x-setup "Fantasy 4X Setup" io.github.fantasy4x.setup tools/xmi-play/target/release/f4x-music
 
 if [ "$dist" = 1 ]; then
     name="Fantasy4X-$version-macos-arm64"

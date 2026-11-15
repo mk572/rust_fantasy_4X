@@ -1,0 +1,16 @@
+f4x-music, the music program of Fantasy 4X Setup
+================================================
+
+The program f4x-music (in this app, next to f4x-setup) renders the original game's songs to
+OGG files. It is a separate program, started by the setup, and is licensed under the GNU Lesser
+General Public License, version 2.1 or (at your option) any later version, because it contains
+mt32-rs, a Roland MT-32 emulation written in Rust as a port of the synthesis engine of Munt
+(https://github.com/munt/munt, mt32emu). Its encoder, libvorbis, is licensed under the BSD
+licence.
+
+The licence text is in LGPL21.txt and the authors are in AUTHORS.txt, in this folder.
+
+The source of f4x-music is in the project's repository, folders tools/xmi-play and
+third_party/mt32-rs: https://github.com/mk572/rust_fantasy_4X
+
+The rest of Fantasy 4X, including f4x-setup, is public domain (CC0). It does not link mt32-rs.

@@ -21,7 +21,7 @@ const USAGE: &str = "usage:
   f4x-extract art <game-dir> [out-dir] [--loose]
                                           decode the original game's pictures, into sprite packs (--loose:
                                           leave them as PNG files; default out: assets-local/art)
-  f4x-extract audio <game-dir> [out-dir]  the original's effects as OGG (needs oggenc or ffmpeg), its music
+  f4x-extract audio <game-dir> [out-dir]  the original's effects as OGG, its music
                                           as XMI (default out: assets-local/audio)
   f4x-extract pack [root] [--keep]        put the loose pictures under root (default: assets-local) into
                                           sprite packs, one per folder (units by race), and write packs.tsv;

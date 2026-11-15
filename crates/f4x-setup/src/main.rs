@@ -7,6 +7,7 @@
 //! Tests: the steps and the flow are in the library; `gui.rs` is tried by hand.
 
 mod gui;
+mod net;
 mod terminal;
 
 use std::path::PathBuf;
@@ -14,6 +15,7 @@ use std::process::ExitCode;
 
 use f4x_extract::paths;
 use f4x_lang::text::Args;
+use f4x_setup::flow::MusicChoice;
 use f4x_setup::say::Say;
 
 /// What the command line asked for.
@@ -22,6 +24,8 @@ struct Args_ {
     game: Option<PathBuf>,
     data: Option<PathBuf>,
     check_only: bool,
+    /// The answer about the music given on the command line.
+    music: Option<MusicChoice>,
 }
 
 /// What went wrong with the command line (a key and its option), or that help was asked for.
@@ -37,18 +41,21 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Args_, CommandLine> {
         game: None,
         data: None,
         check_only: false,
+        music: None,
     };
     let mut args = args;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--cli" => parsed.cli = true,
             "--check" => parsed.check_only = true,
-            "--game" | "--data" => {
+            "--no-music" => parsed.music = Some(MusicChoice::Skip),
+            "--download-roms" => parsed.music = Some(MusicChoice::Download),
+            "--game" | "--data" | "--roms" => {
                 let folder = args.next().ok_or(CommandLine::NeedsFolder(arg.clone()))?;
-                if arg == "--game" {
-                    parsed.game = Some(folder.into());
-                } else {
-                    parsed.data = Some(folder.into());
+                match arg.as_str() {
+                    "--game" => parsed.game = Some(folder.into()),
+                    "--data" => parsed.data = Some(folder.into()),
+                    _ => parsed.music = Some(MusicChoice::Folder(folder.into())),
                 }
             }
             "-h" | "--help" => return Err(CommandLine::Help),
@@ -93,7 +100,7 @@ fn run() -> Result<(), String> {
         }
     };
     if args.cli || args.game.is_some() || args.check_only {
-        terminal::run(&say, &roots, args.game, args.check_only)
+        terminal::run(&say, &roots, args.game, args.music, args.check_only)
     } else {
         gui::run(say, roots)
     }
