@@ -936,3 +936,7 @@ unit's, so they do not count for or against it.
 One exception: Lycanthropy. It does not end an effect, it replaces a unit with Werewolves that keep
 its wounds, so a body too small for them is left on its last hit point (`spell/wizard.rs`, test
 `lycanthropy_leaves_a_werewolf_that_cannot_take_the_wounds_on_its_last_hit_point`).
+
+## 46. A finished road reaches the towns beside it
+
+In the original a town has a road under it only if the world generator gave it one (`Generate_Roads`, setting `roads_at_start`), so engineers who build a road up to a town beside it leave the town unconnected until they also build on the town's own square (a road halves a step only between two road squares, and the trade bonus needs a road under the town). Ours: when engineers finish a road on a square, every town beside it (any owner, diagonals too) that has no road under it gets one, whatever the setting says (`map/road.rs` `road_under_towns_beside`, test `a_finished_road_makes_a_road_under_the_town_beside_it`). A road that was already there when the work reached the square does not do it.

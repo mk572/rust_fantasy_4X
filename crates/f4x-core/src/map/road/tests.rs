@@ -145,6 +145,37 @@ fn one_engineer_needs_three_turns_on_grassland() {
     assert!(g.world.get::<&RoadWork>(e).is_err(), "the work is over");
 }
 
+/// A finished road reaches the towns beside it: a town with no road under it gets one (any owner,
+/// any setting), a town that has one is left as it is, and a square two away is not touched.
+#[test]
+fn a_finished_road_makes_a_road_under_the_town_beside_it() {
+    let mut g = world();
+    let human_city = g.spawn_city(P0, at(6, 5), "Near".into(), None, 3);
+    let _ = human_city;
+    g.add_player(PlayerId(1), "R");
+    g.spawn_city(PlayerId(1), at(4, 4), "Rival".into(), None, 3);
+    g.spawn_city(P0, at(5, 7), "Far".into(), None, 3);
+    let e = engineer(&mut g, 78 /* dwarven_engineers */, at(5, 5)); // 1 turn on grassland
+    let events = g.apply(Command::BuildRoad {
+        units: vec![e],
+        path: vec![],
+    });
+    let events: Vec<_> = events
+        .into_iter()
+        .chain(g.process_road_work_all())
+        .collect();
+    assert!(has_road(&g, at(5, 5)));
+    assert!(has_road(&g, at(6, 5)), "the town to the east");
+    assert!(has_road(&g, at(4, 4)), "a rival's town counts too");
+    assert!(!has_road(&g, at(5, 7)), "two squares away is not beside");
+    for pos in [at(5, 5), at(6, 5), at(4, 4)] {
+        assert!(
+            events.contains(&Event::RoadBuilt { pos }),
+            "{pos:?} is reported: {events:?}"
+        );
+    }
+}
+
 #[test]
 fn a_strong_stack_divides_the_time_but_never_below_one_turn() {
     let mut g = world();

@@ -244,6 +244,7 @@ impl Game {
                         .set_road(work.at.x, work.at.y, true);
                 }
                 events.push(Event::RoadBuilt { pos: work.at });
+                events.extend(self.road_under_towns_beside(work.at));
             }
             let Some(&next) = work.rest.first() else {
                 for &u in group {
@@ -277,6 +278,27 @@ impl Game {
         }
         for &u in group {
             self.put(u, work.clone());
+        }
+        events
+    }
+
+    /// A road finished on `at` reaches the towns beside it: a town without a road under it gets
+    /// one (whoever owns the town, and whatever the setting `roads_at_start` says), so that the
+    /// road connects to it. Returns the roads made.
+    fn road_under_towns_beside(&mut self, at: Position) -> Vec<Event> {
+        let mut events = Vec::new();
+        for pos in crate::unit::pathing::neighbours(self, at) {
+            if self.economy().city_at(pos).is_none() {
+                continue;
+            }
+            let Some(map) = self.map.as_mut() else {
+                break;
+            };
+            let grid = map.plane_mut(pos.plane);
+            if !grid.has_road(pos.x as i32, pos.y as i32) {
+                grid.set_road(pos.x, pos.y, true);
+                events.push(Event::RoadBuilt { pos });
+            }
         }
         events
     }
