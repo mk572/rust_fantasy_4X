@@ -2282,3 +2282,28 @@ fn a_building_destroyed_and_built_again_in_the_same_turn_works() -> TestResult {
     assert_eq!(gold(&g), with);
     Ok(())
 }
+
+#[test]
+fn a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop() -> TestResult {
+    // Row 347 of the 1.50 notes: the original let units go on with an order given before the
+    // spell was cast. The wizard of P1 walks; the Time Stop is the first wizard's.
+    let (mut g, _, _) = two_cities(true)?;
+    let spear = g
+        .content
+        .rules
+        .units
+        .id_numbered(95)
+        .ok_or("high_elf_spearmen is not in the content")?;
+    let walker = g.spawn_unit(PlayerId(1), at(16, 8), spear);
+    g.world
+        .insert_one(walker, crate::unit::Order::GoTo(vec![at(17, 8), at(18, 8)]))?;
+    g.start_player_turn(PlayerId(1));
+    assert_eq!(g.units().unit_position(walker), Some(at(16, 8)));
+    // The wizard who keeps it moves as ever.
+    let own = g.spawn_unit(P0, at(10, 8), spear);
+    g.world
+        .insert_one(own, crate::unit::Order::GoTo(vec![at(11, 8)]))?;
+    g.start_player_turn(P0);
+    assert_eq!(g.units().unit_position(own), Some(at(11, 8)));
+    Ok(())
+}

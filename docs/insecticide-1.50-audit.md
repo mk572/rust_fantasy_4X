@@ -391,7 +391,16 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | 323 Holy Weapon has no effect in combat | **Not present.** The spell is a lasting enchantment whose numbers are rebuilt from the base and the spells on the unit, in a battle as on the map; it is in the model matrix of task 604 (`OWN_UNIT_SPELLS`), which checks that casting and dispelling leave exactly the right unit. |
 | 325 Cancelling Spell Charge leaves a free, uncounted power | **Not present.** The design of the item holds the charges in one field (`ItemDesign::charges`); cancelling sets it to `None`, and both the places used (`CraftUi::used`) and the price read that field. Nothing stays behind. |
 
-Next: the row after 325 and the rest of the table in order.
+### Walked on 15 November 2026: 328, 337, 347, 348
+
+| Rows | Verdict |
+|---|---|
+| 328 The AI skips Invulnerability units as Dispel Magic targets | **Not present.** The dispel's value counts every lasting spell on an enemy unit (up to three) without looking at which (`f4x-ai/src/battle/cast.rs`, `counter_effect` "dispel"); Invulnerability is a spell like the others. A battle spell can dispel it (test `invulnerability_can_be_dispelled_in_a_battle`). |
+| 337 The AI attacks flying units it cannot attack; does not override the chosen target | **Not present.** The AI's melee goes only to adjacent enemies and is valued by `expected_damage`, which uses the strength the attacker really has against a flier (`melee_vs_fliers`) and is zero when the target is immune to the attack's nature; a walker that cannot hurt the fliers holds its place (test `a_walker_outmatched_by_fliers_it_cannot_hurt_holds_its_place`). The AI picks its target afresh each order from the units' positions; no same-type shortcut exists. I did not check what the engine does with a ranged-only attack that cannot reach. |
+| 347 Units keep moving during Time Stop | **Not present.** Every other wizard's units start the turn with no moves left while Time Stop lasts, so a standing order (`Order::GoTo`) is followed with nothing to spend and stays. Test `a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop`, which also checks that the keeper's own orders go on. |
+| 348 The ghost central structure stops the AI's melee | **Not present.** A battle has a structure square only for a lair, an outpost or a tower (`battle/map.rs`), and the AI's melee goes to units adjacent by position, not through the map's structure. |
+
+Next: row 349 and the rest of the table in order.
 
 ## P2 code review: first pass
 
