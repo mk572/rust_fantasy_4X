@@ -5304,6 +5304,40 @@ fn cast_on(g: &mut Game, spell: u16, target: usize) -> Result<Vec<Event>, Battle
     })
 }
 
+/// 1.50 notes 447, 451, 495: a battle turn changes hands only by `EndTurn`, whether or not a
+/// unit can still move. A side whose units are all spent (or held still) keeps its turn, and its
+/// wizard still casts; ending the turn once passes it once, with no turn lost on either side.
+#[test]
+fn a_side_whose_units_cannot_move_keeps_its_turn_and_its_casting() -> TestResult {
+    let mut g = wizard_battle(107 /* high_men_cavalry */, &[4 /* giant_strength */]);
+    {
+        let b = &mut g.battle.as_mut().ok_or("no battle")?.battle;
+        for u in b.units.iter_mut().filter(|u| u.side == Side::Attacker) {
+            u.moves_left = HalfInt::ZERO;
+            u.attacked = true;
+        }
+        assert_eq!((b.active, b.turn), (Side::Attacker, 1));
+    }
+    // Nothing is left for the units to do, and the turn is still the attacker's first.
+    cast_on_first(&mut g, 4 /* giant_strength */).map_err(|e| format!("{e:?}"))?;
+    let b = g.battle().ok_or("no battle")?;
+    assert_eq!((b.active, b.turn), (Side::Attacker, 1));
+    // One EndTurn: the defender's turn of the same round, with its units' full moves.
+    g.battle_command(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
+    let b = g.battle().ok_or("no battle")?;
+    assert_eq!((b.active, b.turn), (Side::Defender, 1));
+    assert!(b
+        .active_units(Side::Defender)
+        .all(|u| u.moves_left == u.moves));
+    // And one more brings the attacker's second round.
+    g.battle_command(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
+    let b = g.battle().ok_or("no battle")?;
+    assert_eq!((b.active, b.turn), (Side::Attacker, 2));
+    Ok(())
+}
+
 #[test]
 fn a_lasting_spell_is_cast_on_a_unit_once() -> TestResult {
     let mut g = wizard_battle(107 /* high_men_cavalry */, &[4 /* giant_strength */]);

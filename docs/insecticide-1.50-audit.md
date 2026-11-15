@@ -457,7 +457,15 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | 443, 459 Runemaster's dispel bonus not granted, or granted without the retort in combat | **Present: we have no such bonus.** The original's Runemaster also strengthens its holder's dispels (help text silent); `retorts.ron` has only the cost and research of Arcane spells. Task 611. |
 | 484 Arcanus starting cities have Enchanted Roads under them | **Not present.** The roads of a new world (`roads_at_start`, on in v1.31 and v1.6, `map/start_road.rs`) are plain on Arcanus and enchanted between cities on Myrror only; the squares under the cities are plain on both planes. |
 
-Next: row 445 and the rest of the table in order.
+Next: rows 456, 457, 458 and the rest of the table in order.
+
+
+### Walked on 15 November 2026: 445, 447, 451, 495
+
+| Rows | Verdict |
+|---|---|
+| 445 Diagonal combat movement inconsistently costs half a move | **Not present.** One rule: a step costs the entered square's cost whatever the direction (`BattleMap::reachable_as`); `diagonal_extra_cost` is the overland map's only. Test `reach_follows_move_points_diagonals_and_obstacles`. |
+| 447, 451, 495 Auto-combat free turn, extra initial end-turn, spellcasting skipped when units are immobilised | **Not present.** A battle turn changes hands only by `EndTurn` (`Battle::apply`); nothing ends it because units cannot move, and casting does not look at moves (the AI casts before it orders units, `cast::next_command`). A battle starts on the attacker's turn 1 with full moves. Tests `a_new_battle_starts_with_the_attacker_and_full_moves`, and new `a_side_whose_units_cannot_move_keeps_its_turn_and_its_casting`. |
 
 ## P2 code review: first pass
 
