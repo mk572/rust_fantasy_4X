@@ -1,123 +1,112 @@
 //! `f4x-setup`: set the game up from the player's own copy of the original.
 //!
-//! Nothing from the original leaves this machine: the pictures are written to the player's data
-//! folder and nowhere else. See `docs/installer-design.md`.
+//! Without options it opens windows (a folder picker and a progress window); `--cli` asks and
+//! answers in the terminal. Nothing from the original leaves this machine: the pictures are written
+//! to the player's data folder and nowhere else. See `docs/installer-design.md`.
 //!
-//! Tests: the logic is in the library (`original`, `install`); this file only asks and prints.
+//! Tests: the steps and the flow are in the library; `gui.rs` is tried by hand.
 
-use std::io::{self, BufRead, Write};
-use std::path::{Path, PathBuf};
+mod gui;
+mod terminal;
+
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use f4x_extract::paths;
-use f4x_setup::{install, original};
+use f4x_lang::text::Args;
+use f4x_setup::say::Say;
 
-const USAGE: &str =
-    "f4x-setup: extract the pictures of your own copy of Master of Magic for the game.
-
-usage: f4x-setup [--game DIR] [--data DIR] [--check]
-  --game DIR   the folder with your copy of the original (asked for when left out)
-  --data DIR   where the game keeps its pictures and saves (default: the game's own folder for
-               your user; on a Mac ~/Library/Application Support/Fantasy4X)
-  --check      only check that the copy is complete; extract nothing
-Nothing from the original is uploaded or copied anywhere but into the data folder.";
-
-struct Args {
+/// What the command line asked for.
+struct Args_ {
+    cli: bool,
     game: Option<PathBuf>,
     data: Option<PathBuf>,
     check_only: bool,
 }
 
-fn parse(args: impl Iterator<Item = String>) -> Result<Args, String> {
-    let mut parsed = Args {
+/// What went wrong with the command line (a key and its option), or that help was asked for.
+enum CommandLine {
+    Help,
+    Unknown(String),
+    NeedsFolder(String),
+}
+
+fn parse(args: impl Iterator<Item = String>) -> Result<Args_, CommandLine> {
+    let mut parsed = Args_ {
+        cli: false,
         game: None,
         data: None,
         check_only: false,
     };
     let mut args = args;
     while let Some(arg) = args.next() {
-        let mut value = |name: &str| {
-            args.next()
-                .ok_or_else(|| format!("{name} needs a folder\n\n{USAGE}"))
-        };
         match arg.as_str() {
-            "--game" => parsed.game = Some(value("--game")?.into()),
-            "--data" => parsed.data = Some(value("--data")?.into()),
+            "--cli" => parsed.cli = true,
             "--check" => parsed.check_only = true,
-            "-h" | "--help" => return Err(USAGE.to_string()),
-            other => return Err(format!("unknown option {other}\n\n{USAGE}")),
+            "--game" | "--data" => {
+                let folder = args.next().ok_or(CommandLine::NeedsFolder(arg.clone()))?;
+                if arg == "--game" {
+                    parsed.game = Some(folder.into());
+                } else {
+                    parsed.data = Some(folder.into());
+                }
+            }
+            "-h" | "--help" => return Err(CommandLine::Help),
+            _ => return Err(CommandLine::Unknown(arg)),
         }
     }
     Ok(parsed)
 }
 
-fn ask_for_folder() -> Result<PathBuf, String> {
-    print!("Folder with your copy of Master of Magic (you can drag it here): ");
-    io::stdout().flush().map_err(|e| e.to_string())?;
-    let mut line = String::new();
-    io::stdin()
-        .lock()
-        .read_line(&mut line)
-        .map_err(|e| e.to_string())?;
-    // A folder dragged into a terminal arrives quoted or with escaped spaces.
-    let text = line.trim().trim_matches(['\'', '"']).replace("\\ ", " ");
-    if text.is_empty() {
-        return Err("no folder given.".into());
-    }
-    Ok(PathBuf::from(text))
-}
-
-fn run() -> Result<(), String> {
-    let args = parse(std::env::args().skip(1))?;
-    let chosen = match args.game {
-        Some(dir) => dir,
-        None => ask_for_folder()?,
-    };
-    let folder = original::find(Path::new(&chosen))?;
-    println!("Found the game's files in {}", folder.display());
-    let result = original::check(&folder)?;
-    if !result.is_complete() {
-        return Err(format!(
-            "{}\nIs this a complete copy of the original game? Nothing was extracted.",
-            result.explain()
-        ));
-    }
-    println!("The copy is complete.");
-    if args.check_only {
-        return Ok(());
-    }
+/// The game's own files and the player's data folder, as the game finds them.
+fn roots(data: Option<&std::path::Path>) -> Result<paths::Roots, String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let env = |name: &str| std::env::var(name).ok();
-    let roots = paths::locate(&paths::Inputs {
+    let mut roots = paths::locate(&paths::Inputs {
         os: paths::Os::current(),
         cwd: &cwd,
         exe: &exe,
         env: &env,
-        data_override: args.data.as_deref(),
+        data_override: data,
     })?;
-    let game = std::fs::canonicalize(&roots.game).unwrap_or(roots.game);
-    println!(
-        "The pictures go to {}",
-        roots.data.join(install::ASSETS).display()
-    );
-    let summary = install::install_art(&folder, &roots.data, &game, &mut |sentence| {
-        println!("{sentence}");
-    })?;
-    println!(
-        "Done: {} pictures in {} files in {}",
-        summary.pictures,
-        summary.packs,
-        summary.folder.display()
-    );
-    Ok(())
+    roots.game = std::fs::canonicalize(&roots.game).unwrap_or(roots.game);
+    Ok(roots)
+}
+
+fn run() -> Result<(), String> {
+    let parsed = parse(std::env::args().skip(1));
+    // The messages come from the game's own files, so the folders come first.
+    let roots_result = roots(parsed.as_ref().ok().and_then(|a| a.data.as_deref()));
+    let roots = roots_result?;
+    let say = Say::load(&roots.game)?;
+    let args = match parsed {
+        Ok(args) => args,
+        Err(CommandLine::Help) => return Err(say.plain("setup.usage")),
+        Err(CommandLine::Unknown(option)) => {
+            let sentence = say.get("setup.err_option", &Args::new().text("option", option));
+            return Err(format!("{sentence}\n\n{}", say.plain("setup.usage")));
+        }
+        Err(CommandLine::NeedsFolder(option)) => {
+            let sentence = say.get("setup.err_value", &Args::new().text("option", option));
+            return Err(format!("{sentence}\n\n{}", say.plain("setup.usage")));
+        }
+    };
+    if args.cli || args.game.is_some() || args.check_only {
+        terminal::run(&say, &roots, args.game, args.check_only)
+    } else {
+        gui::run(say, roots)
+    }
 }
 
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
-            eprintln!("{message}");
+            // An empty message: the problem was already shown.
+            if !message.is_empty() {
+                eprintln!("{message}");
+            }
             ExitCode::FAILURE
         }
     }

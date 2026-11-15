@@ -5,6 +5,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use f4x_setup::say::Say;
 use f4x_setup::{install, original};
 
 fn repo() -> PathBuf {
@@ -21,16 +22,23 @@ fn the_real_original_installs_without_the_unused_pictures() {
     }
     let folder = original::find(&reference).unwrap();
     let check = original::check(&folder).unwrap();
-    assert!(check.is_complete(), "{}", check.explain());
+    let say = Say::load(&repo()).unwrap();
+    assert!(check.is_complete(), "{}", check.explain(&say));
 
     let data = std::env::temp_dir().join(format!("f4x_setup_real_{}", std::process::id()));
     let _ = fs::remove_dir_all(&data);
     let mut said = Vec::new();
-    let summary =
-        install::install_art(&folder, &data, &repo(), &mut |s| said.push(s.to_string())).unwrap();
+    let summary = install::install_art(&folder, &data, &repo(), &mut |s| said.push(s)).unwrap();
 
     assert!(summary.pictures > 10_000, "{summary:?}");
-    assert_eq!(said.len(), 3, "{said:?}");
+    assert_eq!(
+        said,
+        [
+            install::Stage::Read,
+            install::Stage::Pack,
+            install::Stage::Place
+        ]
+    );
     let assets = data.join("assets-local");
     for part in ["art", "screens", "index.tsv", "packs.tsv"] {
         assert!(assets.join(part).exists(), "{part} is missing");

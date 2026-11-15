@@ -28,6 +28,11 @@ alone, the music, is 135 MB of the 195.
 
 The workspace crates themselves (`f4x-def`, `f4x-core`, `f4x-ai`, `f4x-console`) are ours.
 
+### Direct dependencies of `f4x-setup` (`crates/f4x-setup`, not part of the game)
+
+`rfd` 0.18 (the system's folder picker and message boxes; native on macOS) and `macroquad` 0.4 without its `audio`
+feature (the progress window). The game does not link either through this crate.
+
 ### Pulled in by `macroquad`
 
 | Crate | What it does | Needed by us? |

@@ -4,6 +4,10 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use f4x_lang::text::Args;
+
+use crate::say::Say;
+
 /// The `.lbx` files of the original (names only), one per line: what a complete copy has.
 const EXPECTED: &str = include_str!("../original_files.txt");
 
@@ -29,36 +33,62 @@ impl Check {
     }
 
     /// What is wrong, in plain words (empty when the copy is complete).
-    pub fn explain(&self) -> String {
-        let list = |names: &[String]| {
-            const SHOWN: usize = 8;
-            let mut text = names
-                .iter()
-                .take(SHOWN)
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(", ");
-            if names.len() > SHOWN {
-                text.push_str(&format!(" and {} more", names.len() - SHOWN));
-            }
-            text
-        };
+    pub fn explain(&self, say: &Say) -> String {
         let mut lines = Vec::new();
         if !self.missing.is_empty() {
-            lines.push(format!(
-                "{} of the game's files are missing from this folder: {}.",
-                self.missing.len(),
-                list(&self.missing)
-            ));
+            let args = Args::new()
+                .count("n", self.missing.len())
+                .text("names", say.names(&self.missing));
+            lines.push(say.get("setup.check_missing", &args));
         }
         if !self.damaged.is_empty() {
-            lines.push(format!(
-                "{} files are not what they should be (cut short, or another kind of file): {}.",
-                self.damaged.len(),
-                list(&self.damaged)
-            ));
+            let args = Args::new()
+                .count("n", self.damaged.len())
+                .text("names", say.names(&self.damaged));
+            lines.push(say.get("setup.check_damaged", &args));
         }
         lines.join("\n")
+    }
+}
+
+/// Why no folder of the original was found.
+#[derive(Debug, PartialEq, Eq)]
+pub enum FindError {
+    NotAFolder(PathBuf),
+    Unreadable(PathBuf, String),
+    /// Neither the folder nor one inside it has the signature file.
+    NoGame(PathBuf),
+    /// More than one folder inside has it: the names of the folders.
+    Several(PathBuf, Vec<String>),
+}
+
+impl FindError {
+    /// The problem in plain words.
+    pub fn explain(&self, say: &Say) -> String {
+        match self {
+            FindError::NotAFolder(path) => say.get(
+                "setup.err_not_folder",
+                &Args::new().text("path", path.display().to_string()),
+            ),
+            FindError::Unreadable(path, why) => say.get(
+                "setup.err_unreadable",
+                &Args::new()
+                    .text("path", path.display().to_string())
+                    .text("why", why.clone()),
+            ),
+            FindError::NoGame(path) => say.get(
+                "setup.err_no_game",
+                &Args::new()
+                    .text("path", path.display().to_string())
+                    .text("file", SIGNATURE),
+            ),
+            FindError::Several(path, names) => say.get(
+                "setup.err_several",
+                &Args::new()
+                    .text("path", path.display().to_string())
+                    .list("names", names.clone()),
+            ),
+        }
     }
 }
 
@@ -67,8 +97,9 @@ fn expected() -> impl Iterator<Item = &'static str> {
 }
 
 /// The entries of a folder as `(upper-case name, path)`, so names match whatever their case.
-fn entries(dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
-    let read = fs::read_dir(dir).map_err(|e| format!("cannot read {}: {e}", dir.display()))?;
+fn entries(dir: &Path) -> Result<Vec<(String, PathBuf)>, FindError> {
+    let read =
+        fs::read_dir(dir).map_err(|e| FindError::Unreadable(dir.to_path_buf(), e.to_string()))?;
     Ok(read
         .flatten()
         .filter_map(|e| Some((e.file_name().to_str()?.to_uppercase(), e.path())))
@@ -78,9 +109,9 @@ fn entries(dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
 /// Find the folder with the original's files: `dir` itself, or the first folder directly inside it
 /// that has them (the Steam download has the files one level down, in
 /// `Master of Magic Official Release`).
-pub fn find(dir: &Path) -> Result<PathBuf, String> {
+pub fn find(dir: &Path) -> Result<PathBuf, FindError> {
     if !dir.is_dir() {
-        return Err(format!("{} is not a folder.", dir.display()));
+        return Err(FindError::NotAFolder(dir.to_path_buf()));
     }
     let has_signature = |d: &Path| entries(d).is_ok_and(|e| e.iter().any(|(n, _)| n == SIGNATURE));
     if has_signature(dir) {
@@ -93,20 +124,14 @@ pub fn find(dir: &Path) -> Result<PathBuf, String> {
         .collect();
     inside.sort();
     match inside.len() {
-        0 => Err(format!(
-            "this does not look like the original Master of Magic: {} has no {SIGNATURE}, \
-             and neither has a folder inside it. Choose the folder that holds the game's .LBX files.",
-            dir.display()
-        )),
+        0 => Err(FindError::NoGame(dir.to_path_buf())),
         1 => Ok(inside.remove(0)),
-        _ => Err(format!(
-            "{} holds the game's files more than once: {}. Choose the one you want.",
-            dir.display(),
+        _ => Err(FindError::Several(
+            dir.to_path_buf(),
             inside
                 .iter()
                 .filter_map(|p| p.file_name()?.to_str().map(str::to_string))
-                .collect::<Vec<_>>()
-                .join(", ")
+                .collect(),
         )),
     }
 }
@@ -120,7 +145,7 @@ fn has_lbx_header(path: &Path) -> bool {
 }
 
 /// Compare the folder with a complete copy.
-pub fn check(dir: &Path) -> Result<Check, String> {
+pub fn check(dir: &Path) -> Result<Check, FindError> {
     let present = entries(dir)?;
     let mut result = Check::default();
     for name in expected() {
@@ -166,6 +191,8 @@ mod tests {
         assert_eq!(sorted.len(), names.len());
     }
 
+    use crate::say::test_say;
+
     #[test]
     fn a_complete_copy_passes_whatever_the_case_of_the_names() {
         let dir = temp("complete");
@@ -173,8 +200,8 @@ mod tests {
             lbx(&dir, &name.to_lowercase());
         }
         let result = check(&dir).unwrap();
-        assert!(result.is_complete(), "{}", result.explain());
-        assert_eq!(result.explain(), "");
+        assert!(result.is_complete(), "{}", result.explain(&test_say()));
+        assert_eq!(result.explain(&test_say()), "");
     }
 
     #[test]
@@ -185,23 +212,11 @@ mod tests {
         let result = check(&dir).unwrap();
         assert_eq!(result.missing, ["BOOK.LBX", "COMBAT.LBX"]);
         assert_eq!(result.damaged, ["ARMYLIST.LBX"]);
-        let text = result.explain();
+        let text = result.explain(&test_say());
         assert!(text.contains("2 of the game's files are missing"), "{text}");
-        assert!(text.contains("BOOK.LBX, COMBAT.LBX"), "{text}");
+        assert!(text.contains("BOOK.LBX and COMBAT.LBX"), "{text}");
+        assert!(text.contains("One file is not what it should be"), "{text}");
         assert!(text.contains("ARMYLIST.LBX"), "{text}");
-    }
-
-    #[test]
-    fn a_long_list_is_cut_with_a_count() {
-        let result = Check {
-            missing: (0..12).map(|i| format!("F{i}.LBX")).collect(),
-            damaged: Vec::new(),
-        };
-        assert!(
-            result.explain().contains("and 4 more"),
-            "{}",
-            result.explain()
-        );
     }
 
     #[test]
@@ -222,18 +237,27 @@ mod tests {
             fs::create_dir_all(&inner).unwrap();
             lbx(&inner, "FONTS.LBX");
         }
-        let text = find(&outer).unwrap_err();
+        let error = find(&outer).unwrap_err();
+        assert!(matches!(error, FindError::Several(..)), "{error:?}");
+        let text = error.explain(&test_say());
         assert!(text.contains("more than once"), "{text}");
-        assert!(text.contains("Community Patch, Official Release"), "{text}");
+        assert!(
+            text.contains("Community Patch and Official Release"),
+            "{text}"
+        );
     }
 
     #[test]
     fn a_wrong_folder_and_a_missing_one_get_a_sentence() {
         let empty = temp("wrong");
-        let text = find(&empty).unwrap_err();
+        let error = find(&empty).unwrap_err();
+        assert_eq!(error, FindError::NoGame(empty.clone()));
+        let text = error.explain(&test_say());
         assert!(text.contains("does not look like the original"), "{text}");
         assert!(text.contains("FONTS.LBX"), "{text}");
-        let text = find(&empty.join("nowhere")).unwrap_err();
+        let text = find(&empty.join("nowhere"))
+            .unwrap_err()
+            .explain(&test_say());
         assert!(text.contains("is not a folder"), "{text}");
     }
 }

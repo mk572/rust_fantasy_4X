@@ -6,7 +6,14 @@ license.workspace = true
 
 # The setup program (task 176, `docs/installer-design.md`): finds the player's copy of the original
 # game and extracts the pictures (later the sound and the music) into the player's data folder.
-# It depends on the extractor only, never on the game.
+# The library holds the steps and the flow (tested without windows); the binary adds the windows
+# (`rfd` for the folder and message dialogs, `macroquad` for the progress window) or the terminal.
+# It depends on the extractor and the texts, never on the game.
 
 [dependencies]
 f4x-extract = { workspace = true, features = ["extract"] }
+f4x-lang.workspace = true
+# The dialogs of the system: a folder picker and message boxes.
+rfd = "0.18"
+# The progress window only: no sound.
+macroquad = { version = "0.4", default-features = false }
