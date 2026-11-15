@@ -2708,6 +2708,30 @@ mod fields {
     }
 
     #[test]
+    fn dispelling_a_web_gives_a_flyer_its_flight_back() -> TestResult {
+        // Row 302 of the 1.50 notes: the original left the unit without the movement type.
+        let mut g = wizard_battle_versus(SWORDSMEN, &[5 /* web */], 103 /* a flier */, 1);
+        let before = {
+            let u = &mut g.battle.as_mut().ok_or("no battle")?.battle.units[1];
+            u.resistance = 0;
+            (u.flies, u.moves)
+        };
+        assert!(before.0);
+        cast_on(&mut g, 5 /* web */, 1).expect("the spell is cast");
+        assert!(
+            !g.battle()
+                .ok_or("no battle")?
+                .unit(1)
+                .ok_or("no unit")?
+                .flies
+        );
+        g.dispel_battle_unit(1, 10_000, D);
+        let u = g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?;
+        assert!(u.flies && u.moves == before.1 && !u.held_by_web(), "{u:?}");
+        Ok(())
+    }
+
+    #[test]
     fn a_held_unit_spends_each_turn_tearing_at_the_web_until_it_is_free() {
         // Swordsmen, caught in the web, tear at it with their blows.
         let mut b = cast_on_foe(SWORDSMEN, 5 /* web */);

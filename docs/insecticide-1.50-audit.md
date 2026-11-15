@@ -368,7 +368,14 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 | A spell cast from an item charge (`check_unit_cast`) | **Right.** It is cast at its base cost: no extra mana goes in, so the strength and the counter difficulty are the base cost and are not cut by the wizard's reductions. |
 | What an item with charges is worth (`crafting::cost`) | **Right as it stands.** The base cost of the spell times the charges times 20, whether or not the spell takes extra mana, so a variable spell is priced at its base. Not compared with the original; the rest of the cluster (IW720) is still to walk. |
 
-Next: row 285 and the rest of the table in order.
+### Walked on 15 November 2026: 285, 302
+
+| Rows | Verdict |
+|---|---|
+| 285 Summon Champion falls back to a Hero | **Not present.** `hero::kind::pick` tries the champions, then goes on to any hero (`Class::Champion` to `Class::Any`), and the spell is refused only when no hero at all is free. Test `summon_champion_brings_a_hero_when_no_champion_is_free` (the existing `summon_champion_is_refused_when_nobody_is_left` covers the end). 293 was already recorded above. |
+| 302 Dispelling Web restores the movement type | **Not present.** A unit's numbers are rebuilt from its base and the lasting spells that remain (`rebuild_unit`), so a flyer flies again once Web goes, and the web's hit points go with it. Test `dispelling_a_web_gives_a_flyer_its_flight_back`. |
+
+Next: row 310 and the rest of the table in order.
 
 ## P2 code review: first pass
 

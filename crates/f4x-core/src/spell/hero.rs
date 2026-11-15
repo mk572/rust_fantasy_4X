@@ -540,6 +540,22 @@ mod tests {
     }
 
     #[test]
+    fn summon_champion_brings_a_hero_when_no_champion_is_free() -> TestResult {
+        for _ in 0..20 {
+            let mut g = caster();
+            // Every champion is gone (the last type is Torin, whom the spell never brings).
+            let last = torin(&g.content.rules);
+            for k in kind::HEROES..last {
+                set_state(&mut g, k, HeroState::Gone);
+            }
+            let events = cast(&mut g, 212 /* summon_champion */);
+            let (_, kind) = joined(&events).ok_or_else(|| format!("{events:?}"))?;
+            assert!(kind < kind::HEROES, "a hero, not a champion: {kind}");
+        }
+        Ok(())
+    }
+
+    #[test]
     fn incarnation_brings_torin_back_with_his_experience() -> TestResult {
         let mut g = caster();
         let last = torin(&g.content.rules);
