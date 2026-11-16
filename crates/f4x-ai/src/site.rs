@@ -286,7 +286,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // army marches (its campaign comes first).
     if ai.roles.count(crate::roles::Role::Raid) >= max_raiders(game)
         || ai.roles.any(crate::roles::Role::March)
-        || ai.roles.any(crate::roles::Role::Muster)
+        || ai.roles.any_muster(crate::roles::MusterKind::Raid)
     {
         return;
     }

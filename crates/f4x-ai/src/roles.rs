@@ -111,6 +111,28 @@ impl Assignment {
     }
 }
 
+/// What a muster gathers for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum MusterKind {
+    /// A raid on a site, tower or neutral city (`siege.rs`, `site.rs`).
+    Raid,
+    /// The campaign march on a rival's city (`military.rs`).
+    Campaign,
+}
+
+/// A party being assembled: the units holding `Muster` with this party id walk to `rally`; when
+/// they are there (or the time is up) the party sets off for `objective`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Muster {
+    pub kind: MusterKind,
+    /// The square the units gather on.
+    pub rally: Position,
+    /// What the party is to take or attack, once gathered.
+    pub objective: Option<Position>,
+    /// The turn the muster began.
+    pub since: u32,
+}
+
 /// The one place a unit's role lives: at most one per unit. A role is taken with [`claim`] and
 /// handed back with [`release`]; a claim of a lower-priority role than the one held is refused.
 ///
@@ -122,6 +144,9 @@ pub struct Registry {
     /// The latest turn the registry was told of (by a claim or a sync).
     #[serde(default)]
     now: u32,
+    /// The parties being assembled, by party id (`Muster`).
+    #[serde(default)]
+    musters: std::collections::BTreeMap<u32, Muster>,
 }
 
 impl Registry {
@@ -319,6 +344,7 @@ impl Registry {
     /// Drop the units that are not in `alive` (dead, or gone) from the registry.
     pub fn prune(&mut self, alive: &[Serial]) {
         self.map.retain(|s, _| alive.contains(s));
+        self.tidy_musters();
     }
 
     /// Count the turns the unit has stood still on an order: a unit that moved, or has no order
@@ -436,8 +462,108 @@ impl Registry {
         self.map
             .values()
             .filter_map(|a| a.party)
+            .chain(self.musters.keys().copied())
             .max()
             .map_or(1, |m| m + 1)
+    }
+
+    /// Begin a muster: the units (those that can take `Muster`) walk to `rally` as one party.
+    /// Returns its party id, or `None` when no unit could take the role.
+    pub fn begin_muster(
+        &mut self,
+        kind: MusterKind,
+        rally: Position,
+        objective: Option<Position>,
+        serials: &[Serial],
+        turn: u32,
+    ) -> Option<u32> {
+        let party = self.new_party();
+        let taken = self.join_muster_party(party, rally, serials, turn);
+        if taken == 0 {
+            return None;
+        }
+        self.musters.insert(
+            party,
+            Muster {
+                kind,
+                rally,
+                objective,
+                since: turn,
+            },
+        );
+        Some(party)
+    }
+
+    /// More units for a muster that stands. How many took the role.
+    pub fn join_muster(&mut self, party: u32, serials: &[Serial], turn: u32) -> usize {
+        let Some(rally) = self.musters.get(&party).map(|m| m.rally) else {
+            return 0;
+        };
+        self.join_muster_party(party, rally, serials, turn)
+    }
+
+    fn join_muster_party(
+        &mut self,
+        party: u32,
+        rally: Position,
+        serials: &[Serial],
+        turn: u32,
+    ) -> usize {
+        let mut taken = 0;
+        for &s in serials {
+            if self.claim(s, Role::Muster, turn, Some(rally)).is_ok() {
+                if let Some(a) = self.map.get_mut(&s) {
+                    a.party = Some(party);
+                }
+                taken += 1;
+            }
+        }
+        taken
+    }
+
+    /// The musters that stand, with their members, in party order.
+    pub fn musters(&self) -> Vec<(u32, Muster, Vec<Serial>)> {
+        self.musters
+            .iter()
+            .map(|(&id, &m)| {
+                let members = self
+                    .map
+                    .iter()
+                    .filter(|(_, a)| a.role == Role::Muster && a.party == Some(id))
+                    .map(|(s, _)| *s)
+                    .collect();
+                (id, m, members)
+            })
+            .collect()
+    }
+
+    /// Whether a muster of `kind` stands.
+    pub fn any_muster(&self, kind: MusterKind) -> bool {
+        self.musters.values().any(|m| m.kind == kind)
+    }
+
+    /// The muster the unit belongs to.
+    pub fn muster_of(&self, serial: Serial) -> Option<(u32, Muster)> {
+        let a = self.map.get(&serial).filter(|a| a.role == Role::Muster)?;
+        let id = a.party?;
+        self.musters.get(&id).map(|&m| (id, m))
+    }
+
+    /// End a muster: its members await orders and the record goes.
+    pub fn end_muster(&mut self, party: u32) {
+        self.musters.remove(&party);
+        self.retain(|_, a| !(a.role == Role::Muster && a.party == Some(party)));
+    }
+
+    /// Forget the musters that have no member left.
+    fn tidy_musters(&mut self) {
+        let live: Vec<u32> = self
+            .map
+            .values()
+            .filter(|a| a.role == Role::Muster)
+            .filter_map(|a| a.party)
+            .collect();
+        self.musters.retain(|id, _| live.contains(id));
     }
 
     /// Put the units that hold `role` into the party, and tie each to `with` if given.
@@ -965,6 +1091,34 @@ mod tests {
 
     /// The registry holds one role per unit: a lower-priority claim on a held role is refused, a
     /// better one takes over, and a release only gives back the role actually held.
+    #[test]
+    fn a_muster_holds_its_members_to_one_rally_and_ends_as_one() {
+        let mut r = Registry::default();
+        let (a, b, c) = (serial(1), serial(2), serial(3));
+        let rally = Position {
+            plane: f4x_core::map::Plane::Arcanus,
+            x: 4,
+            y: 5,
+        };
+        // A raider keeps its better role: only two join.
+        assert_eq!(r.claim(c, Role::Raid, 1, None), Ok(()));
+        let party = r
+            .begin_muster(MusterKind::Raid, rally, Some(rally), &[a, b, c], 7)
+            .expect("two units took the role");
+        assert_eq!(r.members_of(party), vec![a, b]);
+        assert_eq!(r.target_of(a, Role::Muster), Some(rally));
+        assert!(r.any_muster(MusterKind::Raid) && !r.any_muster(MusterKind::Campaign));
+        assert_eq!(
+            r.muster_of(b).map(|(id, m)| (id, m.since)),
+            Some((party, 7))
+        );
+        assert_eq!(r.new_party(), party + 1);
+        r.end_muster(party);
+        assert_eq!(r.role_of(a), Some(Role::AwaitingOrders));
+        assert!(r.musters().is_empty());
+        assert_eq!(r.role_of(c), Some(Role::Raid));
+    }
+
     #[test]
     fn the_registry_holds_one_role_per_unit() {
         let mut r = Registry::default();

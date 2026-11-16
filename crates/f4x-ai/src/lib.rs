@@ -101,15 +101,9 @@ pub struct Ai {
     /// The open tower the planar scout is bound for, to be set aside when it does not get there.
     #[serde(default)]
     planar_tower: Option<Position>,
-    /// The soldiers on their way to a city to be sent against a tower together, the city, and the
-    /// turn they were sent (`siege.rs`).
     /// The planes where a rival's city blocks the clearing of towers this turn (`siege.rs`).
     #[serde(skip)]
     tower_blocked: Vec<f4x_core::map::Plane>,
-    #[serde(default)]
-    muster_at: Option<Position>,
-    #[serde(default)]
-    muster_since: u32,
     /// The open tower an army crosses by to reach a rival's city on the other plane (`military.rs`).
     #[serde(default)]
     crossing: Option<Position>,
@@ -237,8 +231,6 @@ impl Ai {
             sea_gave_up: false,
             planar_tower: None,
             tower_blocked: Vec::new(),
-            muster_at: None,
-            muster_since: 0,
             crossing: None,
             colony: None,
             colony_since: 0,

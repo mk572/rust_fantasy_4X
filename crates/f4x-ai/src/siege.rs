@@ -117,24 +117,27 @@ pub(crate) fn blocked_planes(
 /// End a muster whose soldiers have come (or waited long enough): they are free soldiers again,
 /// and `site::deploy` sends the best nine of the square they stand on.
 pub(crate) fn release(ai: &mut Ai, game: &Game) {
-    if !ai.roles.any(crate::roles::Role::Muster) {
+    use crate::roles::MusterKind;
+    if !ai.roles.any_muster(MusterKind::Raid) {
         return;
     }
     let view = PlayerView::new(game, ai.player);
-    let alive: Vec<_> = view
-        .my_units()
-        .into_iter()
-        .filter(|&u| ai.roles.is(view.serial_of(u), crate::roles::Role::Muster))
-        .collect();
-    let arrived = ai.muster_at.is_some_and(|at| {
-        alive.iter().all(|&u| {
+    for (party, muster, members) in ai.roles.musters() {
+        if muster.kind != MusterKind::Raid {
+            continue;
+        }
+        let alive: Vec<_> = view
+            .my_units()
+            .into_iter()
+            .filter(|&u| members.contains(&view.serial_of(u)))
+            .collect();
+        let arrived = alive.iter().all(|&u| {
             view.unit_position(u)
-                .is_some_and(|p| distance(&view, p, at).is_some_and(|d| d <= 1))
-        })
-    });
-    if alive.is_empty() || arrived || game.turn.saturating_sub(ai.muster_since) > MUSTER_TURNS {
-        ai.roles.release_role(crate::roles::Role::Muster);
-        ai.muster_at = None;
+                .is_some_and(|p| distance(&view, p, muster.rally).is_some_and(|d| d <= 1))
+        });
+        if alive.is_empty() || arrived || game.turn.saturating_sub(muster.since) > MUSTER_TURNS {
+            ai.roles.end_muster(party);
+        }
     }
 }
 
@@ -149,10 +152,10 @@ pub(crate) fn gather(
 ) {
     use f4x_core::game::Command;
     let me = ai.player;
-    if ai.roles.any(crate::roles::Role::Muster) {
+    if ai.roles.any_muster(crate::roles::MusterKind::Raid) {
         return;
     }
-    let (rally, orders) = {
+    let (rally, objective, orders) = {
         let view = PlayerView::new(game, me);
         if crate::phase::phase(&view) == crate::phase::Phase::Build {
             return;
@@ -214,7 +217,7 @@ pub(crate) fn gather(
             })
             .filter(|&u| reached.can_reach(&view, &[u], rally))
             .collect();
-        (rally, orders)
+        (rally, tower, orders)
     };
     if orders.is_empty() {
         return;
@@ -235,10 +238,13 @@ pub(crate) fn gather(
             );
         }
     }
-    ai.roles
-        .assign(crate::roles::Role::Muster, serials, game.turn);
-    ai.muster_at = Some(rally);
-    ai.muster_since = game.turn;
+    ai.roles.begin_muster(
+        crate::roles::MusterKind::Raid,
+        rally,
+        Some(objective),
+        &serials,
+        game.turn,
+    );
 }
 
 #[cfg(test)]
@@ -346,7 +352,10 @@ mod tests {
             5,
             "all five are mustered"
         );
-        assert_eq!(ai.muster_at, Some(at(COAST_CITY.0, COAST_CITY.1)));
+        let musters = ai.roles.musters();
+        assert_eq!(musters.len(), 1);
+        assert_eq!(musters[0].1.rally, at(COAST_CITY.0, COAST_CITY.1));
+        assert!(musters[0].1.objective.is_some());
         assert!(party.iter().all(|&u| view.unit_has_order(u)));
         // A second call while they walk changes nothing.
         let before = ai.roles.members(crate::roles::Role::Muster);
