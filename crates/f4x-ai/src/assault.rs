@@ -230,14 +230,6 @@ pub(crate) fn strike(
             defenders,
         });
     } else {
-        ai.order(
-            game,
-            Command::AutoResolve {
-                mana_budget: None,
-                attackers,
-                defenders,
-            },
-            events,
-        );
+        crate::military::resolve(ai, game, attackers, defenders, events);
     }
 }

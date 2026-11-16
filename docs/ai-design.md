@@ -323,6 +323,17 @@ and the value per mana (softened by `MANA_SOFTENING`) order the casts. What each
 - the ground: Earth to Mud holds back the enemy walkers near the square (15% of their worth, less ours); Cracks Call is a one in four chance on the walker over the fissure plus the wall it breaks; Disrupt opens a wall section for the side that attacks the city;
 - a takeover (Possession, Creature Binding) is worth 1.5 times the unit: the enemy loses it and we gain it.
 
+**Task 601 (17 November 2026): the strategic AI sets the budget** (`f4x-ai/src/budget.rs`, used by
+`military::resolve` for every attack of a wizard: the army, the perimeter, the pickup, the raids on sites and
+cities). The limit is the spare mana (the reserve, less ten turns of any shortfall of the income
+against the upkeep) times *stake* times *need*; at 0.75 or more there is no limit. *Stake*: a
+city 1.0 (taken, held or fought for), a lair 0.6, our own ground within three squares of a
+city 0.7, the open field 0.3; a hero on either side lifts it to at least 0.6. *Need*: 1 for a
+fight the attackers hold with a strength ratio of 1.2 or less, falling in a line to 0.2 at a
+ratio of 3 or more (a fight that is won anyway). The defender of a battle the AI does not start
+spends what it may (the command carries one budget, the attacker's). Monsters and neutrals have no
+wizard and so no budget.
+
 The shares are
 first guesses; the soak of task 600 is where they are tuned.
 

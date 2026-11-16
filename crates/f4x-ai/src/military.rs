@@ -124,16 +124,30 @@ pub(crate) fn engage(
             defenders,
         });
     } else {
-        ai.order(
-            game,
-            Command::AutoResolve {
-                mana_budget: None,
-                attackers,
-                defenders,
-            },
-            events,
-        );
+        resolve(ai, game, attackers, defenders, events);
     }
+}
+
+/// Fight the battle at once, the mana the wizard may spend in it set by `budget.rs` (a hard
+/// fight for a city gets all it may, a sure win in the open little).
+pub(crate) fn resolve(
+    ai: &mut Ai,
+    game: &mut Game,
+    attackers: Vec<hecs::Entity>,
+    defenders: Vec<hecs::Entity>,
+    events: &mut Vec<Event>,
+) {
+    let mana_budget =
+        crate::budget::for_attack(&PlayerView::new(game, ai.player), &attackers, &defenders);
+    ai.order(
+        game,
+        Command::AutoResolve {
+            mana_budget,
+            attackers,
+            defenders,
+        },
+        events,
+    );
 }
 
 pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {

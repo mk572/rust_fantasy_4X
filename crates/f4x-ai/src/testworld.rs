@@ -53,6 +53,12 @@ pub fn at(x: u32, y: u32) -> Position {
 
 /// The capital of player 0, on the east shore of the west island.
 pub const COAST_CITY: (u32, u32) = (10, 6);
+/// The numbers (`num` in `content/units.ron`) of the units tests name: the number is the source of
+/// truth, the constant's name only says which unit the shipped content has under it today.
+pub mod unit {
+    pub const HIGH_MEN_SPEARMEN: u16 = 104;
+}
+
 /// A city of player 0 away from the sea.
 pub const INLAND_CITY: (u32, u32) = (6, 6);
 /// The capital of player 1, on the west shore of the east island.
