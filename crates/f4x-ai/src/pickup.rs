@@ -6,7 +6,8 @@
 //! The waiting soldiers hold the role `AwaitTransport` in the registry (`Ai::roles`, with the
 //! shore tile as its target). A ship sent for them holds `TransportSpace` (the sea square as its
 //! target, room for them) and the soldiers it came for are tied to it (`with`); once they are all
-//! aboard it holds `TransportReady` with the port as its target, and `Transporting` once it sails. [`voyages`] reads them back.
+//! aboard it holds `TransportReady` when they fill it (`TransportSpace` while fewer are planned), and
+//! `Transporting` with the port as its target once it sails. [`voyages`] reads them back.
 
 use crate::view::is_ship;
 use crate::Ai;
@@ -134,7 +135,9 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // A ship whose soldiers are gone has nothing to fetch.
     // (A ship of a rescue has a party; a ship on its way to load a landing has none.)
     let rescues = voyages(ai);
-    for ship in ai.roles.members(crate::roles::Role::TransportSpace) {
+    let mut planned = ai.roles.members(crate::roles::Role::TransportSpace);
+    planned.extend(ai.roles.members(crate::roles::Role::TransportReady));
+    for ship in planned {
         if ai.roles.party_of(ship).is_some() && !rescues.iter().any(|p| p.ship == ship) {
             ai.roles.release_any(ship);
         }
@@ -204,7 +207,7 @@ fn is_aboard(view: &PlayerView, unit: hecs::Entity) -> bool {
 /// Every group waiting on its shore tile with no ship on the way is given the nearest free ship.
 fn assign_ships(ai: &mut Ai, game: &mut Game) {
     let me = ai.player;
-    let mut new: Vec<Pickup> = Vec::new();
+    let mut new: Vec<(Pickup, usize)> = Vec::new();
     {
         let view = PlayerView::new(game, me);
         let mut free: Vec<hecs::Entity> = view
@@ -257,29 +260,31 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
                 .take(room.max(1))
                 .map(|&u| view.serial_of(u))
                 .collect();
-            new.push(Pickup {
-                ship: view.serial_of(ship),
-                land: tile,
-                sea,
-                group,
-            });
+            new.push((
+                Pickup {
+                    ship: view.serial_of(ship),
+                    land: tile,
+                    sea,
+                    group,
+                },
+                room.max(1),
+            ));
         }
     }
-    for p in new {
+    for (p, capacity) in new {
         let turn = game.turn;
+        // The ship takes the task: space while the soldiers planned are fewer than it holds,
+        // ready when they fill it.
         if ai
             .roles
-            .claim(
-                p.ship,
-                crate::roles::Role::TransportSpace,
-                turn,
-                Some(p.sea),
-            )
-            .is_ok()
+            .plan_ship(p.ship, p.group.len(), capacity, turn, p.sea)
         {
             let party = ai.roles.new_party();
-            ai.roles
-                .group(&[p.ship], crate::roles::Role::TransportSpace, party, None);
+            let role = ai
+                .roles
+                .role_of(p.ship)
+                .unwrap_or(crate::roles::Role::TransportSpace);
+            ai.roles.group(&[p.ship], role, party, None);
             ai.roles.group(
                 &p.group,
                 crate::roles::Role::AwaitTransport,
@@ -350,15 +355,6 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
         return;
     }
     if everyone {
-        // All aboard: the ship's load is decided and its target is the port.
-        if let Some(port) = port {
-            ai.roles.transition(
-                pickup.ship,
-                crate::roles::Role::TransportSpace,
-                crate::roles::Role::TransportReady,
-                Some(port),
-            );
-        }
         if let (true, Some(port)) = (idle, port) {
             let sailed = ai
                 .send(
@@ -371,12 +367,7 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
                 )
                 .is_ok();
             if sailed {
-                ai.roles.transition(
-                    pickup.ship,
-                    crate::roles::Role::TransportReady,
-                    crate::roles::Role::Transporting,
-                    Some(port),
-                );
+                ai.roles.depart(pickup.ship, port);
             }
         }
         return;

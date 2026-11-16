@@ -209,18 +209,70 @@ impl Registry {
             .collect()
     }
 
-    /// A ship takes `passengers` for `to`: the ship is `TransportReady` (until it sails, `transition`
-    /// to `Transporting`) and each passenger
-    /// holds `Voyage`, tied to the ship. Returns whether all of them could take the role.
-    pub fn sail(&mut self, ship: Serial, passengers: &[Serial], turn: u32, to: Position) -> bool {
-        let mut all = self
-            .claim(ship, Role::TransportReady, turn, Some(to))
-            .is_ok();
+    /// A task takes the ship: it is `TransportSpace` while the passengers planned for it are fewer
+    /// than `capacity`, and `TransportReady` when they fill it, with `to` as its target. Each
+    /// passenger holds `Voyage`, tied to the ship; soldiers tied by an earlier plan that are not in
+    /// this one are let go. Returns whether all of them could take the role.
+    pub fn sail(
+        &mut self,
+        ship: Serial,
+        passengers: &[Serial],
+        turn: u32,
+        to: Position,
+        capacity: usize,
+    ) -> bool {
+        let stale: Vec<Serial> = self
+            .passengers_of(ship)
+            .into_iter()
+            .filter(|p| !passengers.contains(p))
+            .collect();
+        self.release_many(&stale, Role::Voyage);
+        let mut all = self.plan_ship(ship, passengers.len(), capacity, turn, to);
         for &p in passengers {
             all &= self.claim(p, Role::Voyage, turn, None).is_ok();
             self.tie(p, Role::Voyage, ship);
         }
         all
+    }
+
+    /// Give the ship the role its plan says: `TransportSpace` while `planned` is under `capacity`,
+    /// `TransportReady` when it is at it, with `to` as its target. A ship that holds one of the two
+    /// changes over; a free ship is taken. Not a ship already `Transporting`.
+    pub fn plan_ship(
+        &mut self,
+        ship: Serial,
+        planned: usize,
+        capacity: usize,
+        turn: u32,
+        to: Position,
+    ) -> bool {
+        let role = if planned >= capacity {
+            Role::TransportReady
+        } else {
+            Role::TransportSpace
+        };
+        match self.role_of(ship) {
+            Some(Role::TransportSpace | Role::TransportReady) => {
+                if let Some(a) = self.map.get_mut(&ship) {
+                    a.role = role;
+                    a.to = Some(to);
+                }
+                true
+            }
+            _ => self.claim(ship, role, turn, Some(to)).is_ok(),
+        }
+    }
+
+    /// The ship sails with its load for `to`: it is `Transporting`.
+    pub fn depart(&mut self, ship: Serial, to: Position) {
+        if let Some(a) = self
+            .map
+            .get_mut(&ship)
+            .filter(|a| matches!(a.role, Role::TransportSpace | Role::TransportReady))
+        {
+            a.role = Role::Transporting;
+            a.to = Some(to);
+        }
     }
 
     /// Change a unit's role from `from` to `role` with a new target, keeping what ties it to
@@ -1045,5 +1097,26 @@ mod tests {
         ai.roles.release(s, Role::Raid);
         assert_eq!(ai.roles.role_of(s), Some(Role::AwaitingOrders));
         Ok(())
+    }
+
+    /// A task takes a free ship: space while fewer soldiers are planned than it holds, ready when
+    /// they fill it, transporting once it sails.
+    #[test]
+    fn a_ship_taken_by_a_task_is_space_until_its_load_is_full_then_ready() {
+        let mut r = Registry::default();
+        let (ship, a, b) = (serial(1), serial(2), serial(3));
+        let to = at(5, 5);
+        r.sail(ship, &[a], 1, to, 2);
+        assert_eq!(r.role_of(ship), Some(Role::TransportSpace));
+        assert_eq!(r.target_of(ship, Role::TransportSpace), Some(to));
+        r.sail(ship, &[a, b], 2, to, 2);
+        assert_eq!(r.role_of(ship), Some(Role::TransportReady));
+        assert_eq!(r.passengers_of(ship), vec![a, b]);
+        // A smaller plan lets the extra soldier go and the ship has room again.
+        r.sail(ship, &[a], 3, to, 2);
+        assert_eq!(r.role_of(ship), Some(Role::TransportSpace));
+        assert_eq!(r.passengers_of(ship), vec![a]);
+        r.depart(ship, to);
+        assert_eq!(r.role_of(ship), Some(Role::Transporting));
     }
 }

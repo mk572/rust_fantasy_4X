@@ -337,8 +337,11 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     // The ships on a voyage carry on; one that was lost drops out.
     for ship_serial in ai.roles.ferries() {
-        // A ship that is ready, loading in the port, is the loading's (below), not a voyage yet.
-        if ai.roles.is(ship_serial, crate::roles::Role::TransportReady) {
+        // A ship with its load planned that has not sailed is the loading's (below), not a voyage
+        // yet: ready, or space with soldiers tied to it.
+        if !ai.roles.is(ship_serial, crate::roles::Role::Transporting)
+            && !ai.roles.passengers_of(ship_serial).is_empty()
+        {
             continue;
         }
         let ferry = Ferry {
@@ -366,8 +369,11 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .filter(|&s| view.unit_position(s) == Some(plan.port))
             .filter(|&s| {
                 let serial = view.serial_of(s);
+                // Free, or holding its planned load in port (ready, or space with soldiers tied).
                 !ai.roles.has_role(serial)
-                    || ai.roles.is(serial, crate::roles::Role::TransportReady)
+                    || (ai.roles.ferries().contains(&serial)
+                        && !ai.roles.is(serial, crate::roles::Role::Transporting)
+                        && !ai.roles.passengers_of(serial).is_empty())
             })
             .collect()
     };
@@ -519,10 +525,12 @@ fn load_and_sail(
         ai.roles.end_voyage(ship_serial);
         return;
     }
-    // The load is decided: the ship is `TransportReady` with its passengers tied to it, and stays
-    // so through the turns it waits for a stronger party, until it sails.
+    // The load is planned: the ship is `TransportSpace` while the soldiers tied to it are fewer than
+    // it holds and `TransportReady` when they fill it, through the turns it waits for a stronger
+    // party, until it sails.
     let turn = game.turn;
-    ai.roles.sail(ship_serial, &serials, turn, plan.sea);
+    ai.roles
+        .sail(ship_serial, &serials, turn, plan.sea, capacity);
     // Passengers that are not part of the landing (a sea scout's party) step off first.
     if unload(ai, game, ship, plan.port, &group, events) {
         return;
@@ -571,12 +579,7 @@ fn load_and_sail(
         )
         .is_ok()
     {
-        ai.roles.transition(
-            ship_serial,
-            crate::roles::Role::TransportReady,
-            crate::roles::Role::Transporting,
-            Some(plan.sea),
-        );
+        ai.roles.depart(ship_serial, plan.sea);
     } else {
         ai.roles.end_voyage(ship_serial);
     }
@@ -1230,7 +1233,8 @@ mod tests {
         };
         let mut ai = Ai::new(P0);
         ai.naval = Some(plan);
-        ai.roles.sail(ferry.ship, &ferry.group, 1, plan.sea);
+        ai.roles.sail(ferry.ship, &ferry.group, 1, plan.sea, 1);
+        ai.roles.depart(ferry.ship, plan.sea);
         voyage(&mut ai, &mut g, plan, ferry, ship, &mut Vec::new());
         assert_eq!(ai.naval, None);
         assert!(ai.roles.ferries().is_empty());
@@ -1253,7 +1257,8 @@ mod tests {
             group: vec![view.serial_of(left), view.serial_of(aboard)],
         };
         ai.naval = Some(plan);
-        ai.roles.sail(ferry.ship, &ferry.group, 1, plan.sea);
+        ai.roles.sail(ferry.ship, &ferry.group, 1, plan.sea, 1);
+        ai.roles.depart(ferry.ship, plan.sea);
         voyage(&mut ai, &mut g, plan, ferry, ship, &mut Vec::new());
         let view = PlayerView::new(&g, P0);
         assert_ne!(

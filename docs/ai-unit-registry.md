@@ -35,13 +35,13 @@ A map from a unit's `Serial` to one `Assignment`, ordered by serial, saved with 
 A group is the set of units that share a `party` id (`new_party`, `group`, `members_of`,
 `party_of`). `with` ties one unit to another. Together they cover:
 
-- a **ferry**: the ship holds `TransportReady` with no `with`; each passenger holds `Voyage` with
+- a **ferry**: the ship holds a transport role (space, ready or transporting) with no `with`; each passenger holds `Voyage` with
   `with` = the ship (`sail`, `ferries`, `passengers_of`, `end_voyage`);
 - a **colony voyage**: the ship and the settler hold `Colonize`, the settler's `with` is the ship
   (`colonists`);
-- a **rescue**: the ship holds `TransportSpace` with `to` = the sea square (then `TransportReady` and
-  `Transporting` with the port); the soldiers it came for keep `AwaitTransport` and their `with` is the ship
-  (`pickup::voyages`);
+- a **rescue**: the ship holds `TransportSpace` (or `TransportReady` when the soldiers fill it) with
+  `to` = the sea square, then `Transporting` with the port; the soldiers it came for keep
+  `AwaitTransport` and their `with` is the ship (`pickup::voyages`);
 - an **escort**: the escort holds `Escort` with `with` = the unit it guards (`escort_of`); when the
   charge no longer holds `Settle`, `Road` or `Meld` (it founded its city, finished, or died)
   `escort::run` releases the escort.
@@ -58,11 +58,11 @@ Listed in priority order (the lower number wins a claim, section 4). The roles w
 | `Colonize` | the ship and settler of a colony by sea | ship, settler | `colony.rs` |
 | `Settle` | a settler walking to a site to found a city (`to` = the site) | settlers | `expand.rs` |
 | `Voyage` | a passenger of a landing; `with` = its ship | soldiers | `naval.rs` |
-| `TransportReady` | a ship whose load is decided and tied to it, with its target, the load decided, held back until it sails: the landing party chosen (`to` = the sea square), a rescue with everyone aboard (`to` = the port) | ships | `naval.rs`, `pickup.rs` |
+| `TransportReady` | a ship whose planned passengers (tied to it) fill it, with its target, until it sails (`to` = the sea square of a landing, the sea square of a rescue) | ships | `naval.rs`, `pickup.rs` |
 | `Transporting` | a ship that has sailed with its load, on its way to its target (a landing to its sea square, rescued soldiers to a port) | ships | `naval.rs`, `pickup.rs` |
 | `SeaParty` | the fighters a sea scout carries to put ashore | soldiers | `scout.rs` |
 | `PlanarScout` | the scout walking to an open tower to change plane (`to` = the tower) | one unit | `scout.rs` |
-| `TransportSpace` | a ship with a target and room: on its way to the port to load a landing (`to` = the port), or to the sea square where stranded soldiers wait (`to` = the square, they are tied to it) | ships | `naval.rs`, `pickup.rs` |
+| `TransportSpace` | a ship with a target whose planned passengers (tied to it) are fewer than it holds: on its way to the port to load a landing (`to` = the port), holding part of a load, or on its way to the sea square where stranded soldiers wait (`to` = the square) | ships | `naval.rs`, `pickup.rs` |
 | `AwaitTransport` | a stranded soldier waiting on a shore tile for a ship (`to` = the tile; `with` = the ship that comes) | soldiers | `pickup.rs`, the audit |
 | `Perimeter` | a soldier dealing with the enemy in the zone of a city (`to` = the enemy's square, or the city it joins) | soldiers | `perimeter.rs` |
 | `Raid` | out on a tower, node or encounter site (`to` = the site) | soldiers | `site.rs`, `naval.rs` |
@@ -83,28 +83,28 @@ not a base role.
 |---|---|---|
 | `MoveTo` | a unit with an order of its own (a plain walk) | the end of its path |
 | `Garrison` | a soldier standing in an own city | that city |
-| `TransportFree` | a ship with no mission and no order | none |
+| `TransportFree` | a ship with no plans for it: any task can take it | none |
 | `AwaitingOrders` | nothing else fits: soldiers in it are *adrift*, ships and other units *unassigned* | none |
 
 ### Ships
 
-A ship is in one of four states, and each is a role of its own, with the units tied by `with`:
+A ship is in one of four states, each a role of its own. `TransportFree` means no plans for it: any
+task can take it. The moment a transport task takes a ship it holds a target (`to`) and the
+soldiers planned for it are tied to it (`with`: landing passengers hold `Voyage`, the soldiers of a
+rescue hold `AwaitTransport`), and its role is set by the count:
 
-- `TransportFree`: no passengers decided, no target. `naval.rs` and `pickup.rs` take a free ship
-  (`!has_role`).
-- `TransportSpace`: a target is set and the ship has room. It is on its way to the port to load a
-  landing, or to the sea square beside a shore tile where stranded soldiers wait; for a rescue the
-  soldiers it came for hold `AwaitTransport` with `with` = the ship.
-- `TransportReady`: the units to carry are decided and tied to the ship (landing passengers hold
-  `Voyage`, `with` = the ship) and the target is set. A landing ship holds it from the moment the
-  party is chosen, also through the turns it waits for a stronger party (`naval::load_and_sail`
-  picks ready ships in port as well as free ones, and `voyage` leaves them alone), until the sail
-  order is accepted. A rescue becomes ready when everyone is aboard, with the nearest port as its
-  target.
-- `Transporting`: the ship has sailed with its load (the order was accepted) and is on its way. When
-  the passengers are landed the ship goes back to `TransportSpace` with the port as its target. A
-  ship ends its voyage by `end_voyage`, and is then free again (`AwaitingOrders`, then
-  `TransportFree` at the audit).
+- `TransportSpace`: planned passengers < the ship's capacity. It may be on its way to the port to
+  load (no passengers planned yet), or hold part of a load.
+- `TransportReady`: planned passengers = the capacity. A landing ship keeps the role through the
+  turns it waits for a stronger party (`naval::load_and_sail` picks free ships and those holding a
+  planned load in port; `voyage` leaves them alone).
+- `Transporting`: the sail order was accepted (`Registry::depart`) and the ship is on its way, the
+  planned load aboard. When the passengers are landed it goes back to `TransportSpace` with the
+  port as its target. A ship ends its voyage by `end_voyage`, and is then free again
+  (`AwaitingOrders`, then `TransportFree` at the audit).
+
+`Registry::sail` (a landing) and `plan_ship` (a rescue) set the role from the count each time the
+plan changes; a smaller plan frees the soldiers that are no longer in it.
 
 `ferries()` lists the ships of landings (ready, transporting or space, with no party); a rescue ship has a party
 and is read back by `pickup::voyages`. `Ferry` and `Pickup` in the code are read-backs of the
