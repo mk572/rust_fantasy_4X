@@ -124,7 +124,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 624 | High | AI | Unit roles in one registry: replace the role lists of `Ai` (`scouts`, `raiders`, `marching`, `muster`, `sea_party`, `planar`, `ferries`, `colonists`) with `HashMap<Serial, Assignment>`, one role per unit, a stuck counter that releases a role that makes no progress (stage 1, the audit and counters, is built: `roles.rs`) |
 | 625 | High | AI | Perimeter role: soldiers from the surplus over the garrison attack enemy units, raiders and monsters in the zone (the 21 tiles of each own city plus towers and nodes within 4 squares of a city), only when the odds are good; against a stronger attacker they gather into a bigger stack or join the city garrison |
 | 629 | High | AI | Await-transport role: soldiers with no own city reachable on their land mass (a landing party that lost its ship; seed 23, 8 soldiers at (41,5) for 11+ turns) walk to the nearest shore tile and wait there; the naval planner sends a ship to pick them up and carry them to the nearest own port |
-| 627 | Medium | AI | Road role: engineers build roads between own cities first, then towards a tower or a campaign target |
+| 630 | Low | AI | Road role, rest: roads toward towers, an escort for engineers on the stretch toward the enemy, a second engineer when the roads are long |
 | 628 | Medium | AI | Meld role: a spirit goes to the nearest open node it can reach and melds with it |
 
 ## Descriptions
@@ -414,7 +414,7 @@ and make invalidation explicit and testable so the client never displays stale i
 
 **625. Perimeter role.** Asked for by the user, 16 November 2026. Zone: the 21 production tiles of each own city, plus towers and nodes within 4 squares of one. A soldier of the surplus over `garrison_wanted` attacks enemy units, raiders and monsters in the zone, or that can reach it next turn, when the odds are good (the siege code's estimate); it does not follow out of the zone. Against a stronger attacker it gathers with the other perimeter units into one stack (at most `max_tile`) or joins the garrison of the nearest threatened city. Replaces the call-in of troops by a threatened city. *Needs:* 624.
 
-**627. Road role.** Asked for by the user, 16 November 2026. Engineers build roads: the links between own cities first, then the way to a tower or a campaign target. *Needs:* 624.
+**630. Road role, rest.** Roads toward towers; an escort for engineers on the stretch toward the enemy (`escort::walk`); a second engineer when the roads are long. *Needs:* 627.
 
 **628. Meld role.** Asked for by the user, 16 November 2026. A spirit goes to the nearest open node it can reach and melds with it; it travels with an escort when one is free. *Needs:* 624, 626.
 

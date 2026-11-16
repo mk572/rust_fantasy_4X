@@ -56,7 +56,7 @@ pub(crate) fn forges(view: &PlayerView) -> Vec<hecs::Entity> {
 }
 
 /// The buildings a unit needs, and those they need in turn.
-fn chain(view: &PlayerView, unit: UnitId) -> Vec<BuildingId> {
+pub(crate) fn chain(view: &PlayerView, unit: UnitId) -> Vec<BuildingId> {
     let rules = &view.content().rules;
     let mut found: Vec<BuildingId> = Vec::new();
     let mut todo: Vec<BuildingId> = rules.units.get(unit).requires.clone();

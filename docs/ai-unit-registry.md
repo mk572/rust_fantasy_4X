@@ -60,6 +60,7 @@ Listed in priority order (the lower number wins a claim, section 4):
 | `March` | on the march against a city | soldiers | `military.rs` |
 | `Muster` | walking to a city to be sent against a tower together | soldiers | `siege.rs` |
 | `Escort` | going with a settler to its site (`with` = the settler) | soldiers | `escort.rs` |
+| `Road` | engineers building a road or walking to where it starts (`to` = the city or frontier it leads to) | engineers | `road.rs` |
 | `Scout` | scouting by land or sea (`to` = the patch) | soldiers, ships | `scout.rs`, `garrison.rs`, `naval.rs` |
 | `Return` | walking home to the nearest own city (`to` = the city) | soldiers | the audit |
 
@@ -72,7 +73,7 @@ Roles the registry does **not** store, because the world already says them (`rol
 | `Ordered` | a unit with an order of its own (a plain walk) |
 | `AwaitingOrders` | none of the above: soldiers in it are *adrift*, ships and other units are *unassigned* |
 
-Planned roles (tasks 625, 627, 628): `Perimeter`, `Road`, `Meld`; `Explore` replaces `Scout`.
+Planned roles (tasks 625, 628): `Perimeter`, `Meld`; `Explore` replaces `Scout`.
 
 The three scouting roles (`Scout`, `PlanarScout`, `SeaParty`) count as "out scouting"
 (`is_scouting`, `scouting`), which the army and garrison use to leave those units alone.
@@ -125,6 +126,25 @@ The two get one `GoTo` as a stack, so they walk at the pace of the slower. After
 moved, `escort::run` frees the escorts whose charge is gone and sends an escort that fell behind to
 its charge. Only settlers are escorted so far: engineers, spirits, healers and low-experience
 heroes have no role yet. Not built: the charge waiting when its escort is lost and an enemy is near.
+
+### The road
+
+Engineers (a unit with `Construction`) are not soldiers (`is_fighter` leaves them out), so they
+never garrison, march or get sent home. `road::run` gives each idle one work, with no plan kept but
+`Ai::road_checked` (the own cities already looked at, cleared when the number of cities changes):
+
+1. In an own city: the nearest three own cities within 12 squares, in order; the first whose way
+   (the game's own path for the engineer) has a square without road gets `BuildRoad` along it.
+   A city with no such link is marked looked at.
+2. Else it walks to the nearest city not looked at.
+3. With every city looked at, and a campaign target: a stretch of up to 8 squares of the way to
+   the target, built from where it stands, or a walk to the last square that has a road.
+4. With nothing left it gives the role back.
+
+`road::build_engineer` (after the cities' plans) makes the biggest free city build engineers while
+there is road work and no engineer lives, with the builders' hall first when the city lacks it.
+Not built: an escort for engineers on the stretch toward the enemy (`escort::walk` can be reused),
+a second engineer, roads toward towers.
 
 ## 6. Where to add a role
 

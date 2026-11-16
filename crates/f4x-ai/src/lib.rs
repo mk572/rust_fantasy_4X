@@ -33,6 +33,7 @@ mod plan_clock;
 mod race;
 mod raze;
 mod recover;
+mod road;
 pub mod roles;
 mod scout;
 mod shortfall;
@@ -116,6 +117,12 @@ pub struct Ai {
     colony_since: u32,
     colony_bad: Vec<Position>,
     colony_retry: u32,
+    /// Own cities the engineers found no road to build at, and how many cities there were then
+    /// (`road.rs`).
+    #[serde(default)]
+    road_checked: Vec<f4x_core::game::serial::Serial>,
+    #[serde(default)]
+    road_cities: usize,
     /// Own cities with a stack of a wizard at war near and too few defenders, this turn.
     threatened: Vec<Position>,
     /// The strength last seen in each enemy city and the turn it was seen.
@@ -235,6 +242,8 @@ impl Ai {
             colony_since: 0,
             colony_bad: Vec::new(),
             colony_retry: 0,
+            road_checked: Vec::new(),
+            road_cities: 0,
             city_memory: HashMap::new(),
             threatened: Vec::new(),
             unreachable: Vec::new(),
@@ -373,6 +382,7 @@ impl Ai {
             garrison::thin_out(self, game, &mut events);
             expand::settlers(self, game, &mut events);
             escort::run(self, game, &mut events);
+            road::run(self, game, &mut events);
             scout::scout(self, game, &mut events);
             site::run(self, game, &mut events);
             military::army(self, game, &mut events);
@@ -383,6 +393,7 @@ impl Ai {
         }
         raze::run(self, game, &mut events);
         economy::cities(self, game, &mut events);
+        road::build_engineer(self, game, &mut events);
         shortfall::run(self, game, &mut events);
         events
     }

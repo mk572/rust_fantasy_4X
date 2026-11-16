@@ -363,6 +363,29 @@ impl<'a> PlayerView<'a> {
         self.game.unit_has_order(unit)
     }
 
+    /// Is the engineer at work on a road?
+    pub fn unit_builds_road(&self, unit: hecs::Entity) -> bool {
+        self.game
+            .world
+            .get::<&crate::map::road::RoadWork>(unit)
+            .is_ok()
+    }
+
+    /// Is there a road on an explored square?
+    pub fn has_road(&self, at: Position) -> bool {
+        self.explored(at)
+            && self
+                .game
+                .map()
+                .is_some_and(|m| m.plane(at.plane).has_road(at.x as i32, at.y as i32))
+    }
+
+    /// The squares of the way the stack would walk to `to` (the start left out), `None` when it
+    /// has none.
+    pub fn path(&self, units: &[hecs::Entity], to: Position) -> Option<Vec<Position>> {
+        self.game.find_path(units, to)
+    }
+
     /// The units aboard a ship (they stay aboard in a port until they step ashore).
     pub fn passengers_of(&self, ship: hecs::Entity) -> Vec<hecs::Entity> {
         self.game.economy().passengers_of(ship)

@@ -40,6 +40,9 @@ pub enum Role {
     Pickup,
     /// A soldier that goes with a unit it protects (`escort.rs`); `with` is that unit.
     Escort,
+    /// Engineers building a road, or on their way to the square where they start (`road.rs`);
+    /// `to` is the city or frontier the road leads to.
+    Road,
     /// A soldier walking to the nearest own city; it keeps the role until it is there.
     Return,
     /// A ship in a city with no voyage.
@@ -426,12 +429,13 @@ impl Role {
             Role::March => 8,
             Role::Muster => 9,
             Role::Escort => 10,
-            Role::Scout => 11,
-            Role::Return => 12,
-            Role::Ordered => 13,
-            Role::Garrison => 14,
-            Role::Docked => 15,
-            Role::AwaitingOrders => 16,
+            Role::Road => 11,
+            Role::Scout => 12,
+            Role::Return => 13,
+            Role::Ordered => 14,
+            Role::Garrison => 15,
+            Role::Docked => 16,
+            Role::AwaitingOrders => 17,
         }
     }
 }
