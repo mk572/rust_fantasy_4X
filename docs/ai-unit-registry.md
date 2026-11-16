@@ -105,8 +105,9 @@ rescue hold `AwaitTransport`), and its role is set by the count:
 
 A ship need not be full to sail: a part load goes (`TransportSpace` to `Transporting`) once the
 strength is enough. First it looks for soldiers awaiting transport (`AwaitTransport` with no ship)
-that can walk to the port within a window of half the journey, between 3 and 5 turns
-(`pickup::reachable_waiting`, path length over moves). They take `Voyage` tied to the ship (they
+that can walk to the port within a window of half the journey, at most 5 turns, and none for a
+short journey (`pickup::reachable_waiting`, path length over moves; a soldier already in the port
+is 0 turns and boards the same turn). They take `Voyage` tied to the ship (they
 become planned passengers) and get the order to go to the port (`naval::board`); the ship keeps
 its role, `TransportSpace` (or `TransportReady` if they fill it), and does not sail while they are
 on the way. When they arrive they are part of the load. One that has not arrived when the window is

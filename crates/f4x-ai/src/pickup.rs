@@ -78,6 +78,10 @@ pub fn reachable_waiting(
             ai.roles.is(s, Role::AwaitTransport) && ai.roles.with_of(s).is_none()
         })
         .filter_map(|u| {
+            // Already there: no turns at all.
+            if view.unit_position(u) == Some(to) {
+                return Some((0, view.serial_of(u), u));
+            }
             let steps = view.path(&[u], to)?.len() as u32;
             let moves = view.unit_stat(u, f4x_def::rules::Stat::Moves).max(1) as u32;
             let turns = steps.div_ceil(moves);
