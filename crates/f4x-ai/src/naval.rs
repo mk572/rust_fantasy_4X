@@ -535,6 +535,16 @@ fn load_and_sail(
     if unload(ai, game, ship, plan.port, &group, events) {
         return;
     }
+    // A ship that is not full sails all the same, but first: soldiers awaiting transport on this
+    // plane are the ship's to fetch (it is freed for the rescue, `pickup.rs`) before it carries a
+    // part load. It does not wait for ever.
+    if group.len() < capacity && crate::pickup::unserved(ai, plan.port) {
+        ai.naval_wait += 1;
+        if ai.naval_wait < WAIT_TURNS {
+            ai.roles.end_voyage(ship_serial);
+            return;
+        }
+    }
     // Strong enough for the garrison it will meet, or tired of waiting.
     {
         let view = PlayerView::new(game, me);
@@ -1100,6 +1110,62 @@ mod tests {
         assert!(!PlayerView::new(&g, P0).unit_has_order(ship));
         // The defence turns out weak: the next turn it sails.
         ai.city_memory.insert(enemy(), (1.0, g.turn));
+        run(&mut ai, &mut g, &mut Vec::new());
+        assert_eq!(
+            ai.roles.role_of(serial),
+            Some(crate::roles::Role::Transporting)
+        );
+        Ok(())
+    }
+
+    /// A ship that is not full sails with what it has, but only after it has made way for soldiers
+    /// awaiting transport: it is let go for the rescue first, and sails when none wait.
+    #[test]
+    fn a_part_loaded_ship_makes_way_for_soldiers_awaiting_transport_then_sails() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        build(
+            &mut g,
+            port(),
+            &[
+                12, /* ship_wrights_guild */
+                15, /* sawmill */
+                13, /* ship_yard */
+            ],
+        );
+        g.reveal_map(P0);
+        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
+            f4x_def::half_int::HalfInt::from_int(1_000_000);
+        let ship = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];
+        // Three soldiers over the garrison: a part load for a ship of five.
+        let keep = garrison_wanted(&PlayerView::new(&g, P0), port());
+        spawn(
+            &mut g,
+            P0,
+            port(),
+            104, /* high_men_spearmen */
+            3 + keep,
+        );
+        g.balance_farmers(P0);
+        let stranded = spawn(&mut g, P0, at(8, 6), 104, 1)[0];
+        let mut ai = Ai::new(P0);
+        ai.unreachable.push(enemy());
+        let stranded_serial = PlayerView::new(&g, P0).serial_of(stranded);
+        let _ = ai.roles.claim(
+            stranded_serial,
+            crate::roles::Role::AwaitTransport,
+            1,
+            Some(at(8, 6)),
+        );
+        run(&mut ai, &mut g, &mut Vec::new());
+        let serial = PlayerView::new(&g, P0).serial_of(ship);
+        assert!(
+            ai.roles.ferries().is_empty() && !ai.roles.has_role(serial),
+            "the ship is free for the rescue: {:?}",
+            ai.roles.role_of(serial)
+        );
+        // Nobody waits any more: it sails with the part load.
+        ai.roles
+            .release(stranded_serial, crate::roles::Role::AwaitTransport);
         run(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(
             ai.roles.role_of(serial),

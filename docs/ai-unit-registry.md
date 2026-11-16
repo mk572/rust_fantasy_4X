@@ -103,6 +103,11 @@ rescue hold `AwaitTransport`), and its role is set by the count:
   port as its target. A ship ends its voyage by `end_voyage`, and is then free again
   (`AwaitingOrders`, then `TransportFree` at the audit).
 
+A ship need not be full to sail: a part load goes (`TransportSpace` to `Transporting`) once the
+strength is enough, but first `pickup::unserved` asks whether soldiers on the plane await
+transport with no ship coming; if so the ship is freed for the rescue (`end_voyage`) for up to
+`WAIT_TURNS` turns (the landing's wait counter) and then sails anyway.
+
 `Registry::sail` (a landing) and `plan_ship` (a rescue) set the role from the count each time the
 plan changes; a smaller plan frees the soldiers that are no longer in it.
 

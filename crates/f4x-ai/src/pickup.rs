@@ -59,6 +59,18 @@ pub fn voyages(ai: &Ai) -> Vec<Pickup> {
         .collect()
 }
 
+/// Whether soldiers on the plane of `at` await transport with no ship coming for them.
+pub fn unserved(ai: &Ai, at: Position) -> bool {
+    use crate::roles::Role;
+    ai.roles.members(Role::AwaitTransport).into_iter().any(|s| {
+        ai.roles.with_of(s).is_none()
+            && ai
+                .roles
+                .target_of(s, Role::AwaitTransport)
+                .is_some_and(|tile| tile.plane == at.plane)
+    })
+}
+
 /// A sea square beside `land` that nobody hostile holds.
 fn sea_beside(view: &PlayerView, land: Position) -> Option<Position> {
     for dy in -1i32..=1 {
