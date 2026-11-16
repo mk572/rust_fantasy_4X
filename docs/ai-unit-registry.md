@@ -255,6 +255,13 @@ their `party` and the rally as `to`.
 
 ## 8. Plans and ends
 
+- A settler or a spirit with no escort at its side does not set out while an enemy unit is within
+  4 squares (`escort::walk`); one already walking stops (`escort::run`) and goes on when the enemy
+  is gone or a soldier is spare.
+- Soldiers that wait on a shore for a ship nobody sends for 40 turns attack an enemy beside them
+  when the odds are good (`military::attack_ratio`), else hold the square as `Perimeter`; the audit
+  puts them back on the waiting list when nothing threatens them (`pickup::give_up_waiting`).
+
 - A healer or a weak hero (much weaker than the average fighter) alone outside a city is given an
   escort from the nearest city (`escort::stragglers`); it ends in a city or in a stack of fighters.
 - A settler that waits in the port for the colony ship holds `AwaitTransport` with the port as its
@@ -290,6 +297,6 @@ their `party` and the rally as `to`.
 ## 10. Known gaps
 
 - A landing's gathering at the port is not labelled `Muster` (the ships and `naval.rs` read it).
-- The ship states `TransportSpace` and `TransportReady` follow the ship's order and passengers;
-  The boarding decision is recorded in the registry (the passenger's `Voyage` or `AwaitTransport`
-  with `with` = the ship), which is where it should be.
+- A second engineer works the roads only when the roads are long (`road::engineers_wanted`); it
+  takes a link or stretch no other engineer is on, but the stretch toward a far target is built by
+  one engineer at a time.

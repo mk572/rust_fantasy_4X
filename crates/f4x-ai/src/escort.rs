@@ -53,7 +53,26 @@ pub fn walk(
             units.push(escort);
         }
     }
+    // With no escort at its side and an enemy near, the charge waits where it stands (the order
+    // is asked again next turn, when a soldier may be spare).
+    if units.len() == 1 && at.is_some_and(|at| enemy_near(&PlayerView::new(game, me), at)) {
+        return true;
+    }
     ai.send(game, Command::GoTo { units, to }, events).is_ok()
+}
+
+/// Squares within which an enemy unit is a danger to a charge walking alone.
+const ENEMY_NEAR: i32 = 4;
+
+/// Whether an enemy unit the wizard sees stands within [`ENEMY_NEAR`] squares of `at`.
+fn enemy_near(view: &PlayerView, at: Position) -> bool {
+    (-ENEMY_NEAR..=ENEMY_NEAR).any(|dy| {
+        (-ENEMY_NEAR..=ENEMY_NEAR).any(|dx| {
+            view.shift(at, dx, dy)
+                .and_then(|p| view.hostile_at(p))
+                .is_some_and(|units| !units.is_empty())
+        })
+    })
 }
 
 /// Whether the unit holds a role whose bearer is escorted: a settler on its way, an engineer on
@@ -252,6 +271,24 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .collect();
         ai.roles.release_many(&gone, Role::Escort);
     }
+    // A settler or a spirit walking with no escort stops when an enemy comes near.
+    {
+        let view = PlayerView::new(game, me);
+        let stop: Vec<hecs::Entity> = view
+            .my_units()
+            .into_iter()
+            .filter(|&u| {
+                let s = view.serial_of(u);
+                (ai.roles.is(s, Role::Settle) || ai.roles.is(s, Role::Meld))
+                    && ai.roles.escort_of(s).is_none()
+                    && view.unit_has_order(u)
+                    && view.unit_position(u).is_some_and(|p| enemy_near(&view, p))
+            })
+            .collect();
+        if !stop.is_empty() {
+            ai.order(game, Command::ClearOrders { units: stop }, events);
+        }
+    }
     // A healer or a weak hero alone in the field is given a soldier.
     for unit in stragglers(ai, game) {
         guard(ai, game, unit, events);
@@ -431,6 +468,34 @@ mod tests {
         run(&mut ai, &mut g, &mut Vec::new());
         let charge = PlayerView::new(&g, P0).serial_of(in_city);
         assert_eq!(ai.roles.escort_of(charge), None);
+        Ok(())
+    }
+
+    /// With no soldier to spare and an enemy near, the settler waits instead of walking alone;
+    /// without the enemy it goes.
+    #[test]
+    fn a_charge_with_no_escort_waits_while_an_enemy_is_near() -> TestResult {
+        use crate::testworld::P1;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.explore(P0, at(7, 6), f4x_def::half_int::HalfInt::from_int(6));
+        let city = at(COAST_CITY.0, COAST_CITY.1);
+        let settler = spawn(&mut g, P0, city, 111 /* high_men_settlers */, 1)[0];
+        g.make_contact(P0, P1);
+        g.declare_war(P0, P1);
+        spawn(&mut g, P1, at(COAST_CITY.0 - 2, COAST_CITY.1), 104, 1);
+        g.balance_farmers(P0);
+        let mut ai = Ai::new(P0);
+        crate::expand::settlers(&mut ai, &mut g, &mut Vec::new());
+        let serial = PlayerView::new(&g, P0).serial_of(settler);
+        assert!(ai.roles.is(serial, Role::Settle));
+        assert!(
+            !PlayerView::new(&g, P0).unit_has_order(settler),
+            "the settler waits"
+        );
+        assert!(
+            ai.roles.target_of(serial, Role::Settle).is_some(),
+            "keeps its site"
+        );
         Ok(())
     }
 }

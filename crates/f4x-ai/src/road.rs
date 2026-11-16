@@ -25,6 +25,9 @@ use f4x_core::rules::Stat;
 const NEIGHBOURS: usize = 3;
 /// Squares apart the cities of a link are at most.
 const LINK_RANGE: u32 = 12;
+/// Cities from which the roads are long enough for a second engineer.
+const LONG_ROADS: usize = 5;
+
 /// Squares of a road toward the campaign target built at a time.
 const STRETCH: usize = 8;
 
@@ -103,7 +106,20 @@ fn work(
                 .collect()
         };
         near.sort_by_key(|&(d, p)| (d, p.plane as u8, p.y, p.x));
+        // A link another engineer is on its way to or building is left to it.
+        let others: Vec<Position> = {
+            let serial = PlayerView::new(game, me).serial_of(engineer);
+            ai.roles
+                .targeted(Role::Road)
+                .into_iter()
+                .filter(|&(s, _)| s != serial)
+                .map(|(_, p)| p)
+                .collect()
+        };
         for (_, to) in near.into_iter().take(NEIGHBOURS) {
+            if others.contains(&to) {
+                continue;
+            }
             let path = {
                 let view = PlayerView::new(game, me);
                 view.path(&[engineer], to)
@@ -205,6 +221,18 @@ fn frontier(
 ) -> Option<Position> {
     let me = ai.player;
     let (path, first) = frontier_way(ai, game, engineer)?;
+    // The stretch another engineer is on is left to it.
+    {
+        let serial = PlayerView::new(game, me).serial_of(engineer);
+        if ai
+            .roles
+            .targeted(Role::Road)
+            .into_iter()
+            .any(|(s, p)| s != serial && path.contains(&p))
+        {
+            return None;
+        }
+    }
     if first == 0 {
         let stretch: Vec<Position> = path.into_iter().take(STRETCH).collect();
         let end = *stretch.last()?;
@@ -237,6 +265,16 @@ fn frontier(
     .map(|()| to)
 }
 
+/// How many engineers the wizard wants: one, and a second when the roads are long (many cities
+/// still to link, or a campaign and towers to reach).
+fn engineers_wanted(cities: usize, checked: usize, far_work: bool) -> usize {
+    if cities >= LONG_ROADS && (checked + LONG_ROADS <= cities || far_work) {
+        2
+    } else {
+        1
+    }
+}
+
 /// The engineers' production: while there is road to build and no engineer, the city of most
 /// people that can make them builds one.
 pub fn build_engineer(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
@@ -247,7 +285,17 @@ pub fn build_engineer(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let work = cities.len() >= 2 && ai.road_checked.len() < cities.len()
             || ai.campaign.is_some()
             || !PlayerView::new(game, me).towers().is_empty();
-        if !work || view.my_units().iter().any(|&u| is_engineer(&view, u)) {
+        let engineers = view
+            .my_units()
+            .iter()
+            .filter(|&&u| is_engineer(&view, u))
+            .count();
+        let wanted = engineers_wanted(
+            cities.len(),
+            ai.road_checked.len(),
+            ai.campaign.is_some() && !view.towers().is_empty(),
+        );
+        if !work || engineers >= wanted {
             return;
         }
         let mut best: Option<(u32, hecs::Entity, ProductionItem)> = None;
@@ -413,6 +461,48 @@ mod tests {
             matches!(item, Some(ProductionItem::Building(_))),
             "{item:?}"
         );
+        Ok(())
+    }
+
+    /// One engineer is enough for a few cities; with many still to link a second is wanted.
+    #[test]
+    fn long_roads_want_a_second_engineer() {
+        assert_eq!(engineers_wanted(2, 0, false), 1);
+        assert_eq!(engineers_wanted(6, 5, false), 1, "nearly all linked");
+        assert_eq!(engineers_wanted(6, 0, false), 2);
+        assert_eq!(engineers_wanted(6, 6, true), 2, "a far campaign");
+        assert_eq!(engineers_wanted(3, 0, true), 1, "too few cities");
+    }
+
+    /// Two engineers in a city take two different links.
+    #[test]
+    fn two_engineers_take_different_links() -> TestResult {
+        let (mut g, first) = world()?;
+        let race = g.content().rules.races.id_numbered(8).ok_or("high men")?;
+        for (x, y) in [(6, 10), (10, 10)] {
+            let events = g.apply(Command::FoundCity {
+                owner: P0,
+                pos: at(x, y),
+                name: format!("C{x}{y}"),
+                race: Some(race),
+                population: 4,
+            });
+            assert!(
+                !events.iter().any(|e| matches!(e, Event::Rejected(_))),
+                "{events:?}"
+            );
+        }
+        g.balance_farmers(P0);
+        let second = spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 110, 1)[0];
+        let mut ai = Ai::new(P0);
+        run(&mut ai, &mut g, &mut Vec::new());
+        let view = PlayerView::new(&g, P0);
+        let (a, b) = (view.serial_of(first), view.serial_of(second));
+        let (ta, tb) = (
+            ai.roles.target_of(a, Role::Road),
+            ai.roles.target_of(b, Role::Road),
+        );
+        assert!(ta.is_some() && tb.is_some() && ta != tb, "{ta:?} {tb:?}");
         Ok(())
     }
 

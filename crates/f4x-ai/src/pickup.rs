@@ -187,10 +187,75 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     {
         return;
     }
+    give_up_waiting(ai, game, events);
     walk_to_shore(ai, game, events);
     assign_ships(ai, game);
     for pickup in voyages(ai) {
         advance(ai, game, &pickup, events);
+    }
+}
+
+/// Turns a group may wait on a shore for a ship nobody sends before it fights where it stands.
+const STRANDED_WAIT: u32 = 40;
+
+/// A group that has waited too long with no ship coming attacks an enemy beside it when the odds
+/// are good, and else holds the square as its perimeter (`Role::Perimeter`; the audit puts it back
+/// on the waiting list when nothing threatens it, so a ship that comes later still finds it).
+fn give_up_waiting(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    use crate::roles::Role;
+    let me = ai.player;
+    let turn = game.turn;
+    let groups: Vec<(Position, Vec<hecs::Entity>)> = {
+        let view = PlayerView::new(game, me);
+        let mut groups: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
+        for u in view.my_units() {
+            let s = view.serial_of(u);
+            let Some(a) = ai.roles.get(s).filter(|a| a.role == Role::AwaitTransport) else {
+                continue;
+            };
+            if a.with.is_some() || turn.saturating_sub(a.since) <= STRANDED_WAIT {
+                continue;
+            }
+            let Some(p) = view.unit_position(u) else {
+                continue;
+            };
+            match groups.iter_mut().find(|(q, _)| *q == p) {
+                Some((_, list)) => list.push(u),
+                None => groups.push((p, vec![u])),
+            }
+        }
+        groups.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
+        groups
+    };
+    for (pos, units) in groups {
+        let target = {
+            let view = PlayerView::new(game, me);
+            let mine = crate::view::stack_strength(&view, &units);
+            crate::military::neighbours(&view, pos)
+                .into_iter()
+                .filter_map(|n| view.hostile_at(n))
+                .find(|defenders| {
+                    !defenders.is_empty()
+                        && mine
+                            >= crate::view::fighting_strength(&view, defenders)
+                                * crate::military::attack_ratio()
+                })
+        };
+        let serials: Vec<Serial> = {
+            let view = PlayerView::new(game, me);
+            units.iter().map(|&u| view.serial_of(u)).collect()
+        };
+        for &s in &serials {
+            ai.roles.release(s, Role::AwaitTransport);
+        }
+        match target {
+            Some(defenders) => crate::military::engage(ai, game, units, defenders, events),
+            None => {
+                for &s in &serials {
+                    let _ = ai.roles.claim(s, Role::Perimeter, turn, Some(pos));
+                }
+            }
+        }
     }
 }
 
@@ -487,6 +552,27 @@ mod tests {
             assert_eq!(view.unit_position(u), Some(port), "the soldiers are home");
         }
         assert!(view.unit_position(ship).is_some());
+        Ok(())
+    }
+
+    /// A group that has waited too long with no ship holds its square as the perimeter.
+    #[test]
+    fn a_group_that_waited_too_long_for_a_ship_holds_where_it_stands() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let land = shore(&g)?;
+        let soldiers = spawn(&mut g, P0, land, 104 /* spearmen */, 3);
+        g.balance_farmers(P0);
+        let mut ai = Ai::new(P0);
+        assert!(wait_at_shore(&mut ai, &mut g, &soldiers));
+        g.turn += STRANDED_WAIT + 1;
+        run(&mut ai, &mut g, &mut Vec::new());
+        let view = PlayerView::new(&g, P0);
+        for &u in &soldiers {
+            let s = view.serial_of(u);
+            assert_eq!(ai.roles.role_of(s), Some(Role::Perimeter));
+            assert_eq!(ai.roles.target_of(s, Role::Perimeter), Some(land));
+        }
         Ok(())
     }
 

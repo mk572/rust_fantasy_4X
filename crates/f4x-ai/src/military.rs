@@ -62,7 +62,7 @@ const NEIGHBOURS: &[(i32, i32)] = &[
     (1, 1),
 ];
 
-fn neighbours(view: &PlayerView, at: Position) -> Vec<Position> {
+pub(crate) fn neighbours(view: &PlayerView, at: Position) -> Vec<Position> {
     NEIGHBOURS
         .iter()
         .filter_map(|&(dx, dy)| view.shift(at, dx, dy))
