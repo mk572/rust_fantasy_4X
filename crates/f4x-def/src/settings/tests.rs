@@ -266,6 +266,7 @@ fn v131_has_the_originals_ships_and_monster_turn_and_v160_has_eight_carrying_shi
     assert!(v160.rules.spell_binding_always_succeeds && !v131.rules.spell_binding_always_succeeds);
     // Roads between the independent cities at the start: the original's, so on in both.
     assert!(v131.rules.roads_at_start && v160.rules.roads_at_start);
+    assert!(v131.rules.lair_full_heal && v160.rules.lair_full_heal);
     // Half the loser's gold and mana to the victor of a wizard: the original's, on in both.
     assert!(v131.rules.defeat_loot && v160.rules.defeat_loot);
     // Adamant Alchemy is a community-patch option: off in both.

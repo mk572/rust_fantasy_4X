@@ -37,6 +37,9 @@ fn wanted(cities: usize) -> usize {
     base + crate::knob("SCOUTS", 0.0) as usize
 }
 
+/// A plane explored less than this is still blind to the wizard.
+const BLIND_SHARE: f32 = 0.6;
+
 /// The same square on the other plane.
 fn across(at: Position) -> Position {
     let plane = match at.plane {
@@ -49,6 +52,19 @@ fn across(at: Position) -> Position {
 /// Whether the ground across a tower is still unexplored, so that crossing it shows something.
 pub(crate) fn worth_crossing(view: &PlayerView, tower: Position) -> bool {
     unexplored_near(view, across(tower), HalfInt::from_raw(3)) > 0
+}
+
+/// Past the build-up, a plane the wizard has hardly seen and has no unit on is worth a crossing
+/// at any open tower, whatever the ground at the tower: the rivals that live over there are
+/// found only by looking (task 502, a rival on the other plane is never met otherwise).
+fn blind_across(view: &PlayerView, tower: Position) -> bool {
+    let far = across(tower).plane;
+    crate::phase::phase(view) != crate::phase::Phase::Build
+        && !view
+            .my_units()
+            .into_iter()
+            .any(|u| view.unit_position(u).is_some_and(|p| p.plane == far))
+        && view.explored_share(far) < BLIND_SHARE
 }
 
 /// Make sure the wizard has enough scouts and send them out.
@@ -319,7 +335,7 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     // An enemy unit stands on it (task 567): the scout would wait next to it for
                     // ever, as an order onto an occupied square does not take it there.
                     && view.hostile_at(p).is_none()
-                    && worth_crossing(&view, p)
+                    && (worth_crossing(&view, p) || blind_across(&view, p))
             })
             .map(|(p, _)| p)
             .min_by_key(|&p| (p.plane as u8, p.y, p.x));

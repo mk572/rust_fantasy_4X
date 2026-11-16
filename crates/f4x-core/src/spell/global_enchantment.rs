@@ -592,6 +592,7 @@ mod tests {
             prisoner: false,
             special: 0,
             fought_by: Vec::new(),
+            hurt: Vec::new(),
         };
         g.put_lair(at(20, 10), num::feature::MONSTER_LAIR, lair);
         let known = |g: &Game| g.economy().lair_guards_known_to(at(20, 10), P0);
@@ -628,6 +629,7 @@ mod tests {
                 prisoner: false,
                 special: 0,
                 fought_by: Vec::new(),
+                hurt: Vec::new(),
             },
         );
         assert_eq!(g.economy().lair_guards_known_to(at(2, 2), P0), None);

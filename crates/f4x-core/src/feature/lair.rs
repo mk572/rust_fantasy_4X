@@ -102,6 +102,11 @@ pub struct Lair {
     /// The players who have fought for this site once: they know what guards it.
     #[serde(default)]
     pub fought_by: Vec<PlayerId>,
+    /// The hit points each guard has lost, in the order of `guards` (a unit for each count); empty
+    /// when all are whole. Kept only with `RuleSettings::lair_full_heal` off, after an assault that
+    /// did not clear the site.
+    #[serde(default)]
+    pub hurt: Vec<u32>,
 }
 
 impl Lair {
@@ -302,12 +307,21 @@ impl Game {
             return Err(SiteError::NoSite);
         }
         let guards: Vec<(UnitId, u32)> = lair.guards.clone();
+        let hurt = lair.hurt.clone();
         let mut defenders = Vec::new();
+        let mut index = 0;
         for (unit, count) in guards {
             for _ in 0..count {
                 if defenders.len() < crate::unit::MAX_STACK {
-                    defenders.push(self.spawn_unit(MONSTERS, to, unit));
+                    let guard = self.spawn_unit(MONSTERS, to, unit);
+                    // With lair guards kept wounded (`lair_full_heal` off), a guard that was hurt
+                    // in an earlier assault comes back with its wounds.
+                    if let Some(&lost) = hurt.get(index).filter(|&&h| h > 0) {
+                        self.put(guard, crate::unit::Hurt(lost));
+                    }
+                    defenders.push(guard);
                 }
+                index += 1;
             }
         }
         match self.start_battle(units, &defenders) {
@@ -574,6 +588,88 @@ impl Game {
         award_spell(&mut w, &self.content, &mut self.rng, i32::from(rarity))
     }
 
+    /// After an assault that did not clear the site, with `lair_full_heal` off: the guards that
+    /// fought (the first of the lair's, in order; `fought` are their units) that died are taken off
+    /// its list, and the others keep the hit points they lost.
+    fn keep_lair_wounds(&mut self, site: hecs::Entity, fought: &[hecs::Entity]) {
+        let Some(lair) = self.economy().lair_of(site) else {
+            return;
+        };
+        let mut instances: Vec<UnitId> = Vec::new();
+        for &(unit, count) in &lair.guards {
+            instances.extend(std::iter::repeat_n(unit, count as usize));
+        }
+        let mut kept: Vec<(UnitId, u32)> = Vec::new();
+        for (i, &unit) in instances.iter().enumerate() {
+            let hurt = match fought.get(i) {
+                Some(&u) if self.world.contains(u) => {
+                    self.world.get::<&crate::unit::Hurt>(u).map_or(0, |h| h.0)
+                }
+                // A guard of the fight that is gone is dead.
+                Some(_) => continue,
+                // One that did not fit in the battle is as it was.
+                None => lair.hurt.get(i).copied().unwrap_or(0),
+            };
+            kept.push((unit, hurt));
+        }
+        let mut guards: Vec<(UnitId, u32)> = Vec::new();
+        for &(unit, _) in &kept {
+            match guards.last_mut() {
+                Some((last, count)) if *last == unit => *count += 1,
+                _ => guards.push((unit, 1)),
+            }
+        }
+        let hurt: Vec<u32> = kept.iter().map(|&(_, h)| h).collect();
+        if let Ok(mut l) = self.world.get::<&mut Lair>(site) {
+            l.guards = guards;
+            l.hurt = if hurt.iter().any(|&h| h > 0) {
+                hurt
+            } else {
+                Vec::new()
+            };
+        }
+    }
+
+    /// Each turn, with `lair_full_heal` off, the wounded guards of every lair mend a tenth of their
+    /// hit points, as a garrison does.
+    pub(crate) fn heal_lairs(&mut self) {
+        if self.settings().rules.lair_full_heal {
+            return;
+        }
+        let rules = &self.content.rules;
+        let max_of = |unit: UnitId| -> u32 {
+            let d = rules.units.get(unit);
+            let stat = |s: Stat| d.stats.get(&s).map_or(0.0, |v| v.as_f32()).max(0.0);
+            (stat(Stat::MaxHp) * stat(Stat::Figures).max(1.0)) as u32
+        };
+        let mut healed: Vec<(hecs::Entity, Vec<u32>)> = Vec::new();
+        for lair in self.economy().lairs() {
+            if lair.hurt.iter().all(|&h| h == 0) {
+                continue;
+            }
+            let mut instances: Vec<UnitId> = Vec::new();
+            for &(unit, count) in &lair.guards {
+                instances.extend(std::iter::repeat_n(unit, count as usize));
+            }
+            let hurt = lair
+                .hurt
+                .iter()
+                .zip(instances)
+                .map(|(&h, unit)| h.saturating_sub((max_of(unit) / 10).max(1)))
+                .collect();
+            healed.push((lair.entity, hurt));
+        }
+        for (site, hurt) in healed {
+            if let Ok(mut l) = self.world.get::<&mut Lair>(site) {
+                l.hurt = if hurt.iter().any(|&h| h > 0) {
+                    hurt
+                } else {
+                    Vec::new()
+                };
+            }
+        }
+    }
+
     /// After a battle at a site: the guards go, and a win clears the site.
     pub(crate) fn finish_site_battle(
         &mut self,
@@ -586,6 +682,10 @@ impl Game {
             return Vec::new();
         };
         let pos = lair.pos;
+        // Guards kept between assaults: the dead stay dead and the living keep their wounds.
+        if winner.is_none_or(|w| w == MONSTERS) && !self.settings().rules.lair_full_heal {
+            self.keep_lair_wounds(site, guards);
+        }
         // The guards were made for the fight and go with it. Other neutral units on the site
         // (the undead raised for the monsters) stay, as do guards the victors took as undead.
         for &u in guards {

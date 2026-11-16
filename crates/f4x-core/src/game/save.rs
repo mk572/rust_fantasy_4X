@@ -178,6 +178,8 @@ pub struct LairSave {
     pub special: u8,
     #[serde(default)]
     pub fought_by: Vec<PlayerId>,
+    #[serde(default)]
+    pub hurt: Vec<u32>,
 }
 
 /// A terrain feature entity: its creation number, what it is, where it stands and what it holds.
@@ -793,6 +795,7 @@ impl Game {
                         prisoner: l.prisoner,
                         special: l.special,
                         fought_by: l.fought_by.clone(),
+                        hurt: l.hurt.clone(),
                     });
                 let _ = &eco;
                 Some(FeatureSave {
@@ -1381,6 +1384,7 @@ impl Snapshot {
                             prisoner: l.prisoner,
                             special: l.special,
                             fought_by: l.fought_by,
+                            hurt: l.hurt,
                         })
                     })
                     .transpose()?;

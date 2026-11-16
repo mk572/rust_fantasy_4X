@@ -274,6 +274,7 @@ fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() -> TestResult 
             prisoner: true,
             special: 0,
             fought_by: Vec::new(),
+            hurt: Vec::new(),
         },
     );
     let events = g.claim_lair(site, P0);

@@ -99,6 +99,8 @@ pub struct LairInfo {
     pub special: u8,
     /// The players who have fought for this site once.
     pub fought_by: Vec<PlayerId>,
+    /// Hit points each guard has lost (see `Lair::hurt`).
+    pub hurt: Vec<u32>,
 }
 
 impl LairInfo {
@@ -173,6 +175,7 @@ impl<'a> Economy<'a> {
             prisoner: lair.prisoner,
             special: lair.special,
             fought_by: lair.fought_by.clone(),
+            hurt: lair.hurt.clone(),
         })
     }
 

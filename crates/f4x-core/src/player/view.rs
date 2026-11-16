@@ -373,6 +373,11 @@ impl<'a> PlayerView<'a> {
         self.game.units().food_of(units)
     }
 
+    /// The race of a city.
+    pub fn city_race(&self, city: hecs::Entity) -> Option<f4x_def::rules::RaceId> {
+        self.game.economy().city_race(city)
+    }
+
     pub fn city_production(&self, city: hecs::Entity) -> Production {
         self.game.economy().city_production(city)
     }
@@ -416,6 +421,19 @@ impl<'a> PlayerView<'a> {
         self.game.is_explored(self.me, at)
     }
 
+    /// The share (0 to 1) of a plane's squares the player has explored.
+    pub fn explored_share(&self, plane: crate::map::Plane) -> f32 {
+        let Some(grid) = self.game.map().map(|m| m.plane(plane)) else {
+            return 0.0;
+        };
+        let (w, h) = (grid.width(), grid.height());
+        let seen = (0..h)
+            .flat_map(|y| (0..w).map(move |x| Position { plane, x, y }))
+            .filter(|&p| self.explored(p))
+            .count();
+        seen as f32 / (w * h).max(1) as f32
+    }
+
     /// Does the player see the square now?
     pub fn sees(&self, at: Position) -> bool {
         if let Some(sees) = self.game.cached_sees(self.me, at) {
@@ -434,6 +452,12 @@ impl<'a> PlayerView<'a> {
         self.game
             .economy()
             .city_places(|owner, p| owner != self.me && self.explored(p))
+    }
+
+    /// Is the city its owner's fortress city (the wizard's seat)? Asked of a city the player has
+    /// explored.
+    pub fn is_fortress_city(&self, city: hecs::Entity) -> bool {
+        self.game.economy().is_fortress_city(city)
     }
 
     /// The city on a square the player has explored.

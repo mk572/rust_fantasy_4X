@@ -372,6 +372,7 @@ pub fn create(
         prisoner: false,
         special: 0,
         fought_by: Vec::new(),
+        hurt: Vec::new(),
     };
     fill_hoard(
         rng,

@@ -453,6 +453,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.spell_binding_always_succeeds = v != 0,
         ),
         flag(
+            "custom.lair_full_heal",
+            |s| s.rules.lair_full_heal.into(),
+            |s, v| s.rules.lair_full_heal = v != 0,
+        ),
+        flag(
             "custom.roads_at_start",
             |s| s.rules.roads_at_start.into(),
             |s, v| s.rules.roads_at_start = v != 0,

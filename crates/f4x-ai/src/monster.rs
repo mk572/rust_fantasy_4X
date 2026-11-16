@@ -327,6 +327,7 @@ mod tests {
                 prisoner: false,
                 special: 0,
                 fought_by: Vec::new(),
+                hurt: Vec::new(),
             }),
         });
         spawn(&mut g, MONSTERS, at(5, 8), 174 /* zombies */, 2);

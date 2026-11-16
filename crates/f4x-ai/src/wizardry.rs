@@ -304,7 +304,7 @@ fn mana_wanted(view: &PlayerView) -> i32 {
     let Some(magic) = view.wizard() else {
         return 0;
     };
-    magic
+    let summon = magic
         .known()
         .iter()
         .copied()
@@ -312,7 +312,9 @@ fn mana_wanted(view: &PlayerView) -> i32 {
         .filter(|&s| view.can_aim(s, None))
         .map(|s| view.casting_cost(s) * 3 / 2)
         .max()
-        .unwrap_or(0)
+        .unwrap_or(0);
+    // Mana for the battle spells that take a tower the soldiers alone cannot (task 502).
+    summon.max(crate::siege::mana_goal(view))
 }
 
 /// A wizard rich in gold and short of the mana for a summon it could cast turns just enough of the
@@ -412,82 +414,130 @@ fn stop_aimless(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 // ---- the power split ------------------------------------------------------------
 
-/// Shares for (mana, research, skill) tried in order; the first that keeps the mana income
-/// ahead of the upkeep is taken. Skill stays at a fifth so that spells can still be cast at
-/// once.
-const SPLITS: &[(u8, u8, u8)] = &[
-    (10, 70, 20),
-    (25, 55, 20),
-    (40, 40, 20),
-    (55, 25, 20),
-    (70, 10, 20),
-    (80, 0, 20),
-];
+/// The balanced split every wizard starts from: (mana, research, skill) in percent. Goals, the phase
+/// and the state of the game move it (`split_target`).
+const BASE_SPLIT: [i32; 3] = [30, 40, 30];
+/// The steps the shares move in.
+const STEP: i32 = 5;
+/// The least a share is (skill keeps a fifth so that spells can still be cast at once).
+const MIN_SHARE: [i32; 3] = [0, 0, 20];
 /// Turns a mana reserve is meant to last when the income falls short of the upkeep.
 const MANA_HORIZON: i32 = 40;
+/// A reserve this big (and big against the income) is more than the wizard can spend soon.
+const RICH_RESERVE: i32 = 1500;
 /// The split while the Spell of Mastery is being cast: mana pays for it and skill sets how much
 /// can be paid a turn.
 const MASTERY_SPLIT: (u8, u8, u8) = (50, 0, 50);
+/// The split of a wizard that has nothing left to research: no research, a bigger share for casting.
+const DONE_RESEARCHING: (u8, u8, u8) = (60, 0, 40);
+/// The split of a wizard that races to research the Spell of Mastery.
+const RACING_SPLIT: (u8, u8, u8) = (15, 65, 20);
+
+/// Move `amount` points of the split from one share to another, as far as the first can give.
+fn shift(split: &mut [i32; 3], from: usize, to: usize, amount: i32) {
+    let moved = amount.min(split[from] - MIN_SHARE[from]).max(0);
+    split[from] -= moved;
+    split[to] += moved;
+}
+
+/// The split a wizard wants before the upkeep is looked at: the balanced base, moved by the phase
+/// of the game, the wizard's goal (`split_shift`, `lean_mana`) and the reserve it holds.
+fn split_target(view: &PlayerView, traits: &crate::objective::Traits) -> [i32; 3] {
+    const MANA: usize = 0;
+    const RESEARCH: usize = 1;
+    const SKILL: usize = 2;
+    let mut t = BASE_SPLIT;
+    match crate::phase::phase(view) {
+        // Growing: spells and their research come first, little is cast.
+        crate::phase::Phase::Build => shift(&mut t, MANA, RESEARCH, 10),
+        crate::phase::Phase::Secure => {}
+        // Winning: the spells are known, now they are cast.
+        crate::phase::Phase::Win => {
+            shift(&mut t, RESEARCH, MANA, 15);
+            shift(&mut t, RESEARCH, SKILL, 5);
+        }
+    }
+    // A goal that likes magic casts more; one that spends its mana to the bone researches more.
+    for _ in 0..traits.split_shift {
+        shift(&mut t, RESEARCH, MANA, STEP);
+    }
+    if traits.lean_mana {
+        shift(&mut t, MANA, RESEARCH, STEP);
+    }
+    // A big reserve is not spent for the lack of power but for the lack of skill and spells.
+    let reserve = view.treasury().mana.floor();
+    if reserve > RICH_RESERVE {
+        shift(&mut t, MANA, RESEARCH, 10);
+    }
+    t
+}
 
 fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let casting_mastery = {
+    let (casting_mastery, racing) = {
         let view = PlayerView::new(game, me);
         let Some(m) = view.wizard() else {
             return;
         };
-        m.casting()
-            .is_some_and(|c| kind(view.spell(c.spell)) == Kind::Mastery)
+        let is_mastery = |s| kind(view.spell(s)) == Kind::Mastery;
+        (
+            m.casting().is_some_and(|c| is_mastery(c.spell)),
+            m.researching().is_some_and(is_mastery),
+        )
     };
     if casting_mastery {
         ai.order(game, set_split(me, MASTERY_SPLIT), events);
         return;
     }
-    let traits = crate::objective::traits(&PlayerView::new(game, me));
-    let mut chosen = SPLITS[SPLITS.len() - 1];
-    // Later in the game mana is for casting: the split starts further down the list. A wizard
-    // that races for the Spell of Mastery keeps its research.
-    let (by_phase, late) = {
+    // Nothing left to research: research points go to waste, so the power goes to mana and to the
+    // casting skill that spends it (a wizard that knows every spell, seen in the soaks, put 70% of
+    // 378 power into research and had 38 mana a turn).
+    let nothing_to_research = {
         let view = PlayerView::new(game, me);
-        let researching_mastery = view
-            .wizard()
-            .and_then(|m| m.researching())
-            .is_some_and(|s| kind(view.spell(s)) == Kind::Mastery);
-        let phase = crate::phase::phase(&view);
-        // From the secure phase on the income must leave mana for casting; the wizard that
-        // researches the Spell of Mastery keeps its research.
-        let late = phase != crate::phase::Phase::Build && !researching_mastery;
-        let shift = match phase {
-            _ if researching_mastery || view.treasury().mana > 300 => 0,
-            crate::phase::Phase::Build => 0,
-            _ => crate::knob("PSHIFT", 0.0) as usize,
-        };
-        (shift, late)
+        view.wizard()
+            .is_some_and(|m| m.researching().is_none() && !m.known().is_empty())
+            && view.research_choices().is_empty()
     };
-    for candidate in SPLITS.iter().copied().skip(traits.split_shift + by_phase) {
-        game.apply(set_split(me, candidate));
+    if nothing_to_research {
+        ai.order(game, set_split(me, DONE_RESEARCHING), events);
+        return;
+    }
+    if racing {
+        ai.order(game, set_split(me, RACING_SPLIT), events);
+        return;
+    }
+    let mut target = {
+        let view = PlayerView::new(game, me);
+        split_target(&view, &crate::objective::traits(&view))
+    };
+    // The income must cover the upkeep of the lasting spells and creatures (a reserve pays for a
+    // small deficit for a long while): mana takes from research first, then from skill.
+    let mut chosen = target;
+    for _ in 0..40 {
+        chosen = target;
+        game.apply(set_split(me, as_split(chosen)));
         let view = PlayerView::new(game, me);
         let income = view.income();
-        // Mana for the upkeep and a little to spare; with a big reserve less is needed (and a
-        // wizard that favours research never keeps a spare).
-        let reserve = view.treasury().mana;
-        let margin = if reserve > 400 || traits.lean_mana {
-            0
-        } else if by_phase > 0 || late {
-            crate::knob("NETMANA", 12.0) as i32
-        } else {
-            2
-        };
-        // A reserve pays for a small deficit for a long while: a wizard whose upkeep eats the
-        // whole income at every split but the last still keeps some research while the reserve
-        // lasts `MANA_HORIZON` turns, and does not sit at "18 left" for hundreds of turns.
-        let deficit_allowed = f4x_def::half_int::HalfInt::from_int(reserve.floor() / MANA_HORIZON);
-        if income.split.mana - income.mana_upkeep + deficit_allowed >= margin {
-            chosen = candidate;
+        let deficit_allowed = f4x_def::half_int::HalfInt::from_int(
+            view.treasury().mana.floor().max(0) / MANA_HORIZON,
+        );
+        if income.split.mana - income.mana_upkeep + deficit_allowed
+            >= f4x_def::half_int::HalfInt::ZERO
+            || (target[1] == 0 && target[2] <= MIN_SHARE[2])
+        {
             break;
         }
+        if target[1] > 0 {
+            shift(&mut target, 1, 0, STEP);
+        } else {
+            shift(&mut target, 2, 0, STEP);
+        }
     }
-    ai.order(game, set_split(me, chosen), events);
+    ai.order(game, set_split(me, as_split(chosen)), events);
+}
+
+fn as_split(share: [i32; 3]) -> (u8, u8, u8) {
+    (share[0] as u8, share[1] as u8, share[2] as u8)
 }
 
 fn set_split(player: f4x_core::player::PlayerId, (mana, research, skill): (u8, u8, u8)) -> Command {
@@ -1489,6 +1539,50 @@ mod tests {
             research_share(100_000)? > 0,
             "a reserve for the deficit: research goes on"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_with_nothing_left_to_research_puts_no_power_into_research() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let ids: Vec<_> = g.content().rules.spells.iter().map(|(id, _)| id).collect();
+        for id in ids {
+            g.cheat_learn_spell(P0, id);
+        }
+        assert!(PlayerView::new(&g, P0).research_choices().is_empty());
+        split(&Ai::new(P0), &mut g, &mut Vec::new());
+        let share = g.wizard(P0).ok_or("player 0 is a wizard")?.power_split();
+        assert_eq!(share.research, 0);
+        assert!(share.mana >= 60, "mana {}", share.mana);
+        Ok(())
+    }
+
+    #[test]
+    fn the_split_starts_balanced_and_moves_with_the_phase_of_the_game() -> TestResult {
+        let share = |turn: u32| -> Result<_, Box<dyn std::error::Error>> {
+            let mut g = game(COAST_CITY, 8 /* high_men */);
+            // A known spell and one to research, so that research still has a use.
+            let ids: Vec<_> = g.content().rules.spells.iter().map(|(id, _)| id).collect();
+            g.cheat_learn_spell(P0, ids[0]);
+            g.wizard_mut(P0)
+                .ok_or("player 0 is a wizard")?
+                .get_mut::<f4x_core::wizard::sheet::Candidates>()
+                .0
+                .push(ids[1]);
+            assert!(!PlayerView::new(&g, P0).research_choices().is_empty());
+            g.turn = turn;
+            split(&Ai::new(P0), &mut g, &mut Vec::new());
+            let s = g.wizard(P0).ok_or("player 0 is a wizard")?.power_split();
+            Ok((s.mana, s.research, s.skill))
+        };
+        let (build, secure, win) = (share(10)?, share(250)?, share(400)?);
+        assert_eq!(build.0 + build.1 + build.2, 100);
+        assert!(
+            secure.0 >= 25 && secure.1 >= 35 && secure.2 >= 25,
+            "{secure:?}"
+        );
+        assert!(build.1 > secure.1, "{build:?} {secure:?}");
+        assert!(win.0 > secure.0 && win.1 < secure.1, "{win:?} {secure:?}");
         Ok(())
     }
 

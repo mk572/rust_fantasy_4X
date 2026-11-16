@@ -53,6 +53,64 @@ fn movable(ai: &Ai, view: &PlayerView, units: &[hecs::Entity]) -> Vec<hecs::Enti
         .collect()
 }
 
+/// Fighters a city keeps in the late game beyond [`garrison_wanted`]: a spare, so that a raid or a
+/// wandering monster does not find it empty.
+const LATE_SPARE: usize = 1;
+
+/// Late in the game the cheap units (spearmen, swordsmen) are let go: they cost gold and food, take
+/// room in the city's stack and fight no tower or city. A city keeps at least what it wants and the
+/// stronger units; the weakest low-tier ones beyond that are dismissed. Not in a threatened city, and
+/// not a unit with a task.
+pub fn thin_out(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    let me = ai.player;
+    let dismissed: Vec<hecs::Entity> = {
+        let view = PlayerView::new(game, me);
+        if crate::phase::phase(&view) != crate::phase::Phase::Win {
+            return;
+        }
+        let mut out = Vec::new();
+        let mine = view.my_units();
+        for (_, pos) in view.my_cities() {
+            if ai.threatened.contains(&pos) {
+                continue;
+            }
+            let mut fighters: Vec<hecs::Entity> = view
+                .garrison(pos)
+                .into_iter()
+                .filter(|&u| is_fighter(&view, u) && mine.contains(&u))
+                .collect();
+            let keep = garrison_wanted(&view, pos) + LATE_SPARE;
+            if fighters.len() <= keep {
+                continue;
+            }
+            fighters.sort_by(|&a, &b| {
+                unit_strength(&view, a)
+                    .total_cmp(&unit_strength(&view, b))
+                    .then(view.serial_of(a).cmp(&view.serial_of(b)))
+            });
+            let spare = fighters.len() - keep;
+            out.extend(
+                fighters
+                    .into_iter()
+                    .filter(|&u| {
+                        let serial = view.serial_of(u);
+                        crate::forge::low_tier(&view, u)
+                            && !ai.scouts.contains(&serial)
+                            && !ai.raiders.contains(&serial)
+                            && !ai.marching.contains(&serial)
+                            && !ai.sea_party.contains(&serial)
+                            && !ai.ferries.iter().any(|f| f.group.contains(&serial))
+                    })
+                    .take(spare),
+            );
+        }
+        out
+    };
+    for unit in dismissed {
+        ai.order(game, Command::DismissUnit { unit }, events);
+    }
+}
+
 /// Send the units a city holds beyond [`city_cap`] where they are of use: to the nearest city
 /// with fewer defenders than it wants, else on a raid (three or more on a square), else
 /// scouting. The strongest leave; the weakest stay at home.
@@ -248,6 +306,43 @@ mod tests {
 
     fn held(g: &Game, pos: Position) -> usize {
         PlayerView::new(g, P0).garrison(pos).len()
+    }
+
+    const PALADINS: u16 = 113; // high_men_paladins
+
+    #[test]
+    fn late_in_the_game_the_cheap_units_of_a_full_city_are_let_go_and_the_strong_stay() -> TestResult
+    {
+        let mut g = two_cities()?;
+        let coast = at(COAST_CITY.0, COAST_CITY.1);
+        spawn(&mut g, P0, coast, SPEARMEN, 6);
+        let paladins = spawn(&mut g, P0, coast, PALADINS, 2);
+        g.turn = 400;
+        let mut ai = Ai::new(P0);
+        thin_out(&mut ai, &mut g, &mut Vec::new());
+        let view = PlayerView::new(&g, P0);
+        let left = view.garrison(coast);
+        // Wanted is one at peace and a spare: two stay, and they are the better of the cheap.
+        assert!(left.len() < 8, "{} units left", left.len());
+        assert!(paladins.iter().all(|p| left.contains(p)));
+        assert!(left.len() >= garrison_wanted(&view, coast) + LATE_SPARE);
+        Ok(())
+    }
+
+    #[test]
+    fn the_cheap_units_stay_early_in_the_game_and_in_a_threatened_city() -> TestResult {
+        let mut g = two_cities()?;
+        let coast = at(COAST_CITY.0, COAST_CITY.1);
+        spawn(&mut g, P0, coast, SPEARMEN, 6);
+        g.turn = 20;
+        let mut ai = Ai::new(P0);
+        thin_out(&mut ai, &mut g, &mut Vec::new());
+        assert_eq!(held(&g, coast), 6);
+        g.turn = 400;
+        ai.threatened = vec![coast];
+        thin_out(&mut ai, &mut g, &mut Vec::new());
+        assert_eq!(held(&g, coast), 6);
+        Ok(())
     }
 
     #[test]

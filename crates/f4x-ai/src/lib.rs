@@ -18,6 +18,7 @@ mod craft;
 mod diplomacy;
 mod economy;
 mod expand;
+mod forge;
 mod garrison;
 mod military;
 mod monster;
@@ -29,8 +30,10 @@ mod phase;
 mod plan_clock;
 mod race;
 mod raze;
+mod recover;
 mod scout;
 mod shortfall;
+mod siege;
 mod site;
 mod spellhelper;
 mod statecraft;
@@ -374,7 +377,9 @@ impl Ai {
             .time_stopper()
             .is_some_and(|keeper| keeper != self.player)
         {
+            recover::run(self, game, &mut events);
             garrison::disperse(self, game, &mut events);
+            garrison::thin_out(self, game, &mut events);
             expand::settlers(self, game, &mut events);
             scout::scout(self, game, &mut events);
             site::run(self, game, &mut events);

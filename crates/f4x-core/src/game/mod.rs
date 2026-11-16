@@ -709,7 +709,14 @@ impl Game {
                 Err(e) => vec![Event::Rejected(Rejection::Production(e))],
             },
             Command::BuyProduction { city } => match self.buy_production(city) {
-                Ok(_) => Vec::new(),
+                Ok(cost) => match self.economy().city_owner(city) {
+                    Some(player) => vec![Event::ProductionBought {
+                        player,
+                        city,
+                        cost: cost.floor().max(0) as u32,
+                    }],
+                    None => Vec::new(),
+                },
                 Err(e) => vec![Event::Rejected(Rejection::Production(e))],
             },
             Command::RazeCity { player, city } => self.raze_city(player, city),

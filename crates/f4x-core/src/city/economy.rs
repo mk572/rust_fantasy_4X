@@ -1306,6 +1306,11 @@ impl<'a> Economy<'a> {
             .map(|(e, _)| e)
     }
 
+    /// The race of a city.
+    pub fn city_race(&self, city: hecs::Entity) -> Option<crate::rules::RaceId> {
+        self.world.get::<&CityRace>(city).ok().map(|r| r.0)
+    }
+
     /// The player owning a city.
     pub fn city_owner(&self, city: hecs::Entity) -> Option<PlayerId> {
         crate::player::id_of(self.world, self.city_owner_entity(city)?)

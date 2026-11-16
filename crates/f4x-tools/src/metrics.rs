@@ -94,11 +94,14 @@ pub struct Metrics {
     pub towers_cleared: u32,
     /// Turns the wizard had a spell to research and its research income was nil.
     pub research_stalled: u32,
+    /// Items finished by paying gold (`Command::BuyProduction`), and the gold they cost.
+    pub production_rushed: u32,
+    pub gold_rushed: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 52] {
+    pub fn rows(&self) -> [(&'static str, u32); 54] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -152,6 +155,8 @@ impl Metrics {
             ("sites cleared", self.sites_cleared),
             ("towers cleared", self.towers_cleared),
             ("research stalled turns", self.research_stalled),
+            ("production rushed", self.production_rushed),
+            ("gold paid for rushing", self.gold_rushed),
         ]
     }
 
@@ -261,6 +266,8 @@ impl AddAssign for Metrics {
             sites_cleared,
             towers_cleared,
             research_stalled,
+            production_rushed,
+            gold_rushed,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -314,6 +321,8 @@ impl AddAssign for Metrics {
         self.sites_cleared += sites_cleared;
         self.towers_cleared += towers_cleared;
         self.research_stalled += research_stalled;
+        self.production_rushed += production_rushed;
+        self.gold_rushed += gold_rushed;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -681,6 +690,10 @@ impl Tally {
                         m.treaties_broken += 1;
                     })
                 }
+                Event::ProductionBought { player, cost, .. } => self.bump(*player, |m| {
+                    m.production_rushed += 1;
+                    m.gold_rushed += *cost;
+                }),
                 // A standing order that stopped on a refused step counts as a refused order.
                 Event::OrderFailed { player, .. } => {
                     self.bump(*player, |m| m.refused_orders += 1);

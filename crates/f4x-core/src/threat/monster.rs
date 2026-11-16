@@ -330,6 +330,7 @@ impl Game {
                 prisoner: false,
                 special: 0,
                 fought_by: Vec::new(),
+                hurt: Vec::new(),
             }),
         });
         events.push(Event::CityRampaged {

@@ -444,6 +444,13 @@ pub struct RuleSettings {
     /// are allowed. On in v1.31 and v1.6.
     #[serde(default = "fb_ban_life_and_death")]
     pub ban_life_and_death: bool,
+    /// Monsters in lairs (the guards of towers, nodes and encounter sites) are fully healed after a
+    /// battle: each assault meets the full guard, as in the original (`Lair_Make_Guardians` makes
+    /// them fresh for every fight). On in v1.31 and v1.6. Off: the guards that die stay dead and
+    /// the ones that live keep their wounds, healing a tenth of their hit points a turn (as a
+    /// garrison does), so that an assault in waves wears a lair down.
+    #[serde(default = "fb_lair_full_heal")]
+    pub lair_full_heal: bool,
     /// Who may research and cast the Spell of Mastery (the spell that wins the game). All: every
     /// wizard (the original). Human only: the AI wizards never get it. Off: nobody does, and a
     /// game is won by conquest only.
@@ -581,6 +588,10 @@ fn fb_color_wheel_relations() -> bool {
 
 fn fb_defeat_loot() -> bool {
     fallback(|g| g.rules.defeat_loot, true)
+}
+
+fn fb_lair_full_heal() -> bool {
+    fallback(|g| g.rules.lair_full_heal, true)
 }
 
 fn fb_roads_at_start() -> bool {

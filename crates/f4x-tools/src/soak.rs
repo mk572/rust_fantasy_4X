@@ -561,6 +561,47 @@ pub fn game(
     );
     println!("{tag}: diplomacy: {}", diplomacy_line(&total));
     println!(
+        "{tag}: planar: {}",
+        total
+            .rows()
+            .into_iter()
+            .filter(|(label, _)| {
+                [
+                    "plane crossings",
+                    "plane shifts",
+                    "sites cleared",
+                    "towers cleared",
+                ]
+                .contains(label)
+            })
+            .map(|(label, n)| format!("{label} {n}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    for line in magic_lines(&game) {
+        println!("{tag}: {line}");
+    }
+    for line in empire_lines(&game) {
+        println!("{tag}: {line}");
+    }
+    if game.game_over.is_none() {
+        for line in reach_lines(&game) {
+            println!("{tag}: {line}");
+        }
+    }
+    println!(
+        "{tag}: production rushed with gold (items, gold): {}",
+        game.player_ids()
+            .into_iter()
+            .filter(|&p| game.wizard(p).is_some())
+            .map(|p| {
+                let m = tally.of(p);
+                format!("p{} {} ({}g)", p.0, m.production_rushed, m.gold_rushed)
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    println!(
         "{tag}: research stalled turns: {}",
         game.player_ids()
             .into_iter()
@@ -757,6 +798,161 @@ fn city_lines(game: &Game) {
             seen_by.join(" ")
         );
     }
+}
+
+/// For a game with no winner: what each wizard with cities could do about each rival with cities, so a
+/// stall reads at a glance. `p2>p0 War: sees 4 of 13 cities, rival on Myrror 13, own Arcanus 33`.
+fn reach_lines(game: &Game) -> Vec<String> {
+    let cities: Vec<(PlayerId, f4x_core::map::Position)> = game
+        .economy()
+        .cities()
+        .into_iter()
+        .filter(|(_, city, _)| !game.is_neutral_player(city.owner))
+        .map(|(_, city, pos)| (city.owner, pos))
+        .collect();
+    let planes = |who: PlayerId| {
+        let mut names: Vec<String> = Vec::new();
+        for plane in [f4x_core::map::Plane::Arcanus, f4x_core::map::Plane::Myrror] {
+            let n = cities
+                .iter()
+                .filter(|(o, p)| *o == who && p.plane == plane)
+                .count();
+            if n > 0 {
+                names.push(format!("{plane:?} {n}"));
+            }
+        }
+        names.join(" ")
+    };
+    let owners: Vec<PlayerId> = game
+        .player_ids()
+        .into_iter()
+        .filter(|&p| cities.iter().any(|(o, _)| *o == p))
+        .collect();
+    let mut lines = Vec::new();
+    for &a in &owners {
+        for &b in &owners {
+            if a == b {
+                continue;
+            }
+            let theirs: Vec<_> = cities.iter().filter(|(o, _)| *o == b).collect();
+            let seen = theirs
+                .iter()
+                .filter(|(_, p)| game.is_explored(a, *p))
+                .count();
+            lines.push(format!(
+                "reach: p{}>p{} {:?}: sees {} of {} cities (rival {}; own {})",
+                a.0,
+                b.0,
+                game.treaty(a, b),
+                seen,
+                theirs.len(),
+                planes(b),
+                planes(a)
+            ));
+        }
+    }
+    lines
+}
+
+/// Per wizard with cities: the power before the split, the mana the split gives, the upkeep of its
+/// lasting spells and creatures, the pool, and how many of its cities hold each of the four
+/// buildings that give mana (shrine, temple, parthenon, cathedral). Where the mana goes.
+fn magic_lines(game: &Game) -> Vec<String> {
+    let rules = &game.content().rules;
+    let ids: Vec<_> = ["shrine", "temple", "parthenon", "cathedral"]
+        .iter()
+        .filter_map(|name| {
+            rules
+                .buildings
+                .iter()
+                .find(|(_, d)| d.id == *name)
+                .map(|(id, _)| id)
+        })
+        .collect();
+    let mut lines = Vec::new();
+    for p in game.player_ids() {
+        if game.wizard(p).is_none() || game.is_neutral_player(p) {
+            continue;
+        }
+        let cities: Vec<_> = game
+            .economy()
+            .cities_of(p)
+            .into_iter()
+            .map(|(c, _)| c)
+            .collect();
+        if cities.is_empty() {
+            continue;
+        }
+        let income = game.income(p);
+        let built: Vec<String> = ids
+            .iter()
+            .map(|&b| {
+                cities
+                    .iter()
+                    .filter(|&&c| game.economy().city_has_building(c, b))
+                    .count()
+                    .to_string()
+            })
+            .collect();
+        lines.push(format!(
+            "magic: p{} power {} mana income {} upkeep {} pool {}; of {} cities shrines/temples/parthenons/cathedrals {}",
+            p.0,
+            income.power_base.as_f32(),
+            income.split.mana.as_f32(),
+            income.mana_upkeep.as_f32(),
+            f4x_core::player::view::PlayerView::new(game, p)
+                .treasury()
+                .mana
+                .as_f32(),
+            cities.len(),
+            built.join("/")
+        ));
+    }
+    lines
+}
+
+/// Per wizard with cities: how many cities, the average population of a city (figures) and the
+/// average and total number of buildings (every building a city has, replaced ones included).
+fn empire_lines(game: &Game) -> Vec<String> {
+    let rules = &game.content().rules;
+    let all: Vec<_> = rules.buildings.iter().map(|(id, _)| id).collect();
+    let mut lines = Vec::new();
+    for p in game.player_ids() {
+        if game.wizard(p).is_none() || game.is_neutral_player(p) {
+            continue;
+        }
+        let cities: Vec<_> = game
+            .economy()
+            .cities_of(p)
+            .into_iter()
+            .map(|(c, _)| c)
+            .collect();
+        if cities.is_empty() {
+            continue;
+        }
+        let figures: u32 = cities
+            .iter()
+            .map(|&c| game.economy().city_economy(c).map_or(0, |e| e.figures))
+            .sum();
+        let buildings: usize = cities
+            .iter()
+            .map(|&c| {
+                all.iter()
+                    .filter(|&&b| game.economy().city_has_building(c, b))
+                    .count()
+            })
+            .sum();
+        let n = cities.len() as f32;
+        lines.push(format!(
+            "empire: p{} {} cities, average population {:.1}, buildings {} ({:.1} a city)",
+            p.0,
+            cities.len(),
+            figures as f32 / n,
+            buildings,
+            buildings as f32 / n
+        ));
+    }
+    lines
 }
 
 /// Mana spent over the game and left at the end, per wizard, e.g. `p0 spent 5200 left 80`.

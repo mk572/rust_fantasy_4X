@@ -53,7 +53,7 @@ fn city_defence(view: &PlayerView, p: Position) -> f32 {
 
 /// The explored, intact sites within [`SITE_RANGE`] of `from` (towers within [`TOWER_RANGE`]) that a party of `strength` should
 /// take, nearest first.
-fn sites_near(view: &PlayerView, from: Position, strength: f32) -> Vec<Position> {
+pub(crate) fn sites_near(view: &PlayerView, from: Position, strength: f32) -> Vec<Position> {
     let mut found: Vec<Position> = Vec::new();
     for dy in -SITE_RANGE..=SITE_RANGE {
         for dx in -SITE_RANGE..=SITE_RANGE {
@@ -282,15 +282,24 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .collect();
             crate::view::weakest_first(&view, &mut fighters);
             fighters.sort_by_key(|u| heroes.contains(u));
-            let spare: Vec<hecs::Entity> = fighters
+            // The party is the strongest nine of what the garrison does not need: heroes lead it,
+            // so that they fight, level up and bring the loot home (task 502).
+            let mut spare: Vec<hecs::Entity> = fighters
                 .into_iter()
                 .skip(garrison_wanted(&view, pos))
-                .take(f4x_core::unit::MAX_STACK)
                 .collect();
+            spare.sort_by(|&a, &b| {
+                unit_strength(&view, b)
+                    .total_cmp(&unit_strength(&view, a))
+                    .then(view.serial_of(a).cmp(&view.serial_of(b)))
+            });
+            spare.retain(|&u| !crate::recover::needs_rest(&view, u));
+            spare.truncate(f4x_core::unit::MAX_STACK);
             if spare.len() < SITE_PARTY {
                 continue;
             }
-            let sites = sites_near(&view, pos, stack_strength(&view, &spare));
+            let strength = stack_strength(&view, &spare) + crate::siege::spell_power(&view);
+            let sites = sites_near(&view, pos, strength);
             (spare, sites)
         };
         for site in sites {
@@ -346,7 +355,8 @@ pub fn deploy(
             }
             let sites = {
                 let view = PlayerView::new(game, me);
-                sites_near(&view, pos, stack_strength(&view, party))
+                let strength = stack_strength(&view, party) + crate::siege::spell_power(&view);
+                sites_near(&view, pos, strength)
             };
             for site in sites {
                 if crate::assault::march_with(&mut reached, ai, game, party, site, events).is_ok() {

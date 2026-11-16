@@ -151,6 +151,7 @@ pub fn spawn_site(
             prisoner: false,
             special: 0,
             fought_by,
+            hurt: Vec::new(),
         }),
     }))
 }
@@ -179,6 +180,7 @@ pub fn spawn_tower(
             prisoner: false,
             special: 0,
             fought_by: Vec::new(),
+            hurt: Vec::new(),
         }),
     }))
 }

@@ -66,6 +66,7 @@
     "custom.walls_cover_city": "Walls protect the whole city (+3)",
     "custom.miners_guild_half_ore": "Miner's Guild adds half to iron and coal (not double)",
     "custom.spell_binding_always_succeeds": "Spell Binding always succeeds",
+    "custom.lair_full_heal": "Monsters in lairs fully healed after battle",
     "custom.roads_at_start": "Roads between independent cities at the start",
     "custom.mix_neutral_races": "Independent cities of both planes' races on each plane",
     "custom.two_pick_myrran": "Myrran costs two picks and its fortress makes no extra mana",

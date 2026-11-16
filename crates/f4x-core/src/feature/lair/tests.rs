@@ -62,6 +62,7 @@ fn info(site: u16, reward: Option<u16>) -> LairInfo {
         prisoner: false,
         special: 0,
         fought_by: Vec::new(),
+        hurt: Vec::new(),
     }
 }
 
@@ -78,6 +79,7 @@ fn lair(guards: Vec<(u16, u32)>) -> Lair {
         prisoner: true,
         special: 0,
         fought_by: Vec::new(),
+        hurt: Vec::new(),
     }
 }
 
@@ -655,6 +657,83 @@ fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() -> TestResul
     Ok(())
 }
 
+/// The end of a lost assault on three skeletons, one of which died and one of which is wounded.
+fn lost_assault(full_heal: bool) -> Result<Game, Box<dyn std::error::Error>> {
+    let mut g = world(6);
+    g.settings.rules.lair_full_heal = full_heal;
+    let site = put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![(165 /* skeletons */, 3)],
+    );
+    let skeleton = g
+        .content
+        .rules
+        .units
+        .id_numbered(165)
+        .ok_or("skeletons are not in the content")?;
+    let guards: Vec<hecs::Entity> = (0..3)
+        .map(|_| g.spawn_unit(crate::player::MONSTERS, at(5, 5), skeleton))
+        .collect();
+    g.put(guards[0], crate::unit::Hurt(4));
+    g.despawn_with_spells(guards[1]);
+    g.finish_site_battle(site, None, &[], &guards);
+    Ok(g)
+}
+
+#[test]
+fn with_full_healing_on_a_lost_assault_leaves_the_lair_as_it_was() -> TestResult {
+    let g = lost_assault(true)?;
+    let lair = g.economy().lair_at(at(5, 5)).ok_or("the lair is gone")?;
+    assert_eq!(lair.guard_count(), 3);
+    assert!(lair.hurt.is_empty());
+    Ok(())
+}
+
+#[test]
+fn with_full_healing_off_the_dead_stay_dead_and_the_wounded_keep_their_wounds() -> TestResult {
+    let mut g = lost_assault(false)?;
+    let lair = g.economy().lair_at(at(5, 5)).ok_or("the lair is gone")?;
+    assert_eq!(lair.guard_count(), 2, "one guard died");
+    assert_eq!(lair.hurt, vec![4, 0], "the other keeps its wounds");
+    // Each turn the wounded mend a tenth of their hit points (at least one).
+    g.heal_lairs();
+    let lair = g.economy().lair_at(at(5, 5)).ok_or("the lair is gone")?;
+    assert!(lair.hurt.iter().sum::<u32>() < 4, "{:?}", lair.hurt);
+    for _ in 0..10 {
+        g.heal_lairs();
+    }
+    let lair = g.economy().lair_at(at(5, 5)).ok_or("the lair is gone")?;
+    assert!(lair.hurt.is_empty(), "{:?}", lair.hurt);
+    Ok(())
+}
+
+#[test]
+fn a_wounded_guard_comes_back_into_the_next_battle_wounded() -> TestResult {
+    let mut g = lost_assault(false)?;
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_numbered(107)
+        .ok_or("high_men_cavalry is not in the content")?;
+    let w = g.spawn_unit(P0, at(4, 5), walker);
+    g.apply(Command::EnterSite {
+        units: vec![w],
+        to: at(5, 5),
+    });
+    let guards = g.units().units_at(at(5, 5));
+    assert_eq!(guards.len(), 2);
+    let hurt: Vec<u32> = guards
+        .iter()
+        .map(|&u| g.world.get::<&crate::unit::Hurt>(u).map_or(0, |h| h.0))
+        .collect();
+    assert_eq!(hurt, vec![4, 0]);
+    Ok(())
+}
+
 #[test]
 fn only_a_guarded_site_next_to_the_stack_can_be_entered() -> TestResult {
     let mut g = world(7);
@@ -946,6 +1025,7 @@ fn rich_lair() -> Lair {
         prisoner: true,
         special: 2,
         fought_by: Vec::new(),
+        hurt: Vec::new(),
     }
 }
 

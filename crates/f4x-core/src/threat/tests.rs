@@ -64,6 +64,7 @@ fn lair(guards: Vec<(u16, u32)>) -> Lair {
         prisoner: false,
         special: 0,
         fought_by: vec![P0],
+        hurt: Vec::new(),
     }
 }
 
@@ -268,6 +269,7 @@ fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() -> TestResult {
             prisoner: false,
             special: 0,
             fought_by: vec![P0],
+            hurt: Vec::new(),
         },
     );
     let ghoul = g
@@ -320,6 +322,7 @@ fn a_stack_that_settles_on_the_way_does_not_walk_on() -> TestResult {
             prisoner: false,
             special: 0,
             fought_by: vec![P0],
+            hurt: Vec::new(),
         },
     );
     let ghoul = g
@@ -364,6 +367,7 @@ fn a_node_a_wizard_holds_is_not_taken() -> TestResult {
             prisoner: false,
             special: 0,
             fought_by: Vec::new(),
+            hurt: Vec::new(),
         },
     )?;
     assert_eq!(g.vacant_zone(at(14, 8)), None);

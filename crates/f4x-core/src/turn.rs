@@ -87,6 +87,7 @@ impl Game {
         if player == crate::player::MONSTERS {
             self.process_experience(player);
             self.heal_units(player);
+            self.heal_lairs();
             return Vec::new();
         }
         // While Time Stop lasts nothing grows, nothing is learned and the land does not change

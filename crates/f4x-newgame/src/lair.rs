@@ -248,7 +248,9 @@ mod tests {
                 ..GenParams::default()
             };
             let lairs = generate_lairs(seed, &params, &map, &placed, &nodes, c);
-            for byte in format!("{lairs:?}").bytes() {
+            // `hurt` (the wounds of a lair's guards, empty in a new world) came after the number
+            // was taken: leave it out so that the number still says "generation is unchanged".
+            for byte in format!("{lairs:?}").replace(", hurt: []", "").bytes() {
                 hash = (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
             }
         }

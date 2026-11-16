@@ -66,6 +66,13 @@ pub enum Event {
         player: player::PlayerId,
         hero: rules::UnitId,
     },
+    /// A wizard paid gold to finish what a city is building (`Command::BuyProduction`); `cost` is
+    /// the whole gold paid, rounded down.
+    ProductionBought {
+        player: player::PlayerId,
+        city: hecs::Entity,
+        cost: u32,
+    },
     TurnStarted {
         turn: u32,
     },

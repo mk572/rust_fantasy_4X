@@ -21,7 +21,7 @@ few constants, so there are no weights to scale yet.
 |---|---|---|
 | `economy.rs` `WANTED_CITIES` (7) | cities settled before the AI only builds up | the city target |
 | `economy.rs` `STRIKE_BASE` (4) | fighters beyond the home guard | the army target |
-| `wizardry.rs` `SPLITS` and `split` | power split, first affordable candidate | the research share |
+| `wizardry.rs` `BASE_SPLIT`, `split_target` and `split` | power split: a balanced 30/40/30 base moved by phase, goal and reserve, then raised to cover the upkeep | the mana and research shares |
 | `wizardry.rs` `research_score` | a real score, the turns to learn times factors | a factor per spell kind |
 | `wizardry.rs` `priority` | fixed order of spell kinds | not changed here (step 3) |
 | `economy.rs` `plan_for` (was `BUILD_ORDER`) | the focus, mix and settlers of each city's auto-builder plan (`docs/auto-builder.md`) | the focus pair an objective gives a city |

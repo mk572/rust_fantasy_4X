@@ -4,6 +4,7 @@ Source: ReMoM `Create_Lair`, `Generate_Lairs`, `Lair_Make_Guardians`, `Lair.c`. 
 
 - Every tower, node and encounter site gets a `Lair` component (guards + hoard) on its terrain-feature entity at map generation (`docs/ecs-structure.md` 3.6); a tower is one entity, found on both planes. A cleared encounter site is despawned; a tower or node stays.
 - Guards are neutral units made on entry (`Command::EnterSite`), fought with the battle model, then removed. Winning takes the hoard and clears the site (encounter sites vanish; towers and nodes stay).
+- **Wounded guards (setting `lair_full_heal`).** On (v1.31 and v1.6, the original: every fight meets the full guard) nothing carries over. Off, an assault that does not clear the site leaves the dead guards dead (they leave `Lair::guards`) and the living ones with their wounds (`Lair::hurt`, one number of lost hit points per guard, in the order of `guards`); they come back wounded into the next fight and mend a tenth of their hit points each turn on the monsters' turn (`Game::heal_lairs`). The AI's guess of a lair's strength (`guard_strength`) does not count wounds yet.
 - Moving onto a guarded site gives `Event::SiteEncounter` and nothing moves; an unguarded site pays out on arrival.
 
 Differences from the original (gap tasks in TASKS.md):

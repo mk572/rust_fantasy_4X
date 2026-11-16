@@ -82,7 +82,10 @@ fn stacks(
         if scouts.contains(&view.serial_of(u)) || ferrying.contains(&view.serial_of(u)) {
             continue;
         }
-        if let (true, Some(p)) = (is_fighter(view, u), view.unit_position(u)) {
+        if let (true, Some(p)) = (
+            is_fighter(view, u) && !crate::recover::needs_rest(view, u),
+            view.unit_position(u),
+        ) {
             by_pos.entry(p).or_default().push(u);
         }
     }
@@ -366,11 +369,6 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     if game.turn.saturating_sub(ai.unreachable_since) > UNREACHABLE_TURNS {
         ai.unreachable.clear();
     }
-    // A march that has gone on too long, or whose target has changed, is called off.
-    if game.turn.saturating_sub(ai.march_started) > MARCH_TURNS || ai.march_target != Some(target) {
-        ai.marching.clear();
-        ai.march_target = Some(target);
-    }
     // Gather at the own city nearest the target; march when strong enough.
     let (rally, expected, at_rally, elsewhere, force) = {
         let view = PlayerView::new(game, me);
@@ -392,6 +390,16 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             },
             _ => rally,
         };
+        // A march that has gone on too long, or whose target has changed, is called off. A far
+        // target gets the walk to it on top of the usual time (the slowest unit covers a square
+        // a turn), or the stack would turn back before it arrived.
+        let trip = distance(&view, rally, target).unwrap_or(0);
+        if game.turn.saturating_sub(ai.march_started) > MARCH_TURNS + trip
+            || ai.march_target != Some(target)
+        {
+            ai.marching.clear();
+            ai.march_target = Some(target);
+        }
         let expected = expected_defence(&view, &ai.city_memory, game.turn, target);
         let (at_rally, elsewhere): (Vec<_>, Vec<_>) = free
             .iter()
@@ -763,6 +771,45 @@ fn planar_target(
     Some((tower, city))
 }
 
+/// Squares of walking a rival's fortress city is worth: taking the seat ends its wizard.
+const FORTRESS_BONUS: f32 = 12.0;
+/// Squares of walking a city on the way to the rival's fortress is worth: taking it opens the road
+/// and cuts the fortress off.
+const ROUTE_BONUS: f32 = 6.0;
+/// A city is "on the way" when going through it makes the walk to the fortress this much longer.
+const ROUTE_SLACK: u32 = 2;
+
+/// What a city is worth beyond its distance and its garrison (task 502): the rival's fortress city
+/// first, then the cities that lie between the army and that fortress. The nearest known fortress
+/// city of the same owner is the one the road leads to.
+fn strategic_bonus(view: &PlayerView, from: Position, owner: PlayerId, city: Position) -> f32 {
+    if !view.is_rival_wizard(owner) {
+        return 0.0;
+    }
+    let known = view.known_cities();
+    let Some(&(_, _, fort)) = known
+        .iter()
+        .find(|&&(c, o, _)| o == owner && view.is_fortress_city(c))
+    else {
+        return 0.0;
+    };
+    if fort == city {
+        return FORTRESS_BONUS;
+    }
+    let (Some(direct), Some(to_city), Some(on)) = (
+        distance(view, from, fort),
+        distance(view, from, city),
+        distance(view, city, fort),
+    ) else {
+        return 0.0;
+    };
+    if to_city + on <= direct + ROUTE_SLACK && to_city < direct {
+        ROUTE_BONUS
+    } else {
+        0.0
+    }
+}
+
 /// The enemy city worth marching on: near, and lightly held as far as the AI knows. Each average
 /// unit of garrison counts as a few squares of walking.
 fn best_enemy_city(
@@ -792,10 +839,13 @@ fn best_enemy_city(
                     f4x_core::diplomacy::Treaty::Pact | f4x_core::diplomacy::Treaty::Alliance
                 )
         })
-        .filter_map(|(_, _, p)| {
+        .filter_map(|(_, owner, p)| {
             let d = distance(view, from, p)? as f32;
             let held = memory.get(&p).map_or(GUESS_DEFENDERS, |m| m.0 / average);
-            Some((d + HELD_WEIGHT * held, p))
+            Some((
+                d + HELD_WEIGHT * held - strategic_bonus(view, from, owner, p),
+                p,
+            ))
         })
         .min_by(|a, b| {
             a.0.total_cmp(&b.0)
@@ -991,12 +1041,55 @@ mod tests {
     use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
     use f4x_def::half_int::HalfInt;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     /// West's six swordsmen stand next to one of East's spearmen, away from every city.
     fn field() -> (Game, Vec<hecs::Entity>) {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         spawn(&mut g, P0, at(6, 3), 105 /* high_men_swordsmen */, 6);
         let defenders = spawn(&mut g, P1, at(7, 3), 104 /* high_men_spearmen */, 1);
         (g, defenders)
+    }
+
+    /// P1 has its capital in the west of the east island and a second city, its seat, at `seat`;
+    /// P0 sees both and is at war with it.
+    fn rival_with_a_seat(seat: (u32, u32)) -> Result<Game, Box<dyn std::error::Error>> {
+        use f4x_core::wizard::fortress::Fortress;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.make_contact(P0, P1);
+        let capital = at(
+            crate::testworld::ENEMY_CITY.0,
+            crate::testworld::ENEMY_CITY.1,
+        );
+        let events = g.apply(Command::FoundCity {
+            owner: P1,
+            pos: at(seat.0, seat.1),
+            name: "Seat".into(),
+            race: g.content().rules.races.id_numbered(8),
+            population: 8,
+        });
+        assert!(
+            !events.iter().any(|e| matches!(e, Event::Rejected(_))),
+            "{events:?}"
+        );
+        g.wizard_mut(P1)
+            .ok_or("player 1 is a wizard")?
+            .put(Some(Fortress(at(seat.0, seat.1))));
+        for p in [capital, at(seat.0, seat.1)] {
+            g.explore(P0, p, HalfInt::from_raw(3));
+        }
+        g.declare_war(P0, P1);
+        Ok(g)
+    }
+
+    #[test]
+    fn the_rivals_fortress_is_taken_before_a_nearer_city() -> TestResult {
+        let g = rival_with_a_seat((30, 10))?;
+        let here = at(COAST_CITY.0, COAST_CITY.1);
+        let pick = best_enemy_city(&PlayerView::new(&g, P0), here, &[], &HashMap::new(), None);
+        // The capital is nearer (18 squares, the seat 20) but is not the seat.
+        assert_eq!(pick, Some(at(30, 10)));
+        Ok(())
     }
 
     #[test]

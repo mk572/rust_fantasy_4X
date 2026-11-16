@@ -1,0 +1,184 @@
+//! Forge cities (task 502): from the second half of the game a few of the wizard's best cities
+//! build out toward the race's top unit and then make little else, so that the field army is a
+//! few strong units and not a crowd of spearmen. Cheap units stay as garrisons; the strong ones
+//! are what clears a tower or storms a rival's city.
+
+use f4x_core::city::production::{ProductionError, ProductionItem};
+use f4x_core::player::view::PlayerView;
+use f4x_def::rules::{BuildingId, MovementType, Stat, UnitId, UnitKind};
+
+use crate::phase::{phase, Phase};
+
+/// The turn from which the forge cities are chosen (earlier, a wizard still grows).
+const FORGE_TURN: u32 = 150;
+/// One forge city for this many cities, at least two and at most [`MOST_FORGES`].
+const CITIES_PER_FORGE: usize = 5;
+const MOST_FORGES: usize = 4;
+
+/// Is the wizard past the build-up, so that its cities work toward the strong units?
+pub(crate) fn active(view: &PlayerView) -> bool {
+    view.turn() >= FORGE_TURN && phase(view) != Phase::Build
+}
+
+/// The forge cities: the biggest cities (the most production), the largest first; none before the
+/// wizard is past its build-up.
+pub(crate) fn forges(view: &PlayerView) -> Vec<hecs::Entity> {
+    if !active(view) {
+        return Vec::new();
+    }
+    let mut cities: Vec<(u32, hecs::Entity)> = view
+        .my_cities()
+        .into_iter()
+        .filter_map(|(c, _)| {
+            let size = view.city_economy(c)?.figures;
+            (size > 0).then_some((size, c))
+        })
+        .collect();
+    cities.sort_by_key(|&(size, c)| (std::cmp::Reverse(size), view.serial_of(c)));
+    let n = (cities.len() / CITIES_PER_FORGE).clamp(2, MOST_FORGES);
+    cities.into_iter().take(n).map(|(_, c)| c).collect()
+}
+
+/// The buildings a unit needs, and those they need in turn.
+fn chain(view: &PlayerView, unit: UnitId) -> Vec<BuildingId> {
+    let rules = &view.content().rules;
+    let mut found: Vec<BuildingId> = Vec::new();
+    let mut todo: Vec<BuildingId> = rules.units.get(unit).requires.clone();
+    while let Some(b) = todo.pop() {
+        if found.contains(&b) {
+            continue;
+        }
+        found.push(b);
+        todo.extend(rules.buildings.get(b).requires.iter().copied());
+    }
+    found
+}
+
+/// A unit that fights on land and is neither a settler nor a ship.
+fn is_land_fighter(view: &PlayerView, unit: UnitId) -> bool {
+    let d = view.content().rules.units.get(unit);
+    d.kind == UnitKind::Normal
+        && d.movement != MovementType::Sailing
+        && d.cost > 0
+        && d.stats
+            .get(&Stat::Melee)
+            .into_iter()
+            .chain(d.stats.get(&Stat::Ranged))
+            .any(|v| v.as_f32() > 0.0)
+        && d.stats
+            .get(&Stat::Construction)
+            .is_none_or(|v| v.as_f32() <= 0.0)
+        && !d.abilities.contains(&f4x_def::rules::Ability::new(12))
+}
+
+/// The dearest land fighter of the city's race whose buildings the city can still get (a coastal
+/// building is no use to an inland city).
+pub(crate) fn top_unit(view: &PlayerView, city: hecs::Entity) -> Option<UnitId> {
+    let rules = &view.content().rules;
+    let race = rules.races.get(view.city_race(city)?);
+    race.units
+        .iter()
+        .copied()
+        .filter(|&u| is_land_fighter(view, u))
+        .filter(|&u| {
+            chain(view, u).into_iter().all(|b| {
+                !matches!(
+                    view.can_build(city, ProductionItem::Building(b)),
+                    Err(ProductionError::WrongRace | ProductionError::NotCoastal)
+                )
+            })
+        })
+        .max_by_key(|&u| (rules.units.get(u).cost, u))
+}
+
+/// A unit is low-tier when it costs this percent of its race's top land unit or less (spearmen
+/// and swordsmen against the berserkers or the drakes).
+const LOW_TIER_PCT: u32 = 35;
+
+/// Is the unit one of the cheap ones of its race: no use in the field late in the game?
+pub(crate) fn low_tier(view: &PlayerView, unit: hecs::Entity) -> bool {
+    let Some(def) = view.unit_def(unit) else {
+        return false;
+    };
+    let rules = &view.content().rules;
+    let Some(race) = def.race else {
+        return false;
+    };
+    def.kind == UnitKind::Normal
+        && rules
+            .races
+            .get(race)
+            .units
+            .iter()
+            .copied()
+            .filter(|&u| is_land_fighter(view, u))
+            .map(|u| rules.units.get(u).cost)
+            .max()
+            .is_some_and(|top| def.cost * 100 <= LOW_TIER_PCT * top)
+}
+
+/// What a forge city does next toward its top unit.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Step {
+    /// The unit can be built now.
+    Ready(UnitId),
+    /// A building on the way to it can be started now.
+    Build(BuildingId),
+    /// Nothing to do (no top unit, or a building is still waiting for another).
+    Wait,
+}
+
+/// The next step of a city toward its top unit: the cheapest missing building that can be started,
+/// or the unit itself.
+pub(crate) fn step(view: &PlayerView, city: hecs::Entity) -> Step {
+    let Some(unit) = top_unit(view, city) else {
+        return Step::Wait;
+    };
+    if view.can_build(city, ProductionItem::Unit(unit)).is_ok() {
+        return Step::Ready(unit);
+    }
+    let rules = &view.content().rules;
+    chain(view, unit)
+        .into_iter()
+        .filter(|&b| view.can_build(city, ProductionItem::Building(b)).is_ok())
+        .min_by_key(|&b| (rules.buildings.get(b).cost, b))
+        .map_or(Step::Wait, Step::Build)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testworld::{game, COAST_CITY, P0};
+
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    #[test]
+    fn a_young_game_has_no_forge_cities() -> TestResult {
+        let g = game(COAST_CITY, 8 /* high_men */);
+        assert!(forges(&PlayerView::new(&g, P0)).is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn a_city_without_barracks_builds_toward_the_top_unit() -> TestResult {
+        let g = game(COAST_CITY, 8 /* high_men */);
+        let view = PlayerView::new(&g, P0);
+        let (city, _) = view.my_cities()[0];
+        let rules = &view.content().rules;
+        let top = top_unit(&view, city).ok_or("no top unit")?;
+        let cheapest = rules
+            .races
+            .get(view.city_race(city).ok_or("no race")?)
+            .units
+            .iter()
+            .copied()
+            .filter(|&u| is_land_fighter(&view, u))
+            .map(|u| rules.units.get(u).cost)
+            .min()
+            .ok_or("no unit")?;
+        assert!(rules.units.get(top).cost > cheapest);
+        // A new city has not built what the top unit needs, so it is told to build toward it.
+        assert!(matches!(step(&view, city), Step::Build(_) | Step::Ready(_)));
+        Ok(())
+    }
+}
