@@ -2,7 +2,8 @@
 //! walk as one stack, the slower setting the pace. The escort ends when its charge is gone (it
 //! founded its city, or died); the soldier is then a free unit in the new city or where it stands.
 //!
-//! Who is escorted: the settlers that have a site (`Role::Settle` with a target) and leave a city.
+//! Who is escorted: a healer or a weak hero standing alone outside a city (`stragglers`), an engineer in the field, a spirit bound
+//! for a node, and the settlers that have a site (`Role::Settle` with a target) and leave a city.
 //! Where a settler is sent (`walk`), the escort is taken from the city's soldiers above what the city wants (`garrison_wanted`); a
 //! city with none to spare sends its settler alone. The registry ties the escort to its charge
 //! (`with`); see `docs/ai-unit-registry.md`.
@@ -57,10 +58,92 @@ pub fn walk(
 
 /// Whether the unit holds a role whose bearer is escorted: a settler on its way, an engineer on
 /// the road, a spirit bound for a node.
-fn guarded(ai: &Ai, charge: Serial) -> bool {
-    [Role::Settle, Role::Road, Role::Meld]
+fn guarded(ai: &Ai, view: &PlayerView, charge: Serial) -> bool {
+    if [Role::Settle, Role::Road, Role::Meld]
         .into_iter()
         .any(|r| ai.roles.is(charge, r))
+    {
+        return true;
+    }
+    // A healer or a weak hero alone in the field (`stragglers`) keeps its guard on the way home.
+    matches!(
+        ai.roles.role_of(charge),
+        Some(Role::Return | Role::MoveTo | Role::AwaitingOrders)
+    ) && view
+        .my_units()
+        .into_iter()
+        .find(|&u| view.serial_of(u) == charge)
+        .is_some_and(|u| {
+            needs_escort(view, u)
+                && view
+                    .unit_position(u)
+                    .is_some_and(|p| view.city_at(p).is_none())
+        })
+}
+
+/// Ability of the Healer.
+const HEALER: f4x_def::rules::Ability = f4x_def::rules::Ability::new(27);
+
+/// A hero this much weaker than the average fighter needs a guard in the field.
+const WEAK_HERO: f32 = 0.5;
+
+/// Whether the unit cannot defend itself and is worth a guard when it stands alone in the field:
+/// a healer, or a hero much weaker than the army.
+fn needs_escort(view: &PlayerView, unit: hecs::Entity) -> bool {
+    if view.unit_has_ability(unit, HEALER) {
+        return true;
+    }
+    if !view
+        .unit_def(unit)
+        .is_some_and(|d| d.kind == f4x_def::rules::UnitKind::Hero)
+    {
+        return false;
+    }
+    let fighters: Vec<f32> = view
+        .my_units()
+        .into_iter()
+        .filter(|&u| {
+            is_fighter(view, u)
+                && view
+                    .unit_def(u)
+                    .is_some_and(|d| d.kind != f4x_def::rules::UnitKind::Hero)
+        })
+        .map(|u| unit_strength(view, u))
+        .collect();
+    if fighters.is_empty() {
+        return false;
+    }
+    let average = fighters.iter().sum::<f32>() / fighters.len() as f32;
+    unit_strength(view, unit) < average * WEAK_HERO
+}
+
+/// The healers and weak heroes that stand alone outside a city.
+fn stragglers(ai: &Ai, game: &Game) -> Vec<hecs::Entity> {
+    let view = PlayerView::new(game, ai.player);
+    let mut out: Vec<hecs::Entity> = view
+        .my_units()
+        .into_iter()
+        .filter(|&u| needs_escort(&view, u))
+        .filter(|&u| {
+            let s = view.serial_of(u);
+            // A unit with a task of its own travels with the party of that task.
+            matches!(
+                ai.roles.role_of(s),
+                Some(Role::Return | Role::MoveTo | Role::AwaitingOrders)
+            )
+        })
+        .filter(|&u| {
+            view.unit_position(u).is_some_and(|p| {
+                view.city_at(p).is_none()
+                    && !view
+                        .garrison(p)
+                        .into_iter()
+                        .any(|o| o != u && is_fighter(&view, o) && !needs_escort(&view, o))
+            })
+        })
+        .collect();
+    view.sort_by_serial(&mut out);
+    out
 }
 
 /// Make sure a unit that works away from any city (an engineer on a road toward the enemy) has an
@@ -164,10 +247,14 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .filter(|&e| {
                 !ai.roles
                     .with_of(e)
-                    .is_some_and(|c| live.contains(&c) && guarded(ai, c))
+                    .is_some_and(|c| live.contains(&c) && guarded(ai, &view, c))
             })
             .collect();
         ai.roles.release_many(&gone, Role::Escort);
+    }
+    // A healer or a weak hero alone in the field is given a soldier.
+    for unit in stragglers(ai, game) {
+        guard(ai, game, unit, events);
     }
     // An escort that fell behind (the stack was split by a fight, or the charge was ordered on
     // by another routine) catches up with its charge.
@@ -320,6 +407,30 @@ mod tests {
             .ok_or("the escort lives")?;
         g.cheat_move_unit(escort_unit, at(7, 6));
         assert!(guard(&mut ai, &mut g, engineer, &mut Vec::new()));
+        Ok(())
+    }
+
+    /// A healer on its own in the field is given a soldier from the nearest city; one in a city
+    /// or in a stack of fighters is left alone.
+    #[test]
+    fn a_healer_alone_in_the_field_is_given_an_escort() -> TestResult {
+        let (mut g, _, soldiers) = world();
+        let healer = spawn(&mut g, P0, at(7, 6), 7 /* healer */, 1)[0];
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        run(&mut ai, &mut g, &mut Vec::new());
+        let view = PlayerView::new(&g, P0);
+        let charge = view.serial_of(healer);
+        let escort = ai.roles.escort_of(charge).ok_or("an escort was chosen")?;
+        assert!(soldiers.iter().any(|&s| view.serial_of(s) == escort));
+        // In a city it needs none.
+        let mut g = world().0;
+        let in_city = spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 7, 1)[0];
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        run(&mut ai, &mut g, &mut Vec::new());
+        let charge = PlayerView::new(&g, P0).serial_of(in_city);
+        assert_eq!(ai.roles.escort_of(charge), None);
         Ok(())
     }
 }

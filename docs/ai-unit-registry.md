@@ -238,6 +238,8 @@ stranded soldiers waiting for a ship.
 
 ## 7. Plans and ends
 
+- A healer or a weak hero (much weaker than the average fighter) alone outside a city is given an
+  escort from the nearest city (`escort::stragglers`); it ends in a city or in a stack of fighters.
 - A settler that waits in the port for the colony ship holds `AwaitTransport` with the port as its
   `to` (`colony.rs`); the pickup planner leaves it alone (a city tile is no shore to fetch from);
   the ship that takes it makes it `Colonize`.
@@ -270,7 +272,7 @@ stranded soldiers waiting for a ship.
 
 ## 9. Known gaps
 
-- Healers and weak heroes get no escort (task 634); `Muster` is only for the tower siege (task 637).
+- `Muster` is only for the tower siege (task 637).
 - The ship states `TransportSpace` and `TransportReady` follow the ship's order and passengers;
   The boarding decision is recorded in the registry (the passenger's `Voyage` or `AwaitTransport`
   with `with` = the ship), which is where it should be.

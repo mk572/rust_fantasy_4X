@@ -510,6 +510,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 631 | AI | (done) Scout role: a scout has a target square or explores unknown ground until nothing reachable is left, then falls back to awaiting orders |
 | 632 | AI | (done) End of a role falls back to awaiting orders: called-off march, finished raid, and new units are given orders when they appear |
 | 633 | AI | (done) Plan clock reads each plan's start from the registry (`since`) instead of its own list |
+| 634 | AI | (done) Escorts for healers and weak heroes alone in the field
 | 635 | AI | (done) The autobuilder reads the registry: ships, scouts, soldiers and attackers follow the roles |
 | 636 | AI | (done) Settlers waiting for a ship to colonize hold `AwaitTransport` |
 | 638 | AI | (done) A raid on a node, or a free melder, gets a spirit summoned with priority; spirits also scout early |
@@ -543,6 +544,8 @@ original task numbers. Newest work is merged in ascending order by number.
 **632. (done) End of a role falls back to awaiting orders.** Asked for by the user, 17 November 2026. Every routine that ends a role leaves the unit holding one: it releases it (which sets `AwaitingOrders`, the lowest priority) and the next routine to want it claims it. Review `military.rs` (called-off march), the raid end, `escort::run`, `colony.rs`, `garrison.rs`. Units made during the AI's own turn (summon, hire, buy) and the units of a `ProductionCompleted` event are registered with a base role at once, not at the next sync. *Needs:* 624.
 
 **633. (done) Plan clock reads each plan's start from the registry (`since`) instead of its own list.** Asked for by the user, 17 November 2026. `plan_clock.rs` keeps `started: Vec<(PlanKind, Key, u32)>` for the raid, settler, scout and planar plans of single units. Their start is the `since` of the unit's assignment (reset when the target changes). The clock keeps its list only for plans that are not a unit's role (campaign, landing, colony, sea scouting). *Needs:* 624.
+
+**634. (done) Escorts for healers and weak heroes.** Asked for by the user, 17 November 2026. A healer, or a hero much weaker than the average fighter, that stands alone outside a city is given a soldier from the nearest city that can spare one (`escort::stragglers`); the guard ends when the unit is in a city or stacked with fighters. *Needs:* 624.
 
 **635. (done) The autobuilder reads the registry.** Asked for by the user, 17 November 2026. Many ships `TransportFree` or units `AwaitingOrders`: no ship wanted. Many units `AwaitTransport` and no ship free: build a ship. Nobody holds `Scout`: build a unit that can scout (or summon a spirit). Too many military units `AwaitingOrders`: build no more military. At war and nobody holds `March`: build more attackers. *Needs:* 624.
 
