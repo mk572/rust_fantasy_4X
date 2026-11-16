@@ -384,6 +384,24 @@ spellscr	10	10	wizlab	summon_flame_back
 spellscr	11	11	wizlab	summon_flame_front
 spellscr	61	66	wizlab
 
+# The screens of spells that ask for a target (Spells137.c, SPLMASTR.c; tasks 643 and 644). The target wizard
+# screen (Cruel Unminding, Drain Power, Spell Blast...): the panel with four gem slots, the one of
+# Spell Blast, the Cancel button, and two small arrows (up and down, two frames each; the original
+# never loads them, they are the scroll arrows of a list of more than four wizards).
+spellscr	0	0	target_wizard	background
+spellscr	72	72	target_wizard	background_spell_blast
+spellscr	71	71	target_wizard	button_cancel
+spellscr	43	43	target_wizard	arrow_up
+spellscr	44	44	target_wizard	arrow_down
+# The screen that picks an overland enchantment of another wizard (Spell Binding, Disjunction).
+spellscr	1	1	global_enchantment	background
+spellscr	7	7	global_enchantment	button
+# The box that asks how much extra mana to put in a spell (extra_mana.rs).
+spellscr	5	5	extra_mana	background
+spellscr	3	3	extra_mana	slider_star
+spellscr	4	4	extra_mana	arrow_bar
+spellscr	42	42	extra_mana	button_ok
+
 # Pictures of `backgrnd.lbx` that several screens draw: the shared-tile marker of the city's land view,
 # the red button (unit screen, art.rs) and the gold upkeep icon (unit screen, production screen).
 backgrnd	0	0	shared	marker_shared_tile

@@ -104,3 +104,8 @@ combat	0	110	art/combat
 reload	25	25	credits/background
 lilwiz	0	169	art/lilwiz
 magic	1	5	art/magic
+spellscr	6	6	spell_screens/globalbk
+spellscr	8	8	spell_screens/oversbak
+spellscr	12	12	spell_screens/globalmk
+spellscr	45	45	spell_screens/guisebak
+cmbtfx	7	7	art/cmbtfx_mind_twist

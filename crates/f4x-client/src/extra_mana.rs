@@ -19,6 +19,10 @@ use macroquad::prelude::*;
 const BAR_X: f32 = 12.0;
 const BAR_W: f32 = 100.0;
 const BAR_Y: f32 = 22.0;
+/// The arrows of the filled part move this many pixels a second, and the strip repeats every
+/// `ARROW_PERIOD` pixels.
+const ARROW_SPEED: f64 = 24.0;
+const ARROW_PERIOD: i32 = 48;
 
 /// The question: which spell, and how much extra so far.
 pub(crate) struct ExtraMana {
@@ -130,18 +134,29 @@ impl Modal for ExtraMana {
             x + 144.0,
             y + 8.0,
         );
-        // The bar fills up to the star.
+        // The bar fills up to the star: the original scrolls the strip of arrows (`spellscr` 4,
+        // 111 wide) through the trough, two copies 48 pixels apart, cut off at the star.
         let at = thumb_at(extra, most);
-        let filled = lay.rect((x + BAR_X, y + BAR_Y, at, 3.0));
-        draw_rectangle(filled.x, filled.y, filled.w, filled.h, GOLD);
-        let rest = lay.rect((x + BAR_X + at, y + BAR_Y, BAR_W - at, 3.0));
-        draw_rectangle(
-            rest.x,
-            rest.y,
-            rest.w,
-            rest.h,
-            Color::new(0.2, 0.15, 0.1, 1.0),
-        );
+        if app.art_picture("spellscr", 4, 0).is_some() {
+            let shift = (get_time() * ARROW_SPEED) as i32 % ARROW_PERIOD;
+            let (left, top) = (x + 8.0, y + BAR_Y + 1.0);
+            app.clipped((left, 0.0, at, 200.0), |app| {
+                for start in [left + shift as f32, left + (shift - ARROW_PERIOD) as f32] {
+                    app.draw_pic(&lay, "spellscr", 4, 0, start, top);
+                }
+            });
+        } else {
+            let filled = lay.rect((x + BAR_X, y + BAR_Y, at, 3.0));
+            draw_rectangle(filled.x, filled.y, filled.w, filled.h, GOLD);
+            let rest = lay.rect((x + BAR_X + at, y + BAR_Y, BAR_W - at, 3.0));
+            draw_rectangle(
+                rest.x,
+                rest.y,
+                rest.w,
+                rest.h,
+                Color::new(0.2, 0.15, 0.1, 1.0),
+            );
+        }
         app.draw_pic(&lay, "spellscr", 3, 0, x + at + 5.0, y + 22.0);
 
         // OK on the right, Cancel on the left.
