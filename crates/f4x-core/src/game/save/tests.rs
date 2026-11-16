@@ -1,6 +1,6 @@
 use super::*;
 use crate::game::setting::{AiWizardSettings, EventFrequency, MeleeVsFliers, Split};
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::game::Command;
 use crate::map::{Grid, Plane};
 use f4x_def::half_int::HalfInt;
@@ -22,19 +22,19 @@ fn game() -> Game {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let ocean = c
         .terrains
-        .id_numbered(num::terrain::OCEAN)
+        .id_numbered(8 /* ocean */)
         .expect("id_of succeeds");
     let hills = c
         .terrains
-        .id_numbered(num::terrain::HILLS)
+        .id_numbered(5 /* hills */)
         .expect("id_of succeeds");
     let gold = c
         .features
-        .id_numbered(num::feature::GOLD_ORE)
+        .id_numbered(10 /* gold_ore */)
         .expect("id_of succeeds");
     let build = || {
         let mut g = Grid::new(24, 14, grass);
@@ -53,7 +53,7 @@ fn game() -> Game {
     let map = Map::new(build(), build());
     let node = c
         .features
-        .id_numbered(num::feature::SORCERY_NODE)
+        .id_numbered(20 /* sorcery_node */)
         .expect("id_of succeeds");
     let mut g = Game::new(99);
     g.content = c;
@@ -315,7 +315,7 @@ fn missing_content_is_reported_by_number_or_name() -> TestResult {
         Some(LoadError::UnknownId("unit", spearmen.to_string()))
     );
     let mut no_terrain = g.content.clone();
-    let hills = num::terrain::HILLS;
+    let hills = 5 /* hills */;
     let terrains: Vec<_> = no_terrain
         .terrains
         .defs()

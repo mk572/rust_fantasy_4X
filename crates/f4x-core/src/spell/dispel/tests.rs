@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::rules::Ability;
 use crate::rules::RealmId;
@@ -30,7 +30,7 @@ fn world() -> Game {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(11);
     g.content = c;
@@ -275,7 +275,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
     g.attach_enchantment(Target::Unit(elsewhere), strength, P0);
     g.put_node_data(
         at(6, 6),
-        num::feature::SORCERY_NODE,
+        20, /* sorcery_node */
         Node {
             realm: crate::game::testutil::realm(2 /* chaos */),
             power: 8,
@@ -731,7 +731,7 @@ fn open_sea(g: &mut Game, x: u32, y: u32) {
     let ocean = g
         .content
         .terrains
-        .id_numbered(num::terrain::OCEAN)
+        .id_numbered(8 /* ocean */)
         .expect("id_of succeeds");
     for dy in 0..3 {
         for dx in 0..3 {
@@ -750,7 +750,7 @@ fn turning_off_water_walking_at_sea_drowns_the_unit() -> TestResult {
     let ocean = g
         .content
         .terrains
-        .id_numbered(num::terrain::OCEAN)
+        .id_numbered(8 /* ocean */)
         .ok_or("ocean is not in the content")?;
     g.map
         .as_mut()
@@ -792,7 +792,7 @@ fn flight_keeps_a_unit_afloat_and_turning_it_off_drowns_it() -> TestResult {
     let ocean = g
         .content
         .terrains
-        .id_numbered(num::terrain::OCEAN)
+        .id_numbered(8 /* ocean */)
         .ok_or("ocean is not in the content")?;
     g.map
         .as_mut()

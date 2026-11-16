@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::rules::RealmId;
 use f4x_def::testdir::TestResult;
@@ -25,7 +25,7 @@ fn world() -> Game {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(3);
     g.content = c;
@@ -724,7 +724,7 @@ fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() -> T
         .set(7, 6, chaos);
     g.put_node_data(
         at(7, 6),
-        num::feature::SORCERY_NODE,
+        20, /* sorcery_node */
         crate::feature::node::Node {
             realm: crate::game::testutil::realm(2 /* chaos */),
             power: 2,

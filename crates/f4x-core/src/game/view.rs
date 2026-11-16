@@ -200,7 +200,7 @@ impl Game {
 mod tests {
     use super::*;
     use crate::diplomacy::army_strength;
-    use crate::game::testutil::{num, shipped};
+    use crate::game::testutil::shipped;
     use crate::map::Plane;
     use crate::spell::instance::SpellTarget;
     use f4x_def::testdir::TestResult;
@@ -223,7 +223,7 @@ mod tests {
         let grass = g
             .content
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .expect("id_of succeeds");
         g.map = Some(crate::map::Map::new(
             crate::map::Grid::new(30, 20, grass),
@@ -271,7 +271,7 @@ mod tests {
         let grass = g
             .content
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?;
         g.map = Some(crate::map::Map::new(
             crate::map::Grid::new(30, 20, grass),

@@ -4,7 +4,7 @@ use super::spell::SpellSource;
 use super::*;
 use crate::game::rng::GameRng;
 use crate::game::save::Snapshot;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::game::{Command, Event, Game, Rejection};
 use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
@@ -604,7 +604,7 @@ fn game_seeded(seed: u64) -> Game {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(seed);
     g.content = c;
@@ -5839,7 +5839,7 @@ fn the_land_units_of_a_ship_start_a_sea_fight_on_its_deck() -> TestResult {
     let ocean = g
         .content
         .terrains
-        .id_numbered(num::terrain::OCEAN)
+        .id_numbered(8 /* ocean */)
         .ok_or("ocean is not in the content")?;
     for x in 4..=6 {
         g.map

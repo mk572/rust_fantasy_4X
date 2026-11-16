@@ -369,7 +369,7 @@ fn check_vision() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::{num, shipped};
+    use crate::game::testutil::shipped;
     use crate::game::Game;
     use crate::map::{Grid, Map};
     use f4x_def::testdir::TestResult;
@@ -379,7 +379,7 @@ mod tests {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
         let mut g = Game::new(1);
@@ -422,7 +422,7 @@ mod tests {
         let c = crate::game::testutil::shipped();
         let grass = c
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass));
         let mut g = Game::new(1);
@@ -505,7 +505,7 @@ mod tests {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?;
         let mut g = Game::new(1);
         for id in (0..3).map(PlayerId) {
@@ -554,7 +554,7 @@ mod tests {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
         let walker = c
@@ -591,7 +591,7 @@ mod tests {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(12, 8, grass), Grid::new(12, 8, grass));
         let mut g = Game::new(1);

@@ -2,7 +2,7 @@ use super::*;
 use crate::city::economy::Buildings;
 use crate::city::City;
 use crate::game::serial::Serial;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
 use f4x_def::content::Content;
@@ -35,7 +35,7 @@ impl Rig {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .expect("id_of succeeds");
         let map = Map::new(Grid::new(12, 8, grass), Grid::new(12, 8, grass));
         Rig {

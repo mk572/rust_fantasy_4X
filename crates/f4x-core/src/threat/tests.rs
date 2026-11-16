@@ -1,6 +1,6 @@
 use super::*;
 use crate::feature::lair::Lair;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::player::{PlayerId, MONSTERS};
@@ -24,7 +24,7 @@ fn world(troops: usize) -> Game {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(11);
     g.content = c;
@@ -104,7 +104,7 @@ fn a_neutral_city_alone_on_its_landmass_raises_nobody_and_feeds_the_monsters_clo
     let sea = g
         .content
         .terrains
-        .id_numbered(num::terrain::OCEAN)
+        .id_numbered(8 /* ocean */)
         .ok_or("ocean is not in the content")?;
     // A strip of sea between the two cities.
     for y in 0..14 {
@@ -156,7 +156,7 @@ fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() -> 
     g.turn = 100;
     let site = g.put_lair(
         at(14, 8),
-        num::feature::MONSTER_LAIR,
+        13,                   /* monster_lair */
         lair(vec![(165, 2)]), /* skeletons */
     );
     g.threat.monster_clock = 1000;
@@ -201,7 +201,7 @@ fn life_lairs_keep_their_guards() {
     g.turn = 100;
     g.put_lair(
         at(14, 8),
-        num::feature::MONSTER_LAIR,
+        13,                   /* monster_lair */
         lair(vec![(177, 1)]), /* angel */
     );
     g.threat.monster_clock = 1000;
@@ -218,7 +218,7 @@ fn nothing_comes_before_the_first_monster_turn_and_the_clock_starts_again() {
     g.turn = g.monster_first_turn() - 1;
     g.put_lair(
         at(14, 8),
-        num::feature::MONSTER_LAIR,
+        13,                   /* monster_lair */
         lair(vec![(165, 2)]), /* skeletons */
     );
     g.threat.monster_clock = 1000;
@@ -233,7 +233,7 @@ fn a_lair_on_a_landmass_without_a_player_is_not_chosen() -> TestResult {
     let sea = g
         .content
         .terrains
-        .id_numbered(num::terrain::OCEAN)
+        .id_numbered(8 /* ocean */)
         .ok_or("ocean is not in the content")?;
     for y in 0..14 {
         for x in [12, 20] {
@@ -246,7 +246,7 @@ fn a_lair_on_a_landmass_without_a_player_is_not_chosen() -> TestResult {
     }
     g.put_lair(
         at(16, 8),
-        num::feature::MONSTER_LAIR,
+        13,                   /* monster_lair */
         lair(vec![(165, 2)]), /* skeletons */
     );
     g.threat.monster_clock = 1000;
@@ -259,7 +259,7 @@ fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() -> TestResult {
     let mut g = world(0);
     let site = g.put_lair(
         at(14, 8),
-        num::feature::SORCERY_NODE,
+        20, /* sorcery_node */
         Lair {
             intact: false,
             guards: Vec::new(),
@@ -312,7 +312,7 @@ fn a_stack_that_settles_on_the_way_does_not_walk_on() -> TestResult {
     let mut g = world(0);
     g.put_lair(
         at(14, 8),
-        num::feature::SORCERY_NODE,
+        20, /* sorcery_node */
         Lair {
             intact: false,
             guards: Vec::new(),
@@ -355,7 +355,7 @@ fn a_node_a_wizard_holds_is_not_taken() -> TestResult {
         guardian: false,
         warped: false,
     };
-    let e = g.put_node_data(at(14, 8), num::feature::SORCERY_NODE, node, Some(P0));
+    let e = g.put_node_data(at(14, 8), 20 /* sorcery_node */, node, Some(P0));
     g.world.insert_one(
         e,
         Lair {

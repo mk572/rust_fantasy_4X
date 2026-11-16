@@ -457,7 +457,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::{num, shipped};
+    use crate::game::testutil::shipped;
     use crate::game::Command;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::RealmId;
@@ -481,10 +481,10 @@ mod tests {
         let c = shipped();
         let (grass, ocean) = (
             c.terrains
-                .id_numbered(num::terrain::GRASSLAND)
+                .id_numbered(4 /* grassland */)
                 .expect("id_of succeeds"),
             c.terrains
-                .id_numbered(num::terrain::OCEAN)
+                .id_numbered(8 /* ocean */)
                 .expect("id_of succeeds"),
         );
         let build = || {
@@ -792,7 +792,7 @@ mod tests {
         let ocean = g
             .content
             .terrains
-            .id_numbered(num::terrain::OCEAN)
+            .id_numbered(8 /* ocean */)
             .ok_or("ocean is not in the content")?;
         for (x, y) in [(4, 3), (4, 4), (4, 5), (5, 3), (5, 5), (6, 3), (6, 5)] {
             g.map
@@ -929,7 +929,7 @@ mod tests {
             let ocean = g
                 .content
                 .terrains
-                .id_numbered(num::terrain::OCEAN)
+                .id_numbered(8 /* ocean */)
                 .ok_or("ocean is not in the content")?;
             for x in 3..=7 {
                 for y in 3..=5 {

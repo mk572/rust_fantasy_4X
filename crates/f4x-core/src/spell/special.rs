@@ -198,7 +198,6 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::num::{self, feature};
     use crate::game::testutil::shipped;
     use crate::game::Command;
     use crate::map::{Grid, Map};
@@ -217,7 +216,7 @@ mod tests {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;
@@ -274,12 +273,12 @@ mod tests {
     fn transmute_swaps_each_mineral_with_its_partner_and_refuses_the_rest() -> TestResult {
         let mut g = world();
         let pairs = [
-            (feature::IRON_ORE, feature::GOLD_ORE),
-            (feature::GOLD_ORE, feature::IRON_ORE),
-            (feature::COAL, feature::GEM),
-            (feature::GEM, feature::COAL),
-            (feature::SILVER_ORE, feature::MITHRIL_ORE),
-            (feature::MITHRIL_ORE, feature::SILVER_ORE),
+            (11 /* iron_ore */, 10 /* gold_ore */),
+            (10 /* gold_ore */, 11 /* iron_ore */),
+            (5 /* coal */, 9 /* gem */),
+            (9 /* gem */, 5 /* coal */),
+            (19 /* silver_ore */, 12 /* mithril_ore */),
+            (12 /* mithril_ore */, 19 /* silver_ore */),
         ];
         for (i, (from, to)) in pairs.into_iter().enumerate() {
             let pos = at(Plane::Arcanus, i as u32, 3);
@@ -306,7 +305,7 @@ mod tests {
         let adamantium = g
             .content
             .features
-            .id_numbered(num::feature::ADAMANTIUM_ORE)
+            .id_numbered(2 /* adamantium_ore */)
             .ok_or("adamantium_ore is not in the content")?;
         let pos = at(Plane::Arcanus, 10, 3);
         g.map
@@ -535,7 +534,7 @@ mod tests {
         let ocean = g
             .content
             .terrains
-            .id_numbered(num::terrain::OCEAN)
+            .id_numbered(8 /* ocean */)
             .ok_or("ocean is not in the content")?;
         let sea = at(Plane::Arcanus, 5, 5);
         g.map

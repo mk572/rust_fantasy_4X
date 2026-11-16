@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
@@ -18,7 +18,7 @@ fn world() -> Game {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(3);
     g.content = c;

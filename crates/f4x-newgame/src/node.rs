@@ -102,19 +102,15 @@ mod tests {
     use f4x_core::map::Grid;
     use f4x_def::testdir::{shipped, TestResult};
 
-    /// The terrain and feature numbers of the shipped content (`f4x_core::game::testutil::num`).
-    const GRASSLAND: u16 = 4;
-    const SORCERY_NODE: u16 = 20;
-
     fn build(seed: u64) -> Result<Vec<(Position, Node)>, String> {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?;
         let node = c
             .features
-            .id_numbered(SORCERY_NODE)
+            .id_numbered(20 /* sorcery_node */)
             .ok_or("sorcery_node is not in the content")?;
         let map = Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass));
         let mut placed = Placed::new(30, 20);

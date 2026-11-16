@@ -326,7 +326,7 @@ impl Game {
 mod tests {
     use super::*;
     use crate::battle::immunity::Realm;
-    use crate::game::testutil::{num, shipped};
+    use crate::game::testutil::shipped;
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::player::PlayerId;
@@ -343,7 +343,7 @@ mod tests {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;

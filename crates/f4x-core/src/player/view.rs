@@ -724,7 +724,7 @@ impl<'a> PlayerView<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::{num, shipped};
+    use crate::game::testutil::shipped;
     use crate::game::Command;
     use crate::map::{Grid, Map, Plane};
     use f4x_def::testdir::TestResult;
@@ -744,7 +744,7 @@ mod tests {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .expect("id_of succeeds");
         let mut g = Game::new(5);
         g.set_content(c);

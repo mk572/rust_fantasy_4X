@@ -53,7 +53,7 @@ Done for the whole crate in four passes, by script and compiler where it was mec
 | Pass | Status | Notes |
 |---|---|---|
 | unit tests on the shipped content | done | `game::testutil::shipped()` reads `content/` once per process; all 1,041 unit tests run on it. `content_with_*`, `real_*` and `add_real_unit` are gone. 1.4 s, was 1.2 s (every test clones the `Content`). |
-| fixtures | done | The item fixtures are gone; the item tests use the shipped items and powers. Terrains and features are called by number (`game::testutil::num`). |
+| fixtures | done | The item fixtures are gone; the item tests use the shipped items and powers. Terrains and features are called by number, written inline with the alias as a comment (the `testutil::num` constants were removed on 17 November 2026). |
 | where a test lives | partly | Rule in `docs/rust_coding_rules.md`; `scripts/classify_core_tests.py` lists about 140 tests that need only the public API. One file moved (`city/gate.rs`, 6 tests to `tests/it/`). |
 | tests that bend the content | reviewed | The blanket ones (in a shared `world()`) are gone; the rest change what the test is about. |
 

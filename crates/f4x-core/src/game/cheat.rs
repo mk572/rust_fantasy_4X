@@ -235,7 +235,6 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use crate::game::testutil::fresh;
-    use crate::game::testutil::num;
     use crate::game::Game;
     use crate::hero::HeroState;
     use crate::map::{Plane, Position};
@@ -313,7 +312,7 @@ mod tests {
         let hills = g
             .content()
             .terrains
-            .id_numbered(num::terrain::HILLS)
+            .id_numbered(5 /* hills */)
             .ok_or("no hills")?;
         let spot = at(10, 10);
         assert!(g.cheat_set_terrain(spot, hills));
@@ -338,13 +337,13 @@ mod tests {
         let id = |n| crate::map::FeatureId(n);
         let spot = at(12, 12);
         // A mineral goes in the map layer.
-        assert!(g.cheat_set_feature(spot, Some(id(num::feature::GOLD_ORE))));
+        assert!(g.cheat_set_feature(spot, Some(id(10 /* gold_ore */))));
         let mineral = |g: &Game| {
             g.map
                 .as_ref()
                 .and_then(|m| m.plane(Plane::Arcanus).mineral(12, 12))
         };
-        assert_eq!(mineral(&g), Some(id(num::feature::GOLD_ORE)));
+        assert_eq!(mineral(&g), Some(id(10 /* gold_ore */)));
         assert!(g
             .map
             .as_ref()
@@ -352,7 +351,7 @@ mod tests {
             .feature_entity(spot)
             .is_none());
         // A tower is an entity, and the mineral under it goes.
-        assert!(g.cheat_set_feature(spot, Some(id(num::feature::TOWER))));
+        assert!(g.cheat_set_feature(spot, Some(id(21 /* tower */))));
         assert_eq!(mineral(&g), None);
         let tower = g
             .map
@@ -362,7 +361,7 @@ mod tests {
             .ok_or("the tower has no entity")?;
         assert!(g.world.contains(tower));
         // Another feature takes its place and the old entity is gone; none clears the square.
-        assert!(g.cheat_set_feature(spot, Some(id(num::feature::WILD_GAME))));
+        assert!(g.cheat_set_feature(spot, Some(id(22 /* wild_game */))));
         assert!(!g.world.contains(tower));
         assert!(g.cheat_set_feature(spot, None));
         assert!(g

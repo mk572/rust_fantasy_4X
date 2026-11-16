@@ -1,6 +1,6 @@
 use super::*;
 use crate::battle::{BattleCommand, Side};
-use crate::game::testutil::{num, realm, shipped};
+use crate::game::testutil::{realm, shipped};
 use crate::map::{FeatureId, Grid, Map, Plane};
 use crate::player::PlayerId;
 use crate::rules::RealmId;
@@ -23,7 +23,7 @@ fn world(seed: u64) -> Game {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(seed);
     g.content = c;
@@ -90,7 +90,7 @@ fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() -> TestResult {
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13, /* monster_lair */
         vec![(165 /* skeletons */, 3)],
     );
     let walker = g
@@ -121,7 +121,7 @@ fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() -> TestResult {
 #[test]
 fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() -> TestResult {
     let mut g = world(3);
-    let site = put_lair(&mut g, 5, 5, num::feature::MONSTER_LAIR, vec![]);
+    let site = put_lair(&mut g, 5, 5, 13 /* monster_lair */, vec![]);
     let walker = g
         .content
         .rules
@@ -181,7 +181,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
     l.prisoner = false;
     // A spell: from a realm the wizard has books in (or arcane), newly known.
     l.special = 2;
-    let site = g.put_lair(at(5, 5), num::feature::MONSTER_LAIR, l);
+    let site = g.put_lair(at(5, 5), 13 /* monster_lair */, l);
     let known_before = g.wizard(P0).ok_or("wizard is missing")?.known().len();
     let events = g.claim_lair(site, P0);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
@@ -302,7 +302,7 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() -> TestResult {
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13,             /* monster_lair */
         vec![(165, 1)], /* skeletons */
     );
     // A full stack of strong units against one skeleton.
@@ -356,7 +356,7 @@ fn the_building_of_a_site_stands_in_the_middle_of_the_battlefield() -> TestResul
         &mut g,
         5,
         5,
-        num::feature::TOWER,
+        21,             /* tower */
         vec![(165, 1)], /* skeletons */
     );
     let walker = g
@@ -385,7 +385,7 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() -> TestResult {
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13, /* monster_lair */
         vec![(104 /* high_men_spearmen */, 2)],
     );
     let walker = g
@@ -457,7 +457,7 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() -> TestResult {
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13, /* monster_lair */
         vec![(104 /* high_men_spearmen */, 2)],
     );
     // Give the winner Zombie Mastery.
@@ -514,7 +514,7 @@ fn zombie_mastery_leaves_the_death_immune_dead() -> TestResult {
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13, /* monster_lair */
         vec![(104 /* high_men_spearmen */, 1)],
     );
     let zm = g
@@ -568,7 +568,7 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() -
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13,             /* monster_lair */
         vec![(165, 1)], /* skeletons */
     );
     let walker = g
@@ -626,7 +626,7 @@ fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() -> TestResul
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13, /* monster_lair */
         vec![(165 /* skeletons */, 3)],
     );
     let walker = g
@@ -665,7 +665,7 @@ fn lost_assault(full_heal: bool) -> Result<Game, Box<dyn std::error::Error>> {
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13, /* monster_lair */
         vec![(165 /* skeletons */, 3)],
     );
     let skeleton = g
@@ -741,10 +741,10 @@ fn only_a_guarded_site_next_to_the_stack_can_be_entered() -> TestResult {
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13,             /* monster_lair */
         vec![(165, 1)], /* skeletons */
     );
-    put_lair(&mut g, 9, 9, num::feature::MONSTER_LAIR, vec![]);
+    put_lair(&mut g, 9, 9, 13 /* monster_lair */, vec![]);
     let walker = g
         .content
         .rules
@@ -772,7 +772,7 @@ fn only_a_guarded_site_next_to_the_stack_can_be_entered() -> TestResult {
 #[test]
 fn a_tower_is_cleared_on_both_planes_and_stays() {
     let mut g = world(8);
-    let tower = put_lair(&mut g, 5, 5, num::feature::TOWER, vec![]);
+    let tower = put_lair(&mut g, 5, 5, 21 /* tower */, vec![]);
     let other_plane = at(5, 5).on_other_plane();
     assert_eq!(g.economy().feature_entity_at(other_plane), Some(tower));
     g.claim_lair(tower, P0);
@@ -791,7 +791,7 @@ fn lairs_survive_a_save() -> TestResult {
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13, /* monster_lair */
         vec![(165 /* skeletons */, 2), (166 /* ghouls */, 1)],
     );
     let snap = g.snapshot();
@@ -807,7 +807,7 @@ fn clearing_a_site_takes_its_treasure_once() {
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13, /* monster_lair */
         vec![(107 /* high_men_cavalry */, 1)],
     );
     let cleared = g.clear_site(site).expect("an intact lair");
@@ -822,8 +822,8 @@ fn clearing_a_site_takes_its_treasure_once() {
 #[test]
 fn clearing_a_tower_leaves_another_tower_alone() -> TestResult {
     let mut g = world(11);
-    let a = put_lair(&mut g, 3, 3, num::feature::TOWER, vec![]);
-    put_lair(&mut g, 8, 8, num::feature::TOWER, vec![]);
+    let a = put_lair(&mut g, 3, 3, 21 /* tower */, vec![]);
+    put_lair(&mut g, 8, 8, 21 /* tower */, vec![]);
     g.clear_site(a).ok_or("clear_site is missing")?;
     assert!(g.economy().lair_at(at(3, 3)).is_none());
     assert!(
@@ -1046,7 +1046,7 @@ fn a_neutral_winner_gets_no_spell_and_the_value_comes_back_as_gold_or_mana() -> 
     l.prisoner = false;
     l.items.clear();
     l.special = 4;
-    let site = g.put_lair(at(5, 5), num::feature::MONSTER_LAIR, l);
+    let site = g.put_lair(at(5, 5), 13 /* monster_lair */, l);
     let before = g.player(town).ok_or("player is missing")?.treasury();
     let events = g.claim_lair(site, town);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
@@ -1074,7 +1074,7 @@ fn a_neutral_winner_without_a_hero_gets_no_item_and_a_prisoner_joins_it_at_home(
     let (mut g, town) = heroic_world();
     let mut l = rich_lair();
     l.special = 0;
-    let site = g.put_lair(at(5, 5), num::feature::MONSTER_LAIR, l);
+    let site = g.put_lair(at(5, 5), 13 /* monster_lair */, l);
     let events = g.claim_lair(site, town);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
         return Err(format!("{events:?}").into());
@@ -1108,7 +1108,7 @@ fn a_prisoner_with_no_free_hero_left_is_rerolled_for_a_wizard_too() -> TestResul
     l.gold = 0;
     l.mana = 0;
     l.items.clear();
-    let site = g.put_lair(at(5, 5), num::feature::MONSTER_LAIR, l);
+    let site = g.put_lair(at(5, 5), 13 /* monster_lair */, l);
     let events = g.claim_lair(site, P0);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
         return Err(format!("{events:?}").into());
@@ -1146,7 +1146,7 @@ fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() -> TestR
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13, /* monster_lair */
         vec![(165 /* skeletons */, 3)],
     );
     let walker = g
@@ -1184,7 +1184,7 @@ fn a_game_saved_in_a_lair_fight_goes_on_to_clear_the_site() -> TestResult {
         &mut g,
         5,
         5,
-        num::feature::MONSTER_LAIR,
+        13, /* monster_lair */
         vec![(165 /* skeletons */, 2)],
     );
     let walker = g

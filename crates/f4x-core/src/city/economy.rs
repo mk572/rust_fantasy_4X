@@ -1466,7 +1466,7 @@ mod growth_tests {
 #[cfg(test)]
 mod handle_tests {
     use super::*;
-    use crate::game::testutil::{num, shipped};
+    use crate::game::testutil::shipped;
     use crate::map::Grid;
     use f4x_def::testdir::TestResult;
 
@@ -1475,7 +1475,7 @@ mod handle_tests {
         let content = shipped();
         let grass = content
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
         let at = Position {
@@ -1529,7 +1529,7 @@ mod handle_tests {
         let content = shipped();
         let grass = content
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
         let at = Position {
@@ -1598,19 +1598,19 @@ mod handle_tests {
         let content = shipped();
         let grass = content
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?;
         let swamp = content
             .terrains
-            .id_numbered(num::terrain::SWAMP)
+            .id_numbered(10 /* swamp */)
             .ok_or("swamp is not in the content")?;
         let ocean = content
             .terrains
-            .id_numbered(num::terrain::OCEAN)
+            .id_numbered(8 /* ocean */)
             .ok_or("ocean is not in the content")?;
         let sorcery = content
             .terrains
-            .id_numbered(num::terrain::SORCERY_NODE)
+            .id_numbered(9 /* sorcery_node */)
             .ok_or("sorcery_node is not in the content")?;
         let mut grid = Grid::new(24, 14, grass);
         for x in 0..8 {
@@ -1665,23 +1665,23 @@ mod handle_tests {
         let content = shipped();
         let grass = content
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?;
         let ocean = content
             .terrains
-            .id_numbered(num::terrain::OCEAN)
+            .id_numbered(8 /* ocean */)
             .ok_or("ocean is not in the content")?;
         let forest = content
             .terrains
-            .id_numbered(num::terrain::FOREST)
+            .id_numbered(3 /* forest */)
             .ok_or("forest is not in the content")?;
         let nature = content
             .terrains
-            .id_numbered(num::terrain::NATURE_NODE)
+            .id_numbered(7 /* nature_node */)
             .ok_or("nature_node is not in the content")?;
         let chaos = content
             .terrains
-            .id_numbered(num::terrain::CHAOS_NODE)
+            .id_numbered(1 /* chaos_node */)
             .ok_or("chaos_node is not in the content")?;
         let mut grid = Grid::new(24, 14, grass);
         // A lake with a river running into it from the north.

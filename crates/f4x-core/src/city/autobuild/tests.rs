@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 
@@ -454,7 +454,7 @@ fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() -> TestResult {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .ok_or("grassland is not in the content")?;
     let mut g = Game::new(3);
     g.content = c;

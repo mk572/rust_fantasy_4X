@@ -837,7 +837,7 @@ mod tests {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(crate::game::testutil::num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?;
         let mut g = crate::game::Game::new(1);
         g.add_player(PlayerId(0), "");

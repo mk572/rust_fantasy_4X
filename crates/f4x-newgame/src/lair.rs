@@ -152,11 +152,6 @@ mod tests {
     use f4x_core::rules::RealmId;
     use f4x_def::testdir::{shipped, TestResult};
 
-    /// The numbers of the shipped content's tower, encounter site and grassland.
-    const TOWER: u16 = 21;
-    const MONSTER_LAIR: u16 = 13;
-    const GRASSLAND: u16 = 4;
-
     fn realm(n: u16) -> RealmId {
         RealmId::new(n)
     }
@@ -164,7 +159,7 @@ mod tests {
     fn grass_map(c: &Content, w: u32, h: u32) -> Map {
         let grass = c
             .terrains
-            .id_numbered(GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .expect("the shipped content has grassland");
         Map::new(Grid::new(w, h, grass), Grid::new(w, h, grass))
     }
@@ -175,11 +170,11 @@ mod tests {
         let map = grass_map(c, 24, 14);
         let mut placed = Placed::new(24, 14);
         let id = |n: u16| c.features.id_numbered(n).expect("id_numbered succeeds");
-        placed.set(Plane::Arcanus, 3, 3, id(TOWER));
-        placed.set(Plane::Myrror, 3, 3, id(TOWER));
-        placed.set(Plane::Arcanus, 8, 5, id(MONSTER_LAIR));
-        placed.set(Plane::Myrror, 9, 5, id(MONSTER_LAIR));
-        placed.set(Plane::Myrror, 12, 9, id(MONSTER_LAIR));
+        placed.set(Plane::Arcanus, 3, 3, id(21 /* tower */));
+        placed.set(Plane::Myrror, 3, 3, id(21 /* tower */));
+        placed.set(Plane::Arcanus, 8, 5, id(13 /* monster_lair */));
+        placed.set(Plane::Myrror, 9, 5, id(13 /* monster_lair */));
+        placed.set(Plane::Myrror, 12, 9, id(13 /* monster_lair */));
         let params = GenParams::default();
         let lairs = generate_lairs(11, &params, &map, &placed, &[], c);
         assert_eq!(lairs.len(), 1 + 3, "one tower, three encounter sites");
@@ -205,13 +200,13 @@ mod tests {
         let id = |n: u16| c.features.id_numbered(n).expect("id_numbered succeeds");
         for (i, plane) in Plane::all().enumerate() {
             for k in 0..10u32 {
-                placed.set(plane, 1 + k, 1 + 4 * i as u32, id(MONSTER_LAIR));
+                placed.set(plane, 1 + k, 1 + 4 * i as u32, id(13 /* monster_lair */));
             }
         }
-        placed.set(Plane::Arcanus, 3, 9, id(TOWER));
-        placed.set(Plane::Myrror, 3, 9, id(TOWER));
-        placed.set(Plane::Arcanus, 20, 9, id(TOWER));
-        placed.set(Plane::Myrror, 20, 9, id(TOWER));
+        placed.set(Plane::Arcanus, 3, 9, id(21 /* tower */));
+        placed.set(Plane::Myrror, 3, 9, id(21 /* tower */));
+        placed.set(Plane::Arcanus, 20, 9, id(21 /* tower */));
+        placed.set(Plane::Myrror, 20, 9, id(21 /* tower */));
         let nodes: Vec<(Position, Node)> = [
             1, /* sorcery */
             0, /* nature */
@@ -274,7 +269,7 @@ mod tests {
         let id = |n: u16| c.features.id_numbered(n).expect("id_numbered succeeds");
         for (i, plane) in Plane::all().enumerate() {
             for k in 0..10u32 {
-                placed.set(plane, 1 + k, 1 + 4 * i as u32, id(MONSTER_LAIR));
+                placed.set(plane, 1 + k, 1 + 4 * i as u32, id(13 /* monster_lair */));
             }
         }
         let make = |style: LairStyle, guard_percent: u16, treasure_percent: u16| {

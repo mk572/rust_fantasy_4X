@@ -11,7 +11,7 @@ fn a_command_names_the_player_it_acts_for() -> TestResult {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(crate::game::testutil::num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .ok_or("no grass")?;
     let mut g = Game::new(3);
     g.content = c;

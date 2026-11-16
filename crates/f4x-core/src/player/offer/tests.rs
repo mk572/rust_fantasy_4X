@@ -264,7 +264,7 @@ fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() -> TestResult 
             x: 5,
             y: 5,
         },
-        crate::game::testutil::num::feature::MONSTER_LAIR,
+        13, /* monster_lair */
         crate::feature::lair::Lair {
             intact: true,
             guards: Vec::new(),

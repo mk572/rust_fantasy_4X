@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::rules::RealmId;
@@ -22,7 +22,7 @@ fn world() -> Game {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(11);
     g.content = c;
@@ -378,7 +378,7 @@ fn a_depletion_removes_a_mineral_and_a_find_adds_one() -> TestResult {
     let hills = g
         .content
         .terrains
-        .id_numbered(num::terrain::HILLS)
+        .id_numbered(5 /* hills */)
         .ok_or("hills are not in the content")?;
     for x in 9..=11 {
         g.cheat_set_terrain(at(x, 4), hills);

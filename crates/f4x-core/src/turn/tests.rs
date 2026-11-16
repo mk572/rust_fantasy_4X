@@ -1,7 +1,7 @@
 use super::*;
 use crate::city::economy::{Buildings, Population};
 use crate::city::production::{Production, ProductionError, ProductionItem};
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
 use crate::rules::RealmId;
@@ -45,11 +45,11 @@ fn world_seeded(seed: u64) -> Game {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let ocean = c
         .terrains
-        .id_numbered(num::terrain::OCEAN)
+        .id_numbered(8 /* ocean */)
         .expect("id_of succeeds");
     let build = || {
         let mut g = Grid::new(24, 14, grass);
@@ -378,17 +378,17 @@ fn mines_add_gold_mana_and_cheaper_units() -> TestResult {
     let gold_ore = g
         .content
         .features
-        .id_numbered(num::feature::GOLD_ORE)
+        .id_numbered(10 /* gold_ore */)
         .ok_or("gold is not in the content")?;
     let adamant = g
         .content
         .features
-        .id_numbered(num::feature::ADAMANTIUM_ORE)
+        .id_numbered(2 /* adamantium_ore */)
         .ok_or("adamantium_ore is not in the content")?;
     let iron = g
         .content
         .features
-        .id_numbered(num::feature::IRON_ORE)
+        .id_numbered(11 /* iron_ore */)
         .ok_or("iron is not in the content")?;
     let plane = g
         .map
@@ -1241,7 +1241,7 @@ fn put_ore(g: &mut Game, ore: u16, x: u32, y: u32) {
 fn weapon_quality_follows_the_alchemists_guild_and_the_ore() -> TestResult {
     let mut g = world();
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
-    put_ore(&mut g, num::feature::MITHRIL_ORE, 11, 6);
+    put_ore(&mut g, 12 /* mithril_ore */, 11, 6);
     assert_eq!(
         g.economy().city_weapon_quality(city),
         0,
@@ -1249,7 +1249,7 @@ fn weapon_quality_follows_the_alchemists_guild_and_the_ore() -> TestResult {
     );
     add_building(&mut g, city, 19 /* alchemists_guild */);
     assert_eq!(g.economy().city_weapon_quality(city), 2, "mithril");
-    put_ore(&mut g, num::feature::ADAMANTIUM_ORE, 9, 6);
+    put_ore(&mut g, 2 /* adamantium_ore */, 9, 6);
     assert_eq!(
         g.economy().city_weapon_quality(city),
         3,
@@ -1304,7 +1304,7 @@ fn units_are_trained_with_the_cities_weapons_and_alchemy_gives_magic() -> TestRe
         1,
         "Alchemy: magic weapons"
     );
-    put_ore(&mut g, num::feature::MITHRIL_ORE, 11, 6);
+    put_ore(&mut g, 12 /* mithril_ore */, 11, 6);
     add_building(&mut g, city, 19 /* alchemists_guild */);
     let mithril = train(&mut g);
     assert_eq!(g.units().unit_weapon_quality(mithril), 2);
@@ -1316,7 +1316,7 @@ fn with_adamant_alchemy_an_alchemy_wizards_ore_works_without_a_guild() -> TestRe
     let mut g = world();
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     add_building(&mut g, city, 3 /* barracks */);
-    put_ore(&mut g, num::feature::MITHRIL_ORE, 11, 6);
+    put_ore(&mut g, 12 /* mithril_ore */, 11, 6);
     let spear = g
         .content
         .rules
@@ -1534,7 +1534,7 @@ fn wild_game_raises_an_outposts_growth_chance_by_its_food_and_its_bonus() -> Tes
     let game = g
         .content
         .features
-        .id_numbered(num::feature::WILD_GAME)
+        .id_numbered(22 /* wild_game */)
         .ok_or("game is not in the content")?;
     g.map
         .as_mut()
@@ -1552,9 +1552,9 @@ fn a_squares_yield_counts_its_mineral_and_the_blight_and_the_city_adds_them_up()
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 3);
     let id = |n| g.content.features.id_numbered(n).ok_or("feature missing");
     let (game, gold_ore, gem) = (
-        id(num::feature::WILD_GAME)?,
-        id(num::feature::GOLD_ORE)?,
-        id(num::feature::GEM)?,
+        id(22 /* wild_game */)?,
+        id(10 /* gold_ore */)?,
+        id(9 /* gem */)?,
     );
     let grid = g.map.as_mut().ok_or("no map")?.plane_mut(Plane::Arcanus);
     grid.set_mineral(10, 8, Some(game));

@@ -679,7 +679,7 @@ impl Game {
 mod tests {
     use super::*;
     use crate::city::economy::{Farmers, Population};
-    use crate::game::testutil::{num, shipped};
+    use crate::game::testutil::shipped;
     use crate::map::{Grid, Map, Plane};
     use f4x_def::testdir::TestResult;
 
@@ -696,7 +696,7 @@ mod tests {
             let content = shipped();
             let grass = content
                 .terrains
-                .id_numbered(num::terrain::GRASSLAND)
+                .id_numbered(4 /* grassland */)
                 .expect("id_of succeeds");
             let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
             let mut world = World::new();

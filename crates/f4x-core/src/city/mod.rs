@@ -126,7 +126,7 @@ fn check_site_spacing(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::{num, shipped};
+    use crate::game::testutil::shipped;
     use crate::game::{Command, Event, Game, Rejection};
     use crate::map::Grid;
     use f4x_def::testdir::TestResult;
@@ -137,12 +137,12 @@ mod tests {
         let c = shipped();
         let id = |n: u16| c.terrains.id_numbered(n).expect("id_numbered succeeds");
         let build = || {
-            let mut g = Grid::new(20, 12, id(num::terrain::GRASSLAND));
+            let mut g = Grid::new(20, 12, id(4 /* grassland */));
             for y in 0..12 {
-                g.set(0, y, id(num::terrain::OCEAN));
+                g.set(0, y, id(8 /* ocean */));
             }
-            g.set(5, 5, id(num::terrain::MOUNTAINS));
-            g.set_mineral(12, 5, c.features.id_numbered(num::feature::IRON_ORE));
+            g.set(5, 5, id(6 /* mountains */));
+            g.set_mineral(12, 5, c.features.id_numbered(11 /* iron_ore */));
             g
         };
         let mut game = Game::new(1);
@@ -150,11 +150,11 @@ mod tests {
         game.content = c;
         let at = |plane, x, y| Position { plane, x, y };
         // A tower stands on both planes, a node on one.
-        game.put_feature(at(Plane::Arcanus, 14, 8), num::feature::TOWER);
-        game.put_feature(at(Plane::Arcanus, 16, 8), num::feature::SORCERY_NODE);
+        game.put_feature(at(Plane::Arcanus, 14, 8), 21 /* tower */);
+        game.put_feature(at(Plane::Arcanus, 16, 8), 20 /* sorcery_node */);
         game.put_lair(
             at(Plane::Arcanus, 8, 5),
-            num::feature::MONSTER_LAIR,
+            13, /* monster_lair */
             crate::feature::lair::Lair {
                 intact: true,
                 guards: Vec::new(),

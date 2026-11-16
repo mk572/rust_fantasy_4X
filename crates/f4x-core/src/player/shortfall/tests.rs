@@ -1,5 +1,4 @@
 use super::*;
-use crate::game::testutil::num;
 use crate::hero::game::tests::{at, world, P0};
 use crate::map::{Grid, Map};
 use f4x_def::half_int::HalfInt;
@@ -123,11 +122,11 @@ fn sea_world() -> Game {
     let (grass, ocean) = (
         g.content
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .expect("id_of succeeds"),
         g.content
             .terrains
-            .id_numbered(num::terrain::OCEAN)
+            .id_numbered(8 /* ocean */)
             .expect("id_of succeeds"),
     );
     let build = || {

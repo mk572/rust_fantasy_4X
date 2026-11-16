@@ -1,42 +1,8 @@
-//! Content for unit tests: [`shipped`] is the game's own `content/`, and [`num`] names the numbers
-//! of the terrains and map features tests use.
+//! Content for unit tests: [`shipped`] is the game's own `content/`.
 //!
 //! Tests: none, because this is test support.
 
 use f4x_def::content::Content;
-
-/// The numbers (`num` in `content/`) of the terrains and map features that tests name. The number
-/// is the one source of truth, as in a save; the constant's name only tells the reader which
-/// English-named terrain or feature the shipped content has under it today. If a name is
-/// changed or translated, the number still holds.
-pub mod num {
-    pub mod terrain {
-        pub const CHAOS_NODE: u16 = 1;
-        pub const FOREST: u16 = 3;
-        pub const GRASSLAND: u16 = 4;
-        pub const HILLS: u16 = 5;
-        pub const MOUNTAINS: u16 = 6;
-        pub const NATURE_NODE: u16 = 7;
-        pub const OCEAN: u16 = 8;
-        pub const SORCERY_NODE: u16 = 9;
-        pub const SWAMP: u16 = 10;
-    }
-
-    pub mod feature {
-        pub const ADAMANTIUM_ORE: u16 = 2;
-        pub const COAL: u16 = 5;
-        pub const GEM: u16 = 9;
-        pub const GOLD_ORE: u16 = 10;
-        pub const IRON_ORE: u16 = 11;
-        pub const MITHRIL_ORE: u16 = 12;
-        pub const MONSTER_LAIR: u16 = 13;
-        pub const NIGHTSHADE: u16 = 16;
-        pub const SILVER_ORE: u16 = 19;
-        pub const SORCERY_NODE: u16 = 20;
-        pub const TOWER: u16 = 21;
-        pub const WILD_GAME: u16 = 22;
-    }
-}
 
 /// The game's own `content/` folder, loaded by the real loader (`f4x_def::testdir::shipped`), as
 /// a copy for a `Game`, which owns its content.

@@ -93,7 +93,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::{num, shipped};
+    use crate::game::testutil::shipped;
     use crate::game::Command;
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
@@ -117,11 +117,11 @@ mod tests {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .expect("id_of succeeds");
         let plant = c
             .features
-            .id_numbered(num::feature::NIGHTSHADE)
+            .id_numbered(16 /* nightshade */)
             .expect("id_of succeeds");
         let mut game = Game::new(3);
         game.content = c;

@@ -177,7 +177,7 @@ impl Game {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::game::testutil::{num, shipped};
+    use crate::game::testutil::shipped;
     use crate::game::Command;
     use crate::map::{Grid, Map, Plane};
     use crate::wizard::magic::Retort;
@@ -203,13 +203,13 @@ pub(crate) mod tests {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .expect("id_of succeeds");
         let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
         let mut g = Game::new(seed);
         g.content = c;
         g.map = Some(map);
-        g.put_node(at(6, 6), num::feature::SORCERY_NODE);
+        g.put_node(at(6, 6), 20 /* sorcery_node */);
         for id in [P0, P1] {
             g.add_player(id, "W");
             g.treasury_mut(id).expect("treasury_mut succeeds").mana =

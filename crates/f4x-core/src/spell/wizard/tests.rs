@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::rules::RealmId;
 use crate::spell::target_error::TargetError;
@@ -27,7 +27,7 @@ fn world() -> Game {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(9);
     g.content = c;
@@ -985,7 +985,7 @@ fn an_armageddon_volcano_can_rise_in_the_sea_and_sinks_the_ships_there() -> Test
     let ocean = g
         .content
         .terrains
-        .id_numbered(num::terrain::OCEAN)
+        .id_numbered(8 /* ocean */)
         .ok_or("ocean is not in the content")?;
     g.map
         .as_mut()

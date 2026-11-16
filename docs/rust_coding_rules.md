@@ -145,12 +145,13 @@ wrong reason.
 - Build only situations the game can reach (a unit always has a real player as owner; see
   `ecs-structure.md` section 3.3). A situation the game cannot create belongs in a test only to check
   error handling (a rejected command, a refused save).
-- Look units, spells, buildings and races up by name in the shipped content; do not invent stats.
-  Terrains and map features are called by their number (`num` in `crates/f4x-def/content/`), as a save does, through
-  the constants in `game::testutil::num` (`num::terrain::GRASSLAND`, `num::feature::TOWER`). The
-  number is the single source of truth; the constant's name is only a note for the reader (the
-  display name may change or be translated), and no test checks it against the content. Do not pick a spell, unit or other row by its position in the
-  table (`defs()[0]`); name it, or call it by its number.
+- Call units, spells, realms, races, buildings, terrains and map features by their number (`num` in
+  `crates/f4x-def/content/`), as a save does, written where it is used with the alias as a comment:
+  `104 /* high_men_spearmen */`. The number is the single source of truth. **No constants, helpers or
+  modules that only turn a name into a number** (`const SPEARMEN: u16 = 104`, `num::terrain::GRASSLAND`):
+  a name can lie (a constant once said spearmen over the number of the cavalry) and it gets copied
+  from test to test. Look the number up in the content file before writing it; do not copy one from
+  another test. Do not invent stats, and do not pick a row by its position in the table (`defs()[0]`).
 - Change the rules in a test only when the change is the point of the test (a unit given an
   ability, a spell made dearer, to see the outcome change). A change that only makes the sums easier
   belongs to the test that needs it, with the reason, not to a shared `world()`.

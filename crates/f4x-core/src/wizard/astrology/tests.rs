@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::map::{Grid, Map};
 use crate::player::PlayerId;
 use f4x_def::testdir::TestResult;
@@ -8,7 +8,7 @@ fn world() -> Game {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let map = Map::new(Grid::new(12, 8, grass), Grid::new(12, 8, grass));
     let mut game = Game::new(3);

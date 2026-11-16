@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::rules::exec::Target;
@@ -21,7 +21,7 @@ fn world() -> Game {
     let c = shipped();
     let grass = c
         .terrains
-        .id_numbered(num::terrain::GRASSLAND)
+        .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(3);
     g.content = c;
@@ -119,7 +119,7 @@ fn magic_nodes_cannot_be_corrupted() -> TestResult {
 #[test]
 fn corrupted_squares_give_a_city_nothing() -> TestResult {
     let mut g = world();
-    g.put_feature(at(10, 8), num::feature::GOLD_ORE);
+    g.put_feature(at(10, 8), 10 /* gold_ore */);
     g.apply(Command::FoundCity {
         owner: P0,
         pos: at(10, 6),
@@ -349,7 +349,7 @@ fn warp_node_turns_a_rivals_node_against_them() {
     let mut g = world();
     g.put_node_data(
         at(6, 6),
-        num::feature::SORCERY_NODE,
+        20, /* sorcery_node */
         Node {
             realm: crate::game::testutil::realm(2 /* chaos */),
             power: 8,

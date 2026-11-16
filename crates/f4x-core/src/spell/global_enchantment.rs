@@ -310,7 +310,7 @@ impl UnitView<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::{num, shipped};
+    use crate::game::testutil::shipped;
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::RealmId;
@@ -331,7 +331,7 @@ mod tests {
         let c = shipped();
         let grass = c
             .terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;
@@ -594,7 +594,7 @@ mod tests {
             fought_by: Vec::new(),
             hurt: Vec::new(),
         };
-        g.put_lair(at(20, 10), num::feature::MONSTER_LAIR, lair);
+        g.put_lair(at(20, 10), 13 /* monster_lair */, lair);
         let known = |g: &Game| g.economy().lair_guards_known_to(at(20, 10), P0);
         assert_eq!(known(&g), None, "never fought, nothing shown");
         // Nature's Eye on a city nearby: sight 9 reaches four squares and a half.
@@ -619,7 +619,7 @@ mod tests {
         // Nature Awareness shows every site.
         g.put_lair(
             at(2, 2),
-            num::feature::MONSTER_LAIR,
+            13, /* monster_lair */
             crate::feature::lair::Lair {
                 intact: true,
                 guards: guards.clone(),

@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::shipped;
 use crate::game::{Command, Event, Rejection};
 use crate::map::{Grid, Map, TerrainId};
 use crate::player::PlayerId;
@@ -23,20 +23,20 @@ fn world() -> Game {
     let c = shipped();
     let id = |n: u16| c.terrains.id_numbered(n).expect("id_numbered succeeds");
     let build = || {
-        let mut g = Grid::new(12, 6, id(num::terrain::GRASSLAND));
-        g.set(2, 2, id(num::terrain::FOREST));
-        g.set(3, 2, id(num::terrain::HILLS));
-        g.set(4, 2, id(num::terrain::MOUNTAINS));
-        g.set(7, 2, id(num::terrain::OCEAN));
-        g.set(8, 2, id(num::terrain::OCEAN));
-        g.set(1, 4, id(num::terrain::GRASSLAND));
+        let mut g = Grid::new(12, 6, id(4 /* grassland */));
+        g.set(2, 2, id(3 /* forest */));
+        g.set(3, 2, id(5 /* hills */));
+        g.set(4, 2, id(6 /* mountains */));
+        g.set(7, 2, id(8 /* ocean */));
+        g.set(8, 2, id(8 /* ocean */));
+        g.set(1, 4, id(4 /* grassland */));
         g
     };
     let map = Map::new(build(), build());
     let mut game = Game::new(1);
     game.content = c;
     game.map = Some(map);
-    game.put_feature(at(1, 4), num::feature::TOWER);
+    game.put_feature(at(1, 4), 21 /* tower */);
     for id in (0..4).map(PlayerId) {
         game.add_player(id, "");
     }
@@ -693,7 +693,7 @@ fn paths_go_around_water_and_across_the_seam() -> TestResult {
     let ocean = g
         .content
         .terrains
-        .id_numbered(num::terrain::OCEAN)
+        .id_numbered(8 /* ocean */)
         .ok_or("ocean is not in the content")?;
     for y in 0..6 {
         g.map
@@ -939,10 +939,10 @@ fn a_step_is_planned_from_a_hand_made_world_without_a_game() -> TestResult {
     let c = shipped();
     let (grass, forest) = (
         c.terrains
-            .id_numbered(num::terrain::GRASSLAND)
+            .id_numbered(4 /* grassland */)
             .ok_or("grassland is not in the content")?,
         c.terrains
-            .id_numbered(num::terrain::FOREST)
+            .id_numbered(3 /* forest */)
             .ok_or("forest is not in the content")?,
     );
     let build = || {
@@ -1031,7 +1031,7 @@ fn only_the_seam_leads_to_the_other_side_when_the_middle_is_walled() -> TestResu
     let ocean = g
         .content
         .terrains
-        .id_numbered(num::terrain::OCEAN)
+        .id_numbered(8 /* ocean */)
         .ok_or("ocean is not in the content")?;
     // Water in columns 5 and 6: from x = 8 the squares at x = 2 are reached only the other way round.
     for x in [5, 6] {
@@ -1092,7 +1092,7 @@ fn flat_world(terrain: u16) -> Game {
 
 #[test]
 fn on_open_ground_every_path_has_the_length_of_the_wrapped_distance() -> TestResult {
-    let mut g = flat_world(num::terrain::GRASSLAND);
+    let mut g = flat_world(4 /* grassland */);
     let width = 12;
     let walker = unit(&mut g, P0, 107 /* high_men_cavalry */, at(0, 0));
     for sy in 0..6 {
@@ -1128,7 +1128,7 @@ fn on_open_ground_every_path_has_the_length_of_the_wrapped_distance() -> TestRes
 
 #[test]
 fn on_open_ground_the_walk_reaches_every_square_from_any_column() -> TestResult {
-    let mut g = flat_world(num::terrain::GRASSLAND);
+    let mut g = flat_world(4 /* grassland */);
     let walker = unit(&mut g, P0, 107 /* high_men_cavalry */, at(0, 3));
     for sx in 0..12 {
         g.world
@@ -1144,7 +1144,7 @@ fn on_open_ground_the_walk_reaches_every_square_from_any_column() -> TestResult 
 
 #[test]
 fn a_stack_steps_over_the_seam_in_both_directions() -> TestResult {
-    let mut g = flat_world(num::terrain::GRASSLAND);
+    let mut g = flat_world(4 /* grassland */);
     let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(11, 1));
     g.move_stack(&[w], at(0, 1)).map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.units().unit_position(w), Some(at(0, 1)));
@@ -1156,7 +1156,7 @@ fn a_stack_steps_over_the_seam_in_both_directions() -> TestResult {
 
 #[test]
 fn ships_sail_over_the_seam() -> TestResult {
-    let mut g = flat_world(num::terrain::OCEAN);
+    let mut g = flat_world(8 /* ocean */);
     let boat = unit(&mut g, P0, 35 /* trireme */, at(10, 3));
     let path = g.find_path(&[boat], at(2, 3)).ok_or("no sea way")?;
     assert_eq!(
@@ -1171,7 +1171,7 @@ fn ships_sail_over_the_seam() -> TestResult {
 
 #[test]
 fn a_road_over_the_seam_halves_the_cost_of_the_step() -> TestResult {
-    let mut g = flat_world(num::terrain::GRASSLAND);
+    let mut g = flat_world(4 /* grassland */);
     let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(11, 1));
     let plain = cost(&g, w, at(11, 1), at(0, 1)).map_err(|e| format!("{e:?}"))?;
     for x in [11, 0] {
@@ -1193,7 +1193,7 @@ fn a_road_over_the_seam_halves_the_cost_of_the_step() -> TestResult {
 
 #[test]
 fn a_hostile_stack_on_the_seam_is_gone_round_not_through() -> TestResult {
-    let mut g = flat_world(num::terrain::GRASSLAND);
+    let mut g = flat_world(4 /* grassland */);
     let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(11, 1));
     g.make_contact(P0, P1);
     g.declare_war(P0, P1);
@@ -1212,7 +1212,7 @@ fn a_walker_reaches_the_land_round_the_water_and_a_flier_all_of_it() -> TestResu
     let ocean = g
         .content
         .terrains
-        .id_numbered(num::terrain::OCEAN)
+        .id_numbered(8 /* ocean */)
         .ok_or("ocean is not in the content")?;
     // A wall of water in columns 7 and 8 and again in 11 and 0: the seam is closed too.
     for x in [7, 8, 11, 0] {
