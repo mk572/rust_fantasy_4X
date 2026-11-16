@@ -542,10 +542,21 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             // stands there, or it is full. Another tower is tried; the target is chosen again.
             if game.economy().can_shift_plane(chunk).is_ok() {
                 if let Some(tower) = ai.crossing {
-                    ai.tower_refused.push((tower, game.turn));
-                    ai.crossing = None;
-                    ai.campaign = None;
-                    ai.marching.clear();
+                    // A square can be held for a turn or two: the tower is set aside only
+                    // when the refusal goes on.
+                    let strikes = match ai.tower_strikes {
+                        Some((t, n)) if t == tower => n + 1,
+                        _ => 1,
+                    };
+                    if strikes >= TOWER_STRIKES {
+                        ai.tower_refused.push((tower, game.turn));
+                        ai.tower_strikes = None;
+                        ai.crossing = None;
+                        ai.campaign = None;
+                        ai.marching.clear();
+                    } else {
+                        ai.tower_strikes = Some((tower, strikes));
+                    }
                 }
                 break;
             }
@@ -776,19 +787,26 @@ pub(crate) fn force_wanted(
     ((needed / average_strength(view).max(1.0)).ceil() as usize).clamp(3, MAX_FORCE)
 }
 
+/// Turns in a row the crossing at a tower is refused before it is set aside.
+const TOWER_STRIKES: u32 = 3;
 /// Turns a tower the army was refused at is set aside.
 const TOWER_REFUSED_TURNS: u32 = 100;
 
 /// The fewest troops that cross a plane together.
 const MIN_CROSSING: usize = 3;
 
-/// A tower the wizard has cleared, on the plane of its capital, that its troops can walk to.
-fn open_tower(view: &PlayerView, capital: Position, refused: &[Position]) -> Option<Position> {
-    let walker = view
+/// The towers the wizard has cleared, on the plane of its capital, that its troops can walk to,
+/// the nearest first; those in `refused` are left out.
+fn open_towers(view: &PlayerView, capital: Position, refused: &[Position]) -> Vec<Position> {
+    let Some(walker) = view
         .garrison(capital)
         .into_iter()
-        .find(|&u| is_fighter(view, u))?;
-    view.towers()
+        .find(|&u| is_fighter(view, u))
+    else {
+        return Vec::new();
+    };
+    let mut towers: Vec<Position> = view
+        .towers()
         .into_iter()
         .filter(|&(p, intact)| {
             !intact
@@ -797,10 +815,13 @@ fn open_tower(view: &PlayerView, capital: Position, refused: &[Position]) -> Opt
                 && view.can_reach(&[walker], p)
         })
         .map(|(p, _)| p)
-        .min_by_key(|&p| (distance(view, capital, p), p.y, p.x))
+        .collect();
+    towers.sort_by_key(|&p| (distance(view, capital, p), p.y, p.x));
+    towers
 }
 
-/// A rival's city on the other plane worth crossing for, and the open tower to cross by.
+/// A rival's city on the other plane worth crossing for, and the open tower to cross by: the
+/// nearest tower from whose far side a city can be walked to.
 fn planar_target(
     view: &PlayerView,
     capital: Position,
@@ -809,15 +830,18 @@ fn planar_target(
     focus: Option<PlayerId>,
     refused: &[Position],
 ) -> Option<(Position, Position)> {
-    let tower = open_tower(view, capital, refused)?;
-    // The far side of the tower must be seen, or the army would cross blind.
-    let far = view
-        .towers()
+    let towers = view.towers();
+    open_towers(view, capital, refused)
         .into_iter()
-        .map(|(p, _)| p)
-        .find(|p| p.plane != tower.plane && (p.x, p.y) == (tower.x, tower.y))?;
-    let city = best_enemy_city(view, far, skip, memory, focus)?;
-    Some((tower, city))
+        .find_map(|tower| {
+            // The far side of the tower must be seen, or the army would cross blind.
+            let far = towers
+                .iter()
+                .map(|&(p, _)| p)
+                .find(|p| p.plane != tower.plane && (p.x, p.y) == (tower.x, tower.y))?;
+            let city = best_enemy_city(view, far, skip, memory, focus)?;
+            Some((tower, city))
+        })
 }
 
 /// Squares of walking a rival's fortress city is worth: taking the seat ends its wizard.
@@ -1351,9 +1375,13 @@ mod tests {
         let mut events = Vec::new();
         army(&mut ai, &mut g, &mut events);
         assert_eq!(ai.crossing, Some(near), "the nearest tower is picked first");
-        // The troops stand on it and are refused.
+        // The troops stand on it and are refused; once is not enough to give the tower up.
         spawn(&mut g, P0, near, 104 /* spearmen */, 4);
         army(&mut ai, &mut g, &mut events);
+        assert!(ai.tower_refused.is_empty(), "one refusal is not the end");
+        for _ in 1..TOWER_STRIKES {
+            army(&mut ai, &mut g, &mut events);
+        }
         assert_eq!(ai.tower_refused.first().map(|&(p, _)| p), Some(near));
         // The next time, the other tower is the way across.
         army(&mut ai, &mut g, &mut events);

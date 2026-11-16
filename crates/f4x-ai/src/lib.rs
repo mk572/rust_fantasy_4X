@@ -123,6 +123,9 @@ pub struct Ai {
     /// and the turn: set aside for a while (`military.rs`).
     #[serde(default)]
     tower_refused: Vec<(Position, u32)>,
+    /// The tower the crossing was refused at, and in how many turns in a row.
+    #[serde(default)]
+    tower_strikes: Option<(Position, u32)>,
     #[serde(default)]
     muster: Vec<Serial>,
     #[serde(default)]
@@ -262,6 +265,7 @@ impl Ai {
             planar_tower: None,
             tower_blocked: Vec::new(),
             tower_refused: Vec::new(),
+            tower_strikes: None,
             muster: Vec::new(),
             muster_at: None,
             muster_since: 0,
