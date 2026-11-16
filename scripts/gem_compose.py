@@ -39,11 +39,15 @@ RING_WEIGHT = {"top": 0.30, "bottom": 0.45, "left": 0.32, "right": 0.33}
 # The corners of the overlap are rounded: a face pixel this far from a corner (steps along the two
 # sides) keeps at most this much of the face, and the diamond's pixels outside the face within
 # CORNER_RING pixels of a corner are not tinted at all.
-CORNER_WEIGHT = {0: 0.0, 1: 0.35, 2: 0.7}
+CORNER_WEIGHT = {0: 0.0, 1: 0.2, 2: 0.55, 3: 0.85}
 CORNER_RING = 3
 # What the overlap shows of the face: its colour with the hue of the diamond under it ("hue"), or
 # with the hue and saturation of the diamond ("tint"), the lightness of the face kept.
 OVERLAPS = ("hue", "tint")
+# On the face's edge rows (top and bottom) the shift to the diamond's hue is reduced in the middle
+# third of the width, down to this share, and comes back to the full shift over RAMP pixels.
+MIDDLE_SHIFT = 0.35
+RAMP = 3
 
 
 def base_diamonds():
@@ -67,12 +71,20 @@ def mix(under, over, weight):
     return tuple(round(under[i] * (1 - weight) + over[i] * weight) for i in range(3)) + (255,)
 
 
-def shifted(face_pixel, diamond_pixel, overlap):
+def middle_share(fx):
+    """How much of the shift to the diamond's hue the face's edge pixel at column `fx` gets."""
+    third = FACE_W / 3
+    outside = max(third - fx, fx - (FACE_W - 1 - third), 0)
+    return MIDDLE_SHIFT + (1 - MIDDLE_SHIFT) * min(outside / RAMP, 1)
+
+
+def shifted(face_pixel, diamond_pixel, overlap, share=1.0):
     """The face's pixel turned to the hue (and for "tint" the saturation) of the diamond's."""
     fh, fs, fv = colorsys.rgb_to_hsv(*(c / 255 for c in face_pixel[:3]))
     dh, ds, _ = colorsys.rgb_to_hsv(*(c / 255 for c in diamond_pixel[:3]))
     r, g, b = colorsys.hsv_to_rgb(dh, ds if overlap == "tint" else fs, fv)
-    return (round(r * 255), round(g * 255), round(b * 255), 255)
+    turned = (round(r * 255), round(g * 255), round(b * 255), 255)
+    return mix(face_pixel, turned, share)
 
 
 def corner_steps(fx, fy):
@@ -109,7 +121,8 @@ def compose(diamond, face, overlap="hue"):
                 side = {0: "top", FACE_H - 1: "bottom"}.get(fy) or {0: "left", FACE_W - 1: "right"}.get(fx)
                 if side:
                     weight = EDGE_WEIGHT[side]
-                    colour = shifted(colour, under, overlap)
+                    share = middle_share(fx) if side in ("top", "bottom") else 1.0
+                    colour = shifted(colour, under, overlap, share)
                 weight = min(weight, CORNER_WEIGHT.get(corner_steps(fx, fy), 1.0))
             gem.putpixel(at, mix(under, colour, weight))
     return gem
