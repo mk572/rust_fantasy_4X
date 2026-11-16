@@ -79,7 +79,7 @@
         "mind_storm": [(lbx: "cmbtfx", entry: 21, role: Cast)],
         "nature_awareness": [(lbx: "specfx", entry: 22, role: Global)],
         "natures_wrath": [(lbx: "specfx", entry: 23, role: Global)],
-        "petrify": [(lbx: "spells/petrify", entry: 0, role: Cast)], // made by scripts/make_spell_art.py from Change Terrain's sparkles (specfx 8), in dark brown
+        "petrify": [(lbx: "cmbtfx", entry: 12, role: Cast)], // the original draws no animation for it (a bug); this one, a green blob growing, is in the file
         "planar_seal": [(lbx: "specfx", entry: 35, role: Global)],
         "possession": [(lbx: "cmbtfx", entry: 8, role: Cast)],
         "psionic_blast": [(lbx: "cmbtfx", entry: 16, role: Cast)],

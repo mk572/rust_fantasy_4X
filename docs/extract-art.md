@@ -382,7 +382,7 @@ The table is a guide. For anything with an index not listed here read the loader
   data, text or sound, or a picture the decoder does not understand.
 - Animation timing, the order frames play in, and which frames are "idle" or "pressed" come from
   the original's code and are not stored with the pictures.
-- Unused effect pictures: `cmbtfx` 7 (Mind Twist), 12 (Petrify) and 32 (Zombie) are loaded by no code in the original, so no spell shows them. `cmbtfx` 27 to 31 belong to the undead rising scene (task 448) and 28 to the combat message panel.
+- Unused effect pictures: `cmbtfx` 7 (Mind Twist) and 32 (Zombie) are loaded by no code in the original, so no spell shows them. `cmbtfx` 12, a green blob growing (8 frames, 28 x 34), is loaded by none either; it is Petrify's animation, which the original lacks (a bug), and `spell_art.ron` gives it to Petrify (17 November 2026; it replaces the sparkles recoloured by `make_spell_art.py`, which is gone). `cmbtfx` 27 to 31 belong to the undead rising scene (task 448) and 28 to the combat message panel.
 
 ## Pictures the game no longer draws (`assets-unused/`)
 

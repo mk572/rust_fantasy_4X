@@ -62,7 +62,7 @@ f4x-extract pack [assets-local] [--keep]   pack every loose folder (a loose file
 f4x-extract unpack [assets-local]          every sheet back to PNG files, for the scripts below
 ```
 
-Scripts that make or change pictures (`make_banner_colours.py`, `make_spell_art.py`, `make_banner_flags.py`,
+Scripts that make or change pictures (`make_banner_colours.py`, `make_banner_flags.py`,
 `palette_swap.py`, `grey_neutral.py`) and `f4x-extract refile` work on loose files: `unpack`, run the script,
 `pack` again. Every sheet is read back and compared pixel for pixel before a loose file is deleted. Measured
 on 13 November 2026: `art/` went from 19,414 files (108 MB on disk) to 455 files (23 MB); the sheets hold
