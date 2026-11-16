@@ -109,7 +109,7 @@ fn a_city_below_its_garrison_minimum_builds_the_sturdiest_defender() {
     let item = choose(&c, &plan(Mix::Both, Focus::Gold), &f, &mut first);
     assert_eq!(
         item,
-        ProductionItem::Unit(unit_id(&c, 105 /* high_men_swordsmen */))
+        ProductionItem::Unit(unit_id(&c, 112 /* high_men_pikemen */))
     );
     // Buildings only never builds units.
     let item = choose(&c, &plan(Mix::Buildings, Focus::Gold), &f, &mut first);
@@ -339,7 +339,7 @@ fn defense_and_exploration_pick_their_own_units() {
         let r = ranked_units(&c, &p, &f, false);
         c.rules.units.get(r[0].0).id.clone()
     };
-    assert_eq!(top(Focus::Defense), "high_men_swordsmen");
+    assert_eq!(top(Focus::Defense), "high_men_pikemen");
     assert_eq!(top(Focus::Offense), "high_men_pikemen");
     assert_eq!(top(Focus::Exploration), "high_elf_pegasai");
     // Engineers and scouts are only for exploration.
@@ -401,7 +401,7 @@ fn settlers_need_room_space_and_a_wish() {
     f.defenders = 0;
     assert_eq!(
         choose(&c, &auto, &f, &mut first),
-        ProductionItem::Unit(unit_id(&c, 105 /* high_men_swordsmen */))
+        ProductionItem::Unit(unit_id(&c, 112 /* high_men_pikemen */))
     );
     // And buildings-only cities never build them.
     f.defenders = 4;
@@ -546,4 +546,32 @@ fn an_elite_plan_leaves_out_the_cheap_fighters_a_plain_one_keeps() {
         "{cheapest_elite:?} against {cheapest_plain:?}"
     );
     assert!(elite.len() <= plain.len());
+}
+
+#[test]
+fn upkeep_and_abilities_count_in_a_units_worth() {
+    let c = shipped();
+    let def = |id: &str| {
+        c.rules
+            .units
+            .iter()
+            .map(|(_, d)| d)
+            .find(|d| d.id == id)
+            .expect("shipped unit")
+    };
+    // The same upkeep on a cheap unit makes it dear for what it does: a spearman's life costs
+    // several times its price.
+    let spear = def("lizardman_spearmen");
+    assert!(lifetime_cost(spear) > 10.0 * spear.cost as f32);
+    // Armor piercing and first-strike negation raise the pikemen above a plain unit's profile.
+    let (off, def_bonus) = ability_bonus(def("high_men_pikemen"));
+    assert!(off > 1.0 && def_bonus > 1.0);
+    assert_eq!(ability_bonus(def("lizardman_spearmen")), (1.0, 1.0));
+    // With the upkeep counted, the halberdiers outrank the spearmen for the lizardmen.
+    let halb = def("lizardman_halberdiers");
+    let worth = |d: &f4x_def::rules::UnitDef| {
+        let [o, df, _] = raw_profiles(d);
+        (o + df) / lifetime_cost(d).sqrt()
+    };
+    assert!(worth(halb) > worth(spear));
 }

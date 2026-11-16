@@ -38,6 +38,9 @@ const RIVAL_RANGE: u32 = 10;
 /// An elite plan leaves out the fighters that cost this percent of the dearest one the city can
 /// build, or less.
 const CHEAP_UNIT_PCT: u32 = 35;
+/// How many turns of upkeep a unit is expected to cost; its worth is set against the price plus
+/// this much upkeep, so a cheap unit with the same upkeep as a strong one is not a bargain.
+const UPKEEP_HORIZON: f32 = 100.0;
 /// The sharpness of the unit roll: a candidate is weighed `(score / best)^SHARPNESS`.
 const SHARPNESS: i32 = 4;
 /// Candidates below this share of the best score are not rolled for.
@@ -442,6 +445,55 @@ fn ranked_buildings(content: &Content, plan: &BuildPlan, f: &CityFacts) -> Vec<(
 
 // ---- scoring units -------------------------------------------------------------------------
 
+/// What a special ability adds to the offense and to the defense profile, as a share (the ability
+/// numbers are those of `abilities.ron`).
+const ABILITY_BONUS: &[(u16, f32, f32)] = &[
+    (1, 0.25, 0.0),   // armor piercing
+    (8, 0.10, 0.0),   // cause fear
+    (9, 0.05, 0.0),   // cavalry
+    (15, 0.15, 0.0),  // death gaze
+    (20, 0.25, 0.0),  // fire breath
+    (22, 0.20, 0.0),  // fireball attack
+    (23, 0.15, 0.0),  // first strike
+    (32, 0.10, 0.0),  // immolation
+    (35, 0.15, 0.0),  // life steal
+    (36, 0.20, 0.0),  // lightning bolt
+    (37, 0.25, 0.0),  // lightning breath
+    (41, 0.10, 0.0),  // magical weapon
+    (53, 0.20, 0.0),  // poison touch
+    (64, 0.15, 0.0),  // stoning gaze
+    (66, 0.20, 0.0),  // stoning touch
+    (69, 0.10, 0.0),  // thrown
+    (70, 0.10, 0.0),  // wall crusher
+    (24, 0.10, 0.10), // flying
+    (28, 0.10, 0.10), // holy bonus
+    (33, 0.0, 0.10),  // invisibility
+    (34, 0.0, 0.15),  // large shield
+    (39, 0.05, 0.10), // lucky
+    (40, 0.0, 0.20),  // magic immunity
+    (44, 0.0, 0.30),  // missile immunity
+    (48, 0.0, 0.10),  // negate first strike
+    (49, 0.0, 0.20),  // non-corporeal
+    (55, 0.0, 0.30),  // regeneration
+    (56, 0.0, 0.15),  // resist all
+    (72, 0.0, 0.40),  // weapon immunity
+];
+
+/// The offense and defense multipliers of a unit's special abilities (1 for none).
+fn ability_bonus(d: &crate::rules::UnitDef) -> (f32, f32) {
+    ABILITY_BONUS
+        .iter()
+        .filter(|&&(n, _, _)| d.abilities.contains(&Ability::new(n)))
+        .fold((1.0, 1.0), |(o, f), &(_, bo, bd)| (o + bo, f + bd))
+}
+
+/// What a unit costs over its life: the price plus its upkeep (gold, half a point a food, mana)
+/// for [`UPKEEP_HORIZON`] turns.
+fn lifetime_cost(d: &crate::rules::UnitDef) -> f32 {
+    let upkeep = d.upkeep.gold.as_f32() + 0.5 * d.upkeep.food.as_f32() + d.upkeep.mana as f32;
+    (d.cost.max(1) as f32 + UPKEEP_HORIZON * upkeep).max(1.0)
+}
+
 /// The three profiles of a unit, before they are divided by the best candidate's.
 fn raw_profiles(d: &crate::rules::UnitDef) -> [f32; 3] {
     let hp = stat(d, Stat::MaxHp);
@@ -449,12 +501,14 @@ fn raw_profiles(d: &crate::rules::UnitDef) -> [f32; 3] {
     let ranged = stat(d, Stat::Ranged);
     let attack = stat(d, Stat::Melee).max(ranged * 1.2);
     let moves = stat(d, Stat::Moves);
-    let offense = figures * (attack * 1.5 + moves * 0.5 + hp * 0.3);
+    let (off_bonus, def_bonus) = ability_bonus(d);
+    let offense = figures * (attack * 1.5 + moves * 0.5 + hp * 0.3) * off_bonus;
     let defense = figures
         * (stat(d, Stat::Defense) * 1.5
             + hp * 0.5
             + stat(d, Stat::Resistance) * 0.1
-            + stat(d, Stat::Melee) * 0.5);
+            + stat(d, Stat::Melee) * 0.5)
+        * def_bonus;
     let flying =
         matches!(d.movement, MovementType::Flying) || d.abilities.contains(&Ability::new(24));
     let sailing = matches!(d.movement, MovementType::Sailing);
@@ -494,7 +548,7 @@ fn best_defender(content: &Content, f: &CityFacts) -> Option<UnitId> {
     pool.into_iter()
         .map(|u| {
             let d = content.rules.units.get(u);
-            let s = raw_profiles(d)[1] / best[1] / (d.cost.max(1) as f32).sqrt();
+            let s = raw_profiles(d)[1] / best[1] / lifetime_cost(d).sqrt();
             (u, s)
         })
         .max_by(|a, b| a.1.total_cmp(&b.1))
@@ -560,9 +614,9 @@ fn ranked_units(
             let d = content.rules.units.get(u);
             let p = raw_profiles(d);
             let fit = off_weight * p[0] / best[0] + def * p[1] / best[1] + exp * p[2] / best[2];
-            // Value for the cost: the square root of the cost, or, for an elite army, a tenth
-            // power only, so the dear units win.
-            let cost = d.cost.max(1) as f32;
+            // Value for the cost over the unit's life (price and upkeep): the square root of it,
+            // or, for an elite army, a tenth power only, so the dear units win.
+            let cost = lifetime_cost(d);
             (
                 u,
                 fit / if plan.elite_units {
