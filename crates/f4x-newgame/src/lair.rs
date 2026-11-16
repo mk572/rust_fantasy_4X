@@ -152,10 +152,6 @@ mod tests {
     use f4x_core::rules::RealmId;
     use f4x_def::testdir::{shipped, TestResult};
 
-    fn realm(n: u16) -> RealmId {
-        RealmId::new(n)
-    }
-
     fn grass_map(c: &Content, w: u32, h: u32) -> Map {
         let grass = c
             .terrains
@@ -226,7 +222,7 @@ mod tests {
                     y: 12,
                 },
                 Node {
-                    realm: self::realm(*realm),
+                    realm: RealmId::new(*realm),
                     power: 5 + i as u8,
                     aura: Vec::new(),
                     guardian: false,
