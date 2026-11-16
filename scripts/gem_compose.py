@@ -35,6 +35,10 @@ FACE_CELL = 10
 # face, by side: top, bottom, left, right.
 EDGE_WEIGHT = {"top": 0.68, "bottom": 0.30, "left": 0.69, "right": 0.66}
 RING_WEIGHT = {"top": 0.30, "bottom": 0.45, "left": 0.32, "right": 0.33}
+# The corners of the overlap are rounded: the face's corner pixel keeps this much of the face, and
+# the diamond's pixels outside the face within this many pixels of a corner are not tinted at all.
+CORNER_WEIGHT = 0.30
+CORNER_RING = 2
 
 
 def base_diamonds():
@@ -65,9 +69,13 @@ def compose(diamond, face, blend=True):
     at_x, at_y = FACE_AT
     if blend:
         for x in range(at_x - 1, at_x + FACE_W + 1):
+            if min(x - (at_x - 1), at_x + FACE_W - x) < CORNER_RING:
+                continue
             for y, side in ((at_y - 1, "top"), (at_y + FACE_H, "bottom")):
                 gem.putpixel((x, y), mix(gem.getpixel((x, y)), edge_colour, RING_WEIGHT[side]))
         for y in range(at_y, at_y + FACE_H):
+            if min(y - at_y, at_y + FACE_H - 1 - y) < CORNER_RING - 1:
+                continue
             for x, side in ((at_x - 1, "left"), (at_x + FACE_W, "right")):
                 gem.putpixel((x, y), mix(gem.getpixel((x, y)), edge_colour, RING_WEIGHT[side]))
     for fy in range(FACE_H):
@@ -76,6 +84,8 @@ def compose(diamond, face, blend=True):
             if blend:
                 side = {0: "top", FACE_H - 1: "bottom"}.get(fy) or {0: "left", FACE_W - 1: "right"}.get(fx)
             weight = EDGE_WEIGHT[side] if side else 1.0
+            if blend and min(fx, FACE_W - 1 - fx) == 0 and min(fy, FACE_H - 1 - fy) == 0:
+                weight = CORNER_WEIGHT
             at = (fx + at_x, fy + at_y)
             gem.putpixel(at, mix(gem.getpixel(at), face.getpixel((fx, fy)), weight))
     return gem
