@@ -579,11 +579,19 @@ impl<'a> PlayerView<'a> {
 
     /// Could the stack change plane where it stands?
     pub fn can_shift_plane(&self, units: &[hecs::Entity]) -> bool {
-        // The game refuses a crossing into a square held by an enemy (a tower's guards on the
-        // other plane) or one without room, so this asks the same.
+        // Off a tower the game refuses a crossing into a square held by an enemy or one without
+        // room (planar travel, an Astral Gate), so this asks the same.
         let Ok(to) = self.game.economy().can_shift_plane(units) else {
             return false;
         };
+        // In a tower the stack is on both planes already: nobody else can be there.
+        if units
+            .first()
+            .and_then(|&u| self.game.units().unit_position(u))
+            .is_some_and(|from| self.game.economy().tower_mirror(from).is_some())
+        {
+            return true;
+        }
         self.game.economy().hostile_at(to, self.me).is_none()
             && self.game.units().units_at(to).len() + units.len() <= self.game.max_tile()
     }

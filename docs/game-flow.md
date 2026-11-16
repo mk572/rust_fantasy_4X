@@ -101,8 +101,13 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
   nothing moves and the core emits `AttackRequested { attackers, from, to, defenders }`.
   Combat resolution is not built yet; the client logs it.
 - **Plane shift.** Allowed on a tower tile, or for a stack whose every unit has planar
-  travel. The destination (same x, y on the other plane) must be enterable by every unit,
-  free of hostile units, and have room. It costs one full move.
+  travel, or at an Astral Gate. A stack in a tower is on both planes at once (the original's
+  `in_tower`, `Units_In_Tower`, `Player_Army_At_Square` / `Enemy_Army_At_Square`): the change costs
+  no move and nothing can refuse it, and a rival stepping onto the tower square from either plane
+  meets the stack and attacks it (`Economy::tower_mirror`, `army_at`). The room on the square is
+  counted over both planes. Under a Planar Seal none of this holds: the tower is cut off. Planar
+  travel and an Astral Gate still move the stack to the same tile of the other plane for one full
+  move, which must be free of hostile units and have room.
 - **Exploration.** After each move the owner explores around the new tile as far as the unit
   sees. `Sight` is a distance in squares counted like movement (a step along a row or column costs 1,
   a diagonal step 1.5 with the setting `diagonal_extra_cost` and 1 without it, the same setting as

@@ -467,8 +467,8 @@ impl Game {
     ) -> (Vec<hecs::Entity>, Vec<hecs::Entity>) {
         let (fighters, _) = self.pick_fighters(named);
         let there: Vec<hecs::Entity> = self
-            .units()
-            .units_at(site)
+            .economy()
+            .army_at(site)
             .into_iter()
             .filter(|&u| self.units().unit_owner(u) == Some(owner))
             .collect();
@@ -525,16 +525,28 @@ impl Game {
             let first = *units.first()?;
             let pos = game.units().unit_position(first)?;
             let owner = game.units().unit_owner(first)?;
+            // A stack in a tower is on both planes: its units may stand on either.
+            let mirror = game.economy().tower_mirror(pos);
             units
                 .iter()
                 .all(|&u| {
-                    game.units().unit_position(u) == Some(pos)
+                    let at = game.units().unit_position(u);
+                    (at == Some(pos) || (mirror.is_some() && at == mirror))
                         && game.units().unit_owner(u) == Some(owner)
                 })
                 .then_some((owner, pos))
         };
-        let (a_owner, _) = side_info(self, attackers).ok_or(BattleStartError::BadSides)?;
+        let (a_owner, a_pos) = side_info(self, attackers).ok_or(BattleStartError::BadSides)?;
         let (d_owner, site) = side_info(self, defenders).ok_or(BattleStartError::BadSides)?;
+        // The attacker came from its own plane: the fight is on the tower square of that plane.
+        let site = if site.plane == a_pos.plane {
+            site
+        } else {
+            self.economy()
+                .tower_mirror(site)
+                .filter(|m| m.plane == a_pos.plane)
+                .unwrap_or(site)
+        };
         if a_owner == d_owner {
             return Err(BattleStartError::BadSides);
         }
@@ -1280,8 +1292,8 @@ impl Game {
         };
         let attacker = battle.player_of(Side::Attacker);
         let hostile_left = self
-            .units()
-            .units_at(pos)
+            .economy()
+            .army_at(pos)
             .into_iter()
             .any(|u| self.units().unit_owner(u).is_some_and(|o| o != attacker));
         if hostile_left {
@@ -1315,6 +1327,8 @@ impl Game {
                 self.put(u, pos);
             }
             self.explore(attacker, pos, crate::map::fog::sight_for(2));
+            // A stack that ends its move in a tower holds it.
+            self.claim_tower(&movers, pos);
             events.push(Event::UnitsMoved {
                 units: movers,
                 from,
@@ -1353,7 +1367,15 @@ impl Game {
     ) -> Vec<Event> {
         let near = |game: &Game| -> Option<bool> {
             let a = game.units().unit_position(*attackers.first()?)?;
-            let d = game.units().unit_position(*defenders.first()?)?;
+            let mut d = game.units().unit_position(*defenders.first()?)?;
+            // The same tower square, seen from the attacker's plane.
+            if d.plane != a.plane {
+                d = game
+                    .economy()
+                    .tower_mirror(d)
+                    .filter(|m| m.plane == a.plane)
+                    .unwrap_or(d);
+            }
             let map = game.map.as_ref()?;
             Some(a.plane == d.plane && map.plane(a.plane).chebyshev((a.x, a.y), (d.x, d.y)) <= 1)
         };

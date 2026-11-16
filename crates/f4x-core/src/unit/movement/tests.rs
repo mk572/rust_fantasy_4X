@@ -538,8 +538,13 @@ fn shifting_planes_needs_a_tower_or_planar_travel() -> TestResult {
         plane: Plane::Myrror,
         ..at(1, 4)
     };
+    let before = g.units().unit_moves_left(on_tower);
     assert_eq!(g.shift_plane(&[on_tower]), Ok(myrror));
-    assert_eq!(g.units().unit_moves_left(on_tower), 1, "costs one move");
+    assert_eq!(
+        g.units().unit_moves_left(on_tower),
+        before,
+        "a stack in a tower is on both planes: the change costs nothing"
+    );
     assert_eq!(
         g.shift_plane(&[off_tower]),
         Err(MoveError::CannotShiftPlane)
@@ -556,20 +561,98 @@ fn shifting_planes_needs_a_tower_or_planar_travel() -> TestResult {
     Ok(())
 }
 
+/// The original's `in_tower`: a stack standing in a tower is on both planes, so a rival stepping
+/// onto the tower square from either plane meets it (`Enemy_Army_At_Square`).
 #[test]
-fn a_shift_into_a_blocked_tile_is_refused() {
+fn a_stack_in_a_tower_is_met_from_either_plane() {
+    let myrror = |p: Position| Position {
+        plane: Plane::Myrror,
+        ..p
+    };
     let mut g = world();
-    let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 4));
-    unit(
+    let holder = unit(
         &mut g,
         P1,
         107, /* high_men_cavalry */
-        Position {
-            plane: Plane::Myrror,
-            ..at(1, 4)
-        },
+        myrror(at(1, 4)),
     );
-    assert_eq!(g.shift_plane(&[w]), Err(MoveError::CannotShiftPlane));
+    // A rival on Arcanus beside the tower, and one on Myrror beside it.
+    let near = unit(&mut g, P0, 107, at(2, 4));
+    let far = unit(&mut g, P0, 107, myrror(at(2, 4)));
+    for (mover, onto) in [(near, at(1, 4)), (far, myrror(at(1, 4)))] {
+        match g.economy().plan_step(&[mover], onto) {
+            Ok((_, Entry::Hostile(found))) => assert_eq!(found, vec![holder]),
+            other => panic!("the tower holder is not met: {other:?}"),
+        }
+    }
+    // Off the tower the planes stay apart.
+    let beside = unit(&mut g, P1, 107, myrror(at(3, 4)));
+    let stranger = unit(&mut g, P0, 107, at(4, 4));
+    assert!(matches!(
+        g.economy().plan_step(&[stranger], at(3, 4)),
+        Ok((_, Entry::Free))
+    ));
+    let _ = beside;
+}
+
+/// A stack that attacks a tower from the other plane fights its holder, and the winner takes the
+/// tower square on its own plane.
+#[test]
+fn a_tower_attacked_from_the_other_plane_is_fought_and_taken() {
+    let myrror = |p: Position| Position {
+        plane: Plane::Myrror,
+        ..p
+    };
+    let mut g = world();
+    let holder = unit(&mut g, P1, 107 /* high_men_cavalry */, at(1, 4));
+    let attackers: Vec<_> = (0..6)
+        .map(|_| unit(&mut g, P0, 107, myrror(at(2, 4))))
+        .collect();
+    let Ok((_, Entry::Hostile(found))) = g.economy().plan_step(&attackers[..1], myrror(at(1, 4)))
+    else {
+        panic!("the holder is not met from the far plane");
+    };
+    assert_eq!(found, vec![holder]);
+    let events = g.apply(crate::game::Command::AutoResolve {
+        mana_budget: None,
+        attackers: attackers.clone(),
+        defenders: found,
+    });
+    assert!(!g.in_battle(), "{events:?}");
+    assert!(!g.world.contains(holder), "the holder is beaten");
+    let on_tower: Vec<_> = attackers
+        .iter()
+        .filter(|&&u| g.world.contains(u))
+        .map(|&u| g.units().unit_position(u))
+        .collect();
+    assert!(!on_tower.is_empty());
+    assert!(
+        on_tower.iter().all(|&p| p == Some(myrror(at(1, 4)))),
+        "the winners hold the tower on their own plane: {on_tower:?}"
+    );
+}
+
+/// A tower holds one stack for both planes: the room on it counts the units on either plane.
+#[test]
+fn the_room_on_a_tower_is_shared_by_both_planes() {
+    let mut g = world();
+    let limit = g.max_tile();
+    for _ in 0..limit {
+        unit(&mut g, P0, 107, at(1, 4));
+    }
+    let myrror_near = Position {
+        plane: Plane::Myrror,
+        ..at(2, 4)
+    };
+    let newcomer = unit(&mut g, P0, 107, myrror_near);
+    let onto = Position {
+        plane: Plane::Myrror,
+        ..at(1, 4)
+    };
+    assert_eq!(
+        g.economy().plan_step(&[newcomer], onto).map(|(_, e)| e),
+        Err(MoveError::StackFull)
+    );
 }
 
 #[test]

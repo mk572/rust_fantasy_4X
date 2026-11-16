@@ -309,11 +309,8 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 ai.unreachable_since = game.turn;
             }
         }
-        // Nothing to walk to: a rival's city on the other plane, by an open tower. A tower the
-        // army was refused at (a rival's unit standing on the far side) is set aside for a while.
-        ai.tower_refused
-            .retain(|&(_, turn)| game.turn.saturating_sub(turn) <= TOWER_REFUSED_TURNS);
-        let refused: Vec<Position> = ai.tower_refused.iter().map(|&(p, _)| p).collect();
+        // Nothing to walk to: a rival's city on the other plane, by an open tower. A rival's stack
+        // standing in the tower is on both planes: the army meets it on the way and fights it.
         if ai.campaign.is_none() {
             if let Some((tower, city)) = planar_target(
                 &view,
@@ -321,7 +318,6 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 &ai.unreachable,
                 &ai.city_memory,
                 race::enemy(ai, &view),
-                &refused,
             ) {
                 ai.campaign = Some(city);
                 ai.crossing = Some(tower);
@@ -552,28 +548,6 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             continue;
         }
         if !PlayerView::new(game, me).can_shift_plane(chunk) {
-            // The rules allow a crossing from here but not into the far square: a rival's unit
-            // stands there, or it is full. Another tower is tried; the target is chosen again.
-            if game.economy().can_shift_plane(chunk).is_ok() {
-                if let Some(tower) = ai.crossing {
-                    // A square can be held for a turn or two: the tower is set aside only
-                    // when the refusal goes on.
-                    let strikes = match ai.tower_strikes {
-                        Some((t, n)) if t == tower => n + 1,
-                        _ => 1,
-                    };
-                    if strikes >= TOWER_STRIKES {
-                        ai.tower_refused.push((tower, game.turn));
-                        ai.tower_strikes = None;
-                        ai.crossing = None;
-                        ai.campaign = None;
-                        ai.marching.clear();
-                    } else {
-                        ai.tower_strikes = Some((tower, strikes));
-                    }
-                }
-                break;
-            }
             continue;
         }
         {
@@ -801,17 +775,12 @@ pub(crate) fn force_wanted(
     ((needed / average_strength(view).max(1.0)).ceil() as usize).clamp(3, MAX_FORCE)
 }
 
-/// Turns in a row the crossing at a tower is refused before it is set aside.
-const TOWER_STRIKES: u32 = 3;
-/// Turns a tower the army was refused at is set aside.
-const TOWER_REFUSED_TURNS: u32 = 100;
-
 /// The fewest troops that cross a plane together.
 const MIN_CROSSING: usize = 3;
 
 /// The towers the wizard has cleared, on the plane of its capital, that its troops can walk to,
-/// the nearest first; those in `refused` are left out.
-fn open_towers(view: &PlayerView, capital: Position, refused: &[Position]) -> Vec<Position> {
+/// the nearest first.
+fn open_towers(view: &PlayerView, capital: Position) -> Vec<Position> {
     let Some(walker) = view
         .garrison(capital)
         .into_iter()
@@ -822,12 +791,7 @@ fn open_towers(view: &PlayerView, capital: Position, refused: &[Position]) -> Ve
     let mut towers: Vec<Position> = view
         .towers()
         .into_iter()
-        .filter(|&(p, intact)| {
-            !intact
-                && p.plane == capital.plane
-                && !refused.contains(&p)
-                && view.can_reach(&[walker], p)
-        })
+        .filter(|&(p, intact)| !intact && p.plane == capital.plane && view.can_reach(&[walker], p))
         .map(|(p, _)| p)
         .collect();
     towers.sort_by_key(|&p| (distance(view, capital, p), p.y, p.x));
@@ -842,20 +806,17 @@ fn planar_target(
     skip: &[Position],
     memory: &HashMap<Position, (f32, u32)>,
     focus: Option<PlayerId>,
-    refused: &[Position],
 ) -> Option<(Position, Position)> {
     let towers = view.towers();
-    open_towers(view, capital, refused)
-        .into_iter()
-        .find_map(|tower| {
-            // The far side of the tower must be seen, or the army would cross blind.
-            let far = towers
-                .iter()
-                .map(|&(p, _)| p)
-                .find(|p| p.plane != tower.plane && (p.x, p.y) == (tower.x, tower.y))?;
-            let city = best_enemy_city(view, far, skip, memory, focus)?;
-            Some((tower, city))
-        })
+    open_towers(view, capital).into_iter().find_map(|tower| {
+        // The far side of the tower must be seen, or the army would cross blind.
+        let far = towers
+            .iter()
+            .map(|&(p, _)| p)
+            .find(|p| p.plane != tower.plane && (p.x, p.y) == (tower.x, tower.y))?;
+        let city = best_enemy_city(view, far, skip, memory, focus)?;
+        Some((tower, city))
+    })
 }
 
 /// Squares of walking a rival's fortress city is worth: taking the seat ends its wizard.
@@ -1385,18 +1346,17 @@ mod tests {
         Ok(())
     }
 
-    /// A rival's unit stands on the far side of the nearest tower: the game refuses the crossing
-    /// there, and the army sets the tower aside and goes for the next one.
+    /// A rival's stack standing in the nearest tower is on both planes (the original's
+    /// `in_tower`): the army does not set the tower aside, it walks onto it and the move is an
+    /// attack on the holder.
     #[test]
-    fn a_tower_whose_far_side_is_held_by_a_rival_is_set_aside(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn a_tower_held_by_a_rival_is_walked_onto_and_fought() -> Result<(), Box<dyn std::error::Error>>
+    {
         use crate::testworld::spawn_tower;
         use f4x_core::map::Plane;
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let near = at(8, 6);
-        let other = at(8, 8);
         spawn_tower(&mut g, near, false)?;
-        spawn_tower(&mut g, other, false)?;
         let on_myrror = |p: Position| Position {
             plane: Plane::Myrror,
             ..p
@@ -1409,34 +1369,27 @@ mod tests {
             race: None,
             population: 3,
         });
-        for p in [
-            near,
-            on_myrror(near),
-            other,
-            on_myrror(other),
-            far_city,
-            at(28, 6),
-        ] {
+        for p in [near, on_myrror(near), far_city, at(28, 6)] {
             g.explore(P0, p, HalfInt::from_raw(3));
         }
-        // The rival's idle unit on the far side of the near tower.
-        spawn(&mut g, P1, on_myrror(near), 104 /* spearmen */, 1);
-        spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 6);
+        // The rival's unit stands in the tower, on the far plane's side of it.
+        let holder = spawn(&mut g, P1, on_myrror(near), 104 /* spearmen */, 1);
+        let troops = spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 6);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         army(&mut ai, &mut g, &mut events);
-        assert_eq!(ai.crossing, Some(near), "the nearest tower is picked first");
-        // The troops stand on it and are refused; once is not enough to give the tower up.
-        spawn(&mut g, P0, near, 104 /* spearmen */, 4);
-        army(&mut ai, &mut g, &mut events);
-        assert!(ai.tower_refused.is_empty(), "one refusal is not the end");
-        for _ in 1..TOWER_STRIKES {
-            army(&mut ai, &mut g, &mut events);
+        assert_eq!(
+            ai.crossing,
+            Some(near),
+            "the tower is not set aside: {events:?}"
+        );
+        // The way onto the tower from our side ends in the holder.
+        let mover = spawn(&mut g, P0, at(7, 6), 104 /* spearmen */, 1)[0];
+        assert!(!troops.is_empty());
+        match g.economy().plan_step(&[mover], near) {
+            Ok((_, f4x_core::unit::movement::Entry::Hostile(found))) => assert_eq!(found, holder),
+            other => panic!("the holder is not met: {other:?}"),
         }
-        assert_eq!(ai.tower_refused.first().map(|&(p, _)| p), Some(near));
-        // The next time, the other tower is the way across.
-        army(&mut ai, &mut g, &mut events);
-        assert_eq!(ai.crossing, Some(other), "{events:?}");
         Ok(())
     }
 

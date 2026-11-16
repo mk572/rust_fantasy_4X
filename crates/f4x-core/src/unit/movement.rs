@@ -368,6 +368,33 @@ impl Economy<'_> {
             .any(|&u| self.units().unit_has_ability(u, Ability::new(74)))
     }
 
+    /// The same square on the other plane when `pos` is a tower: a stack standing in a tower is
+    /// on both planes at once (the original's `in_tower` flag and `Player_Army_At_Square` /
+    /// `Enemy_Army_At_Square`, which count such a unit on either plane). None under a Planar
+    /// Seal, which cuts the tower off from the other plane.
+    pub fn tower_mirror(&self, pos: Position) -> Option<Position> {
+        if !self.is_tower(pos) || self.units().planar_seal_active() {
+            return None;
+        }
+        Some(Position {
+            plane: match pos.plane {
+                Plane::Arcanus => Plane::Myrror,
+                Plane::Myrror => Plane::Arcanus,
+            },
+            ..pos
+        })
+    }
+
+    /// Every unit standing on `pos`, a stack in a tower counted on both of its planes.
+    pub fn army_at(&self, pos: Position) -> Vec<hecs::Entity> {
+        let mut out = self.units().units_at(pos);
+        if let Some(other) = self.tower_mirror(pos) {
+            out.extend(self.units().units_at(other));
+            self.units().sort_by_serial(&mut out);
+        }
+        out
+    }
+
     /// Hostile units or city on `pos` from the point of view of `mover`.
     pub fn hostile_at(&self, pos: Position, mover: PlayerId) -> Option<Vec<hecs::Entity>> {
         // While the mover's turn is kept, the squares with something hostile on them are known:
@@ -378,8 +405,7 @@ impl Economy<'_> {
             return None;
         }
         let defenders: Vec<_> = self
-            .units()
-            .units_at(pos)
+            .army_at(pos)
             .into_iter()
             .filter(|&u| self.units().unit_owner(u).is_some_and(|o| o != mover))
             .collect();
@@ -398,7 +424,16 @@ impl Economy<'_> {
         for (_, (_, p)) in self.world.query::<(&crate::unit::Unit, &Position)>().iter() {
             *count.entry(*p).or_default() += 1;
         }
-        count
+        // A tower holds one stack for both planes.
+        let towers: Vec<(Position, Position)> = count
+            .keys()
+            .filter_map(|&p| self.tower_mirror(p).map(|m| (p, m)))
+            .collect();
+        let mut total = count.clone();
+        for (p, m) in towers {
+            *total.entry(m).or_default() += count[&p];
+        }
+        total
             .into_iter()
             .filter(|&(_, n)| n > room)
             .map(|(p, _)| p)
@@ -453,6 +488,9 @@ impl Economy<'_> {
                 out.insert(*at);
             }
         }
+        // A hostile stack in a tower is on both planes.
+        let mirrors: Vec<Position> = out.iter().filter_map(|&p| self.tower_mirror(p)).collect();
+        out.extend(mirrors);
         out
     }
 
@@ -558,7 +596,7 @@ impl Economy<'_> {
                 }
             }
         }
-        let present = self.units().units_at(to).len();
+        let present = self.army_at(to).len();
         if present + units.len() > self.max_tile {
             return Err(MoveError::StackFull);
         }
@@ -596,8 +634,10 @@ impl Economy<'_> {
         }
         // Every unit must be able to stand on the other plane's tile.
         let flies = self.stack_traits(units);
+        // In a tower the stack is on both planes already: it needs no move to change.
+        let free = on_tower && self.tower_mirror(from).is_some();
         for &u in units {
-            if self.units().unit_moves_left(u) == 0 {
+            if !free && self.units().unit_moves_left(u) == 0 {
                 return Err(MoveError::NoMovesLeft);
             }
             self.step_cost(u, to, to, flies)
@@ -692,16 +732,23 @@ impl Game {
     /// Move the stack to the same tile on the other plane, costing one full move.
     pub fn shift_plane(&mut self, units: &[hecs::Entity]) -> Result<Position, MoveError> {
         let to = self.economy().can_shift_plane(units)?;
-        let (_, owner) = self.economy().check_stack(units)?;
-        if self.economy().hostile_at(to, owner).is_some() {
-            return Err(MoveError::CannotShiftPlane);
-        }
-        if self.units().units_at(to).len() + units.len() > self.max_tile() {
-            return Err(MoveError::StackFull);
+        let (from, owner) = self.economy().check_stack(units)?;
+        // A stack in a tower is on both planes: it changes plane for nothing, and nobody else
+        // can be on the square (whoever came first was fought when the other arrived).
+        let in_tower = self.economy().tower_mirror(from).is_some();
+        if !in_tower {
+            if self.economy().hostile_at(to, owner).is_some() {
+                return Err(MoveError::CannotShiftPlane);
+            }
+            if self.units().units_at(to).len() + units.len() > self.max_tile() {
+                return Err(MoveError::StackFull);
+            }
         }
         for &u in units {
-            let left = self.units().unit_moves_left(u).saturating_sub(FULL_MOVE);
-            self.put(u, MovesLeft(left));
+            if !in_tower {
+                let left = self.units().unit_moves_left(u).saturating_sub(FULL_MOVE);
+                self.put(u, MovesLeft(left));
+            }
             self.put(u, to);
             let sight = self.units().unit_sight(u);
             self.explore(owner, to, sight);
