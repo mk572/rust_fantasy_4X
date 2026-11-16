@@ -138,8 +138,8 @@ fn no_war_when_the_edge_is_small_or_the_turn_early() -> TestResult {
     Ok(())
 }
 
-#[test]
-fn no_war_on_two_fronts() -> TestResult {
+/// `lopsided` with a third wizard at war with P0 (P1 has no army: it is a straggler).
+fn two_fronts() -> Result<Game, Box<dyn std::error::Error>> {
     let mut g = lopsided()?;
     g.add_player(P2, "Third");
     found(&mut g, P2, 32, 3);
@@ -150,6 +150,38 @@ fn no_war_on_two_fronts() -> TestResult {
         on: P0,
     }));
     assert_eq!(g.treaty(P0, P2), Treaty::War);
+    Ok(g)
+}
+
+#[test]
+fn no_war_on_two_fronts_before_the_late_game() -> TestResult {
+    let mut g = two_fronts()?;
+    let mut ai = Ai::new(P0);
+    // Turn 100 to 250: the build-up and the middle of the game.
+    run_turns(&mut g, &mut ai, 150);
+    assert!(g.turn < 300);
+    assert_ne!(g.treaty(P0, P1), Treaty::War);
+    Ok(())
+}
+
+#[test]
+fn late_in_the_game_a_straggler_is_finished_during_another_war() -> TestResult {
+    let mut g = two_fronts()?;
+    let mut ai = Ai::new(P0);
+    run_turns(&mut g, &mut ai, 400);
+    assert_eq!(
+        g.treaty(P0, P1),
+        Treaty::War,
+        "P1 has no army: the war on P2 does not hold it back"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_rival_that_is_not_far_weaker_is_not_a_second_front_even_late() -> TestResult {
+    // The same, but P1 has an army a third the size of P0's: not a straggler.
+    let mut g = two_fronts()?;
+    spawn(&mut g, P1, at(WEST_RIVAL.0, WEST_RIVAL.1), SPEARMEN, 3);
     let mut ai = Ai::new(P0);
     run_turns(&mut g, &mut ai, 400);
     assert_ne!(g.treaty(P0, P1), Treaty::War);

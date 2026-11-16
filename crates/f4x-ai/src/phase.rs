@@ -33,6 +33,27 @@ fn mastery_under_way(view: &PlayerView) -> bool {
         || w.known().into_iter().any(is_mastery)
 }
 
+/// What the wizard puts its resources into once it has settled: the Spell of Mastery or the
+/// conquest of the world.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Goal {
+    /// The wizard is on its way to the Spell of Mastery (researching, casting or holding it): gold
+    /// and mana go to its casting, and the buildings that make mana.
+    Mastery,
+    /// The wizard wins by taking the rivals' cities: gold and mana go to units, heroes, summons
+    /// and battle spells. This is also the goal when the Spell of Mastery is not open to it.
+    Conquest,
+}
+
+/// The goal of the wizard (task 502): Mastery only while it is open to the wizard and under way.
+pub fn goal(view: &PlayerView) -> Goal {
+    if view.mastery_open() && mastery_under_way(view) {
+        Goal::Mastery
+    } else {
+        Goal::Conquest
+    }
+}
+
 /// The phase the wizard is in.
 pub fn phase(view: &PlayerView) -> Phase {
     let wanted = crate::objective::traits(view).cities_wanted;
@@ -213,6 +234,24 @@ mod tests {
             .ok_or("a spell of mastery")?;
         g.cheat_learn_spell(P1, mastery);
         assert_eq!(phase(&PlayerView::new(&g, P1)), Phase::Win);
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_is_after_conquest_until_the_spell_of_mastery_is_under_way(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut g = fresh_game()?;
+        assert_eq!(goal(&PlayerView::new(&g, P1)), Goal::Conquest);
+        let mastery = g
+            .content()
+            .rules
+            .spells
+            .iter()
+            .find(|(_, d)| kind(d) == Kind::Mastery)
+            .map(|(id, _)| id)
+            .ok_or("a spell of mastery")?;
+        g.cheat_learn_spell(P1, mastery);
+        assert_eq!(goal(&PlayerView::new(&g, P1)), Goal::Mastery);
         Ok(())
     }
 }

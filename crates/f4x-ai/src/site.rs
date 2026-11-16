@@ -53,7 +53,12 @@ fn city_defence(view: &PlayerView, p: Position) -> f32 {
 
 /// The explored, intact sites within [`SITE_RANGE`] of `from` (towers within [`TOWER_RANGE`]) that a party of `strength` should
 /// take, nearest first.
-pub(crate) fn sites_near(view: &PlayerView, from: Position, strength: f32) -> Vec<Position> {
+pub(crate) fn sites_near(
+    view: &PlayerView,
+    from: Position,
+    strength: f32,
+    blocked: &[f4x_core::map::Plane],
+) -> Vec<Position> {
     let mut found: Vec<Position> = Vec::new();
     for dy in -SITE_RANGE..=SITE_RANGE {
         for dx in -SITE_RANGE..=SITE_RANGE {
@@ -77,7 +82,7 @@ pub(crate) fn sites_near(view: &PlayerView, from: Position, strength: f32) -> Ve
     for (p, intact) in view.towers() {
         if intact
             && !found.contains(&p)
-            && !crate::siege::rival_on_plane(view, p.plane)
+            && !blocked.contains(&p.plane)
             && distance(view, from, p).is_some_and(|d| d <= TOWER_RANGE)
             && strength >= expected(view, p) * edge()
         {
@@ -134,7 +139,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             // The site the party is set on stays its target while it is still worth taking:
             // "the nearest" changes as the party walks, and a party between two sites went to and
             // fro for ever.
-            let sites = sites_near(&view, pos, strength);
+            let sites = sites_near(&view, pos, strength, &ai.tower_blocked);
             let kept = units
                 .iter()
                 .find_map(|&u| ai.raid_targets.get(&view.serial_of(u)).copied())
@@ -300,7 +305,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 continue;
             }
             let strength = stack_strength(&view, &spare) + crate::siege::spell_power(&view);
-            let sites = sites_near(&view, pos, strength);
+            let sites = sites_near(&view, pos, strength, &ai.tower_blocked);
             (spare, sites)
         };
         for site in sites {
@@ -362,7 +367,7 @@ pub fn deploy(
             let sites = {
                 let view = PlayerView::new(game, me);
                 let strength = stack_strength(&view, party) + crate::siege::spell_power(&view);
-                sites_near(&view, pos, strength)
+                sites_near(&view, pos, strength, &ai.tower_blocked)
             };
             for site in sites {
                 if crate::assault::march_with(&mut reached, ai, game, party, site, events).is_ok() {
@@ -446,7 +451,7 @@ mod tests {
         )?;
         g.reveal_map(P0);
         let view = PlayerView::new(&g, P0);
-        assert_eq!(sites_near(&view, at(10, 6), 10_000.0), vec![at(33, 9)]);
+        assert_eq!(sites_near(&view, at(10, 6), 10_000.0, &[]), vec![at(33, 9)]);
         Ok(())
     }
 
@@ -685,13 +690,24 @@ mod tests {
     }
 
     #[test]
-    fn a_tower_is_left_alone_while_a_rival_has_a_city_on_its_plane() -> TestResult {
+    fn a_tower_is_left_alone_while_a_rival_city_that_can_be_walked_to_is_on_its_plane() -> TestResult
+    {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         spawn_tower(&mut g, at(33, 9), true)?;
         g.reveal_map(P0);
         let view = PlayerView::new(&g, P0);
-        assert!(crate::siege::rival_on_plane(&view, at(0, 0).plane));
-        assert!(sites_near(&view, at(10, 6), 10_000.0).is_empty());
+        let rival = at(28, 6);
+        // A rival city the army can walk to holds the towers back.
+        let blocked = crate::siege::blocked_planes(&view, &[], None);
+        assert_eq!(blocked, vec![rival.plane]);
+        assert!(sites_near(&view, at(10, 6), 10_000.0, &blocked).is_empty());
+        // One that only a ship can reach does not, unless a landing is set on it.
+        assert!(crate::siege::blocked_planes(&view, &[rival], None).is_empty());
+        assert_eq!(
+            crate::siege::blocked_planes(&view, &[rival], Some(rival)),
+            vec![rival.plane]
+        );
+        assert_eq!(sites_near(&view, at(10, 6), 10_000.0, &[]), vec![at(33, 9)]);
         Ok(())
     }
 }

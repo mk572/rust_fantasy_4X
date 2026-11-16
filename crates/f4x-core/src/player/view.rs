@@ -132,6 +132,11 @@ impl<'a> PlayerView<'a> {
         found
     }
 
+    /// Whether the Spell of Mastery is open to the player (`RuleSettings::spell_of_mastery`).
+    pub fn mastery_open(&self) -> bool {
+        self.game.mastery_open_to(self.me)
+    }
+
     /// Is the player another wizard (not the neutral player or the monsters)?
     pub fn is_rival_wizard(&self, other: PlayerId) -> bool {
         other != self.me && self.game.is_wizard(other)

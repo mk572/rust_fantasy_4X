@@ -300,7 +300,7 @@ const GOLD_KEPT: i32 = 1000;
 
 /// The mana the wizard could put to use now: what its dearest summon it can aim costs with the
 /// margin the casting rule asks for (zero when it has none to cast).
-fn mana_wanted(view: &PlayerView) -> i32 {
+fn mana_wanted(view: &PlayerView, blocked: &[f4x_core::map::Plane]) -> i32 {
     let Some(magic) = view.wizard() else {
         return 0;
     };
@@ -313,9 +313,15 @@ fn mana_wanted(view: &PlayerView) -> i32 {
         .map(|s| view.casting_cost(s) * 3 / 2)
         .max()
         .unwrap_or(0);
+    // The Spell of Mastery being cast: what is still owed is mana to buy, whatever the gold is
+    // worth otherwise (the win itself, task 502).
+    let mastery = magic
+        .casting()
+        .filter(|c| kind(view.spell(c.spell)) == Kind::Mastery)
+        .map_or(0, |c| c.remaining.max(0));
     // The summon is cast first and paid for, and the pool then holds the mana for the battle spells
     // that take a tower the soldiers alone cannot (task 502).
-    summon + crate::siege::mana_goal(view)
+    summon + crate::siege::mana_goal(view, blocked) + mastery
 }
 
 /// A wizard rich in gold and short of the mana for a summon it could cast turns just enough of the
@@ -327,7 +333,7 @@ fn alchemy(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let Some(w) = view.wizard() else {
             return;
         };
-        let short = mana_wanted(&view) - view.treasury().mana.floor();
+        let short = mana_wanted(&view, &ai.tower_blocked) - view.treasury().mana.floor();
         let spare = view.treasury().gold.floor() - GOLD_KEPT;
         let percent = w
             .stat(
@@ -1138,8 +1144,13 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 Kind::Mastery => true,
                 // Summoned creatures cost upkeep mana: only while the army is thin.
                 Kind::Summon => {
-                    now && room
-                        && fighters < 12 + 2 * view.my_cities().len()
+                    // A conqueror in the late game summons whatever the mana pays for and the
+                    // upkeep allows: the army cap is for a wizard that is still building up.
+                    let conquering = crate::phase::phase(&view) == crate::phase::Phase::Win
+                        && crate::phase::goal(&view) == crate::phase::Goal::Conquest;
+                    now && (room || conquering)
+                        && (fighters < 12 + 2 * view.my_cities().len()
+                            || (conquering && upkeep_ok(&view, def)))
                         // The square the creatures appear on may be full.
                         && (view.can_aim(spell, None) || crate::garrison::can_make_room(&view))
                 }
@@ -1253,7 +1264,7 @@ mod tests {
         let t = g.treasury_mut(P1).ok_or("a treasury")?;
         t.gold = HalfInt::from_int(gold);
         t.mana = HalfInt::from_int(mana);
-        let wanted = mana_wanted(&PlayerView::new(&g, P1));
+        let wanted = mana_wanted(&PlayerView::new(&g, P1), &[]);
         Ok((g, wanted))
     }
 
@@ -1946,6 +1957,28 @@ mod tests {
             Some(Target::Unit(second)) => assert_ne!(second, first),
             other => assert!(other.is_none(), "{other:?}"),
         }
+        Ok(())
+    }
+
+    #[test]
+    fn the_mana_owed_for_the_spell_of_mastery_is_mana_to_buy_with_gold() -> TestResult {
+        let (mut g, _) = summoner(50_000, 0)?;
+        let before = mana_wanted(&PlayerView::new(&g, P1), &[]);
+        let mastery = g
+            .content()
+            .rules
+            .spells
+            .iter()
+            .find(|(_, d)| kind(d) == Kind::Mastery)
+            .map(|(id, _)| id)
+            .ok_or("a spell of mastery")?;
+        g.cheat_learn_spell(P1, mastery);
+        g.scenario_casting(P1, mastery, 3000);
+        assert_eq!(
+            mana_wanted(&PlayerView::new(&g, P1), &[]),
+            before + 3000,
+            "what is still owed is wanted on top"
+        );
         Ok(())
     }
 }

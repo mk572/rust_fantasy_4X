@@ -355,6 +355,15 @@ pub(crate) fn goodwill(game: &Game, judge: PlayerId, asker: PlayerId, kind: Prop
     g
 }
 
+/// A rival so weak beside the wizard (at least [`STRAGGLER_RATIO`] to one in army) that a second war
+/// against it costs the first front nothing worth counting.
+fn is_straggler(mine: Power, theirs: Power) -> bool {
+    mine.army >= STRAGGLER_RATIO * theirs.army.max(1)
+}
+
+/// How many times the army of a rival the wizard must have to take it on during another war.
+const STRAGGLER_RATIO: i32 = 4;
+
 /// Whether `me` is far ahead of `other` in army and cities.
 fn dominates(game: &Game, me: PlayerId, other: PlayerId, k: &Knobs) -> bool {
     let scene = Scene::new(game, me);
@@ -734,12 +743,18 @@ fn dominant_war(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, k: &Knobs
     if game.turn < k.dominant_from_turn || ai.quarrel.is_some() {
         return;
     }
-    // No war on two fronts.
-    if scene
+    // No war on two fronts, except the mop-up of a straggler in the late game (below): a stalemate
+    // with one rival must not keep the wizard from finishing a rival it far outweighs.
+    let at_war = scene
         .others
         .iter()
-        .any(|&p| game.treaty(me, p) == Treaty::War)
-    {
+        .any(|&p| game.treaty(me, p) == Treaty::War);
+    let mopping_up = {
+        let view = PlayerView::new(game, me);
+        crate::phase::phase(&view) == crate::phase::Phase::Win
+            && crate::phase::goal(&view) == crate::phase::Goal::Conquest
+    };
+    if at_war && !mopping_up {
         return;
     }
     let objective = PlayerView::new(game, me)
@@ -763,6 +778,7 @@ fn dominant_war(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, k: &Knobs
                 .is_none_or(|s| s.peace_duration == 0)
         })
         .filter(|&p| dominates(game, me, p, k))
+        .filter(|&p| !at_war || is_straggler(scene.power(game, me), scene.power(game, p)))
         .min_by_key(|&p| (scene.power(game, p).score(k), p.0));
     let Some(target) = target else {
         return;

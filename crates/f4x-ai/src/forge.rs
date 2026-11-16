@@ -14,10 +14,23 @@ const FORGE_TURN: u32 = 150;
 /// One forge city for this many cities, at least two and at most [`MOST_FORGES`].
 const CITIES_PER_FORGE: usize = 5;
 const MOST_FORGES: usize = 4;
+/// Gold above which a conqueror's forges grow to half its cities, at most [`MOST_FORGES_RICH`].
+const RICH_GOLD: i32 = 3000;
+const MOST_FORGES_RICH: usize = 12;
 
 /// Is the wizard past the build-up, so that its cities work toward the strong units?
 pub(crate) fn active(view: &PlayerView) -> bool {
     view.turn() >= FORGE_TURN && phase(view) != Phase::Build
+}
+
+/// How many forge cities a wizard of `cities` cities has: one for [`CITIES_PER_FORGE`], two at
+/// least; a rich conqueror forges in half its cities.
+fn forge_count(cities: usize, rich: bool) -> usize {
+    if rich {
+        (cities / 2).clamp(2, MOST_FORGES_RICH)
+    } else {
+        (cities / CITIES_PER_FORGE).clamp(2, MOST_FORGES)
+    }
 }
 
 /// The forge cities: the biggest cities (the most production), the largest first; none before the
@@ -35,7 +48,10 @@ pub(crate) fn forges(view: &PlayerView) -> Vec<hecs::Entity> {
         })
         .collect();
     cities.sort_by_key(|&(size, c)| (std::cmp::Reverse(size), view.serial_of(c)));
-    let n = (cities.len() / CITIES_PER_FORGE).clamp(2, MOST_FORGES);
+    // A conqueror with gold to spare makes the strong units in half its cities.
+    let rich = view.treasury().gold.floor() >= RICH_GOLD
+        && crate::phase::goal(view) == crate::phase::Goal::Conquest;
+    let n = forge_count(cities.len(), rich);
     cities.into_iter().take(n).map(|(_, c)| c).collect()
 }
 
@@ -180,5 +196,14 @@ mod tests {
         // A new city has not built what the top unit needs, so it is told to build toward it.
         assert!(matches!(step(&view, city), Step::Build(_) | Step::Ready(_)));
         Ok(())
+    }
+
+    #[test]
+    fn a_conqueror_with_gold_to_spare_forges_in_more_cities() {
+        assert_eq!(forge_count(10, false), 2);
+        assert_eq!(forge_count(30, false), MOST_FORGES);
+        assert_eq!(forge_count(10, true), 5);
+        assert_eq!(forge_count(60, true), MOST_FORGES_RICH);
+        assert_eq!(forge_count(3, true), 2, "never fewer than two");
     }
 }

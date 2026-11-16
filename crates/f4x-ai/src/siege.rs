@@ -18,6 +18,7 @@ use crate::military::average_strength;
 use crate::view::{distance, fighting_strength, is_fighter};
 use crate::Ai;
 use f4x_core::game::Game;
+use f4x_core::map::{Plane, Position};
 
 /// Mana that does the work of one average soldier in a fight (a bolt or a blessing: 15 to 25).
 pub(crate) const MANA_PER_SOLDIER: f32 = 20.0;
@@ -62,7 +63,7 @@ pub(crate) fn spell_power(view: &PlayerView) -> f32 {
 /// The mana the wizard wants in the pool for the hardest intact tower in reach that its nine best
 /// soldiers cannot take alone, but soldiers and spells together could (0 when there is none, or
 /// when the wizard has no battle spell).
-pub(crate) fn mana_goal(view: &PlayerView) -> i32 {
+pub(crate) fn mana_goal(view: &PlayerView, blocked: &[Plane]) -> i32 {
     if !has_battle_spell(view) || crate::phase::phase(view) == crate::phase::Phase::Build {
         return 0;
     }
@@ -80,7 +81,10 @@ pub(crate) fn mana_goal(view: &PlayerView) -> i32 {
     view.towers()
         .into_iter()
         .filter(|&(p, intact)| {
-            intact && p.plane == start.plane && crate::view::distance(view, start, p).is_some()
+            intact
+                && !blocked.contains(&p.plane)
+                && p.plane == start.plane
+                && crate::view::distance(view, start, p).is_some()
         })
         .map(|(p, _)| crate::site::expected(view, p) * siege_edge())
         .filter(|&need| need > best_nine && need <= reachable)
@@ -89,11 +93,25 @@ pub(crate) fn mana_goal(view: &PlayerView) -> i32 {
         .unwrap_or(0)
 }
 
-/// Does a rival wizard have a city we know of on the plane? Its cities come before a tower.
-pub(crate) fn rival_on_plane(view: &PlayerView, plane: f4x_core::map::Plane) -> bool {
-    view.known_cities()
-        .iter()
-        .any(|&(_, owner, p)| p.plane == plane && view.is_rival_wizard(owner))
+/// The planes where a rival's city stands in the way of the towers: a known city of a rival
+/// wizard that the army can walk to (not one in `unreachable`, which a ship has to reach) or that a
+/// landing is set on (`naval_target`). The rivals come before the towers; a rival across the sea
+/// that no landing is bound for does not hold the towers back.
+pub(crate) fn blocked_planes(
+    view: &PlayerView,
+    unreachable: &[Position],
+    naval_target: Option<Position>,
+) -> Vec<Plane> {
+    let mut planes: Vec<Plane> = Vec::new();
+    for (_, owner, p) in view.known_cities() {
+        if view.is_rival_wizard(owner)
+            && (!unreachable.contains(&p) || naval_target == Some(p))
+            && !planes.contains(&p.plane)
+        {
+            planes.push(p.plane);
+        }
+    }
+    planes
 }
 
 /// End a muster whose soldiers have come (or waited long enough): they are free soldiers again,
@@ -164,7 +182,7 @@ pub(crate) fn gather(
         let Some(tower) = view
             .towers()
             .into_iter()
-            .filter(|&(p, intact)| intact && !rival_on_plane(&view, p.plane))
+            .filter(|&(p, intact)| intact && !ai.tower_blocked.contains(&p.plane))
             .map(|(p, _)| p)
             .filter(|&p| strength >= crate::site::expected(&view, p) * siege_edge())
             .min_by(|&a, &b| {
@@ -276,16 +294,20 @@ mod tests {
         spawn(&mut g, P0, at(10, 6), 113 /* high_men_paladins */, 1);
         crate::testworld::spawn_tower(&mut g, at(33, 9), true)?;
         g.reveal_map(P0);
-        assert_eq!(mana_goal(&PlayerView::new(&g, P0)), 0, "no battle spell");
+        assert_eq!(
+            mana_goal(&PlayerView::new(&g, P0), &[]),
+            0,
+            "no battle spell"
+        );
         learn_a_battle_spell(&mut g)?;
-        let goal = mana_goal(&PlayerView::new(&g, P0));
+        let goal = mana_goal(&PlayerView::new(&g, P0), &[]);
         assert!(
             goal > 0,
             "one soldier is short of a tower's guess of guards"
         );
         // The goal is spells for the shortfall only: a tenth soldier more and it shrinks.
         spawn(&mut g, P0, at(10, 6), 113 /* high_men_paladins */, 4);
-        assert!(mana_goal(&PlayerView::new(&g, P0)) < goal);
+        assert!(mana_goal(&PlayerView::new(&g, P0), &[]) < goal);
         Ok(())
     }
 
@@ -301,7 +323,7 @@ mod tests {
         let view = PlayerView::new(&g, P0);
         let soldiers = crate::view::stack_strength(&view, &paladins);
         let with = soldiers + spell_power(&view);
-        let near = |s| crate::site::sites_near(&view, at(10, 6), s);
+        let near = |s| crate::site::sites_near(&view, at(10, 6), s, &[]);
         assert!(near(soldiers).is_empty());
         assert_eq!(near(with), vec![at(33, 9)]);
         Ok(())
@@ -347,6 +369,7 @@ mod tests {
         crate::testworld::spawn_tower(&mut g, at(3, 4), true)?;
         g.reveal_map(P0);
         let mut ai = Ai::new(P0);
+        ai.tower_blocked = blocked_planes(&PlayerView::new(&g, P0), &[], None);
         gather(&mut ai, &mut g, &many, &mut Vec::new());
         assert!(ai.muster.is_empty());
         Ok(())

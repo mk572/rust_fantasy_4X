@@ -116,6 +116,9 @@ pub struct Ai {
     planar_tower: Option<Position>,
     /// The soldiers on their way to a city to be sent against a tower together, the city, and the
     /// turn they were sent (`siege.rs`).
+    /// The planes where a rival's city blocks the clearing of towers this turn (`siege.rs`).
+    #[serde(skip)]
+    tower_blocked: Vec<f4x_core::map::Plane>,
     #[serde(default)]
     muster: Vec<Serial>,
     #[serde(default)]
@@ -253,6 +256,7 @@ impl Ai {
             sea_party: Vec::new(),
             sea_gave_up: false,
             planar_tower: None,
+            tower_blocked: Vec::new(),
             muster: Vec::new(),
             muster_at: None,
             muster_since: 0,
@@ -381,6 +385,11 @@ impl Ai {
         alchemy::run(self, game, &mut events);
         race::run(self, game, &mut events);
         diplomacy::mastery_scare(self, game, &mut events);
+        self.tower_blocked = siege::blocked_planes(
+            &PlayerView::new(game, self.player),
+            &self.unreachable,
+            self.naval.map(|p| p.target),
+        );
         wizardry::run(self, game, &mut events);
         // While another wizard keeps Time Stop going, none of this wizard's units can act
         // (`AIMOVE.c`, `AIDUDES.c`): its armies, settlers and ships wait.
