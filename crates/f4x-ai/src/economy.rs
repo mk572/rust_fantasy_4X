@@ -270,7 +270,7 @@ fn colonist_item(
         .any(|&u| crate::view::is_ship(view, u));
     let size = view.city_economy(city).map_or(0, |e| e.figures);
     (ai.colony.is_some_and(|c| c.port == pos)
-        && ai.colonists.is_none()
+        && !ai.roles.any(crate::roles::Role::Colonize)
         && ship
         && !waiting
         && !empire.broke()

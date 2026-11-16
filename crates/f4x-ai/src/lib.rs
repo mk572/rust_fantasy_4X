@@ -70,23 +70,10 @@ pub struct Refusal {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Ai {
     pub player: PlayerId,
-    /// Where each settler is heading to found a city.
-    #[serde(serialize_with = "persist::sorted")]
-    settler_targets: HashMap<Serial, Position>,
     /// The enemy city the army is gathering to attack, once it has chosen one.
     campaign: Option<Position>,
-    /// Where each settler stood last turn, to notice one that is stuck.
-    #[serde(serialize_with = "persist::sorted")]
-    settler_last: HashMap<Serial, Position>,
     /// Sites the AI gave up on.
     bad_sites: Vec<Position>,
-    /// The units set to find the rest of the world, and where each is heading.
-    scouts: Vec<Serial>,
-    #[serde(serialize_with = "persist::sorted")]
-    scout_targets: HashMap<Serial, Position>,
-    /// Where each scout stood last turn and for how many turns it has not moved.
-    #[serde(serialize_with = "persist::sorted")]
-    scout_last: HashMap<Serial, (Position, u32)>,
     /// Targets scouts could not get to.
     bad_scout_targets: Vec<Position>,
     /// The turn the units on the march against `march_target` set out.
@@ -95,9 +82,6 @@ pub struct Ai {
     /// The landing the AI is working towards when the enemy lives on another land mass, the ship
     /// on a voyage, and ports or targets that did not work out.
     naval: Option<naval::Plan>,
-    /// The ships on a voyage with a landing, each with the units it carries.
-    #[serde(default)]
-    ferries: Vec<naval::Ferry>,
     naval_bad: Vec<Position>,
     /// Turns a loaded ship has waited for a stronger landing party.
     naval_wait: u32,
@@ -106,8 +90,6 @@ pub struct Ai {
     sea_port: Option<Position>,
     sea_scouting: bool,
     sea_done: bool,
-    /// The fighters a sea scout carries to put ashore on land nobody holds (`scout.rs`).
-    sea_party: Vec<Serial>,
     /// The sea scouting was ended by the plan clock (`plan_clock.rs`), not by finding nothing:
     /// it is tried again when the failure lists are forgiven.
     #[serde(default)]
@@ -124,15 +106,12 @@ pub struct Ai {
     muster_at: Option<Position>,
     #[serde(default)]
     muster_since: u32,
-    /// The scout on its way to an open tower, to change plane (`scout.rs`).
-    planar: Option<Serial>,
     /// The open tower an army crosses by to reach a rival's city on the other plane (`military.rs`).
     #[serde(default)]
     crossing: Option<Position>,
     /// Settlers by sea (`colony.rs`): the voyage planned, the ship and settler on it and the turn
     /// they set out, landings that failed, and the turn the search is made again.
     colony: Option<colony::Colony>,
-    colonists: Option<(Serial, Serial)>,
     colony_since: u32,
     colony_bad: Vec<Position>,
     colony_retry: u32,
@@ -168,9 +147,6 @@ pub struct Ai {
     /// a city); the other roles are still in the lists below.
     #[serde(default)]
     roles: roles::Registry,
-    /// The ships on their way to fetch them.
-    #[serde(default)]
-    pickups: Vec<pickup::Pickup>,
     /// When each plan began, for the time limit on all of them (`plan_clock.rs`).
     #[serde(default)]
     clock: plan_clock::PlanClock,
@@ -236,34 +212,25 @@ impl Ai {
         battle::install();
         Self {
             player,
-            settler_targets: HashMap::new(),
             campaign: None,
-            settler_last: HashMap::new(),
             bad_sites: Vec::new(),
-            scouts: Vec::new(),
-            scout_targets: HashMap::new(),
-            scout_last: HashMap::new(),
             bad_scout_targets: Vec::new(),
             frontier_closed: false,
             march_started: 0,
             march_target: None,
             naval: None,
-            ferries: Vec::new(),
             naval_bad: Vec::new(),
             naval_wait: 0,
             sea_port: None,
             sea_scouting: false,
             sea_done: false,
-            sea_party: Vec::new(),
             sea_gave_up: false,
             planar_tower: None,
             tower_blocked: Vec::new(),
             muster_at: None,
             muster_since: 0,
-            planar: None,
             crossing: None,
             colony: None,
-            colonists: None,
             colony_since: 0,
             colony_bad: Vec::new(),
             colony_retry: 0,
@@ -279,7 +246,6 @@ impl Ai {
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
             roles: roles::Registry::default(),
-            pickups: Vec::new(),
             clock: plan_clock::PlanClock::default(),
             defended_by: Vec::new(),
             attacks: Vec::new(),
@@ -314,14 +280,18 @@ impl Ai {
 
     /// How many units are out scouting and where each is heading.
     pub fn scout_targets(&self) -> Vec<(u64, Position)> {
-        self.scout_targets.iter().map(|(s, p)| (s.0, *p)).collect()
+        self.roles
+            .targeted(roles::Role::Scout)
+            .into_iter()
+            .map(|(s, p)| (s.0, p))
+            .collect()
     }
 
     /// The landing the AI is preparing against a city on another land mass, as (target, port),
     /// and whether a ship is on a voyage.
     pub fn landing(&self) -> Option<(Position, Position, bool)> {
         self.naval
-            .map(|p| (p.target, p.port, !self.ferries.is_empty()))
+            .map(|p| (p.target, p.port, self.roles.any(crate::roles::Role::Voyage)))
     }
 
     /// Whether scouting by land is over: nothing the AI can walk to shows anything new.

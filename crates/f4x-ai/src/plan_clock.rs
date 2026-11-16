@@ -221,37 +221,41 @@ impl Ai {
                 .retain_role(crate::roles::Role::Raid, |s| s.0 != key.0);
         }
         let settlers: Vec<Key> = self
-            .settler_targets
-            .iter()
-            .map(|(&s, &p)| unit_going(s, p))
+            .roles
+            .targeted(crate::roles::Role::Settle)
+            .into_iter()
+            .map(|(s, p)| unit_going(s, p))
             .collect();
         for key in clock.tick(PlanKind::Settler, turn, &settlers) {
             let found = self
-                .settler_targets
-                .iter()
-                .find(|(&s, &p)| unit_going(s, p) == key)
-                .map(|(&s, &p)| (s, p));
+                .roles
+                .targeted(crate::roles::Role::Settle)
+                .into_iter()
+                .find(|&(s, p)| unit_going(s, p) == key);
             if let Some((serial, site)) = found {
-                self.settler_targets.remove(&serial);
-                self.settler_last.remove(&serial);
+                self.roles
+                    .set_target(serial, crate::roles::Role::Settle, None);
+                self.roles.clear_track(serial);
                 self.bad_sites.push(site);
                 out.release.push(serial);
             }
         }
         let scouts: Vec<Key> = self
-            .scout_targets
-            .iter()
-            .map(|(&s, &p)| unit_going(s, p))
+            .roles
+            .targeted(crate::roles::Role::Scout)
+            .into_iter()
+            .map(|(s, p)| unit_going(s, p))
             .collect();
         for key in clock.tick(PlanKind::Scout, turn, &scouts) {
             let found = self
-                .scout_targets
-                .iter()
-                .find(|(&s, &p)| unit_going(s, p) == key)
-                .map(|(&s, &p)| (s, p));
+                .roles
+                .targeted(crate::roles::Role::Scout)
+                .into_iter()
+                .find(|&(s, p)| unit_going(s, p) == key);
             if let Some((serial, target)) = found {
-                self.scout_targets.remove(&serial);
-                self.scout_last.remove(&serial);
+                self.roles
+                    .set_target(serial, crate::roles::Role::Scout, None);
+                self.roles.clear_track(serial);
                 self.bad_scout_targets.push(target);
                 out.release.push(serial);
             }
@@ -266,14 +270,13 @@ impl Ai {
             self.sea_done = true;
             self.sea_gave_up = true;
             self.sea_port = None;
-            self.sea_party.clear();
+            self.roles.release_role(crate::roles::Role::SeaParty);
             out.sea = true;
         }
-        let planar: Vec<Key> = self.planar.map(unit).into_iter().collect();
+        let planar: Vec<Key> = self.roles.planar().map(unit).into_iter().collect();
         for key in clock.tick(PlanKind::Planar, turn, &planar) {
-            if let Some(serial) = self.planar.filter(|&s| unit(s) == key) {
-                self.planar = None;
-                self.scouts.retain(|&s| s != serial);
+            if let Some(serial) = self.roles.planar().filter(|&s| unit(s) == key) {
+                self.roles.release(serial, crate::roles::Role::PlanarScout);
                 if let Some(tower) = self.planar_tower.take() {
                     self.bad_scout_targets.push(tower);
                 }
@@ -404,14 +407,19 @@ mod tests {
     fn a_settler_that_does_not_get_there_gives_its_site_up_and_is_released() {
         let (mut ai, turn) = ai_at(10);
         let s = crate::Serial(5);
-        ai.settler_targets.insert(s, at(9, 9));
-        ai.settler_last.insert(s, at(1, 1));
+        let _ = ai
+            .roles
+            .claim(s, crate::roles::Role::Settle, 1, Some(at(9, 9)));
+        ai.roles.track(s, at(1, 1), false);
         ai.drop_stale_plans(turn);
         let early = ai.drop_stale_plans(turn + SETTLER_TIMEOUT_TURNS - 1);
-        assert!(early.release.is_empty() && ai.settler_targets.contains_key(&s));
+        assert!(
+            early.release.is_empty() && ai.roles.target_of(s, crate::roles::Role::Settle).is_some()
+        );
         let out = ai.drop_stale_plans(turn + SETTLER_TIMEOUT_TURNS);
         assert_eq!(out.release, vec![s]);
-        assert!(ai.settler_targets.is_empty() && ai.settler_last.is_empty());
+        assert!(ai.roles.targets(crate::roles::Role::Settle).is_empty());
+        assert_eq!(ai.roles.get(s).map(|a| a.stuck), Some(0));
         assert_eq!(ai.bad_sites, vec![at(9, 9)]);
         assert_eq!(ai.clock.dropped(PlanKind::Settler), 1);
     }
@@ -422,7 +430,9 @@ mod tests {
         let s = crate::Serial(5);
         for t in 0..3 * SETTLER_TIMEOUT_TURNS {
             // A new site every twenty turns: each is a new plan with its own clock.
-            ai.settler_targets.insert(s, at(2 + t / 20, 2));
+            let _ = ai.roles.claim(s, crate::roles::Role::Settle, 1, None);
+            ai.roles
+                .set_target(s, crate::roles::Role::Settle, Some(at(2 + t / 20, 2)));
             let out = ai.drop_stale_plans(turn + t);
             assert!(out.release.is_empty(), "turn {t}");
         }
@@ -433,15 +443,22 @@ mod tests {
     fn a_scout_walking_to_one_target_too_long_gives_it_up_but_one_with_new_targets_does_not() {
         let (mut ai, turn) = ai_at(10);
         let (walker, finder) = (crate::Serial(1), crate::Serial(2));
-        ai.scout_targets.insert(walker, at(9, 9));
+        let _ = ai
+            .roles
+            .claim(walker, crate::roles::Role::Scout, 1, Some(at(9, 9)));
+        let _ = ai.roles.claim(finder, crate::roles::Role::Scout, 1, None);
         let mut released = Vec::new();
         for t in 0..=SCOUT_TIMEOUT_TURNS {
-            ai.scout_targets.insert(finder, at(2 + t / 10, 3));
+            ai.roles
+                .set_target(finder, crate::roles::Role::Scout, Some(at(2 + t / 10, 3)));
             released.extend(ai.drop_stale_plans(turn + t).release);
         }
         assert_eq!(released, vec![walker]);
         assert_eq!(ai.bad_scout_targets, vec![at(9, 9)]);
-        assert!(ai.scout_targets.contains_key(&finder));
+        assert!(ai
+            .roles
+            .target_of(finder, crate::roles::Role::Scout)
+            .is_some());
         assert_eq!(ai.clock.dropped(PlanKind::Scout), 1);
     }
 
@@ -450,12 +467,17 @@ mod tests {
         let (mut ai, turn) = ai_at(10);
         ai.sea_scouting = true;
         ai.sea_port = Some(at(1, 1));
-        ai.sea_party = vec![crate::Serial(3)];
+        let _ = ai
+            .roles
+            .claim(crate::Serial(3), crate::roles::Role::SeaParty, 1, None);
         ai.drop_stale_plans(turn);
         assert!(!ai.drop_stale_plans(turn + PLAN_TIMEOUT_TURNS - 1).sea);
         assert!(ai.drop_stale_plans(turn + PLAN_TIMEOUT_TURNS).sea);
         assert!(
-            !ai.sea_scouting && ai.sea_done && ai.sea_port.is_none() && ai.sea_party.is_empty()
+            !ai.sea_scouting
+                && ai.sea_done
+                && ai.sea_port.is_none()
+                && !ai.roles.any(crate::roles::Role::SeaParty)
         );
         assert_eq!(ai.clock.dropped(PlanKind::SeaScout), 1);
         // The failure lists are forgiven after a while, and with them this.
@@ -476,13 +498,12 @@ mod tests {
     fn a_planar_scout_that_never_reaches_the_tower_is_let_go_and_the_tower_set_aside() {
         let (mut ai, turn) = ai_at(10);
         let s = crate::Serial(4);
-        ai.planar = Some(s);
+        let _ = ai.roles.claim(s, crate::roles::Role::PlanarScout, 1, None);
         ai.planar_tower = Some(at(5, 5));
-        ai.scouts = vec![s];
         ai.drop_stale_plans(turn);
         let out = ai.drop_stale_plans(turn + PLAN_TIMEOUT_TURNS);
         assert_eq!(out.release, vec![s]);
-        assert!(ai.planar.is_none() && ai.scouts.is_empty());
+        assert!(ai.roles.planar().is_none() && ai.roles.scouting().is_empty());
         assert_eq!(ai.bad_scout_targets, vec![at(5, 5)]);
         assert_eq!(ai.clock.dropped(PlanKind::Planar), 1);
     }

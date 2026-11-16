@@ -110,15 +110,13 @@ pub struct Metrics {
     pub marches_dropped: u32,
     /// Soldiers the end-of-turn audit found with no role (sent home), summed over turns.
     pub units_adrift: u32,
-    /// Soldiers found in more than one role list, summed over turns.
-    pub units_double_role: u32,
     /// Ships and other units (settlers, engineers, spirits) with no role, summed over turns.
     pub units_unassigned: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 63] {
+    pub fn rows(&self) -> [(&'static str, u32); 62] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -180,7 +178,6 @@ impl Metrics {
             ("marches called off", self.marches_called_off),
             ("marches dropped for another target", self.marches_dropped),
             ("units adrift (no role)", self.units_adrift),
-            ("units in two roles", self.units_double_role),
             ("ships and other units with no role", self.units_unassigned),
             (
                 "cities captured on the other plane",
@@ -304,7 +301,6 @@ impl AddAssign for Metrics {
             marches_called_off,
             marches_dropped,
             units_adrift,
-            units_double_role,
             units_unassigned,
         } = other;
         self.cities_founded += cities_founded;
@@ -368,7 +364,6 @@ impl AddAssign for Metrics {
         self.marches_called_off += marches_called_off;
         self.marches_dropped += marches_dropped;
         self.units_adrift += units_adrift;
-        self.units_double_role += units_double_role;
         self.units_unassigned += units_unassigned;
         self.first_landing_turns += first_landing_turns;
     }
@@ -652,11 +647,9 @@ impl Tally {
                 Event::RolesAudited {
                     player,
                     adrift,
-                    doubled,
                     unassigned,
                 } => self.bump(*player, |m| {
                     m.units_adrift += adrift;
-                    m.units_double_role += doubled;
                     m.units_unassigned += unassigned;
                 }),
                 Event::PlaneShifted { player, units, .. } => self.bump(*player, |m| {
@@ -1011,18 +1004,14 @@ mod tests {
         )?;
         let player = PlayerId(0);
         let mut tally = Tally::new(&game);
-        let audit = |adrift, doubled, unassigned| Event::RolesAudited {
+        let audit = |adrift, unassigned| Event::RolesAudited {
             player,
             adrift,
-            doubled,
             unassigned,
         };
-        tally.record(&game, None, &[audit(2, 0, 4), audit(1, 3, 5)]);
+        tally.record(&game, None, &[audit(2, 4), audit(1, 5)]);
         let m = tally.of(player);
-        assert_eq!(
-            (m.units_adrift, m.units_double_role, m.units_unassigned),
-            (3, 3, 9)
-        );
+        assert_eq!((m.units_adrift, m.units_unassigned), (3, 9));
         Ok(())
     }
 

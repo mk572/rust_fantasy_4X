@@ -34,13 +34,12 @@ pub fn city_cap(view: &PlayerView, at: Position) -> usize {
 /// Units that may be sent away: fighters with moves left and no task.
 fn movable(ai: &Ai, view: &PlayerView, units: &[hecs::Entity]) -> Vec<hecs::Entity> {
     let busy = |serial| {
-        ai.scouts.contains(&serial)
+        ai.roles.is_scouting(serial)
             || ai.roles.is(serial, crate::roles::Role::Raid)
             || ai.roles.is(serial, crate::roles::Role::March)
-            || ai.sea_party.contains(&serial)
-            || ai.planar == Some(serial)
+            || ai.roles.is(serial, crate::roles::Role::SeaParty)
+            || ai.roles.is(serial, crate::roles::Role::PlanarScout)
             || ai.roles.has_role(serial)
-            || ai.ferries.iter().any(|f| f.group.contains(&serial))
     };
     units
         .iter()
@@ -93,11 +92,10 @@ pub fn thin_out(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .filter(|&u| {
                         let serial = view.serial_of(u);
                         crate::forge::low_tier(&view, u)
-                            && !ai.scouts.contains(&serial)
+                            && !ai.roles.is_scouting(serial)
                             && !ai.roles.is(serial, crate::roles::Role::Raid)
                             && !ai.roles.is(serial, crate::roles::Role::March)
-                            && !ai.sea_party.contains(&serial)
-                            && !ai.ferries.iter().any(|f| f.group.contains(&serial))
+                            && !ai.roles.is(serial, crate::roles::Role::SeaParty)
                     })
                     .take(spare),
             );
@@ -200,9 +198,9 @@ pub fn disperse(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let view = PlayerView::new(game, me);
     for u in rest {
         let serial = view.serial_of(u);
-        if !ai.roles.is(serial, crate::roles::Role::Raid) && !ai.scouts.contains(&serial) {
-            ai.scouts.push(serial);
-        }
+        let _ = ai
+            .roles
+            .claim(serial, crate::roles::Role::Scout, game.turn, None);
     }
 }
 
@@ -351,7 +349,7 @@ mod tests {
         let mut ai = Ai::new(P0);
         disperse(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(held(&g, coast), 9);
-        assert!(ai.scouts.is_empty());
+        assert!(ai.roles.scouting().is_empty());
         Ok(())
     }
 

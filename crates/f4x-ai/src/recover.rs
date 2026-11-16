@@ -35,11 +35,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let view = PlayerView::new(game, me);
         let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
         let busy = |serial| {
-            ai.sea_party.contains(&serial)
+            ai.roles.is(serial, crate::roles::Role::SeaParty)
                 || ai.roles.role_of(serial).is_some_and(|r| {
                     !matches!(r, crate::roles::Role::Raid | crate::roles::Role::March)
                 })
-                || ai.ferries.iter().any(|f| f.group.contains(&serial))
         };
         let healers: Vec<Position> = view
             .my_units()

@@ -52,16 +52,25 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         view.sort_by_serial(&mut mine);
         // Forget the targets of settlers that are gone.
         let alive: Vec<_> = mine.iter().map(|&u| view.serial_of(u)).collect();
-        ai.settler_targets.retain(|s, _| alive.contains(s));
+        ai.roles.prune(&{
+            let mut keep = alive.clone();
+            keep.extend(view.my_units().iter().map(|&u| view.serial_of(u)));
+            keep
+        });
+        for &s in &alive {
+            let _ = ai
+                .roles
+                .claim(s, crate::roles::Role::Settle, game.turn, None);
+        }
         mine
     };
 
     for unit in mine {
         // A settler on a ship's voyage is the ship's to carry (`colony.rs`).
-        if ai
-            .colonists
-            .is_some_and(|(_, s)| s == PlayerView::new(game, me).serial_of(unit))
-        {
+        if ai.roles.is(
+            PlayerView::new(game, me).serial_of(unit),
+            crate::roles::Role::Colonize,
+        ) {
             continue;
         }
         let (pos, serial) = {
@@ -71,7 +80,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             (pos, view.serial_of(unit))
         };
-        if let Some(&target) = ai.settler_targets.get(&serial) {
+        if let Some(target) = ai.roles.target_of(serial, crate::roles::Role::Settle) {
             if target == pos {
                 let (can_found, name) = {
                     let view = PlayerView::new(game, me);
@@ -82,25 +91,31 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         .send(game, Command::SettleOutpost { unit, name }, events)
                         .is_ok()
                 {
-                    ai.settler_targets.remove(&serial);
+                    ai.roles
+                        .set_target(serial, crate::roles::Role::Settle, None);
                     continue;
                 }
-                ai.settler_targets.remove(&serial); // blocked: choose again below
+                ai.roles
+                    .set_target(serial, crate::roles::Role::Settle, None); // blocked: choose again below
             } else if PlayerView::new(game, me).unit_has_order(unit) {
-                if ai.settler_last.get(&serial) == Some(&pos) {
+                if ai.roles.track(serial, pos, true) >= 1 {
                     // It did not move all turn: the way is blocked. Give this site up.
                     ai.bad_sites.push(target);
-                    ai.settler_targets.remove(&serial);
+                    ai.roles
+                        .set_target(serial, crate::roles::Role::Settle, None);
                     ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
                 } else {
-                    ai.settler_last.insert(serial, pos);
                     continue; // still walking
                 }
             }
         }
-        ai.settler_last.insert(serial, pos);
-        if !ai.settler_targets.contains_key(&serial) {
-            let others: Vec<Position> = ai.settler_targets.values().copied().collect();
+        ai.roles.track(serial, pos, false);
+        if ai
+            .roles
+            .target_of(serial, crate::roles::Role::Settle)
+            .is_none()
+        {
+            let others: Vec<Position> = ai.roles.targets(crate::roles::Role::Settle);
             let mut avoid = others;
             avoid.extend(ai.bad_sites.iter().copied());
             let (site, scout) = {
@@ -113,7 +128,8 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             match (site, scout) {
                 (Some(site), _) => {
-                    ai.settler_targets.insert(serial, site);
+                    ai.roles
+                        .set_target(serial, crate::roles::Role::Settle, Some(site));
                 }
                 (None, Some(to)) => {
                     ai.order(
@@ -129,7 +145,9 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 (None, None) => continue,
             }
         }
-        let target = ai.settler_targets[&serial];
+        let Some(target) = ai.roles.target_of(serial, crate::roles::Role::Settle) else {
+            continue;
+        };
         if target == pos {
             // Found it right here (next turn if the settlers just arrived and cannot).
             let name = city_name(&PlayerView::new(game, me), unit);
@@ -137,7 +155,8 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .send(game, Command::SettleOutpost { unit, name }, events)
                 .is_ok()
             {
-                ai.settler_targets.remove(&serial);
+                ai.roles
+                    .set_target(serial, crate::roles::Role::Settle, None);
             }
         } else if !ai
             .send(
@@ -150,7 +169,8 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             )
             .is_ok()
         {
-            ai.settler_targets.remove(&serial);
+            ai.roles
+                .set_target(serial, crate::roles::Role::Settle, None);
         }
     }
 }
@@ -307,7 +327,10 @@ mod tests {
             g.units().unit_owner(units[0]).is_none(),
             "the settlers are used up by founding"
         );
-        assert!(ai.settler_targets.is_empty(), "the target is forgotten");
+        assert!(
+            ai.roles.targets(crate::roles::Role::Settle).is_empty(),
+            "the target is forgotten"
+        );
         Ok(())
     }
 
@@ -316,7 +339,7 @@ mod tests {
         let (mut g, _) = island_with_settlers(2);
         let mut ai = Ai::new(P0);
         settlers(&mut ai, &mut g, &mut Vec::new());
-        let sites: Vec<Position> = ai.settler_targets.values().copied().collect();
+        let sites: Vec<Position> = ai.roles.targets(crate::roles::Role::Settle);
         assert_eq!(sites.len(), 2, "each settler has a site");
         let view = PlayerView::new(&g, P0);
         let apart = distance(&view, sites[0], sites[1]).ok_or("the sites are on one plane")?;
@@ -330,20 +353,20 @@ mod tests {
         let mut ai = Ai::new(P0);
         settlers(&mut ai, &mut g, &mut Vec::new());
         let serial = PlayerView::new(&g, P0).serial_of(units[0]);
-        let first = *ai
-            .settler_targets
-            .get(&serial)
+        let first = ai
+            .roles
+            .target_of(serial, crate::roles::Role::Settle)
             .ok_or("the settler chose a site")?;
         // A whole turn went by without the settler leaving its square: the last look equals now.
         let here = PlayerView::new(&g, P0)
             .unit_position(units[0])
             .ok_or("the settler is on the map")?;
-        ai.settler_last.insert(serial, here);
+        ai.roles.track(serial, here, false);
         settlers(&mut ai, &mut g, &mut Vec::new());
         assert!(ai.bad_sites.contains(&first), "{:?}", ai.bad_sites);
-        let second = *ai
-            .settler_targets
-            .get(&serial)
+        let second = ai
+            .roles
+            .target_of(serial, crate::roles::Role::Settle)
             .ok_or("the settler chose another site")?;
         assert_ne!(second, first);
         Ok(())
@@ -363,7 +386,7 @@ mod tests {
         let mut ai = Ai::new(P0);
         settlers(&mut ai, &mut g, &mut Vec::new());
         let view = PlayerView::new(&g, P0);
-        assert!(ai.settler_targets.is_empty());
+        assert!(ai.roles.targets(crate::roles::Role::Settle).is_empty());
         assert!(view.unit_has_order(units[0]), "it walks to unexplored land");
         Ok(())
     }

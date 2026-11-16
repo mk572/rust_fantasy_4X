@@ -164,7 +164,7 @@ pub(crate) fn gather(
                 is_fighter(&view, u)
                     && !crate::recover::needs_rest(&view, u)
                     && !ai.roles.is(view.serial_of(u), crate::roles::Role::Raid)
-                    && !ai.scouts.contains(&view.serial_of(u))
+                    && !ai.roles.is_scouting(view.serial_of(u))
                     && view.unit_position(u).is_some()
             })
             .collect();

@@ -110,11 +110,7 @@ enum Sortie {
 pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     // Units on a ship's errand or a raid on a site are not the army's to command.
-    let mut ferrying: Vec<Serial> = ai
-        .ferries
-        .iter()
-        .flat_map(|f| f.group.iter().copied())
-        .collect();
+    let mut ferrying: Vec<Serial> = Vec::new();
     // Soldiers waiting on a shore for a ship have their role (`pickup.rs`).
     ferrying.extend(ai.roles.assigned());
     let own_cities: Vec<Position> = PlayerView::new(game, me)
@@ -125,7 +121,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 
     // 1. Hit what stands next to us, when we are clearly the stronger.
     let mut spent: Vec<hecs::Entity> = Vec::new();
-    let stack_list = stacks(&PlayerView::new(game, me), &ai.scouts, &ferrying);
+    let stack_list = stacks(&PlayerView::new(game, me), &ai.roles.scouting(), &ferrying);
     for (pos, units) in stack_list {
         let at_city = own_cities.contains(&pos);
         // One view for the whole stack: nothing changes until a command is sent, and a command
@@ -235,7 +231,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let (free, capital) = {
         let view = PlayerView::new(game, me);
         let mut free: Vec<hecs::Entity> = Vec::new();
-        for (pos, units) in stacks(&view, &ai.scouts, &ferrying) {
+        for (pos, units) in stacks(&view, &ai.roles.scouting(), &ferrying) {
             let skip = if own_cities.contains(&pos) {
                 garrison_wanted(&view, pos)
             } else {

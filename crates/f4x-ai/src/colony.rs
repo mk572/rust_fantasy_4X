@@ -182,18 +182,19 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     {
         let view = PlayerView::new(game, me);
         let alive = |s: Serial| view.my_units().iter().any(|&u| view.serial_of(u) == s);
-        if ai
-            .colonists
-            .is_some_and(|(ship, settler)| !alive(ship) || !alive(settler))
-        {
-            ai.colonists = None;
+        let gone = ai
+            .roles
+            .colonists()
+            .is_none_or(|(ship, settler)| !alive(ship) || !alive(settler));
+        if gone && ai.roles.any(crate::roles::Role::Colonize) {
+            ai.roles.release_role(crate::roles::Role::Colonize);
             ai.colony = None;
         }
         if ai
             .colony
             .is_some_and(|c| view.city_at(c.port).and_then(|e| view.city_owner(e)) != Some(me))
         {
-            ai.colonists = None;
+            ai.roles.release_role(crate::roles::Role::Colonize);
             ai.colony = None;
         }
     }
@@ -201,7 +202,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let view = PlayerView::new(game, me);
         let wanted = crate::objective::traits(&view).cities_wanted;
         let chosen = ((view.my_cities().len() < wanted || !crate::expand::room_for_city(&view))
-            && ai.ferries.is_empty())
+            && !ai.roles.any(crate::roles::Role::Voyage))
         .then(|| port_city(&view))
         .flatten()
         .and_then(|port| {
@@ -220,7 +221,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         return;
     };
     release_scouts(ai, game, events);
-    match ai.colonists {
+    match ai.roles.colonists() {
         None => load(ai, game, colony, events),
         Some((ship, settler)) => sail(ai, game, colony, ship, settler, events),
     }
@@ -233,7 +234,7 @@ pub(crate) fn release_scouts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Even
         let view = PlayerView::new(game, me);
         view.my_units()
             .into_iter()
-            .filter(|&u| is_ship(&view, u) && ai.scouts.contains(&view.serial_of(u)))
+            .filter(|&u| is_ship(&view, u) && ai.roles.is_scouting(view.serial_of(u)))
             .collect()
     };
     if ships.is_empty() {
@@ -243,8 +244,8 @@ pub(crate) fn release_scouts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Even
         let view = PlayerView::new(game, me);
         ships.iter().map(|&s| view.serial_of(s)).collect()
     };
-    ai.scouts.retain(|s| !serials.contains(s));
-    ai.sea_party.clear();
+    ai.roles.release_many(&serials, crate::roles::Role::Scout);
+    ai.roles.release_role(crate::roles::Role::SeaParty);
     ai.sea_scouting = false;
     ai.order(game, Command::ClearOrders { units: ships }, events);
 }
@@ -252,14 +253,14 @@ pub(crate) fn release_scouts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Even
 /// With the ship and a settler in the port, sail.
 fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
     let me = ai.player;
-    let ferrying: Vec<Serial> = ai.ferries.iter().map(|f| f.ship).collect();
+    let ferrying: Vec<Serial> = ai.roles.ferries();
     let (ship, settler, strays) = {
         let view = PlayerView::new(game, me);
         let mut ships: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
             .filter(|&u| is_ship(&view, u))
-            .filter(|&u| !ai.scouts.contains(&view.serial_of(u)))
+            .filter(|&u| !ai.roles.is_scouting(view.serial_of(u)))
             .filter(|&u| !ferrying.contains(&view.serial_of(u)) && !view.unit_has_order(u))
             .collect();
         view.sort_by_serial(&mut ships);
@@ -270,7 +271,11 @@ fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
             .garrison(colony.port)
             .into_iter()
             .filter(|&u| view.unit_has_ability(u, Ability::new(12)) && !view.unit_has_order(u))
-            .filter(|&u| !ai.settler_targets.contains_key(&view.serial_of(u)))
+            .filter(|&u| {
+                ai.roles
+                    .target_of(view.serial_of(u), crate::roles::Role::Settle)
+                    .is_none()
+            })
             .collect();
         view.sort_by_serial(&mut settlers);
         (here.first().copied(), settlers.first().copied(), strays)
@@ -309,7 +314,21 @@ fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
         )
         .is_ok()
     {
-        ai.colonists = Some((ship_serial, settler_serial));
+        let turn = game.turn;
+        ai.roles.claim_all(
+            [ship_serial, settler_serial],
+            crate::roles::Role::Colonize,
+            turn,
+        );
+        let party = ai.roles.new_party();
+        ai.roles
+            .group(&[ship_serial], crate::roles::Role::Colonize, party, None);
+        ai.roles.group(
+            &[settler_serial],
+            crate::roles::Role::Colonize,
+            party,
+            Some(ship_serial),
+        );
         ai.colony_since = game.turn;
     } else {
         give_up(ai, colony);
@@ -356,7 +375,7 @@ fn sail(
             )
             .is_ok()
         {
-            ai.colonists = None;
+            ai.roles.release_role(crate::roles::Role::Colonize);
             ai.colony = None;
         } else {
             give_up(ai, colony);
@@ -393,7 +412,7 @@ fn sail(
 /// A landing that did not work out is not tried again.
 fn give_up(ai: &mut Ai, colony: Colony) {
     ai.colony_bad.push(colony.land);
-    ai.colonists = None;
+    ai.roles.release_role(crate::roles::Role::Colonize);
     ai.colony = None;
 }
 

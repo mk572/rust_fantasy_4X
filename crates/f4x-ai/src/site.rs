@@ -303,7 +303,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let mut fighters: Vec<hecs::Entity> = view
                 .garrison(pos)
                 .into_iter()
-                .filter(|&u| is_fighter(&view, u) && !ai.scouts.contains(&view.serial_of(u)))
+                .filter(|&u| is_fighter(&view, u) && !ai.roles.is_scouting(view.serial_of(u)))
                 .collect();
             crate::view::weakest_first(&view, &mut fighters);
             fighters.sort_by_key(|u| heroes.contains(u));
@@ -357,7 +357,7 @@ pub fn deploy(
         for &u in free {
             let serial = view.serial_of(u);
             if ai.roles.is(serial, crate::roles::Role::Raid)
-                || ai.scouts.contains(&serial)
+                || ai.roles.is_scouting(serial)
                 || ai.roles.is(serial, crate::roles::Role::Muster)
             {
                 continue;

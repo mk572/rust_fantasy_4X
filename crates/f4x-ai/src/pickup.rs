@@ -4,7 +4,8 @@
 //! aboard with an ordinary move, and the ship carries them to the nearest own port.
 //!
 //! The waiting soldiers hold the role `AwaitTransport` in the registry (`Ai::roles`, with the
-//! shore tile as its target) and the voyages are in `Ai::pickups`.
+//! shore tile as its target). A ship sent for them holds `Pickup` (the sea square as its target),
+//! and the soldiers it came for are tied to it (`with`); [`voyages`] reads them back.
 
 use crate::view::is_ship;
 use crate::Ai;
@@ -14,7 +15,7 @@ use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 
-/// A ship on its way to fetch the soldiers waiting at `land`.
+/// A ship on its way to fetch the soldiers waiting at `land`, as the registry gives it back.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Pickup {
     pub ship: Serial,
@@ -24,6 +25,32 @@ pub struct Pickup {
     pub sea: Position,
     /// The soldiers it came for.
     pub group: Vec<Serial>,
+}
+
+/// The ships on their way to fetch soldiers, with the soldiers each came for.
+pub fn voyages(ai: &Ai) -> Vec<Pickup> {
+    ai.roles
+        .members(crate::roles::Role::Pickup)
+        .into_iter()
+        .filter_map(|ship| {
+            let sea = ai.roles.target_of(ship, crate::roles::Role::Pickup)?;
+            let group: Vec<Serial> = ai
+                .roles
+                .members(crate::roles::Role::AwaitTransport)
+                .into_iter()
+                .filter(|&s| ai.roles.with_of(s) == Some(ship))
+                .collect();
+            let land = group
+                .first()
+                .and_then(|&s| ai.roles.target_of(s, crate::roles::Role::AwaitTransport))?;
+            Some(Pickup {
+                ship,
+                land,
+                sea,
+                group,
+            })
+        })
+        .collect()
 }
 
 /// A sea square beside `land` that nobody hostile holds.
@@ -70,7 +97,9 @@ pub fn wait_at_shore(ai: &mut Ai, game: &mut Game, units: &[hecs::Entity]) -> bo
     let mut any = false;
     for s in serials {
         // A soldier that holds a better role keeps it.
-        any |= crate::roles::claim(ai, s, crate::roles::Role::AwaitTransport, turn, Some(tile))
+        any |= ai
+            .roles
+            .claim(s, crate::roles::Role::AwaitTransport, turn, Some(tile))
             .is_ok();
     }
     any
@@ -94,24 +123,26 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .find(|(x, _)| *x == s)
                     .is_some_and(|(_, p)| p.is_some_and(|p| view.city_at(p).is_none()))
         });
-        ai.pickups
-            .retain(|p| alive.iter().any(|(a, _)| *a == p.ship));
-        for p in &mut ai.pickups {
-            p.group.retain(|g| alive.iter().any(|(a, _)| a == g));
+        let all: Vec<Serial> = alive.iter().map(|(s, _)| *s).collect();
+        ai.roles.prune(&all);
+    }
+    // A ship whose soldiers are gone has nothing to fetch.
+    for ship in ai.roles.members(crate::roles::Role::Pickup) {
+        if !voyages(ai).iter().any(|p| p.ship == ship) {
+            ai.roles.release(ship, crate::roles::Role::Pickup);
         }
-        ai.pickups.retain(|p| !p.group.is_empty());
     }
     if ai
         .roles
         .members(crate::roles::Role::AwaitTransport)
         .is_empty()
-        && ai.pickups.is_empty()
+        && !ai.roles.any(crate::roles::Role::Pickup)
     {
         return;
     }
     walk_to_shore(ai, game, events);
     assign_ships(ai, game);
-    for pickup in ai.pickups.clone() {
+    for pickup in voyages(ai) {
         advance(ai, game, &pickup, events);
     }
 }
@@ -122,7 +153,7 @@ fn walk_to_shore(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let mut sends: Vec<(Position, Position, Vec<hecs::Entity>)> = Vec::new();
     {
         let view = PlayerView::new(game, me);
-        let aboard: Vec<Serial> = ai.pickups.iter().flat_map(|p| p.group.clone()).collect();
+        let aboard: Vec<Serial> = voyages(ai).into_iter().flat_map(|p| p.group).collect();
         for u in view.my_units() {
             let serial = view.serial_of(u);
             let Some(tile) = ai
@@ -169,23 +200,17 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
     let mut new: Vec<Pickup> = Vec::new();
     {
         let view = PlayerView::new(game, me);
-        let busy: Vec<Serial> = ai
-            .ferries
-            .iter()
-            .map(|f| f.ship)
-            .chain(ai.pickups.iter().map(|p| p.ship))
-            .collect();
         let mut free: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
             .filter(|&u| is_ship(&view, u))
             .filter(|&u| {
                 let s = view.serial_of(u);
-                !busy.contains(&s) && !ai.scouts.contains(&s) && view.passengers_of(u).is_empty()
+                !ai.roles.has_role(s) && view.passengers_of(u).is_empty()
             })
             .collect();
         view.sort_by_serial(&mut free);
-        let taken: Vec<Serial> = ai.pickups.iter().flat_map(|p| p.group.clone()).collect();
+        let taken: Vec<Serial> = voyages(ai).into_iter().flat_map(|p| p.group).collect();
         let mut tiles: Vec<Position> = ai.roles.targets(crate::roles::Role::AwaitTransport);
         tiles.sort_by_key(|p| (p.plane as u8, p.y, p.x));
         tiles.dedup();
@@ -233,7 +258,24 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
             });
         }
     }
-    ai.pickups.extend(new);
+    for p in new {
+        let turn = game.turn;
+        if ai
+            .roles
+            .claim(p.ship, crate::roles::Role::Pickup, turn, Some(p.sea))
+            .is_ok()
+        {
+            let party = ai.roles.new_party();
+            ai.roles
+                .group(&[p.ship], crate::roles::Role::Pickup, party, None);
+            ai.roles.group(
+                &p.group,
+                crate::roles::Role::AwaitTransport,
+                party,
+                Some(p.ship),
+            );
+        }
+    }
 }
 
 /// One step of a voyage: sail to the sea square, take the soldiers aboard, sail to a port.
@@ -292,7 +334,7 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
         for s in &pickup.group {
             ai.roles.release(*s, crate::roles::Role::AwaitTransport);
         }
-        ai.pickups.retain(|p| p.ship != pickup.ship);
+        ai.roles.release(pickup.ship, crate::roles::Role::Pickup);
         return;
     }
     if everyone {
@@ -377,7 +419,7 @@ mod tests {
             "{:?}",
             ai.roles
         );
-        assert!(ai.pickups.is_empty(), "{:?}", ai.pickups);
+        assert!(!ai.roles.any(crate::roles::Role::Pickup), "{:?}", ai.roles);
         for &u in &soldiers {
             assert_eq!(view.unit_position(u), Some(port), "the soldiers are home");
         }
@@ -402,7 +444,7 @@ mod tests {
             g.balance_farmers(P0);
         }
         assert_eq!(ai.roles.members(Role::AwaitTransport).len(), 2);
-        assert!(ai.pickups.is_empty());
+        assert!(!ai.roles.any(crate::roles::Role::Pickup));
         let view = PlayerView::new(&g, P0);
         for &u in &soldiers {
             let tile = ai.roles.target_of(view.serial_of(u), Role::AwaitTransport);

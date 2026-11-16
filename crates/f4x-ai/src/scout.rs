@@ -77,20 +77,21 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let (scouts, cities) = {
         let view = PlayerView::new(game, me);
         let alive: Vec<Serial> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
-        ai.scouts.retain(|s| alive.contains(s));
-        ai.scout_targets.retain(|s, _| alive.contains(s));
-        ai.sea_party.retain(|s| alive.contains(s));
+        ai.roles.prune(&alive);
         let mut scouts: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
-            .filter(|&u| ai.scouts.contains(&view.serial_of(u)))
+            .filter(|&u| ai.roles.is_scouting(view.serial_of(u)))
             .collect();
         view.sort_by_serial(&mut scouts);
         (scouts, view.my_cities().len())
     };
     if scouts.len() < wanted(cities) {
         if let Some(unit) = recruit(ai, game, None) {
-            ai.scouts.push(PlayerView::new(game, me).serial_of(unit));
+            let serial = PlayerView::new(game, me).serial_of(unit);
+            let _ = ai
+                .roles
+                .claim(serial, crate::roles::Role::Scout, game.turn, None);
         }
     }
     let scouts: Vec<hecs::Entity> = {
@@ -98,7 +99,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let mut list: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
-            .filter(|&u| ai.scouts.contains(&view.serial_of(u)))
+            .filter(|&u| ai.roles.is_scouting(view.serial_of(u)))
             .collect();
         view.sort_by_serial(&mut list);
         list
@@ -117,26 +118,21 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             (view.serial_of(unit), pos, !view.unit_has_order(unit))
         };
         // A fighter riding on a sea scout waits to be put ashore.
-        if ai.sea_party.contains(&serial) || ai.planar == Some(serial) {
+        if ai.roles.is(serial, crate::roles::Role::SeaParty)
+            || ai.roles.is(serial, crate::roles::Role::PlanarScout)
+        {
             found_any = true;
             continue;
         }
         // A scout that has not moved for a few turns although it has an order is stuck: give
         // its target up (a guarded or blocked patch) and choose another.
-        let stuck = {
-            let entry = ai.scout_last.entry(serial).or_insert((pos, 0));
-            if entry.0 == pos && !idle {
-                entry.1 += 1;
-            } else {
-                *entry = (pos, 0);
-            }
-            entry.1 >= STUCK_TURNS
-        };
+        let stuck = ai.roles.track(serial, pos, !idle) >= STUCK_TURNS;
         if stuck {
-            if let Some(t) = ai.scout_targets.remove(&serial) {
+            if let Some(t) = ai.roles.target_of(serial, crate::roles::Role::Scout) {
                 ai.bad_scout_targets.push(t);
+                ai.roles.set_target(serial, crate::roles::Role::Scout, None);
             }
-            ai.scout_last.remove(&serial);
+            ai.roles.clear_track(serial);
             ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
         } else if !idle {
             found_any = true;
@@ -148,10 +144,11 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             continue;
         }
         let claimed: Vec<Position> = ai
-            .scout_targets
-            .iter()
-            .filter(|(s, _)| **s != serial)
-            .map(|(_, p)| *p)
+            .roles
+            .targeted(crate::roles::Role::Scout)
+            .into_iter()
+            .filter(|(s, _)| *s != serial)
+            .map(|(_, p)| p)
             .chain(ai.bad_scout_targets.iter().copied())
             .collect();
         let target = {
@@ -161,7 +158,8 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         match target {
             Some(to) => {
                 found_any = true;
-                ai.scout_targets.insert(serial, to);
+                ai.roles
+                    .set_target(serial, crate::roles::Role::Scout, Some(to));
                 let mut units = vec![unit];
                 if is_sea_scout {
                     units.extend(board(ai, game, unit, pos));
@@ -169,7 +167,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 ai.order(game, Command::GoTo { units, to }, events);
             }
             None => {
-                ai.scout_targets.remove(&serial);
+                ai.roles.set_target(serial, crate::roles::Role::Scout, None);
             }
         }
     }
@@ -186,10 +184,9 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.sea_done = ship_out;
             ai.sea_scouting = false;
         }
-        let planar = ai.planar;
-        ai.scouts.retain(|s| Some(*s) == planar);
-        ai.sea_party.clear();
-        ai.scout_targets.clear();
+        // The scouting is over; the scout bound for a tower goes on.
+        ai.roles.release_role(crate::roles::Role::Scout);
+        ai.roles.release_role(crate::roles::Role::SeaParty);
     }
 }
 
@@ -198,11 +195,15 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// the rest of the scouting meanwhile. Returns the fighters taken aboard now, with the ones
 /// already aboard.
 fn board(ai: &mut Ai, game: &Game, ship: hecs::Entity, at: Position) -> Vec<hecs::Entity> {
+    let game_turn = game.turn;
     let view = PlayerView::new(game, ai.player);
     let mut party: Vec<hecs::Entity> = view
         .my_units()
         .into_iter()
-        .filter(|&u| ai.sea_party.contains(&view.serial_of(u)) && view.unit_position(u) == Some(at))
+        .filter(|&u| {
+            ai.roles.is(view.serial_of(u), crate::roles::Role::SeaParty)
+                && view.unit_position(u) == Some(at)
+        })
         .collect();
     if view.city_at(at).is_none() {
         return party;
@@ -211,11 +212,7 @@ fn board(ai: &mut Ai, game: &Game, ship: hecs::Entity, at: Position) -> Vec<hecs
     let mut spare: Vec<hecs::Entity> = view
         .garrison(at)
         .into_iter()
-        .filter(|&u| {
-            is_fighter(&view, u)
-                && !ai.scouts.contains(&view.serial_of(u))
-                && !ai.roles.is(view.serial_of(u), crate::roles::Role::Raid)
-        })
+        .filter(|&u| is_fighter(&view, u) && !ai.roles.has_role(view.serial_of(u)))
         .collect();
     view.sort_by_serial(&mut spare);
     // The city keeps a fighter.
@@ -226,8 +223,8 @@ fn board(ai: &mut Ai, game: &Game, ship: hecs::Entity, at: Position) -> Vec<hecs
         .collect();
     let serials: Vec<Serial> = taken.iter().map(|&u| view.serial_of(u)).collect();
     party.extend(taken);
-    ai.scouts.extend(serials.iter().copied());
-    ai.sea_party.extend(serials);
+    ai.roles
+        .claim_all(serials, crate::roles::Role::SeaParty, game_turn);
     party
 }
 
@@ -278,7 +275,8 @@ fn put_ashore(ai: &mut Ai, game: &mut Game, ship_at: Position, events: &mut Vec<
     let (rider, shore) = {
         let view = PlayerView::new(game, me);
         let Some(rider) = view.my_units().into_iter().find(|&u| {
-            ai.sea_party.contains(&view.serial_of(u)) && view.unit_position(u) == Some(ship_at)
+            ai.roles.is(view.serial_of(u), crate::roles::Role::SeaParty)
+                && view.unit_position(u) == Some(ship_at)
         }) else {
             return false;
         };
@@ -313,7 +311,11 @@ fn put_ashore(ai: &mut Ai, game: &mut Game, ship_at: Position, events: &mut Vec<
     {
         return false;
     }
-    ai.sea_party.retain(|s| *s != serial);
+    // Ashore, the rider is an ordinary scout.
+    ai.roles.release(serial, crate::roles::Role::SeaParty);
+    let _ = ai
+        .roles
+        .claim(serial, crate::roles::Role::Scout, game.turn, None);
     true
 }
 
@@ -323,9 +325,8 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let (tower, unit) = {
         let view = PlayerView::new(game, me);
-        ai.planar = ai
-            .planar
-            .filter(|s| view.my_units().iter().any(|&u| view.serial_of(u) == *s));
+        let alive: Vec<Serial> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
+        ai.roles.prune(&alive);
         let tower = view
             .towers()
             .into_iter()
@@ -342,10 +343,10 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let Some(tower) = tower else {
             // No tower is a way across now (all taken by enemy units, or all explored): a scout
             // sent to one is let go, to be recruited again when one opens.
-            let gone = ai.planar.take();
+            let gone = ai.roles.planar();
             ai.planar_tower = None;
             if let Some(serial) = gone {
-                ai.scouts.retain(|s| *s != serial);
+                ai.roles.release(serial, crate::roles::Role::PlanarScout);
                 let unit = view
                     .my_units()
                     .into_iter()
@@ -357,7 +358,7 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
             return;
         };
-        let unit = ai.planar.and_then(|s| {
+        let unit = ai.roles.planar().and_then(|s| {
             view.my_units()
                 .into_iter()
                 .find(|&u| view.serial_of(u) == s)
@@ -371,11 +372,13 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 return;
             };
             let serial = PlayerView::new(game, me).serial_of(u);
-            ai.planar = Some(serial);
+            let _ = ai.roles.claim(
+                serial,
+                crate::roles::Role::PlanarScout,
+                game.turn,
+                Some(tower),
+            );
             ai.planar_tower = Some(tower);
-            if !ai.scouts.contains(&serial) {
-                ai.scouts.push(serial);
-            }
             u
         }
     };
@@ -393,7 +396,12 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .send(game, Command::ShiftPlane { units: vec![unit] }, events)
                 .is_ok()
         {
-            ai.planar = None;
+            // Across, the scout is an ordinary one again.
+            let serial = PlayerView::new(game, me).serial_of(unit);
+            ai.roles.release(serial, crate::roles::Role::PlanarScout);
+            let _ = ai
+                .roles
+                .claim(serial, crate::roles::Role::Scout, game.turn, None);
             ai.frontier_closed = false;
             ai.bad_scout_targets.clear();
         }
@@ -403,8 +411,7 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // be refused each turn.
         if !PlayerView::new(game, me).can_reach(&[unit], tower) {
             let serial = PlayerView::new(game, me).serial_of(unit);
-            ai.planar = None;
-            ai.scouts.retain(|s| *s != serial);
+            ai.roles.release(serial, crate::roles::Role::PlanarScout);
             return;
         }
         ai.order(
@@ -425,10 +432,7 @@ fn recruit(ai: &Ai, game: &Game, reach: Option<Position>) -> Option<hecs::Entity
     let mut best: Option<(i32, std::cmp::Reverse<Serial>, hecs::Entity)> = None;
     let mut reached = crate::view::ReachCache::default();
     for u in view.my_units() {
-        if !is_fighter(&view, u)
-            || ai.scouts.contains(&view.serial_of(u))
-            || ai.roles.is(view.serial_of(u), crate::roles::Role::Raid)
-        {
+        if !is_fighter(&view, u) || ai.roles.has_role(view.serial_of(u)) {
             continue;
         }
         let Some(at) = view.unit_position(u) else {
@@ -611,8 +615,8 @@ mod tests {
         spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
         scout(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(ai.scouts.len(), 1);
-        assert_eq!(ai.scout_targets.len(), 1);
+        assert_eq!(ai.roles.scouting().len(), 1);
+        assert_eq!(ai.scout_targets().len(), 1);
         assert!(!ai.frontier_closed);
     }
 
@@ -622,7 +626,7 @@ mod tests {
         spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1);
         let mut ai = Ai::new(P0);
         scout(&mut ai, &mut g, &mut Vec::new());
-        assert!(ai.scouts.is_empty());
+        assert!(ai.roles.scouting().is_empty());
         assert!(!ai.frontier_closed);
     }
 
@@ -634,8 +638,8 @@ mod tests {
         let mut ai = Ai::new(P0);
         scout(&mut ai, &mut g, &mut Vec::new());
         assert!(ai.frontier_closed);
-        assert!(ai.scouts.is_empty());
-        assert!(ai.scout_targets.is_empty());
+        assert!(ai.roles.scouting().is_empty());
+        assert!(ai.scout_targets().is_empty());
     }
 
     #[test]
@@ -653,8 +657,12 @@ mod tests {
         for (scout_unit, done) in [(ship, true), (walker, false)] {
             let mut ai = Ai::new(P0);
             ai.sea_scouting = true;
-            ai.scouts
-                .push(PlayerView::new(&g, P0).serial_of(scout_unit));
+            let _ = ai.roles.claim(
+                PlayerView::new(&g, P0).serial_of(scout_unit),
+                crate::roles::Role::Scout,
+                1,
+                None,
+            );
             scout(&mut ai, &mut g, &mut Vec::new());
             assert!(ai.frontier_closed);
             assert!(!ai.sea_scouting);
@@ -670,7 +678,10 @@ mod tests {
         // The ship that was out is lost: no ship is among the scouts.
         ai.sea_scouting = true;
         scout(&mut ai, &mut g, &mut Vec::new());
-        assert!(!ai.scouts.is_empty(), "a scout is recruited on land");
+        assert!(
+            !ai.roles.scouting().is_empty(),
+            "a scout is recruited on land"
+        );
         assert!(!ai.frontier_closed, "land scouting goes on");
         assert!(!ai.sea_scouting, "the flag does not outlive the ship");
         assert!(!ai.sea_done, "a lost ship is built again");
@@ -682,11 +693,20 @@ mod tests {
         let ship = spawn(&mut g, P0, city(), 36 /* galley */, 1)[0];
         spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 3);
         let mut ai = Ai::new(P0);
-        ai.scouts.push(PlayerView::new(&g, P0).serial_of(ship));
+        let _ = ai.roles.claim(
+            PlayerView::new(&g, P0).serial_of(ship),
+            crate::roles::Role::Scout,
+            1,
+            None,
+        );
         ai.sea_scouting = true;
         scout(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(ai.sea_party.len(), PARTY);
-        assert!(ai.sea_party.iter().all(|s| ai.scouts.contains(s)));
+        assert_eq!(ai.roles.count(crate::roles::Role::SeaParty), PARTY);
+        assert!(ai
+            .roles
+            .members(crate::roles::Role::SeaParty)
+            .iter()
+            .all(|s| ai.roles.is_scouting(*s)));
     }
 
     #[test]
@@ -699,11 +719,21 @@ mod tests {
         g.explore(P0, sea, HalfInt::from_raw(3));
         let view = PlayerView::new(&g, P0);
         let mut ai = Ai::new(P0);
-        ai.sea_party = vec![view.serial_of(walker)];
-        ai.scouts = vec![view.serial_of(boat), view.serial_of(walker)];
+        let _ = ai
+            .roles
+            .claim(view.serial_of(boat), crate::roles::Role::Scout, 1, None);
+        let _ = ai.roles.claim(
+            view.serial_of(walker),
+            crate::roles::Role::SeaParty,
+            1,
+            None,
+        );
         ai.sea_scouting = true;
         scout(&mut ai, &mut g, &mut Vec::new());
-        assert!(ai.sea_party.is_empty(), "the rider went ashore");
+        assert!(
+            !ai.roles.any(crate::roles::Role::SeaParty),
+            "the rider went ashore"
+        );
         let landed = g.units().unit_position(walker);
         assert!(landed.is_some_and(|p| p.x == 28), "{landed:?}");
     }
@@ -717,11 +747,18 @@ mod tests {
         g.explore(P0, sea, HalfInt::from_raw(3));
         let view = PlayerView::new(&g, P0);
         let mut ai = Ai::new(P0);
-        ai.sea_party = vec![view.serial_of(walker)];
-        ai.scouts = vec![view.serial_of(boat), view.serial_of(walker)];
+        let _ = ai
+            .roles
+            .claim(view.serial_of(boat), crate::roles::Role::Scout, 1, None);
+        let _ = ai.roles.claim(
+            view.serial_of(walker),
+            crate::roles::Role::SeaParty,
+            1,
+            None,
+        );
         ai.sea_scouting = true;
         scout(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(ai.sea_party.len(), 1);
+        assert_eq!(ai.roles.count(crate::roles::Role::SeaParty), 1);
     }
 
     #[test]
@@ -733,7 +770,7 @@ mod tests {
         spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
         scout(&mut ai, &mut g, &mut Vec::new());
-        let serial = ai.planar.ok_or("a scout is sent to the tower")?;
+        let serial = ai.roles.planar().ok_or("a scout is sent to the tower")?;
         let unit = PlayerView::new(&g, P0)
             .my_units()
             .into_iter()
@@ -743,14 +780,21 @@ mod tests {
         // Standing on the tower, it goes across, and the search is open again over there.
         ai.frontier_closed = true;
         let spare = spawn(&mut g, P0, tower, 104 /* high_men_spearmen */, 1)[0];
-        ai.planar = Some(PlayerView::new(&g, P0).serial_of(spare));
+        // The one on its way is replaced by the one standing on the tower.
+        ai.roles.release_role(crate::roles::Role::PlanarScout);
+        let _ = ai.roles.claim(
+            PlayerView::new(&g, P0).serial_of(spare),
+            crate::roles::Role::PlanarScout,
+            1,
+            None,
+        );
         scout(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(
             g.units().unit_position(spare).map(|p| p.plane),
             Some(Plane::Myrror)
         );
         assert!(!ai.frontier_closed);
-        assert_eq!(ai.planar, None);
+        assert_eq!(ai.roles.planar(), None);
         Ok(())
     }
 
@@ -764,7 +808,7 @@ mod tests {
         spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
         scout(&mut ai, &mut g, &mut Vec::new());
-        assert!(ai.planar.is_some(), "the open tower is chosen");
+        assert!(ai.roles.planar().is_some(), "the open tower is chosen");
         // An enemy unit moves onto the tower while the scout is on its way.
         spawn(
             &mut g,
@@ -778,12 +822,12 @@ mod tests {
             "the unit on the tower is hostile to the scout"
         );
         scout(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(ai.planar, None);
+        assert_eq!(ai.roles.planar(), None);
         assert_eq!(ai.planar_tower, None);
-        assert!(!ai.scouts.iter().any(|s| ai.planar == Some(*s)));
+        assert!(ai.roles.planar().is_none());
         // And it is not chosen again while the enemy stands there.
         scout(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(ai.planar, None);
+        assert_eq!(ai.roles.planar(), None);
         Ok(())
     }
 
@@ -795,7 +839,7 @@ mod tests {
         spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
         scout(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(ai.planar, None);
+        assert_eq!(ai.roles.planar(), None);
         Ok(())
     }
 
@@ -806,7 +850,7 @@ mod tests {
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
         scout(&mut ai, &mut g, &mut Vec::new());
-        assert!(ai.scouts.is_empty());
+        assert!(ai.roles.scouting().is_empty());
     }
 
     #[test]
@@ -816,10 +860,10 @@ mod tests {
         spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
         scout(&mut ai, &mut g, &mut Vec::new());
-        let (&serial, &first) = ai
-            .scout_targets
-            .iter()
-            .next()
+        let (serial, first) = *ai
+            .roles
+            .targeted(crate::roles::Role::Scout)
+            .first()
             .ok_or("the scout has a target")?;
         // No turn passes, so the scout has no moves left: each look finds it where it was.
         for _ in 0..=STUCK_TURNS {
@@ -830,7 +874,10 @@ mod tests {
             "{:?}",
             ai.bad_scout_targets
         );
-        assert_ne!(ai.scout_targets.get(&serial), Some(&first));
+        assert_ne!(
+            ai.roles.target_of(serial, crate::roles::Role::Scout),
+            Some(first)
+        );
         Ok(())
     }
 
