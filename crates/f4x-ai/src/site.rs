@@ -19,8 +19,10 @@ use crate::Ai;
 const SITE_RANGE: i32 = 10;
 /// Squares within which a party looks for a tower: it is the way to the other plane.
 const TOWER_RANGE: u32 = 30;
-/// Most soldiers out on raids at once.
-const MAX_RAIDERS: usize = 2 * f4x_core::unit::MAX_STACK;
+/// Most soldiers out on raids at once: two stacks.
+fn max_raiders(game: &Game) -> usize {
+    2 * game.max_tile()
+}
 /// The fewest spare soldiers that make a party.
 const SITE_PARTY: usize = 3;
 /// What an unknown site's guards are guessed to be worth, in average soldiers of this wizard.
@@ -266,7 +268,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     // A new party leaves a city with soldiers to spare, one raid at a time and never while the
     // army marches (its campaign comes first).
-    if ai.raiders.len() >= MAX_RAIDERS || !ai.marching.is_empty() || !ai.muster.is_empty() {
+    if ai.raiders.len() >= max_raiders(game) || !ai.marching.is_empty() || !ai.muster.is_empty() {
         return;
     }
     let cities = {
@@ -300,7 +302,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .then(view.serial_of(a).cmp(&view.serial_of(b)))
             });
             spare.retain(|&u| !crate::recover::needs_rest(&view, u));
-            spare.truncate(f4x_core::unit::MAX_STACK);
+            spare.truncate(game.max_tile());
             if spare.len() < SITE_PARTY {
                 continue;
             }
@@ -360,7 +362,7 @@ pub fn deploy(
             let view = PlayerView::new(game, me);
             units.sort_by(|&a, &b| unit_strength(&view, b).total_cmp(&unit_strength(&view, a)));
         }
-        for party in units.chunks(f4x_core::unit::MAX_STACK) {
+        for party in units.chunks(game.max_tile()) {
             if party.len() < SITE_PARTY {
                 continue;
             }
@@ -382,7 +384,77 @@ pub fn deploy(
     if !left {
         crate::siege::gather(ai, game, free, events);
     }
+    send_strays_home(ai, game, free, events);
     left
+}
+
+/// A soldier left outside a city with no order and no task (a lone unit, or a party too small
+/// for any site, standing on a tower or a road) is not left to stand there for ever: it walks to
+/// the nearest own city that can be reached and has room. The tower it stood on is free again
+/// for whoever wants to cross by it.
+fn send_strays_home(ai: &mut Ai, game: &mut Game, free: &[hecs::Entity], events: &mut Vec<Event>) {
+    let me = ai.player;
+    let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
+    let cities: Vec<Position> = {
+        let view = PlayerView::new(game, me);
+        for &u in free {
+            let serial = view.serial_of(u);
+            if ai.raiders.contains(&serial)
+                || ai.scouts.contains(&serial)
+                || ai.muster.contains(&serial)
+                || ai.marching.contains(&serial)
+                || ai.sea_party.contains(&serial)
+                || ai.planar == Some(serial)
+                || view.unit_has_order(u)
+                || !crate::view::is_fighter(&view, u)
+            {
+                continue;
+            }
+            let Some(p) = view.unit_position(u) else {
+                continue;
+            };
+            if view.city_at(p).is_some() {
+                continue;
+            }
+            match by_square.iter_mut().find(|(q, _)| *q == p) {
+                Some((_, list)) => list.push(u),
+                None => by_square.push((p, vec![u])),
+            }
+        }
+        view.my_cities().into_iter().map(|(_, p)| p).collect()
+    };
+    by_square.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
+    for (pos, units) in by_square {
+        let mut homes: Vec<(u32, Position)> = {
+            let view = PlayerView::new(game, me);
+            cities
+                .iter()
+                .filter(|&&c| c.plane == pos.plane)
+                .filter_map(|&c| distance(&view, pos, c).map(|d| (d, c)))
+                .collect()
+        };
+        homes.sort_by_key(|&(d, c)| (d, c.y, c.x));
+        for (_, home) in homes {
+            let ok = {
+                let view = PlayerView::new(game, me);
+                Ai::room_at(game, home, units.len()) && view.can_reach(&units, home)
+            };
+            if ok
+                && ai
+                    .send(
+                        game,
+                        Command::GoTo {
+                            units: units.clone(),
+                            to: home,
+                        },
+                        events,
+                    )
+                    .is_ok()
+            {
+                break;
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -686,6 +758,27 @@ mod tests {
         let mut events = Vec::new();
         assert!(deploy(&mut ai, &mut g, &free, &mut events), "{events:?}");
         assert_eq!(ai.raiders.len(), 6);
+        Ok(())
+    }
+
+    /// A lone soldier standing on a cleared tower with no task, no order and no party to join
+    /// walks home: it does not hold the tower for ever.
+    #[test]
+    fn a_lone_soldier_outside_a_city_with_no_task_walks_home() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let tower = at(8, 6);
+        spawn_tower(&mut g, tower, false)?;
+        g.reveal_map(P0);
+        let lone = spawn(&mut g, P0, tower, 104 /* spearmen */, 1);
+        let mut ai = Ai::new(P0);
+        let free = lone.clone();
+        let mut events = Vec::new();
+        deploy(&mut ai, &mut g, &free, &mut events);
+        let view = PlayerView::new(&g, P0);
+        assert!(
+            lone.iter().all(|&u| view.unit_has_order(u)),
+            "it has an order: {events:?}"
+        );
         Ok(())
     }
 

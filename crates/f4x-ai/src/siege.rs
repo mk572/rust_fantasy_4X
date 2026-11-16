@@ -173,7 +173,7 @@ pub(crate) fn gather(
                 .total_cmp(&crate::view::unit_strength(&view, a))
                 .then(view.serial_of(a).cmp(&view.serial_of(b)))
         });
-        best.truncate(f4x_core::unit::MAX_STACK);
+        best.truncate(view.max_tile());
         if best.len() < 3 {
             return;
         }

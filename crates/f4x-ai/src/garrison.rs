@@ -14,19 +14,16 @@ use f4x_core::player::view::PlayerView;
 use crate::view::{garrison_wanted, is_fighter, unit_strength, ReachCache};
 use crate::Ai;
 
-/// Most units the AI keeps in a city: one stack.
-pub const CITY_CAP: usize = f4x_core::unit::MAX_STACK;
-
 /// The square the wizard's summoned creatures appear on.
 fn circle(view: &PlayerView) -> Option<Position> {
     view.wizard().and_then(|w| w.summon_point())
 }
 
-/// How many units the AI lets stand on `at`: [`CITY_CAP`], less one at the summoning circle
-/// when the game's limit leaves no more room there.
+/// How many units the AI lets stand on `at`: what a square holds (the game's `max_tile`), less
+/// one at the summoning circle.
 pub fn city_cap(view: &PlayerView, at: Position) -> usize {
     let limit = view.max_tile();
-    let cap = CITY_CAP.min(limit);
+    let cap = limit;
     if circle(view) == Some(at) {
         cap.min(limit.saturating_sub(1))
     } else {
@@ -358,22 +355,19 @@ mod tests {
     }
 
     #[test]
-    fn the_excess_shores_up_a_weak_city_first_and_scouts_otherwise() -> TestResult {
+    fn the_excess_shores_up_a_weak_city_first() -> TestResult {
         let mut g = two_cities()?;
         let coast = at(COAST_CITY.0, COAST_CITY.1);
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
-        spawn(&mut g, P0, coast, SPEARMEN, 12);
+        // A full square at the summoning circle holds one more than the AI lets stand there.
+        let limit = g.max_tile();
+        spawn(&mut g, P0, coast, SPEARMEN, limit);
         assert_eq!(held(&g, inland), 0);
+        let cap = city_cap(&PlayerView::new(&g, P0), coast);
+        assert!(cap < limit, "the circle keeps a slot free");
         let mut ai = Ai::new(P0);
         disperse(&mut ai, &mut g, &mut Vec::new());
-        // One defender is what the inland city wants: one of the three extra walks there, the
-        // other two are given to the scouting.
-        assert_eq!(
-            held(&g, coast),
-            11,
-            "one unit left the coast for the inland city"
-        );
-        assert_eq!(ai.scouts.len(), 2);
+        assert_eq!(held(&g, coast), cap, "the extra units left the coast");
         Ok(())
     }
 

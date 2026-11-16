@@ -555,10 +555,21 @@ fn declare_war_on_target(
     plan: Plan,
     events: &mut Vec<Event>,
 ) -> bool {
+    declare_war_on_city(ai, game, plan.target, events)
+}
+
+/// The same for any march against a city that is not on the AI's own ground: the landing, and the
+/// crossing by a tower (the war comes first, so that what stands in the way can be attacked).
+pub(crate) fn declare_war_on_city(
+    ai: &mut Ai,
+    game: &mut Game,
+    target: Position,
+    events: &mut Vec<Event>,
+) -> bool {
     let me = ai.player;
     let owner = {
         let view = PlayerView::new(game, me);
-        view.city_at(plan.target)
+        view.city_at(target)
             .and_then(|c| view.city_owner(c))
             .filter(|&o| view.is_rival_wizard(o))
     };

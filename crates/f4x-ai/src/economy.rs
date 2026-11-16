@@ -205,7 +205,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 && !threatened
                 && !broke
                 && port_item.is_none()
-                && view.garrison(pos).len() < f4x_core::unit::MAX_STACK
+                && view.garrison(pos).len() < view.max_tile()
             {
                 match crate::forge::step(&view, city) {
                     crate::forge::Step::Ready(_) => {
@@ -393,7 +393,7 @@ fn plan_for(
     };
     // A city whose square is full cannot finish a unit: the progress just piles up and the gold
     // has nothing to buy. It builds buildings until the army has made room.
-    let full = view.garrison(pos).len() >= f4x_core::unit::MAX_STACK;
+    let full = view.garrison(pos).len() >= view.max_tile();
     let mix = if full {
         Mix::Buildings
     } else if spare_food < HalfInt::from_int(1) && !threatened {

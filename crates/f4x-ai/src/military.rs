@@ -263,6 +263,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
 
     // 3. Choose (or keep) a city to attack. What is seen of enemy cities is remembered.
+    let mut new_crossing: Option<Position> = None;
     {
         let view = PlayerView::new(game, me);
         for (_, owner, pos) in view.known_cities() {
@@ -324,6 +325,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ) {
                 ai.campaign = Some(city);
                 ai.crossing = Some(tower);
+                new_crossing = Some(city);
             }
         }
         // No tower to cross by: a wizard that knows Plane Shift carries the army over from the
@@ -361,6 +363,17 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
         if ai.campaign.is_none_or(|c| c.plane == capital.plane) {
             ai.crossing = None;
+        }
+    }
+    // The crossing is an attack: the war comes first, so that what stands in the way (a rival's
+    // unit on a tower) can be attacked. A pact or an alliance is not broken for it: the city is
+    // given up.
+    if let Some(city) = new_crossing {
+        if !crate::naval::declare_war_on_city(ai, game, city, events) {
+            ai.campaign = None;
+            ai.crossing = None;
+            ai.unreachable.push(city);
+            ai.unreachable_since = game.turn;
         }
     }
     let Some(target) = ai.campaign else {
@@ -532,8 +545,9 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
         }
     }
-    // The troops at the tower cross in stacks of nine.
-    for chunk in at_tower.chunks(f4x_core::unit::MAX_STACK) {
+    // The troops at the tower cross in stacks of what a square holds.
+    let stack = game.max_tile();
+    for chunk in at_tower.chunks(stack) {
         if chunk.len() < MIN_CROSSING.min(elsewhere.len()) {
             continue;
         }
@@ -581,7 +595,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     if force >= expected * attack_ratio() + 1.0 && at_rally.len() >= 3 {
         let mut launched: Vec<Serial> = Vec::new();
         let mut refused = false;
-        // Units march as stacks: those on one square, nine at most.
+        // Units march as stacks: those on one square, as many as a square holds at most.
         let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
         {
             let view = PlayerView::new(game, me);
@@ -596,7 +610,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
         }
         for (_, units) in &by_square {
-            for chunk in units.chunks(f4x_core::unit::MAX_STACK) {
+            for chunk in units.chunks(game.max_tile()) {
                 let serials: Vec<Serial> = {
                     let view = PlayerView::new(game, me);
                     chunk.iter().map(|&u| view.serial_of(u)).collect()
@@ -1092,7 +1106,7 @@ fn march_landed(
     }
     let mut launched: Vec<Serial> = Vec::new();
     for (_, units) in &by_square {
-        for chunk in units.chunks(f4x_core::unit::MAX_STACK) {
+        for chunk in units.chunks(game.max_tile()) {
             let serials: Vec<Serial> = {
                 let view = PlayerView::new(game, me);
                 chunk.iter().map(|&u| view.serial_of(u)).collect()
@@ -1257,8 +1271,10 @@ mod tests {
         let mut events = Vec::new();
         army(&mut ai, &mut g, &mut events);
         assert!(ai.threatened.is_empty());
-        let view = PlayerView::new(&g, P0);
-        assert!(spare.iter().all(|&u| !view.unit_has_order(u)));
+        // No relief is called in: the spare troops are no part of a march or a raid. (Idle
+        // soldiers outside a city go home, which is no relief either.)
+        let _ = spare;
+        assert!(ai.marching.is_empty() && ai.raiders.is_empty());
     }
 
     #[test]
@@ -1331,6 +1347,41 @@ mod tests {
                 .any(|&u| g.units().unit_position(u).map(|p| p.plane) == Some(Plane::Myrror)),
             "{events:?}"
         );
+        Ok(())
+    }
+
+    /// A crossing is an attack on the wizard whose city is the target: the war is declared before
+    /// the army goes, so that what stands in its way can be attacked.
+    #[test]
+    fn a_crossing_to_a_rivals_city_declares_war_first() -> Result<(), Box<dyn std::error::Error>> {
+        use crate::testworld::spawn_tower;
+        use f4x_core::map::Plane;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let tower = at(8, 6);
+        spawn_tower(&mut g, tower, false)?;
+        let on_myrror = |p: Position| Position {
+            plane: Plane::Myrror,
+            ..p
+        };
+        let far_city = on_myrror(at(28, 7));
+        g.apply(Command::FoundCity {
+            owner: P1,
+            pos: far_city,
+            name: "Farport".into(),
+            race: None,
+            population: 3,
+        });
+        for p in [tower, on_myrror(tower), far_city, at(28, 6)] {
+            g.explore(P0, p, HalfInt::from_raw(3));
+        }
+        spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 6);
+        g.make_contact(P0, P1);
+        assert_ne!(g.treaty(P0, P1), f4x_core::diplomacy::Treaty::War);
+        let mut ai = Ai::new(P0);
+        let mut events = Vec::new();
+        army(&mut ai, &mut g, &mut events);
+        assert_eq!(ai.crossing, Some(tower), "{events:?}");
+        assert_eq!(g.treaty(P0, P1), f4x_core::diplomacy::Treaty::War);
         Ok(())
     }
 
