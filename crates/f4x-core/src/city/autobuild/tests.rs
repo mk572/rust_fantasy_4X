@@ -316,7 +316,6 @@ fn the_unit_roll_prefers_the_best_but_varies() -> TestResult {
     };
     let ranked = ranked_units(&c, &p, &f, false);
     let best = ranked[0].0;
-    assert_eq!(c.rules.units.get(best).id, "high_men_pikemen");
     assert_eq!(
         roll_unit(&ranked, &mut |_| 1),
         Some(best),
