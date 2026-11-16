@@ -22,7 +22,9 @@ use f4x_newgame::setup::{new_game, NewGame};
 use serde::{Deserialize, Serialize};
 
 use crate::contestant::{self, Contestant, Version};
-use crate::metrics::{add_casts, casts_line, never_cast, never_cast_in, Metrics, Standing, Tally};
+use crate::metrics::{
+    add_casts, casts_line, known_never_cast, never_cast, never_cast_in, Metrics, Standing, Tally,
+};
 
 pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off]";
 
@@ -268,6 +270,25 @@ pub fn run(args: &[String]) -> Result<(), String> {
         );
         let fought = add_casts(results.iter().map(|r| r.tally.battle_casts()));
         println!("all games, battle casts: {}", casts_line(&fought));
+        let known = add_casts(results.iter().map(|r| r.tally.known()));
+        println!(
+            "all games, map spells known and never cast (wizards that knew them): {}",
+            known_never_cast(
+                &content.rules,
+                &known,
+                &all,
+                f4x_def::rules::CastContext::Overland
+            )
+        );
+        println!("all games, spells known (wizards): {}", casts_line(&known));
+        let mana: std::collections::BTreeMap<String, u32> = results
+            .iter()
+            .flat_map(|r| r.tally.battle_mana().iter())
+            .fold(Default::default(), |mut m, (k, v)| {
+                *m.entry(k.clone()).or_default() += (*v).max(0) as u32;
+                m
+            });
+        println!("all games, battle mana by spell: {}", casts_line(&mana));
         println!(
             "all games, battle spells never cast: {}",
             never_cast_in(&content.rules, &fought, f4x_def::rules::CastContext::Battle).join(", ")
@@ -657,6 +678,7 @@ pub fn game(
         "{tag}: plans dropped by the time limit: {}",
         dropped.join(", ")
     );
+    tally.note_known(&game);
     println!("{tag}: mana {}", mana_line(&game, &tally));
     for line in neutral_lines(&game, &tally) {
         println!("{tag}: {line}");
@@ -664,6 +686,20 @@ pub fn game(
     if opts.casts {
         println!("{tag}: casts: {}", casts_line(tally.casts()));
         println!("{tag}: battle casts: {}", casts_line(tally.battle_casts()));
+        println!(
+            "{tag}: battle mana by spell: {}",
+            casts_line(
+                &tally
+                    .battle_mana()
+                    .iter()
+                    .map(|(k, v)| (k.clone(), (*v).max(0) as u32))
+                    .collect()
+            )
+        );
+        println!(
+            "{tag}: spells known (wizards): {}",
+            casts_line(tally.known())
+        );
     }
     if opts.events {
         println!("{tag}: {}", watch.summary(game.turn.saturating_sub(1)));

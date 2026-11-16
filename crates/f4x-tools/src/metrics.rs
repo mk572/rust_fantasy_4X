@@ -226,6 +226,25 @@ pub fn never_cast_in(
         .collect()
 }
 
+/// The spells some wizard knew and nobody cast, with the number of wizards that knew each, as
+/// `id wizards` pairs in the order of the overland spells of the rules: where a spell never gets
+/// its situation (or no intent), as against a spell nobody learned.
+pub fn known_never_cast(
+    rules: &Rules,
+    known: &BTreeMap<String, u32>,
+    casts: &BTreeMap<String, u32>,
+    context: CastContext,
+) -> String {
+    rules
+        .spells
+        .iter()
+        .map(|(_, def)| def)
+        .filter(|d| d.contexts.contains(&context) && !casts.contains_key(&d.id))
+        .filter_map(|d| known.get(&d.id).map(|n| format!("{} {n}", d.id)))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// `id count` pairs, the most cast first.
 pub fn casts_line(casts: &BTreeMap<String, u32>) -> String {
     let mut all: Vec<_> = casts.iter().collect();
@@ -385,6 +404,13 @@ pub struct Tally {
     /// item's charge): `Event::SpellCast` is the map's, a battle has its own events.
     #[serde(default)]
     battle_casts: BTreeMap<String, u32>,
+    /// The mana a wizard paid from its reserve for each spell cast in battle, by the spell's id
+    /// (a unit's own mana is not counted: it is not the reserve).
+    #[serde(default)]
+    battle_mana: BTreeMap<String, i64>,
+    /// How many wizards know each spell at the end of the game, by the spell's id.
+    #[serde(default)]
+    known: BTreeMap<String, u32>,
     /// Per wizard (by player number): the mana spent over the game (net of what Alchemy added),
     /// and the pool after the last round.
     #[serde(default)]
@@ -427,6 +453,8 @@ impl Tally {
             landed_on: vec![BTreeSet::new(); count + 1],
             casts: BTreeMap::new(),
             battle_casts: BTreeMap::new(),
+            battle_mana: BTreeMap::new(),
+            known: BTreeMap::new(),
             mana_spent: vec![0; count + 1],
             mana_left: vec![0; count + 1],
             last_taker: BTreeMap::new(),
@@ -527,6 +555,29 @@ impl Tally {
     /// How often each spell was cast, by the spell's id; a spell never cast is not in it.
     pub fn casts(&self) -> &BTreeMap<String, u32> {
         &self.casts
+    }
+
+    /// The reserve mana paid for each spell cast in battle by a wizard, by the spell's id.
+    pub fn battle_mana(&self) -> &BTreeMap<String, i64> {
+        &self.battle_mana
+    }
+
+    /// How many wizards know each spell, by the spell's id (see [`Tally::note_known`]).
+    pub fn known(&self) -> &BTreeMap<String, u32> {
+        &self.known
+    }
+
+    /// Count the wizards of the game that know each spell: call it once, at the end.
+    pub fn note_known(&mut self, game: &Game) {
+        for p in game.player_ids() {
+            let Some(w) = game.wizard(p) else { continue };
+            for spell in w.known() {
+                *self
+                    .known
+                    .entry(game.content().rules.spells.get(spell).id.clone())
+                    .or_default() += 1;
+            }
+        }
     }
 
     /// How often each spell was cast in a battle, by the spell's id; a spell never cast is not in it.
@@ -709,9 +760,12 @@ impl Tally {
                         .or_default() += 1;
                     self.bump(*player, |m| m.spells_cast += 1)
                 }
-                Event::Battle(
-                    BattleEvent::SpellCast { spell, .. } | BattleEvent::UnitSpellCast { spell, .. },
-                ) => {
+                Event::Battle(BattleEvent::SpellCast { spell, mana, .. }) => {
+                    let id = game.content().rules.spells.get(*spell).id.clone();
+                    *self.battle_mana.entry(id.clone()).or_default() += mana.floor() as i64;
+                    *self.battle_casts.entry(id).or_default() += 1;
+                }
+                Event::Battle(BattleEvent::UnitSpellCast { spell, .. }) => {
                     *self
                         .battle_casts
                         .entry(game.content().rules.spells.get(*spell).id.clone())
