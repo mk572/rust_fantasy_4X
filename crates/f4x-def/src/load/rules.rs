@@ -339,6 +339,7 @@ pub fn validate_rules(r: &Rules) -> Vec<String> {
                             | Stat::StartingSkill
                             | Stat::SkillGainPercent
                             | Stat::DispelMultiplier
+                            | Stat::DispelPower
                             | Stat::NodeImmunity
                             | Stat::CastingDistance
                             | Stat::UnitLevels

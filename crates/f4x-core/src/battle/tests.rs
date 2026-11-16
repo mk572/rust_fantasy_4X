@@ -5205,6 +5205,11 @@ fn invisibility_that_begins_in_battle_hides_the_unit_at_once() {
 /// Prayer, after `burn` rolls of the game's dice: whether Darkness came down, and whether Prayer
 /// is still up.
 fn dispel_the_field(burn: usize) -> (bool, bool) {
+    dispel_the_field_with(burn, 1500, false)
+}
+
+/// As [`dispel_the_field`] with `mana` put into the dispel, the caster a Runemaster or not.
+fn dispel_the_field_with(burn: usize, mana: u32, runemaster: bool) -> (bool, bool) {
     use crate::battle::field::Field;
     let mut g = game();
     for _ in 0..burn {
@@ -5214,6 +5219,13 @@ fn dispel_the_field(burn: usize) -> (bool, bool) {
         f4x_def::half_int::HalfInt::from_int(2000);
     g.init_wizard(A, &[(RealmId::new(1 /* sorcery */), 5)], &[], None)
         .expect("init_wizard succeeds");
+    if runemaster {
+        g.wizard_mut(A)
+            .expect("wizard_mut succeeds")
+            .get_mut::<crate::wizard::sheet::Retorts>()
+            .0
+            .insert(crate::wizard::magic::Retort::new(14 /* runemaster */));
+    }
     let dispel = g
         .content
         .rules
@@ -5264,7 +5276,7 @@ fn dispel_the_field(burn: usize) -> (bool, bool) {
         .battle_command(BattleCommand::Cast {
             spell: dispel,
             aim: SpellAim::Unit(1),
-            mana: 1500,
+            mana,
         })
         .expect("value succeeds");
     let b = g.battle().expect("battle succeeds");
@@ -5278,6 +5290,37 @@ fn dispel_the_field(burn: usize) -> (bool, bool) {
         "{events:?}"
     );
     (down, b.has_field(Side::Attacker, Field::Prayer))
+}
+
+/// The wiki's Runemaster: every dispel it casts counts as twice the mana, in a battle too, and
+/// only for the wizard who has the retort.
+#[test]
+fn a_runemasters_dispel_in_a_battle_is_twice_as_strong_and_a_plain_wizards_is_not() {
+    // Darkness has difficulty 25; a dispel of strength 12 wins a third of the time, 24 half.
+    let def = shipped_rules_dispel();
+    let mana = (12 / def).max(1);
+    let wins = |runemaster: bool| {
+        (0..300)
+            .filter(|&burn| dispel_the_field_with(burn, mana, runemaster).0)
+            .count()
+    };
+    let (plain, rune) = (wins(false), wins(true));
+    assert!(plain < rune, "plain {plain} of 300, runemaster {rune}");
+    assert!(
+        (rune as f64 - 1.5 * plain as f64).abs() < 45.0,
+        "about half again as many: plain {plain}, runemaster {rune}"
+    );
+}
+
+/// Strength per mana of Dispel Magic (spell 202).
+fn shipped_rules_dispel() -> u32 {
+    let c = shipped();
+    let def = c
+        .rules
+        .spells
+        .get(c.rules.spells.id_numbered(202).expect("id_of succeeds"));
+    let (_, strength) = crate::spell::dispel::CounterEffect::of(def).expect("a dispel");
+    strength / def.cost.max(1)
 }
 
 #[test]

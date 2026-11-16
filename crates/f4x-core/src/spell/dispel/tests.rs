@@ -423,6 +423,61 @@ fn a_weak_disjunction_often_fails() -> TestResult {
     Ok(())
 }
 
+/// How often wizard 0's `spell` (a Disjunction) takes down an Aura of Majesty (difficulty 400)
+/// of wizard 1, out of `trials`, with or without the Runemaster retort.
+fn disjunction_wins(spell: u16, runemaster: bool, trials: usize) -> usize {
+    let mut g = world();
+    if runemaster {
+        g.wizard_mut(P0)
+            .expect("wizard_mut succeeds")
+            .get_mut::<crate::wizard::sheet::Retorts>()
+            .0
+            .insert(Retort::new(14) /* runemaster */);
+    }
+    let aura = sp(&g, 59 /* aura_of_majesty */);
+    (0..trials)
+        .filter(|_| {
+            g.attach_enchantment(Target::Player(P1), aura, P1);
+            g.treasury_mut(P0).expect("treasury_mut succeeds").mana =
+                f4x_def::half_int::HalfInt::from_int(20_000);
+            g.wizard_mut(P0)
+                .expect("wizard_mut succeeds")
+                .get_mut::<crate::wizard::sheet::Skill>()
+                .left = 99_999;
+            let target = global(&g, P1, aura);
+            cast(&mut g, spell, target);
+            !g.wizard(P1).is_some_and(|w| w.has_global(aura))
+        })
+        .count()
+}
+
+/// The wiki: a Runemaster's dispels count as twice the mana (Disjunction 200 against 400: a third
+/// becomes a half), and the True versions, already three times, six times (60% becomes 75%).
+/// Human and AI alike: one path casts for both.
+#[test]
+fn a_runemasters_disjunction_is_twice_as_strong_and_the_true_one_six_times() -> TestResult {
+    let mut g = world();
+    assert_eq!(g.dispel_power(P0), 1);
+    g.wizard_mut(P0)
+        .ok_or("wizard_mut is missing")?
+        .get_mut::<crate::wizard::sheet::Retorts>()
+        .0
+        .insert(Retort::new(14) /* runemaster */);
+    assert_eq!(g.dispel_power(P0), 2);
+    assert_eq!(g.dispel_power(P1), 1);
+    let n = 600;
+    for (spell, plain, boosted) in [(210, 0.333, 0.5), (61, 0.6, 0.75)] {
+        let (a, b) = (
+            disjunction_wins(spell, false, n),
+            disjunction_wins(spell, true, n),
+        );
+        let near = |wins: usize, share: f64| (wins as f64 / n as f64 - share).abs() < 0.07;
+        assert!(near(a, plain), "spell {spell} plain: {a} of {n}");
+        assert!(near(b, boosted), "spell {spell} runemaster: {b} of {n}");
+    }
+    Ok(())
+}
+
 #[test]
 fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() -> TestResult {
     let mut g = world();

@@ -35,6 +35,7 @@ fn stat_key(stat: Stat) -> &'static str {
         Stat::StartingSkill => "temp.stat_starting_skill",
         Stat::SkillGainPercent => "temp.stat_skill_gain_percent",
         Stat::DispelMultiplier => "temp.stat_dispel_multiplier",
+        Stat::DispelPower => "temp.stat_dispel_power",
         Stat::NodeImmunity => "temp.stat_node_immunity",
         Stat::CastingDistance => "temp.stat_casting_distance",
         Stat::UnitLevels => "temp.stat_unit_levels",

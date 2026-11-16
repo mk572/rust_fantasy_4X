@@ -60,6 +60,8 @@ pub enum Stat {
     SkillGainPercent,
     /// How many times its cost a spell the wizard casts resists a dispel (1 normally).
     DispelMultiplier,
+    /// How many times as strong the dispels the wizard casts are (1 normally; Runemaster 2).
+    DispelPower,
     /// Above 0, the wizard's spells are not stopped by the node a battle is fought on.
     NodeImmunity,
     /// The squares from the fortress a battle counts as for the cost of casting in it.

@@ -338,7 +338,7 @@ impl GameHost<'_> {
     /// Other wizards' enchantments on the target are removed with chance
     /// `strength / (strength + difficulty)` (see `spell/dispel.rs`).
     fn dispel(&mut self, who: Target, strength: u32, by: PlayerId) -> u32 {
-        let strength = strength + self.boost;
+        let strength = (strength + self.boost) * self.game.dispel_power(by);
         let mut gone = Vec::new();
         let removed = self
             .game
@@ -426,10 +426,12 @@ impl GameHost<'_> {
                 else {
                     return;
                 };
+                // Disjunction (not Spell Binding) is a Runemaster's dispel, twice as strong.
+                let power = if steal { 1 } else { self.game.dispel_power(by) };
                 let result = self.game.attack_global(
                     by,
                     instance,
-                    cost * number.max(1),
+                    cost * number.max(1) * power,
                     steal,
                     &mut self.rng,
                 );

@@ -32,6 +32,7 @@
     "temp.stat_starting_skill": "Starting casting skill",
     "temp.stat_skill_gain_percent": "Skill gain %",
     "temp.stat_dispel_multiplier": "Dispel resistance",
+    "temp.stat_dispel_power": "Dispel strength",
     "temp.stat_node_immunity": "Node immunity",
     "temp.stat_casting_distance": "Casting distance",
     "temp.stat_unit_levels": "Unit levels",

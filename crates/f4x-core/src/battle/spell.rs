@@ -1581,7 +1581,7 @@ impl Game {
                 vec![BattleEvent::Summoned { unit: id }]
             }
             (Kind::Dispel(per_mana), SpellAim::Unit(target)) => {
-                let strength = pool as u32 * per_mana;
+                let strength = pool as u32 * per_mana * self.dispel_power(player);
                 let mut events = self.dispel_battle_unit(target, strength, player);
                 events.extend(self.dispel_battle_fields(strength, player));
                 events

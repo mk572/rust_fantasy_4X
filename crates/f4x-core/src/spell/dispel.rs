@@ -154,6 +154,24 @@ impl Game {
         u32::try_from(times).unwrap_or(1)
     }
 
+    /// How many times as strong the dispels `player` casts are (Runemaster: twice). The same for
+    /// every wizard, human or AI, overland and in a battle; it is for Dispel Magic, Disenchant
+    /// Area and Disjunction and their True versions, which count it on top of their own factor
+    /// (the wiki: a Runemaster's Disenchant True works as six times the mana).
+    pub fn dispel_power(&self, player: PlayerId) -> u32 {
+        let Some(m) = self.wizard(player) else {
+            return 1;
+        };
+        let times = crate::wizard::retort::stat_with(
+            &self.content.rules,
+            &m.retorts(),
+            crate::rules::Stat::DispelPower,
+            1,
+            &crate::rules::exec::Facts::default(),
+        );
+        u32::try_from(times).unwrap_or(1).max(1)
+    }
+
     /// The difficulty of dispelling `spell` cast by `caster` (`None` for no caster's retorts).
     pub fn dispel_difficulty(&self, spell: SpellId, caster: Option<PlayerId>) -> u32 {
         let def = self.content.rules.spells.get(spell);

@@ -147,6 +147,16 @@ a spell instance (`spell/instance.rs`) on its target: a city, a unit or the worl
 only the `unimplemented` hook is cast, costs mana and reports `SpellHasNoEffectYet` (none ships
 like that now). Battle spells are cast in battles (`combat.md` section 8).
 
+**Runemaster and dispels.** A Runemaster's dispels count as twice the mana (`Stat::DispelPower`, 2 for
+the retort, 1 otherwise): Dispel Magic, Disenchant Area and Disjunction and their True versions, overland and in a battle.
+The True versions keep their own factor of three, so the Runemaster's work as six times the mana
+(multiplicative, as in the original and patch 1.50; the 1.40 patch made it additive in combat and
+1.50 took that back). Spell Binding, Suppress Magic and Counter Magic get nothing. It is one rule
+for the human and the AI: the original's Disjunction doubled the mana for a computer wizard and not
+for a human one (the wiki's known bug), and here both get it. The task of the original's other
+quirks (plain Dispel Magic getting nothing in combat, the bonus without the retort) is no setting:
+the wiki's rule is the only one.
+
 ## 8. Upkeep
 
 The lasting spells a wizard pays for are the spell instances whose caster it is: the upkeep is one
