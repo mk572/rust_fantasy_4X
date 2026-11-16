@@ -77,6 +77,10 @@ pub struct Assignment {
     pub role: Role,
     /// The turn the unit took the role.
     pub since: u32,
+    /// The turn its current plan began: the turn it took the role or was last given a new target.
+    /// The plan clock (`plan_clock.rs`) reads it.
+    #[serde(default)]
+    pub planned: u32,
     /// Where the role sends it (a city to return to, a shore tile to wait on), if anywhere.
     pub to: Option<Position>,
     /// The group it acts with (a raid party, a march, a ferry and its passengers, an escort and
@@ -97,6 +101,7 @@ impl Assignment {
         Assignment {
             role: Role::AwaitingOrders,
             since: turn,
+            planned: turn,
             to: None,
             party: None,
             with: None,
@@ -114,6 +119,9 @@ impl Assignment {
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct Registry {
     map: std::collections::BTreeMap<f4x_core::game::serial::Serial, Assignment>,
+    /// The latest turn the registry was told of (by a claim or a sync).
+    #[serde(default)]
+    now: u32,
 }
 
 impl Registry {
@@ -383,9 +391,35 @@ impl Registry {
 
     /// Change where the unit's role sends it, if it holds `role`.
     pub fn set_target(&mut self, serial: Serial, role: Role, to: Option<Position>) {
+        let now = self.now;
         if let Some(a) = self.map.get_mut(&serial).filter(|a| a.role == role) {
+            if a.to != to {
+                a.planned = now;
+            }
             a.to = to;
         }
+    }
+
+    /// Tell the registry the turn (it dates the roles handed back and the plans re-targeted).
+    pub fn tick(&mut self, turn: u32) {
+        self.now = self.now.max(turn);
+    }
+
+    /// The plan of the unit begins again now (it did something that counts).
+    pub fn restart_plan(&mut self, serial: Serial) {
+        let now = self.now;
+        if let Some(a) = self.map.get_mut(&serial) {
+            a.planned = now;
+        }
+    }
+
+    /// The units holding `role` with the turn each one's plan began.
+    pub fn plans(&self, role: Role) -> Vec<(Serial, u32, Option<Position>)> {
+        self.map
+            .iter()
+            .filter(|(_, a)| a.role == role)
+            .map(|(s, a)| (*s, a.planned, a.to))
+            .collect()
     }
 
     /// The units holding `role` with the place each is sent to.
@@ -491,11 +525,13 @@ impl Registry {
         turn: u32,
         to: Option<Position>,
     ) -> Result<(), Role> {
+        self.now = self.now.max(turn);
         match self.map.get_mut(&serial) {
             // The same role again renews it; a target given is kept when none is.
             Some(held) if held.role == role => {
-                if to.is_some() {
+                if to.is_some() && held.to != to {
                     held.to = to;
+                    held.planned = turn;
                 }
                 Ok(())
             }
@@ -506,6 +542,7 @@ impl Registry {
                     Assignment {
                         role,
                         since: turn,
+                        planned: turn,
                         to,
                         party: None,
                         with: None,
@@ -521,7 +558,7 @@ impl Registry {
     /// Hand back the role, if the unit holds it. Whether it did.
     pub fn release(&mut self, serial: Serial, role: Role) -> bool {
         if self.is(serial, role) {
-            self.map.insert(serial, Assignment::awaiting(0));
+            self.map.insert(serial, Assignment::awaiting(self.now));
             true
         } else {
             false
@@ -531,15 +568,16 @@ impl Registry {
     /// Hand back whatever role the unit holds.
     pub fn release_any(&mut self, serial: Serial) {
         if self.map.contains_key(&serial) {
-            self.map.insert(serial, Assignment::awaiting(0));
+            self.map.insert(serial, Assignment::awaiting(self.now));
         }
     }
 
     /// Keep only the units `keep` says are still around and doing it.
     pub fn retain(&mut self, mut keep: impl FnMut(Serial, &Assignment) -> bool) {
+        let now = self.now;
         for (s, a) in self.map.iter_mut() {
             if !keep(*s, a) {
-                *a = Assignment::awaiting(a.since);
+                *a = Assignment::awaiting(now);
             }
         }
     }
@@ -629,6 +667,7 @@ pub struct Held {
 ///   `TransportSpace`, `TransportReady` or `Transporting`, which `naval.rs` and `pickup.rs` set);
 /// - anything else: `AwaitingOrders`.
 pub fn sync(ai: &mut Ai, view: &PlayerView, turn: u32) -> Vec<Held> {
+    ai.roles.now = ai.roles.now.max(turn);
     let mut out = Vec::new();
     for unit in view.my_units() {
         let class = if is_ship(view, unit) {

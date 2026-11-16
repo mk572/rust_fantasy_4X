@@ -167,7 +167,9 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 ai.order(game, Command::GoTo { units, to }, events);
             }
             None => {
-                ai.roles.set_target(serial, crate::roles::Role::Scout, None);
+                // Nothing left to explore that this unit can reach: its scouting is over and it
+                // awaits orders (the registry says so, `docs/ai-unit-registry.md`).
+                ai.roles.release(serial, crate::roles::Role::Scout);
             }
         }
     }

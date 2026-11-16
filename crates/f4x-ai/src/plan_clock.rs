@@ -98,14 +98,6 @@ fn square(p: Position) -> Key {
     )
 }
 
-fn unit(s: crate::Serial) -> Key {
-    (s.0, 0)
-}
-
-fn unit_going(s: crate::Serial, to: Position) -> Key {
-    (s.0, square(to).1)
-}
-
 /// When each standing plan began, and how many the clock has dropped.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct PlanClock {
@@ -146,11 +138,12 @@ impl PlanClock {
         expired
     }
 
-    /// The raiders in `party` have done something that counts (cleared a site): their time starts
-    /// again at the next turn's tick.
-    pub(crate) fn restart_raiders(&mut self, party: &[crate::Serial]) {
-        self.started
-            .retain(|(k, key, _)| !(*k == PlanKind::Raid && party.iter().any(|s| s.0 == key.0)));
+    /// The clock dropped one plan of `kind`.
+    fn count(&mut self, kind: PlanKind) {
+        if self.dropped.len() <= kind.slot() {
+            self.dropped.resize(PlanKind::ALL.len(), 0);
+        }
+        self.dropped[kind.slot()] += 1;
     }
 
     /// How many plans of `kind` the clock has dropped.
@@ -174,6 +167,7 @@ impl Ai {
     /// chooses anew. Called at the start of a turn.
     pub(crate) fn drop_stale_plans(&mut self, turn: u32) -> Dropped {
         let mut out = Dropped::default();
+        self.roles.tick(turn);
         let mut clock = std::mem::take(&mut self.clock);
         if turn.saturating_sub(clock.forgiven) >= FORGIVE_TURNS {
             clock.forgiven = turn;
@@ -210,55 +204,37 @@ impl Ai {
                 self.colony_bad.push(c.land);
             }
         }
-        let raiders: Vec<Key> = self
-            .roles
-            .members(crate::roles::Role::Raid)
-            .into_iter()
-            .map(unit)
-            .collect();
-        for key in clock.tick(PlanKind::Raid, turn, &raiders) {
+        // The plans of single units: each unit's registry entry says when its plan began.
+        for (serial, ..) in self.expired_plans(crate::roles::Role::Raid, PlanKind::Raid, turn) {
             self.roles
-                .retain_role(crate::roles::Role::Raid, |s| s.0 != key.0);
+                .retain_role(crate::roles::Role::Raid, |s| s != serial);
+            clock.count(PlanKind::Raid);
         }
-        let settlers: Vec<Key> = self
-            .roles
-            .targeted(crate::roles::Role::Settle)
-            .into_iter()
-            .map(|(s, p)| unit_going(s, p))
-            .collect();
-        for key in clock.tick(PlanKind::Settler, turn, &settlers) {
-            let found = self
-                .roles
-                .targeted(crate::roles::Role::Settle)
-                .into_iter()
-                .find(|&(s, p)| unit_going(s, p) == key);
-            if let Some((serial, site)) = found {
-                self.roles
-                    .set_target(serial, crate::roles::Role::Settle, None);
-                self.roles.clear_track(serial);
+        for (serial, site) in
+            self.expired_plans(crate::roles::Role::Settle, PlanKind::Settler, turn)
+        {
+            self.roles
+                .set_target(serial, crate::roles::Role::Settle, None);
+            self.roles.clear_track(serial);
+            if let Some(site) = site {
                 self.bad_sites.push(site);
-                out.release.push(serial);
             }
+            out.release.push(serial);
+            clock.count(PlanKind::Settler);
         }
-        let scouts: Vec<Key> = self
-            .roles
-            .targeted(crate::roles::Role::Scout)
+        for (serial, target) in self
+            .expired_plans(crate::roles::Role::Scout, PlanKind::Scout, turn)
             .into_iter()
-            .map(|(s, p)| unit_going(s, p))
-            .collect();
-        for key in clock.tick(PlanKind::Scout, turn, &scouts) {
-            let found = self
-                .roles
-                .targeted(crate::roles::Role::Scout)
-                .into_iter()
-                .find(|&(s, p)| unit_going(s, p) == key);
-            if let Some((serial, target)) = found {
-                self.roles
-                    .set_target(serial, crate::roles::Role::Scout, None);
-                self.roles.clear_track(serial);
+            .filter(|(_, to)| to.is_some())
+        {
+            self.roles
+                .set_target(serial, crate::roles::Role::Scout, None);
+            self.roles.clear_track(serial);
+            if let Some(target) = target {
                 self.bad_scout_targets.push(target);
-                out.release.push(serial);
             }
+            out.release.push(serial);
+            clock.count(PlanKind::Scout);
         }
         let sea: Vec<Key> = if self.sea_scouting {
             vec![(0, 0)]
@@ -273,18 +249,33 @@ impl Ai {
             self.roles.release_role(crate::roles::Role::SeaParty);
             out.sea = true;
         }
-        let planar: Vec<Key> = self.roles.planar().map(unit).into_iter().collect();
-        for key in clock.tick(PlanKind::Planar, turn, &planar) {
-            if let Some(serial) = self.roles.planar().filter(|&s| unit(s) == key) {
-                self.roles.release(serial, crate::roles::Role::PlanarScout);
-                if let Some(tower) = self.planar_tower.take() {
-                    self.bad_scout_targets.push(tower);
-                }
-                out.release.push(serial);
+        for (serial, ..) in
+            self.expired_plans(crate::roles::Role::PlanarScout, PlanKind::Planar, turn)
+        {
+            self.roles.release(serial, crate::roles::Role::PlanarScout);
+            if let Some(tower) = self.planar_tower.take() {
+                self.bad_scout_targets.push(tower);
             }
+            out.release.push(serial);
+            clock.count(PlanKind::Planar);
         }
         self.clock = clock;
         out
+    }
+
+    /// The units holding `role` whose plan has stood for the time of `kind`, with their target.
+    fn expired_plans(
+        &self,
+        role: crate::roles::Role,
+        kind: PlanKind,
+        now: u32,
+    ) -> Vec<(crate::Serial, Option<Position>)> {
+        self.roles
+            .plans(role)
+            .into_iter()
+            .filter(|&(_, planned, _)| now.saturating_sub(planned) >= kind.timeout())
+            .map(|(s, _, to)| (s, to))
+            .collect()
     }
 
     /// How many plans of each kind the clock has dropped, for the soak's summary.
@@ -379,10 +370,15 @@ mod tests {
         let mut ai = Ai::new(P0);
         let view = f4x_core::player::view::PlayerView::new(&g, P0);
         let old = view.serial_of(units[0]);
-        let _ = ai.roles.claim(old, crate::roles::Role::Raid, 1, None);
+        let _ = ai.roles.claim(old, crate::roles::Role::Raid, 10, None);
         ai.drop_stale_plans(10);
         let fresh = view.serial_of(units[1]);
-        let _ = ai.roles.claim(fresh, crate::roles::Role::Raid, 1, None);
+        let _ = ai.roles.claim(
+            fresh,
+            crate::roles::Role::Raid,
+            10 + PLAN_TIMEOUT_TURNS - 1,
+            None,
+        );
         ai.drop_stale_plans(10 + PLAN_TIMEOUT_TURNS - 1);
         assert_eq!(ai.roles.members(crate::roles::Role::Raid), vec![old, fresh]);
         ai.drop_stale_plans(10 + PLAN_TIMEOUT_TURNS);
@@ -409,7 +405,7 @@ mod tests {
         let s = crate::Serial(5);
         let _ = ai
             .roles
-            .claim(s, crate::roles::Role::Settle, 1, Some(at(9, 9)));
+            .claim(s, crate::roles::Role::Settle, turn, Some(at(9, 9)));
         ai.roles.track(s, at(1, 1), false);
         ai.drop_stale_plans(turn);
         let early = ai.drop_stale_plans(turn + SETTLER_TIMEOUT_TURNS - 1);
@@ -430,7 +426,9 @@ mod tests {
         let s = crate::Serial(5);
         for t in 0..3 * SETTLER_TIMEOUT_TURNS {
             // A new site every twenty turns: each is a new plan with its own clock.
-            let _ = ai.roles.claim(s, crate::roles::Role::Settle, 1, None);
+            let _ = ai
+                .roles
+                .claim(s, crate::roles::Role::Settle, turn + t, None);
             ai.roles
                 .set_target(s, crate::roles::Role::Settle, Some(at(2 + t / 20, 2)));
             let out = ai.drop_stale_plans(turn + t);
@@ -445,8 +443,10 @@ mod tests {
         let (walker, finder) = (crate::Serial(1), crate::Serial(2));
         let _ = ai
             .roles
-            .claim(walker, crate::roles::Role::Scout, 1, Some(at(9, 9)));
-        let _ = ai.roles.claim(finder, crate::roles::Role::Scout, 1, None);
+            .claim(walker, crate::roles::Role::Scout, turn, Some(at(9, 9)));
+        let _ = ai
+            .roles
+            .claim(finder, crate::roles::Role::Scout, turn, None);
         let mut released = Vec::new();
         for t in 0..=SCOUT_TIMEOUT_TURNS {
             ai.roles

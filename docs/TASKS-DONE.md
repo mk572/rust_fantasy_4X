@@ -507,6 +507,9 @@ original task numbers. Newest work is merged in ascending order by number.
 | 626 | AI | Escort role (done): a soldier stays with a settler until it is done or in a city |
 | 627 | AI | Road role (done): engineers build roads between own cities, then toward the campaign target; one engineer built when there is work |
 | 628 | AI | (done) Meld role: a spirit goes to the nearest open node it can reach and melds with it |
+| 631 | AI | (done) Scout role: a scout has a target square or explores unknown ground until nothing reachable is left, then falls back to awaiting orders |
+| 632 | AI | (done) End of a role falls back to awaiting orders: called-off march, finished raid, and new units are given orders when they appear |
+| 633 | AI | (done) Plan clock reads each plan's start from the registry (`since`) instead of its own list |
 
 ## Descriptions
 
@@ -531,3 +534,9 @@ original task numbers. Newest work is merged in ascending order by number.
 **627. Road role (done).** Asked for by the user, 16 November 2026. `road.rs`: engineers (not soldiers any more) build the links between own cities, then a stretch at a time toward the campaign target; the biggest free city builds one engineer (and the builders' hall) when there is work. *Needs:* 624.
 
 **628. Meld role (done).** Asked for by the user, 16 November 2026. A spirit goes to the nearest open node it can reach and melds with it; it travels with an escort when one is free. *Needs:* 624, 626.
+
+**631. (done) Scout role.** Asked for by the user, 17 November 2026. A scout holds `Scout` with a target square chosen from the known map, or with no target it explores the unknown parts of the map until it runs out of squares it can reach; then it ends the role. The role keeps its name (no `Explore`). Spirits (ability 42) fly, so they reach unknown ground a soldier cannot. *Needs:* 624.
+
+**632. (done) End of a role falls back to awaiting orders.** Asked for by the user, 17 November 2026. Every routine that ends a role leaves the unit holding one: it releases it (which sets `AwaitingOrders`, the lowest priority) and the next routine to want it claims it. Review `military.rs` (called-off march), the raid end, `escort::run`, `colony.rs`, `garrison.rs`. Units made during the AI's own turn (summon, hire, buy) and the units of a `ProductionCompleted` event are registered with a base role at once, not at the next sync. *Needs:* 624.
+
+**633. (done) Plan clock reads each plan's start from the registry (`since`) instead of its own list.** Asked for by the user, 17 November 2026. `plan_clock.rs` keeps `started: Vec<(PlanKind, Key, u32)>` for the raid, settler, scout and planar plans of single units. Their start is the `since` of the unit's assignment (reset when the target changes). The clock keeps its list only for plans that are not a unit's role (campaign, landing, colony, sea scouting). *Needs:* 624.

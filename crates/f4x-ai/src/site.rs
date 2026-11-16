@@ -175,7 +175,9 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .iter()
                 .any(|e| matches!(e, Event::SiteCleared { player, .. } if *player == me))
             {
-                ai.clock.restart_raiders(&party);
+                for &serial in &party {
+                    ai.roles.restart_plan(serial);
+                }
             }
         } else if let Some(city) = city_next {
             let defenders = PlayerView::new(game, me)

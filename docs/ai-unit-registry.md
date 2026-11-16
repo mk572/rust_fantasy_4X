@@ -236,18 +236,23 @@ Tests (`roles.rs`, and each routine's own): every unit has an explicit role with
 groups and ties, standstill count, the audit sending a lone soldier home and keeping it `Return`,
 stranded soldiers waiting for a ship.
 
-## 7. Known gaps
+## 7. Plans and ends
 
-- Several routines still *lose* units by clearing a role without choosing the next (a called-off
-  march, a finished raid): the audit catches them a turn later as adrift. The fix is to hand the
-  unit on at the same place (task 624).
-- No ship is built for a pickup; a stranded group waits until a free ship exists.
-- The plan clock (`plan_clock.rs`) still drops stale plans by plan kind; it should read `since`
-  from the registry.
-- A unit made in the middle of the AI's turn (bought production, a summoned unit) is registered
-  at the end-of-turn audit, not at the moment it appears; at the start of every turn there is none
-  left without a role.
+- A role's plan begins at the turn the unit took it or was last given a new target (`planned`
+  in the assignment). The plan clock (`plan_clock.rs`) reads it for raiders, settlers, scouts and
+  the planar scout, and drops the plan that has stood too long. A cleared site restarts it.
+- When a role ends (target reached, called off, nothing left to do, dropped by the clock) the unit
+  is demoted to `AwaitingOrders` in the same call; the next routine that wants it claims it. A
+  scout that finds nothing reachable to explore ends its role alone.
+- A unit made in the middle of the AI's turn is given a base role by the end-of-turn audit; units
+  made by the turn change or by a summon of the wizard's step are given one at the start of the AI's
+  turn (`roles::register`, after `wizardry::run`).
+
+## 8. Known gaps
+
+- No ship is built for a pickup; a stranded group waits until a free ship exists (task 635).
+- Healers and weak heroes get no escort (task 634); settlers waiting for a colony ship do not hold
+  `AwaitTransport` (task 636); `Muster` is only for the tower siege (task 637).
 - The ship states `TransportSpace` and `TransportReady` follow the ship's order and passengers;
-  `naval.rs` and `pickup.rs` still decide who boards through `Voyage`, `Pickup` and `AwaitTransport`.
-  Moving that decision into the transport roles (a ship holding "units to board" before they are
-  aboard) is not built.
+  The boarding decision is recorded in the registry (the passenger's `Voyage` or `AwaitTransport`
+  with `with` = the ship), which is where it should be.
