@@ -394,7 +394,17 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // target gets the walk to it on top of the usual time (the slowest unit covers a square
         // a turn), or the stack would turn back before it arrived.
         let trip = distance(&view, rally, target).unwrap_or(0);
-        if march_called_off(game.turn, ai.march_started, trip) || ai.march_target != Some(target) {
+        let too_long = march_called_off(game.turn, ai.march_started, trip);
+        if too_long || ai.march_target != Some(target) {
+            if !ai.marching.is_empty() {
+                events.push(Event::MarchCalledOff {
+                    player: me,
+                    target: ai.march_target.unwrap_or(target),
+                    units: ai.marching.len() as u32,
+                    turns: game.turn.saturating_sub(ai.march_started),
+                    target_changed: !too_long,
+                });
+            }
             ai.marching.clear();
             ai.march_target = Some(target);
         }
@@ -574,6 +584,11 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.unreachable_since = game.turn;
             ai.campaign = None;
         } else if !launched.is_empty() {
+            events.push(Event::MarchLaunched {
+                player: me,
+                target,
+                units: launched.len() as u32,
+            });
             ai.marching = launched;
             ai.march_started = game.turn;
         }
@@ -1035,6 +1050,11 @@ fn march_landed(
         }
     }
     if !launched.is_empty() {
+        events.push(Event::MarchLaunched {
+            player: me,
+            target,
+            units: launched.len() as u32,
+        });
         ai.marching = launched;
         ai.march_started = game.turn;
     }

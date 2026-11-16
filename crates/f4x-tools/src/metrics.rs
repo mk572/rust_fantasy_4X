@@ -101,11 +101,18 @@ pub struct Metrics {
     pub wizards_eliminated: u32,
     /// Cities taken on the plane the wizard did not start on (`Tally::far_captures` says which).
     pub cities_captured_far_plane: u32,
+    /// Marches the AI sent against a city, the soldiers on them, the marches called off for
+    /// going on too long without a fight, and those dropped because the target changed
+    /// (task 436).
+    pub marches_launched: u32,
+    pub march_units: u32,
+    pub marches_called_off: u32,
+    pub marches_dropped: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 56] {
+    pub fn rows(&self) -> [(&'static str, u32); 60] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -162,6 +169,10 @@ impl Metrics {
             ("production rushed", self.production_rushed),
             ("gold paid for rushing", self.gold_rushed),
             ("wizards eliminated", self.wizards_eliminated),
+            ("marches launched", self.marches_launched),
+            ("soldiers sent on marches", self.march_units),
+            ("marches called off", self.marches_called_off),
+            ("marches dropped for another target", self.marches_dropped),
             (
                 "cities captured on the other plane",
                 self.cities_captured_far_plane,
@@ -279,6 +290,10 @@ impl AddAssign for Metrics {
             gold_rushed,
             wizards_eliminated,
             cities_captured_far_plane,
+            marches_launched,
+            march_units,
+            marches_called_off,
+            marches_dropped,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -336,6 +351,10 @@ impl AddAssign for Metrics {
         self.gold_rushed += gold_rushed;
         self.wizards_eliminated += wizards_eliminated;
         self.cities_captured_far_plane += cities_captured_far_plane;
+        self.marches_launched += marches_launched;
+        self.march_units += march_units;
+        self.marches_called_off += marches_called_off;
+        self.marches_dropped += marches_dropped;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -600,6 +619,21 @@ impl Tally {
                         ProductionItem::TradeGoods | ProductionItem::Housing => {}
                     }
                 }
+                Event::MarchLaunched { player, units, .. } => self.bump(*player, |m| {
+                    m.marches_launched += 1;
+                    m.march_units += units;
+                }),
+                Event::MarchCalledOff {
+                    player,
+                    target_changed,
+                    ..
+                } => self.bump(*player, |m| {
+                    if *target_changed {
+                        m.marches_dropped += 1;
+                    } else {
+                        m.marches_called_off += 1;
+                    }
+                }),
                 Event::PlaneShifted { player, units, .. } => self.bump(*player, |m| {
                     m.plane_shifts += 1;
                     m.plane_crossings += units.len() as u32;
@@ -936,6 +970,66 @@ mod tests {
         assert!(home.far_captures().is_empty());
         assert_eq!(home.of(PlayerId(0)).cities_captured_far_plane, 0);
         assert_eq!(home.of(PlayerId(0)).cities_captured, 1);
+        Ok(())
+    }
+
+    /// The AI's march events are counted per wizard: launches with their soldiers, marches called
+    /// off for time, marches dropped for another target.
+    #[test]
+    fn marches_launched_and_called_off_are_counted() -> TestResult {
+        let game = new_game(
+            shipped(),
+            &NewGame {
+                seed: 4,
+                all_ai: true,
+                ..NewGame::with_wizards(2)
+            },
+        )?;
+        let at = f4x_core::map::Position {
+            plane: f4x_core::map::Plane::Arcanus,
+            x: 3,
+            y: 3,
+        };
+        let player = PlayerId(0);
+        let mut tally = Tally::new(&game);
+        let events = [
+            Event::MarchLaunched {
+                player,
+                target: at,
+                units: 9,
+            },
+            Event::MarchLaunched {
+                player,
+                target: at,
+                units: 4,
+            },
+            Event::MarchCalledOff {
+                player,
+                target: at,
+                units: 9,
+                turns: 30,
+                target_changed: false,
+            },
+            Event::MarchCalledOff {
+                player,
+                target: at,
+                units: 4,
+                turns: 2,
+                target_changed: true,
+            },
+        ];
+        tally.record(&game, None, &events);
+        let m = tally.of(player);
+        assert_eq!(
+            (
+                m.marches_launched,
+                m.march_units,
+                m.marches_called_off,
+                m.marches_dropped
+            ),
+            (2, 13, 1, 1)
+        );
+        assert_eq!(tally.of(PlayerId(1)).marches_launched, 0);
         Ok(())
     }
 

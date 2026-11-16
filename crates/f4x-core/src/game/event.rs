@@ -212,6 +212,22 @@ pub enum Event {
         spell: rules::SpellId,
         at: map::Position,
     },
+    /// The AI sent `units` soldiers on a march against the city at `target` (not a command's
+    /// result: the AI reports it so that a soak can count the marches).
+    MarchLaunched {
+        player: player::PlayerId,
+        target: map::Position,
+        units: u32,
+    },
+    /// The AI called a march off: it had gone on `turns` turns without a fight (`target_changed`
+    /// false), or its target was dropped for another (`true`). `units` soldiers were on it.
+    MarchCalledOff {
+        player: player::PlayerId,
+        target: map::Position,
+        units: u32,
+        turns: u32,
+        target_changed: bool,
+    },
     /// A Plane Shift took the stack `units` from the square `from` to the same square `to` on the
     /// other plane (the client fades the one into the other).
     PlaneShifted {
