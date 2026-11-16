@@ -15,6 +15,7 @@ the first row, 132 pixels apart) are used. Needs Pillow (.venv) and the local ar
     .venv/bin/python scripts/gem_compose.py [--out FILE]
 """
 import argparse
+import colorsys
 import glob
 import sys
 from pathlib import Path
@@ -35,10 +36,14 @@ FACE_CELL = 10
 # face, by side: top, bottom, left, right.
 EDGE_WEIGHT = {"top": 0.68, "bottom": 0.30, "left": 0.69, "right": 0.66}
 RING_WEIGHT = {"top": 0.30, "bottom": 0.45, "left": 0.32, "right": 0.33}
-# The corners of the overlap are rounded: the face's corner pixel keeps this much of the face, and
-# the diamond's pixels outside the face within this many pixels of a corner are not tinted at all.
-CORNER_WEIGHT = 0.30
-CORNER_RING = 2
+# The corners of the overlap are rounded: a face pixel this far from a corner (steps along the two
+# sides) keeps at most this much of the face, and the diamond's pixels outside the face within
+# CORNER_RING pixels of a corner are not tinted at all.
+CORNER_WEIGHT = {0: 0.0, 1: 0.35, 2: 0.7}
+CORNER_RING = 3
+# What the overlap shows of the face: its colour with the hue of the diamond under it ("hue"), or
+# with the hue and saturation of the diamond ("tint"), the lightness of the face kept.
+OVERLAPS = ("hue", "tint")
 
 
 def base_diamonds():
@@ -62,32 +67,51 @@ def mix(under, over, weight):
     return tuple(round(under[i] * (1 - weight) + over[i] * weight) for i in range(3)) + (255,)
 
 
-def compose(diamond, face, blend=True):
-    """The diamond with the face on it. Without `blend` the face is pasted as it is."""
+def shifted(face_pixel, diamond_pixel, overlap):
+    """The face's pixel turned to the hue (and for "tint" the saturation) of the diamond's."""
+    fh, fs, fv = colorsys.rgb_to_hsv(*(c / 255 for c in face_pixel[:3]))
+    dh, ds, _ = colorsys.rgb_to_hsv(*(c / 255 for c in diamond_pixel[:3]))
+    r, g, b = colorsys.hsv_to_rgb(dh, ds if overlap == "tint" else fs, fv)
+    return (round(r * 255), round(g * 255), round(b * 255), 255)
+
+
+def corner_steps(fx, fy):
+    """How many steps a face pixel is from the nearest corner of the face, along the two sides."""
+    return min(fx, FACE_W - 1 - fx) + min(fy, FACE_H - 1 - fy)
+
+
+def compose(diamond, face, overlap="hue"):
+    """The diamond with the face on it. With overlap `None` the face is pasted as it is."""
     gem = diamond.copy()
-    edge_colour = face.getpixel((0, FACE_H // 3))
     at_x, at_y = FACE_AT
+    blend = overlap is not None
     if blend:
         for x in range(at_x - 1, at_x + FACE_W + 1):
             if min(x - (at_x - 1), at_x + FACE_W - x) < CORNER_RING:
                 continue
-            for y, side in ((at_y - 1, "top"), (at_y + FACE_H, "bottom")):
-                gem.putpixel((x, y), mix(gem.getpixel((x, y)), edge_colour, RING_WEIGHT[side]))
+            for y, side, fy in ((at_y - 1, "top", 0), (at_y + FACE_H, "bottom", FACE_H - 1)):
+                under = gem.getpixel((x, y))
+                over = shifted(face.getpixel((min(max(x - at_x, 0), FACE_W - 1), fy)), under, overlap)
+                gem.putpixel((x, y), mix(under, over, RING_WEIGHT[side]))
         for y in range(at_y, at_y + FACE_H):
             if min(y - at_y, at_y + FACE_H - 1 - y) < CORNER_RING - 1:
                 continue
-            for x, side in ((at_x - 1, "left"), (at_x + FACE_W, "right")):
-                gem.putpixel((x, y), mix(gem.getpixel((x, y)), edge_colour, RING_WEIGHT[side]))
+            for x, side, fx in ((at_x - 1, "left", 0), (at_x + FACE_W, "right", FACE_W - 1)):
+                under = gem.getpixel((x, y))
+                over = shifted(face.getpixel((fx, y - at_y)), under, overlap)
+                gem.putpixel((x, y), mix(under, over, RING_WEIGHT[side]))
     for fy in range(FACE_H):
         for fx in range(FACE_W):
-            side = None
+            at = (fx + at_x, fy + at_y)
+            under = gem.getpixel(at)
+            weight, colour = 1.0, face.getpixel((fx, fy))
             if blend:
                 side = {0: "top", FACE_H - 1: "bottom"}.get(fy) or {0: "left", FACE_W - 1: "right"}.get(fx)
-            weight = EDGE_WEIGHT[side] if side else 1.0
-            if blend and min(fx, FACE_W - 1 - fx) == 0 and min(fy, FACE_H - 1 - fy) == 0:
-                weight = CORNER_WEIGHT
-            at = (fx + at_x, fy + at_y)
-            gem.putpixel(at, mix(gem.getpixel(at), face.getpixel((fx, fy)), weight))
+                if side:
+                    weight = EDGE_WEIGHT[side]
+                    colour = shifted(colour, under, overlap)
+                weight = min(weight, CORNER_WEIGHT.get(corner_steps(fx, fy), 1.0))
+            gem.putpixel(at, mix(under, colour, weight))
     return gem
 
 
@@ -117,6 +141,7 @@ def wizards():
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--out", default="/tmp/gem_compose.png", help="the comparison picture")
+    parser.add_argument("--overlap", choices=OVERLAPS, default="hue", help="what the overlap shows")
     args = parser.parse_args()
     diamonds = base_diamonds()
     chosen = wizards()
@@ -130,8 +155,8 @@ def main():
         pasted, blended = [], []
         for column, (_, gems, face) in enumerate(chosen):
             original = gems[colour]
-            pasted.append(distance(original, compose(diamonds[colour], face, blend=False)))
-            mine = compose(diamonds[colour], face)
+            pasted.append(distance(original, compose(diamonds[colour], face, None)))
+            mine = compose(diamonds[colour], face, args.overlap)
             blended.append(distance(original, mine))
             left = column * (2 * GEM_W * scale + 20)
             top = colour * GEM_H * scale
