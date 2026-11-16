@@ -276,15 +276,7 @@ impl App {
             return;
         }
         if self.game.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment {
-            if self.game.rival_globals(HUMAN).is_empty() {
-                self.log.push(self.text("spell.no_globals_waits"));
-            } else {
-                self.modals.open(crate::view::Global {
-                    spell,
-                    resolve: true,
-                    row: 0,
-                });
-            }
+            self.open_global_pick(spell, true);
             return;
         }
         self.targeting = Some(Targeting {
@@ -347,16 +339,7 @@ impl App {
             // A rival's global enchantment is no place on the map: it is chosen from a list.
             if self.game.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment
             {
-                if self.game.rival_globals(HUMAN).is_empty() {
-                    self.log.push(self.text("spell.no_globals"));
-                } else {
-                    self.modals.open(crate::view::Global {
-                        spell,
-                        resolve: false,
-                        row: 0,
-                    });
-                }
-                self.screen = Screen::Map;
+                self.open_global_pick(spell, false);
                 return;
             }
             self.targeting = Some(Targeting {

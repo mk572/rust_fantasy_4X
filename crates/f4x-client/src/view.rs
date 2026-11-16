@@ -23,7 +23,7 @@ use crate::frame::spot;
 use crate::modal::{keep, Modal};
 use crate::options_screen::OptionsState;
 use crate::preferences::Pref;
-use crate::ui::{self, GOLD};
+use crate::ui::GOLD;
 
 pub(crate) const HUMAN: PlayerId = PlayerId(0);
 
@@ -287,22 +287,6 @@ impl Modal for NoTarget {
     }
     fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
         keep(app.no_target_frame(*self, input))
-    }
-}
-
-/// The rival's global enchantment to dispel, the row picked at `row`.
-pub(crate) struct Global {
-    pub(crate) spell: f4x_def::rules::SpellId,
-    pub(crate) resolve: bool,
-    pub(crate) row: usize,
-}
-
-impl Modal for Global {
-    fn kind(&self) -> &'static str {
-        "global"
-    }
-    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
-        keep(app.global_prompt_frame(*self, input))
     }
 }
 
@@ -1903,109 +1887,6 @@ impl App {
             }
             None => Some(NoTarget(spell)),
         }
-    }
-
-    /// The list of the rivals' global enchantments a Disjunction or Spell Binding can aim at,
-    /// by wizard, with the spell's name and cost: Up and Down move, Enter or a click casts, and
-    /// Escape gives up.
-    fn global_prompt_frame(&mut self, global: Global, input: &Input) -> Option<Global> {
-        let Global {
-            spell,
-            resolve,
-            row,
-        } = global;
-        let rows = self.game.rival_globals(HUMAN);
-        let row = row.min(rows.len().saturating_sub(1));
-        let spells = self.game.spells();
-        let lines: Vec<String> = rows
-            .iter()
-            .filter_map(|&i| {
-                let def = self.game.content().rules.spells.get(spells.def(i)?);
-                let who = self.game.player(spells.caster_player(i)?)?.name();
-                let args = Args::new()
-                    .text("wizard", who)
-                    .text("spell", self.names.spell(def.num))
-                    .count("cost", def.cost);
-                Some(self.text_with("spell.global_row", &args))
-            })
-            .collect();
-        let (w, h) = (screen_width(), screen_height());
-        let (top, step) = (h / 2.0 - 20.0, 30.0);
-        let clicked = (0..lines.len()).find(|&n| {
-            let y = top + step * n as f32;
-            ui::hit(
-                Rect::new(w / 2.0 - 260.0, y - 20.0, 520.0, 28.0),
-                true,
-                input,
-            )
-            .clicked()
-        });
-        let mut pick = clicked.unwrap_or(row);
-        if input.key_pressed(KeyCode::Up) {
-            pick = pick.saturating_sub(1);
-        }
-        if input.key_pressed(KeyCode::Down) {
-            pick = (pick + 1).min(lines.len().saturating_sub(1));
-        }
-        let mut left = None;
-        if input.key_pressed(KeyCode::Escape) || rows.is_empty() {
-            self.log.push(self.text("log.cast_cancelled"));
-        } else if clicked.is_some() || input.key_pressed(KeyCode::Enter) {
-            let target = f4x_core::rules::exec::Target::Spell(rows[pick]);
-            let cmd = if resolve {
-                Command::ResolveCast {
-                    player: HUMAN,
-                    target,
-                }
-            } else {
-                Command::CastSpell {
-                    extra: self.chosen_extra(spell),
-                    player: HUMAN,
-                    spell,
-                    target: Some(target),
-                }
-            };
-            let events = self.game.apply(cmd);
-            self.note(events);
-        } else {
-            left = Some(Global {
-                spell,
-                resolve,
-                row: pick,
-            });
-        }
-        let height = 110.0 + step * lines.len() as f32;
-        draw_rectangle(
-            w / 2.0 - 280.0,
-            h / 2.0 - 80.0,
-            560.0,
-            height,
-            Color::new(0.08, 0.06, 0.04, 0.95),
-        );
-        draw_rectangle_lines(w / 2.0 - 280.0, h / 2.0 - 80.0, 560.0, height, 3.0, GOLD);
-        let name = self
-            .names
-            .spell(self.game.content().rules.spells.get(spell).num)
-            .to_string();
-        crate::frame::text_centered(
-            &self.text_with("spell.choose_global", &Args::new().text("spell", &name)),
-            w / 2.0,
-            h / 2.0 - 45.0,
-            22.0,
-            WHITE,
-        );
-        for (n, line) in lines.iter().enumerate() {
-            let color = if n == pick { GOLD } else { WHITE };
-            crate::frame::text_centered(line, w / 2.0, top + step * n as f32, 22.0, color);
-        }
-        crate::frame::text_centered(
-            &self.text("spell.global_keys"),
-            w / 2.0,
-            top + step * lines.len() as f32 + 10.0,
-            18.0,
-            WHITE,
-        );
-        left
     }
 
     /// How many turns the Spell of Return still needs at the human's casting skill.
