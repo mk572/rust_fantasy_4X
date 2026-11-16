@@ -517,51 +517,43 @@ fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() -> TestResult {
     Ok(())
 }
 
-#[test]
-fn an_elite_plan_ranks_the_dearer_units_higher_than_a_plain_one() {
-    let c = shipped();
-    let f = facts(&c);
-    let rank_of = |elite: bool, id: &str| {
-        let p = BuildPlan {
-            mix: Mix::Units,
-            primary: Focus::Offense,
-            elite_units: elite,
-            ..BuildPlan::default()
-        };
-        ranked_units(&c, &p, &f, false)
-            .iter()
-            .position(|&(u, _)| c.rules.units.get(u).id == id)
+/// The ranking of the units a city can build, under a plain or an elite plan.
+fn ranking(c: &Content, f: &CityFacts, elite: bool) -> Vec<(UnitId, f32)> {
+    let p = BuildPlan {
+        mix: Mix::Units,
+        primary: Focus::Offense,
+        elite_units: elite,
+        ..BuildPlan::default()
     };
-    // Pegasai cost the most of the five; with the plan elite they rank no lower.
-    let plain = rank_of(false, "high_elf_pegasai");
-    let elite = rank_of(true, "high_elf_pegasai");
-    assert!(elite <= plain, "{elite:?} against {plain:?}");
+    ranked_units(c, &p, f, false)
 }
 
+fn is_land_fighter(c: &Content, u: UnitId) -> bool {
+    let d = c.rules.units.get(u);
+    is_combat(d) && !is_settler(d) && d.movement != MovementType::Sailing
+}
+
+// An elite plan is meant to make the army of the dear units a city can build. The check fails if
+// the flag is ignored and the ranking still holds the cheap fighters; it names no unit, so it holds
+// for any content.
 #[test]
-fn an_elite_plan_leaves_out_the_cheap_fighters_a_plain_one_keeps() {
+fn an_elite_plan_leaves_out_the_cheap_fighters() {
     let c = shipped();
     let f = facts(&c);
-    let ranked = |elite: bool| {
-        let p = BuildPlan {
-            mix: Mix::Units,
-            primary: Focus::Offense,
-            elite_units: elite,
-            ..BuildPlan::default()
-        };
-        ranked_units(&c, &p, &f, false)
-    };
-    let cost = |u: UnitId| c.rules.units.get(u).cost;
-    let plain = ranked(false);
-    let elite = ranked(true);
+    let elite = ranking(&c, &f, true);
     assert!(!elite.is_empty());
-    let cheapest_plain = plain.iter().map(|&(u, _)| cost(u)).min();
-    let cheapest_elite = elite.iter().map(|&(u, _)| cost(u)).min();
+    let costs: Vec<u32> = elite
+        .iter()
+        .filter(|&&(u, _)| is_land_fighter(&c, u))
+        .map(|&(u, _)| c.rules.units.get(u).cost)
+        .collect();
+    let dearest = costs.iter().copied().max().unwrap_or(0);
     assert!(
-        cheapest_elite >= cheapest_plain,
-        "{cheapest_elite:?} against {cheapest_plain:?}"
+        costs.iter().all(|&k| k * 100 > CHEAP_UNIT_PCT * dearest),
+        "{costs:?} against {dearest}"
     );
-    assert!(elite.len() <= plain.len());
+    // A plain plan is not cut: it ranks at least as many units.
+    assert!(ranking(&c, &f, false).len() >= elite.len());
 }
 
 #[test]
