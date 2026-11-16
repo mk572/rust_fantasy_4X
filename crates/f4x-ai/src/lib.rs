@@ -173,6 +173,10 @@ pub struct Ai {
     /// The ships on their way to fetch them.
     #[serde(default)]
     pickups: Vec<pickup::Pickup>,
+    /// Soldiers walking to a city because they had no role: the city and the turn they were sent
+    /// (`roles.rs`).
+    #[serde(default, serialize_with = "persist::sorted")]
+    returning: HashMap<Serial, (Position, u32)>,
     /// The units out on a raid of a tower, node or encounter site (`site.rs`).
     raiders: Vec<Serial>,
     /// The site each raider is set on, so a party keeps to it as it walks (`site.rs`).
@@ -289,6 +293,7 @@ impl Ai {
             refusals: RefCell::new(Vec::new()),
             waiting: HashMap::new(),
             pickups: Vec::new(),
+            returning: HashMap::new(),
             raiders: Vec::new(),
             raid_targets: HashMap::new(),
             clock: plan_clock::PlanClock::default(),

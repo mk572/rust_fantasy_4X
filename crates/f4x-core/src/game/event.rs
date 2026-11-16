@@ -230,11 +230,12 @@ pub enum Event {
     },
     /// The AI's end-of-turn check of what its soldiers are for found `adrift` with no role (no
     /// list, no order, outside a city: they are sent home) and `doubled` in more than one role
-    /// list (`f4x-ai/src/roles.rs`).
+    /// list, and `unassigned` ships and other units with none (`f4x-ai/src/roles.rs`).
     RolesAudited {
         player: player::PlayerId,
         adrift: u32,
         doubled: u32,
+        unassigned: u32,
     },
     /// A Plane Shift took the stack `units` from the square `from` to the same square `to` on the
     /// other plane (the client fades the one into the other).

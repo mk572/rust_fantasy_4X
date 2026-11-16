@@ -723,8 +723,17 @@ them back as one table (`derive`), and at the end of each turn `audit` checks it
   city that can be reached and has room, and the soak counts it (`units adrift (no role)`).
 - A soldier in more than one list is **doubled** and is counted too (`units in two roles`).
 
-A soldier standing in an own city is on garrison duty, and one with an order is on its way
-somewhere; neither is adrift. The plan to hold the roles in one registry, and the new roles
+Every unit has exactly one role, and none has an empty one:
+
+- **Exclusive.** A unit found in two lists keeps the one that comes first (settle, voyage, sea
+  party, planar scout, pickup, await-transport, raid, march, muster, scout, return) and the audit
+  takes it out of the other.
+- **Never empty.** A unit with nothing to do has `AwaitingOrders`. A soldier in it is sent home and
+  keeps the role `Return` (`Ai::returning`) until it is in the city; if no city can be reached it
+  waits on a shore (`AwaitTransport`). Ships and other units (settlers, engineers, spirits) in it
+  are counted (`ships and other units with no role`), which is the list of roles still to build.
+- A soldier standing in an own city is on garrison duty, a ship in a city is docked, and a unit
+  with an order is on its way somewhere. The plan to hold the roles in one registry, and the new roles
 (perimeter, escort, road, meld, await-transport), are tasks 624 to 629. Await-transport covers
 soldiers stranded on a land mass with no own city: they walk to a shore tile and wait for a ship
 (`pickup.rs`: `Ai::waiting` holds each soldier's shore tile, `Ai::pickups` the ships on their way;
