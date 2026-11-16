@@ -585,6 +585,9 @@ pub fn game(
         println!("{tag}: {line}");
     }
     if game.game_over.is_none() {
+        for line in scout_lines(&game) {
+            println!("{tag}: {line}");
+        }
         for line in reach_lines(&game) {
             println!("{tag}: {line}");
         }
@@ -872,6 +875,67 @@ fn reach_lines(game: &Game) -> Vec<String> {
                 planes(a)
             ));
         }
+    }
+    lines
+}
+
+/// Per wizard with cities: how much of each plane it has explored, how many of its units stand on
+/// each, and its towers (seen, guarded, open and whether any of its units could walk to the open
+/// ones). Why a wizard does or does not find a rival on the other plane (tasks 435, 502).
+fn scout_lines(game: &Game) -> Vec<String> {
+    use f4x_core::map::Plane;
+    use f4x_core::player::view::PlayerView;
+    let mut lines = Vec::new();
+    for p in game.player_ids() {
+        if game.wizard(p).is_none() || game.is_neutral_player(p) {
+            continue;
+        }
+        let view = PlayerView::new(game, p);
+        if view.my_cities().is_empty() {
+            continue;
+        }
+        let units = view.my_units();
+        let on = |plane: Plane| {
+            units
+                .iter()
+                .filter(|&&u| view.unit_position(u).is_some_and(|at| at.plane == plane))
+                .count()
+        };
+        // One unit from each square it stands on, at most a dozen, to ask whether a tower can
+        // be walked to.
+        let mut walkers = Vec::new();
+        let mut squares = Vec::new();
+        for &u in &units {
+            if let Some(at) = view.unit_position(u) {
+                if !squares.contains(&at) && walkers.len() < 12 {
+                    squares.push(at);
+                    walkers.push(u);
+                }
+            }
+        }
+        let towers = view.towers();
+        let open: Vec<_> = towers.iter().filter(|(_, intact)| !intact).collect();
+        let reachable = open
+            .iter()
+            .filter(|(at, _)| walkers.iter().any(|&u| view.can_reach(&[u], *at)))
+            .count();
+        let named: Vec<String> = open
+            .iter()
+            .map(|(at, _)| format!("{:?} {},{}", at.plane, at.x, at.y))
+            .collect();
+        lines.push(format!(
+            "scouting p{}: explored Arcanus {:.0}% Myrror {:.0}%; units on Arcanus {} Myrror {}; towers seen {} ({} guarded, {} open, {} of those reachable) [{}]",
+            p.0,
+            100.0 * view.explored_share(Plane::Arcanus),
+            100.0 * view.explored_share(Plane::Myrror),
+            on(Plane::Arcanus),
+            on(Plane::Myrror),
+            towers.len(),
+            towers.len() - open.len(),
+            open.len(),
+            reachable,
+            named.join(", ")
+        ));
     }
     lines
 }
