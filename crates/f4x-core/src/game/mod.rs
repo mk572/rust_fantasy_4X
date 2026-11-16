@@ -578,10 +578,7 @@ impl Game {
                 }
                 Vec::new()
             }
-            Command::GoTo { units, to } => match {
-                self.start_from_tower_on(&units, to);
-                self.find_path(&units, to)
-            } {
+            Command::GoTo { units, to } => match self.go_to_path(&units, to) {
                 Some(path) => {
                     for &u in &units {
                         let _ = self.world.insert_one(u, unit::Order::GoTo(path.clone()));
@@ -974,6 +971,17 @@ impl Game {
             }
         }
         events
+    }
+
+    /// The path of a go-to order, from the tower square of the destination's plane when the stack
+    /// stands in a tower (`start_from_tower_on`).
+    fn go_to_path(
+        &mut self,
+        units: &[hecs::Entity],
+        to: map::Position,
+    ) -> Option<Vec<map::Position>> {
+        self.start_from_tower_on(units, to);
+        self.find_path(units, to)
     }
 
     /// A stack moved into hostile units or a hostile city. Against units it asks for a battle;
