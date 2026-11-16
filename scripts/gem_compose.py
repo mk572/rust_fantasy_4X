@@ -139,7 +139,12 @@ def compose(diamond, face, overlap="hue"):
                     weight = EDGE_WEIGHT[side]
                     if side in ("top", "bottom"):
                         weight += (1 - weight) * edge_middle(fx)
-                    share = middle_share(fx) if side in ("top", "bottom") else 1.0
+                    share = 1.0
+                    if side in ("top", "bottom"):
+                        bump = edge_middle(fx)
+                        inside = face.getpixel((fx, 1 if side == "top" else FACE_H - 2))
+                        colour = mix(colour, inside, bump)
+                        share = CUTOUT_SHIFT * bump + middle_share(fx) * (1 - bump)
                     colour = shifted(colour, under, overlap, share)
                 weight = min(weight, CORNER_WEIGHT.get(corner_steps(fx, fy), 1.0))
             gem.putpixel(at, mix(under, colour, weight))
