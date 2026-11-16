@@ -434,7 +434,10 @@ fn recruit(ai: &Ai, game: &Game, reach: Option<Position>) -> Option<hecs::Entity
     let mut best: Option<(i32, std::cmp::Reverse<Serial>, hecs::Entity)> = None;
     let mut reached = crate::view::ReachCache::default();
     for u in view.my_units() {
-        if !is_fighter(&view, u) || ai.roles.has_role(view.serial_of(u)) {
+        // A spirit scouts too (it flies, and a city does not need it); a node it could meld
+        // with takes it from the scouting (`meld.rs`).
+        let spirit = crate::meld::is_melder(&view, u);
+        if !(is_fighter(&view, u) || spirit) || ai.roles.has_role(view.serial_of(u)) {
             continue;
         }
         let Some(at) = view.unit_position(u) else {
@@ -446,7 +449,7 @@ fn recruit(ai: &Ai, game: &Game, reach: Option<Position>) -> Option<hecs::Entity
         // A city keeps one fighter at least: only take from a stack of two or more, or from
         // a unit that stands outside a city.
         let in_city = view.city_at(at).is_some();
-        if in_city && view.garrison(at).len() < 2 {
+        if !spirit && in_city && view.garrison(at).len() < 2 {
             continue;
         }
         let key = (
@@ -620,6 +623,17 @@ mod tests {
         assert_eq!(ai.roles.scouting().len(), 1);
         assert_eq!(ai.scout_targets().len(), 1);
         assert!(!ai.frontier_closed);
+    }
+
+    #[test]
+    fn a_spirit_with_no_node_to_meld_with_is_a_scout() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let spirit = spawn(&mut g, P0, city(), 154 /* magic_spirit */, 1)[0];
+        let mut ai = Ai::new(P0);
+        scout(&mut ai, &mut g, &mut Vec::new());
+        let serial = PlayerView::new(&g, P0).serial_of(spirit);
+        assert!(ai.roles.is(serial, crate::roles::Role::Scout));
+        assert_eq!(ai.scout_targets().len(), 1);
     }
 
     #[test]

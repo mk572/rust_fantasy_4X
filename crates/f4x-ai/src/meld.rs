@@ -24,7 +24,7 @@ pub fn is_melder(view: &PlayerView, unit: hecs::Entity) -> bool {
 }
 
 /// The squares of nodes a spirit can meld with.
-fn open_nodes(ai: &Ai, view: &PlayerView) -> Vec<Position> {
+pub(crate) fn open_nodes(ai: &Ai, view: &PlayerView) -> Vec<Position> {
     let me = ai.player;
     let mut nodes: Vec<Position> = view
         .nodes()
@@ -35,6 +35,29 @@ fn open_nodes(ai: &Ai, view: &PlayerView) -> Vec<Position> {
         .collect();
     nodes.sort_by_key(|p| (p.plane as u8, p.y, p.x));
     nodes
+}
+
+/// Whether the wizard wants a spirit now and has none: a node is open, or a raid is out to clear
+/// one, so a spirit should be ready to meld when it is done.
+pub(crate) fn spirit_wanted(ai: &Ai, view: &PlayerView) -> bool {
+    if view.my_units().into_iter().any(|u| is_melder(view, u)) {
+        return false;
+    }
+    if !open_nodes(ai, view).is_empty() {
+        return true;
+    }
+    // Early in the game a spirit is the best scout there is: it flies over what a soldier cannot
+    // cross, and it is cheap (`scout.rs` recruits it).
+    if crate::phase::phase(view) == crate::phase::Phase::Build
+        && !ai.frontier_closed
+        && ai.roles.scouting().is_empty()
+    {
+        return true;
+    }
+    let raided = ai.roles.targets(Role::Raid);
+    view.nodes()
+        .into_iter()
+        .any(|n| n.owner != Some(ai.player) && !n.warped && raided.contains(&n.pos))
 }
 
 /// One turn of the spirits.
@@ -62,6 +85,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             )
         };
         let Some(here) = here else { continue };
+        // With no node to go to the spirit is left to the others (a scout, say).
+        if nodes.is_empty() && !ai.roles.is(serial, Role::Meld) {
+            continue;
+        }
         if ai.roles.claim(serial, Role::Meld, turn, None).is_err() {
             continue;
         }

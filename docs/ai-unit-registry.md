@@ -238,6 +238,12 @@ stranded soldiers waiting for a ship.
 
 ## 7. Plans and ends
 
+- Spirits: a spirit with a node to meld with holds `Meld`; one with none is recruited as a `Scout`
+  (it flies); a node opening takes it from the scouting. The wizard summons a spirit ahead of
+  every other spell when it has none and a node is open, a raid is out to clear one, or in the
+  build phase while nobody scouts (`meld::spirit_wanted`, `wizardry::cast`).
+
+
 - A role's plan begins at the turn the unit took it or was last given a new target (`planned`
   in the assignment). The plan clock (`plan_clock.rs`) reads it for raiders, settlers, scouts and
   the planar scout, and drops the plan that has stood too long. A cleared site restarts it.

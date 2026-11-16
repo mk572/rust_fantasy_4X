@@ -125,6 +125,20 @@ fn has_hook(def: &SpellDef, name: &str) -> bool {
         .any(|r| matches!(&r.effect, Effect::Custom { name: h, .. } if h == name))
 }
 
+/// Whether the spell summons a spirit that can meld with a node.
+fn summons_melder(view: &PlayerView, def: &SpellDef) -> bool {
+    def.effects.iter().any(|r| match &r.effect {
+        Effect::Summon { unit, .. } => view
+            .content()
+            .rules
+            .units
+            .get(*unit)
+            .abilities
+            .contains(&f4x_def::rules::Ability::new(42)),
+        _ => false,
+    })
+}
+
 /// What the AI makes of a spell.
 pub fn kind(def: &SpellDef) -> Kind {
     if !def.contexts.contains(&CastContext::Overland) {
@@ -1103,8 +1117,17 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             .iter()
             .map(|&(k, _, s)| (s, (crate::spellhelper::rate(&view, s, k) * 1000.0) as i64))
             .collect();
-        options
-            .sort_by_key(|&(k, _cost, s)| (cast_rank(k, &traits), std::cmp::Reverse(rated[&s]), s));
+        // A spirit for a node that is open or being cleared comes before everything else.
+        let spirit = crate::meld::spirit_wanted(ai, &view);
+        let priority_spirit = |s: SpellId| spirit && summons_melder(&view, view.spell(s));
+        options.sort_by_key(|&(k, _cost, s)| {
+            (
+                !priority_spirit(s),
+                cast_rank(k, &traits),
+                std::cmp::Reverse(rated[&s]),
+                s,
+            )
+        });
         let mut found = None;
         // Saving up for a summon the pool cannot pay yet: the cheap lasting spells wait, or they
         // take the mana (and then the income, as upkeep) every turn and no summon is ever begun.
@@ -1143,6 +1166,9 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             let wanted = match k {
                 Kind::Mastery => true,
                 // Summoned creatures cost upkeep mana: only while the army is thin.
+                Kind::Summon if priority_spirit(spell) => {
+                    now && (view.can_aim(spell, None) || crate::garrison::can_make_room(&view))
+                }
                 Kind::Summon => {
                     // A conqueror in the late game summons whatever the mana pays for and the
                     // upkeep allows: the army cap is for a wizard that is still building up.
@@ -1318,6 +1344,60 @@ mod tests {
     }
 
     #[test]
+    fn an_open_node_and_no_spirit_make_the_spirit_the_first_summon() -> TestResult {
+        use f4x_core::feature::entity::Placement;
+        let mut g = fresh_game()?;
+        let spirit = spell(201 /* magic_spirit */)?;
+        g.cheat_learn_spell(P1, spirit);
+        let dearest = g
+            .content()
+            .rules
+            .spells
+            .iter()
+            .filter(|(id, d)| *id != spirit && kind(d) == Kind::Summon)
+            .map(|(id, _)| id)
+            .next()
+            .ok_or("another summon")?;
+        g.cheat_learn_spell(P1, dearest);
+        treasury(&mut g, P1)?.mana = HalfInt::from_int(5_000);
+        let mut ai = Ai::new(P1);
+        ai.frontier_closed = true;
+        assert!(!crate::meld::spirit_wanted(&ai, &PlayerView::new(&g, P1)));
+        let feature = g
+            .content()
+            .features
+            .id_numbered(20 /* sorcery_node */)
+            .ok_or("a node feature")?;
+        let circle = PlayerView::new(&g, P1)
+            .wizard()
+            .and_then(|m| m.summon_at())
+            .ok_or("a summoning circle")?;
+        let spot = at(circle.x + 2, circle.y);
+        g.explore(P1, spot, HalfInt::from_int(5));
+        g.spawn_feature(Placement {
+            at: spot,
+            feature,
+            node: Some(f4x_core::feature::node::Node {
+                realm: f4x_def::rules::RealmId::new(1),
+                power: 5,
+                aura: vec![(spot.x, spot.y)],
+                guardian: false,
+                warped: false,
+            }),
+            lair: None,
+        });
+        assert!(crate::meld::spirit_wanted(&ai, &PlayerView::new(&g, P1)));
+        cast(&ai, &mut g, &mut Vec::new());
+        let view = PlayerView::new(&g, P1);
+        let casting = view
+            .wizard()
+            .and_then(|m| m.casting())
+            .ok_or("a spell is being cast")?;
+        assert_eq!(casting.spell, spirit);
+        Ok(())
+    }
+
+    #[test]
     fn an_objective_moves_the_kinds_it_weights_up_the_order_of_casting() {
         use crate::objective::traits_of;
         let pragmatist = traits_of(Some(Objective::Pragmatist));
@@ -1457,7 +1537,9 @@ mod tests {
         let summon_hero = f4x_def::rules::SpellId::new(208) /* summon_hero */;
         for hired in [0, 6] {
             let mut g = fresh_game()?;
-            let ai = Ai::new(P1);
+            let mut ai = Ai::new(P1);
+            // Nothing left to scout: no spirit is wanted ahead of the hero.
+            ai.frontier_closed = true;
             treasury(&mut g, P1)?.gold = f4x_def::half_int::HalfInt::from_int(50_000);
             treasury(&mut g, P1)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
             g.wizard_mut(P1)

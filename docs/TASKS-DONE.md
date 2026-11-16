@@ -510,6 +510,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 631 | AI | (done) Scout role: a scout has a target square or explores unknown ground until nothing reachable is left, then falls back to awaiting orders |
 | 632 | AI | (done) End of a role falls back to awaiting orders: called-off march, finished raid, and new units are given orders when they appear |
 | 633 | AI | (done) Plan clock reads each plan's start from the registry (`since`) instead of its own list |
+| 638 | AI | (done) A raid on a node, or a free melder, gets a spirit summoned with priority; spirits also scout early |
 
 ## Descriptions
 
@@ -540,3 +541,5 @@ original task numbers. Newest work is merged in ascending order by number.
 **632. (done) End of a role falls back to awaiting orders.** Asked for by the user, 17 November 2026. Every routine that ends a role leaves the unit holding one: it releases it (which sets `AwaitingOrders`, the lowest priority) and the next routine to want it claims it. Review `military.rs` (called-off march), the raid end, `escort::run`, `colony.rs`, `garrison.rs`. Units made during the AI's own turn (summon, hire, buy) and the units of a `ProductionCompleted` event are registered with a base role at once, not at the next sync. *Needs:* 624.
 
 **633. (done) Plan clock reads each plan's start from the registry (`since`) instead of its own list.** Asked for by the user, 17 November 2026. `plan_clock.rs` keeps `started: Vec<(PlanKind, Key, u32)>` for the raid, settler, scout and planar plans of single units. Their start is the `since` of the unit's assignment (reset when the target changes). The clock keeps its list only for plans that are not a unit's role (campaign, landing, colony, sea scouting). *Needs:* 624.
+
+**638. (done) A raid on a node, or a free melder, gets a spirit summoned with priority; spirits also scout early.** Asked for by the user, 17 November 2026. When the AI plans a raid on a node, or has a node it could meld and no spirit free (`meld.rs`), it summons a spirit with high priority in the spell queue. In the early game a spirit scouts too (it flies over unknown ground). *Needs:* 631.

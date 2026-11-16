@@ -128,7 +128,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 635 | High | AI | The autobuilder reads the registry: ships, scouts, soldiers and attackers follow the roles |
 | 636 | Medium | AI | Settlers waiting for a ship to colonize hold `AwaitTransport` |
 | 637 | Medium | AI | Muster is for assembling any attack, raid or march, not only towers |
-| 638 | High | AI | A raid on a node, or a free melder, gets a spirit summoned with priority; spirits also scout early |
 
 ## Descriptions
 
@@ -426,5 +425,3 @@ and make invalidation explicit and testable so the client never displays stale i
 **636. Settlers waiting for a ship to colonize hold `AwaitTransport`.** Asked for by the user, 17 November 2026. A settler that waits in a port for the colony ship holds `AwaitTransport` (tied to the ship via `with` once one takes it), like a stranded soldier, so the transport planner sees one list of waiting units. It keeps `Colonize` once aboard. *Needs:* 624.
 
 **637. Muster is for assembling any attack, raid or march, not only towers.** Asked for by the user, 17 November 2026. `Muster` belongs to the tower siege today (`siege.rs`). A raid on a node, a march on a city and a campaign also gather their party first under `Muster` (the gathering square as target) and hand it on to `Raid` / `March` when it is complete. *Needs:* 624.
-
-**638. A raid on a node, or a free melder, gets a spirit summoned with priority; spirits also scout early.** Asked for by the user, 17 November 2026. When the AI plans a raid on a node, or has a node it could meld and no spirit free (`meld.rs`), it summons a spirit with high priority in the spell queue. In the early game a spirit scouts too (it flies over unknown ground). *Needs:* 631.
