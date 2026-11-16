@@ -58,7 +58,7 @@ Listed in priority order (the lower number wins a claim, section 4). The roles w
 | `Colonize` | the ship and settler of a colony by sea | ship, settler | `colony.rs` |
 | `Settle` | a settler walking to a site to found a city (`to` = the site) | settlers | `expand.rs` |
 | `Voyage` | a passenger of a landing; `with` = its ship | soldiers | `naval.rs` |
-| `TransportReady` | a ship whose load is decided and tied to it, with its target, about to sail: the landing party chosen (`to` = the sea square), a rescue with everyone aboard (`to` = the port) | ships | `naval.rs`, `pickup.rs` |
+| `TransportReady` | a ship whose load is decided and tied to it, with its target, the load decided, held back until it sails: the landing party chosen (`to` = the sea square), a rescue with everyone aboard (`to` = the port) | ships | `naval.rs`, `pickup.rs` |
 | `Transporting` | a ship that has sailed with its load, on its way to its target (a landing to its sea square, rescued soldiers to a port) | ships | `naval.rs`, `pickup.rs` |
 | `SeaParty` | the fighters a sea scout carries to put ashore | soldiers | `scout.rs` |
 | `PlanarScout` | the scout walking to an open tower to change plane (`to` = the tower) | one unit | `scout.rs` |
@@ -96,8 +96,11 @@ A ship is in one of four states, and each is a role of its own, with the units t
   landing, or to the sea square beside a shore tile where stranded soldiers wait; for a rescue the
   soldiers it came for hold `AwaitTransport` with `with` = the ship.
 - `TransportReady`: the units to carry are decided and tied to the ship (landing passengers hold
-  `Voyage`, `with` = the ship) and the target is set; the ship is about to sail. A rescue becomes
-  ready when everyone is aboard, with the nearest port as its target.
+  `Voyage`, `with` = the ship) and the target is set. A landing ship holds it from the moment the
+  party is chosen, also through the turns it waits for a stronger party (`naval::load_and_sail`
+  picks ready ships in port as well as free ones, and `voyage` leaves them alone), until the sail
+  order is accepted. A rescue becomes ready when everyone is aboard, with the nearest port as its
+  target.
 - `Transporting`: the ship has sailed with its load (the order was accepted) and is on its way. When
   the passengers are landed the ship goes back to `TransportSpace` with the port as its target. A
   ship ends its voyage by `end_voyage`, and is then free again (`AwaitingOrders`, then

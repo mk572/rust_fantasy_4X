@@ -337,6 +337,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     // The ships on a voyage carry on; one that was lost drops out.
     for ship_serial in ai.roles.ferries() {
+        // A ship that is ready, loading in the port, is the loading's (below), not a voyage yet.
+        if ai.roles.is(ship_serial, crate::roles::Role::TransportReady) {
+            continue;
+        }
         let ferry = Ferry {
             ship: ship_serial,
             group: ai.roles.passengers_of(ship_serial),
@@ -360,7 +364,11 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .iter()
             .copied()
             .filter(|&s| view.unit_position(s) == Some(plan.port))
-            .filter(|&s| !ai.roles.has_role(view.serial_of(s)))
+            .filter(|&s| {
+                let serial = view.serial_of(s);
+                !ai.roles.has_role(serial)
+                    || ai.roles.is(serial, crate::roles::Role::TransportReady)
+            })
             .collect()
     };
     if ready.is_empty() {
@@ -499,9 +507,22 @@ fn load_and_sail(
         let group: Vec<hecs::Entity> = group;
         (group, capacity, waiting)
     };
+    let (ship_serial, serials) = {
+        let view = PlayerView::new(game, me);
+        (
+            view.serial_of(ship),
+            group.iter().map(|&u| view.serial_of(u)).collect::<Vec<_>>(),
+        )
+    };
     if group.len() < MIN_LOAD.min(capacity) {
+        // Not enough for a landing: a load decided before is given up.
+        ai.roles.end_voyage(ship_serial);
         return;
     }
+    // The load is decided: the ship is `TransportReady` with its passengers tied to it, and stays
+    // so through the turns it waits for a stronger party, until it sails.
+    let turn = game.turn;
+    ai.roles.sail(ship_serial, &serials, turn, plan.sea);
     // Passengers that are not part of the landing (a sea scout's party) step off first.
     if unload(ai, game, ship, plan.port, &group, events) {
         return;
@@ -528,6 +549,7 @@ fn load_and_sail(
     {
         ai.naval_bad.push(plan.target);
         ai.naval = None;
+        ai.roles.end_voyage(ship_serial);
         return;
     }
     let stack: Vec<hecs::Entity> = std::iter::once(ship).chain(group.iter().copied()).collect();
@@ -535,18 +557,9 @@ fn load_and_sail(
         // The ship cannot get there from this port: try another port or target.
         ai.naval_bad.push(plan.port);
         ai.naval = None;
+        ai.roles.end_voyage(ship_serial);
         return;
     }
-    let (ship_serial, serials) = {
-        let view = PlayerView::new(game, me);
-        (
-            view.serial_of(ship),
-            group.iter().map(|&u| view.serial_of(u)).collect::<Vec<_>>(),
-        )
-    };
-    // The load is decided: the ship is ready, then sails.
-    let turn = game.turn;
-    ai.roles.sail(ship_serial, &serials, turn, plan.sea);
     if ai
         .send(
             game,
@@ -1039,6 +1052,56 @@ mod tests {
         for p in aboard {
             assert!(ai.roles.passengers_of(ship).contains(&view.serial_of(p)));
         }
+        Ok(())
+    }
+
+    /// A ship with its load decided but held back for a stronger party is `TransportReady` with the
+    /// soldiers tied to it and the sea square of the landing as its target; when the party is
+    /// strong enough it sails and is `Transporting`.
+    #[test]
+    fn a_ship_waiting_for_a_stronger_party_is_ready_and_then_transporting() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        build(
+            &mut g,
+            port(),
+            &[
+                12, /* ship_wrights_guild */
+                15, /* sawmill */
+                13, /* ship_yard */
+            ],
+        );
+        g.reveal_map(P0);
+        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
+            f4x_def::half_int::HalfInt::from_int(1_000_000);
+        let ship = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];
+        spawn(&mut g, P0, port(), 104 /* high_men_spearmen */, 6);
+        g.balance_farmers(P0);
+        let mut ai = Ai::new(P0);
+        ai.unreachable.push(enemy());
+        // The defence it remembers there is far too strong for the party.
+        ai.city_memory.insert(enemy(), (100_000.0, g.turn));
+        run(&mut ai, &mut g, &mut Vec::new());
+        let plan = ai.naval.ok_or("a landing is planned")?;
+        let serial = PlayerView::new(&g, P0).serial_of(ship);
+        assert_eq!(
+            ai.roles.role_of(serial),
+            Some(crate::roles::Role::TransportReady),
+            "the load is decided and the ship waits"
+        );
+        assert_eq!(
+            ai.roles
+                .target_of(serial, crate::roles::Role::TransportReady),
+            Some(plan.sea)
+        );
+        assert!(!ai.roles.passengers_of(serial).is_empty());
+        assert!(!PlayerView::new(&g, P0).unit_has_order(ship));
+        // The defence turns out weak: the next turn it sails.
+        ai.city_memory.insert(enemy(), (1.0, g.turn));
+        run(&mut ai, &mut g, &mut Vec::new());
+        assert_eq!(
+            ai.roles.role_of(serial),
+            Some(crate::roles::Role::Transporting)
+        );
         Ok(())
     }
 
