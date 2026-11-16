@@ -154,15 +154,14 @@ mod tests {
         assert_eq!(allowance(150, -20, 1.0, 1.0), Some(0));
     }
 
-    use crate::testworld::unit::HIGH_MEN_SPEARMEN;
     use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
     use f4x_core::game::Game;
 
     /// The limit P0 gets for `n` spearmen against `m` of P1 on `target`, with 500 mana.
     fn limit(g: &mut Game, from: Position, target: Position, n: usize, m: usize) -> Option<u32> {
         g.treasury_mut(P0).expect("a treasury").mana = f4x_def::half_int::HalfInt::from_int(500);
-        let ours = spawn(g, P0, from, HIGH_MEN_SPEARMEN, n);
-        let theirs = spawn(g, P1, target, HIGH_MEN_SPEARMEN, m);
+        let ours = spawn(g, P0, from, 104 /* high_men_spearmen */, n);
+        let theirs = spawn(g, P1, target, 104 /* high_men_spearmen */, m);
         g.reveal_map(P0);
         for_attack(&PlayerView::new(g, P0), &ours, &theirs).map(|(who, mana)| {
             assert_eq!(who, P0);
