@@ -180,6 +180,10 @@ const EXEMPT_FRAGMENTS: &[&str] = &[
     "{first}: {r}",
     "saves/slot",
     "{year:04}",
+    // first_run.rs: a file name, a folder and the AppleScript that shows the (texted) question.
+    "Fantasy 4X Setup.app",
+    "display dialog",
+    "\"/Applications\"",
 ];
 
 #[test]

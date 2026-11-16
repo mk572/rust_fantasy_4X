@@ -1,0 +1,11 @@
+// Player-facing messages of the game's first start (`crates/f4x-client/src/first_run.rs`, docs/installer-design.md 6.7).
+{
+    "first_run.title": "Fantasy 4X",
+    "first_run.ask": "The game has no pictures, sounds or music yet. They are made from your own copy of Master of Magic by Fantasy 4X Setup.\n\nSet them up now? The game closes and starts again when you open it after the setup.",
+    "first_run.setup": "Set up now",
+    "first_run.later": "Not now",
+    "first_run.never": "Don't ask again",
+    "first_run.hint": "The game has no pictures or sounds yet. Run f4x-setup to make them from your own copy of Master of Magic.",
+    "first_run.no_setup": "The setup program was not found. Without it the game runs in plain colours and silent.",
+    "first_run.err_start": "The setup could not be started: {why}",
+}

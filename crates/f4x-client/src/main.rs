@@ -46,6 +46,7 @@ mod event_message;
 mod event_popup;
 mod extra_mana;
 mod fighter_pick;
+mod first_run;
 mod fled_notice;
 mod font;
 mod font_ramp;
@@ -656,7 +657,7 @@ fn window_conf() -> Conf {
 
 /// Decide the game and data folders (`f4x_extract::paths`), make the data folder with its `saves/`
 /// and make it the working directory, so `assets-local/` and `saves/` resolve there.
-fn enter_data_folder(data: Option<&Path>) -> Result<(), String> {
+fn enter_data_folder(data: Option<&Path>) -> Result<f4x_extract::paths::Roots, String> {
     use f4x_extract::paths;
     let cwd = std::env::current_dir().map_err(|e| format!("no working directory: {e}"))?;
     let exe = std::env::current_exe().map_err(|e| format!("no program path: {e}"))?;
@@ -674,8 +675,9 @@ fn enter_data_folder(data: Option<&Path>) -> Result<(), String> {
         .map_err(|e| format!("cannot make {}: {e}", roots.data.display()))?;
     std::env::set_current_dir(&roots.data)
         .map_err(|e| format!("cannot enter {}: {e}", roots.data.display()))?;
-    paths::set_game_dir(game);
-    Ok(())
+    paths::set_game_dir(game.clone());
+    let data = std::fs::canonicalize(&roots.data).unwrap_or(roots.data);
+    Ok(f4x_extract::paths::Roots { game, data })
 }
 
 #[macroquad::main(window_conf)]
@@ -689,10 +691,13 @@ async fn main() {
         }
     };
     // Find the shipped files and the player's folder (saves, pictures) and work from the latter.
-    if let Err(e) = enter_data_folder(options.data.as_deref()) {
-        eprintln!("{e}");
-        std::process::exit(1);
-    }
+    let roots = match enter_data_folder(options.data.as_deref()) {
+        Ok(roots) => roots,
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+    };
     let client_content = shipped(CLIENT_CONTENT);
     let layers = [client_content.as_path()];
     let settings = match client_settings::ClientSettings::load(&layers) {
@@ -723,6 +728,16 @@ async fn main() {
             std::process::exit(1);
         }
     };
+    // A player with no pictures yet is offered the setup program (it needs the messages, so it is here).
+    let facts = first_run::Facts {
+        game: &roots.game,
+        data: &roots.data,
+        automated: options.shot.is_some() || options.hear.is_some(),
+    };
+    let exe = std::env::current_exe().unwrap_or_default();
+    if first_run::offer(&facts, &exe, f4x_extract::paths::Os::current(), &texts) {
+        return;
+    }
     let help = f4x_def::load::load_help(&[lang_layers[0], layers[0]], &settings.language)
         .unwrap_or_default();
     let tables =
