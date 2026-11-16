@@ -173,7 +173,7 @@ pub(crate) fn gather(
                 .total_cmp(&crate::view::unit_strength(&view, a))
                 .then(view.serial_of(a).cmp(&view.serial_of(b)))
         });
-        best.truncate(view.max_tile());
+        best.truncate(crate::view::BATTLE_SIDE);
         if best.len() < 3 {
             return;
         }

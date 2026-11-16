@@ -19,10 +19,8 @@ use crate::Ai;
 const SITE_RANGE: i32 = 10;
 /// Squares within which a party looks for a tower: it is the way to the other plane.
 const TOWER_RANGE: u32 = 30;
-/// Most soldiers out on raids at once: two stacks.
-fn max_raiders(game: &Game) -> usize {
-    2 * game.max_tile()
-}
+/// Most soldiers out on raids at once: two battle parties.
+const MAX_RAIDERS: usize = 2 * crate::view::BATTLE_SIDE;
 /// The fewest spare soldiers that make a party.
 const SITE_PARTY: usize = 3;
 /// What an unknown site's guards are guessed to be worth, in average soldiers of this wizard.
@@ -268,7 +266,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     // A new party leaves a city with soldiers to spare, one raid at a time and never while the
     // army marches (its campaign comes first).
-    if ai.raiders.len() >= max_raiders(game) || !ai.marching.is_empty() || !ai.muster.is_empty() {
+    if ai.raiders.len() >= MAX_RAIDERS || !ai.marching.is_empty() || !ai.muster.is_empty() {
         return;
     }
     let cities = {
@@ -302,7 +300,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .then(view.serial_of(a).cmp(&view.serial_of(b)))
             });
             spare.retain(|&u| !crate::recover::needs_rest(&view, u));
-            spare.truncate(game.max_tile());
+            spare.truncate(crate::view::BATTLE_SIDE);
             if spare.len() < SITE_PARTY {
                 continue;
             }
@@ -362,7 +360,7 @@ pub fn deploy(
             let view = PlayerView::new(game, me);
             units.sort_by(|&a, &b| unit_strength(&view, b).total_cmp(&unit_strength(&view, a)));
         }
-        for party in units.chunks(game.max_tile()) {
+        for party in units.chunks(crate::view::BATTLE_SIDE) {
             if party.len() < SITE_PARTY {
                 continue;
             }
