@@ -1,19 +1,26 @@
 //! The scripted wizard in a battle (`docs/ai-design.md` section 6.5): once a turn it casts the
-//! spell that is worth the most for its mana, if any is worth casting at all; otherwise the
-//! units act (`ai::next_command`), or the side runs when the fight is lost (`ai::retreat`).
+//! best cast it can pay for, then the units act (`ai::next_command`), or the side runs when the
+//! fight is lost (`ai::retreat`).
 //!
 //! A cast is scored from the spell's data, not by name: damage and slaying by how much of an
-//! enemy unit they take, healing by how much of a hurt unit they restore, a summon by the
-//! strength of what appears, a blessing or a curse by a share of the strength of the unit it
-//! falls on, Call Chaos by an average hit on every enemy unit, a Magic Vortex by the enemy and
-//! friendly units near the square it is raised on. Spells the AI cannot judge (fields, dispels,
-//! counter magic) are left alone. The mana kept back pays the overland upkeep, so a battle does not starve the spells and
-//! creatures the wizard keeps going.
+//! enemy unit they take (and the odds that it fails its save), healing by how much of a hurt
+//! unit they restore, a summon by the strength of what appears, a blessing or a curse by a share
+//! of the worth of the unit it falls on, Call Chaos by an average hit on every enemy unit, a
+//! Magic Vortex by the enemy and friendly units near the square it is raised on, the battlefield
+//! spells, walls, dispels, counter magic, recalls and the ground spells by the units they act on
+//! (`docs/battle-spell-ai.md` lists every spell). Every spell has a value; one that has none in
+//! a fight waits for what it needs (a hurt unit, a lasting spell to dispel, a shooter, a creature
+//! of a realm, an enemy walker on the square).
+//!
+//! The wizard has no worth floor: it spends what it may, the best cast first. What it may spend
+//! is bounded by the casting skill of the battle, the reserve less the upkeep, and the budget of
+//! the strategic AI (`budget.rs`); the units' own casts (a hero's spell, a charge) keep a floor,
+//! [`WORTH_FLOOR`], because a unit that casts gives up its attack and a scratch is not worth that.
 //!
 //! A vortex of the side that has not moved yet is steered one square toward the enemy
 //! ([`steer_choice`]), as a human may (the original's computer never does).
 //!
-//! Tests: in battle/tests.rs (`the_scripted_wizard_...` for the wizard, `the_legal_unit_casts_...` for the units).
+//! Tests: at the end of this file.
 
 use super::order::{self as ai, worth};
 use f4x_core::battle::casting::SpellAim;
@@ -79,9 +86,12 @@ const CHAOS_DAMAGE: f32 = 6.0;
 const VORTEX_REACH: u32 = 2;
 /// A struck unit's worth lost to one vortex, as a share of its worth. A vortex hits at random.
 const VORTEX_SHARE: f32 = 0.1;
-/// The odds at which a damage spell counts as one that kills.
-/// A lasting spell on a unit is worth this share of the unit's worth.
+/// A lasting spell on a unit (a blessing, a curse, a gift of an ability) is worth this share of
+/// the unit's worth.
 const LASTING_SHARE: f32 = 0.25;
+/// A slaying spell: this share of the worth of each enemy it can touch, times the odds that the
+/// enemy fails its resistance check.
+const SLAY_SHARE: f32 = 0.35;
 /// Warp Wood takes a missile unit's arrows: a share of its worth.
 const WARP_WOOD_SHARE: f32 = 0.5;
 /// The odds at which a damage spell counts as one that kills.
@@ -741,7 +751,7 @@ fn rule_value(
                 let chance = game.battle().map_or(1.0, |b| {
                     b.failure_chance(u.id, Realm::of(*realm), *modifier)
                 });
-                0.35 * worth(u) * chance
+                SLAY_SHARE * worth(u) * chance
             })
             .sum(),
         Effect::Heal(points) => on
@@ -772,14 +782,14 @@ fn rule_value(
                 *value >= zero && !(*op == ModOp::Set && *value == zero) && *op != ModOp::Max;
             on.iter()
                 .filter(|u| ours(u) == good)
-                .map(|u| 0.25 * worth(u))
+                .map(|u| LASTING_SHARE * worth(u))
                 .sum()
         }
         // A gift of an ability the unit already has is worth nothing.
         Effect::GrantAbility(a) => on
             .iter()
             .filter(|u| ours(u) && !u.has(*a))
-            .map(|u| 0.25 * worth(u))
+            .map(|u| LASTING_SHARE * worth(u))
             .sum(),
         _ => 0.0,
     }
@@ -791,6 +801,7 @@ mod tests {
     use crate::testworld::{at, game, shipped, COAST_CITY, P0, P1};
     use f4x_core::battle::{BattleCommand, Side};
     use f4x_core::game::Command;
+    use f4x_core::player::view::PlayerView;
     use f4x_def::testdir::TestResult;
 
     /// A battle of player 0's cavalry against `foes` more, in which player 0's wizard knows
@@ -960,12 +971,12 @@ mod tests {
     }
 
     /// A fight of player 0's wizard (who knows `spells`, with `mana` in the reserve) against a
-    /// stack of walkers, left to the battle AI; returns the mana spent.
-    fn strategic_fight(
+    /// stack of walkers: the game, the attackers and the defenders, before the battle.
+    #[allow(clippy::type_complexity)]
+    fn strategic_setup(
         spells: &[u16],
         mana: i32,
-        budget: Option<u32>,
-    ) -> Result<i32, Box<dyn std::error::Error>> {
+    ) -> Result<(Game, Vec<hecs::Entity>, Vec<hecs::Entity>), Box<dyn std::error::Error>> {
         crate::battle::install();
         let mut g = game(COAST_CITY, 7);
         g.init_wizard(
@@ -991,13 +1002,68 @@ mod tests {
         let walker = shipped().rules.units.id_numbered(107).ok_or("no cavalry")?;
         let ours: Vec<_> = (0..3).map(|_| g.spawn_unit(P0, at(4, 4), walker)).collect();
         let theirs: Vec<_> = (0..6).map(|_| g.spawn_unit(P1, at(5, 4), walker)).collect();
+        Ok((g, ours, theirs))
+    }
+
+    /// The mana player 0 has spent once the fight is over.
+    fn spent(g: &mut Game, mana: i32) -> Result<i32, Box<dyn std::error::Error>> {
+        assert!(!g.in_battle());
+        Ok(mana - g.treasury_mut(P0).ok_or("no treasury")?.mana.floor())
+    }
+
+    /// A fight of player 0's wizard left to the battle AI, with the command's own budget (or
+    /// none); returns the mana spent.
+    fn strategic_fight(
+        spells: &[u16],
+        mana: i32,
+        budget: Option<u32>,
+    ) -> Result<i32, Box<dyn std::error::Error>> {
+        let (mut g, ours, theirs) = strategic_setup(spells, mana)?;
         g.apply(Command::AutoResolve {
             attackers: ours,
             defenders: theirs,
             mana_budget: budget.map(|b| (P0, b)),
         });
-        assert!(!g.in_battle());
-        Ok(mana - g.treasury_mut(P0).ok_or("no treasury")?.mana.floor())
+        spent(&mut g, mana)
+    }
+
+    /// The same fight as the strategic AI starts it (`military::resolve`, which sets the budget
+    /// by the stake and the odds, `budget.rs`); returns the budget it set and the mana spent.
+    fn strategic_ai_fight(
+        spells: &[u16],
+        mana: i32,
+    ) -> Result<(Option<u32>, i32), Box<dyn std::error::Error>> {
+        let (mut g, ours, theirs) = strategic_setup(spells, mana)?;
+        let budget = crate::budget::for_attack(&PlayerView::new(&g, P0), &ours, &theirs)
+            .map(|(_, mana)| mana);
+        let mut ai = crate::Ai::new(P0);
+        crate::military::resolve(&mut ai, &mut g, ours, theirs, &mut Vec::new());
+        Ok((budget, spent(&mut g, mana)?))
+    }
+
+    #[test]
+    fn the_strategic_ai_starts_its_fights_with_a_budget_the_battle_ai_keeps_to() -> TestResult {
+        let spells = [
+            4,   /* giant_strength */
+            7,   /* stone_skin */
+            121, /* bless */
+        ];
+        // Three against six in the open, far from home: an even fight of little stake, so a
+        // part of what is spare, and the battle spends no more than it.
+        let mana = 40;
+        let free = strategic_fight(&spells, mana, None)?;
+        let (budget, used) = strategic_ai_fight(&spells, mana)?;
+        let budget = budget.ok_or("the fight was given no budget")?;
+        assert!(
+            i64::from(budget) < i64::from(mana),
+            "a part of the reserve: {budget}"
+        );
+        assert!(
+            free > i32::try_from(budget)?,
+            "unlimited it spends {free}, over {budget}"
+        );
+        assert!(used <= i32::try_from(budget)?, "spent {used} of {budget}");
+        Ok(())
     }
 
     #[test]
@@ -1048,6 +1114,16 @@ mod tests {
         spells: &[u16],
         foe: f4x_core::rules::UnitId,
     ) -> Result<Game, Box<dyn std::error::Error>> {
+        duel_prepared(spells, foe, |_, _, _| {})
+    }
+
+    /// [`duel_with`], with `prepare(game, ours, theirs)` run on the two units before the battle
+    /// begins (a wound, a lasting spell: whatever a spell is conditional on).
+    fn duel_prepared(
+        spells: &[u16],
+        foe: f4x_core::rules::UnitId,
+        prepare: impl FnOnce(&mut Game, hecs::Entity, hecs::Entity),
+    ) -> Result<Game, Box<dyn std::error::Error>> {
         let mut g = game(COAST_CITY, 7);
         for &n in spells {
             let id = shipped()
@@ -1065,12 +1141,66 @@ mod tests {
         let walker = shipped().rules.units.id_numbered(107).ok_or("no cavalry")?;
         let ours = g.spawn_unit(P0, at(4, 4), walker);
         let theirs = g.spawn_unit(P1, at(5, 4), foe);
+        prepare(&mut g, ours, theirs);
         g.apply(Command::BeginBattle {
             attackers: vec![ours],
             defenders: vec![theirs],
         });
         g.scenario_battle_caster(Side::Attacker, 100);
         Ok(g)
+    }
+
+    /// The most player 0's wizard finds `spell` worth in the duel `g`, over every aim there is
+    /// (no aim, the square of each unit, each unit).
+    fn best_worth(g: &Game, spell: u16) -> Result<f32, Box<dyn std::error::Error>> {
+        let battle = g.battle().ok_or("no battle")?;
+        let enemy: Vec<&BattleUnit> = battle.active_units(Side::Defender).collect();
+        let friends: Vec<&BattleUnit> = battle.active_units(Side::Attacker).collect();
+        let scene = Scene {
+            game: g,
+            side: Side::Attacker,
+            friends: &friends,
+            enemies: &enemy,
+        };
+        let id = shipped()
+            .rules
+            .spells
+            .id_numbered(spell)
+            .ok_or("no such spell")?;
+        let def = g.content().rules.spells.get(id);
+        let mut aims = vec![SpellAim::None];
+        for u in &battle.units {
+            aims.push(SpellAim::Unit(u.id));
+            aims.push(SpellAim::Tile(u.cell));
+        }
+        Ok(aims
+            .into_iter()
+            .map(|aim| scene.judge(id, def, aim, def.cost, def.cost).value)
+            .fold(0.0, f32::max))
+    }
+
+    /// `spell` is worth nothing in the plain duel against `foe` and something once `prepare` has
+    /// given the fight what the spell needs.
+    fn needs(
+        spell: u16,
+        foe: f4x_core::rules::UnitId,
+        prepare: impl FnOnce(&mut Game, hecs::Entity, hecs::Entity),
+    ) -> TestResult {
+        let plain = best_worth(&duel_with(&[], foe)?, spell)?;
+        assert_eq!(
+            plain, 0.0,
+            "spell {spell} is worth something in a plain duel"
+        );
+        let met = best_worth(&duel_prepared(&[], foe, prepare)?, spell)?;
+        assert!(
+            met > 0.0,
+            "spell {spell} is worth nothing even with its need met"
+        );
+        Ok(())
+    }
+
+    fn cavalry() -> Result<f4x_core::rules::UnitId, Box<dyn std::error::Error>> {
+        Ok(shipped().rules.units.id_numbered(107).ok_or("no cavalry")?)
     }
 
     fn unit_with_ability(num: u16) -> Result<f4x_core::rules::UnitId, Box<dyn std::error::Error>> {
@@ -1205,9 +1335,10 @@ mod tests {
     fn every_battle_spell_has_a_value_or_waits_for_what_it_needs() -> TestResult {
         // In a plain duel of two walkers, with no mana on the enemy side, these have no worth:
         // each needs something the duel lacks (a hurt unit, a lasting spell to dispel, a unit
-        // that is nearly dead, a missile unit, a creature of the realm, a wizard with mana), or
-        // is left alone on purpose (Earth to Mud, Cracks Call and Disrupt: terrain and wall
-        // spells the AI has no use for yet, task 600).
+        // that is nearly dead, a missile unit, a creature of the realm, an enemy walker on the
+        // square, a wizard with mana, a wall to break). The tests above each prove the spell
+        // gains its worth when the need is met; Disrupt needs a walled city under attack and
+        // Magic Vortex a square near the enemy, which the plain duel has none of.
         let mut waits = unvalued_in_a_plain_duel()?;
         waits.sort();
         let mut expected = vec![
@@ -1233,6 +1364,107 @@ mod tests {
         ];
         expected.sort();
         assert_eq!(waits, expected, "a spell gained or lost its worth");
+        Ok(())
+    }
+
+    #[test]
+    fn healing_is_worth_something_only_for_a_hurt_unit_of_ours() -> TestResult {
+        for spell in [125 /* healing */, 149 /* mass_healing */] {
+            needs(spell, cavalry()?, |g, ours, _| g.scenario_set_hurt(ours, 3))?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_dispel_is_worth_something_only_against_a_lasting_spell_on_an_enemy() -> TestResult {
+        let bless = shipped().rules.spells.id_numbered(121).ok_or("no bless")?;
+        for spell in [202 /* dispel_magic */, 42 /* dispel_magic_true */] {
+            needs(spell, cavalry()?, |g, _, theirs| {
+                g.scenario_enchant_unit(theirs, bless, P1);
+            })?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_recall_is_worth_something_only_for_a_unit_that_is_nearly_dead() -> TestResult {
+        let hits = {
+            let def = shipped().rules.units.get(cavalry()?);
+            let stat = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor()).max(1) as u32;
+            stat(Stat::MaxHp) * stat(Stat::Figures)
+        };
+        for spell in [47 /* word_of_recall */, 205 /* recall_hero */] {
+            needs(spell, cavalry()?, |g, ours, _| {
+                g.scenario_set_hurt(ours, hits - 1);
+            })?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn blur_is_worth_something_only_against_shooters() -> TestResult {
+        let shooter = unit_with_ability(3 /* bow */)?;
+        let plain = best_worth(&duel_with(&[], cavalry()?)?, 51 /* blur */)?;
+        let shot = best_worth(&duel_with(&[], shooter)?, 51 /* blur */)?;
+        assert_eq!(plain, 0.0, "no shooter, no use for blur");
+        assert!(shot > 0.0, "against archers blur is worth {shot}");
+        Ok(())
+    }
+
+    #[test]
+    fn light_and_the_slays_of_a_realm_are_worth_something_only_against_its_creatures() -> TestResult
+    {
+        let rules = &shipped().rules;
+        let skeletons = rules.units.id_numbered(165).ok_or("no skeletons")?;
+        let angel = rules.units.id_numbered(177).ok_or("no angel")?;
+        // True Light hurts the dead, Darkness the creatures of life.
+        needs_foe(128 /* true_light */, skeletons)?;
+        needs_foe(169 /* darkness */, angel)?;
+        // Banish, Holy Word and Dispel Evil slay only what they are meant for.
+        for spell in [
+            64,  /* banish */
+            150, /* holy_word */
+            134, /* dispel_evil */
+        ] {
+            needs_foe(spell, skeletons)?;
+        }
+        Ok(())
+    }
+
+    /// [`needs`] where the need is a foe of a realm the spell is meant for (the plain duel is
+    /// against cavalry).
+    fn needs_foe(spell: u16, foe: f4x_core::rules::UnitId) -> TestResult {
+        let plain = best_worth(&duel_with(&[], cavalry()?)?, spell)?;
+        assert_eq!(
+            plain, 0.0,
+            "spell {spell} is worth something against cavalry"
+        );
+        let met = best_worth(&duel_with(&[], foe)?, spell)?;
+        assert!(
+            met > 0.0,
+            "spell {spell} is worth nothing against its realm"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_ground_spells_are_worth_something_only_against_an_enemy_walker_on_the_square(
+    ) -> TestResult {
+        // A dearer walker of theirs than ours, so that mud and a vortex near both do net good.
+        let mammoth = shipped().rules.units.id_numbered(153).ok_or("no mammoth")?;
+        for spell in [
+            1,   /* earth_to_mud */
+            11,  /* cracks_call */
+            105, /* magic_vortex */
+        ] {
+            let plain = best_worth(&duel_with(&[], cavalry()?)?, spell)?;
+            let met = best_worth(&duel_with(&[], mammoth)?, spell)?;
+            assert!(met > plain, "spell {spell}: {met} against {plain}");
+            assert!(
+                met > 0.0,
+                "spell {spell} is worth nothing against a mammoth"
+            );
+        }
         Ok(())
     }
 

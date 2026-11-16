@@ -334,8 +334,17 @@ ratio of 3 or more (a fight that is won anyway). The defender of a battle the AI
 spends what it may (the command carries one budget, the attacker's). Monsters and neutrals have no
 wizard and so no budget.
 
-The shares are
-first guesses; the soak of task 600 is where they are tuned.
+**Task 600 closed (17 November 2026).** Every battle spell has a value, and each spell that waits
+for something in a plain duel has a test that proves it gains its worth when the need is met: a
+hurt unit of ours (Healing, Mass Healing), a lasting spell on an enemy (the dispels), a unit that
+is nearly dead (the recalls), a shooter (Blur), the creatures of a realm (True Light, Darkness,
+Banish, Holy Word, Dispel Evil), an enemy walker on the square (Earth to Mud, Cracks Call, Magic
+Vortex), an enemy wizard with mana (Counter Magic, Mana Leak), a missile unit with arrows (Warp
+Wood). Disrupt waits for a walled city under attack. The units' own casts (a hero's spell, a
+charge, an ability) keep a floor of 12% of the dearest enemy (`WORTH_FLOOR`) on purpose: a unit
+that casts gives up its attack, so a cast of no account is not worth it, where the wizard's
+turn is its own. The shares and the budget constants are first guesses; task 640 tunes them
+against the soak.
 
 ### 6.6 The learned agent
 
