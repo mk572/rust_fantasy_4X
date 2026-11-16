@@ -119,6 +119,10 @@ pub struct Ai {
     /// The planes where a rival's city blocks the clearing of towers this turn (`siege.rs`).
     #[serde(skip)]
     tower_blocked: Vec<f4x_core::map::Plane>,
+    /// Towers the army was refused a crossing at (the far side held by a rival's unit, or full),
+    /// and the turn: set aside for a while (`military.rs`).
+    #[serde(default)]
+    tower_refused: Vec<(Position, u32)>,
     #[serde(default)]
     muster: Vec<Serial>,
     #[serde(default)]
@@ -257,6 +261,7 @@ impl Ai {
             sea_gave_up: false,
             planar_tower: None,
             tower_blocked: Vec::new(),
+            tower_refused: Vec::new(),
             muster: Vec::new(),
             muster_at: None,
             muster_since: 0,
