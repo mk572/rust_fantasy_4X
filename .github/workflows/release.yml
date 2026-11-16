@@ -1,12 +1,15 @@
-# Release: pushing a tag like v0.0.8 builds the Apple silicon packages (docs/installer-design.md 6.5, 7)
-# and attaches them to a GitHub release. The tag must equal the version in Cargo.toml.
-# The packages carry nothing of the original game. They are signed ad hoc only (no developer account).
+# Release: pushing a tag like v0.0.8 builds the packages (docs/installer-design.md 6.5, 7) and attaches
+# them to a GitHub release: macOS Apple silicon (dmg, zip) and Linux x86_64 (tar.gz). The tag must equal
+# the version in Cargo.toml. The packages carry nothing of the original game; the Mac apps are signed ad
+# hoc only (no developer account).
 name: Release
 on:
   push:
     tags: ["v*"]
 permissions:
   contents: write
+env:
+  CARGO_TERM_COLOR: always
 jobs:
   macos-arm64:
     runs-on: macos-14   # Apple silicon
@@ -31,14 +34,59 @@ jobs:
         run: cargo test --workspace --lib --bins --tests
       - name: Build the apps, the dmg and the zip
         run: scripts/make_app.sh --dist
-      - name: Checksums
-        run: cd target && shasum -a 256 Fantasy4X-*-macos-arm64.dmg Fantasy4X-*-macos-arm64.zip > SHA256SUMS.txt
-      - name: Publish the release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: |
+            target/Fantasy4X-*-macos-arm64.dmg
+            target/Fantasy4X-*-macos-arm64.zip
+
+  linux-x86_64:
+    runs-on: ubuntu-22.04   # an older glibc, so the binaries run on more distributions
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Libraries the game is built with
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libasound2-dev libx11-dev libxi-dev libgl1-mesa-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            tools/xmi-play
+      - name: The tag must equal the version in Cargo.toml
+        run: |
+          version=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version *= *"\(.*\)"/\1/p' Cargo.toml)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match version $version in Cargo.toml" >&2
+            exit 1
+          fi
+      - name: Tests
+        run: cargo test --workspace --lib --bins --tests
+      - name: Build the package
+        run: scripts/make_linux.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: target/Fantasy4X-*-linux-x86_64.tar.gz
+
+  publish:
+    needs: [macos-arm64, linux-x86_64]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+      - name: Checksums and the release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
+          cd packages
+          sha256sum Fantasy4X-* > SHA256SUMS.txt
           flags=""
           case "$GITHUB_REF_NAME" in v0.*) flags="--prerelease" ;; esac
           gh release create "$GITHUB_REF_NAME" $flags --generate-notes \
-            --title "Fantasy 4X $GITHUB_REF_NAME" \
-            target/Fantasy4X-*-macos-arm64.dmg target/Fantasy4X-*-macos-arm64.zip target/SHA256SUMS.txt
+            --title "Fantasy 4X $GITHUB_REF_NAME" Fantasy4X-* SHA256SUMS.txt

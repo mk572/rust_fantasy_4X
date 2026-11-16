@@ -2,8 +2,8 @@
 //! (`docs/installer-design.md` 6.7, step 9).
 //!
 //! The decision and the search for the setup are plain functions with tests; the question itself is
-//! a macOS system dialog through `osascript` (Apple's own, nothing to ship). Other systems get a
-//! hint on the standard error until they have a package.
+//! a macOS system dialog through `osascript` (Apple's own, nothing to ship). Without `zenity`, or elsewhere, a
+//! hint goes to the standard error.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -119,20 +119,9 @@ pub fn offer(facts: &Facts, exe: &Path, os: Os, texts: &Texts) -> bool {
         eprintln!("{}", texts.get("first_run.no_setup", &Args::new()));
         return false;
     };
-    if os != Os::Mac {
+    let Some(answer) = ask(os, texts) else {
         eprintln!("{}", texts.get("first_run.hint", &Args::new()));
         return false;
-    }
-    // A closed dialog (Escape) makes osascript fail: that is "not now".
-    let output = Command::new("osascript")
-        .arg("-e")
-        .arg(dialog_script(texts))
-        .output();
-    let answer = match output {
-        Ok(out) if out.status.success() => {
-            parse_answer(&String::from_utf8_lossy(&out.stdout), texts)
-        }
-        _ => Answer::Later,
     };
     match answer {
         Answer::Later => false,
@@ -140,8 +129,8 @@ pub fn offer(facts: &Facts, exe: &Path, os: Os, texts: &Texts) -> bool {
             let _ = std::fs::write(facts.data.join(DECLINED), b"");
             false
         }
-        Answer::Setup => match Command::new("open").arg(&setup).spawn() {
-            Ok(_) => true,
+        Answer::Setup => match launch(os, &setup) {
+            Ok(()) => true,
             Err(e) => {
                 let why = e.to_string();
                 eprintln!(
@@ -151,6 +140,67 @@ pub fn offer(facts: &Facts, exe: &Path, os: Os, texts: &Texts) -> bool {
                 false
             }
         },
+    }
+}
+
+/// Start the setup: a Mac opens the app, elsewhere the program is run.
+fn launch(os: Os, setup: &Path) -> std::io::Result<()> {
+    match os {
+        Os::Mac => Command::new("open").arg(setup).spawn().map(|_| ()),
+        Os::Windows | Os::Linux => Command::new(setup).spawn().map(|_| ()),
+    }
+}
+
+/// The question, in the system's own dialog. `None` when there is none to show (no `zenity` on a
+/// Linux without it, or no dialog on Windows yet): the caller prints the hint.
+fn ask(os: Os, texts: &Texts) -> Option<Answer> {
+    let get = |key: &str| texts.get(key, &Args::new());
+    match os {
+        // A closed dialog (Escape) makes osascript fail: that is "not now".
+        Os::Mac => {
+            let out = Command::new("osascript")
+                .arg("-e")
+                .arg(dialog_script(texts))
+                .output();
+            Some(match out {
+                Ok(out) if out.status.success() => {
+                    parse_answer(&String::from_utf8_lossy(&out.stdout), texts)
+                }
+                _ => Answer::Later,
+            })
+        }
+        Os::Linux => {
+            let out = Command::new("zenity")
+                .args(["--question", "--no-markup", "--title"])
+                .arg(get("first_run.title"))
+                .arg("--text")
+                .arg(get("first_run.ask"))
+                .arg("--ok-label")
+                .arg(get("first_run.setup"))
+                .arg("--cancel-label")
+                .arg(get("first_run.later"))
+                .arg("--extra-button")
+                .arg(get("first_run.never"))
+                .output()
+                .ok()?;
+            Some(zenity_answer(
+                out.status.success(),
+                &String::from_utf8_lossy(&out.stdout),
+                texts,
+            ))
+        }
+        Os::Windows => None,
+    }
+}
+
+/// zenity: OK is exit 0; the extra button prints its label and exits 1; Cancel and Escape exit 1.
+pub fn zenity_answer(ok: bool, printed: &str, texts: &Texts) -> Answer {
+    if ok {
+        Answer::Setup
+    } else if printed.trim() == texts.get("first_run.never", &Args::new()) {
+        Answer::Never
+    } else {
+        Answer::Later
     }
 }
 
@@ -227,6 +277,14 @@ mod tests {
             Answer::Never
         );
         assert_eq!(parse_answer("", &t), Answer::Later);
+    }
+
+    #[test]
+    fn zenity_answers_are_read_from_the_exit_and_the_printed_label() {
+        let t = texts();
+        assert_eq!(zenity_answer(true, "", &t), Answer::Setup);
+        assert_eq!(zenity_answer(false, "Don't ask again\n", &t), Answer::Never);
+        assert_eq!(zenity_answer(false, "", &t), Answer::Later);
     }
 
     #[test]
