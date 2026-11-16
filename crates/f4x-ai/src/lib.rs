@@ -114,6 +114,14 @@ pub struct Ai {
     /// The open tower the planar scout is bound for, to be set aside when it does not get there.
     #[serde(default)]
     planar_tower: Option<Position>,
+    /// The soldiers on their way to a city to be sent against a tower together, the city, and the
+    /// turn they were sent (`siege.rs`).
+    #[serde(default)]
+    muster: Vec<Serial>,
+    #[serde(default)]
+    muster_at: Option<Position>,
+    #[serde(default)]
+    muster_since: u32,
     /// The scout on its way to an open tower, to change plane (`scout.rs`).
     planar: Option<Serial>,
     /// The open tower an army crosses by to reach a rival's city on the other plane (`military.rs`).
@@ -245,6 +253,9 @@ impl Ai {
             sea_party: Vec::new(),
             sea_gave_up: false,
             planar_tower: None,
+            muster: Vec::new(),
+            muster_at: None,
+            muster_since: 0,
             planar: None,
             crossing: None,
             colony: None,

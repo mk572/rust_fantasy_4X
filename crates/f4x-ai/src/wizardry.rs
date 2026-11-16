@@ -313,8 +313,9 @@ fn mana_wanted(view: &PlayerView) -> i32 {
         .map(|s| view.casting_cost(s) * 3 / 2)
         .max()
         .unwrap_or(0);
-    // Mana for the battle spells that take a tower the soldiers alone cannot (task 502).
-    summon.max(crate::siege::mana_goal(view))
+    // The summon is cast first and paid for, and the pool then holds the mana for the battle spells
+    // that take a tower the soldiers alone cannot (task 502).
+    summon + crate::siege::mana_goal(view)
 }
 
 /// A wizard rich in gold and short of the mana for a summon it could cast turns just enough of the

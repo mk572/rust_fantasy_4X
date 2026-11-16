@@ -394,9 +394,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // target gets the walk to it on top of the usual time (the slowest unit covers a square
         // a turn), or the stack would turn back before it arrived.
         let trip = distance(&view, rally, target).unwrap_or(0);
-        if game.turn.saturating_sub(ai.march_started) > MARCH_TURNS + trip
-            || ai.march_target != Some(target)
-        {
+        if march_called_off(game.turn, ai.march_started, trip) || ai.march_target != Some(target) {
             ai.marching.clear();
             ai.march_target = Some(target);
         }
@@ -673,6 +671,13 @@ fn relieve(
         free.retain(|u| !sent.contains(u));
     }
     free
+}
+
+/// Has a march gone on too long? It has [`MARCH_TURNS`] and the walk to a far target on top (the
+/// slowest unit covers a square a turn), so a stack bound for a distant city is not called back
+/// on the way.
+fn march_called_off(now: u32, started: u32, trip: u32) -> bool {
+    now.saturating_sub(started) > MARCH_TURNS + trip
 }
 
 /// The mean strength of the AI's fighters (20 with none). Worked out once for a view: it walks
@@ -1308,5 +1313,17 @@ mod tests {
             .count();
         assert!(shifted >= 6, "{shifted} crossed: {events:?}");
         Ok(())
+    }
+
+    #[test]
+    fn a_march_to_a_far_target_gets_the_walk_on_top_of_the_usual_time() {
+        // A near target: called off one turn past the usual time.
+        assert!(!march_called_off(100 + MARCH_TURNS, 100, 0));
+        assert!(march_called_off(100 + MARCH_TURNS + 1, 100, 0));
+        // A target 30 squares away has 30 turns more.
+        assert!(!march_called_off(100 + MARCH_TURNS + 30, 100, 30));
+        assert!(march_called_off(100 + MARCH_TURNS + 31, 100, 30));
+        // A clock that ran backwards (a loaded save) does not call it off.
+        assert!(!march_called_off(5, 100, 0));
     }
 }

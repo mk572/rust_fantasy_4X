@@ -64,8 +64,17 @@ pub fn game(city0: (u32, u32), race: u16) -> Game {
     game_seeded(city0, race, 7)
 }
 
+/// [`game`] with the east wizard's city on Myrror: no rival on the plane of the west wizard.
+pub fn game_rival_across(city0: (u32, u32), race: u16) -> Game {
+    build_game(city0, race, 7, Plane::Myrror)
+}
+
 /// [`game`] whose dice start from `seed`.
 pub fn game_seeded(city0: (u32, u32), race: u16, seed: u64) -> Game {
+    build_game(city0, race, seed, Plane::Arcanus)
+}
+
+fn build_game(city0: (u32, u32), race: u16, seed: u64, rival_plane: Plane) -> Game {
     let content = content();
     let ocean = content.terrains.id_numbered(8).expect("ocean");
     let grass = content.terrains.id_numbered(4).expect("grassland");
@@ -91,7 +100,14 @@ pub fn game_seeded(city0: (u32, u32), race: u16, seed: u64) -> Game {
     for (owner, (x, y), name) in [(P0, city0, "Westport"), (P1, ENEMY_CITY, "Eastport")] {
         let events = game.apply(Command::FoundCity {
             owner,
-            pos: at(x, y),
+            pos: Position {
+                plane: if owner == P1 {
+                    rival_plane
+                } else {
+                    Plane::Arcanus
+                },
+                ..at(x, y)
+            },
             name: name.into(),
             race: Some(race_id),
             population: 8,

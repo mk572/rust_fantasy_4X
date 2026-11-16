@@ -27,7 +27,7 @@ const SITE_PARTY: usize = 3;
 const GUESS_GUARDS: f32 = 2.5;
 
 /// A party attacks when it is this much stronger than the guards, known or guessed.
-fn edge() -> f32 {
+pub(crate) fn edge() -> f32 {
     crate::knob("SITE", 1.4)
 }
 
@@ -77,6 +77,7 @@ pub(crate) fn sites_near(view: &PlayerView, from: Position, strength: f32) -> Ve
     for (p, intact) in view.towers() {
         if intact
             && !found.contains(&p)
+            && !crate::siege::rival_on_plane(view, p.plane)
             && distance(view, from, p).is_some_and(|d| d <= TOWER_RANGE)
             && strength >= expected(view, p) * edge()
         {
@@ -123,7 +124,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
         let (next_to, city_next, candidates, home) = {
             let view = PlayerView::new(game, me);
-            let strength = stack_strength(&view, &units);
+            let strength = stack_strength(&view, &units) + crate::siege::spell_power(&view);
             let next_to = around(&view, pos)
                 .into_iter()
                 .find(|&p| view.has_lair(p) && strength >= expected(&view, p) * edge());
@@ -260,7 +261,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     // A new party leaves a city with soldiers to spare, one raid at a time and never while the
     // army marches (its campaign comes first).
-    if ai.raiders.len() >= MAX_RAIDERS || !ai.marching.is_empty() {
+    if ai.raiders.len() >= MAX_RAIDERS || !ai.marching.is_empty() || !ai.muster.is_empty() {
         return;
     }
     let cities = {
@@ -323,11 +324,16 @@ pub fn deploy(
     events: &mut Vec<Event>,
 ) -> bool {
     let me = ai.player;
+    crate::siege::release(ai, game);
     let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
     {
         let view = PlayerView::new(game, me);
         for &u in free {
-            if ai.raiders.contains(&view.serial_of(u)) || ai.scouts.contains(&view.serial_of(u)) {
+            let serial = view.serial_of(u);
+            if ai.raiders.contains(&serial)
+                || ai.scouts.contains(&serial)
+                || ai.muster.contains(&serial)
+            {
                 continue;
             }
             let Some(p) = view.unit_position(u) else {
@@ -368,13 +374,18 @@ pub fn deploy(
             }
         }
     }
+    if !left {
+        crate::siege::gather(ai, game, free, events);
+    }
     left
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, game, spawn, spawn_site, spawn_tower, COAST_CITY, P0};
+    use crate::testworld::{
+        at, game, game_rival_across, spawn, spawn_site, spawn_tower, COAST_CITY, P0,
+    };
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -425,7 +436,7 @@ mod tests {
 
     #[test]
     fn a_tower_is_looked_for_further_away_than_other_sites() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut g = game_rival_across(COAST_CITY, 8 /* high_men */);
         spawn_tower(&mut g, at(33, 9), true)?;
         spawn_site(
             &mut g,
@@ -670,6 +681,17 @@ mod tests {
         let mut events = Vec::new();
         assert!(deploy(&mut ai, &mut g, &free, &mut events), "{events:?}");
         assert_eq!(ai.raiders.len(), 6);
+        Ok(())
+    }
+
+    #[test]
+    fn a_tower_is_left_alone_while_a_rival_has_a_city_on_its_plane() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn_tower(&mut g, at(33, 9), true)?;
+        g.reveal_map(P0);
+        let view = PlayerView::new(&g, P0);
+        assert!(crate::siege::rival_on_plane(&view, at(0, 0).plane));
+        assert!(sites_near(&view, at(10, 6), 10_000.0).is_empty());
         Ok(())
     }
 }

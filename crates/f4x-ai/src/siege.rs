@@ -4,6 +4,10 @@
 //! by its soldiers plus the spells the pool can pay for, and a wizard that has a hard tower in
 //! reach and not the mana for it turns surplus gold into mana (`wizardry::alchemy`) until it has.
 //!
+//! Gathering: soldiers spread over the cities are sent to the city nearest a tower they could take
+//! together ([`gather`]) and set off as one party ([`release`], then `site::deploy`). A tower is a
+//! target only on a plane where no rival has a known city (the rivals come first).
+//!
 //! The AI plays by the human's rules: it counts only the spells it knows and the guards it has
 //! seen or guessed (`site::expected`).
 
@@ -11,14 +15,21 @@ use f4x_core::player::view::PlayerView;
 use f4x_def::rules::CastContext;
 
 use crate::military::average_strength;
-use crate::view::{fighting_strength, is_fighter};
+use crate::view::{distance, fighting_strength, is_fighter};
+use crate::Ai;
+use f4x_core::game::Game;
 
 /// Mana that does the work of one average soldier in a fight (a bolt or a blessing: 15 to 25).
 pub(crate) const MANA_PER_SOLDIER: f32 = 20.0;
 /// Most soldiers' worth the spells are counted for: a battle lasts a few rounds.
 pub(crate) const MOST_SOLDIERS: f32 = 6.0;
-/// The margin the party and its spells need over the guards the wizard expects.
-const SIEGE_EDGE: f32 = 1.2;
+/// Turns a muster waits for its soldiers before it sets off with the ones that came.
+const MUSTER_TURNS: u32 = 20;
+
+/// The margin the party and its spells need over the guards the wizard expects: the raids' edge.
+fn siege_edge() -> f32 {
+    crate::site::edge()
+}
 
 /// Does the wizard know a spell it can cast in a battle?
 fn has_battle_spell(view: &PlayerView) -> bool {
@@ -71,17 +82,150 @@ pub(crate) fn mana_goal(view: &PlayerView) -> i32 {
         .filter(|&(p, intact)| {
             intact && p.plane == start.plane && crate::view::distance(view, start, p).is_some()
         })
-        .map(|(p, _)| crate::site::expected(view, p) * SIEGE_EDGE)
+        .map(|(p, _)| crate::site::expected(view, p) * siege_edge())
         .filter(|&need| need > best_nine && need <= reachable)
         .map(|need| ((need - best_nine) / each * MANA_PER_SOLDIER).ceil() as i32)
         .min()
         .unwrap_or(0)
 }
 
+/// Does a rival wizard have a city we know of on the plane? Its cities come before a tower.
+pub(crate) fn rival_on_plane(view: &PlayerView, plane: f4x_core::map::Plane) -> bool {
+    view.known_cities()
+        .iter()
+        .any(|&(_, owner, p)| p.plane == plane && view.is_rival_wizard(owner))
+}
+
+/// End a muster whose soldiers have come (or waited long enough): they are free soldiers again,
+/// and `site::deploy` sends the best nine of the square they stand on.
+pub(crate) fn release(ai: &mut Ai, game: &Game) {
+    if ai.muster.is_empty() {
+        return;
+    }
+    let view = PlayerView::new(game, ai.player);
+    let alive: Vec<_> = view
+        .my_units()
+        .into_iter()
+        .filter(|&u| ai.muster.contains(&view.serial_of(u)))
+        .collect();
+    let arrived = ai.muster_at.is_some_and(|at| {
+        alive.iter().all(|&u| {
+            view.unit_position(u)
+                .is_some_and(|p| distance(&view, p, at).is_some_and(|d| d <= 1))
+        })
+    });
+    if alive.is_empty() || arrived || game.turn.saturating_sub(ai.muster_since) > MUSTER_TURNS {
+        ai.muster.clear();
+        ai.muster_at = None;
+    }
+}
+
+/// The free soldiers of the empire cannot take a tower from any one square, but the best nine of
+/// them with the wizard's spells could: send those nine to the own city nearest the tower. They
+/// are kept apart from raids while they walk (`Ai::muster`).
+pub(crate) fn gather(
+    ai: &mut Ai,
+    game: &mut Game,
+    free: &[hecs::Entity],
+    events: &mut Vec<f4x_core::game::Event>,
+) {
+    use f4x_core::game::Command;
+    let me = ai.player;
+    if !ai.muster.is_empty() {
+        return;
+    }
+    let (rally, orders) = {
+        let view = PlayerView::new(game, me);
+        if crate::phase::phase(&view) == crate::phase::Phase::Build {
+            return;
+        }
+        let mut best: Vec<_> = free
+            .iter()
+            .copied()
+            .filter(|&u| {
+                is_fighter(&view, u)
+                    && !crate::recover::needs_rest(&view, u)
+                    && !ai.raiders.contains(&view.serial_of(u))
+                    && !ai.scouts.contains(&view.serial_of(u))
+                    && view.unit_position(u).is_some()
+            })
+            .collect();
+        best.sort_by(|&a, &b| {
+            crate::view::unit_strength(&view, b)
+                .total_cmp(&crate::view::unit_strength(&view, a))
+                .then(view.serial_of(a).cmp(&view.serial_of(b)))
+        });
+        best.truncate(f4x_core::unit::MAX_STACK);
+        if best.len() < 3 {
+            return;
+        }
+        let strength = crate::view::stack_strength(&view, &best) + spell_power(&view);
+        // The easiest tower the nine could take, on a plane with no rival's city.
+        let Some(tower) = view
+            .towers()
+            .into_iter()
+            .filter(|&(p, intact)| intact && !rival_on_plane(&view, p.plane))
+            .map(|(p, _)| p)
+            .filter(|&p| strength >= crate::site::expected(&view, p) * siege_edge())
+            .min_by(|&a, &b| {
+                crate::site::expected(&view, a)
+                    .total_cmp(&crate::site::expected(&view, b))
+                    .then((a.y, a.x).cmp(&(b.y, b.x)))
+            })
+        else {
+            return;
+        };
+        let Some(rally) = view
+            .my_cities()
+            .into_iter()
+            .map(|(_, p)| p)
+            .filter(|p| p.plane == tower.plane)
+            .filter_map(|p| distance(&view, p, tower).map(|d| (d, p)))
+            .min_by_key(|&(d, p)| (d, p.y, p.x))
+            .map(|(_, p)| p)
+        else {
+            return;
+        };
+        let mut reached = crate::view::ReachCache::default();
+        let orders: Vec<hecs::Entity> = best
+            .into_iter()
+            .filter(|&u| {
+                view.unit_position(u).is_some_and(|p| {
+                    distance(&view, p, rally).is_none_or(|d| d > 1) && !view.unit_has_order(u)
+                })
+            })
+            .filter(|&u| reached.can_reach(&view, &[u], rally))
+            .collect();
+        (rally, orders)
+    };
+    if orders.is_empty() {
+        return;
+    }
+    let serials: Vec<_> = {
+        let view = PlayerView::new(game, me);
+        orders.iter().map(|&u| view.serial_of(u)).collect()
+    };
+    for u in orders {
+        if Ai::room_at(game, rally, 1) {
+            let _ = ai.send(
+                game,
+                Command::GoTo {
+                    units: vec![u],
+                    to: rally,
+                },
+                events,
+            );
+        }
+    }
+    ai.muster = serials;
+    ai.muster_at = Some(rally);
+    ai.muster_since = game.turn;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, game, spawn, COAST_CITY, P0};
+    use crate::testworld::{at, game, game_rival_across, spawn, COAST_CITY, P0};
     use f4x_core::game::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -127,7 +271,7 @@ mod tests {
 
     #[test]
     fn a_tower_the_soldiers_cannot_take_alone_is_a_goal_for_mana() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut g = game_rival_across(COAST_CITY, 8 /* high_men */);
         g.turn = 400; // the end of the game: not a build-up
         spawn(&mut g, P0, at(10, 6), 113 /* high_men_paladins */, 1);
         crate::testworld::spawn_tower(&mut g, at(33, 9), true)?;
@@ -148,7 +292,7 @@ mod tests {
     #[test]
     fn a_party_with_mana_for_spells_is_enough_for_a_tower_it_could_not_take_without() -> TestResult
     {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut g = game_rival_across(COAST_CITY, 8 /* high_men */);
         let paladins = spawn(&mut g, P0, at(10, 6), 113 /* high_men_paladins */, 1);
         crate::testworld::spawn_tower(&mut g, at(33, 9), true)?;
         g.reveal_map(P0);
@@ -160,6 +304,76 @@ mod tests {
         let near = |s| crate::site::sites_near(&view, at(10, 6), s);
         assert!(near(soldiers).is_empty());
         assert_eq!(near(with), vec![at(33, 9)]);
+        Ok(())
+    }
+
+    #[test]
+    fn soldiers_in_the_field_are_sent_to_the_city_nearest_a_tower_they_could_take_together(
+    ) -> TestResult {
+        let mut g = game_rival_across(COAST_CITY, 8 /* high_men */);
+        g.turn = 400;
+        let party = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 5);
+        crate::testworld::spawn_tower(&mut g, at(3, 4), true)?;
+        g.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        gather(&mut ai, &mut g, &party, &mut Vec::new());
+        let view = PlayerView::new(&g, P0);
+        assert_eq!(ai.muster.len(), 5, "all five are mustered");
+        assert_eq!(ai.muster_at, Some(at(COAST_CITY.0, COAST_CITY.1)));
+        assert!(party.iter().all(|&u| view.unit_has_order(u)));
+        // A second call while they walk changes nothing.
+        let before = ai.muster.clone();
+        gather(&mut ai, &mut g, &party, &mut Vec::new());
+        assert_eq!(ai.muster, before);
+        Ok(())
+    }
+
+    #[test]
+    fn no_muster_while_the_soldiers_could_not_take_any_tower_and_none_while_a_rival_is_on_the_plane(
+    ) -> TestResult {
+        // One soldier: too few for a tower, with no spell to help.
+        let mut g = game_rival_across(COAST_CITY, 8 /* high_men */);
+        g.turn = 400;
+        let few = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 2);
+        crate::testworld::spawn_tower(&mut g, at(3, 4), true)?;
+        g.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        gather(&mut ai, &mut g, &few, &mut Vec::new());
+        assert!(ai.muster.is_empty());
+        // Strong enough, but a rival has a city on the tower's plane.
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.turn = 400;
+        let many = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 6);
+        crate::testworld::spawn_tower(&mut g, at(3, 4), true)?;
+        g.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        gather(&mut ai, &mut g, &many, &mut Vec::new());
+        assert!(ai.muster.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn a_muster_ends_when_its_soldiers_have_come_or_have_waited_too_long() -> TestResult {
+        let mut g = game_rival_across(COAST_CITY, 8 /* high_men */);
+        g.turn = 400;
+        let party = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 5);
+        crate::testworld::spawn_tower(&mut g, at(3, 4), true)?;
+        g.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        gather(&mut ai, &mut g, &party, &mut Vec::new());
+        release(&mut ai, &g);
+        assert_eq!(ai.muster.len(), 5, "still on the way");
+        g.turn += MUSTER_TURNS + 1;
+        release(&mut ai, &g);
+        assert!(ai.muster.is_empty(), "gave up waiting");
+        // Or they arrive.
+        let mut ai = Ai::new(P0);
+        gather(&mut ai, &mut g, &party, &mut Vec::new());
+        for &u in &party {
+            g.cheat_move_unit(u, at(COAST_CITY.0, COAST_CITY.1));
+        }
+        release(&mut ai, &g);
+        assert!(ai.muster.is_empty(), "arrived");
         Ok(())
     }
 }

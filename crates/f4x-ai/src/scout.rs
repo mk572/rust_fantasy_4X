@@ -833,4 +833,28 @@ mod tests {
         assert_ne!(ai.scout_targets.get(&serial), Some(&first));
         Ok(())
     }
+
+    #[test]
+    fn a_plane_hardly_seen_is_worth_a_crossing_after_the_build_up_and_not_before() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn_tower(&mut g, at(4, 4), false)?;
+        let tower = at(4, 4);
+        // Early on the wizard builds up instead.
+        assert!(!blind_across(&PlayerView::new(&g, P0), tower));
+        // Late, with the far plane unseen and no unit there, it is worth looking.
+        g.turn = 400;
+        assert!(blind_across(&PlayerView::new(&g, P0), tower));
+        // Once the far plane is seen, or a unit of the wizard stands on it, it is not.
+        let far = Position {
+            plane: f4x_core::map::Plane::Myrror,
+            ..tower
+        };
+        let scout = spawn(&mut g, P0, far, 113 /* high_men_paladins */, 1);
+        assert!(!blind_across(&PlayerView::new(&g, P0), tower));
+        g.cheat_remove_unit(scout[0]);
+        assert!(blind_across(&PlayerView::new(&g, P0), tower));
+        g.reveal_map(P0);
+        assert!(!blind_across(&PlayerView::new(&g, P0), tower));
+        Ok(())
+    }
 }
