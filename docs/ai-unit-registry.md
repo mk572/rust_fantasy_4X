@@ -104,9 +104,14 @@ rescue hold `AwaitTransport`), and its role is set by the count:
   (`AwaitingOrders`, then `TransportFree` at the audit).
 
 A ship need not be full to sail: a part load goes (`TransportSpace` to `Transporting`) once the
-strength is enough, but first `pickup::unserved` asks whether soldiers on the plane await
-transport with no ship coming; if so the ship is freed for the rescue (`end_voyage`) for up to
-`WAIT_TURNS` turns (the landing's wait counter) and then sails anyway.
+strength is enough. First it looks for soldiers awaiting transport (`AwaitTransport` with no ship)
+that can walk to the port within a window of half the journey, between 3 and 5 turns
+(`pickup::reachable_waiting`, path length over moves). They take `Voyage` tied to the ship (they
+become planned passengers) and get the order to go to the port (`naval::board`); the ship keeps
+its role, `TransportSpace` (or `TransportReady` if they fill it), and does not sail while they are
+on the way. When they arrive they are part of the load. One that has not arrived when the window is
+over is let go and the ship sails without it. Soldiers further away than the window are not waited
+for.
 
 `Registry::sail` (a landing) and `plan_ship` (a rescue) set the role from the count each time the
 plan changes; a smaller plan frees the soldiers that are no longer in it.

@@ -525,25 +525,60 @@ fn load_and_sail(
         ai.roles.end_voyage(ship_serial);
         return;
     }
-    // The load is planned: the ship is `TransportSpace` while the soldiers tied to it are fewer than
-    // it holds and `TransportReady` when they fill it, through the turns it waits for a stronger
-    // party, until it sails.
+    // Soldiers already sent to board (tied to the ship, not in the port yet) and, when the ship is
+    // not full, those awaiting transport that can be here within a few turns: they get the order
+    // to board, and the ship waits for them as `TransportSpace` before it sails with a part load.
     let turn = game.turn;
+    let (mut serials, window) = (
+        serials,
+        boarding_window(&PlayerView::new(game, me), plan, ship),
+    );
+    let en_route: Vec<Serial> = {
+        let view = PlayerView::new(game, me);
+        ai.roles
+            .passengers_of(ship_serial)
+            .into_iter()
+            .filter(|s| !serials.contains(s))
+            .filter(|&s| {
+                view.my_units()
+                    .into_iter()
+                    .any(|u| view.serial_of(u) == s && view.unit_position(u) != Some(plan.port))
+            })
+            .collect()
+    };
+    let mut expecting = en_route;
+    if expecting.is_empty() && group.len() < capacity {
+        let recruits =
+            crate::pickup::reachable_waiting(ai, game, plan.port, window, capacity - group.len());
+        if !recruits.is_empty() {
+            let view = PlayerView::new(game, me);
+            expecting = recruits.iter().map(|&u| view.serial_of(u)).collect();
+            drop(view);
+            board(ai, game, &recruits, plan.port, events);
+        }
+    }
+    // Waited too long for them (blocked, or slow): they are let go, and the ship sails without.
+    let waited = expecting
+        .iter()
+        .filter_map(|&s| ai.roles.get(s).map(|a| a.since))
+        .min()
+        .is_some_and(|since| turn.saturating_sub(since) >= window);
+    if waited {
+        ai.roles
+            .release_many(&expecting, crate::roles::Role::Voyage);
+        expecting.clear();
+    }
+    serials.extend(expecting.iter().copied());
+    // The load is planned: the ship is `TransportSpace` while the soldiers tied to it are fewer than
+    // it holds and `TransportReady` when they fill it, through the turns it waits, until it sails.
     ai.roles
         .sail(ship_serial, &serials, turn, plan.sea, capacity);
     // Passengers that are not part of the landing (a sea scout's party) step off first.
     if unload(ai, game, ship, plan.port, &group, events) {
         return;
     }
-    // A ship that is not full sails all the same, but first: soldiers awaiting transport on this
-    // plane are the ship's to fetch (it is freed for the rescue, `pickup.rs`) before it carries a
-    // part load. It does not wait for ever.
-    if group.len() < capacity && crate::pickup::unserved(ai, plan.port) {
-        ai.naval_wait += 1;
-        if ai.naval_wait < WAIT_TURNS {
-            ai.roles.end_voyage(ship_serial);
-            return;
-        }
+    if !expecting.is_empty() {
+        return;
     }
     // Strong enough for the garrison it will meet, or tired of waiting.
     {
@@ -592,6 +627,48 @@ fn load_and_sail(
         ai.roles.depart(ship_serial, plan.sea);
     } else {
         ai.roles.end_voyage(ship_serial);
+    }
+}
+
+/// Turns a part-loaded ship waits for soldiers on their way to board: half the journey, from 3
+/// to 5.
+fn boarding_window(view: &PlayerView, plan: Plan, ship: hecs::Entity) -> u32 {
+    let distance = view.distance(plan.port, plan.sea).unwrap_or(0);
+    let moves = view.unit_stat(ship, Stat::Moves).max(1) as u32;
+    (distance.div_ceil(moves) / 2).clamp(3, 5)
+}
+
+/// Send the soldiers to the port to board the ship there, those on one square as a stack.
+fn board(
+    ai: &Ai,
+    game: &mut Game,
+    units: &[hecs::Entity],
+    port: Position,
+    events: &mut Vec<Event>,
+) {
+    let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
+    {
+        let view = PlayerView::new(game, ai.player);
+        for &u in units {
+            let Some(p) = view.unit_position(u) else {
+                continue;
+            };
+            match by_square.iter_mut().find(|(q, _)| *q == p) {
+                Some((_, list)) => list.push(u),
+                None => by_square.push((p, vec![u])),
+            }
+        }
+    }
+    by_square.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
+    for (_, group) in by_square {
+        let _ = ai.send(
+            game,
+            Command::GoTo {
+                units: group,
+                to: port,
+            },
+            events,
+        );
     }
 }
 
@@ -1118,10 +1195,11 @@ mod tests {
         Ok(())
     }
 
-    /// A ship that is not full sails with what it has, but only after it has made way for soldiers
-    /// awaiting transport: it is let go for the rescue first, and sails when none wait.
+    /// A ship that is not full sails with what it has, but first soldiers awaiting transport who
+    /// can be at the port within a few turns get the order to board; the ship stays
+    /// `TransportSpace` and waits for them, then sails with them.
     #[test]
-    fn a_part_loaded_ship_makes_way_for_soldiers_awaiting_transport_then_sails() -> TestResult {
+    fn a_part_loaded_ship_waits_for_soldiers_awaiting_transport_who_are_near() -> TestResult {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         build(
             &mut g,
@@ -1146,30 +1224,83 @@ mod tests {
             3 + keep,
         );
         g.balance_farmers(P0);
-        let stranded = spawn(&mut g, P0, at(8, 6), 104, 1)[0];
+        let waiting = spawn(&mut g, P0, at(8, 6), 104, 1)[0];
         let mut ai = Ai::new(P0);
         ai.unreachable.push(enemy());
-        let stranded_serial = PlayerView::new(&g, P0).serial_of(stranded);
+        let waiting_serial = PlayerView::new(&g, P0).serial_of(waiting);
         let _ = ai.roles.claim(
-            stranded_serial,
+            waiting_serial,
             crate::roles::Role::AwaitTransport,
             1,
             Some(at(8, 6)),
         );
         run(&mut ai, &mut g, &mut Vec::new());
-        let serial = PlayerView::new(&g, P0).serial_of(ship);
-        assert!(
-            ai.roles.ferries().is_empty() && !ai.roles.has_role(serial),
-            "the ship is free for the rescue: {:?}",
-            ai.roles.role_of(serial)
+        let view = PlayerView::new(&g, P0);
+        let serial = view.serial_of(ship);
+        assert_eq!(
+            ai.roles.role_of(serial),
+            Some(crate::roles::Role::TransportSpace),
+            "the ship stays space, waiting"
         );
-        // Nobody waits any more: it sails with the part load.
-        ai.roles
-            .release(stranded_serial, crate::roles::Role::AwaitTransport);
+        assert!(!view.unit_has_order(ship), "it has not sailed");
+        assert!(
+            view.unit_has_order(waiting)
+                && ai.roles.passengers_of(serial).contains(&waiting_serial),
+            "the soldier is told to board and is tied to the ship"
+        );
+        // It arrives: the ship sails with it.
+        g.cheat_move_unit(waiting, port());
         run(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(
             ai.roles.role_of(serial),
             Some(crate::roles::Role::Transporting)
+        );
+        Ok(())
+    }
+
+    /// Soldiers awaiting transport too far to be at the port in time are not waited for.
+    #[test]
+    fn a_part_loaded_ship_does_not_wait_for_soldiers_too_far_away() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        build(
+            &mut g,
+            port(),
+            &[
+                12, /* ship_wrights_guild */
+                15, /* sawmill */
+                13, /* ship_yard */
+            ],
+        );
+        g.reveal_map(P0);
+        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
+            f4x_def::half_int::HalfInt::from_int(1_000_000);
+        let ship = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];
+        let keep = garrison_wanted(&PlayerView::new(&g, P0), port());
+        spawn(
+            &mut g,
+            P0,
+            port(),
+            104, /* high_men_spearmen */
+            3 + keep,
+        );
+        g.balance_farmers(P0);
+        // Twenty squares away: many turns on foot.
+        let far = spawn(&mut g, P0, at(1, 6), 104, 1)[0];
+        let mut ai = Ai::new(P0);
+        ai.unreachable.push(enemy());
+        let far_serial = PlayerView::new(&g, P0).serial_of(far);
+        let _ = ai.roles.claim(
+            far_serial,
+            crate::roles::Role::AwaitTransport,
+            1,
+            Some(at(1, 6)),
+        );
+        run(&mut ai, &mut g, &mut Vec::new());
+        let serial = PlayerView::new(&g, P0).serial_of(ship);
+        assert_eq!(
+            ai.roles.role_of(serial),
+            Some(crate::roles::Role::Transporting),
+            "it sails with its part load"
         );
         Ok(())
     }

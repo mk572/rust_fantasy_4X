@@ -59,16 +59,33 @@ pub fn voyages(ai: &Ai) -> Vec<Pickup> {
         .collect()
 }
 
-/// Whether soldiers on the plane of `at` await transport with no ship coming for them.
-pub fn unserved(ai: &Ai, at: Position) -> bool {
+/// The soldiers awaiting transport with no ship coming for them that can walk to `to` (a ship in
+/// port) within `window` turns, the nearest first, at most `max`.
+pub fn reachable_waiting(
+    ai: &Ai,
+    game: &Game,
+    to: Position,
+    window: u32,
+    max: usize,
+) -> Vec<hecs::Entity> {
     use crate::roles::Role;
-    ai.roles.members(Role::AwaitTransport).into_iter().any(|s| {
-        ai.roles.with_of(s).is_none()
-            && ai
-                .roles
-                .target_of(s, Role::AwaitTransport)
-                .is_some_and(|tile| tile.plane == at.plane)
-    })
+    let view = PlayerView::new(game, ai.player);
+    let mut found: Vec<(u32, Serial, hecs::Entity)> = view
+        .my_units()
+        .into_iter()
+        .filter(|&u| {
+            let s = view.serial_of(u);
+            ai.roles.is(s, Role::AwaitTransport) && ai.roles.with_of(s).is_none()
+        })
+        .filter_map(|u| {
+            let steps = view.path(&[u], to)?.len() as u32;
+            let moves = view.unit_stat(u, f4x_def::rules::Stat::Moves).max(1) as u32;
+            let turns = steps.div_ceil(moves);
+            (turns <= window).then_some((turns, view.serial_of(u), u))
+        })
+        .collect();
+    found.sort();
+    found.into_iter().take(max).map(|(_, _, u)| u).collect()
 }
 
 /// A sea square beside `land` that nobody hostile holds.
