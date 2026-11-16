@@ -607,6 +607,7 @@ impl crate::game::Game {
 mod tests {
     use super::*;
     use crate::game::testutil::shipped;
+
     use crate::game::{Command, Event, Game};
     use crate::item::armory::Placed;
     use crate::map::{Grid, Map};
@@ -765,7 +766,7 @@ mod tests {
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Books>()
             .0
-            .insert(crate::game::testutil::realm(2 /* chaos */), 1);
+            .insert(RealmId::new(2 /* chaos */), 1);
         assert_eq!(
             check_in(
                 &poor,

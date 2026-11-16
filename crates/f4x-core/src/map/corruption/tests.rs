@@ -1,5 +1,6 @@
 use super::*;
 use crate::game::testutil::shipped;
+
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::rules::exec::Target;
@@ -351,7 +352,7 @@ fn warp_node_turns_a_rivals_node_against_them() {
         at(6, 6),
         20, /* sorcery_node */
         Node {
-            realm: crate::game::testutil::realm(2 /* chaos */),
+            realm: RealmId::new(2 /* chaos */),
             power: 8,
             aura: vec![(6, 6)],
             guardian: false,

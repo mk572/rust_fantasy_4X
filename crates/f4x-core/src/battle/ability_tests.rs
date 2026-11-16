@@ -8,6 +8,7 @@
 use super::*;
 use crate::game::rng::GameRng;
 use crate::game::testutil::shipped;
+
 use crate::game::Game;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
@@ -107,8 +108,7 @@ fn without(ability: u16) -> impl Fn(&mut Battle) {
     move |b: &mut Battle| {
         for u in &mut b.units {
             if u.side == Side::Attacker {
-                u.abilities
-                    .retain(|a| *a != crate::game::testutil::ability(ability));
+                u.abilities.retain(|a| *a != Ability::new(ability));
             }
         }
     }
@@ -118,7 +118,7 @@ fn immune(ability: u16) -> impl Fn(&mut Battle) {
     move |b: &mut Battle| {
         for u in &mut b.units {
             if u.side == Side::Defender {
-                u.abilities.push(crate::game::testutil::ability(ability));
+                u.abilities.push(Ability::new(ability));
             }
         }
     }
@@ -224,9 +224,7 @@ fn assert_a_bolt(shooter: u16, ability: u16) {
     let b = duel(shooter, 104 /* high_men_spearmen */, 6);
     let a = index(&b, Side::Attacker);
     assert!(
-        b.units[a]
-            .abilities
-            .contains(&crate::game::testutil::ability(ability)),
+        b.units[a].abilities.contains(&Ability::new(ability)),
         "{shooter} has {ability}"
     );
     assert_eq!(

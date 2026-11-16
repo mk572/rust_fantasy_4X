@@ -1,6 +1,7 @@
 use super::*;
 use crate::game::save::Snapshot;
 use crate::game::testutil::shipped;
+
 use crate::map::{Grid, Map, Plane, Position};
 use crate::rules::RealmId;
 use f4x_def::testdir::TestResult;
@@ -123,7 +124,7 @@ fn a_new_wizard_starts_with_books_spells_and_skill() -> TestResult {
     assert_eq!(m.known().len(), 3 + 2);
     assert!(m.known().is_disjoint(&m.researchable()));
     let in_realm = |set: &BTreeSet<SpellId>, realm: u16| {
-        let realm = crate::game::testutil::realm(realm);
+        let realm = RealmId::new(realm);
         set.iter()
             .filter(|&&s| g.content.rules.spells.get(s).realm == realm)
             .count()

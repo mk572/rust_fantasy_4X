@@ -65,43 +65,6 @@ pub fn battle_policy(game: &crate::game::Game) -> Option<crate::battle::BattleCo
     Some(BattleCommand::EndTurn)
 }
 
-/// The number of the ability the content file calls `alias`, for tests that name abilities in
-/// lists and loops (the game code itself refers to abilities by number).
-pub fn ability(alias: u16) -> crate::rules::Ability {
-    shipped()
-        .rules
-        .abilities
-        .id_numbered(alias)
-        .unwrap_or_else(|| panic!("no ability {alias:?} in the shipped content"))
-}
-
-/// The number of the realm the content file calls `alias`, for tests that name realms (the game
-/// code itself refers to realms by number).
-pub fn realm(alias: u16) -> crate::rules::RealmId {
-    shipped()
-        .rules
-        .realms
-        .id_numbered(alias)
-        .unwrap_or_else(|| panic!("no realm {alias:?} in the shipped content"))
-}
-
-/// The number of the realm the content file calls `alias`, for tests that set a definition's
-/// realm by hand.
-pub fn realm_ref(alias: u16) -> crate::rules::RealmId {
-    realm(alias)
-}
-
-/// The number of the ability the content file calls `alias`, for tests that name abilities in a
-/// condition or an effect.
-pub fn ability_ref(alias: u16) -> crate::rules::Ability {
-    ability(alias)
-}
-
-/// [`ability`] for a list of aliases.
-pub fn abilities(aliases: &[u16]) -> Vec<crate::rules::Ability> {
-    aliases.iter().map(|&a| ability(a)).collect()
-}
-
 /// Where the saved fresh games of [`fresh`] are (`crates/f4x-core/tests/saves`).
 pub fn saves_dir() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/saves")

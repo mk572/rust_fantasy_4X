@@ -1,9 +1,7 @@
 use super::*;
-use crate::rules::SpellId;
+use crate::rules::{Ability, SpellId};
 use crate::spell::unit_effect::UnitEffects;
 use rand::SeedableRng;
-
-use crate::game::testutil::abilities;
 
 /// What the shipped rules say the spells do (the `unit_effect` hook).
 fn fx(spells: &[SpellId]) -> UnitEffects {
@@ -16,11 +14,15 @@ fn fx(spells: &[SpellId]) -> UnitEffects {
 }
 
 fn unit(names: &[u16]) -> Immunities {
-    Immunities::of(&abilities(names))
+    Immunities::of(&names.iter().map(|&n| Ability::new(n)).collect::<Vec<_>>())
 }
 
 fn defense(base: i32, unit: &Immunities, names: &[u16], mode: Mode, magical: bool) -> i32 {
-    let attack = AttackNature::of_unit_attack(mode, &abilities(names), magical);
+    let attack = AttackNature::of_unit_attack(
+        mode,
+        &names.iter().map(|&n| Ability::new(n)).collect::<Vec<_>>(),
+        magical,
+    );
     effective_defense(base, unit, &attack, mode)
 }
 

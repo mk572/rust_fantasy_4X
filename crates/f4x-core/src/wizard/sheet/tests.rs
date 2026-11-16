@@ -1,5 +1,6 @@
 use super::*;
 use crate::game::testutil::shipped;
+
 use crate::game::Game;
 use crate::player::PlayerId;
 use crate::rules::RealmId;
@@ -53,7 +54,7 @@ fn a_new_wizard_has_skill_from_books_and_an_archmage_more() -> TestResult {
     assert_eq!(
         g.wizard(P0)
             .ok_or("wizard is missing")?
-            .books_in(crate::game::testutil::realm(3 /* life */)),
+            .books_in(RealmId::new(3 /* life */)),
         11,
         "no more than the game's setting, 11 unless it is set"
     );

@@ -1,10 +1,11 @@
 use super::*;
 use crate::feature::lair::Lair;
 use crate::game::testutil::shipped;
+
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::player::{PlayerId, MONSTERS};
-use crate::rules::{Stat, UnitId};
+use crate::rules::{RealmId, Stat, UnitId};
 use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
@@ -349,7 +350,7 @@ fn a_stack_that_settles_on_the_way_does_not_walk_on() -> TestResult {
 fn a_node_a_wizard_holds_is_not_taken() -> TestResult {
     let mut g = world(0);
     let node = crate::feature::node::Node {
-        realm: crate::game::testutil::realm(2 /* chaos */),
+        realm: RealmId::new(2 /* chaos */),
         power: 5,
         aura: vec![(14, 8)],
         guardian: false,

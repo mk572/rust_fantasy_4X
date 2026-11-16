@@ -1,5 +1,6 @@
 use super::*;
 use crate::game::testutil::shipped;
+
 use crate::rules::RealmId;
 use f4x_def::testdir::TestResult;
 
@@ -67,7 +68,7 @@ fn nth(g: &Game, realm: u16, rarity: Rarity, n: usize) -> crate::rules::SpellId 
 }
 
 fn realm_id(alias: u16) -> crate::rules::RealmId {
-    crate::game::testutil::realm(alias)
+    RealmId::new(alias)
 }
 
 fn build(books: &[(RealmId, u8)], retorts: &[Retort]) -> WizardBuild {
@@ -214,7 +215,7 @@ fn some_retorts_need_books() {
         Retort::new(7), /* sage_master */
         &none
     ));
-    b.insert(crate::game::testutil::realm(3 /* life */), 4);
+    b.insert(RealmId::new(3 /* life */), 4);
     assert!(retort_available(
         rules,
         Retort::new(6), /* divine_power */
@@ -239,7 +240,7 @@ fn some_retorts_need_books() {
         !retort_available(rules, Retort::new(7) /* sage_master */, &b),
         "one realm only"
     );
-    b.insert(crate::game::testutil::realm(4 /* death */), 1);
+    b.insert(RealmId::new(4 /* death */), 1);
     assert!(retort_available(
         rules,
         Retort::new(7), /* sage_master */
@@ -250,9 +251,9 @@ fn some_retorts_need_books() {
         Retort::new(14), /* runemaster */
         &b
     ));
-    b.insert(crate::game::testutil::realm(4 /* death */), 2);
-    b.insert(crate::game::testutil::realm(2 /* chaos */), 2);
-    b.insert(crate::game::testutil::realm(3 /* life */), 2);
+    b.insert(RealmId::new(4 /* death */), 2);
+    b.insert(RealmId::new(2 /* chaos */), 2);
+    b.insert(RealmId::new(3 /* life */), 2);
     assert!(
         retort_available(rules, Retort::new(14) /* runemaster */, &b),
         "two books in three realms"
@@ -625,7 +626,7 @@ fn eight_spells_are_on_offer_for_research_lowest_rarity_first() -> TestResult {
     // commons are on the offer.
     for realm in [3 /* life */, 2 /* chaos */] {
         let of_realm = |s: &&crate::rules::SpellId| {
-            g.content.rules.spells.get(**s).realm == crate::game::testutil::realm(realm)
+            g.content.rules.spells.get(**s).realm == RealmId::new(realm)
         };
         let commons_left_out = magic
             .researchable()
@@ -693,7 +694,7 @@ fn of_kind(
     set.iter()
         .filter(|&&s| {
             let d = g.content.rules.spells.get(s);
-            d.realm == crate::game::testutil::realm(realm) && d.rarity == rarity
+            d.realm == RealmId::new(realm) && d.rarity == rarity
         })
         .count()
 }

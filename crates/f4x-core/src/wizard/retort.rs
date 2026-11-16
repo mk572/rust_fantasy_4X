@@ -109,7 +109,8 @@ pub fn research_bonus(rules: &Rules, retorts: &BTreeSet<Retort>, def: &SpellDef)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::{realm_ref, shipped};
+    use crate::game::testutil::shipped;
+    use crate::rules::RealmId;
 
     fn retorts(nums: &[u16]) -> BTreeSet<Retort> {
         nums.iter().map(|&n| Retort::new(n)).collect()
@@ -132,13 +133,13 @@ mod tests {
             .spells
             .iter()
             .map(|(_, d)| d)
-            .find(|d| d.realm == realm_ref(0 /* nature */))
+            .find(|d| d.realm == RealmId::new(0 /* nature */))
             .expect("a nature spell");
         let other = rules
             .spells
             .iter()
             .map(|(_, d)| d)
-            .find(|d| d.realm == realm_ref(2 /* chaos */))
+            .find(|d| d.realm == RealmId::new(2 /* chaos */))
             .expect("a chaos spell");
         assert_eq!(cost_cut(rules, &mastery, nature), 15);
         assert_eq!(research_bonus(rules, &mastery, nature), 15);
@@ -189,7 +190,7 @@ mod tests {
             .spells
             .iter()
             .map(|(_, d)| d)
-            .find(|d| d.realm == realm_ref(0 /* nature */))
+            .find(|d| d.realm == RealmId::new(0 /* nature */))
             .expect("a nature spell");
         assert_eq!(research_bonus(rules, &both, nature), 40);
     }
@@ -239,7 +240,7 @@ mod tests {
         let rules = &shipped().rules;
         let times = |nums: &[u16], realm: u16| {
             let facts = Facts {
-                realm: Some(realm_ref(realm)),
+                realm: Some(RealmId::new(realm)),
                 ..Facts::default()
             };
             stat_with(rules, &retorts(nums), Stat::DispelMultiplier, 1, &facts)
@@ -259,7 +260,7 @@ mod tests {
         let rules = &shipped().rules;
         let doublings = |nums: &[u16], realm: u16| {
             let facts = Facts {
-                realm: Some(realm_ref(realm)),
+                realm: Some(RealmId::new(realm)),
                 ..Facts::default()
             };
             stat_with(rules, &retorts(nums), Stat::NodePowerDoublings, 0, &facts)

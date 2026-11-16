@@ -5,6 +5,7 @@ use super::*;
 use crate::game::rng::GameRng;
 use crate::game::save::Snapshot;
 use crate::game::testutil::shipped;
+
 use crate::game::{Command, Event, Game, Rejection};
 use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
@@ -860,19 +861,33 @@ fn units_asleep_confused_or_webbed_are_always_lost_when_their_side_flees() {
 #[test]
 fn ranged_abilities_map_to_battle_kinds() {
     use super::game::ranged_kind_of;
-    let v = crate::game::testutil::abilities;
-    assert_eq!(ranged_kind_of(&v(&[3 /* bow */])), RangedKind::Missile);
     assert_eq!(
-        ranged_kind_of(&v(&[57 /* rock_throwing */])),
+        ranged_kind_of(&[Ability::new(3 /* bow */)]),
         RangedKind::Missile
     );
-    assert_eq!(ranged_kind_of(&v(&[69 /* thrown */])), RangedKind::Short);
     assert_eq!(
-        ranged_kind_of(&v(&[20 /* fire_breath */, 24 /* flying */])),
+        ranged_kind_of(&[Ability::new(57 /* rock_throwing */)]),
+        RangedKind::Missile
+    );
+    assert_eq!(
+        ranged_kind_of(&[Ability::new(69 /* thrown */)]),
         RangedKind::Short
     );
-    assert_eq!(ranged_kind_of(&v(&[29 /* ice_bolt */])), RangedKind::Magic);
-    assert_eq!(ranged_kind_of(&v(&[25 /* forester */])), RangedKind::None);
+    assert_eq!(
+        ranged_kind_of(&[
+            Ability::new(20 /* fire_breath */),
+            Ability::new(24 /* flying */)
+        ]),
+        RangedKind::Short
+    );
+    assert_eq!(
+        ranged_kind_of(&[Ability::new(29 /* ice_bolt */)]),
+        RangedKind::Magic
+    );
+    assert_eq!(
+        ranged_kind_of(&[Ability::new(25 /* forester */)]),
+        RangedKind::None
+    );
 }
 
 fn found(g: &mut Game, owner: PlayerId, pos: crate::map::Position) -> hecs::Entity {
@@ -1440,7 +1455,7 @@ fn damage_over_seeds(start: &Battle, shoot: bool) -> i32 {
 /// as shipped and the same unit without it.
 fn without(b: &Battle, unit: usize, number: u16) -> Battle {
     let mut c = b.clone();
-    let gone = crate::game::testutil::ability(number);
+    let gone = Ability::new(number);
     c.units[unit].abilities.retain(|a| *a != gone);
     c
 }
@@ -4044,11 +4059,7 @@ fn the_twelve_units_with_a_casting_ability_cast_its_spell_once_for_no_mana() -> 
             .units
             .defs()
             .iter()
-            .filter(move |d| {
-                d.abilities
-                    .iter()
-                    .any(|a| *a == crate::game::testutil::ability(ability))
-            })
+            .filter(move |d| d.abilities.iter().any(|a| *a == Ability::new(ability)))
             .map(move |d| (d.num, spell))
     })
     .collect();
@@ -4755,8 +4766,8 @@ fn an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities() -> 
         52, /* poison_immunity */
         31, /* illusion_immunity */
     ] {
-        assert!(raised.has(crate::game::testutil::ability(a)), "{a}");
-        assert!(!living.has(crate::game::testutil::ability(a)), "{a}");
+        assert!(raised.has(Ability::new(a)), "{a}");
+        assert!(!living.has(Ability::new(a)), "{a}");
     }
     assert!(!living.undead && !living.is_fantastic());
     Ok(())
@@ -7354,9 +7365,7 @@ fn a_curse_the_target_is_immune_to_is_refused_before_it_costs_mana() -> TestResu
     let mut g = hook_game(46 /* confusion */);
     g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1]
         .abilities
-        .push(crate::game::testutil::ability(
-            31, /* illusion_immunity */
-        ));
+        .push(Ability::new(31 /* illusion_immunity */));
     let refused = cast_unit(&mut g, 46 /* confusion */, SpellAim::Unit(1), 10);
     assert_eq!(
         refused,

@@ -224,6 +224,7 @@ pub enum CastStart {
 mod tests {
     use super::*;
     use crate::game::testutil::shipped;
+
     use crate::spell::cast::UpkeepKind;
 
     fn some_spell() -> SpellId {
@@ -324,7 +325,7 @@ mod tests {
         let c = shipped();
         for realm in [0 /* nature */, 2 /* chaos */] {
             for rarity in [Rarity::Common, Rarity::VeryRare] {
-                let realm_id = crate::game::testutil::realm(realm);
+                let realm_id = RealmId::new(realm);
                 let spells = spells_of(&c, realm_id, rarity);
                 assert!(!spells.is_empty(), "{realm} {rarity:?}");
                 let order: Vec<_> = c.rules.spells.iter().map(|(id, _)| id).collect();
@@ -332,10 +333,7 @@ mod tests {
                 assert!(spells.windows(2).all(|w| at(&w[0]) < at(&w[1])));
                 for s in spells {
                     let def = c.rules.spells.get(s);
-                    assert_eq!(
-                        (def.realm, def.rarity),
-                        (crate::game::testutil::realm(realm), rarity)
-                    );
+                    assert_eq!((def.realm, def.rarity), (RealmId::new(realm), rarity));
                 }
             }
         }
@@ -345,11 +343,7 @@ mod tests {
     #[test]
     fn the_default_spells_are_the_realms_list_of_that_rarity() {
         let c = shipped();
-        let chaos = default_spells(
-            &c,
-            crate::game::testutil::realm(2 /* chaos */),
-            Rarity::Common,
-        );
+        let chaos = default_spells(&c, RealmId::new(2 /* chaos */), Rarity::Common);
         let bolt = c.rules.spells.id_numbered(83).expect("fire_bolt");
         assert!(chaos.contains(&bolt));
         for s in &chaos {
@@ -363,7 +357,7 @@ mod tests {
             Rarity::VeryRare,
         ]
         .iter()
-        .map(|&r| default_spells(&c, crate::game::testutil::realm(2 /* chaos */), r).len())
+        .map(|&r| default_spells(&c, RealmId::new(2 /* chaos */), r).len())
         .sum();
         let listed = c
             .rules

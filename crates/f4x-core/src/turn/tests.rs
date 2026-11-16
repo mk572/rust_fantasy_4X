@@ -2,9 +2,10 @@ use super::*;
 use crate::city::economy::{Buildings, Population};
 use crate::city::production::{Production, ProductionError, ProductionItem};
 use crate::game::testutil::shipped;
+
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
-use crate::rules::RealmId;
+use crate::rules::{Ability, RealmId};
 use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 
@@ -630,7 +631,7 @@ fn undead_units_are_not_healed_eat_nothing_and_are_death_creatures() -> TestResu
     assert_eq!(g.units().unit_gold_upkeep(raised), 0);
     assert_eq!(
         g.units().unit_realm(raised),
-        Some(crate::game::testutil::realm(4 /* death */))
+        Some(RealmId::new(4 /* death */))
     );
     assert_eq!(g.units().unit_realm(living), None);
     assert!(g.units().unit_is_death(raised) && !g.units().unit_is_death(living));
@@ -640,16 +641,8 @@ fn undead_units_are_not_healed_eat_nothing_and_are_death_creatures() -> TestResu
         52, /* poison_immunity */
         31, /* illusion_immunity */
     ] {
-        assert!(
-            g.units()
-                .unit_has_ability(raised, crate::game::testutil::ability(a)),
-            "{a}"
-        );
-        assert!(
-            !g.units()
-                .unit_has_ability(living, crate::game::testutil::ability(a)),
-            "{a}"
-        );
+        assert!(g.units().unit_has_ability(raised, Ability::new(a)), "{a}");
+        assert!(!g.units().unit_has_ability(living, Ability::new(a)), "{a}");
     }
     Ok(())
 }

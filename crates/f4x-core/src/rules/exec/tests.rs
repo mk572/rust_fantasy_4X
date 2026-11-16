@@ -164,25 +164,19 @@ fn rule(when: Trigger, condition: Condition, target: TargetSel, effect: Effect) 
 #[test]
 fn conditions_combine() {
     let f = Facts {
-        realm: Some(crate::game::testutil::realm(2 /* chaos */)),
+        realm: Some(RealmId::new(2 /* chaos */)),
         kind: Some(crate::rules::UnitKind::Hero),
         ..Facts::default()
     };
     assert!(eval(&Condition::Always, &f));
-    assert!(eval(
-        &Condition::RealmIs(crate::game::testutil::realm_ref(2 /* chaos */)),
-        &f
-    ));
-    assert!(!eval(
-        &Condition::RealmIs(crate::game::testutil::realm_ref(3 /* life */)),
-        &f
-    ));
+    assert!(eval(&Condition::RealmIs(RealmId::new(2 /* chaos */)), &f));
+    assert!(!eval(&Condition::RealmIs(RealmId::new(3 /* life */)), &f));
     assert!(eval(&Condition::KindIs(crate::rules::UnitKind::Hero), &f));
     assert!(!eval(
         &Condition::KindIs(crate::rules::UnitKind::Normal),
         &f
     ));
-    let life = Condition::RealmIs(crate::game::testutil::realm_ref(3 /* life */));
+    let life = Condition::RealmIs(RealmId::new(3 /* life */));
     assert!(eval(&Condition::Not(Box::new(life)), &f));
 }
 
@@ -265,7 +259,7 @@ fn only_matching_trigger_and_condition_run() {
         ),
         rule(
             Trigger::Passive,
-            Condition::RealmIs(crate::game::testutil::realm_ref(3 /* life */)),
+            Condition::RealmIs(RealmId::new(3 /* life */)),
             TargetSel::This,
             add(Stat::Defense, 1),
         ),
@@ -276,7 +270,7 @@ fn only_matching_trigger_and_condition_run() {
         .expect("the unit was spawned")
         .1
         .facts
-        .realm = Some(crate::game::testutil::realm(3 /* life */));
+        .realm = Some(RealmId::new(3 /* life */));
     let out = run_rules(&rules, Trigger::Passive, &cx, &mut h);
     assert_eq!(
         out,
@@ -342,7 +336,7 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
     let salamander = h.spawn(1, pos(1, 0), 9, 0);
     h.grant_ability(
         Target::Unit(salamander),
-        crate::game::testutil::ability(21 /* fire_immunity */),
+        Ability::new(21 /* fire_immunity */),
     );
     let plain = h.spawn(1, pos(2, 0), 9, 0);
     let bolt = |immune: &[u16], resist_modifier| {
@@ -354,11 +348,8 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
                 amount: 4,
                 kind: DamageKind::Fire,
                 resistible: true,
-                immune: immune
-                    .iter()
-                    .map(|&s| crate::game::testutil::ability_ref(s))
-                    .collect(),
-                realm: Some(crate::game::testutil::realm_ref(2 /* chaos */)),
+                immune: immune.iter().map(|&s| Ability::new(s)).collect(),
+                realm: Some(RealmId::new(2 /* chaos */)),
                 resist_modifier,
                 traits: Default::default(),
             },
@@ -450,9 +441,7 @@ fn grant_and_heal() {
     let cx = ctx(Target::Unit(a), 0);
     let on_cast = |e| [rule(Trigger::OnCast, Condition::Always, TargetSel::This, e)];
     run_rules(
-        &on_cast(Effect::GrantAbility(crate::game::testutil::ability_ref(
-            24, /* flying */
-        ))),
+        &on_cast(Effect::GrantAbility(Ability::new(24 /* flying */))),
         Trigger::OnCast,
         &cx,
         &mut h,

@@ -377,6 +377,7 @@ impl Game {
 pub(crate) mod tests {
     use super::*;
     use crate::game::testutil::shipped;
+
     use crate::hero::Tier;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::Ability;
@@ -824,7 +825,7 @@ pub(crate) mod tests {
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Books>()
             .0
-            .insert(crate::game::testutil::realm(4 /* death */), 1);
+            .insert(RealmId::new(4 /* death */), 1);
         let mut seen = std::collections::BTreeSet::new();
         for _ in 0..2000 {
             if let Some(k) = g.pick_hero(P0, true, Class::Any) {

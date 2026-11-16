@@ -1,6 +1,6 @@
 use super::*;
 use crate::battle::{BattleCommand, Side};
-use crate::game::testutil::{realm, shipped};
+use crate::game::testutil::shipped;
 use crate::map::{FeatureId, Grid, Map, Plane};
 use crate::player::PlayerId;
 use crate::rules::RealmId;
@@ -222,7 +222,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
         &mut loot,
     );
     assert!(
-        !loot.books.contains(&realm(4 /* death */)),
+        !loot.books.contains(&RealmId::new(4 /* death */)),
         "life and death exclude each other"
     );
     // A temple gives a life book, up to the limit (a wizard with twelve may still find a
@@ -247,7 +247,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
             &mut loot,
         );
         books += loot.books.len();
-        assert!(loot.books.iter().all(|&b| b == realm(3 /* life */)));
+        assert!(loot.books.iter().all(|&b| b == RealmId::new(3 /* life */)));
     }
     assert!(books > 0);
     assert!(g.wizard(P0).ok_or("wizard is missing")?.total_books() <= 13);

@@ -1,6 +1,8 @@
 use super::*;
 use crate::game::setting::{AiWizardSettings, EventFrequency, MeleeVsFliers, Split};
 use crate::game::testutil::shipped;
+use crate::rules::RealmId;
+
 use crate::game::Command;
 use crate::map::{Grid, Plane};
 use f4x_def::half_int::HalfInt;
@@ -78,7 +80,7 @@ fn game() -> Game {
         },
         feature: node,
         node: Some(crate::feature::node::Node {
-            realm: crate::game::testutil::realm(2 /* chaos */),
+            realm: RealmId::new(2 /* chaos */),
             power: 12,
             aura: vec![(3, 3), (4, 3), (3, 4)],
             guardian: true,
@@ -893,6 +895,7 @@ fn a_wizard_without_a_player_is_refused() {
 fn an_older_save_with_a_player_for_each_neutral_city_is_read_as_one_player_for_each_race(
 ) -> TestResult {
     use crate::game::testutil::fresh;
+
     let content = shipped();
     let game = fresh(2, 7)?;
     let mut old = game.snapshot();

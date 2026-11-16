@@ -1,5 +1,6 @@
 use super::*;
 use crate::game::testutil::shipped;
+
 use crate::player::Treasury;
 use crate::rules::RealmId;
 use crate::wizard::magic::Retort;
@@ -66,7 +67,7 @@ fn a_famous_wizard_starts_with_fame_and_every_wizard_with_a_library() -> TestRes
     .map_err(|e| format!("{e:?}"))?;
     let w = g.wizard(id).ok_or("wizard is missing")?;
     assert_eq!(w.fame(), 10);
-    assert_eq!(w.books_in(crate::game::testutil::realm(3 /* life */)), 2);
+    assert_eq!(w.books_in(RealmId::new(3 /* life */)), 2);
     assert!(!w.known().is_empty());
     g.init_wizard(id, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;

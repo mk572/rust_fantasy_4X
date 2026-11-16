@@ -395,7 +395,7 @@ impl UnitView<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::{abilities, shipped};
+    use crate::game::testutil::shipped;
 
     /// The first shipped item (in the original's order) that `wanted` accepts, as the game
     /// hands it out.
@@ -442,7 +442,7 @@ mod tests {
             let b = Item::from_def(d).bonus;
             d.kind == ItemKind::Sword && d.powers.is_empty() && b.attack > 0 && b.to_hit > 0
         });
-        let mods = modifiers(&sword, 0, &abilities(&[3 /* bow */]), true);
+        let mods = modifiers(&sword, 0, &[Ability::new(3 /* bow */)], true);
         assert_eq!(total(&mods, Stat::Melee), sword.bonus.attack);
         assert_eq!(total(&mods, Stat::MeleeToHit), sword.bonus.to_hit);
         assert_eq!(total(&mods, Stat::Ranged), 0);
@@ -457,8 +457,8 @@ mod tests {
         let staff = real(|d| {
             d.kind == ItemKind::Staff && d.powers.is_empty() && Item::from_def(d).bonus.attack > 0
         });
-        let archer = abilities(&[3 /* bow */]);
-        let mage = abilities(&[22 /* fireball_attack */]);
+        let archer = vec![Ability::new(3 /* bow */)];
+        let mage = vec![Ability::new(22 /* fireball_attack */)];
         let ranged =
             |item: &Item, who: &[Ability]| total(&modifiers(item, 0, who, true), Stat::Ranged);
         assert_eq!(ranged(&bow, &archer), bow.bonus.attack);
@@ -474,7 +474,7 @@ mod tests {
         let ring = real(|d| {
             d.kind == ItemKind::Misc && d.powers.is_empty() && Item::from_def(d).bonus.attack > 0
         });
-        let mods = modifiers(&ring, 2, &abilities(&[3 /* bow */]), true);
+        let mods = modifiers(&ring, 2, &[Ability::new(3 /* bow */)], true);
         assert_eq!(total(&mods, Stat::Melee), ring.bonus.attack);
         assert_eq!(total(&mods, Stat::Ranged), ring.bonus.attack);
         // A hero with no ranged attack gets no phantom one.
@@ -487,7 +487,7 @@ mod tests {
         // An axe with Giant Strength: +1 to the blow on top of its own bonus.
         let giant = ItemPowerId::new(44);
         let axe = real(|d| d.kind == ItemKind::Axe && d.powers == [giant]);
-        let thrower = abilities(&[69 /* thrown */]);
+        let thrower = vec![Ability::new(69 /* thrown */)];
         let mods = modifiers(&axe, 0, &thrower, true);
         assert_eq!(total(&mods, Stat::Melee), axe.bonus.attack + 1);
         assert_eq!(total(&mods, Stat::Ranged), axe.bonus.attack + 1);
@@ -504,7 +504,7 @@ mod tests {
         assert_eq!(total(&mods, Stat::Melee), blade.bonus.attack + 3);
         // A bow's flaming arrows get the 3 and its own bonus goes to the arrows too.
         let bow = real(|d| d.kind == ItemKind::Bow && d.powers == [flaming]);
-        let mods = modifiers(&bow, 0, &abilities(&[3 /* bow */]), true);
+        let mods = modifiers(&bow, 0, &[Ability::new(3 /* bow */)], true);
         assert_eq!(total(&mods, Stat::Ranged), bow.bonus.attack + 3);
         assert_eq!(total(&mods, Stat::Melee), 0);
     }

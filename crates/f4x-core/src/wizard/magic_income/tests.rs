@@ -1,5 +1,7 @@
 use super::*;
 use crate::game::testutil::shipped;
+use crate::rules::RealmId;
+
 use crate::wizard::magic::Retort;
 use crate::wizard::sheet::{Books, Retorts, WizardMut};
 use f4x_def::half_int::HalfInt;
@@ -26,7 +28,7 @@ fn fake() -> Fake {
     WizardMut::new(&mut world, wizard)
         .get_mut::<Books>()
         .0
-        .insert(crate::game::testutil::realm(3 /* life */), 2);
+        .insert(RealmId::new(3 /* life */), 2);
     Fake {
         world,
         wizard,

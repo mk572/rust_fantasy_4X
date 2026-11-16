@@ -1,5 +1,6 @@
 use super::*;
 use crate::game::testutil::shipped;
+
 use crate::map::{Grid, Map, Plane, Position};
 use crate::rules::RealmId;
 use crate::spell::target_error::TargetError;
@@ -1142,10 +1143,7 @@ fn chaos_channels_gives_one_mutation_once_and_makes_a_creature_of_chaos() {
             .unwrap_or_else(|| panic!("{events:?}"));
         seen.insert(format!("{m:?}"));
         let units = g.units();
-        assert_eq!(
-            units.unit_realm(u),
-            Some(crate::game::testutil::realm(2 /* chaos */))
-        );
+        assert_eq!(units.unit_realm(u), Some(RealmId::new(2 /* chaos */)));
         // The unit sheet names the mutation by this marker.
         let marker = crate::unit::mutation::MUTATION_MARKERS
             .iter()

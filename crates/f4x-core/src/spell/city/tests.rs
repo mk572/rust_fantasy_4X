@@ -1,5 +1,6 @@
 use super::*;
 use crate::game::testutil::shipped;
+
 use crate::map::{Grid, Map, Plane, Position};
 use crate::rules::RealmId;
 use f4x_def::testdir::TestResult;
@@ -168,7 +169,7 @@ fn evil_presence_destroys_the_power_of_shrines_unless_the_owner_has_death_magic(
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Books>()
         .0
-        .insert(crate::game::testutil::realm(4 /* death */), 1);
+        .insert(RealmId::new(4 /* death */), 1);
     assert_eq!(mana(&g), blessed, "a wizard with death magic is unharmed");
     Ok(())
 }
@@ -432,7 +433,7 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() -> TestRe
     cast_ward(&mut g, city, 4 /* death */);
     assert_eq!(
         g.economy().city_wards(city),
-        vec![crate::game::testutil::realm(4 /* death */)]
+        vec![RealmId::new(4 /* death */)]
     );
     let upkeep = |g: &Game| {
         g.upkeep_items(P0)
@@ -453,10 +454,7 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() -> TestRe
     cast_ward(&mut g, city, 2 /* chaos */);
     assert_eq!(
         g.economy().city_wards(city),
-        vec![
-            crate::game::testutil::realm(4 /* death */),
-            crate::game::testutil::realm(2 /* chaos */)
-        ]
+        vec![RealmId::new(4 /* death */), RealmId::new(2 /* chaos */)]
     );
     assert_eq!(upkeep(&g), 10, "five for each ward");
     // Lose the spell and the wards go with it; a new one starts afresh.
@@ -465,7 +463,7 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() -> TestRe
     cast_ward(&mut g, city, 3 /* life */);
     assert_eq!(
         g.economy().city_wards(city),
-        vec![crate::game::testutil::realm(3 /* life */)]
+        vec![RealmId::new(3 /* life */)]
     );
     Ok(())
 }
@@ -539,21 +537,18 @@ fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() -> TestResu
     g.start_battle(&[ghoul], &[defender])
         .map_err(|e| format!("{e:?}"))?;
     let b = g.battle().ok_or("battle is missing")?;
-    assert_eq!(
-        b.warded_realms,
-        vec![crate::game::testutil::realm(4 /* death */)]
-    );
+    assert_eq!(b.warded_realms, vec![RealmId::new(4 /* death */)]);
     assert!(b.ward_stops(
         crate::battle::Side::Attacker,
-        Some(crate::game::testutil::realm(4 /* death */))
+        Some(RealmId::new(4 /* death */))
     ));
     assert!(!b.ward_stops(
         crate::battle::Side::Defender,
-        Some(crate::game::testutil::realm(4 /* death */))
+        Some(RealmId::new(4 /* death */))
     ));
     assert!(!b.ward_stops(
         crate::battle::Side::Attacker,
-        Some(crate::game::testutil::realm(2 /* chaos */))
+        Some(RealmId::new(2 /* chaos */))
     ));
     Ok(())
 }
@@ -572,10 +567,7 @@ fn wards_survive_a_save() -> TestResult {
         .ok_or("city_at is missing")?;
     assert_eq!(
         back.economy().city_wards(again),
-        vec![
-            crate::game::testutil::realm(4 /* death */),
-            crate::game::testutil::realm(3 /* life */)
-        ]
+        vec![RealmId::new(4 /* death */), RealmId::new(3 /* life */)]
     );
     Ok(())
 }
@@ -595,7 +587,7 @@ fn evil_presence_is_refused_where_its_owner_can_use_death_magic() -> TestResult 
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Books>()
         .0
-        .insert(crate::game::testutil::realm(4 /* death */), 1);
+        .insert(RealmId::new(4 /* death */), 1);
     assert_eq!(
         g.check_target(P1, spell, Some(Target::City(city))),
         Err(crate::wizard::magic::MagicError::Target(
@@ -726,7 +718,7 @@ fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() -> T
         at(7, 6),
         20, /* sorcery_node */
         crate::feature::node::Node {
-            realm: crate::game::testutil::realm(2 /* chaos */),
+            realm: RealmId::new(2 /* chaos */),
             power: 2,
             aura: vec![(7, 6), (8, 6)],
             guardian: false,
@@ -773,10 +765,7 @@ fn consecration_turns_away_death_and_chaos_spells_but_not_the_others() -> TestRe
     g.add_city_enchantment(city, consecration, P0);
     assert_eq!(
         g.economy().city_shielded_realms(city),
-        vec![
-            crate::game::testutil::realm(4 /* death */),
-            crate::game::testutil::realm(2 /* chaos */)
-        ]
+        vec![RealmId::new(4 /* death */), RealmId::new(2 /* chaos */)]
     );
     assert!(
         g.economy().city_wards(city).is_empty(),

@@ -1,5 +1,6 @@
 use super::*;
 use crate::game::testutil::shipped;
+
 use crate::map::{Grid, Map, Plane, Position};
 use crate::rules::Ability;
 use crate::rules::RealmId;
@@ -277,7 +278,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
         at(6, 6),
         20, /* sorcery_node */
         Node {
-            realm: crate::game::testutil::realm(2 /* chaos */),
+            realm: RealmId::new(2 /* chaos */),
             power: 8,
             aura: vec![(6, 6)],
             guardian: false,
