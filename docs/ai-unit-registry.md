@@ -37,8 +37,8 @@ A group is the set of units that share a `party` id (`new_party`, `group`, `memb
   (`colonists`);
 - a **rescue**: the ship holds `Pickup` with `to` = the sea square; the soldiers it came for keep
   `AwaitTransport` and their `with` is the ship (`pickup::voyages`);
-- an **escort** (planned): the escort holds `Escort` with `with` = the unit it guards; if the
-  charge is released or dies, the audit releases the escort too.
+- an **escort**: the escort holds `Escort` with `with` = the unit it guards (`escort_of`); when the
+  charge no longer holds `Settle` (it founded its city, or died) `escort::run` releases the escort.
 
 The voyage data that is not about units (the landing plan, the colony plan, `naval_bad`,
 `colony_bad`) stays in the plan fields of `Ai`; only who is on it is in the registry.
@@ -59,6 +59,7 @@ Listed in priority order (the lower number wins a claim, section 4):
 | `Raid` | out on a tower, node or encounter site (`to` = the site) | soldiers | `site.rs`, `naval.rs` |
 | `March` | on the march against a city | soldiers | `military.rs` |
 | `Muster` | walking to a city to be sent against a tower together | soldiers | `siege.rs` |
+| `Escort` | going with a settler to its site (`with` = the settler) | soldiers | `escort.rs` |
 | `Scout` | scouting by land or sea (`to` = the patch) | soldiers, ships | `scout.rs`, `garrison.rs`, `naval.rs` |
 | `Return` | walking home to the nearest own city (`to` = the city) | soldiers | the audit |
 
@@ -71,7 +72,7 @@ Roles the registry does **not** store, because the world already says them (`rol
 | `Ordered` | a unit with an order of its own (a plain walk) |
 | `AwaitingOrders` | none of the above: soldiers in it are *adrift*, ships and other units are *unassigned* |
 
-Planned roles (tasks 625 to 628): `Perimeter`, `Explore`, `Escort`, `Road`, `Meld`.
+Planned roles (tasks 625, 627, 628): `Perimeter`, `Road`, `Meld`; `Explore` replaces `Scout`.
 
 The three scouting roles (`Scout`, `PlanarScout`, `SeaParty`) count as "out scouting"
 (`is_scouting`, `scouting`), which the army and garrison use to leave those units alone.
@@ -115,6 +116,15 @@ each other's roles to stay out of the way.
 
 The number to watch in a soak is `units adrift`: the audit sends those soldiers home, but a soldier
 that needs it every turn shows a routine that lets go of its units without a next role.
+
+### The escort
+
+A settler that leaves a city for its site (`expand.rs` calls `escort::walk`) is given the strongest
+free soldier the city can spare above `garrison_wanted`; a city with none sends its settler alone.
+The two get one `GoTo` as a stack, so they walk at the pace of the slower. After the settlers have
+moved, `escort::run` frees the escorts whose charge is gone and sends an escort that fell behind to
+its charge. Only settlers are escorted so far: engineers, spirits, healers and low-experience
+heroes have no role yet. Not built: the charge waiting when its escort is lost and an enemy is near.
 
 ## 6. Where to add a role
 

@@ -728,4 +728,4 @@ keep the role `Return` until they are in it, or wait on a shore for a ship (`Awa
 `pickup.rs`) when no city can be reached on foot; ships and other units awaiting orders are counted
 (`ships and other units with no role`). The soak shows `units adrift (no role)`.
 
-The new roles (perimeter, escort, road, meld) are tasks 625 to 628.
+The escort role is built (`escort.rs`: a settler leaving a city takes a spare soldier along). The new roles perimeter, road and meld are tasks 625, 627 and 628.

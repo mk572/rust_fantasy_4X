@@ -17,6 +17,7 @@ mod controller;
 mod craft;
 mod diplomacy;
 mod economy;
+mod escort;
 mod expand;
 mod forge;
 mod garrison;
@@ -371,6 +372,7 @@ impl Ai {
             garrison::disperse(self, game, &mut events);
             garrison::thin_out(self, game, &mut events);
             expand::settlers(self, game, &mut events);
+            escort::run(self, game, &mut events);
             scout::scout(self, game, &mut events);
             site::run(self, game, &mut events);
             military::army(self, game, &mut events);

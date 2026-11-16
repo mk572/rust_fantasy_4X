@@ -158,17 +158,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 ai.roles
                     .set_target(serial, crate::roles::Role::Settle, None);
             }
-        } else if !ai
-            .send(
-                game,
-                Command::GoTo {
-                    units: vec![unit],
-                    to: target,
-                },
-                events,
-            )
-            .is_ok()
-        {
+        } else if !crate::escort::walk(ai, game, unit, target, events) {
             ai.roles
                 .set_target(serial, crate::roles::Role::Settle, None);
         }

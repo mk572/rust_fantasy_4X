@@ -38,6 +38,8 @@ pub enum Role {
     Colonize,
     /// A ship on its way to fetch stranded soldiers (`pickup.rs`).
     Pickup,
+    /// A soldier that goes with a unit it protects (`escort.rs`); `with` is that unit.
+    Escort,
     /// A soldier walking to the nearest own city; it keeps the role until it is there.
     Return,
     /// A ship in a city with no voyage.
@@ -137,6 +139,14 @@ impl Registry {
             .iter()
             .filter(|(_, a)| a.role == Role::Colonize)
             .find_map(|(s, a)| a.with.map(|ship| (ship, *s)))
+    }
+
+    /// The soldier escorting `charge`, if one is.
+    pub fn escort_of(&self, charge: Serial) -> Option<Serial> {
+        self.map
+            .iter()
+            .find(|(_, a)| a.role == Role::Escort && a.with == Some(charge))
+            .map(|(s, _)| *s)
     }
 
     /// The ships on a voyage with a landing, in serial order.
@@ -415,12 +425,13 @@ impl Role {
             Role::Raid => 7,
             Role::March => 8,
             Role::Muster => 9,
-            Role::Scout => 10,
-            Role::Return => 11,
-            Role::Ordered => 12,
-            Role::Garrison => 13,
-            Role::Docked => 14,
-            Role::AwaitingOrders => 15,
+            Role::Escort => 10,
+            Role::Scout => 11,
+            Role::Return => 12,
+            Role::Ordered => 13,
+            Role::Garrison => 14,
+            Role::Docked => 15,
+            Role::AwaitingOrders => 16,
         }
     }
 }
