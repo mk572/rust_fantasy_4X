@@ -589,6 +589,7 @@ pub fn game(
             println!("{tag}: {line}");
         }
     }
+    println!("{tag}: defeats: {}", defeat_line(&game, &tally));
     // Every counter of every wizard, one line each, for the report script (`scripts/soak_report.py`).
     for p in game.player_ids() {
         if game.wizard(p).is_none() {
@@ -1050,6 +1051,35 @@ fn neutral_lines(game: &Game, tally: &Tally) -> Vec<String> {
         })
         .collect();
     vec![format!("neutrals: {}", parts.join("; "))]
+}
+
+/// Who defeated each wizard that fell: `p3 by p1 (turn 340)` for a rival wizard, `p0 by neutral
+/// high_men (turn 120)` for an independent race's cities, `by monsters`, or `by nobody` when it lost
+/// its last city without anyone taking it. `none` when no wizard fell.
+fn defeat_line(game: &Game, tally: &Tally) -> String {
+    let rules = &game.content().rules;
+    let parts: Vec<String> = tally
+        .defeats()
+        .iter()
+        .map(|&(turn, loser, killer)| {
+            let who = match killer.map(PlayerId) {
+                None => "nobody".to_string(),
+                Some(k) if k == f4x_core::player::MONSTERS => "monsters".to_string(),
+                Some(k) if game.is_neutral_player(k) => format!(
+                    "neutral {}",
+                    game.race_of_player(k)
+                        .map_or("?".to_string(), |r| rules.races.get(r).id.clone())
+                ),
+                Some(k) => format!("p{}", k.0),
+            };
+            format!("p{loser} by {who} (turn {turn})")
+        })
+        .collect();
+    if parts.is_empty() {
+        "none".to_string()
+    } else {
+        parts.join(", ")
+    }
 }
 
 fn mana_line(game: &Game, tally: &Tally) -> String {

@@ -97,11 +97,13 @@ pub struct Metrics {
     /// Items finished by paying gold (`Command::BuyProduction`), and the gold they cost.
     pub production_rushed: u32,
     pub gold_rushed: u32,
+    /// Rival wizards whose last city this wizard took (`Tally::defeats` says which).
+    pub wizards_eliminated: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 54] {
+    pub fn rows(&self) -> [(&'static str, u32); 55] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -157,6 +159,7 @@ impl Metrics {
             ("research stalled turns", self.research_stalled),
             ("production rushed", self.production_rushed),
             ("gold paid for rushing", self.gold_rushed),
+            ("wizards eliminated", self.wizards_eliminated),
         ]
     }
 
@@ -268,6 +271,7 @@ impl AddAssign for Metrics {
             research_stalled,
             production_rushed,
             gold_rushed,
+            wizards_eliminated,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -323,6 +327,7 @@ impl AddAssign for Metrics {
         self.research_stalled += research_stalled;
         self.production_rushed += production_rushed;
         self.gold_rushed += gold_rushed;
+        self.wizards_eliminated += wizards_eliminated;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -349,6 +354,14 @@ pub struct Tally {
     mana_spent: Vec<i64>,
     #[serde(default)]
     mana_left: Vec<i64>,
+    /// Who took the last city each player lost, by player number: the taker of a wizard's last
+    /// city is the one who defeated it.
+    #[serde(default)]
+    last_taker: BTreeMap<u8, u8>,
+    /// The wizards defeated: the turn, the wizard, and who took its last city (`None` when it
+    /// lost its last city some other way, razed, destroyed or lost to rebels).
+    #[serde(default)]
+    defeats: Vec<(u32, u8, Option<u8>)>,
 }
 
 impl Tally {
@@ -372,6 +385,8 @@ impl Tally {
             battle_casts: BTreeMap::new(),
             mana_spent: vec![0; count + 1],
             mana_left: vec![0; count + 1],
+            last_taker: BTreeMap::new(),
+            defeats: Vec::new(),
         };
         tally.mana_left = tally.mana_now(game);
         tally.ships_at_start = tally.ships_now(game);
@@ -441,6 +456,11 @@ impl Tally {
         self.mana_left = now;
     }
 
+    /// The wizards defeated, in order: the turn, the wizard and who took its last city.
+    pub fn defeats(&self) -> &[(u32, u8, Option<u8>)] {
+        &self.defeats
+    }
+
     /// The mana each wizard spent over the game and holds now, by player number.
     pub fn mana(&self) -> (&[i64], &[i64]) {
         (&self.mana_spent, &self.mana_left)
@@ -489,6 +509,7 @@ impl Tally {
                     }
                 }
                 Event::CityCaptured { city, from, to } => {
+                    self.last_taker.insert(from.0, to.0);
                     let by_sea = game
                         .economy()
                         .cities()
@@ -695,6 +716,13 @@ impl Tally {
                     m.gold_rushed += *cost;
                 }),
                 // A standing order that stopped on a refused step counts as a refused order.
+                Event::WizardDefeated { player } => {
+                    let killer = self.last_taker.get(&player.0).copied();
+                    self.defeats.push((game.turn, player.0, killer));
+                    if let Some(k) = killer.map(PlayerId).filter(|&k| game.is_wizard(k)) {
+                        self.bump(k, |m| m.wizards_eliminated += 1);
+                    }
+                }
                 Event::OrderFailed { player, .. } => {
                     self.bump(*player, |m| m.refused_orders += 1);
                 }

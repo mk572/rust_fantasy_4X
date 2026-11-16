@@ -32,6 +32,8 @@ PROFILE = re.compile(
     r"personality (?P<personality>\S+); objective (?P<objective>\S+); books \[(?P<books>[^\]]*)\]; "
     r"retorts \[(?P<retorts>[^\]]*)\]"
 )
+DEFEATS = re.compile(r"^seed (?P<seed>\d+): defeats: (?P<body>.*)$")
+DEFEAT = re.compile(r"p(?P<loser>\d+) by (?P<killer>.+?) \(turn (?P<turn>\d+)\)")
 STATS = re.compile(r"^seed (?P<seed>\d+): stats p(?P<id>\d+): (?P<body>.*)$")
 
 # The counters averaged in the race, realm and retort tables.
@@ -46,6 +48,7 @@ AVERAGED = [
     "mercenaries hired",
     "items made",
     "production rushed",
+    "wizards eliminated",
 ]
 
 
@@ -75,6 +78,8 @@ class Game:
     winner: int | None
     how: str
     turn: int
+    # Who defeated each fallen wizard: (loser, killer text such as "p1", "neutral gnoll", "nobody").
+    defeats: list[tuple[int, str]] = field(default_factory=list)
 
 
 def strongest_realm(books: str) -> str:
@@ -115,6 +120,10 @@ def parse(path: Path) -> tuple[list[Game], list[Wizard]]:
             wizard.race = m["race"]
             wizard.realm = strongest_realm(m["books"])
             wizard.retorts = [r.strip() for r in m["retorts"].split(",") if r.strip()]
+        elif m := DEFEATS.match(line):
+            for game in games:
+                if game.seed == int(m["seed"]) and game.log == log:
+                    game.defeats = [(int(d["loser"]), d["killer"]) for d in DEFEAT.finditer(m["body"])]
         elif m := STATS.match(line):
             wizard = wizards.setdefault((int(m["seed"]), int(m["id"])), Wizard((log, int(m["seed"])), int(m["id"])))
             for item in m["body"].split("; "):
@@ -135,13 +144,42 @@ def summary(log: str, games: list[Game]) -> str:
         "",
         f"{len(won)} of {len(games)} games ended with a winner ({kinds}).",
         "",
-        "| Seed | Result | Turn |",
-        "|---|---|---|",
+        defeat_summary(games),
+        "",
+        "| Seed | Result | Turn | Wizards defeated, and by whom |",
+        "|---|---|---|---|",
     ]
     for g in sorted(games, key=lambda g: g.seed):
         result = f"p{g.winner} {g.how}" if g.winner is not None else "**no winner**"
-        lines.append(f"| {g.seed} | {result} | {g.turn} |")
+        who = ", ".join(f"p{loser} by {killer}" for loser, killer in g.defeats) or "none"
+        lines.append(f"| {g.seed} | {result} | {g.turn} | {who} |")
     return "\n".join(lines)
+
+
+def killer_kind(killer: str) -> str:
+    """A wizard (`p1`), independent cities (`neutral gnoll`), the monsters, or nobody."""
+    if re.fullmatch(r"p\d+", killer):
+        return "a rival wizard"
+    return {"monsters": "monsters", "nobody": "nobody"}.get(killer, "independent cities")
+
+
+def defeat_summary(games: list[Game]) -> str:
+    """How the wizards that fell were defeated, and how the conquest wins were made."""
+    kinds: dict[str, int] = defaultdict(int)
+    for g in games:
+        for _, killer in g.defeats:
+            kinds[killer_kind(killer)] += 1
+    total = sum(kinds.values())
+    text = ", ".join(f"{n} by {kind}" for kind, n in sorted(kinds.items())) or "none"
+    conquest = [g for g in games if g.winner is not None and g.how == "Conquest"]
+    by_winner = sum(
+        1 for g in conquest for _, killer in g.defeats if killer == f"p{g.winner}"
+    )
+    fallen = sum(len(g.defeats) for g in conquest)
+    return (
+        f"Wizards defeated: {total} ({text}). In the {len(conquest)} conquest wins the winner "
+        f"itself took the last city of {by_winner} of the {fallen} wizards that fell."
+    )
 
 
 def totals(wizards: list[Wizard]) -> str:
