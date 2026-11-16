@@ -54,10 +54,13 @@ pub enum Role {
     /// the sea square where stranded soldiers wait (those tied to it by `with` are the ones it
     /// came for). Set by `naval.rs` and `pickup.rs`.
     TransportSpace,
-    /// A ship with the units to carry decided and tied to it (`with`), and its target (`to`): a
-    /// landing under way to its sea square, a rescue with everyone aboard on its way to a port.
-    /// Set by `naval.rs` and `pickup.rs`.
+    /// A ship with the units to carry decided and tied to it (`with`), and its target (`to`),
+    /// about to sail: the landing party is chosen, the rescue has everyone aboard. Set by
+    /// `naval.rs` and `pickup.rs`.
     TransportReady,
+    /// A ship that has sailed with its load, on its way to its target (`to`): a landing to its sea
+    /// square, rescued soldiers to a port. Set by `naval.rs` and `pickup.rs`.
+    Transporting,
     /// Nothing found for the unit to do: a role of its own, so no unit has none. The audit
     /// looks for something better for a soldier in it (home, or a shore to wait on).
     AwaitingOrders,
@@ -187,8 +190,10 @@ impl Registry {
         self.map
             .iter()
             .filter(|(_, a)| {
-                matches!(a.role, Role::TransportReady | Role::TransportSpace)
-                    && a.with.is_none()
+                matches!(
+                    a.role,
+                    Role::TransportReady | Role::Transporting | Role::TransportSpace
+                ) && a.with.is_none()
                     && a.party.is_none()
             })
             .map(|(s, _)| *s)
@@ -204,7 +209,8 @@ impl Registry {
             .collect()
     }
 
-    /// A ship sets out with `passengers` for `to`: the ship is `TransportReady` and each passenger
+    /// A ship takes `passengers` for `to`: the ship is `TransportReady` (until it sails, `transition`
+    /// to `Transporting`) and each passenger
     /// holds `Voyage`, tied to the ship. Returns whether all of them could take the role.
     pub fn sail(&mut self, ship: Serial, passengers: &[Serial], turn: u32, to: Position) -> bool {
         let mut all = self
@@ -232,7 +238,7 @@ impl Registry {
         self.release_many(&aboard, Role::Voyage);
         if matches!(
             self.role_of(ship),
-            Some(Role::TransportReady | Role::TransportSpace)
+            Some(Role::TransportReady | Role::Transporting | Role::TransportSpace)
         ) {
             self.release_any(ship);
         }
@@ -519,6 +525,7 @@ impl Role {
             Role::Settle => 1,
             Role::Voyage => 2,
             Role::TransportReady => 3,
+            Role::Transporting => 3,
             Role::SeaParty => 4,
             Role::PlanarScout => 5,
             Role::TransportSpace => 6,
@@ -567,7 +574,7 @@ pub struct Held {
 /// - a soldier in an own city: `Garrison`, `to` = the city;
 /// - a unit with an order of its own: `MoveTo`, `to` = the end of its path;
 /// - a ship with no mission and no order: `TransportFree` (with a mission it holds
-///   `TransportSpace` or `TransportReady`, which `naval.rs` and `pickup.rs` set);
+///   `TransportSpace`, `TransportReady` or `Transporting`, which `naval.rs` and `pickup.rs` set);
 /// - anything else: `AwaitingOrders`.
 pub fn sync(ai: &mut Ai, view: &PlayerView, turn: u32) -> Vec<Held> {
     let mut out = Vec::new();

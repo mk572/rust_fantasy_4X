@@ -6,7 +6,7 @@
 //! The waiting soldiers hold the role `AwaitTransport` in the registry (`Ai::roles`, with the
 //! shore tile as its target). A ship sent for them holds `TransportSpace` (the sea square as its
 //! target, room for them) and the soldiers it came for are tied to it (`with`); once they are all
-//! aboard it holds `TransportReady` with the port as its target. [`voyages`] reads them back.
+//! aboard it holds `TransportReady` with the port as its target, and `Transporting` once it sails. [`voyages`] reads them back.
 
 use crate::view::is_ship;
 use crate::Ai;
@@ -33,6 +33,7 @@ pub fn voyages(ai: &Ai) -> Vec<Pickup> {
     use crate::roles::Role;
     let mut ships = ai.roles.members(Role::TransportSpace);
     ships.extend(ai.roles.members(Role::TransportReady));
+    ships.extend(ai.roles.members(Role::Transporting));
     ships.sort();
     ships
         .into_iter()
@@ -359,14 +360,24 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
             );
         }
         if let (true, Some(port)) = (idle, port) {
-            let _ = ai.send(
-                game,
-                Command::GoTo {
-                    units: vec![ship],
-                    to: port,
-                },
-                events,
-            );
+            let sailed = ai
+                .send(
+                    game,
+                    Command::GoTo {
+                        units: vec![ship],
+                        to: port,
+                    },
+                    events,
+                )
+                .is_ok();
+            if sailed {
+                ai.roles.transition(
+                    pickup.ship,
+                    crate::roles::Role::TransportReady,
+                    crate::roles::Role::Transporting,
+                    Some(port),
+                );
+            }
         }
         return;
     }

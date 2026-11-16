@@ -39,8 +39,8 @@ A group is the set of units that share a `party` id (`new_party`, `group`, `memb
   `with` = the ship (`sail`, `ferries`, `passengers_of`, `end_voyage`);
 - a **colony voyage**: the ship and the settler hold `Colonize`, the settler's `with` is the ship
   (`colonists`);
-- a **rescue**: the ship holds `TransportSpace` with `to` = the sea square (then `TransportReady`
-  with the port); the soldiers it came for keep `AwaitTransport` and their `with` is the ship
+- a **rescue**: the ship holds `TransportSpace` with `to` = the sea square (then `TransportReady` and
+  `Transporting` with the port); the soldiers it came for keep `AwaitTransport` and their `with` is the ship
   (`pickup::voyages`);
 - an **escort**: the escort holds `Escort` with `with` = the unit it guards (`escort_of`); when the
   charge no longer holds `Settle`, `Road` or `Meld` (it founded its city, finished, or died)
@@ -58,7 +58,8 @@ Listed in priority order (the lower number wins a claim, section 4). The roles w
 | `Colonize` | the ship and settler of a colony by sea | ship, settler | `colony.rs` |
 | `Settle` | a settler walking to a site to found a city (`to` = the site) | settlers | `expand.rs` |
 | `Voyage` | a passenger of a landing; `with` = its ship | soldiers | `naval.rs` |
-| `TransportReady` | a ship whose load is decided and tied to it, with its target: a landing under way (`to` = the sea square), a rescue with everyone aboard (`to` = the port) | ships | `naval.rs`, `pickup.rs` |
+| `TransportReady` | a ship whose load is decided and tied to it, with its target, about to sail: the landing party chosen (`to` = the sea square), a rescue with everyone aboard (`to` = the port) | ships | `naval.rs`, `pickup.rs` |
+| `Transporting` | a ship that has sailed with its load, on its way to its target (a landing to its sea square, rescued soldiers to a port) | ships | `naval.rs`, `pickup.rs` |
 | `SeaParty` | the fighters a sea scout carries to put ashore | soldiers | `scout.rs` |
 | `PlanarScout` | the scout walking to an open tower to change plane (`to` = the tower) | one unit | `scout.rs` |
 | `TransportSpace` | a ship with a target and room: on its way to the port to load a landing (`to` = the port), or to the sea square where stranded soldiers wait (`to` = the square, they are tied to it) | ships | `naval.rs`, `pickup.rs` |
@@ -87,7 +88,7 @@ not a base role.
 
 ### Ships
 
-A ship is in one of three states, and each is a role of its own, with the units tied by `with`:
+A ship is in one of four states, and each is a role of its own, with the units tied by `with`:
 
 - `TransportFree`: no passengers decided, no target. `naval.rs` and `pickup.rs` take a free ship
   (`!has_role`).
@@ -95,12 +96,14 @@ A ship is in one of three states, and each is a role of its own, with the units 
   landing, or to the sea square beside a shore tile where stranded soldiers wait; for a rescue the
   soldiers it came for hold `AwaitTransport` with `with` = the ship.
 - `TransportReady`: the units to carry are decided and tied to the ship (landing passengers hold
-  `Voyage`, `with` = the ship) and the target is set. When the passengers are landed the ship goes
-  back to `TransportSpace` with the port as its target; a rescue becomes ready when everyone is
-  aboard, with the nearest port as its target. A ship ends its voyage by `end_voyage`, and is then
-  free again (`AwaitingOrders`, then `TransportFree` at the audit).
+  `Voyage`, `with` = the ship) and the target is set; the ship is about to sail. A rescue becomes
+  ready when everyone is aboard, with the nearest port as its target.
+- `Transporting`: the ship has sailed with its load (the order was accepted) and is on its way. When
+  the passengers are landed the ship goes back to `TransportSpace` with the port as its target. A
+  ship ends its voyage by `end_voyage`, and is then free again (`AwaitingOrders`, then
+  `TransportFree` at the audit).
 
-`ferries()` lists the ships of landings (ready or space, with no party); a rescue ship has a party
+`ferries()` lists the ships of landings (ready, transporting or space, with no party); a rescue ship has a party
 and is read back by `pickup::voyages`. `Ferry` and `Pickup` in the code are read-backs of the
 registry, not stores. A colony ship keeps the mission role `Colonize` with its settler.
 

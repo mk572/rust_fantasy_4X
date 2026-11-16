@@ -544,6 +544,9 @@ fn load_and_sail(
             group.iter().map(|&u| view.serial_of(u)).collect::<Vec<_>>(),
         )
     };
+    // The load is decided: the ship is ready, then sails.
+    let turn = game.turn;
+    ai.roles.sail(ship_serial, &serials, turn, plan.sea);
     if ai
         .send(
             game,
@@ -555,8 +558,14 @@ fn load_and_sail(
         )
         .is_ok()
     {
-        let turn = game.turn;
-        ai.roles.sail(ship_serial, &serials, turn, plan.sea);
+        ai.roles.transition(
+            ship_serial,
+            crate::roles::Role::TransportReady,
+            crate::roles::Role::Transporting,
+            Some(plan.sea),
+        );
+    } else {
+        ai.roles.end_voyage(ship_serial);
     }
 }
 
@@ -718,7 +727,7 @@ fn voyage(
                 .release_many(&ferry.group, crate::roles::Role::Voyage);
             ai.roles.transition(
                 ferry.ship,
-                crate::roles::Role::TransportReady,
+                crate::roles::Role::Transporting,
                 crate::roles::Role::TransportSpace,
                 Some(plan.port),
             );
@@ -1017,13 +1026,13 @@ mod tests {
             g.apply(Command::EndTurn);
         }
         let ship = *ai.roles.ferries().first().ok_or("the landing sailed")?;
-        // The ship holds the ready role, with the sea square of the landing as its target.
+        // The ship holds the transporting role, with the sea square of the landing as its target.
         assert_eq!(
             ai.roles.role_of(ship),
-            Some(crate::roles::Role::TransportReady)
+            Some(crate::roles::Role::Transporting)
         );
         assert_eq!(
-            ai.roles.target_of(ship, crate::roles::Role::TransportReady),
+            ai.roles.target_of(ship, crate::roles::Role::Transporting),
             ai.naval.map(|p| p.sea)
         );
         let view = PlayerView::new(&g, P0);
