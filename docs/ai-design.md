@@ -725,5 +725,6 @@ them back as one table (`derive`), and at the end of each turn `audit` checks it
 
 A soldier standing in an own city is on garrison duty, and one with an order is on its way
 somewhere; neither is adrift. The plan to hold the roles in one registry, and the new roles
-(perimeter, escort, road, meld), are tasks 624 to 628.
+(perimeter, escort, road, meld, await-transport), are tasks 624 to 629. Await-transport covers
+soldiers stranded on a land mass with no own city: they walk to a shore tile and wait for a ship.
 
