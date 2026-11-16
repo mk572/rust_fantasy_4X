@@ -46,6 +46,15 @@ fn neutral_city(view: &PlayerView, p: Position) -> bool {
 }
 
 /// What a neutral city's defenders are worth (a city is stronger than the same men outside).
+/// What guards the site: a city's defence, or the guards a lair or tower is expected to have.
+pub(crate) fn defence_of(view: &PlayerView, p: Position) -> f32 {
+    if view.city_at(p).is_some() {
+        city_defence(view, p)
+    } else {
+        expected(view, p)
+    }
+}
+
 fn city_defence(view: &PlayerView, p: Position) -> f32 {
     match view.hostile_at(p) {
         Some(defenders) => fighting_strength(view, &defenders) * 1.3,

@@ -181,30 +181,28 @@ pub(crate) fn gather(
             return;
         }
         let strength = crate::view::stack_strength(&view, &best) + spell_power(&view);
-        // The easiest tower the nine could take, on a plane with no rival's city.
-        let Some(tower) = view
-            .towers()
-            .into_iter()
-            .filter(|&(p, intact)| intact && !ai.tower_blocked.contains(&p.plane))
-            .map(|(p, _)| p)
-            .filter(|&p| strength >= crate::site::expected(&view, p) * siege_edge())
-            .min_by(|&a, &b| {
-                crate::site::expected(&view, a)
-                    .total_cmp(&crate::site::expected(&view, b))
-                    .then((a.y, a.x).cmp(&(b.y, b.x)))
-            })
-        else {
-            return;
-        };
-        let Some(rally) = view
-            .my_cities()
-            .into_iter()
-            .map(|(_, p)| p)
-            .filter(|p| p.plane == tower.plane)
-            .filter_map(|p| distance(&view, p, tower).map(|d| (d, p)))
-            .min_by_key(|&(d, p)| (d, p.y, p.x))
-            .map(|(_, p)| p)
-        else {
+        // The easiest site (a lair, a neutral city, a tower on a plane with no rival's city) the
+        // nine could take, reached from the own city nearest to it.
+        let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
+        let mut found: Vec<(f32, u32, Position, Position)> = Vec::new();
+        for &city in &cities {
+            for site in crate::site::sites_near(&view, city, strength, &ai.tower_blocked) {
+                // A tower on a plane where a rival has a city waits (the rivals come first).
+                let blocked_tower = ai.tower_blocked.contains(&site.plane)
+                    && view.towers().iter().any(|&(t, _)| t == site);
+                if ai.bad_sites.contains(&site) || site.plane != city.plane || blocked_tower {
+                    continue;
+                }
+                if let Some(d) = distance(&view, city, site) {
+                    found.push((crate::site::defence_of(&view, site), d, site, city));
+                }
+            }
+        }
+        let chosen = found.into_iter().min_by(|a, b| {
+            a.0.total_cmp(&b.0)
+                .then((a.1, a.2.y, a.2.x, a.3.y, a.3.x).cmp(&(b.1, b.2.y, b.2.x, b.3.y, b.3.x)))
+        });
+        let Some((_, _, tower, rally)) = chosen else {
             return;
         };
         let mut reached = crate::view::ReachCache::default();
@@ -365,6 +363,23 @@ mod tests {
     }
 
     #[test]
+    fn soldiers_in_the_field_also_muster_for_a_lair_they_could_take_together() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.turn = 400;
+        let party = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 5);
+        let zombies = f4x_def::rules::UnitId::new(174);
+        crate::testworld::spawn_site(&mut g, at(4, 4), vec![(zombies, 1)], vec![P0])?;
+        g.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        gather(&mut ai, &mut g, &party, &mut Vec::new());
+        let musters = ai.roles.musters();
+        assert_eq!(musters.len(), 1, "one muster");
+        assert_eq!(musters[0].1.objective, Some(at(4, 4)));
+        assert_eq!(musters[0].2.len(), 5);
+        Ok(())
+    }
+
+    #[test]
     fn no_muster_while_the_soldiers_could_not_take_any_tower_and_none_while_a_rival_is_on_the_plane(
     ) -> TestResult {
         // One soldier: too few for a tower, with no spell to help.
@@ -385,7 +400,12 @@ mod tests {
         let mut ai = Ai::new(P0);
         ai.tower_blocked = blocked_planes(&PlayerView::new(&g, P0), &[], None);
         gather(&mut ai, &mut g, &many, &mut Vec::new());
-        assert!(!ai.roles.any(crate::roles::Role::Muster));
+        // Other sites may be gathered for, but the tower is no objective.
+        assert!(ai
+            .roles
+            .musters()
+            .iter()
+            .all(|(_, m, _)| m.objective != Some(at(3, 4))));
         Ok(())
     }
 
