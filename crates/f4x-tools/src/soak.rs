@@ -590,6 +590,9 @@ pub fn game(
         }
     }
     println!("{tag}: defeats: {}", defeat_line(&game, &tally));
+    for line in unit_lines(&game) {
+        println!("{tag}: {line}");
+    }
     // Every counter of every wizard, one line each, for the report script (`scripts/soak_report.py`).
     for p in game.player_ids() {
         if game.wizard(p).is_none() {
@@ -1051,6 +1054,50 @@ fn neutral_lines(game: &Game, tally: &Tally) -> Vec<String> {
         })
         .collect();
     vec![format!("neutrals: {}", parts.join("; "))]
+}
+
+/// What each wizard fields at the end: the units by kind, most numerous first, with the share of
+/// spearmen and the units a city holds on average, e.g. `units p0: 120 in 14 cities (8.6 a city),
+/// spearmen 54% [high_men_spearmen 60, high_men_swordsmen 20, ...]`.
+fn unit_lines(game: &Game) -> Vec<String> {
+    let mut lines = Vec::new();
+    for p in game.player_ids() {
+        if game.wizard(p).is_none() || game.is_neutral_player(p) {
+            continue;
+        }
+        let units = game.units().player_units(p);
+        if units.is_empty() {
+            continue;
+        }
+        let mut kinds: std::collections::BTreeMap<String, usize> =
+            std::collections::BTreeMap::new();
+        for &u in &units {
+            if let Some(d) = game.units().unit_def(u) {
+                *kinds.entry(d.id.clone()).or_default() += 1;
+            }
+        }
+        let spearmen: usize = kinds
+            .iter()
+            .filter(|(k, _)| k.ends_with("spearmen"))
+            .map(|(_, n)| n)
+            .sum();
+        let cities = game.economy().cities_of(p).len().max(1);
+        let mut list: Vec<(String, usize)> = kinds.into_iter().collect();
+        list.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        lines.push(format!(
+            "units p{}: {} in {} cities ({:.1} a city), spearmen {}% [{}]",
+            p.0,
+            units.len(),
+            cities,
+            units.len() as f32 / cities as f32,
+            100 * spearmen / units.len(),
+            list.iter()
+                .map(|(k, n)| format!("{k} {n}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    lines
 }
 
 /// Who defeated each wizard that fell: `p3 by p1 (turn 340)` for a rival wizard, `p0 by neutral

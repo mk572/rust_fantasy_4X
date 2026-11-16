@@ -521,3 +521,29 @@ fn an_elite_plan_ranks_the_dearer_units_higher_than_a_plain_one() {
     let elite = rank_of(true, "high_elf_pegasai");
     assert!(elite <= plain, "{elite:?} against {plain:?}");
 }
+
+#[test]
+fn an_elite_plan_leaves_out_the_cheap_fighters_a_plain_one_keeps() {
+    let c = shipped();
+    let f = facts(&c);
+    let ranked = |elite: bool| {
+        let p = BuildPlan {
+            mix: Mix::Units,
+            primary: Focus::Offense,
+            elite_units: elite,
+            ..BuildPlan::default()
+        };
+        ranked_units(&c, &p, &f, false)
+    };
+    let cost = |u: UnitId| c.rules.units.get(u).cost;
+    let plain = ranked(false);
+    let elite = ranked(true);
+    assert!(!elite.is_empty());
+    let cheapest_plain = plain.iter().map(|&(u, _)| cost(u)).min();
+    let cheapest_elite = elite.iter().map(|&(u, _)| cost(u)).min();
+    assert!(
+        cheapest_elite >= cheapest_plain,
+        "{cheapest_elite:?} against {cheapest_plain:?}"
+    );
+    assert!(elite.len() <= plain.len());
+}

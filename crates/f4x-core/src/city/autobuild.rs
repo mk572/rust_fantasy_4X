@@ -35,6 +35,9 @@ const MAX_SITES: u32 = 5;
 const MAX_SETTLERS_WANTED: u32 = 2;
 /// A rival's city this close raises the garrison.
 const RIVAL_RANGE: u32 = 10;
+/// An elite plan leaves out the fighters that cost this percent of the dearest one the city can
+/// build, or less.
+const CHEAP_UNIT_PCT: u32 = 35;
 /// The sharpness of the unit roll: a candidate is weighed `(score / best)^SHARPNESS`.
 const SHARPNESS: i32 = 4;
 /// Candidates below this share of the best score are not rolled for.
@@ -527,6 +530,29 @@ fn ranked_units(
             }
         })
         .collect();
+    // An elite army is made of the dear units the city can build: a cheap fighter (spearmen next
+    // to berserkers) is not in the roll at all, and a city that can build nothing better keeps
+    // its cheap ones. The garrison minimum is chosen apart from this and stays cheap.
+    let pool = if plan.elite_units {
+        let fighter = |d: &crate::rules::UnitDef| {
+            is_combat(d) && !is_settler(d) && d.movement != MovementType::Sailing
+        };
+        let dearest = pool
+            .iter()
+            .map(|&u| content.rules.units.get(u))
+            .filter(|d| fighter(d))
+            .map(|d| d.cost)
+            .max()
+            .unwrap_or(0);
+        pool.into_iter()
+            .filter(|&u| {
+                let d = content.rules.units.get(u);
+                !(fighter(d) && d.cost * 100 <= CHEAP_UNIT_PCT * dearest)
+            })
+            .collect()
+    } else {
+        pool
+    };
     let best = max_profiles(content, &pool);
     let mut v: Vec<(UnitId, f32)> = pool
         .into_iter()
