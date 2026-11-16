@@ -513,6 +513,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 634 | AI | (done) Escorts for healers and weak heroes alone in the field
 | 635 | AI | (done) The autobuilder reads the registry: ships, scouts, soldiers and attackers follow the roles |
 | 636 | AI | (done) Settlers waiting for a ship to colonize hold `AwaitTransport` |
+| 637 | AI | (done) Muster is for assembling any attack, raid or march, not only towers |
 | 638 | AI | (done) A raid on a node, or a free melder, gets a spirit summoned with priority; spirits also scout early |
 
 ## Descriptions
@@ -550,5 +551,7 @@ original task numbers. Newest work is merged in ascending order by number.
 **635. (done) The autobuilder reads the registry.** Asked for by the user, 17 November 2026. Many ships `TransportFree` or units `AwaitingOrders`: no ship wanted. Many units `AwaitTransport` and no ship free: build a ship. Nobody holds `Scout`: build a unit that can scout (or summon a spirit). Too many military units `AwaitingOrders`: build no more military. At war and nobody holds `March`: build more attackers. *Needs:* 624.
 
 **636. (done) Settlers waiting for a ship to colonize hold `AwaitTransport`.** Asked for by the user, 17 November 2026. A settler that waits in a port for the colony ship holds `AwaitTransport` (tied to the ship via `with` once one takes it), like a stranded soldier, so the transport planner sees one list of waiting units. It keeps `Colonize` once aboard. *Needs:* 624.
+
+**637. (done) Muster is for assembling any attack, raid or march, not only towers.** Asked for by the user, 17 November 2026. `Muster` belongs to the tower siege today (`siege.rs`). A raid on a node, a march on a city and a campaign also gather their party first under `Muster` (the gathering square as target) and hand it on to `Raid` / `March` when it is complete. *Needs:* 624.
 
 **638. (done) A raid on a node, or a free melder, gets a spirit summoned with priority; spirits also scout early.** Asked for by the user, 17 November 2026. When the AI plans a raid on a node, or has a node it could meld and no spirit free (`meld.rs`), it summons a spirit with high priority in the spell queue. In the early game a spirit scouts too (it flies over unknown ground). *Needs:* 631.

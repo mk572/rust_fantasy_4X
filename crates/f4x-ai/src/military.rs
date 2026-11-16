@@ -10,6 +10,7 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
 use f4x_core::unit::pathing::ReachSignature;
 
+use crate::roles::MusterKind;
 use crate::view::{
     distance, fighting_strength, garrison_wanted, is_fighter, stack_strength, unit_strength,
 };
@@ -140,7 +141,13 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // Units on a ship's errand or a raid on a site are not the army's to command.
     let mut ferrying: Vec<Serial> = Vec::new();
     // Soldiers waiting on a shore for a ship have their role (`pickup.rs`).
-    ferrying.extend(ai.roles.assigned());
+    // The soldiers gathering for the campaign are the army's own.
+    ferrying.extend(
+        ai.roles
+            .assigned()
+            .into_iter()
+            .filter(|&s| !ai.roles.in_muster(s, crate::roles::MusterKind::Campaign)),
+    );
     let own_cities: Vec<Position> = PlayerView::new(game, me)
         .my_cities()
         .into_iter()
@@ -381,6 +388,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let Some(target) = ai.campaign else {
         // Nothing to march on: the army raids the sites and towers, which also opens the way to
         // the other plane.
+        ai.roles.end_musters(crate::roles::MusterKind::Campaign);
         crate::site::deploy(ai, game, &free, events);
         return;
     };
@@ -426,6 +434,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 });
             }
             ai.roles.release_role(crate::roles::Role::March);
+            ai.roles.end_musters(crate::roles::MusterKind::Campaign);
             ai.march_target = Some(target);
         }
         let expected = expected_defence(&view, &ai.city_memory, game.turn, target);
@@ -460,6 +469,8 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // Units of a kind on a square get one path search between them (nothing moves meanwhile:
     // the orders given here only start a walk).
     let mut reached = crate::view::ReachCache::default();
+    // The units sent to the rally this turn (they hold `Muster` from now on).
+    let mut sent_to_rally: Vec<hecs::Entity> = Vec::new();
     for u in &elsewhere {
         if let Some(tower) = ai.crossing.filter(|t| t.plane != rally.plane) {
             let (here, ordered, reach) = {
@@ -493,6 +504,9 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     },
                     events,
                 );
+                if sent.is_ok() {
+                    sent_to_rally.push(*u);
+                }
                 tower_full = sent.is_err_and(|why| why.is_no_room());
             }
             continue;
@@ -512,6 +526,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     },
                     events,
                 );
+                sent_to_rally.push(*u);
                 continue;
             }
             if here.is_some_and(|p| {
@@ -521,6 +536,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         .has_gate(p, me, f4x_core::city::gate::ASTRAL_GATE)
             }) {
                 ai.order(game, Command::ShiftPlane { units: vec![*u] }, events);
+                sent_to_rally.push(*u);
                 continue;
             }
         }
@@ -544,6 +560,53 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             );
             if sent.is_ok() {
                 room = room.saturating_sub(1);
+                sent_to_rally.push(*u);
+            }
+        }
+    }
+    // The gathering is a muster of the registry: the units at the rally and on their way to it.
+    // (A landing gathers at the port for the ship, `naval.rs`: not labelled.)
+    if !naval_rally {
+        let members: Vec<Serial> = {
+            let view = PlayerView::new(game, me);
+            at_rally
+                .iter()
+                .chain(&sent_to_rally)
+                .chain(
+                    elsewhere
+                        .iter()
+                        .filter(|&&u| ai.roles.in_muster(view.serial_of(u), MusterKind::Campaign)),
+                )
+                .map(|&u| view.serial_of(u))
+                .collect()
+        };
+        let stale = ai
+            .roles
+            .musters()
+            .into_iter()
+            .find(|(_, m, _)| m.kind == MusterKind::Campaign)
+            .filter(|(_, m, _)| m.rally != rally || m.objective != Some(target))
+            .map(|(id, ..)| id);
+        if let Some(id) = stale {
+            ai.roles.end_muster(id);
+        }
+        match ai
+            .roles
+            .musters()
+            .into_iter()
+            .find(|(_, m, _)| m.kind == MusterKind::Campaign)
+        {
+            Some((id, ..)) => {
+                ai.roles.join_muster(id, &members, game.turn);
+            }
+            None => {
+                ai.roles.begin_muster(
+                    MusterKind::Campaign,
+                    rally,
+                    Some(target),
+                    &members,
+                    game.turn,
+                );
             }
         }
     }
@@ -614,6 +677,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 target,
                 units: launched.len() as u32,
             });
+            ai.roles.end_musters(MusterKind::Campaign);
             ai.roles
                 .assign(crate::roles::Role::March, launched, game.turn);
             ai.march_started = game.turn;
@@ -1105,6 +1169,44 @@ mod tests {
         g.start_treaty(P0, P1, Treaty::None);
         g.declare_war(P0, P1);
         assert_eq!(pick(&g), Some(east));
+    }
+
+    #[test]
+    fn soldiers_gathering_for_the_campaign_hold_a_muster_until_the_march_leaves() -> TestResult {
+        use crate::roles::Role;
+        // A rival city on the west island, and soldiers away from the own city.
+        let mut g = rival_with_a_seat((4, 4))?;
+        let capital = at(COAST_CITY.0, COAST_CITY.1);
+        let troops = spawn(&mut g, P0, at(5, 9), 113 /* high_men_paladins */, 9);
+        g.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        army(&mut ai, &mut g, &mut Vec::new());
+        assert_eq!(ai.campaign, Some(at(4, 4)));
+        let musters = ai.roles.musters();
+        assert_eq!(musters.len(), 1, "one muster");
+        let (_, muster, members) = &musters[0];
+        assert_eq!(muster.kind, MusterKind::Campaign);
+        assert_eq!(muster.objective, Some(at(4, 4)));
+        assert_eq!(muster.rally, capital);
+        assert_eq!(members.len(), 9);
+        let view = PlayerView::new(&g, P0);
+        assert!(troops
+            .iter()
+            .all(|&u| ai.roles.is(view.serial_of(u), Role::Muster)));
+        // They arrive and are strong enough: the march leaves and the muster is over.
+        for &u in &troops {
+            g.cheat_move_unit(u, capital);
+        }
+        army(&mut ai, &mut g, &mut Vec::new());
+        assert!(
+            ai.roles.musters().is_empty(),
+            "the muster ended: {:?} {:?}",
+            ai.roles.musters(),
+            ai.campaign
+        );
+        assert!(ai.roles.any(Role::March), "the march left");
+        Ok(())
     }
 
     #[test]

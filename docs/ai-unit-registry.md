@@ -67,7 +67,7 @@ Listed in priority order (the lower number wins a claim, section 4). The roles w
 | `Perimeter` | a soldier dealing with the enemy in the zone of a city (`to` = the enemy's square, or the city it joins) | soldiers | `perimeter.rs` |
 | `Raid` | out on a tower, node or encounter site (`to` = the site) | soldiers | `site.rs`, `naval.rs` |
 | `March` | on the march against a city | soldiers | `military.rs` |
-| `Muster` | walking to a city to be sent against a tower together | soldiers | `siege.rs` |
+| `Muster` | walking to the rally square of a party being assembled (`to` = the rally, `party` = the muster) | soldiers | `siege.rs`, `military.rs` |
 | `Escort` | going with a settler, an engineer or a spirit (`with` = the unit it guards) | soldiers | `escort.rs` |
 | `Meld` | a spirit on its way to an open node (`to` = the node) | spirits | `meld.rs` |
 | `Road` | engineers building a road or walking to where it starts (`to` = the city or frontier it leads to) | engineers | `road.rs` |
@@ -236,7 +236,24 @@ Tests (`roles.rs`, and each routine's own): every unit has an explicit role with
 groups and ties, standstill count, the audit sending a lone soldier home and keeping it `Return`,
 stranded soldiers waiting for a ship.
 
-## 7. Plans and ends
+## 7. Musters
+
+A party is assembled before it sets off. The registry holds one record per muster (`Muster`:
+kind, rally square, objective, start turn) and the members hold `Muster` with the record's id as
+their `party` and the rally as `to`.
+
+- `MusterKind::Raid` (`siege::gather`): free soldiers spread over the empire, none of whose squares
+  could take a site alone but the best nine with the wizard's spells could, go to the own city
+  nearest the easiest site they could take (a lair, a neutral city, a tower on a plane with no
+  rival city). `siege::release` ends it when all are within a square of the rally or after 20 turns;
+  `site::deploy` then sends the party from there. No new raid starts while one is mustering.
+- `MusterKind::Campaign` (`military::army`): the free soldiers sent to the rally city of the
+  campaign (the own city nearest the target, or the far side of a tower) and those already there
+  hold `Muster`. They stay the army's (`stacks` counts them). The muster ends when the march
+  leaves (they become `March`), when the target changes or is called off, or when there is no
+  campaign. A rally or target that changed ends the old muster and begins a new one.
+
+## 8. Plans and ends
 
 - A healer or a weak hero (much weaker than the average fighter) alone outside a city is given an
   escort from the nearest city (`escort::stragglers`); it ends in a city or in a stack of fighters.
@@ -259,7 +276,7 @@ stranded soldiers waiting for a ship.
   made by the turn change or by a summon of the wizard's step are given one at the start of the AI's
   turn (`roles::register`, after `wizardry::run`).
 
-## 8. The autobuilder reads the registry
+## 9. The autobuilder reads the registry
 
 `economy::cities` counts the roles once per turn (`Roster`) and builds by them:
 
@@ -270,9 +287,9 @@ stranded soldiers waiting for a ship.
 - nobody holds a scouting role, no soldier is spare and the frontier is open (build phase): one city
   builds the fastest cheap fighter, which `scout.rs` recruits.
 
-## 9. Known gaps
+## 10. Known gaps
 
-- `Muster` is only for the tower siege (task 637).
+- A landing's gathering at the port is not labelled `Muster` (the ships and `naval.rs` read it).
 - The ship states `TransportSpace` and `TransportReady` follow the ship's order and passengers;
   The boarding decision is recorded in the registry (the passenger's `Voyage` or `AwaitTransport`
   with `with` = the ship), which is where it should be.

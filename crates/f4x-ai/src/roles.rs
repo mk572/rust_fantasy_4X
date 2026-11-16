@@ -555,6 +555,24 @@ impl Registry {
         self.retain(|_, a| !(a.role == Role::Muster && a.party == Some(party)));
     }
 
+    /// End every muster of `kind`.
+    pub fn end_musters(&mut self, kind: MusterKind) {
+        let ids: Vec<u32> = self
+            .musters
+            .iter()
+            .filter(|(_, m)| m.kind == kind)
+            .map(|(&id, _)| id)
+            .collect();
+        for id in ids {
+            self.end_muster(id);
+        }
+    }
+
+    /// Whether the unit belongs to a muster of `kind`.
+    pub fn in_muster(&self, serial: Serial, kind: MusterKind) -> bool {
+        self.muster_of(serial).is_some_and(|(_, m)| m.kind == kind)
+    }
+
     /// Forget the musters that have no member left.
     fn tidy_musters(&mut self) {
         let live: Vec<u32> = self
