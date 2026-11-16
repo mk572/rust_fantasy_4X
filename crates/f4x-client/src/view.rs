@@ -2152,8 +2152,8 @@ impl App {
     /// The human's units on a square, all of them (a square holds more than an army does).
     pub(crate) fn own_units_at(&self, pos: Position) -> Vec<hecs::Entity> {
         self.game
-            .units()
-            .units_at(pos)
+            .economy()
+            .army_at(pos)
             .into_iter()
             .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
             .collect()
@@ -2174,9 +2174,18 @@ impl App {
 
     /// Whether the selected stack stands on the plane in view: only then do the movement keys
     /// move it. Nothing selected is not in view.
+    /// Whether a unit at `at` is also on `plane`: a stack in a tower is on both planes.
+    pub(crate) fn in_tower_of_plane(&self, at: Position, plane: Plane) -> bool {
+        self.game
+            .economy()
+            .tower_mirror(at)
+            .is_some_and(|m| m.plane == plane)
+    }
+
     fn selection_in_view(&self) -> bool {
-        self.selection_position()
-            .is_some_and(|p| keys_move_stack(p.plane, self.plane))
+        self.selection_position().is_some_and(|p| {
+            keys_move_stack(p.plane, self.plane) || self.in_tower_of_plane(p, self.plane)
+        })
     }
 
     /// The square at the middle of the map in view.
@@ -2578,8 +2587,8 @@ impl App {
     /// The human's units on a square, as many as a stack holds.
     fn own_stack_at(&self, pos: Position) -> Vec<hecs::Entity> {
         self.game
-            .units()
-            .units_at(pos)
+            .economy()
+            .army_at(pos)
             .into_iter()
             .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
             .take(self.game.max_tile())
@@ -2588,8 +2597,8 @@ impl App {
 
     fn foreign_stack_at(&self, pos: Position) -> bool {
         self.game
-            .units()
-            .units_at(pos)
+            .economy()
+            .army_at(pos)
             .iter()
             .any(|&u| self.game.units().unit_owner(u) != Some(HUMAN))
     }
@@ -2778,7 +2787,9 @@ impl App {
             let Some(at) = self.game.units().unit_position(unit) else {
                 continue;
             };
-            if at.plane != self.plane || self.is_sliding(unit) {
+            if !(at.plane == self.plane || self.in_tower_of_plane(at, self.plane))
+                || self.is_sliding(unit)
+            {
                 continue;
             }
             let mine = self.game.units().unit_owner(unit) == Some(HUMAN);

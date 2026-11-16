@@ -729,6 +729,37 @@ impl Game {
         Ok(Entry::Free)
     }
 
+    /// A stack in a tower starts a move from the tower square of the plane it is going to: the
+    /// tower counts as a starting square on either plane, and the step that follows costs what
+    /// any step costs. Nothing happens off a tower, or when `to` is on the stack's plane.
+    pub fn start_from_tower_on(&mut self, units: &[hecs::Entity], to: Position) {
+        let Some(&first) = units.first() else {
+            return;
+        };
+        let Some(from) = self.units().unit_position(first) else {
+            return;
+        };
+        if from.plane == to.plane {
+            return;
+        }
+        let Some(mirror) = self.economy().tower_mirror(from) else {
+            return;
+        };
+        if mirror.plane != to.plane {
+            return;
+        }
+        if units.iter().any(|&u| {
+            self.units()
+                .unit_position(u)
+                .is_none_or(|p| p != from && p != mirror)
+        }) {
+            return;
+        }
+        for &u in units {
+            self.put(u, mirror);
+        }
+    }
+
     /// Move the stack to the same tile on the other plane, costing one full move.
     pub fn shift_plane(&mut self, units: &[hecs::Entity]) -> Result<Position, MoveError> {
         let to = self.economy().can_shift_plane(units)?;

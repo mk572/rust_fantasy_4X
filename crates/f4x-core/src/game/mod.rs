@@ -562,6 +562,7 @@ impl Game {
                 for &u in &units {
                     let _ = self.world.remove_one::<unit::Standby>(u);
                 }
+                self.start_from_tower_on(&units, to);
                 self.do_move(&units, to)
             }
             Command::SetStandby { units, standby } => {
@@ -577,7 +578,10 @@ impl Game {
                 }
                 Vec::new()
             }
-            Command::GoTo { units, to } => match self.find_path(&units, to) {
+            Command::GoTo { units, to } => match {
+                self.start_from_tower_on(&units, to);
+                self.find_path(&units, to)
+            } {
                 Some(path) => {
                     for &u in &units {
                         let _ = self.world.insert_one(u, unit::Order::GoTo(path.clone()));

@@ -632,6 +632,37 @@ fn a_tower_attacked_from_the_other_plane_is_fought_and_taken() {
     );
 }
 
+/// Moving out of a tower follows the normal rules: the tower is a starting square on either
+/// plane, and the step costs what the same step costs on the plane it lands on.
+#[test]
+fn a_step_out_of_a_tower_onto_the_other_plane_costs_a_normal_step() {
+    let myrror = |p: Position| Position {
+        plane: Plane::Myrror,
+        ..p
+    };
+    let mut g = world();
+    let walker = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 4));
+    let twin = unit(&mut g, P0, 107, myrror(at(1, 4)));
+    let before = g.units().unit_moves_left(walker);
+    // The same step on the plane the twin stands on is the price to compare with.
+    let events = g.apply(crate::game::Command::MoveStack {
+        units: vec![twin],
+        to: myrror(at(2, 4)),
+    });
+    let price = before - g.units().unit_moves_left(twin);
+    assert!(price > HalfInt::ZERO, "{events:?}");
+    g.apply(crate::game::Command::MoveStack {
+        units: vec![walker],
+        to: myrror(at(2, 4)),
+    });
+    assert_eq!(g.units().unit_position(walker), Some(myrror(at(2, 4))));
+    assert_eq!(
+        before - g.units().unit_moves_left(walker),
+        price,
+        "no extra cost for leaving by the other plane"
+    );
+}
+
 /// A tower holds one stack for both planes: the room on it counts the units on either plane.
 #[test]
 fn the_room_on_a_tower_is_shared_by_both_planes() {

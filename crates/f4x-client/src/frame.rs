@@ -532,7 +532,10 @@ impl App {
             }
         }
         // The selected stack blinks.
-        if let Some(at) = self.selection_position().filter(|a| a.plane == self.plane) {
+        if let Some(at) = self
+            .selection_position()
+            .filter(|a| a.plane == self.plane || self.in_tower_of_plane(*a, self.plane))
+        {
             let (i, j) = ((at.x as i32 - start_x).rem_euclid(w), at.y as i32 - start_y);
             if (get_time() * 2.0) as i64 % 2 == 0
                 && (0..COLS).contains(&i)

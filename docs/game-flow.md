@@ -102,9 +102,12 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
   Combat resolution is not built yet; the client logs it.
 - **Plane shift.** Allowed on a tower tile, or for a stack whose every unit has planar
   travel, or at an Astral Gate. A stack in a tower is on both planes at once (the original's
-  `in_tower`, `Units_In_Tower`, `Player_Army_At_Square` / `Enemy_Army_At_Square`): the change costs
-  no move and nothing can refuse it, and a rival stepping onto the tower square from either plane
-  meets the stack and attacks it (`Economy::tower_mirror`, `army_at`). The room on the square is
+  `in_tower`, `Units_In_Tower`, `Player_Army_At_Square` / `Enemy_Army_At_Square`): the tower is a
+  starting square on either plane, so a move from it to a tile of the other plane is an ordinary
+  move with an ordinary cost (`Game::start_from_tower_on`; the Plane button only changes which
+  plane the stack is shown on, for nothing); a rival stepping onto the tower square from either
+  plane meets the stack and attacks it (`Economy::tower_mirror`, `army_at`); the client draws and
+  selects the stack on both planes. The room on the square is
   counted over both planes. Under a Planar Seal none of this holds: the tower is cut off. Planar
   travel and an Astral Gate still move the stack to the same tile of the other plane for one full
   move, which must be free of hostile units and have room.
