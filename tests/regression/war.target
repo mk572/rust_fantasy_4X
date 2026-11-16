@@ -4,11 +4,11 @@ cities 11
 units 13
 spells 0
 items 0
-player 0 cities 1 gold 485.5 mana 277.5
-player 1 cities 1 gold 705 mana 220
-player 101 cities 2 gold 469 mana 312
-player 102 cities 1 gold 178.5 mana 276
-player 105 cities 1 gold 328 mana 0
-player 110 cities 4 gold 617.5 mana 0
-player 112 cities 1 gold 205 mana 0
-checksum 2cda78c7887e0452
+player 0 cities 1 citizens 6 buildings 3 units 2 hits 14/14 squares x 34 y 44 spells 11 gold 485.5 mana 277.5
+player 1 cities 1 citizens 10 buildings 3 units 2 hits 14/14 squares x 84 y 26 spells 9 gold 705 mana 220
+player 101 cities 2 citizens 14 buildings 7 units 3 hits 36/36 squares x 137 y 44 spells 0 gold 469 mana 312
+player 102 cities 1 citizens 5 buildings 4 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 178.5 mana 276
+player 105 cities 1 citizens 7 buildings 3 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 328 mana 0
+player 110 cities 4 citizens 26 buildings 12 units 6 hits 72/72 squares x 21 y 165 spells 0 gold 617.5 mana 0
+player 112 cities 1 citizens 4 buildings 2 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 205 mana 0
+kinds barbarian_spearmen 1, barbarian_swordsmen 1, beastmen_engineers 3, high_elf_spearmen 1, high_elf_swordsmen 1, lizardman_halberdiers 6

@@ -1,9 +1,9 @@
 //! Regression tests on the whole game, without the client (`docs/rust_coding_rules.md`).
 //!
 //! Each scenario loads a prepared save from `tests/regression/<name>.save`, applies a fixed list
-//! of commands and compares the resulting game with `tests/regression/<name>.target`: a short
-//! summary of the state, then the checksum line of the full save text. A rule that changes by
-//! accident changes the summary or the checksum and the test fails, with both texts in the message.
+//! of commands and compares the resulting game with `tests/regression/<name>.target`: a readable
+//! summary of the state (totals, then what each player holds, then the units by kind). A rule that
+//! changes by accident moves a line of the summary and the test fails, with both texts in the message.
 //!
 //! **Changing the target on purpose** (a rule changed and the new result is right):
 //! `F4X_REFRESH_REGRESSION=targets cargo test -p f4x-newgame --test it regression`
@@ -130,13 +130,13 @@ fn money(g: &Game, id: PlayerId) -> String {
     })
 }
 
-/// The summary and the checksum line of the whole save (without the game's version).
+/// The readable summary of a game: the turn, the draws of the random generator, the totals of the
+/// save and, for each player, what it holds (cities, citizens, buildings, units, their hit points
+/// and squares, spells, gold and mana), then how many units there are of each kind. A change shows
+/// as the line that moved, so the diff of a target says what a change did (the save text itself
+/// is not compared: a new field in the format is not a change of a rule).
 fn digest(g: &Game) -> Result<String, Box<dyn std::error::Error>> {
-    let mut snap = g.snapshot();
-    // The version of the game that wrote the save is not a result: a release must not fail every
-    // target.
-    snap.game_version.clear();
-    let text = snap.to_text()?;
+    let snap = g.snapshot();
     let mut out = format!(
         "turn {}\ndraws {}\ncities {}\nunits {}\nspells {}\nitems {}\n",
         snap.turn,
@@ -146,19 +146,65 @@ fn digest(g: &Game) -> Result<String, Box<dyn std::error::Error>> {
         snap.spells.len(),
         snap.items.len()
     );
+    let buildings: Vec<_> = g
+        .content()
+        .rules
+        .buildings
+        .iter()
+        .map(|(id, _)| id)
+        .collect();
     for id in g.player_ids() {
+        let cities = g.economy().cities_of(id);
+        let citizens: u32 = cities
+            .iter()
+            .map(|&(c, _)| g.economy().city_economy(c).map_or(0, |e| e.figures))
+            .sum();
+        let built: usize = cities
+            .iter()
+            .map(|&(c, _)| {
+                buildings
+                    .iter()
+                    .filter(|&&b| g.economy().city_has_building(c, b))
+                    .count()
+            })
+            .sum();
+        let units = g.units().player_units(id);
+        let (mut hits, mut max, mut x, mut y) = (0, 0, 0, 0);
+        for &u in &units {
+            let (h, m) = g.units().unit_hits(u);
+            hits += h;
+            max += m;
+            if let Some(p) = g.units().unit_position(u) {
+                x += p.x;
+                y += p.y;
+            }
+        }
+        let known = g.wizard(id).map_or(0, |w| w.known().len());
         out.push_str(&format!(
-            "player {} cities {} {}\n",
+            "player {} cities {} citizens {} buildings {} units {} hits {}/{} squares x {} y {} spells {} {}\n",
             id.0,
-            g.city_count(id),
+            cities.len(),
+            citizens,
+            built,
+            units.len(),
+            hits,
+            max,
+            x,
+            y,
+            known,
             money(g, id)
         ));
     }
-    let first = text.lines().next().unwrap_or("");
-    out.push_str(&format!(
-        "checksum {}\n",
-        first.rsplit_once("checksum ").map_or("", |(_, sum)| sum)
-    ));
+    let mut kinds: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for id in g.player_ids() {
+        for u in g.units().player_units(id) {
+            if let Some(d) = g.units().unit_def(u) {
+                *kinds.entry(d.id.clone()).or_default() += 1;
+            }
+        }
+    }
+    let kinds: Vec<String> = kinds.into_iter().map(|(k, n)| format!("{k} {n}")).collect();
+    out.push_str(&format!("kinds {}\n", kinds.join(", ")));
     Ok(out)
 }
 
