@@ -114,7 +114,7 @@ Decided with task 32; code in `f4x-newgame/src/setup.rs`, `city/economy.rs` (`si
 - **A race from the wrong plane is refused** when the player names one (a Myrran wizard needs a
   Myrror race, anyone else an Arcanus one). The original's new-game screen just never offers
   it.
-- **Twelve units on a square in v1.31** (decided by the user, 10 November 2026). The original allows nine. The v1.31 rule set (`rules_settings.ron`, `rules.max_tile: 12`) keeps the usability gain of larger stacks (freed heroes and the like) without changing play much; an army and a battle side stay at nine. The `max_tile` setting runs from 9 to 20.
+- **Twelve units on a square in v1.31** (decided by the user, 10 November 2026). The original allows nine. The v1.31 rule set (`rules_settings.ron`, `rules.max_tile: 12`) keeps the usability gain of larger stacks (freed heroes and the like) without changing play much; a battle side stays at nine (the `max_battle_side` setting, 1 to 9). The `max_tile` setting runs from the battle side to 20; v1.6 takes 20.
 - **Upkeep before growth is *not* a departure:** the turn pays upkeep before cities grow, as
   the original does (`game-flow.md` section 4).
 

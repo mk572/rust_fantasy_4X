@@ -66,16 +66,12 @@ pub fn stack_strength(view: &PlayerView, units: &[hecs::Entity]) -> f32 {
     units.iter().map(|&u| unit_strength(view, u)).sum()
 }
 
-/// The most units a battle side fights with; the rest of a larger stack are a reserve. This is
-/// the rule of the battle, not the limit of a square (that is the game's `max_tile`).
-pub const BATTLE_SIDE: usize = f4x_core::battle::casting::MAX_SIDE_UNITS;
-
-/// What a defended square puts into a battle: a side fights with at most nine units, the
-/// strongest of a larger stack, and the rest are a reserve.
+/// What a defended square puts into a battle: a side fights with at most `max_battle_side`
+/// units, the strongest of a larger stack, and the rest are a reserve.
 pub fn fighting_strength(view: &PlayerView, units: &[hecs::Entity]) -> f32 {
     let mut each: Vec<f32> = units.iter().map(|&u| unit_strength(view, u)).collect();
     each.sort_by(|a, b| b.total_cmp(a));
-    each.iter().take(BATTLE_SIDE).sum()
+    each.iter().take(view.max_battle_side()).sum()
 }
 
 /// A ship: it sails and carries land units.
@@ -216,7 +212,7 @@ mod tests {
         assert_eq!(fighting_strength(&view, &stack[..3]), 3.0 * one);
         assert_eq!(
             fighting_strength(&view, &stack),
-            BATTLE_SIDE as f32 * one,
+            view.max_battle_side() as f32 * one,
             "the rest are a reserve"
         );
     }

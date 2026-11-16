@@ -447,11 +447,12 @@ impl Game {
     /// The (at most nine) units that fight out of those sent: all of them up to nine, else the
     /// preset's nine. The rest are the second list.
     fn pick_fighters(&self, units: &[hecs::Entity]) -> (Vec<hecs::Entity>, Vec<hecs::Entity>) {
-        if units.len() <= crate::unit::MAX_STACK {
+        let side = self.max_battle_side();
+        if units.len() <= side {
             return (units.to_vec(), Vec::new());
         }
         let mut order = self.fighter_preset(units);
-        let rest = order.split_off(crate::unit::MAX_STACK);
+        let rest = order.split_off(side);
         (order, rest)
     }
 
@@ -471,7 +472,7 @@ impl Game {
             .into_iter()
             .filter(|&u| self.units().unit_owner(u) == Some(owner))
             .collect();
-        if there.len() <= crate::unit::MAX_STACK {
+        if there.len() <= self.max_battle_side() {
             return (named.to_vec(), Vec::new());
         }
         let rest = there
@@ -674,6 +675,7 @@ impl Game {
         battle.site = Some(site);
         battle.melee_vs_fliers = self.settings.rules.melee_vs_fliers;
         battle.walls_cover_city = self.settings.rules.walls_cover_city;
+        battle.max_side = self.settings.rules.max_battle_side;
         (battle.node_aura, battle.node_site) = self.node_realms_at(site, city.is_none());
         battle.refresh_fields();
         battle.wall_of_fire = has_wall("fire");
@@ -1164,7 +1166,9 @@ impl Game {
         };
         self.sort_by_serial(&mut dead);
         // As in the original, the winner's units that stand count against the stack's nine.
-        let side_room = crate::unit::MAX_STACK.saturating_sub(battle.active_units(side).count());
+        let side_room = battle
+            .max_side
+            .saturating_sub(battle.active_units(side).count());
         // The square holds at most `max_tile` units, those of a defence that sat the fight out
         // among them.
         let tile_room = self

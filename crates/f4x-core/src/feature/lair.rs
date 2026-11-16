@@ -312,7 +312,7 @@ impl Game {
         let mut index = 0;
         for (unit, count) in guards {
             for _ in 0..count {
-                if defenders.len() < crate::unit::MAX_STACK {
+                if defenders.len() < self.max_battle_side() {
                     let guard = self.spawn_unit(MONSTERS, to, unit);
                     // With lair guards kept wounded (`lair_full_heal` off), a guard that was hurt
                     // in an earlier assault comes back with its wounds.

@@ -92,7 +92,7 @@ impl App {
         let preset = self.game.fighter_preset(units);
         let picked = sorted
             .iter()
-            .map(|u| preset[..f4x_core::unit::MAX_STACK.min(preset.len())].contains(u))
+            .map(|u| preset[..self.game.max_battle_side().min(preset.len())].contains(u))
             .collect();
         FighterPick {
             units: sorted,
@@ -105,7 +105,7 @@ impl App {
 
     /// One frame of the screen.
     pub(crate) fn fighter_pick_frame(&mut self, mut pick: FighterPick, input: &Input) -> PickStep {
-        let max = f4x_core::unit::MAX_STACK;
+        let max = self.game.max_battle_side();
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let light = Color::new(0.95, 0.93, 0.85, 1.0);

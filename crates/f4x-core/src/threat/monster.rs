@@ -15,7 +15,7 @@ use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::MONSTERS;
 use crate::rules::{RealmId, UnitId};
-use crate::unit::{Unit, MAX_STACK};
+use crate::unit::Unit;
 use f4x_def::half_int::HalfInt;
 use f4x_def::settings::MONSTER_START_TURN;
 
@@ -135,7 +135,7 @@ impl Game {
             return list;
         }
         for _ in 0..2000 {
-            if left < CHEAPEST || list.len() >= MAX_STACK {
+            if left < CHEAPEST || list.len() >= self.max_battle_side() {
                 break;
             }
             let (id, cost) = &pool[self.roll(pool.len() as u32) as usize - 1];
@@ -394,7 +394,7 @@ mod tests {
             let list = g.monster_list(budget, chaos);
             let spent: i32 = list.iter().map(&cost).sum();
             assert!(spent <= budget, "{spent} of {budget}");
-            assert!(list.len() <= MAX_STACK);
+            assert!(list.len() <= g.max_battle_side());
             assert!(
                 list.iter().all(|id| cost(id) != i32::MAX),
                 "all of the realm"
@@ -405,8 +405,8 @@ mod tests {
         assert!(g.monster_list(10_000, RealmId::new(99)).is_empty());
         assert_eq!(
             g.monster_list(100_000, chaos).len(),
-            MAX_STACK,
-            "a rich budget fills the stack"
+            g.max_battle_side(),
+            "a rich budget fills a battle side"
         );
     }
 

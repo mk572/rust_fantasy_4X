@@ -365,8 +365,8 @@ impl App {
             return Some(notice);
         };
         if let SiteNotice::Ask { units, to, .. } = notice {
-            if yes && units.len() > f4x_core::unit::MAX_STACK {
-                // More than nine could go in: who does is asked first.
+            if yes && units.len() > self.game.max_battle_side() {
+                // More than a battle side could go in: who does is asked first.
                 let pick = self.new_fighter_pick(&units, true, false);
                 self.modals.open(crate::fighter_pick::SitePick { pick, to });
             } else if yes {

@@ -208,6 +208,8 @@ pub struct Economy<'a> {
     pub(crate) settlers_cost_citizen: bool,
     /// Most units on one square (`RuleSettings::max_tile`).
     pub(crate) max_tile: usize,
+    /// Most units one side fights with in a battle (`RuleSettings::max_battle_side`).
+    pub(crate) max_battle_side: usize,
     /// A miners' guild adds half to iron and coal, not double (`RuleSettings::miners_guild_half_ore`).
     pub(crate) miners_half_ore: bool,
     /// For a path search: the squares where this player has a ship with a free place, worked
@@ -219,6 +221,11 @@ pub struct Economy<'a> {
 }
 
 impl<'a> Economy<'a> {
+    /// Most units one side fights with in a battle in this game.
+    pub fn max_battle_side(&self) -> usize {
+        self.max_battle_side
+    }
+
     pub fn new(world: &'a World, map: Option<&'a Map>, content: &'a Content) -> Self {
         Economy {
             world,
@@ -228,6 +235,7 @@ impl<'a> Economy<'a> {
             diagonal_extra: false,
             settlers_cost_citizen: true,
             max_tile: crate::unit::MAX_TILE_LIMIT,
+            max_battle_side: crate::unit::MAX_STACK,
             miners_half_ore: false,
             ship_room: None,
             own_cities: None,
@@ -237,6 +245,12 @@ impl<'a> Economy<'a> {
     /// The same view with the game's limit of units on one square.
     pub fn with_max_tile(mut self, max: usize) -> Self {
         self.max_tile = max;
+        self
+    }
+
+    /// The same view with the game's limit of units on one side of a battle.
+    pub fn with_max_battle_side(mut self, max: usize) -> Self {
+        self.max_battle_side = max;
         self
     }
 
@@ -1003,7 +1017,7 @@ impl<'a> Economy<'a> {
                 })
                 .count()
                 // A square holds more than a battle side does; the extra units keep no order.
-                .min(crate::unit::MAX_STACK) as i32;
+                .min(self.max_battle_side()) as i32;
             pacify += police / 2;
         }
         // Stream of Life: the citizens are so pleased that unrest disappears (the original's
@@ -1344,12 +1358,18 @@ impl Game {
             .with_diagonal_extra(self.settings.basic.diagonal_extra_cost)
             .with_settlers_cost_citizen(self.settings.rules.settlers_cost_citizen)
             .with_max_tile(self.settings.rules.max_tile)
+            .with_max_battle_side(self.settings.rules.max_battle_side)
             .with_miners_half_ore(self.settings.rules.miners_guild_half_ore)
     }
 
     /// Most units that may stand on one square in this game (the `max_tile` setting).
     pub fn max_tile(&self) -> usize {
         self.settings.rules.max_tile
+    }
+
+    /// Most units one side fights with in a battle (the `max_battle_side` setting).
+    pub fn max_battle_side(&self) -> usize {
+        self.settings.rules.max_battle_side
     }
 }
 

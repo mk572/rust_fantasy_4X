@@ -22,7 +22,7 @@ use crate::rules::Ability;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
-use super::casting::{BattleCaster, SpellAim, SpellError, MAX_SIDE_UNITS};
+use super::casting::{BattleCaster, SpellAim, SpellError};
 use super::field::{Field, BATTLEFIELD};
 use super::immunity::{AttackNature, Immunities, Realm};
 use super::WarpKind;
@@ -804,7 +804,7 @@ impl Game {
                 }
             }
             (SpellTarget::Tile, SpellAim::Tile(cell)) => {
-                if battle.active_units(side).count() >= MAX_SIDE_UNITS
+                if battle.active_units(side).count() >= battle.max_side
                     || !battle.is_summon_square(side, cell)
                 {
                     return Err(SpellError::NoRoom);
@@ -812,7 +812,7 @@ impl Game {
                 Ok(())
             }
             (SpellTarget::AnyUnit, SpellAim::Unit(id)) if matches!(kind, Kind::Raise) => {
-                if battle.active_units(side).count() >= MAX_SIDE_UNITS
+                if battle.active_units(side).count() >= battle.max_side
                     || battle.first_summon_square(side).is_none()
                 {
                     return Err(SpellError::NoRoom);
@@ -824,7 +824,7 @@ impl Game {
                 }
             }
             (SpellTarget::AnyUnit, SpellAim::Unit(id)) if matches!(kind, Kind::Animate) => {
-                if battle.active_units(side).count() >= MAX_SIDE_UNITS
+                if battle.active_units(side).count() >= battle.max_side
                     || battle.first_summon_square(side).is_none()
                 {
                     return Err(SpellError::NoRoom);
@@ -869,7 +869,7 @@ impl Game {
                     if u.bound_from.is_some() {
                         return Err(SpellError::Target(TargetError::AlreadyBound));
                     }
-                    if battle.active_units(side).count() >= MAX_SIDE_UNITS {
+                    if battle.active_units(side).count() >= battle.max_side {
                         return Err(SpellError::NoRoom);
                     }
                 }

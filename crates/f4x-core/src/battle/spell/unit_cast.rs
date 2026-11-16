@@ -256,7 +256,7 @@ impl Game {
             .flat_map(|y| (0..super::super::map::GRID_W).map(move |x| (x, y)))
             .filter(|&c| battle.is_summon_square(side, c))
             .collect();
-        if battle.active_units(side).count() >= MAX_SIDE_UNITS || squares.is_empty() {
+        if battle.active_units(side).count() >= battle.max_side || squares.is_empty() {
             return Err(BattleError::Spell(SpellError::NoRoom));
         }
         // The nine squares nearest the side's edge, in the middle of the field.

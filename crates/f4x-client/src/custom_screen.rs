@@ -551,6 +551,13 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.rules.max_tile as i32,
             |s, v| s.rules.max_tile = v as usize,
         ),
+        num(
+            "custom.max_battle_side",
+            (1, f4x_core::game::setting::MAX_STACK as i32, 1),
+            "",
+            |s| s.rules.max_battle_side as i32,
+            |s, v| s.rules.max_battle_side = v as usize,
+        ),
         flag(
             "custom.half_upkeep",
             |s| s.rules.half_upkeep.into(),

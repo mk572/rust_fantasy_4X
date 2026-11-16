@@ -142,14 +142,37 @@ fn the_most_books_in_all_realms_is_twelve_in_every_level_and_checked_between_twe
 }
 
 #[test]
-fn the_units_per_square_stay_between_an_army_and_the_ceiling() {
+fn the_units_per_square_stay_between_a_battle_side_and_the_ceiling() {
     let mut s = at(2);
     assert_eq!(s.rules.max_tile, 12, "v1.31 allows twelve on a square");
+    assert_eq!(s.rules.max_battle_side, 9, "a battle side is nine");
     assert!(s.validate().is_empty());
-    for bad in [MAX_STACK - 1, MAX_TILE_LIMIT + 1] {
+    for bad in [s.rules.max_battle_side - 1, MAX_TILE_LIMIT + 1] {
         s.rules.max_tile = bad;
         assert_eq!(s.validate().len(), 1, "{bad}");
     }
+}
+
+#[test]
+fn a_battle_side_is_one_to_nine_and_a_square_holds_at_least_a_side() {
+    let mut s = at(2);
+    for bad in [0, MAX_STACK + 1] {
+        s.rules.max_battle_side = bad;
+        assert!(!s.validate().is_empty(), "{bad}");
+    }
+    s.rules.max_battle_side = 5;
+    s.rules.max_tile = 5;
+    assert!(s.validate().is_empty(), "{:?}", s.validate());
+}
+
+#[test]
+fn v131_holds_twelve_on_a_square_and_v160_twenty_with_a_side_of_nine_in_both() {
+    let def = settings();
+    let work = GameSettings::for_difficulty(&def, 2);
+    let v131 = RuleSet::V131.applied(work, &def);
+    let v160 = RuleSet::V160.applied(work, &def);
+    assert_eq!((v131.rules.max_tile, v131.rules.max_battle_side), (12, 9));
+    assert_eq!((v160.rules.max_tile, v160.rules.max_battle_side), (20, 9));
 }
 
 #[test]

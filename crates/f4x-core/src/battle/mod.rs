@@ -990,6 +990,10 @@ pub enum BattleEvent {
     },
 }
 
+fn default_side_limit() -> usize {
+    crate::unit::MAX_STACK
+}
+
 /// The state of one battle.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Battle {
@@ -1040,6 +1044,10 @@ pub struct Battle {
     /// Everyone inside a walled city gets the wall's +3 defence (`RuleSettings::walls_cover_city`).
     #[serde(default)]
     pub walls_cover_city: bool,
+    /// Most units a side can have in the battle: summoning stops here
+    /// (`RuleSettings::max_battle_side`).
+    #[serde(default = "default_side_limit")]
+    pub max_side: usize,
     rng: GameRng,
 }
 
@@ -1106,6 +1114,7 @@ impl Battle {
             spell_caster: None,
             melee_vs_fliers: MeleeVsFliers::default(),
             walls_cover_city: false,
+            max_side: default_side_limit(),
             rng: GameRng::new(seed),
         };
         let _ = b.begin_side_turn();

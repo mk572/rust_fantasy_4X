@@ -22,9 +22,6 @@ use crate::rules::effects::DamageTraits;
 use crate::rules::stats::{compute, Modifier, Stat};
 use crate::rules::SpellId;
 
-/// The most creatures a side can have in a battle: summoning stops here.
-pub const MAX_SIDE_UNITS: usize = 9;
-
 /// A damage spell of `strength` on one unit (see [`Battle::spell_damage`]); the unit is changed
 /// in place. Overland spells that hurt units (`Game::process_chaos_rifts`) use it too.
 pub(crate) fn damage_unit_with_spell(

@@ -105,7 +105,7 @@
                 raider_percent: 0,
                 start_reveal_radius: 2.5,
             ),
-            rules: (safe_flee: (human: true, ai: true), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9), 9 to 20 (an army and a battle side stay at nine)
+            rules: (safe_flee: (human: true, ai: true), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
             events: (random_events: false, pressure_percent: 50, frequency: Normal),
             scoring: (score_percent: 50),
         ),
@@ -145,7 +145,7 @@
                 raider_percent: 17,
                 start_reveal_radius: 2.5,
             ),
-            rules: (safe_flee: (human: true, ai: true), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9), 9 to 20 (an army and a battle side stay at nine)
+            rules: (safe_flee: (human: true, ai: true), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
             events: (random_events: true, pressure_percent: 66, frequency: Normal),
             scoring: (score_percent: 75),
         ),
@@ -185,7 +185,7 @@
                 raider_percent: 33,
                 start_reveal_radius: 2.5,
             ),
-            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9), 9 to 20 (an army and a battle side stay at nine)
+            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
             events: (random_events: true, pressure_percent: 75, frequency: Normal),
             scoring: (score_percent: 100),
         ),
@@ -225,7 +225,7 @@
                 raider_percent: 50,
                 start_reveal_radius: 2.5,
             ),
-            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9), 9 to 20 (an army and a battle side stay at nine)
+            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
             events: (random_events: true, pressure_percent: 80, frequency: Normal),
             scoring: (score_percent: 200),
         ),
@@ -268,7 +268,7 @@
                 raider_percent: 60,
                 start_reveal_radius: 2.5,
             ),
-            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9), 9 to 20 (an army and a battle side stay at nine)
+            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
             events: (random_events: true, pressure_percent: 90, frequency: Normal),
             scoring: (score_percent: 250),
         ),
@@ -308,7 +308,7 @@
                 raider_percent: 67,
                 start_reveal_radius: 2.5,
             ),
-            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9), 9 to 20 (an army and a battle side stay at nine)
+            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
             events: (random_events: true, pressure_percent: 100, frequency: Normal),
             scoring: (score_percent: 300),
         ),

@@ -35,8 +35,8 @@ pub const MAX_TILE_LIMIT: usize = 20;
 /// Picks the wizard spends on books and retorts.
 pub const PICKS: u8 = 11;
 
-/// Most units in an army: the group that moves, attacks and fights together. A battle side is
-/// at most this many too (`battle::casting::MAX_SIDE_UNITS`).
+/// Most units a battle side fights with: the ceiling and the default of the `max_battle_side`
+/// setting (nine in every rule set). Read the game's own limit with `Game::max_battle_side()`.
 pub const MAX_STACK: usize = 9;
 
 /// Land as a share of each plane's tiles for the original's three sizes.
@@ -346,10 +346,15 @@ pub struct RuleSettings {
     /// How hard a walking unit hits a flying one in melee.
     #[serde(default = "fb_melee_vs_fliers")]
     pub melee_vs_fliers: MeleeVsFliers,
-    /// Most units on one square, from the nine of an army up to `MAX_TILE_LIMIT`. An army and a
-    /// battle side stay at nine; units above that on a defended square are a reserve.
+    /// Most units on one square, from `max_battle_side` up to `MAX_TILE_LIMIT`: 12 in v1.31, 20 in
+    /// v1.6. Units above a battle side on a defended square are a reserve.
     #[serde(default = "default_max_tile")]
     pub max_tile: usize,
+    /// Most units one side fights with in a battle, from 1 to `MAX_STACK` (nine in every rule
+    /// set). A larger stack sends its strongest and keeps the rest back as a reserve; summoning
+    /// stops at this number too.
+    #[serde(default = "default_max_battle_side")]
+    pub max_battle_side: usize,
     /// Half the food and gold upkeep for the basic troops (`SettingsDef::half_upkeep` lists
     /// them). A new game takes the content's choice; it is saved with the game.
     #[serde(default = "fb_half_upkeep")]
@@ -532,6 +537,10 @@ fn default_galley() -> u8 {
 
 fn default_max_tile() -> usize {
     fallback(|g| g.rules.max_tile, MAX_TILE_LIMIT)
+}
+
+fn default_max_battle_side() -> usize {
+    fallback(|g| g.rules.max_battle_side, MAX_STACK)
 }
 
 fn fb_diagonal_extra_cost() -> bool {
@@ -777,6 +786,7 @@ impl RuleSet {
             rules: RuleSettings {
                 trireme_capacity: MAX_SHIP_CAPACITY,
                 galley_capacity: MAX_SHIP_CAPACITY,
+                max_tile: MAX_TILE_LIMIT,
                 walls_cover_city: true,
                 miners_guild_half_ore: true,
                 spell_binding_always_succeeds: true,
@@ -1229,10 +1239,17 @@ impl GameSettings {
             ),
         );
         check(
-            (MAX_STACK..=MAX_TILE_LIMIT).contains(&self.rules.max_tile),
+            (1..=MAX_STACK).contains(&self.rules.max_battle_side),
             format!(
-                "{} units on a square is not {} to {}",
-                self.rules.max_tile, MAX_STACK, MAX_TILE_LIMIT
+                "{} units on a battle side is not 1 to {}",
+                self.rules.max_battle_side, MAX_STACK
+            ),
+        );
+        check(
+            (self.rules.max_battle_side..=MAX_TILE_LIMIT).contains(&self.rules.max_tile),
+            format!(
+                "{} units on a square is not {} (a battle side) to {}",
+                self.rules.max_tile, self.rules.max_battle_side, MAX_TILE_LIMIT
             ),
         );
         let w = &self.wizards;

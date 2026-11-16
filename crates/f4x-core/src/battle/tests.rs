@@ -6897,6 +6897,35 @@ fn the_nine_most_experienced_defenders_fight_from_a_crowded_square() -> TestResu
     Ok(())
 }
 
+/// The side limit is the game's setting, not a constant: with a lower one fewer units fight and
+/// the battle carries the limit (summoning reads it from there).
+#[test]
+fn the_battle_side_follows_the_setting() -> TestResult {
+    let mut g = game();
+    g.settings.rules.max_battle_side = 4;
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_numbered(107)
+        .ok_or("high_men_cavalry is not in the content")?;
+    let attacker = g.spawn_unit(A, at(4, 4), walker);
+    let defenders: Vec<_> = (0..8).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
+    g.apply(Command::BeginBattle {
+        attackers: vec![attacker],
+        defenders,
+    });
+    let battle = g.battle().ok_or("no battle started")?;
+    assert_eq!(battle.max_side, 4);
+    let fighting = battle
+        .units
+        .iter()
+        .filter(|u| u.side == Side::Defender)
+        .count();
+    assert_eq!(fighting, 4);
+    Ok(())
+}
+
 #[test]
 fn defenders_who_sat_a_lost_battle_out_are_half_lost_and_driven_off_the_square() -> TestResult {
     let mut g = game();

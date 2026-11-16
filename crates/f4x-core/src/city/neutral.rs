@@ -170,7 +170,7 @@ impl Game {
         // Taxes first: the rate decides how many citizens rebel and so how much food there is.
         self.balance_taxes(owner);
         let (melee, ranged) = self.best_garrison_units(city);
-        let count = (population / 4).min(crate::unit::MAX_STACK as u32);
+        let count = (population / 4).min(self.max_battle_side() as u32);
         // A race without a ranged soldier doubles its melee ones (and the original's dark elves,
         // with no melee ones, get half a garrison).
         let wanted = (0..count)

@@ -427,7 +427,7 @@ impl App {
             } else {
                 &attack.attackers
             };
-            if mine.len() > f4x_core::unit::MAX_STACK {
+            if mine.len() > self.game.max_battle_side() {
                 let pick = self.new_fighter_pick(mine, !attack.defending, auto);
                 return Some(AttackAsk {
                     attack,

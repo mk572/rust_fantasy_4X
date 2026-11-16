@@ -481,6 +481,11 @@ impl<'a> PlayerView<'a> {
         self.game.max_tile()
     }
 
+    /// Most units one side fights with in a battle in this game.
+    pub fn max_battle_side(&self) -> usize {
+        self.game.max_battle_side()
+    }
+
     /// Hostile units or a hostile city on a square the player sees now (`None` if there is
     /// nothing, or the square is out of sight: the player does not know). The units are those
     /// it can make out.

@@ -2582,7 +2582,7 @@ impl App {
             .units_at(pos)
             .into_iter()
             .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
-            .take(f4x_core::unit::MAX_STACK)
+            .take(self.game.max_tile())
             .collect()
     }
 
