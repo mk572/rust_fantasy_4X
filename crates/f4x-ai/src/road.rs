@@ -347,13 +347,13 @@ mod tests {
         let serial = PlayerView::new(&g, P0).serial_of(engineer);
         for _ in 0..10 {
             run(&mut ai, &mut g, &mut Vec::new());
-            if ai.roles.role_of(serial).is_none() {
+            if !ai.roles.has_role(serial) {
                 break;
             }
             g.apply(Command::EndTurn);
         }
         let view = PlayerView::new(&g, P0);
-        assert_eq!(ai.roles.role_of(serial), None);
+        assert!(!ai.roles.has_role(serial));
         assert!(!view.unit_builds_road(engineer));
         // The road between the cities is there.
         let roads = (4..=12)

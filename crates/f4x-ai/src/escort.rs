@@ -226,7 +226,7 @@ mod tests {
         // The charge founds its city (is gone): the escort is a free soldier again.
         ai.roles.release(charge, Role::Settle);
         run(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(ai.roles.role_of(escort), None);
+        assert_eq!(ai.roles.role_of(escort), Some(Role::AwaitingOrders));
         Ok(())
     }
 }

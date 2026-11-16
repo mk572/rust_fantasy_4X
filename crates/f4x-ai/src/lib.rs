@@ -377,6 +377,7 @@ impl Ai {
             .time_stopper()
             .is_some_and(|keeper| keeper != self.player)
         {
+            roles::register(self, game);
             recover::run(self, game, &mut events);
             garrison::disperse(self, game, &mut events);
             garrison::thin_out(self, game, &mut events);

@@ -16,7 +16,7 @@ use f4x_core::player::view::PlayerView;
 /// What a unit is doing, as far as the AI's lists say.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Role {
-    /// Standing in one of the wizard's cities.
+    /// Standing in one of the wizard's cities, which is its post (`to` = the city).
     Garrison,
     /// Scouting by land.
     Scout,
@@ -45,16 +45,20 @@ pub enum Role {
     Road,
     /// A soldier walking to the nearest own city; it keeps the role until it is there.
     Return,
-    /// A ship in a city with no voyage.
-    Docked,
+    /// A ship with no mission, no passengers and no target: free to be sent.
+    TransportFree,
+    /// A ship with a target and no passengers yet: room to take units on the way.
+    TransportSpace,
+    /// A ship with the units to carry decided (aboard) and, as a rule, a target.
+    TransportReady,
     /// Nothing found for the unit to do: a role of its own, so no unit has none. The audit
     /// looks for something better for a soldier in it (home, or a shore to wait on).
     AwaitingOrders,
     /// Stranded where no own city can be reached: waits on a shore tile for a ship
     /// (`pickup.rs`).
     AwaitTransport,
-    /// Has an order (on its way somewhere) but belongs to no list.
-    Ordered,
+    /// On its way to a square by an order of its own (`to` = the end of the path).
+    MoveTo,
 }
 
 /// A unit's role as the registry holds it.
@@ -75,6 +79,21 @@ pub struct Assignment {
     /// Where it stood at the last audit, and for how many audits in a row it has not moved.
     pub last_pos: Option<Position>,
     pub stuck: u32,
+}
+
+impl Assignment {
+    /// The role of a unit that has nothing to do.
+    fn awaiting(turn: u32) -> Assignment {
+        Assignment {
+            role: Role::AwaitingOrders,
+            since: turn,
+            to: None,
+            party: None,
+            with: None,
+            last_pos: None,
+            stuck: 0,
+        }
+    }
 }
 
 /// The one place a unit's role lives: at most one per unit. A role is taken with [`claim`] and
@@ -98,9 +117,11 @@ impl Registry {
         self.role_of(serial) == Some(role)
     }
 
-    /// Whether the unit holds any role of the registry.
+    /// Whether a routine has a task for the unit (it holds a role other than the base roles:
+    /// garrison, moving to, awaiting orders, the free ship). A unit that does not is free to be
+    /// given one.
     pub fn has_role(&self, serial: Serial) -> bool {
-        self.map.contains_key(&serial)
+        self.map.get(&serial).is_some_and(|a| !a.role.is_base())
     }
 
     /// Where the unit's role sends it, if it holds `role`.
@@ -255,18 +276,17 @@ impl Registry {
 
     /// Hand back `role` from every unit that holds it.
     pub fn release_role(&mut self, role: Role) {
-        self.map.retain(|_, a| a.role != role);
+        self.retain(|_, a| a.role != role);
     }
 
     /// Hand back `role` from each of the units that hold it.
     pub fn release_many(&mut self, serials: &[Serial], role: Role) {
-        self.map
-            .retain(|s, a| a.role != role || !serials.contains(s));
+        self.retain(|s, a| a.role != role || !serials.contains(&s));
     }
 
     /// Keep `role` only on the units `keep` says so.
     pub fn retain_role(&mut self, role: Role, mut keep: impl FnMut(Serial) -> bool) {
-        self.map.retain(|s, a| a.role != role || keep(*s));
+        self.retain(|s, a| a.role != role || keep(s));
     }
 
     /// Change where the unit's role sends it, if it holds `role`.
@@ -334,7 +354,28 @@ impl Registry {
 
     /// Every unit that holds a role of the registry.
     pub fn assigned(&self) -> Vec<Serial> {
-        self.map.keys().copied().collect()
+        self.map
+            .iter()
+            .filter(|(_, a)| !a.role.is_base())
+            .map(|(s, _)| *s)
+            .collect()
+    }
+
+    /// Give the unit a base role from where it stands (`to` = its post, the city it garrisons, the
+    /// end of its path), unless a routine has a task for it. The audit does this for every unit.
+    pub fn set_base(&mut self, serial: Serial, role: Role, to: Option<Position>, turn: u32) {
+        if self.has_role(serial) {
+            return;
+        }
+        match self.map.get_mut(&serial) {
+            Some(a) if a.role == role => a.to = to,
+            _ => {
+                let mut a = Assignment::awaiting(turn);
+                a.role = role;
+                a.to = to;
+                self.map.insert(serial, a);
+            }
+        }
     }
 
     /// The assignment of a unit.
@@ -381,7 +422,7 @@ impl Registry {
     /// Hand back the role, if the unit holds it. Whether it did.
     pub fn release(&mut self, serial: Serial, role: Role) -> bool {
         if self.is(serial, role) {
-            self.map.remove(&serial);
+            self.map.insert(serial, Assignment::awaiting(0));
             true
         } else {
             false
@@ -390,12 +431,18 @@ impl Registry {
 
     /// Hand back whatever role the unit holds.
     pub fn release_any(&mut self, serial: Serial) {
-        self.map.remove(&serial);
+        if self.map.contains_key(&serial) {
+            self.map.insert(serial, Assignment::awaiting(0));
+        }
     }
 
     /// Keep only the units `keep` says are still around and doing it.
     pub fn retain(&mut self, mut keep: impl FnMut(Serial, &Assignment) -> bool) {
-        self.map.retain(|s, a| keep(*s, a));
+        for (s, a) in self.map.iter_mut() {
+            if !keep(*s, a) {
+                *a = Assignment::awaiting(a.since);
+            }
+        }
     }
 
     /// Note where each unit returning home stands at the audit: for how many in a row it has not
@@ -416,6 +463,20 @@ impl Registry {
 impl Role {
     /// Which role wins when a unit is found in two lists: the lower number. A settler's task and
     /// a ship's voyage come first, the fall-backs last.
+    /// A role the audit gives a unit from where it stands and what it is doing, when no routine
+    /// has a task for it: the routines take these over with a claim and hand a unit back to them.
+    pub fn is_base(self) -> bool {
+        matches!(
+            self,
+            Role::MoveTo
+                | Role::Garrison
+                | Role::TransportReady
+                | Role::TransportSpace
+                | Role::TransportFree
+                | Role::AwaitingOrders
+        )
+    }
+
     fn priority(self) -> u8 {
         match self {
             Role::Colonize => 0,
@@ -432,10 +493,12 @@ impl Role {
             Role::Road => 11,
             Role::Scout => 12,
             Role::Return => 13,
-            Role::Ordered => 14,
+            Role::MoveTo => 14,
             Role::Garrison => 15,
-            Role::Docked => 16,
-            Role::AwaitingOrders => 17,
+            Role::TransportReady => 16,
+            Role::TransportSpace => 17,
+            Role::TransportFree => 18,
+            Role::AwaitingOrders => 19,
         }
     }
 }
@@ -459,10 +522,17 @@ pub struct Held {
     pub role: Role,
 }
 
-/// The role of every unit the wizard owns, soldiers, ships and the rest: the one the registry
-/// holds, or else what the unit's place and orders say (garrison, docked, on its way), or else
-/// `AwaitingOrders`.
-pub fn derive(ai: &Ai, view: &PlayerView) -> Vec<Held> {
+/// Give every unit the wizard owns exactly one role in the registry, and return the table. A
+/// unit a routine has a task for keeps its role (a `Return` only while it walks and has not
+/// stood still too long). Every other unit gets the base role its place and orders say, written
+/// into the registry with its target:
+///
+/// - a soldier in an own city: `Garrison`, `to` = the city;
+/// - a unit with an order of its own: `MoveTo`, `to` = the end of its path;
+/// - a ship with no passengers and no target: `TransportFree`; with a target and no passengers
+///   `TransportSpace`; with passengers aboard `TransportReady`;
+/// - anything else: `AwaitingOrders`.
+pub fn sync(ai: &mut Ai, view: &PlayerView, turn: u32) -> Vec<Held> {
     let mut out = Vec::new();
     for unit in view.my_units() {
         let class = if is_ship(view, unit) {
@@ -474,20 +544,32 @@ pub fn derive(ai: &Ai, view: &PlayerView) -> Vec<Held> {
         };
         let serial = view.serial_of(unit);
         let ordered = view.unit_has_order(unit);
-        let in_city = view
-            .unit_position(unit)
-            .is_some_and(|p| view.city_at(p).is_some());
-        // A soldier on its way home keeps `Return` only while it has an order; a stale one is
-        // not a role (the audit drops it).
-        let role = match ai.roles.role_of(serial) {
-            Some(r) if r != Role::Return || ordered => r,
-            _ => match class {
-                Class::Soldier if in_city => Role::Garrison,
-                Class::Ship if in_city => Role::Docked,
-                _ if ordered => Role::Ordered,
-                _ => Role::AwaitingOrders,
-            },
+        let at = view.unit_position(unit);
+        let city = at.filter(|&p| view.city_at(p).is_some());
+        // A `Return` ends when the soldier is home, has no order, or has stood still too long.
+        if ai.roles.is(serial, Role::Return) {
+            let stuck = ai.roles.get(serial).map_or(0, |a| a.stuck);
+            if !ordered || city.is_some() || stuck >= RETURN_PATIENCE {
+                ai.roles.release(serial, Role::Return);
+            }
+        }
+        let target = view.unit_destination(unit);
+        let (role, to) = match class {
+            Class::Soldier if city.is_some() => (Role::Garrison, city),
+            Class::Ship => {
+                if !view.passengers_of(unit).is_empty() {
+                    (Role::TransportReady, target)
+                } else if target.is_some() {
+                    (Role::TransportSpace, target)
+                } else {
+                    (Role::TransportFree, None)
+                }
+            }
+            _ if ordered => (Role::MoveTo, target),
+            _ => (Role::AwaitingOrders, None),
         };
+        ai.roles.set_base(serial, role, to, turn);
+        let role = ai.roles.role_of(serial).unwrap_or(Role::AwaitingOrders);
         out.push(Held { unit, class, role });
     }
     out
@@ -513,6 +595,15 @@ pub fn tally(held: &[Held]) -> Tally {
     t
 }
 
+/// The start of the turn: units that appeared since the last audit (built, summoned, hired, come
+/// off a ship) get their role at once, and those gone leave the registry.
+pub fn register(ai: &mut Ai, game: &Game) {
+    let view = PlayerView::new(game, ai.player);
+    let alive: Vec<_> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
+    ai.roles.prune(&alive);
+    sync(ai, &view, game.turn);
+}
+
 /// Audits in a row a soldier walking home may stand still before the role is taken from it.
 const RETURN_PATIENCE: u32 = 5;
 
@@ -526,24 +617,10 @@ pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let counted = {
         let view = PlayerView::new(game, me);
-        let held = derive(ai, &view);
-        // The units that are gone have no role; soldiers that reached a city are no longer on
-        // their way home, and one that has not moved for a few audits is given up (it is found
-        // awaiting orders again).
-        let alive: Vec<_> = held.iter().map(|h| view.serial_of(h.unit)).collect();
+        // The units that are gone leave the registry; the others each get their role.
+        let alive: Vec<_> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
         ai.roles.prune(&alive);
-        ai.roles.retain(|s, a| {
-            if a.role != Role::Return {
-                return true;
-            }
-            let outside = held.iter().any(|h| {
-                view.serial_of(h.unit) == s
-                    && view
-                        .unit_position(h.unit)
-                        .is_some_and(|p| view.city_at(p).is_none())
-            });
-            outside && a.stuck < RETURN_PATIENCE
-        });
+        let held = sync(ai, &view, game.turn);
         ai.roles.note_positions(|s| {
             held.iter()
                 .find(|h| view.serial_of(h.unit) == s)
@@ -668,7 +745,7 @@ mod tests {
         let view = PlayerView::new(&g, P0);
         assert!(lone.iter().all(|&u| view.unit_has_order(u)));
         // It keeps the role until it is in the city: next turn it is `Return`, not adrift.
-        let held = derive(&ai, &view);
+        let held = sync(&mut ai, &view, 1);
         let roles = held.iter().find(|h| h.unit == lone[0]).map(|h| h.role);
         assert_eq!(roles, Some(Role::Return));
         assert!(tally(&held).adrift.is_empty());
@@ -687,7 +764,7 @@ mod tests {
         let _ = ai
             .roles
             .claim(view.serial_of(scout[0]), Role::Scout, 1, None);
-        let held = derive(&ai, &view);
+        let held = sync(&mut ai, &view, 1);
         let counted = tally(&held);
         assert!(counted.adrift.is_empty(), "{held:?}");
         let roles_of = |u: hecs::Entity| held.iter().find(|h| h.unit == u).map(|h| h.role);
@@ -719,7 +796,7 @@ mod tests {
             "{events:?}"
         );
         let view = PlayerView::new(&g, P0);
-        let held = derive(&ai, &view);
+        let held = sync(&mut ai, &view, 1);
         for &u in &stranded {
             let roles = held.iter().find(|h| h.unit == u).map(|h| h.role);
             assert_eq!(roles, Some(Role::AwaitTransport));
@@ -737,14 +814,14 @@ mod tests {
         let port = at(COAST_CITY.0, COAST_CITY.1);
         let ship = spawn(&mut g, P0, port, 36 /* galley */, 1)[0];
         let other = spawn(&mut g, P0, at(8, 6), 111 /* high_men_settlers */, 1)[0];
-        let ai = Ai::new(P0);
+        let mut ai = Ai::new(P0);
         let view = PlayerView::new(&g, P0);
-        let held = derive(&ai, &view);
+        let held = sync(&mut ai, &view, 1);
         let of = |u: hecs::Entity| held.iter().find(|h| h.unit == u).cloned();
         let ship_held = of(ship).ok_or("the ship is in the table")?;
         assert_eq!(
             (ship_held.class, ship_held.role),
-            (Class::Ship, Role::Docked)
+            (Class::Ship, Role::TransportFree)
         );
         let other_held = of(other).ok_or("the settlers are in the table")?;
         assert_eq!(other_held.class, Class::Other);
@@ -879,14 +956,56 @@ mod tests {
             1,
         );
         spawn(&mut g, P0, at(9, 6), 111 /* high_men_settlers */, 1);
-        let ai = Ai::new(P0);
+        let mut ai = Ai::new(P0);
         let view = PlayerView::new(&g, P0);
-        let held = derive(&ai, &view);
+        let held = sync(&mut ai, &view, 1);
         assert_eq!(
             held.len(),
             view.my_units().len(),
             "every unit is in the table"
         );
+        Ok(())
+    }
+
+    /// Every unit has its role written in the registry, with its target: a garrison soldier the
+    /// city, a unit with an order its destination, a ship its state.
+    #[test]
+    fn every_unit_has_an_explicit_role_with_its_target() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let city = at(COAST_CITY.0, COAST_CITY.1);
+        let home = spawn(&mut g, P0, city, 104, 1)[0];
+        let walker = spawn(&mut g, P0, city, 104, 1)[0];
+        let ship = spawn(&mut g, P0, city, 36 /* galley */, 1)[0];
+        let idle = spawn(&mut g, P0, at(8, 6), 111 /* high_men_settlers */, 1)[0];
+        let mut events = Vec::new();
+        let mut ai = Ai::new(P0);
+        ai.send(
+            &mut g,
+            Command::GoTo {
+                units: vec![walker],
+                to: at(8, 6),
+            },
+            &mut events,
+        )
+        .map_err(|e| format!("{e:?}"))?;
+        let view = PlayerView::new(&g, P0);
+        sync(&mut ai, &view, 1);
+        let get = |u: hecs::Entity| ai.roles.get(view.serial_of(u)).cloned();
+        let of = |u: hecs::Entity| get(u).map(|a| (a.role, a.to));
+        assert_eq!(of(home), Some((Role::Garrison, Some(city))));
+        assert_eq!(of(walker).map(|r| r.0), Some(Role::MoveTo));
+        assert!(of(walker).and_then(|r| r.1).is_some());
+        assert_eq!(of(ship), Some((Role::TransportFree, None)));
+        assert_eq!(of(idle), Some((Role::AwaitingOrders, None)));
+        for u in view.my_units() {
+            assert!(ai.roles.has_role(view.serial_of(u)) || get(u).is_some());
+        }
+        // A task released goes back to a role at once, not to none.
+        let s = view.serial_of(home);
+        let _ = ai.roles.claim(s, Role::Raid, 1, None);
+        ai.roles.release(s, Role::Raid);
+        assert_eq!(ai.roles.role_of(s), Some(Role::AwaitingOrders));
         Ok(())
     }
 }

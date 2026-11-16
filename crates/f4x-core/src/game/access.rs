@@ -111,6 +111,13 @@ impl Game {
         self.world.get::<&Order>(unit).is_ok()
     }
 
+    /// The square the unit's standing order walks to: the end of its path.
+    pub fn unit_destination(&self, unit: hecs::Entity) -> Option<crate::map::Position> {
+        match &*self.world.get::<&Order>(unit).ok()? {
+            Order::GoTo(path) => path.last().copied(),
+        }
+    }
+
     /// Is the unit (an engineer) building a road?
     pub fn unit_building_road(&self, unit: hecs::Entity) -> bool {
         self.world.get::<&crate::map::road::RoadWork>(unit).is_ok()

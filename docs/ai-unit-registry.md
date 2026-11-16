@@ -6,8 +6,12 @@ routines that take and give roles are named below.
 
 ## 1. The rule
 
-Every unit the wizard owns has **exactly one role** at any time, and the AI never loses track of
-one. A unit with nothing to do has the role `AwaitingOrders`; it is not left without one.
+Every unit the wizard owns has **exactly one role, written in the registry**, at any time, and the
+AI never loses track of one. Nothing is derived: a soldier in a city is registered as `Garrison`
+with that city, a unit on its way as `MoveTo` with the square, a soldier sent home as `Return`
+with the city. A unit with nothing to do is registered as `AwaitingOrders`, the lowest priority
+but a role all the same. A routine that gives a role back puts the unit on `AwaitingOrders` at
+once (it is never removed); the next audit gives it the base role its place says.
 
 The role of a unit lives in one place, the registry `Ai::roles` (`roles::Registry`). No routine
 keeps a list of its own units (`raiders`, `scouts`, `marching`, ... no longer exist). A routine asks
@@ -64,14 +68,26 @@ Listed in priority order (the lower number wins a claim, section 4):
 | `Scout` | scouting by land or sea (`to` = the patch) | soldiers, ships | `scout.rs`, `garrison.rs`, `naval.rs` |
 | `Return` | walking home to the nearest own city (`to` = the city) | soldiers | the audit |
 
-Roles the registry does **not** store, because the world already says them (`roles::derive`):
+Priority numbers continue below the tasks (`Road` 11 sits between `Escort` and `Scout`). Every
+role is stored. The last ones are **base roles** (`Role::is_base`): the audit gives them from where
+a unit stands and what it is doing when no routine has a task for it, and a routine's `claim`
+takes any of them over. `has_role` means "a routine has a task for it", that is, a role that is
+not a base role.
 
-| Role | When |
-|---|---|
-| `Garrison` | a soldier standing in an own city |
-| `Docked` | a ship in an own city |
-| `Ordered` | a unit with an order of its own (a plain walk) |
-| `AwaitingOrders` | none of the above: soldiers in it are *adrift*, ships and other units are *unassigned* |
+| Base role | For | `to` |
+|---|---|---|
+| `MoveTo` | a unit with an order of its own (a plain walk) | the end of its path |
+| `Garrison` | a soldier standing in an own city | that city |
+| `TransportReady` | a ship with the units to carry decided (aboard) | its target, if set |
+| `TransportSpace` | a ship with a target and no passengers yet: room to take units | its target |
+| `TransportFree` | a ship with no mission, no passengers and no target | none |
+| `AwaitingOrders` | nothing else fits: soldiers in it are *adrift*, ships and other units *unassigned* | none |
+
+A ship on a mission holds the mission role instead (`Voyage`, `Pickup`, `Colonize`, `SeaParty`
+scouting); its passengers are tied to it by `with`. The three transport roles are the ship's state
+while it has no mission: a free ship (`pickup.rs` and `naval.rs` take it), a ship that has a target
+and room, and a ship whose load is decided. The boarding decision itself still lives in the
+mission roles; the transport roles say what the ship is when it has none.
 
 Planned roles (tasks 625, 628): `Perimeter`, `Meld`; `Explore` replaces `Scout`.
 
@@ -84,7 +100,8 @@ The three scouting roles (`Scout`, `PlanarScout`, `SeaParty`) count as "out scou
   higher priority** keeps it and the claim is refused (the error is the role it holds); a lower one
   is taken over; claiming the role already held renews it. So a unit **cannot hold two roles**: a
   raider is not marched, a marching soldier is not sent home.
-- `release(unit, role)`: hands the role back, only if the unit holds that role. `release_role`,
+- `release(unit, role)`: hands the role back, only if the unit holds that role; the unit is then
+  `AwaitingOrders`, never without a role. `release_role`,
   `release_many`, `release_any`, `retain_role`, `prune` are the list forms.
 - `assign(role, units, turn)`: the holders of the role become exactly these units (a new march or
   muster).
@@ -93,7 +110,7 @@ The three scouting roles (`Scout`, `PlanarScout`, `SeaParty`) count as "out scou
   settlers give a blocked target up after a few); `clear_track` forgets it. The audit's own count
   for `Return` is `note_positions`.
 
-A routine that picks units for a task takes the free ones (no registry role, no order) and claims
+A routine that picks units for a task takes the free ones (a base role only, no task of a routine) and claims
 the role for them; the claim is the one test that a unit is free, so the routines no longer list
 each other's roles to stay out of the way.
 
@@ -101,10 +118,12 @@ each other's roles to stay out of the way.
 
 `roles::audit` runs at the end of the AI's turn (`lib.rs`, after `colony`, `pickup`):
 
-1. **Look at every unit** (`derive`): soldier, ship or other; give it the registry role, or the
-   role its place and orders say, or `AwaitingOrders`.
-2. **Tidy the registry**: drop the units that are gone, and the `Return` of a soldier that is in a
-   city or has not moved for `RETURN_PATIENCE` looks.
+1. **Tidy the registry**: drop the units that are gone.
+2. **Look at every unit** (`roles::sync`, which also runs at the start of the turn as
+   `roles::register`, so units built, hired or summoned since are registered before any routine
+   runs): a unit a routine has a task for keeps its role; a `Return` ends when the soldier is in a
+   city, has no order or has not moved for `RETURN_PATIENCE` looks; every other unit is written
+   into the registry with its base role and target (the table above).
 3. **Count** the soldiers and the other units awaiting orders, and report them in
    `Event::RolesAudited { adrift, unassigned }` (the soak lines `units adrift (no role)` and
    `ships and other units with no role`).
@@ -157,7 +176,7 @@ a second engineer, roads toward towers.
 4. Add the role to the tables above, and a test that the claim is refused for a unit holding a
    better role.
 
-Tests (`roles.rs`, and each routine's own): one role per unit, refused and taken-over claims,
+Tests (`roles.rs`, and each routine's own): every unit has an explicit role with its target, one role per unit, refused and taken-over claims,
 groups and ties, standstill count, the audit sending a lone soldier home and keeping it `Return`,
 stranded soldiers waiting for a ship.
 
@@ -169,3 +188,10 @@ stranded soldiers waiting for a ship.
 - No ship is built for a pickup; a stranded group waits until a free ship exists.
 - The plan clock (`plan_clock.rs`) still drops stale plans by plan kind; it should read `since`
   from the registry.
+- A unit made in the middle of the AI's turn (bought production, a summoned unit) is registered
+  at the end-of-turn audit, not at the moment it appears; at the start of every turn there is none
+  left without a role.
+- The ship states `TransportSpace` and `TransportReady` follow the ship's order and passengers;
+  `naval.rs` and `pickup.rs` still decide who boards through `Voyage`, `Pickup` and `AwaitTransport`.
+  Moving that decision into the transport roles (a ship holding "units to board" before they are
+  aboard) is not built.

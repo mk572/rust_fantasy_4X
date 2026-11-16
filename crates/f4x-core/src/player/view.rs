@@ -363,6 +363,11 @@ impl<'a> PlayerView<'a> {
         self.game.unit_has_order(unit)
     }
 
+    /// The square the unit's standing order walks to (the end of its path).
+    pub fn unit_destination(&self, unit: hecs::Entity) -> Option<Position> {
+        self.game.unit_destination(unit)
+    }
+
     /// Is the engineer at work on a road?
     pub fn unit_builds_road(&self, unit: hecs::Entity) -> bool {
         self.game
