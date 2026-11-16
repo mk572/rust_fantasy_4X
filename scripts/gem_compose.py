@@ -78,6 +78,11 @@ def middle_share(fx):
     return MIDDLE_SHIFT + (1 - MIDDLE_SHIFT) * min(outside / RAMP, 1)
 
 
+def top_middle(fx):
+    """1 in the middle third of the face's width, falling to 0 over RAMP pixels on both sides."""
+    return (1 - middle_share(fx)) / (1 - MIDDLE_SHIFT)
+
+
 def shifted(face_pixel, diamond_pixel, overlap, share=1.0):
     """The face's pixel turned to the hue (and for "tint" the saturation) of the diamond's."""
     fh, fs, fv = colorsys.rgb_to_hsv(*(c / 255 for c in face_pixel[:3]))
@@ -104,7 +109,10 @@ def compose(diamond, face, overlap="hue"):
             for y, side, fy in ((at_y - 1, "top", 0), (at_y + FACE_H, "bottom", FACE_H - 1)):
                 under = gem.getpixel((x, y))
                 over = shifted(face.getpixel((min(max(x - at_x, 0), FACE_W - 1), fy)), under, overlap)
-                gem.putpixel((x, y), mix(under, over, RING_WEIGHT[side]))
+                weight = RING_WEIGHT[side]
+                if side == "top":
+                    weight += (EDGE_WEIGHT["top"] - weight) * top_middle(x - at_x)
+                gem.putpixel((x, y), mix(under, over, weight))
         for y in range(at_y, at_y + FACE_H):
             if min(y - at_y, at_y + FACE_H - 1 - y) < CORNER_RING - 1:
                 continue
@@ -121,6 +129,8 @@ def compose(diamond, face, overlap="hue"):
                 side = {0: "top", FACE_H - 1: "bottom"}.get(fy) or {0: "left", FACE_W - 1: "right"}.get(fx)
                 if side:
                     weight = EDGE_WEIGHT[side]
+                    if side == "top":
+                        weight += (1 - weight) * top_middle(fx)
                     share = middle_share(fx) if side in ("top", "bottom") else 1.0
                     colour = shifted(colour, under, overlap, share)
                 weight = min(weight, CORNER_WEIGHT.get(corner_steps(fx, fy), 1.0))
