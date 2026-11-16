@@ -144,17 +144,11 @@ fn work(
     }) {
         return frontier(ai, game, engineer, events);
     }
-    // Else to the nearest city not looked at.
-    let next = {
-        let view = PlayerView::new(game, me);
-        cities
-            .iter()
-            .filter(|&&(c, p)| p != here && !ai.road_checked.contains(&view.serial_of(c)))
-            .filter_map(|&(_, p)| view.distance(here, p).map(|d| (d, p)))
-            .filter(|&(_, p)| view.can_reach(&[engineer], p))
-            .min_by_key(|&(d, p)| (d, p.plane as u8, p.y, p.x))
-            .map(|(_, p)| p)
-    }?;
+    // Else to the nearest city not looked at, that has room for the engineer (a full city
+    // refuses it, `StackFull`; the cities with no room wait). With none left, to the frontier.
+    let Some(next) = nearest_unchecked(ai, game, engineer, here, &cities) else {
+        return frontier(ai, game, engineer, events);
+    };
     ai.send(
         game,
         Command::GoTo {
@@ -165,6 +159,26 @@ fn work(
     )
     .ok()
     .map(|()| next)
+}
+
+/// The nearest of the `cities` the wizard has not looked at for roads, that the engineer can
+/// reach and that has room for it.
+fn nearest_unchecked(
+    ai: &Ai,
+    game: &Game,
+    engineer: hecs::Entity,
+    here: Position,
+    cities: &[(hecs::Entity, Position)],
+) -> Option<Position> {
+    let view = PlayerView::new(game, ai.player);
+    cities
+        .iter()
+        .filter(|&&(c, p)| p != here && !ai.road_checked.contains(&view.serial_of(c)))
+        .filter(|&&(_, p)| Ai::room_at(game, p, 1))
+        .filter_map(|&(_, p)| view.distance(here, p).map(|d| (d, p)))
+        .filter(|&(_, p)| view.can_reach(&[engineer], p))
+        .min_by_key(|&(d, p)| (d, p.plane as u8, p.y, p.x))
+        .map(|(_, p)| p)
 }
 
 /// Build a road along `path`: whether the game took the order.
@@ -397,6 +411,26 @@ mod tests {
             ai.roles.target_of(serial, Role::Road),
             Some(at(INLAND_CITY.0, INLAND_CITY.1))
         );
+        Ok(())
+    }
+
+    /// A city with no room for one more unit is not the engineer's next stop (`StackFull`).
+    #[test]
+    fn an_engineer_does_not_walk_to_a_full_city() -> TestResult {
+        let (mut g, engineer) = world()?;
+        let ai = Ai::new(P0);
+        let (first, second) = (
+            at(COAST_CITY.0, COAST_CITY.1),
+            at(INLAND_CITY.0, INLAND_CITY.1),
+        );
+        let cities: Vec<_> = PlayerView::new(&g, P0).my_cities();
+        assert_eq!(
+            nearest_unchecked(&ai, &g, engineer, first, &cities),
+            Some(second)
+        );
+        let room = g.max_tile() - g.units().units_at(second).len();
+        spawn(&mut g, P0, second, 110, room);
+        assert_eq!(nearest_unchecked(&ai, &g, engineer, first, &cities), None);
         Ok(())
     }
 

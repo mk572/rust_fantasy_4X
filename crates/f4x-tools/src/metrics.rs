@@ -19,6 +19,15 @@ fn is_ship(def: &UnitDef) -> bool {
     def.movement == MovementType::Sailing && def.stats.get(&Stat::Transport).is_some_and(|&t| t > 0)
 }
 
+/// A war between two wizards is stalled when no battle and no city taken between them is this many
+/// turns old (task 561; the plan clock of task 515 is 100 turns too).
+const STALLED_WAR_TURNS: u32 = 100;
+
+/// The key of two players in the tables of wars: the lower number first.
+fn pair(a: PlayerId, b: PlayerId) -> (u8, u8) {
+    (a.0.min(b.0), a.0.max(b.0))
+}
+
 /// Counts over a whole game for one wizard.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Metrics {
@@ -108,6 +117,14 @@ pub struct Metrics {
     pub march_units: u32,
     pub marches_called_off: u32,
     pub marches_dropped: u32,
+    /// Turns the marches called off for going on too long had run, and the soldiers on them
+    /// (task 436: why a march is called off).
+    pub march_called_off_turns: u32,
+    pub march_called_off_units: u32,
+    /// Turns at war with a rival wizard (each rival counts), and those of them in which the two
+    /// had fought no battle and taken no city for `STALLED_WAR_TURNS` turns (task 561).
+    pub war_turns: u32,
+    pub stalled_war_turns: u32,
     /// Soldiers the end-of-turn audit found with no role (sent home), summed over turns.
     pub units_adrift: u32,
     /// Ships and other units (settlers, engineers, spirits) with no role, summed over turns.
@@ -116,7 +133,7 @@ pub struct Metrics {
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 62] {
+    pub fn rows(&self) -> [(&'static str, u32); 66] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -177,6 +194,13 @@ impl Metrics {
             ("soldiers sent on marches", self.march_units),
             ("marches called off", self.marches_called_off),
             ("marches dropped for another target", self.marches_dropped),
+            ("turns of marches called off", self.march_called_off_turns),
+            (
+                "soldiers on marches called off",
+                self.march_called_off_units,
+            ),
+            ("turns at war with a wizard", self.war_turns),
+            ("turns of stalled war", self.stalled_war_turns),
             ("units adrift (no role)", self.units_adrift),
             ("ships and other units with no role", self.units_unassigned),
             (
@@ -319,6 +343,10 @@ impl AddAssign for Metrics {
             march_units,
             marches_called_off,
             marches_dropped,
+            march_called_off_turns,
+            march_called_off_units,
+            war_turns,
+            stalled_war_turns,
             units_adrift,
             units_unassigned,
         } = other;
@@ -382,6 +410,10 @@ impl AddAssign for Metrics {
         self.march_units += march_units;
         self.marches_called_off += marches_called_off;
         self.marches_dropped += marches_dropped;
+        self.march_called_off_turns += march_called_off_turns;
+        self.march_called_off_units += march_called_off_units;
+        self.war_turns += war_turns;
+        self.stalled_war_turns += stalled_war_turns;
         self.units_adrift += units_adrift;
         self.units_unassigned += units_unassigned;
         self.first_landing_turns += first_landing_turns;
@@ -421,6 +453,12 @@ pub struct Tally {
     /// city is the one who defeated it.
     #[serde(default)]
     last_taker: BTreeMap<u8, u8>,
+    /// The turn of the last battle or city taken between two players (the lower number first),
+    /// and the turn each war between wizards began, for the stalled-war count.
+    #[serde(default)]
+    last_fight: BTreeMap<(u8, u8), u32>,
+    #[serde(default)]
+    war_since: BTreeMap<(u8, u8), u32>,
     /// The wizards defeated: the turn, the wizard, and who took its last city (`None` when it
     /// lost its last city some other way, razed, destroyed or lost to rebels).
     #[serde(default)]
@@ -458,6 +496,8 @@ impl Tally {
             mana_spent: vec![0; count + 1],
             mana_left: vec![0; count + 1],
             last_taker: BTreeMap::new(),
+            last_fight: BTreeMap::new(),
+            war_since: BTreeMap::new(),
             defeats: Vec::new(),
             home_plane: (0..=count)
                 .map(|k| {
@@ -503,6 +543,7 @@ impl Tally {
     /// Note the mana of every wizard after a round: what it spent is the pool before, plus the
     /// income the turn change paid, less the pool now.
     pub fn sample_mana(&mut self, game: &Game) {
+        self.sample_wars(game);
         let now = self.mana_now(game);
         for p in game.player_ids() {
             if game.wizard(p).is_none() {
@@ -534,6 +575,34 @@ impl Tally {
             }
         }
         self.mana_left = now;
+    }
+
+    /// Count a turn of war for each pair of wizards at war, and a stalled one when neither a
+    /// battle nor a city taken between them is newer than `STALLED_WAR_TURNS` turns.
+    fn sample_wars(&mut self, game: &Game) {
+        let wizards: Vec<PlayerId> = game
+            .player_ids()
+            .into_iter()
+            .filter(|&p| game.wizard(p).is_some())
+            .collect();
+        for (i, &a) in wizards.iter().enumerate() {
+            for &b in &wizards[i + 1..] {
+                let key = pair(a, b);
+                if game.treaty(a, b) != f4x_core::diplomacy::Treaty::War {
+                    self.war_since.remove(&key);
+                    continue;
+                }
+                let since = *self.war_since.entry(key).or_insert(game.turn);
+                let last = self.last_fight.get(&key).copied().unwrap_or(0).max(since);
+                let stalled = game.turn.saturating_sub(last) >= STALLED_WAR_TURNS;
+                for p in [a, b] {
+                    self.bump(p, |m| {
+                        m.war_turns += 1;
+                        m.stalled_war_turns += u32::from(stalled);
+                    });
+                }
+            }
+        }
     }
 
     /// The wizards defeated, in order: the turn, the wizard and who took its last city.
@@ -618,6 +687,7 @@ impl Tally {
                     }
                 }
                 Event::CityCaptured { city, from, to } => {
+                    self.last_fight.insert(pair(*from, *to), game.turn);
                     self.last_taker.insert(from.0, to.0);
                     let at = game
                         .economy()
@@ -659,6 +729,7 @@ impl Tally {
                     }
                 }
                 Event::BattleEnded { winner, loser } => {
+                    self.last_fight.insert(pair(*winner, *loser), game.turn);
                     if let Some(m) = self.at(*winner) {
                         m.battles_won += 1;
                     }
@@ -687,12 +758,16 @@ impl Tally {
                 Event::MarchCalledOff {
                     player,
                     target_changed,
+                    units,
+                    turns,
                     ..
                 } => self.bump(*player, |m| {
                     if *target_changed {
                         m.marches_dropped += 1;
                     } else {
                         m.marches_called_off += 1;
+                        m.march_called_off_turns += turns;
+                        m.march_called_off_units += units;
                     }
                 }),
                 Event::RolesAudited {

@@ -199,16 +199,36 @@ fn attack_or_gather(
     events: &mut Vec<Event>,
 ) {
     let me = ai.player;
+    // A battle is fought from one square (the game refuses attackers standing apart,
+    // `BattleStartError::BadSides`): the strongest group of soldiers beside the enemy that share
+    // a square attacks when it is enough; the rest, and the others when none is, gather.
     let (beside, apart) = {
         let view = PlayerView::new(game, me);
-        let (beside, apart): (Vec<_>, Vec<_>) = idle.iter().copied().partition(|&u| {
-            view.unit_position(u)
-                .and_then(|p| view.distance(p, threat.square))
-                == Some(1)
-        });
-        (beside, apart)
+        let mut groups: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
+        for &u in idle {
+            let Some(at) = view.unit_position(u) else {
+                continue;
+            };
+            if view.distance(at, threat.square) != Some(1) {
+                continue;
+            }
+            match groups.iter_mut().find(|(p, _)| *p == at) {
+                Some((_, list)) => list.push(u),
+                None => groups.push((at, vec![u])),
+            }
+        }
+        groups.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
+        let best = groups
+            .into_iter()
+            .map(|(_, list)| (stack_strength(&view, &list), list))
+            .max_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, list)| list)
+            .unwrap_or_default();
+        let apart: Vec<hecs::Entity> = idle.iter().copied().filter(|u| !best.contains(u)).collect();
+        (best, apart)
     };
-    let enough = stack_strength(&PlayerView::new(game, me), &beside) >= needed;
+    let enough =
+        !beside.is_empty() && stack_strength(&PlayerView::new(game, me), &beside) >= needed;
     if enough {
         crate::military::engage(ai, game, beside, threat.units.clone(), events);
     }
@@ -389,6 +409,31 @@ mod tests {
         let before = g.units().player_units(P1).len();
         let mut events = Vec::new();
         let _ = run(&mut ai, &mut g, beside, &mut events);
+        assert!(
+            g.units().player_units(P1).len() < before,
+            "the raider fell: {events:?}"
+        );
+    }
+
+    /// Soldiers beside the enemy from two squares do not start one battle together (the game
+    /// refuses attackers standing apart): the stack that is enough attacks alone.
+    #[test]
+    fn soldiers_beside_the_enemy_on_two_squares_attack_from_one() {
+        let (mut g, _) = besieged(1);
+        let mut beside = spawn(&mut g, P0, at(7, 6), 105 /* high_men_swordsmen */, 3);
+        beside.extend(spawn(
+            &mut g,
+            P0,
+            at(7, 7),
+            105, /* high_men_swordsmen */
+            1,
+        ));
+        let mut ai = Ai::new(P0);
+        ai.record_refusals = true;
+        let before = g.units().player_units(P1).len();
+        let mut events = Vec::new();
+        let _ = run(&mut ai, &mut g, beside, &mut events);
+        assert!(ai.refusals.borrow().is_empty(), "{:?}", ai.refusals.borrow());
         assert!(
             g.units().player_units(P1).len() < before,
             "the raider fell: {events:?}"
