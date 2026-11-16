@@ -33,6 +33,9 @@ pub enum Role {
     Voyage,
     /// A settler or the escort of a colony.
     Settle,
+    /// Stranded where no own city can be reached: waits on a shore tile for a ship
+    /// (`pickup.rs`).
+    AwaitTransport,
     /// Has an order (on its way somewhere) but belongs to no list.
     Ordered,
 }
@@ -66,6 +69,9 @@ pub fn derive(ai: &Ai, view: &PlayerView) -> Vec<Held> {
             ),
         ];
         roles.extend(listed.iter().filter(|(on, _)| *on).map(|&(_, r)| r));
+        if ai.waiting.contains_key(&serial) {
+            roles.push(Role::AwaitTransport);
+        }
         if ai
             .colonists
             .is_some_and(|(a, b)| a == serial || b == serial)
@@ -115,11 +121,21 @@ pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         adrift: adrift.len() as u32,
         doubled,
     });
-    send_home(ai, game, &adrift, events);
+    for group in send_home(ai, game, &adrift, events) {
+        // No own city can be reached by land: wait for a ship on the shore.
+        crate::pickup::wait_at_shore(ai, game, &group);
+    }
 }
 
-/// Send each group of units standing on one square to the nearest own city that has room.
-fn send_home(ai: &mut Ai, game: &mut Game, units: &[hecs::Entity], events: &mut Vec<Event>) {
+/// Send each group of units standing on one square to the nearest own city that has room. The
+/// groups no city took are returned.
+fn send_home(
+    ai: &mut Ai,
+    game: &mut Game,
+    units: &[hecs::Entity],
+    events: &mut Vec<Event>,
+) -> Vec<Vec<hecs::Entity>> {
+    let mut left_out = Vec::new();
     let me = ai.player;
     let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
     let cities: Vec<Position> = {
@@ -146,6 +162,12 @@ fn send_home(ai: &mut Ai, game: &mut Game, units: &[hecs::Entity], events: &mut 
                 .collect()
         };
         homes.sort_by_key(|&(d, c)| (d, c.y, c.x));
+        // Whether any city can be reached on foot at all (full cities are a wait, not a strand).
+        let reachable = {
+            let view = PlayerView::new(game, me);
+            homes.iter().any(|&(_, c)| view.can_reach(&group, c))
+        };
+        let mut sent = false;
         for (_, home) in homes {
             let ok = {
                 let view = PlayerView::new(game, me);
@@ -163,10 +185,15 @@ fn send_home(ai: &mut Ai, game: &mut Game, units: &[hecs::Entity], events: &mut 
                     )
                     .is_ok()
             {
+                sent = true;
                 break;
             }
         }
+        if !sent && !reachable {
+            left_out.push(group);
+        }
     }
+    left_out
 }
 
 #[cfg(test)]
@@ -216,6 +243,34 @@ mod tests {
         let roles_of = |u: hecs::Entity| held.iter().find(|h| h.unit == u).map(|h| h.roles.clone());
         assert_eq!(roles_of(home[0]), Some(vec![Role::Garrison]));
         assert_eq!(roles_of(scout[0]), Some(vec![Role::Scout]));
+        Ok(())
+    }
+
+    /// Soldiers with no own city they can walk to take the waiting role and head for the shore:
+    /// they are not sent on an impossible way home every turn.
+    #[test]
+    fn soldiers_with_no_city_in_reach_wait_for_a_ship() -> TestResult {
+        use crate::testworld::ENEMY_CITY;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let far = {
+            let view = PlayerView::new(&g, P0);
+            crate::naval::landing(&view, at(ENEMY_CITY.0, ENEMY_CITY.1))
+                .ok_or("a shore tile near the far city")?
+                .0
+        };
+        let stranded = spawn(&mut g, P0, far, 104 /* spearmen */, 2);
+        let mut ai = Ai::new(P0);
+        let mut events = Vec::new();
+        audit(&mut ai, &mut g, &mut events);
+        assert_eq!(ai.waiting.len(), 2, "{events:?}");
+        let view = PlayerView::new(&g, P0);
+        let held = derive(&ai, &view);
+        for &u in &stranded {
+            let roles = held.iter().find(|h| h.unit == u).map(|h| h.roles.clone());
+            assert_eq!(roles, Some(vec![Role::AwaitTransport]));
+        }
+        assert!(adrift_and_doubled(&held).0.is_empty());
         Ok(())
     }
 

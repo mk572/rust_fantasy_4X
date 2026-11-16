@@ -27,6 +27,7 @@ mod objective;
 mod offer;
 mod persist;
 mod phase;
+mod pickup;
 mod plan_clock;
 mod race;
 mod raze;
@@ -165,6 +166,13 @@ pub struct Ai {
     record_refusals: bool,
     #[serde(skip)]
     refusals: RefCell<Vec<Refusal>>,
+    /// Soldiers stranded where no own city can be reached on foot, each with the shore tile it
+    /// waits at for a ship (`pickup.rs`).
+    #[serde(default, serialize_with = "persist::sorted")]
+    waiting: HashMap<Serial, Position>,
+    /// The ships on their way to fetch them.
+    #[serde(default)]
+    pickups: Vec<pickup::Pickup>,
     /// The units out on a raid of a tower, node or encounter site (`site.rs`).
     raiders: Vec<Serial>,
     /// The site each raider is set on, so a party keeps to it as it walks (`site.rs`).
@@ -279,6 +287,8 @@ impl Ai {
             statecraft: Default::default(),
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
+            waiting: HashMap::new(),
+            pickups: Vec::new(),
             raiders: Vec::new(),
             raid_targets: HashMap::new(),
             clock: plan_clock::PlanClock::default(),
@@ -407,6 +417,7 @@ impl Ai {
             military::army(self, game, &mut events);
             naval::run(self, game, &mut events);
             colony::run(self, game, &mut events);
+            pickup::run(self, game, &mut events);
             roles::audit(self, game, &mut events);
         }
         raze::run(self, game, &mut events);
