@@ -48,9 +48,11 @@ OVERLAPS = ("hue", "tint")
 # third of the width, down to this share, and comes back to the full shift over RAMP pixels.
 MIDDLE_SHIFT = 0.35
 RAMP = 3
-# The pixel added above and below the face in the middle third shows the face at this weight, with
-# the full shift to the diamond's hue (it is the diamond's pixel with the head's shape on it).
-CUTOUT_WEIGHT = 0.5
+# The pixel added above and below the face in the middle third takes the colour of the picture
+# just inside the face's edge row (the edge row itself is the face's grey border), at this weight,
+# and only this share of the shift to the diamond's hue.
+CUTOUT_WEIGHT = 0.65
+CUTOUT_SHIFT = 0.3
 
 
 def base_diamonds():
@@ -112,8 +114,11 @@ def compose(diamond, face, overlap="hue"):
             for y, side, fy in ((at_y - 1, "top", 0), (at_y + FACE_H, "bottom", FACE_H - 1)):
                 under = gem.getpixel((x, y))
                 bump = edge_middle(x - at_x)
-                share = 1.0 if bump > 0 else middle_share(x - at_x)
-                over = shifted(face.getpixel((min(max(x - at_x, 0), FACE_W - 1), fy)), under, overlap, share)
+                column = min(max(x - at_x, 0), FACE_W - 1)
+                inside = face.getpixel((column, 1 if side == "top" else FACE_H - 2))
+                source = mix(face.getpixel((column, fy)), inside, bump)
+                share = CUTOUT_SHIFT * bump + middle_share(x - at_x) * (1 - bump)
+                over = shifted(source, under, overlap, share)
                 weight = RING_WEIGHT[side] + (CUTOUT_WEIGHT - RING_WEIGHT[side]) * bump
                 gem.putpixel((x, y), mix(under, over, weight))
         for y in range(at_y, at_y + FACE_H):
