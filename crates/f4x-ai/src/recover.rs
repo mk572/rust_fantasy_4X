@@ -52,21 +52,25 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let Some(at) = view.unit_position(u) else {
                 continue;
             };
-            // In a city it mends where it stands.
-            if cities.contains(&at) {
+            // In a city it mends where it stands, and on its way home it is left alone (a raid or a
+            // march it was on has an order too, which it gives up).
+            let serial = view.serial_of(u);
+            let on_a_raid = ai.raiders.contains(&serial) || ai.marching.contains(&serial);
+            if cities.contains(&at) || (view.unit_has_order(u) && !on_a_raid) {
                 continue;
             }
             let near = |&p: &Position| distance(&view, at, p).map(|d| (d, p.y, p.x));
             let mut nearest = |list: &[Position], range: u32| {
                 list.iter()
+                    // A square with no room for one more is no place to send it (`StackFull`).
+                    .filter(|&&p| view.garrison(p).len() < view.max_tile())
                     .filter(|&&p| p != at && near(&p).is_some_and(|k| k.0 <= range))
                     .filter(|&&p| reached.can_reach(&view, &[u], p))
                     .min_by_key(|p| near(p))
                     .copied()
             };
-            // A square with a healer is the first choice only when one is near and there is room.
-            let healer = nearest(&healers, HEALER_RANGE)
-                .filter(|&p| view.garrison(p).len() < view.max_tile());
+            // A square with a healer is the first choice when one is near.
+            let healer = nearest(&healers, HEALER_RANGE);
             let to = healer.or_else(|| nearest(&cities, u32::MAX));
             if let Some(to) = to {
                 out.push((u, to));
@@ -138,6 +142,36 @@ mod tests {
         g.scenario_set_hurt(u, max * 3 / 4);
         run(&mut Ai::new(P0), &mut g, &mut Vec::new());
         assert!(!PlayerView::new(&g, P0).unit_has_order(u));
+        Ok(())
+    }
+
+    #[test]
+    fn a_wounded_unit_is_not_sent_to_a_full_city_and_not_ordered_twice() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let city = at(COAST_CITY.0, COAST_CITY.1);
+        let u = spawn(&mut g, P0, at(5, 5), 113 /* high_men_paladins */, 1)[0];
+        let (_, max) = PlayerView::new(&g, P0).unit_hits(u);
+        g.scenario_set_hurt(u, max * 3 / 4);
+        // The only city has no room for one more.
+        let room = PlayerView::new(&g, P0).max_tile();
+        spawn(&mut g, P0, city, 104 /* high_men_spearmen */, room);
+        run(&mut Ai::new(P0), &mut g, &mut Vec::new());
+        assert!(
+            !PlayerView::new(&g, P0).unit_has_order(u),
+            "no room: it stays"
+        );
+        // With room again it is sent once, and a second turn leaves its order alone.
+        for _ in 0..3 {
+            let last = g.units().units_at(city).pop().ok_or("a unit in the city")?;
+            g.cheat_remove_unit(last);
+        }
+        let mut events = Vec::new();
+        let mut ai = Ai::new(P0);
+        run(&mut ai, &mut g, &mut events);
+        assert!(PlayerView::new(&g, P0).unit_has_order(u));
+        let before = events.len();
+        run(&mut ai, &mut g, &mut events);
+        assert_eq!(events.len(), before, "the order is not given again");
         Ok(())
     }
 }

@@ -1067,8 +1067,11 @@ fn defeat_line(game: &Game, tally: &Tally) -> String {
                 Some(k) if k == f4x_core::player::MONSTERS => "monsters".to_string(),
                 Some(k) if game.is_neutral_player(k) => format!(
                     "neutral {}",
-                    game.race_of_player(k)
-                        .map_or("?".to_string(), |r| rules.races.get(r).id.clone())
+                    game.race_of_player(k).map_or("?".to_string(), |r| rules
+                        .races
+                        .get(r)
+                        .id
+                        .clone())
                 ),
                 Some(k) => format!("p{}", k.0),
             };
