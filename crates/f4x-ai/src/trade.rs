@@ -472,6 +472,7 @@ fn sell(game: &Game, me: PlayerId, other: PlayerId) -> Option<Offer> {
     if armory.items().next().is_some() {
         things.extend(serials.map(Goods::item));
     }
+    things.extend(surplus_unit(game, me).map(Goods::unit));
     things
         .into_iter()
         .filter_map(|thing| {
@@ -484,6 +485,32 @@ fn sell(game: &Game, me: PlayerId, other: PlayerId) -> Option<Offer> {
         })
         .filter_map(|o| meets(game, me, other, o))
         .max_by_key(|o| o.gain)
+}
+
+/// A unit `me` can do without: the last-made fighter of a city that holds more fighters than
+/// `garrison_wanted` asks for, with one to spare, at peace with everybody (`will_give` asks the
+/// same of the one who answers). The cheapest first, so the best stay home.
+fn surplus_unit(game: &Game, me: PlayerId) -> Option<f4x_core::game::serial::Serial> {
+    let at_war = game
+        .player_ids()
+        .into_iter()
+        .any(|p| p != me && game.treaty(me, p) == Treaty::War);
+    if at_war {
+        return None;
+    }
+    let view = PlayerView::new(game, me);
+    view.my_cities().into_iter().find_map(|(_, city)| {
+        let fighters: Vec<_> = view
+            .garrison(city)
+            .into_iter()
+            .filter(|&u| crate::view::is_fighter(&view, u))
+            .collect();
+        if fighters.len() <= crate::view::garrison_wanted(&view, city) + 1 {
+            return None;
+        }
+        let serial = game.serial_of(*fighters.last()?);
+        core::giveable_unit(game, me, serial).map(|_| serial)
+    })
 }
 
 /// The trade `me` would offer `other` now: the one that gains it most of a swap, a purchase and

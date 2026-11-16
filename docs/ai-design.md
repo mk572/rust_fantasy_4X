@@ -346,6 +346,20 @@ that casts gives up its attack, so a cast of no account is not worth it, where t
 turn is its own. The shares and the budget constants are first guesses; task 640 tunes them
 against the soak.
 
+**Tasks 509 and 598 (17 November 2026): intents read from the effect** (`f4x-ai/src/intent.rs`). The
+world spells are sorted by the typed effect of the rules (`GlobalEffect`, `WorldKill`), not by a list
+of ids: a boon for any caster (Nature Awareness, Just Cause), one for a wizard whose books lean to
+its realm (Chaos Surge), a strike while at war (Time Stop, Armageddon, Death Wish), a strike at
+the realms of a wizard at war (Nature's Wrath, Life Force, Evil Omens, unless it hurts the caster's
+own books), and never (Planar Seal); Great Unsummoning waits while the wizard has creatures of its
+own. A match over the enum has no catch-all, so a new effect gets a use before the code builds.
+New kinds: a storm or the Black Wind on the strongest enemy stack by a city of the wizard (at least
+half the garrison), Corruption beside the biggest enemy city and Warp Node on its node, a volcano
+by an own city, and an Astral Gate in the city the army crosses from. A wall goes to the city with
+an enemy stack by it first. The spells still left alone are listed with the reason in `LEFT_ALONE`
+(`wizardry.rs`), and a test keeps the list true. Trades: a fighter over `garrison_wanted` (one
+to spare) is for sale at peace. What needs a soak is task 641.
+
 ### 6.6 The learned agent
 
 `f4x-learn`'s baseline and imitation target is `next_command`. After step 10 its numbers move.

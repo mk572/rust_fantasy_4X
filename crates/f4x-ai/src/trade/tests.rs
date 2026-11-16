@@ -222,3 +222,30 @@ fn an_offer_with_nothing_asked_is_answered_with_what_the_ai_would_give() -> Test
     assert_eq!((give.spell, get.gold), (Some(dear), 720));
     Ok(())
 }
+
+#[test]
+fn a_unit_over_the_garrison_is_for_sale_and_the_last_defender_is_not() -> TestResult {
+    let (mut g, _) = world()?;
+    let here = crate::testworld::at(COAST_CITY.0, COAST_CITY.1);
+    // No spell to sell: only a unit could be.
+    g.wizard_mut(P0)
+        .ok_or("a wizard")?
+        .get_mut::<f4x_core::wizard::sheet::KnownSpells>()
+        .known
+        .clear();
+    assert_eq!(surplus_unit(&g, P0), None, "the city holds what it needs");
+    for _ in 0..4 {
+        crate::testworld::spawn(&mut g, P0, here, 113 /* high_men_paladins */, 1);
+    }
+    let Some(serial) = surplus_unit(&g, P0) else {
+        return Err("four fighters over a garrison of one: one is for sale".into());
+    };
+    assert!(core::giveable_unit(&g, P0, serial).is_some());
+    ally(&mut g);
+    let Some(sale) = sell(&g, P0, P1) else {
+        return Err("a surplus unit is sold to an ally".into());
+    };
+    assert_eq!(sale.give.unit, Some(serial));
+    assert!(sale.get.gold > 0, "{:?}", sale.get);
+    Ok(())
+}

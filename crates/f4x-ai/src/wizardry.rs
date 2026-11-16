@@ -11,7 +11,7 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::rules::exec::Target;
 use f4x_core::spell::unit_effect::UnitEffect;
 use f4x_def::rules::effects::Effect;
-use f4x_def::rules::{CastContext, Duration, RealmId, SpellDef, SpellId, SpellTarget};
+use f4x_def::rules::{CastContext, Duration, SpellDef, SpellId, SpellTarget};
 
 use crate::view::{fighting_strength, is_fighter, unit_strength};
 use crate::Ai;
@@ -57,35 +57,18 @@ pub enum Kind {
     /// Plane Shift: carries the whole stack on a square to the other plane (the army's way
     /// across when no tower is open).
     PlaneShift,
+    /// Ice Storm, Fire Storm and Black Wind: strike every unit of an enemy stack that stands by
+    /// a city of the wizard.
+    StackStrike,
+    /// Corruption on the land of a city, Warp Node on the node of a wizard at war.
+    LandCurse,
+    /// Raise Volcano on a free square of the wizard's own land.
+    LandBoost,
+    /// Astral Gate: lets the army cross the planes in the city it gathers in.
+    Gate,
     /// Everything else: not cast by the AI yet.
     Other,
 }
-
-/// Global enchantments that only help their caster.
-const GOOD_GLOBALS: &[&str] = &[
-    "herb_mastery",
-    "holy_arms",
-    "crusade",
-    "charm_of_life",
-    "awareness",
-];
-
-/// Global enchantments that strike the whole world, begun only while the AI is at war with a
-/// wizard.
-const WORLD_SPELLS: &[&str] = &[
-    "time_stop",
-    "meteor_storm",
-    "great_wasting",
-    "armageddon",
-    "natures_wrath",
-];
-
-/// Nature's Wrath strikes only a wizard who casts a spell of these realms: it is begun only
-/// against an enemy with a book in one.
-const WRATH_REALMS: &[RealmId] = &[
-    RealmId::new(4), /* death */
-    RealmId::new(2), /* chaos */
-];
 
 /// Unexplored squares a block must hold to be worth Earth Lore.
 const EXPLORE_FLOOR: u32 = 70;
@@ -106,18 +89,6 @@ const STASIS_RADIUS: i32 = 3;
 const SAVING_TURNS: i32 = 15;
 /// Mana kept in the reserve before the AI starts a global enchantment (the original's gate).
 const GLOBAL_RESERVE: i32 = 200;
-
-/// Whether a spell on the world has someone to strike: any enemy wizard, and for Nature's
-/// Wrath one with a book of a realm it punishes.
-fn world_spell_has_victim(view: &PlayerView, def: &SpellDef) -> bool {
-    if def.num == 40
-    /* natures_wrath */
-    {
-        view.rival_at_war_has_books(WRATH_REALMS)
-    } else {
-        !view.rivals_at_war().is_empty()
-    }
-}
 
 fn has_hook(def: &SpellDef, name: &str) -> bool {
     def.effects
@@ -196,6 +167,18 @@ pub fn kind(def: &SpellDef) -> Kind {
     if def.target == SpellTarget::GlobalEnchantment {
         return Kind::Disjunction;
     }
+    if crate::intent::is_astral_gate(def) {
+        return Kind::Gate;
+    }
+    if crate::intent::is_stack_strike(def) {
+        return Kind::StackStrike;
+    }
+    if crate::intent::is_land_curse(def) {
+        return Kind::LandCurse;
+    }
+    if crate::intent::is_land_boost(def) {
+        return Kind::LandBoost;
+    }
     if def.target == SpellTarget::Tile
         && matches!(
             f4x_core::spell::dispel::CounterEffect::of(def),
@@ -205,7 +188,9 @@ pub fn kind(def: &SpellDef) -> Kind {
         return Kind::Disenchant;
     }
     let helps = |r: &f4x_def::rules::effects::EffectRule| match &r.effect {
-        Effect::Modify { value, .. } => *value >= f4x_def::half_int::HalfInt::ZERO,
+        Effect::Modify { stat, value, .. } => {
+            crate::intent::gain_when_added(*stat, *value >= f4x_def::half_int::HalfInt::ZERO)
+        }
         Effect::GrantAbility(_) => true,
         // Spell Lock is read by the battle AI, not worth a cast of its own.
         Effect::Custom { name, args } if name == "unit_effect" => {
@@ -225,12 +210,20 @@ pub fn kind(def: &SpellDef) -> Kind {
             Kind::UnitBuff
         }
         SpellTarget::OwnCity
-            if def.duration == Duration::Permanent && def.effects.iter().all(helps) =>
+            if (def.duration == Duration::Permanent || has_hook(def, "wall"))
+                && def.effects.iter().all(helps) =>
         {
             Kind::CityBuff
         }
-        SpellTarget::None if GOOD_GLOBALS.contains(&def.id.as_str()) => Kind::GlobalBuff,
-        SpellTarget::None if WORLD_SPELLS.contains(&def.id.as_str()) => Kind::WorldSpell,
+        SpellTarget::None => match crate::intent::global_use_of(def) {
+            Some(crate::intent::GlobalUse::Boon | crate::intent::GlobalUse::Realm) => {
+                Kind::GlobalBuff
+            }
+            Some(crate::intent::GlobalUse::War | crate::intent::GlobalUse::Against(..)) => {
+                Kind::WorldSpell
+            }
+            Some(crate::intent::GlobalUse::Never) | None => Kind::Other,
+        },
         SpellTarget::EnemyCity => Kind::CityCurse,
         SpellTarget::EnemyWizard
             if f4x_core::spell::wizard::WizardEffect::SpellBlast.is_in(def) =>
@@ -265,6 +258,10 @@ fn priority(k: Kind) -> u8 {
         Kind::Mutate => 4,
         Kind::Recall => 2,
         Kind::PlaneShift => 2,
+        Kind::Gate => 2,
+        Kind::StackStrike => 2,
+        Kind::LandCurse => 7,
+        Kind::LandBoost => 6,
         Kind::Other => 9,
     }
 }
@@ -280,9 +277,12 @@ fn cast_rank(k: Kind, traits: &crate::objective::Traits) -> i32 {
         Kind::CityBuff => Some(Like::CityBuff),
         Kind::GlobalBuff => Some(Like::GlobalBuff),
         Kind::Explore => Some(Like::Explore),
-        Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction | Kind::WorldSpell => {
-            Some(Like::Curse)
-        }
+        Kind::CityCurse
+        | Kind::WizardCurse
+        | Kind::Disjunction
+        | Kind::WorldSpell
+        | Kind::StackStrike
+        | Kind::LandCurse => Some(Like::Curse),
         _ => None,
     };
     let boost = like
@@ -628,7 +628,11 @@ fn liked(def: &SpellDef, kind: Kind, traits: &crate::objective::Traits) -> bool 
         Like::Holy => matches!(Some(def.realm.num()), Some(3 /* life */ | 5 /* arcane */)),
         Like::Curse => matches!(
             kind,
-            Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction
+            Kind::CityCurse
+                | Kind::WizardCurse
+                | Kind::Disjunction
+                | Kind::StackStrike
+                | Kind::LandCurse
         ),
     })
 }
@@ -745,9 +749,16 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
                 .map(|(_, u)| Target::Unit(u))
         }
         Kind::CityBuff => {
+            // A city with an enemy stack by it first, then the fortress.
             let fortress = view.fortress();
             let mut cities = view.my_cities();
-            cities.sort_by_key(|&(c, p)| (Some(p) != fortress, view.serial_of(c)));
+            cities.sort_by_key(|&(c, p)| {
+                (
+                    view.enemies_near(p, STASIS_RADIUS).is_empty(),
+                    Some(p) != fortress,
+                    view.serial_of(c),
+                )
+            });
             cities
                 .into_iter()
                 .filter(|&(c, _)| {
@@ -798,6 +809,9 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
         Kind::Stasis => threat_square(view)
             .map(Target::Tile)
             .filter(|&t| view.can_aim(spell, Some(t))),
+        Kind::StackStrike => crate::intent::strike_square(view, spell),
+        Kind::LandCurse => crate::intent::land_curse_target(view, spell),
+        Kind::LandBoost => crate::intent::land_boost_target(view, spell),
         Kind::CityCurse => curse_city(view, spell).map(Target::City),
         Kind::Blast | Kind::WizardCurse => view
             .rivals_at_war()
@@ -820,19 +834,59 @@ pub(crate) fn plane_shift_spell(view: &PlayerView) -> Option<SpellId> {
         .find(|&s| kind(view.spell(s)) == Kind::PlaneShift)
 }
 
+/// The Astral Gate spell the wizard knows, if any.
+pub(crate) fn astral_gate_spell(view: &PlayerView) -> Option<SpellId> {
+    view.wizard()?
+        .known()
+        .iter()
+        .copied()
+        .find(|&s| kind(view.spell(s)) == Kind::Gate)
+}
+
 /// The own city the army can cross from: Plane Shift would put its stack on a free square the
-/// units can stand on (the square on the other plane may be sea). The fortress first.
+/// units can stand on (the square on the other plane may be sea), or an Astral Gate stands in it
+/// or can be raised in it. The fortress first.
 pub(crate) fn shift_gather(view: &PlayerView) -> Option<Position> {
-    let spell = plane_shift_spell(view)?;
+    let shift = plane_shift_spell(view);
+    let gate = astral_gate_spell(view);
+    if shift.is_none() && gate.is_none() {
+        return None;
+    }
     let fortress = view.fortress();
     let mut cities = view.my_cities();
     cities.sort_by_key(|&(c, p)| (Some(p) != fortress, view.serial_of(c)));
-    cities.into_iter().map(|(_, p)| p).find(|&p| {
-        view.garrison(p)
-            .into_iter()
-            .find(|&u| is_fighter(view, u))
-            .is_some_and(|u| view.can_aim(spell, Some(Target::Unit(u))))
+    cities.into_iter().find_map(|(c, p)| {
+        let shifts = shift.is_some_and(|spell| {
+            view.garrison(p)
+                .into_iter()
+                .find(|&u| is_fighter(view, u))
+                .is_some_and(|u| view.can_aim(spell, Some(Target::Unit(u))))
+        });
+        let gated = gate.is_some_and(|spell| {
+            view.city_enchantments(c).contains(&spell) || view.can_aim(spell, Some(Target::City(c)))
+        });
+        (shifts || gated).then_some(p)
     })
+}
+
+/// The city to raise an Astral Gate in: the army is gathered in the city it crosses from
+/// (`Ai::crossing`) with the garrison and at least [`MIN_SHIFT`] fighters over, its campaign is
+/// on the other plane, and the gate is not there yet.
+fn gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
+    let gather = ai.crossing?;
+    let campaign = ai.campaign?;
+    let city = view.city_at(gather)?;
+    if campaign.plane == gather.plane || view.city_enchantments(city).contains(&spell) {
+        return None;
+    }
+    let fighters = view
+        .garrison(gather)
+        .into_iter()
+        .filter(|&u| is_fighter(view, u))
+        .count();
+    (fighters >= crate::view::garrison_wanted(view, gather) + MIN_SHIFT)
+        .then_some(Target::City(city))
+        .filter(|&t| view.can_aim(spell, Some(t)))
 }
 
 /// The unit to cast Plane Shift on: the army is gathered in the city it crosses from
@@ -1146,6 +1200,8 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         | Kind::WizardCurse
                         | Kind::Disjunction
                         | Kind::WorldSpell
+                        | Kind::LandCurse
+                        | Kind::LandBoost
                 )
             {
                 continue;
@@ -1160,6 +1216,8 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             let room = magic.power_split().mana <= 55;
             let target = if k == Kind::PlaneShift {
                 shift_target(ai, &view, spell)
+            } else if k == Kind::Gate {
+                gate_target(ai, &view, spell)
             } else {
                 pick_target(&view, spell)
             };
@@ -1197,6 +1255,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         && mana - cost >= GLOBAL_RESERVE
                         && upkeep_ok(&view, def)
                         && !magic.has_global(spell)
+                        && crate::intent::global_wanted(&view, def)
                 }
                 Kind::Explore
                 | Kind::Cure
@@ -1204,7 +1263,12 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 | Kind::Recall
                 | Kind::PlaneShift
                 | Kind::Blast
+                | Kind::StackStrike
                 | Kind::Stasis => now && target.is_some(),
+                Kind::Gate => now && room && upkeep_ok(&view, def) && target.is_some(),
+                Kind::LandCurse | Kind::LandBoost => {
+                    now && room && mana - cost >= GLOBAL_RESERVE && target.is_some()
+                }
                 // Blows at an enemy at war, from mana the AI can spare.
                 Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction => {
                     now && room && mana - cost >= GLOBAL_RESERVE && target.is_some()
@@ -1214,7 +1278,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         && mana - cost >= GLOBAL_RESERVE
                         && upkeep_ok(&view, def)
                         && !magic.has_global(spell)
-                        && world_spell_has_victim(&view, def)
+                        && crate::intent::global_wanted(&view, def)
                 }
                 Kind::Other => false,
             };
@@ -1270,6 +1334,7 @@ mod tests {
     use f4x_core::player::{PlayerId, Treasury};
     use f4x_core::wizard::objective::Objective;
     use f4x_def::half_int::HalfInt;
+    use f4x_def::rules::RealmId;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -1461,6 +1526,22 @@ mod tests {
             (68 /* stasis */, Kind::Stasis),
             (18 /* transmute */, Kind::Other),
             (132 /* plane_shift */, Kind::PlaneShift),
+            (34 /* nature_awareness */, Kind::GlobalBuff),
+            (116 /* chaos_surge */, Kind::GlobalBuff),
+            (79 /* suppress_magic */, Kind::WorldSpell),
+            (156 /* life_force */, Kind::WorldSpell),
+            (199 /* death_wish */, Kind::WorldSpell),
+            (135 /* planar_seal */, Kind::Other),
+            (139 /* heavenly_light */, Kind::CityBuff),
+            (155 /* consecration */, Kind::CityBuff),
+            (3 /* wall_of_stone */, Kind::CityBuff),
+            (25 /* ice_storm */, Kind::StackStrike),
+            (107 /* fire_storm */, Kind::StackStrike),
+            (187 /* black_wind */, Kind::StackStrike),
+            (85 /* corruption */, Kind::LandCurse),
+            (186 /* warp_node */, Kind::LandCurse),
+            (98 /* raise_volcano */, Kind::LandBoost),
+            (153 /* astral_gate */, Kind::Gate),
         ];
         for (id, expected) in cases {
             assert_eq!(kind_of(id)?, expected, "{id}");
@@ -1471,11 +1552,7 @@ mod tests {
     #[test]
     fn what_the_ai_cannot_use_is_left_alone() -> TestResult {
         // A curse on the whole world, a bolt for battle, a spell that is not done yet.
-        for id in [
-            83, /* fire_bolt */
-            79, /* suppress_magic */
-            1,  /* earth_to_mud */
-        ] {
+        for id in [83 /* fire_bolt */, 1 /* earth_to_mud */] {
             assert_eq!(kind_of(id)?, Kind::Other, "{id}");
         }
         Ok(())
@@ -1845,6 +1922,120 @@ mod tests {
         Ok(())
     }
 
+    /// The overland spells the AI leaves alone, and why (task 509). Each is cast by something else
+    /// or has no worth the AI can weigh yet.
+    const LEFT_ALONE: &[(u16, &str)] = &[
+        (
+            15, /* change_terrain */
+            "no model of what a changed square is worth",
+        ),
+        (
+            18, /* transmute */
+            "no model of what a changed mineral is worth",
+        ),
+        (
+            55, /* enchant_road */
+            "no model of what a road on a square is worth",
+        ),
+        (
+            43, /* floating_island */
+            "one square of land does not carry an army over the sea (the naval planner)",
+        ),
+        (
+            37, /* earth_gate */
+            "pays for a gate in two cities for a teleport; the army uses one it has",
+        ),
+        (
+            28, /* move_fortress */
+            "the AI never moves its fortress",
+        ),
+        (
+            203, /* summoning_circle */
+            "the AI never moves its summoning circle",
+        ),
+        (
+            54, /* spell_lock */
+            "protects a unit from dispels in battle; no overland worth",
+        ),
+        (
+            173, /* lycanthropy */
+            "swaps a unit for a werewolf; no model of which is better",
+        ),
+        (
+            163, /* dark_rituals */
+            "costs the city its growth and adds unrest",
+        ),
+        (
+            135, /* planar_seal */
+            "shuts the planes to the caster's own army as well",
+        ),
+        (
+            133, /* resurrection */
+            "cast by `resurrect`, which picks the hero",
+        ),
+        (207 /* enchant_item */, "cast by `craft.rs`"),
+        (211 /* create_artifact */, "cast by `craft.rs`"),
+        (
+            214, /* spell_of_return */
+            "begun by the game when a wizard is banished; `fund_return` pays for it",
+        ),
+    ];
+
+    #[test]
+    fn every_overland_spell_is_cast_for_an_intent_or_left_alone_on_purpose() {
+        let mut left: Vec<u16> = shipped()
+            .rules
+            .spells
+            .defs()
+            .iter()
+            .filter(|d| d.contexts.contains(&CastContext::Overland) && kind(d) == Kind::Other)
+            .map(|d| d.num)
+            .collect();
+        left.sort_unstable();
+        let mut expected: Vec<u16> = LEFT_ALONE.iter().map(|&(n, _)| n).collect();
+        expected.sort_unstable();
+        assert_eq!(left, expected, "a spell gained or lost its use");
+    }
+
+    #[test]
+    fn a_city_with_an_enemy_by_it_is_bolstered_before_the_fortress() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let events = g.apply(f4x_core::game::Command::FoundCity {
+            owner: P0,
+            pos: at(3, 3),
+            name: "Second".into(),
+            race: g.content().rules.races.id_numbered(8),
+            population: 6,
+        });
+        assert!(
+            !events.iter().any(|e| matches!(e, Event::Rejected(_))),
+            "{events:?}"
+        );
+        let wall = spell(3 /* wall_of_stone */)?;
+        g.cheat_learn_spell(P0, wall);
+        g.make_contact(P0, P1);
+        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+            player: P0,
+            on: P1,
+        }));
+        g.reveal_map(P0);
+        let city_at = |g: &Game, p| g.economy().city_at(p);
+        // No enemy near: the first city, as before (the test world has no fortress).
+        assert_eq!(
+            pick_target(&PlayerView::new(&g, P0), wall),
+            city_at(&g, at(COAST_CITY.0, COAST_CITY.1)).map(Target::City),
+            "no enemy: the first city"
+        );
+        spawn(&mut g, P1, at(4, 3), 104 /* high_men_spearmen */, 3);
+        let threatened = pick_target(&PlayerView::new(&g, P0), wall);
+        assert_eq!(
+            threatened,
+            city_at(&g, at(3, 3)).map(Target::City),
+            "an enemy by the second city: it comes first"
+        );
+        Ok(())
+    }
+
     #[test]
     fn natures_wrath_has_a_victim_only_in_an_enemy_with_death_or_chaos_books() -> TestResult {
         let mut g = game(COAST_CITY, 8 /* high_men */);
@@ -1858,7 +2049,7 @@ mod tests {
         );
         let victim = |g: &Game, id| {
             let def = g.content().rules.spells.get(id);
-            world_spell_has_victim(&PlayerView::new(g, P0), def)
+            crate::intent::global_wanted(&PlayerView::new(g, P0), def)
         };
         assert!(!victim(&g, wrath) && !victim(&g, storm), "at peace");
         g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {

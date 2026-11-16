@@ -22,6 +22,7 @@ mod escort;
 mod expand;
 mod forge;
 mod garrison;
+mod intent;
 mod meld;
 mod military;
 mod monster;
