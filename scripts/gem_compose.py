@@ -48,11 +48,11 @@ OVERLAPS = ("hue", "tint")
 # third of the width, down to this share, and comes back to the full shift over RAMP pixels.
 MIDDLE_SHIFT = 0.35
 RAMP = 3
-# The pixel added above and below the face in the middle third takes the colour of the picture
-# just inside the face's edge row (the edge row itself is the face's grey border), at this weight,
-# and only this share of the shift to the diamond's hue.
-CUTOUT_WEIGHT = 0.65
-CUTOUT_SHIFT = 0.3
+# The pixel added above and below the face in the middle third takes the colour of the face's edge
+# row (each row of the face stays on its own row of the gem), at this weight, and only this share of
+# the shift to the diamond's hue: it is closer to the portrait than to the diamond.
+CUTOUT_WEIGHT = 0.8
+CUTOUT_SHIFT = 0.15
 
 
 def base_diamonds():
@@ -115,8 +115,7 @@ def compose(diamond, face, overlap="hue"):
                 under = gem.getpixel((x, y))
                 bump = edge_middle(x - at_x)
                 column = min(max(x - at_x, 0), FACE_W - 1)
-                inside = face.getpixel((column, 1 if side == "top" else FACE_H - 2))
-                source = mix(face.getpixel((column, fy)), inside, bump)
+                source = face.getpixel((column, fy))
                 share = CUTOUT_SHIFT * bump + middle_share(x - at_x) * (1 - bump)
                 over = shifted(source, under, overlap, share)
                 weight = RING_WEIGHT[side] + (CUTOUT_WEIGHT - RING_WEIGHT[side]) * bump
@@ -139,12 +138,7 @@ def compose(diamond, face, overlap="hue"):
                     weight = EDGE_WEIGHT[side]
                     if side in ("top", "bottom"):
                         weight += (1 - weight) * edge_middle(fx)
-                    share = 1.0
-                    if side in ("top", "bottom"):
-                        bump = edge_middle(fx)
-                        inside = face.getpixel((fx, 1 if side == "top" else FACE_H - 2))
-                        colour = mix(colour, inside, bump)
-                        share = CUTOUT_SHIFT * bump + middle_share(fx) * (1 - bump)
+                    share = middle_share(fx) if side in ("top", "bottom") else 1.0
                     colour = shifted(colour, under, overlap, share)
                 weight = min(weight, CORNER_WEIGHT.get(corner_steps(fx, fy), 1.0))
             gem.putpixel(at, mix(under, colour, weight))
