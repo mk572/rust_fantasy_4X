@@ -108,11 +108,15 @@ pub struct Metrics {
     pub march_units: u32,
     pub marches_called_off: u32,
     pub marches_dropped: u32,
+    /// Soldiers the end-of-turn audit found with no role (sent home), summed over turns.
+    pub units_adrift: u32,
+    /// Soldiers found in more than one role list, summed over turns.
+    pub units_double_role: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 60] {
+    pub fn rows(&self) -> [(&'static str, u32); 62] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -173,6 +177,8 @@ impl Metrics {
             ("soldiers sent on marches", self.march_units),
             ("marches called off", self.marches_called_off),
             ("marches dropped for another target", self.marches_dropped),
+            ("units adrift (no role)", self.units_adrift),
+            ("units in two roles", self.units_double_role),
             (
                 "cities captured on the other plane",
                 self.cities_captured_far_plane,
@@ -294,6 +300,8 @@ impl AddAssign for Metrics {
             march_units,
             marches_called_off,
             marches_dropped,
+            units_adrift,
+            units_double_role,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -355,6 +363,8 @@ impl AddAssign for Metrics {
         self.march_units += march_units;
         self.marches_called_off += marches_called_off;
         self.marches_dropped += marches_dropped;
+        self.units_adrift += units_adrift;
+        self.units_double_role += units_double_role;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -633,6 +643,14 @@ impl Tally {
                     } else {
                         m.marches_called_off += 1;
                     }
+                }),
+                Event::RolesAudited {
+                    player,
+                    adrift,
+                    doubled,
+                } => self.bump(*player, |m| {
+                    m.units_adrift += adrift;
+                    m.units_double_role += doubled;
                 }),
                 Event::PlaneShifted { player, units, .. } => self.bump(*player, |m| {
                     m.plane_shifts += 1;
@@ -970,6 +988,30 @@ mod tests {
         assert!(home.far_captures().is_empty());
         assert_eq!(home.of(PlayerId(0)).cities_captured_far_plane, 0);
         assert_eq!(home.of(PlayerId(0)).cities_captured, 1);
+        Ok(())
+    }
+
+    /// The AI's role audit is counted per wizard, summed over turns.
+    #[test]
+    fn the_role_audit_is_counted() -> TestResult {
+        let game = new_game(
+            shipped(),
+            &NewGame {
+                seed: 4,
+                all_ai: true,
+                ..NewGame::with_wizards(2)
+            },
+        )?;
+        let player = PlayerId(0);
+        let mut tally = Tally::new(&game);
+        let audit = |adrift, doubled| Event::RolesAudited {
+            player,
+            adrift,
+            doubled,
+        };
+        tally.record(&game, None, &[audit(2, 0), audit(1, 3)]);
+        let m = tally.of(player);
+        assert_eq!((m.units_adrift, m.units_double_role), (3, 3));
         Ok(())
     }
 

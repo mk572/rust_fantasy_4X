@@ -713,3 +713,17 @@ of 42, within the noise of this sample.
    `models-local/battle-v1.bpk` has no shape file and does not. The strategic learned AI is still only
    design.
 
+## 13. Unit roles
+
+Every soldier outside a city has one purpose. The roles live in the lists of `Ai` (`scouts`,
+`planar`, `raiders`, `muster`, `marching`, `sea_party`, `ferries`, `colonists`); `roles.rs` reads
+them back as one table (`derive`), and at the end of each turn `audit` checks it:
+
+- A soldier with no list, no order and no city under it is **adrift**: it walks to the nearest own
+  city that can be reached and has room, and the soak counts it (`units adrift (no role)`).
+- A soldier in more than one list is **doubled** and is counted too (`units in two roles`).
+
+A soldier standing in an own city is on garrison duty, and one with an order is on its way
+somewhere; neither is adrift. The plan to hold the roles in one registry, and the new roles
+(perimeter, escort, road, meld), are tasks 624 to 628.
+

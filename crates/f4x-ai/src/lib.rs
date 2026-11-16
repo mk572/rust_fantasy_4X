@@ -31,6 +31,7 @@ mod plan_clock;
 mod race;
 mod raze;
 mod recover;
+mod roles;
 mod scout;
 mod shortfall;
 mod siege;
@@ -406,6 +407,7 @@ impl Ai {
             military::army(self, game, &mut events);
             naval::run(self, game, &mut events);
             colony::run(self, game, &mut events);
+            roles::audit(self, game, &mut events);
         }
         raze::run(self, game, &mut events);
         economy::cities(self, game, &mut events);
