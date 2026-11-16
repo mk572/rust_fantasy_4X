@@ -589,6 +589,23 @@ pub fn game(
             println!("{tag}: {line}");
         }
     }
+    // Every counter of every wizard, one line each, for the report script (`scripts/soak_report.py`).
+    for p in game.player_ids() {
+        if game.wizard(p).is_none() {
+            continue;
+        }
+        println!(
+            "{tag}: stats p{}: {}",
+            p.0,
+            tally
+                .of(p)
+                .rows()
+                .into_iter()
+                .map(|(label, n)| format!("{label} = {n}"))
+                .collect::<Vec<_>>()
+                .join("; ")
+        );
+    }
     println!(
         "{tag}: production rushed with gold (items, gold): {}",
         game.player_ids()
