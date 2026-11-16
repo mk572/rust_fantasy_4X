@@ -8,8 +8,6 @@ use f4x_def::half_int::HalfInt;
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 const P2: PlayerId = PlayerId(2);
-const LIFE: u16 = 3;
-const DEATH: u16 = 4;
 
 /// Give a wizard its books, retorts and start spells.
 fn wizard(
@@ -58,7 +56,7 @@ fn lopsided_at(rival: Option<(u32, u32)>) -> Result<Game, Box<dyn std::error::Er
         found(&mut g, P1, x, y);
     }
     for p in [P0, P1] {
-        wizard(&mut g, p, &[(RealmId::new(LIFE), 3)], &[], None);
+        wizard(&mut g, p, &[(RealmId::new(3 /* life */), 3)], &[], None);
     }
     spawn(
         &mut g,
@@ -82,7 +80,7 @@ fn strong_neighbour() -> Result<Game, Box<dyn std::error::Error>> {
     let mut g = game(COAST_CITY, 8 /* high_men */);
     found(&mut g, P1, WEST_RIVAL.0, WEST_RIVAL.1);
     for p in [P0, P1] {
-        wizard(&mut g, p, &[(RealmId::new(LIFE), 3)], &[], None);
+        wizard(&mut g, p, &[(RealmId::new(3 /* life */), 3)], &[], None);
     }
     spawn(
         &mut g,
@@ -165,7 +163,7 @@ fn two_fronts() -> Result<Game, Box<dyn std::error::Error>> {
     let mut g = lopsided()?;
     g.add_player(P2, "Third");
     found(&mut g, P2, 32, 3);
-    wizard(&mut g, P2, &[(RealmId::new(LIFE), 3)], &[], None);
+    wizard(&mut g, P2, &[(RealmId::new(3 /* life */), 3)], &[], None);
     g.make_contact(P0, P2);
     g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
         player: P2,
@@ -289,7 +287,7 @@ fn the_weaker_wizards_ally_against_the_one_that_leads() -> TestResult {
     for (x, y) in [(32, 3), (32, 9), (28, 10)] {
         found(&mut g, P2, x, y);
     }
-    wizard(&mut g, P2, &[(RealmId::new(LIFE), 3)], &[], None);
+    wizard(&mut g, P2, &[(RealmId::new(3 /* life */), 3)], &[], None);
     spawn(&mut g, P2, at(32, 3), 95 /* high_elf_spearmen */, 60);
     g.make_contact(P0, P2);
     g.make_contact(P1, P2);
@@ -324,7 +322,7 @@ fn an_alliance_against_a_leader_ends_when_the_leader_no_longer_leads() -> TestRe
         );
         g.add_player(P2, "Leader");
         found(&mut g, P2, 32, 3);
-        wizard(&mut g, P2, &[(RealmId::new(LIFE), 3)], &[], None);
+        wizard(&mut g, P2, &[(RealmId::new(3 /* life */), 3)], &[], None);
         g.make_contact(P0, P2);
         g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
             from: P0,
@@ -377,16 +375,16 @@ fn the_factors_ease_a_treaty_a_little_and_a_broken_one_is_remembered() -> TestRe
     wizard(
         &mut g,
         P1,
-        &[(RealmId::new(LIFE), 3)],
+        &[(RealmId::new(3 /* life */), 3)],
         &[Retort::new(16) /* charismatic */],
         None,
     );
     let charismatic = affinity(&g, P0, P1);
     assert_eq!(charismatic, plain + Knobs::current().charismatic);
     // Life against Death do not get on.
-    wizard(&mut g, P1, &[(RealmId::new(DEATH), 3)], &[], None);
+    wizard(&mut g, P1, &[(RealmId::new(4 /* death */), 3)], &[], None);
     assert!(affinity(&g, P0, P1) < plain);
-    wizard(&mut g, P1, &[(RealmId::new(LIFE), 3)], &[], None);
+    wizard(&mut g, P1, &[(RealmId::new(3 /* life */), 3)], &[], None);
     // A treaty the other broke with it counts against it.
     g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
         from: P0,
@@ -414,7 +412,7 @@ fn the_factors_ease_a_treaty_a_little_and_a_broken_one_is_remembered() -> TestRe
 #[test]
 fn no_trade_arms_an_enemy() -> TestResult {
     let mut g = lopsided()?;
-    wizard(&mut g, P0, &[(RealmId::new(LIFE), 5)], &[], None);
+    wizard(&mut g, P0, &[(RealmId::new(3 /* life */), 5)], &[], None);
     // At war with it: nothing is traded.
     g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
         player: P0,

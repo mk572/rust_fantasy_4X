@@ -7,14 +7,12 @@ use f4x_def::half_int::HalfInt;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-const LIFE: u16 = 3;
-
 /// Two wizards with five books of life that have met. P0 knows the dearest life spell that a
 /// treasury of 1000 gold can buy and P1 no
 /// life spell at all; P1 has 1000 gold.
 fn world() -> Result<(Game, SpellId), Box<dyn std::error::Error>> {
     let mut g = game(COAST_CITY, 8 /* high_men */);
-    let life = RealmId::new(LIFE);
+    let life = RealmId::new(3 /* life */);
     let dear = g
         .content()
         .rules

@@ -419,7 +419,7 @@ fn spells_need_a_known_spell_and_a_valid_target() -> TestResult {
 fn a_channeler_pays_half_the_spell_maintenance() -> TestResult {
     let mut g = world();
     found(&mut g, at(10, 6), 4);
-    let dear = (spell_numbered(&g, LIFE_FORCE)?, 10);
+    let dear = (spell_numbered(&g, 156 /* life_force */)?, 10);
     g.add_global(P0, dear.0);
     assert_eq!(g.income(P0).mana_upkeep, dear.1);
     g.wizard_mut(P0)
@@ -439,11 +439,6 @@ fn a_channeler_pays_half_the_spell_maintenance() -> TestResult {
     Ok(())
 }
 
-/// The numbers of three lasting spells that cost 10 mana a turn (`crates/f4x-def/content/spells.ron`).
-const LIFE_FORCE: u16 = 156;
-const TRANQUILITY: u16 = 157;
-const CRUSADE: u16 = 158;
-
 fn spell_numbered(g: &Game, num: u16) -> Result<SpellId, Box<dyn std::error::Error>> {
     Ok(g.content
         .rules
@@ -457,8 +452,8 @@ fn short_of_mana() -> Result<(Game, [SpellId; 2]), Box<dyn std::error::Error>> {
     let mut g = world();
     found(&mut g, at(10, 6), 4);
     let ids = [
-        spell_numbered(&g, LIFE_FORCE)?,
-        spell_numbered(&g, TRANQUILITY)?,
+        spell_numbered(&g, 156 /* life_force */)?,
+        spell_numbered(&g, 157 /* tranquility */)?,
     ];
     for s in ids {
         g.add_global(P0, s);
@@ -504,7 +499,7 @@ fn the_wizard_sees_the_shortfall_and_chooses_what_to_give_up() -> TestResult {
 fn only_real_upkeep_can_be_released() -> TestResult {
     use crate::spell::cast::UpkeepKind;
     let (mut g, [first, _]) = short_of_mana()?;
-    let stranger = spell_numbered(&g, CRUSADE)?;
+    let stranger = spell_numbered(&g, 158 /* crusade */)?;
     assert_ne!(stranger, first);
     for s in g.wizard(P0).ok_or("wizard is missing")?.global() {
         if s != first {
