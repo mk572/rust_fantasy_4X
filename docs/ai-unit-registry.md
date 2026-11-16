@@ -257,9 +257,19 @@ stranded soldiers waiting for a ship.
   made by the turn change or by a summon of the wizard's step are given one at the start of the AI's
   turn (`roles::register`, after `wizardry::run`).
 
-## 8. Known gaps
+## 8. The autobuilder reads the registry
 
-- No ship is built for a pickup; a stranded group waits until a free ship exists (task 635).
+`economy::cities` counts the roles once per turn (`Roster`) and builds by them:
+
+- soldiers holding `AwaitingOrders` (4 or more): no more soldiers are built; a war (a campaign)
+  with nobody holding `March` makes the cities build attackers;
+- a ship holding `TransportFree` exists: no ship is built;
+- units hold `AwaitTransport` on a shore and no ship exists: the own port nearest to them builds one;
+- nobody holds a scouting role, no soldier is spare and the frontier is open (build phase): one city
+  builds the fastest cheap fighter, which `scout.rs` recruits.
+
+## 9. Known gaps
+
 - Healers and weak heroes get no escort (task 634); `Muster` is only for the tower siege (task 637).
 - The ship states `TransportSpace` and `TransportReady` follow the ship's order and passengers;
   The boarding decision is recorded in the registry (the passenger's `Voyage` or `AwaitTransport`

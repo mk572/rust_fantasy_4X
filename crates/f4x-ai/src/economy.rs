@@ -62,12 +62,99 @@ struct Growth {
     wide: f32,
 }
 
+/// What the unit registry says about the units the wizard has (`roles.rs`): the autobuilder reads
+/// it to build what is missing and no more of what stands idle.
+#[derive(Clone, Copy, Default)]
+struct Roster {
+    /// Fighters holding `AwaitingOrders`: nothing to do.
+    idle_fighters: usize,
+    /// Units marching on a campaign target.
+    marching: usize,
+    /// Ships with no plan (`TransportFree`).
+    free_ships: usize,
+    /// Ships of any role that carry (not the scouting ones).
+    ships: usize,
+    /// Units awaiting transport on a shore (not the settlers waiting in a port).
+    waiting: usize,
+    /// Units out scouting.
+    scouts: usize,
+}
+
+/// Idle fighters from which the wizard builds no more soldiers: the army it has is waiting for
+/// something to do.
+const IDLE_SURPLUS: usize = 4;
+
+impl Roster {
+    fn of(ai: &Ai, view: &PlayerView) -> Roster {
+        use crate::roles::Role;
+        let units = view.my_units();
+        let idle_fighters = units
+            .iter()
+            .filter(|&&u| {
+                is_fighter(view, u) && ai.roles.is(view.serial_of(u), Role::AwaitingOrders)
+            })
+            .count();
+        let ships = units
+            .iter()
+            .filter(|&&u| crate::view::is_ship(view, u) && !ai.roles.is_scouting(view.serial_of(u)))
+            .count();
+        let waiting = ai
+            .roles
+            .targeted(Role::AwaitTransport)
+            .into_iter()
+            .filter(|&(s, t)| ai.roles.with_of(s).is_none() && view.city_at(t).is_none())
+            .count();
+        Roster {
+            idle_fighters,
+            marching: ai.roles.count(Role::March),
+            free_ships: ai.roles.count(Role::TransportFree),
+            ships,
+            waiting,
+            scouts: ai.roles.scouting().len(),
+        }
+    }
+
+    /// Whether the army has more soldiers than it has work for.
+    fn idle_army(&self) -> bool {
+        self.idle_fighters >= IDLE_SURPLUS
+    }
+}
+
+/// The fastest unit the city can build that fights or can scout, the cheapest of those: the
+/// scout of a wizard that has none.
+fn scout_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem> {
+    let rules = &view.content().rules;
+    rules
+        .units
+        .iter()
+        .filter(|(_, d)| {
+            d.kind == f4x_def::rules::UnitKind::Normal
+                && !d.abilities.contains(&Ability::new(12))
+                && d.stats
+                    .get(&f4x_def::rules::Stat::Melee)
+                    .is_some_and(|m| m.floor() > 0)
+                && d.deck.is_none()
+        })
+        .map(|(id, d)| {
+            let moves = d
+                .stats
+                .get(&f4x_def::rules::Stat::Moves)
+                .map_or(0, |m| m.floor());
+            (std::cmp::Reverse(moves), d.cost, id)
+        })
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .map(|(_, _, id)| ProductionItem::Unit(id))
+        .find(|&i| view.can_build(city, i).is_ok())
+}
+
 /// What presses on a city's plan: an empty treasury, a rival close by, and how many fighters the
 /// campaign wants at the front.
 #[derive(Clone, Copy)]
 struct Pressure {
     threatened: bool,
     war_force: Option<usize>,
+    roster: Roster,
 }
 
 /// Gold from which the cities build units to spend it on, tall or not.
@@ -121,6 +208,25 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         crate::military::force_wanted(&view, &ai.city_memory, game.turn, target)
     });
     let empire = Empire::of(&PlayerView::new(game, me));
+    let roster = Roster::of(ai, &PlayerView::new(game, me));
+    // Nobody scouts and no soldier is spare: one city builds the unit that does (the first that
+    // is not full, so that the others go on with their plans).
+    let scout_city = (roster.scouts == 0
+        && roster.idle_fighters == 0
+        && !ai.frontier_closed
+        && crate::phase::phase(&PlayerView::new(game, me)) == crate::phase::Phase::Build)
+        .then(|| {
+            let view = PlayerView::new(game, me);
+            mine.iter()
+                .map(|&(c, p)| (c, p))
+                .find(|&(c, p)| {
+                    view.city_economy(c).is_some_and(|e| e.figures > 0)
+                        && view.garrison(p).len() < view.max_tile()
+                        && scout_item(&view, c).is_some()
+                })
+                .map(|(c, _)| c)
+        })
+        .flatten();
     let (elite, forges) = {
         let view = PlayerView::new(game, me);
         (crate::forge::active(&view), crate::forge::forges(&view))
@@ -150,11 +256,16 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
                 continue;
             }
+            // Units awaiting transport and no ship at all: the nearest port builds one.
+            let rescue_port = (roster.waiting > 0 && roster.ships == 0)
+                .then(|| rescue_port(ai, &view))
+                .flatten();
             let port = ai
                 .naval
                 .map(|p| p.port)
                 .or(ai.sea_port)
-                .or(ai.colony.map(|c| c.port));
+                .or(ai.colony.map(|c| c.port))
+                .or(rescue_port);
             let broke = empire.broke();
             // The port of a landing builds the ship (and what the ship needs) when there is none.
             let port_item = (port == Some(pos)
@@ -164,6 +275,8 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 crate::naval::port_item(&view, city, ai.naval.is_some() && ai.colony.is_none())
             })
             .flatten()
+            // Ships that stand idle (`TransportFree`) are the fleet: no more are built.
+            .filter(|_| roster.free_ships == 0)
             // Without a ship yard the best the port can build is a trireme, which takes two:
             // enough for a settler and a guard, so it counts as the ship; otherwise a landing
             // wants a ship that carries a landing party.
@@ -193,11 +306,15 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 Pressure {
                     threatened,
                     war_force,
+                    roster,
                 },
                 &mut settlers_planned,
                 Growth { room, wide },
             );
             let mut port_item = port_item;
+            if port_item.is_none() && scout_city == Some(city) && !broke {
+                port_item = scout_item(&view, city);
+            }
             // Past the build-up the army is a few strong units: every city prefers the dear
             // ones, and the forge cities build out toward the race's top unit and make it.
             plan.elite_units |= elite;
@@ -249,6 +366,28 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     game.end_kept_budget();
     spend_gold(ai, game, events);
+}
+
+/// The own coastal city nearest to the units awaiting transport: it builds the ship that fetches
+/// them.
+fn rescue_port(ai: &Ai, view: &PlayerView) -> Option<Position> {
+    use crate::roles::Role;
+    let waiting = ai
+        .roles
+        .targeted(Role::AwaitTransport)
+        .into_iter()
+        .filter(|&(s, t)| ai.roles.with_of(s).is_none() && view.city_at(t).is_none())
+        .map(|(_, t)| t)
+        .min_by_key(|t| (t.plane as u8, t.y, t.x))?;
+    view.my_cities()
+        .into_iter()
+        .filter(|&(c, p)| {
+            p.plane == waiting.plane
+                && crate::view::is_coastal(view, p)
+                && view.city_economy(c).is_some_and(|e| e.figures > 0)
+        })
+        .min_by_key(|&(_, p)| (view.distance(p, waiting).unwrap_or(u32::MAX), p.y, p.x))
+        .map(|(_, p)| p)
 }
 
 /// The settler a port builds for a voyage by sea once its ship is there: none while one waits in
@@ -346,6 +485,7 @@ fn plan_for(
     let Pressure {
         threatened,
         war_force,
+        roster,
     } = pressure;
     let broke = empire.broke();
     let Empire {
@@ -372,7 +512,16 @@ fn plan_for(
         (crate::knob("STRIKE", traits.strike_base as f32) as i32).max(1) as usize + all / 2
     });
     let strike = (strike as i32 + temper).max(1) as usize;
-    let army_short = (fighters < home_guard + strike && treasury_ok) || threatened;
+    // The registry says what the army is doing: soldiers waiting for orders are enough, and a war
+    // with nobody marching wants attackers.
+    let army_short = if threatened {
+        true
+    } else if roster.idle_army() {
+        false
+    } else {
+        (fighters < home_guard + strike || (war_force.is_some() && roster.marching == 0))
+            && treasury_ok
+    };
     // A wizard settles up to the number its objective wants at once, and after that for as long as
     // there is ground for a city (two settlers at a time): nothing in this game punishes size.
     let expanding = all + *settlers_planned
@@ -581,6 +730,83 @@ mod tests {
         let _ = g.set_production(city, ProductionItem::Housing);
         cities(&mut ai, &mut g, &mut Vec::new());
         assert!(!builds_trireme(&g)?, "one trireme is the ship");
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_with_nobody_scouting_builds_a_unit_that_can() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut ai = Ai::new(P0);
+        cities(&mut ai, &mut g, &mut Vec::new());
+        let item = g.economy().city_production(capital(&g)?).item;
+        assert!(
+            matches!(item, Some(ProductionItem::Unit(_))),
+            "a unit for the scouting: {item:?}"
+        );
+        // Once somebody scouts, the city goes back to its plan.
+        ai.frontier_closed = true;
+        let city = capital(&g)?;
+        let _ = g.set_production(city, ProductionItem::Housing);
+        cities(&mut ai, &mut g, &mut Vec::new());
+        assert!(!matches!(
+            g.economy().city_production(city).item,
+            Some(ProductionItem::Unit(u)) if g.content().rules.units.get(u).id == "high_men_cavalry"
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn units_awaiting_transport_and_no_ship_make_the_nearest_port_build_one() -> TestResult {
+        use crate::testworld::{at, build, spawn};
+        let port = at(COAST_CITY.0, COAST_CITY.1);
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        build(
+            &mut g,
+            port,
+            &[
+                12, /* ship_wrights_guild */
+                15, /* sawmill */
+                13, /* ship_yard */
+            ],
+        );
+        let stranded = spawn(&mut g, P0, at(9, 9), 104 /* high_men_spearmen */, 2);
+        let mut ai = Ai::new(P0);
+        ai.frontier_closed = true;
+        let serials: Vec<_> = {
+            let view = PlayerView::new(&g, P0);
+            stranded.iter().map(|&u| view.serial_of(u)).collect()
+        };
+        for s in &serials {
+            let _ = ai
+                .roles
+                .claim(*s, crate::roles::Role::AwaitTransport, 1, Some(at(9, 9)));
+        }
+        cities(&mut ai, &mut g, &mut Vec::new());
+        let item = g.economy().city_production(capital(&g)?).item;
+        let rules = &g.content().rules;
+        assert!(
+            matches!(item, Some(ProductionItem::Unit(u)) if rules.units.get(u).id == "galley"),
+            "{item:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn soldiers_awaiting_orders_are_enough_and_no_more_are_built() -> TestResult {
+        use crate::testworld::{at, spawn};
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut g, P0, at(9, 9), 104 /* high_men_spearmen */, 6);
+        let mut ai = Ai::new(P0);
+        ai.frontier_closed = true;
+        crate::roles::register(&mut ai, &g);
+        let roster = Roster::of(&ai, &PlayerView::new(&g, P0));
+        assert!(roster.idle_army(), "{}", roster.idle_fighters);
+        cities(&mut ai, &mut g, &mut Vec::new());
+        let plan = g
+            .autobuild_of(capital(&g)?)
+            .ok_or("the city has a plan")?
+            .plan;
+        assert_ne!(plan.mix, Mix::Units);
         Ok(())
     }
 
