@@ -368,6 +368,17 @@ impl<'a> PlayerView<'a> {
         self.game.unit_destination(unit)
     }
 
+    /// The magic nodes on explored squares: where each stands, who holds it, whether a Guardian
+    /// Spirit does, whether it is warped.
+    pub fn nodes(&self) -> Vec<crate::feature::entity::NodeInfo> {
+        self.game
+            .economy()
+            .nodes()
+            .into_iter()
+            .filter(|n| self.explored(n.pos))
+            .collect()
+    }
+
     /// Is the engineer at work on a road?
     pub fn unit_builds_road(&self, unit: hecs::Entity) -> bool {
         self.game

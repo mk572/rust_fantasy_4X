@@ -35,42 +35,46 @@ A map from a unit's `Serial` to one `Assignment`, ordered by serial, saved with 
 A group is the set of units that share a `party` id (`new_party`, `group`, `members_of`,
 `party_of`). `with` ties one unit to another. Together they cover:
 
-- a **ferry**: the ship holds `Voyage` with no `with`; each passenger holds `Voyage` with `with` =
-  the ship (`sail`, `ferries`, `passengers_of`, `end_voyage`);
+- a **ferry**: the ship holds `TransportReady` with no `with`; each passenger holds `Voyage` with
+  `with` = the ship (`sail`, `ferries`, `passengers_of`, `end_voyage`);
 - a **colony voyage**: the ship and the settler hold `Colonize`, the settler's `with` is the ship
   (`colonists`);
-- a **rescue**: the ship holds `Pickup` with `to` = the sea square; the soldiers it came for keep
-  `AwaitTransport` and their `with` is the ship (`pickup::voyages`);
+- a **rescue**: the ship holds `TransportSpace` with `to` = the sea square (then `TransportReady`
+  with the port); the soldiers it came for keep `AwaitTransport` and their `with` is the ship
+  (`pickup::voyages`);
 - an **escort**: the escort holds `Escort` with `with` = the unit it guards (`escort_of`); when the
-  charge no longer holds `Settle` (it founded its city, or died) `escort::run` releases the escort.
+  charge no longer holds `Settle`, `Road` or `Meld` (it founded its city, finished, or died)
+  `escort::run` releases the escort.
 
 The voyage data that is not about units (the landing plan, the colony plan, `naval_bad`,
 `colony_bad`) stays in the plan fields of `Ai`; only who is on it is in the registry.
 
 ## 3. The roles
 
-Listed in priority order (the lower number wins a claim, section 4):
+Listed in priority order (the lower number wins a claim, section 4). The roles with a task:
 
 | Role | For | Held by | Taken and given in |
 |---|---|---|---|
 | `Colonize` | the ship and settler of a colony by sea | ship, settler | `colony.rs` |
 | `Settle` | a settler walking to a site to found a city (`to` = the site) | settlers | `expand.rs` |
-| `Voyage` | a ship carrying a landing, and its passengers | ship, soldiers | `naval.rs` |
+| `Voyage` | a passenger of a landing; `with` = its ship | soldiers | `naval.rs` |
+| `TransportReady` | a ship whose load is decided and tied to it, with its target: a landing under way (`to` = the sea square), a rescue with everyone aboard (`to` = the port) | ships | `naval.rs`, `pickup.rs` |
 | `SeaParty` | the fighters a sea scout carries to put ashore | soldiers | `scout.rs` |
 | `PlanarScout` | the scout walking to an open tower to change plane (`to` = the tower) | one unit | `scout.rs` |
-| `Pickup` | a ship fetching stranded soldiers (`to` = sea square) | ship | `pickup.rs` |
-| `AwaitTransport` | a stranded soldier waiting on a shore tile for a ship (`to` = the tile) | soldiers | `pickup.rs`, the audit |
+| `TransportSpace` | a ship with a target and room: on its way to the port to load a landing (`to` = the port), or to the sea square where stranded soldiers wait (`to` = the square, they are tied to it) | ships | `naval.rs`, `pickup.rs` |
+| `AwaitTransport` | a stranded soldier waiting on a shore tile for a ship (`to` = the tile; `with` = the ship that comes) | soldiers | `pickup.rs`, the audit |
+| `Perimeter` | a soldier dealing with the enemy in the zone of a city (`to` = the enemy's square, or the city it joins) | soldiers | `perimeter.rs` |
 | `Raid` | out on a tower, node or encounter site (`to` = the site) | soldiers | `site.rs`, `naval.rs` |
 | `March` | on the march against a city | soldiers | `military.rs` |
 | `Muster` | walking to a city to be sent against a tower together | soldiers | `siege.rs` |
-| `Escort` | going with a settler to its site (`with` = the settler) | soldiers | `escort.rs` |
+| `Escort` | going with a settler, an engineer or a spirit (`with` = the unit it guards) | soldiers | `escort.rs` |
+| `Meld` | a spirit on its way to an open node (`to` = the node) | spirits | `meld.rs` |
 | `Road` | engineers building a road or walking to where it starts (`to` = the city or frontier it leads to) | engineers | `road.rs` |
 | `Scout` | scouting by land or sea (`to` = the patch) | soldiers, ships | `scout.rs`, `garrison.rs`, `naval.rs` |
 | `Return` | walking home to the nearest own city (`to` = the city) | soldiers | the audit |
 
-Priority numbers continue below the tasks (`Road` 11 sits between `Escort` and `Scout`). Every
-role is stored. The last ones are **base roles** (`Role::is_base`): the audit gives them from where
-a unit stands and what it is doing when no routine has a task for it, and a routine's `claim`
+Every role is stored. The last ones are **base roles** (`Role::is_base`): the audit gives them from
+where a unit stands and what it is doing when no routine has a task for it, and a routine's `claim`
 takes any of them over. `has_role` means "a routine has a task for it", that is, a role that is
 not a base role.
 
@@ -78,18 +82,27 @@ not a base role.
 |---|---|---|
 | `MoveTo` | a unit with an order of its own (a plain walk) | the end of its path |
 | `Garrison` | a soldier standing in an own city | that city |
-| `TransportReady` | a ship with the units to carry decided (aboard) | its target, if set |
-| `TransportSpace` | a ship with a target and no passengers yet: room to take units | its target |
-| `TransportFree` | a ship with no mission, no passengers and no target | none |
+| `TransportFree` | a ship with no mission and no order | none |
 | `AwaitingOrders` | nothing else fits: soldiers in it are *adrift*, ships and other units *unassigned* | none |
 
-A ship on a mission holds the mission role instead (`Voyage`, `Pickup`, `Colonize`, `SeaParty`
-scouting); its passengers are tied to it by `with`. The three transport roles are the ship's state
-while it has no mission: a free ship (`pickup.rs` and `naval.rs` take it), a ship that has a target
-and room, and a ship whose load is decided. The boarding decision itself still lives in the
-mission roles; the transport roles say what the ship is when it has none.
+### Ships
 
-Planned roles (tasks 625, 628): `Perimeter`, `Meld`; `Explore` replaces `Scout`.
+A ship is in one of three states, and each is a role of its own, with the units tied by `with`:
+
+- `TransportFree`: no passengers decided, no target. `naval.rs` and `pickup.rs` take a free ship
+  (`!has_role`).
+- `TransportSpace`: a target is set and the ship has room. It is on its way to the port to load a
+  landing, or to the sea square beside a shore tile where stranded soldiers wait; for a rescue the
+  soldiers it came for hold `AwaitTransport` with `with` = the ship.
+- `TransportReady`: the units to carry are decided and tied to the ship (landing passengers hold
+  `Voyage`, `with` = the ship) and the target is set. When the passengers are landed the ship goes
+  back to `TransportSpace` with the port as its target; a rescue becomes ready when everyone is
+  aboard, with the nearest port as its target. A ship ends its voyage by `end_voyage`, and is then
+  free again (`AwaitingOrders`, then `TransportFree` at the audit).
+
+`ferries()` lists the ships of landings (ready or space, with no party); a rescue ship has a party
+and is read back by `pickup::voyages`. `Ferry` and `Pickup` in the code are read-backs of the
+registry, not stores. A colony ship keeps the mission role `Colonize` with its settler.
 
 The three scouting roles (`Scout`, `PlanarScout`, `SeaParty`) count as "out scouting"
 (`is_scouting`, `scouting`), which the army and garrison use to leave those units alone.
@@ -143,7 +156,9 @@ A settler that leaves a city for its site (`expand.rs` calls `escort::walk`) is 
 free soldier the city can spare above `garrison_wanted`; a city with none sends its settler alone.
 The two get one `GoTo` as a stack, so they walk at the pace of the slower. After the settlers have
 moved, `escort::run` frees the escorts whose charge is gone and sends an escort that fell behind to
-its charge. Only settlers are escorted so far: engineers, spirits, healers and low-experience
+its charge. Settlers, spirits on their way to a node (`escort::walk`) and engineers working within 8
+squares of a rival's city (`escort::guard`, which takes the soldier from the nearest city that can
+spare one and sends it to the engineer, who waits for it) are escorted. Healers and low-experience
 heroes have no role yet. Not built: the charge waiting when its escort is lost and an enemy is near.
 
 ### The road
@@ -156,14 +171,38 @@ never garrison, march or get sent home. `road::run` gives each idle one work, wi
    (the game's own path for the engineer) has a square without road gets `BuildRoad` along it.
    A city with no such link is marked looked at.
 2. Else it walks to the nearest city not looked at.
-3. With every city looked at, and a campaign target: a stretch of up to 8 squares of the way to
-   the target, built from where it stands, or a walk to the last square that has a road.
+3. With every city looked at: a stretch of up to 8 squares of the way to the campaign target, else
+   to the nearest tower, built from where it stands, or a walk to the last square that has a road.
+   Within 8 squares of a rival's city the engineer builds only with an escort
+   (`escort::guard`) and waits where it stands until one is with it.
 4. With nothing left it gives the role back.
 
 `road::build_engineer` (after the cities' plans) makes the biggest free city build engineers while
 there is road work and no engineer lives, with the builders' hall first when the city lacks it.
-Not built: an escort for engineers on the stretch toward the enemy (`escort::walk` can be reused),
-a second engineer, roads toward towers.
+Not built: a second engineer when the roads are long.
+
+### The perimeter
+
+`perimeter::run` (called from `military::army` where the call-in of troops used to be) looks at
+the zone of every own city: the 21 squares its people work and the towers and nodes within 4
+squares of it. For each stack of the enemy, a raider or a monster standing in a zone, it takes the
+free soldiers within 6 squares (the army's spare ones, over `garrison_wanted`) and the soldiers that
+already hold `Perimeter` for it:
+
+- if together they are `attack_ratio` times as strong, they gather on one square beside it and the
+  ones standing beside it attack when they are enough (`military::engage`); `to` = its square;
+- if it is the stronger they join the garrison of the city (`to` = the city);
+- a holder whose enemy is gone (or whose city is no longer threatened) gives the role back.
+
+`Ai::threatened` (the cities the economy builds soldiers for) is set from the same look
+(`military::threats`).
+
+### The meld
+
+`meld::run`: a spirit (the ability to meld; not a fighter for the army) takes `Meld` with the
+nearest open node it can reach (`to`): not warped, not already the wizard's, no guards. It goes
+with an escort when its city has a soldier to spare, and melds when it stands on the node; one that
+stands still four turns on the way gives the node up (`Ai::bad_sites`).
 
 ## 6. Where to add a role
 

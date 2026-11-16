@@ -36,10 +36,13 @@ pub enum Role {
     Settle,
     /// The ship and the settler of a colony by sea (`colony.rs`): the settler is tied to the ship.
     Colonize,
-    /// A ship on its way to fetch stranded soldiers (`pickup.rs`).
-    Pickup,
     /// A soldier that goes with a unit it protects (`escort.rs`); `with` is that unit.
     Escort,
+    /// A soldier of the surplus dealing with what is in the zone of the cities (`perimeter.rs`):
+    /// `to` = the enemy square it goes for, or the city it joins when the enemy is the stronger.
+    Perimeter,
+    /// A spirit on its way to an open node to meld with it (`meld.rs`, `to` = the node).
+    Meld,
     /// Engineers building a road, or on their way to the square where they start (`road.rs`);
     /// `to` is the city or frontier the road leads to.
     Road,
@@ -47,9 +50,13 @@ pub enum Role {
     Return,
     /// A ship with no mission, no passengers and no target: free to be sent.
     TransportFree,
-    /// A ship with a target and no passengers yet: room to take units on the way.
+    /// A ship with a target (`to`) and room: on its way to the port where a landing loads, or to
+    /// the sea square where stranded soldiers wait (those tied to it by `with` are the ones it
+    /// came for). Set by `naval.rs` and `pickup.rs`.
     TransportSpace,
-    /// A ship with the units to carry decided (aboard) and, as a rule, a target.
+    /// A ship with the units to carry decided and tied to it (`with`), and its target (`to`): a
+    /// landing under way to its sea square, a rescue with everyone aboard on its way to a port.
+    /// Set by `naval.rs` and `pickup.rs`.
     TransportReady,
     /// Nothing found for the unit to do: a role of its own, so no unit has none. The audit
     /// looks for something better for a soldier in it (home, or a shore to wait on).
@@ -173,11 +180,17 @@ impl Registry {
             .map(|(s, _)| *s)
     }
 
-    /// The ships on a voyage with a landing, in serial order.
+    /// The ships on a voyage with a landing, in serial order: a ship that is `TransportReady` or
+    /// `TransportSpace` and is not the one a rescue came with (those hold soldiers
+    /// `AwaitTransport` tied to them).
     pub fn ferries(&self) -> Vec<Serial> {
         self.map
             .iter()
-            .filter(|(_, a)| a.role == Role::Voyage && a.with.is_none())
+            .filter(|(_, a)| {
+                matches!(a.role, Role::TransportReady | Role::TransportSpace)
+                    && a.with.is_none()
+                    && a.party.is_none()
+            })
             .map(|(s, _)| *s)
             .collect()
     }
@@ -191,24 +204,45 @@ impl Registry {
             .collect()
     }
 
-    /// A ship sets out with `passengers`: the ship and each passenger hold `Voyage`, the
-    /// passengers tied to the ship. Returns whether all of them could take the role.
-    pub fn sail(&mut self, ship: Serial, passengers: &[Serial], turn: u32) -> bool {
-        let party = self.new_party();
-        let mut all = self.claim(ship, Role::Voyage, turn, None).is_ok();
-        self.group(&[ship], Role::Voyage, party, None);
+    /// A ship sets out with `passengers` for `to`: the ship is `TransportReady` and each passenger
+    /// holds `Voyage`, tied to the ship. Returns whether all of them could take the role.
+    pub fn sail(&mut self, ship: Serial, passengers: &[Serial], turn: u32, to: Position) -> bool {
+        let mut all = self
+            .claim(ship, Role::TransportReady, turn, Some(to))
+            .is_ok();
         for &p in passengers {
             all &= self.claim(p, Role::Voyage, turn, None).is_ok();
-            self.group(&[p], Role::Voyage, party, Some(ship));
+            self.tie(p, Role::Voyage, ship);
         }
         all
+    }
+
+    /// Change a unit's role from `from` to `role` with a new target, keeping what ties it to
+    /// others (a ship that has put its passengers ashore is on its way back for the next load).
+    pub fn transition(&mut self, serial: Serial, from: Role, role: Role, to: Option<Position>) {
+        if let Some(a) = self.map.get_mut(&serial).filter(|a| a.role == from) {
+            a.role = role;
+            a.to = to;
+        }
     }
 
     /// The voyage is over: the ship and its passengers hand the role back.
     pub fn end_voyage(&mut self, ship: Serial) {
         let aboard = self.passengers_of(ship);
         self.release_many(&aboard, Role::Voyage);
-        self.release(ship, Role::Voyage);
+        if matches!(
+            self.role_of(ship),
+            Some(Role::TransportReady | Role::TransportSpace)
+        ) {
+            self.release_any(ship);
+        }
+    }
+
+    /// Every ferry's voyage is over (the landing was given up).
+    pub fn end_voyages(&mut self) {
+        for ship in self.ferries() {
+            self.end_voyage(ship);
+        }
     }
 
     /// The scout on its way to an open tower, if any.
@@ -321,6 +355,13 @@ impl Registry {
                 a.party = Some(party);
                 a.with = with;
             }
+        }
+    }
+
+    /// Tie the unit, if it holds `role`, to another (a passenger to its ship).
+    pub fn tie(&mut self, serial: Serial, role: Role, with: Serial) {
+        if let Some(a) = self.map.get_mut(&serial).filter(|a| a.role == role) {
+            a.with = Some(with);
         }
     }
 
@@ -468,12 +509,7 @@ impl Role {
     pub fn is_base(self) -> bool {
         matches!(
             self,
-            Role::MoveTo
-                | Role::Garrison
-                | Role::TransportReady
-                | Role::TransportSpace
-                | Role::TransportFree
-                | Role::AwaitingOrders
+            Role::MoveTo | Role::Garrison | Role::TransportFree | Role::AwaitingOrders
         )
     }
 
@@ -482,23 +518,24 @@ impl Role {
             Role::Colonize => 0,
             Role::Settle => 1,
             Role::Voyage => 2,
-            Role::SeaParty => 3,
-            Role::PlanarScout => 4,
-            Role::Pickup => 5,
-            Role::AwaitTransport => 6,
-            Role::Raid => 7,
-            Role::March => 8,
-            Role::Muster => 9,
-            Role::Escort => 10,
-            Role::Road => 11,
-            Role::Scout => 12,
-            Role::Return => 13,
-            Role::MoveTo => 14,
-            Role::Garrison => 15,
-            Role::TransportReady => 16,
-            Role::TransportSpace => 17,
-            Role::TransportFree => 18,
-            Role::AwaitingOrders => 19,
+            Role::TransportReady => 3,
+            Role::SeaParty => 4,
+            Role::PlanarScout => 5,
+            Role::TransportSpace => 6,
+            Role::AwaitTransport => 7,
+            Role::Perimeter => 8,
+            Role::Raid => 9,
+            Role::March => 10,
+            Role::Muster => 11,
+            Role::Escort => 12,
+            Role::Meld => 13,
+            Role::Road => 14,
+            Role::Scout => 15,
+            Role::Return => 16,
+            Role::MoveTo => 17,
+            Role::Garrison => 18,
+            Role::TransportFree => 19,
+            Role::AwaitingOrders => 20,
         }
     }
 }
@@ -529,8 +566,8 @@ pub struct Held {
 ///
 /// - a soldier in an own city: `Garrison`, `to` = the city;
 /// - a unit with an order of its own: `MoveTo`, `to` = the end of its path;
-/// - a ship with no passengers and no target: `TransportFree`; with a target and no passengers
-///   `TransportSpace`; with passengers aboard `TransportReady`;
+/// - a ship with no mission and no order: `TransportFree` (with a mission it holds
+///   `TransportSpace` or `TransportReady`, which `naval.rs` and `pickup.rs` set);
 /// - anything else: `AwaitingOrders`.
 pub fn sync(ai: &mut Ai, view: &PlayerView, turn: u32) -> Vec<Held> {
     let mut out = Vec::new();
@@ -556,15 +593,9 @@ pub fn sync(ai: &mut Ai, view: &PlayerView, turn: u32) -> Vec<Held> {
         let target = view.unit_destination(unit);
         let (role, to) = match class {
             Class::Soldier if city.is_some() => (Role::Garrison, city),
-            Class::Ship => {
-                if !view.passengers_of(unit).is_empty() {
-                    (Role::TransportReady, target)
-                } else if target.is_some() {
-                    (Role::TransportSpace, target)
-                } else {
-                    (Role::TransportFree, None)
-                }
-            }
+            // A ship with no mission is free; its transport roles (space, ready) are the ones
+            // `naval.rs` and `pickup.rs` give it with a target.
+            Class::Ship if !ordered => (Role::TransportFree, None),
             _ if ordered => (Role::MoveTo, target),
             _ => (Role::AwaitingOrders, None),
         };

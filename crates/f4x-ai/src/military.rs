@@ -16,7 +16,7 @@ use crate::view::{
 use crate::{race, Ai};
 
 /// The AI attacks when its force is this much stronger than what it expects to meet.
-fn attack_ratio() -> f32 {
+pub(crate) fn attack_ratio() -> f32 {
     crate::knob("ATTACK", 1.4)
 }
 /// An attack out of a city's garrison needs a much bigger edge.
@@ -49,9 +49,6 @@ const THREAT_RADIUS: i32 = 3;
 
 /// The enemy has the better of the garrison when it is this share of its strength.
 const THREAT_RATIO: f32 = 0.8;
-
-/// A relief force is sent to a threatened city only from this far or nearer.
-const RELIEF_RANGE: u32 = 12;
 
 const NEIGHBOURS: &[(i32, i32)] = &[
     (-1, -1),
@@ -105,6 +102,37 @@ enum Sortie {
     WalkIn(Position),
     /// Defended: fight if this force is enough.
     Fight(Vec<hecs::Entity>, f32),
+}
+
+/// Attack: a human defender fights the battle in person (kept for the client), any other is
+/// resolved at once.
+pub(crate) fn engage(
+    ai: &mut Ai,
+    game: &mut Game,
+    attackers: Vec<hecs::Entity>,
+    defenders: Vec<hecs::Entity>,
+    events: &mut Vec<Event>,
+) {
+    let defended_in_person = defenders
+        .first()
+        .and_then(|&d| game.units().unit_owner(d))
+        .is_some_and(|owner| ai.defended_by.contains(&owner));
+    if defended_in_person {
+        ai.attacks.push(crate::Attack {
+            attackers,
+            defenders,
+        });
+    } else {
+        ai.order(
+            game,
+            Command::AutoResolve {
+                mana_budget: None,
+                attackers,
+                defenders,
+            },
+            events,
+        );
+    }
 }
 
 pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
@@ -199,26 +227,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         } else {
                             units.clone()
                         };
-                        let defended_in_person = defenders
-                            .first()
-                            .and_then(|&d| game.units().unit_owner(d))
-                            .is_some_and(|owner| ai.defended_by.contains(&owner));
-                        if defended_in_person {
-                            ai.attacks.push(crate::Attack {
-                                attackers,
-                                defenders,
-                            });
-                        } else {
-                            ai.order(
-                                game,
-                                Command::AutoResolve {
-                                    mana_budget: None,
-                                    attackers,
-                                    defenders,
-                                },
-                                events,
-                            );
-                        }
+                        engage(ai, game, attackers, defenders, events);
                         spent.extend(&units);
                         break;
                     }
@@ -253,8 +262,8 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         (free, capital)
     };
 
-    // 2b. A city with a hostile stack near and too few defenders pulls the nearest free troops in.
-    let free = relieve(ai, game, free, events);
+    // 2b. The perimeter: spare troops deal with what is in the zone of the cities (`perimeter.rs`).
+    let free = crate::perimeter::run(ai, game, free, events);
     let Some(capital) = capital else {
         return;
     };
@@ -614,7 +623,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 /// The own cities an enemy stack within [`THREAT_RADIUS`] could take: the strength near is more
 /// than [`THREAT_RATIO`] of the strength at home. With the strength still wanted.
-fn threats(view: &PlayerView) -> Vec<(Position, f32)> {
+pub(crate) fn threats(view: &PlayerView) -> Vec<(Position, f32)> {
     let mut found = Vec::new();
     for (_, pos) in view.my_cities() {
         let near: f32 = view
@@ -636,73 +645,6 @@ fn threats(view: &PlayerView) -> Vec<(Position, f32)> {
         }
     }
     found
-}
-
-/// Sends the nearest free troops to each threatened city until they make up the shortfall, and
-/// notes the cities for the economy to build in. Returns those still free.
-fn relieve(
-    ai: &mut Ai,
-    game: &mut Game,
-    mut free: Vec<hecs::Entity>,
-    events: &mut Vec<Event>,
-) -> Vec<hecs::Entity> {
-    let me = ai.player;
-    let threatened = threats(&PlayerView::new(game, me));
-    ai.threatened = threatened.iter().map(|&(pos, _)| pos).collect();
-    for (city, mut short) in threatened {
-        let mut sent: Vec<hecs::Entity> = Vec::new();
-        {
-            let view = PlayerView::new(game, me);
-            let mut reached = crate::view::ReachCache::default();
-            let mut candidates: Vec<(u32, hecs::Entity)> = free
-                .iter()
-                .copied()
-                .filter(|&u| !ai.roles.is(view.serial_of(u), crate::roles::Role::March))
-                .filter(|&u| !view.unit_has_order(u))
-                .filter_map(|u| {
-                    let at = view.unit_position(u)?;
-                    let d = distance(&view, at, city)?;
-                    (d > 0 && d <= RELIEF_RANGE && reached.can_reach(&view, &[u], city))
-                        .then_some((d, u))
-                })
-                .collect();
-            candidates.sort_by_key(|&(d, u)| (d, view.serial_of(u)));
-            for (_, u) in candidates {
-                if short <= 0.0 {
-                    break;
-                }
-                short -= unit_strength(&view, u);
-                sent.push(u);
-            }
-        }
-        if sent.is_empty() {
-            continue;
-        }
-        // A unit whose order was refused is not spent on this city: it stays free for the next.
-        // A city with no room left takes no more of them this turn.
-        let mut full = false;
-        sent.retain(|&u| {
-            if full {
-                return false;
-            }
-            if !Ai::room_at(game, city, 1) {
-                full = true;
-                return false;
-            }
-            let sent = ai.send(
-                game,
-                Command::GoTo {
-                    units: vec![u],
-                    to: city,
-                },
-                events,
-            );
-            full = sent.is_err_and(|why| why.is_no_room());
-            sent.is_ok()
-        });
-        free.retain(|u| !sent.contains(u));
-    }
-    free
 }
 
 /// Has a march gone on too long? It has [`MARCH_TURNS`] and the walk to a far target on top (the

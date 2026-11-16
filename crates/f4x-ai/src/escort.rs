@@ -55,6 +55,75 @@ pub fn walk(
     ai.send(game, Command::GoTo { units, to }, events).is_ok()
 }
 
+/// Whether the unit holds a role whose bearer is escorted: a settler on its way, an engineer on
+/// the road, a spirit bound for a node.
+fn guarded(ai: &Ai, charge: Serial) -> bool {
+    [Role::Settle, Role::Road, Role::Meld]
+        .into_iter()
+        .any(|r| ai.roles.is(charge, r))
+}
+
+/// Make sure a unit that works away from any city (an engineer on a road toward the enemy) has an
+/// escort standing with it: one is taken from the nearest own city that can spare a soldier and
+/// sent to it. Whether the escort is with its charge now.
+pub fn guard(ai: &mut Ai, game: &mut Game, charge: hecs::Entity, events: &mut Vec<Event>) -> bool {
+    let me = ai.player;
+    let turn = game.turn;
+    let (serial, at) = {
+        let view = PlayerView::new(game, me);
+        let Some(at) = view.unit_position(charge) else {
+            return false;
+        };
+        (view.serial_of(charge), at)
+    };
+    if ai.roles.escort_of(serial).is_none() {
+        let spare = {
+            let view = PlayerView::new(game, me);
+            let mut cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
+            cities.sort_by_key(|&p| (view.distance(p, at).unwrap_or(u32::MAX), p.y, p.x));
+            cities.into_iter().find_map(|city| {
+                let soldier = spare_soldier(ai, game, city)?;
+                view.can_reach(&[soldier], at).then_some(soldier)
+            })
+        };
+        if let Some(soldier) = spare {
+            let escort = PlayerView::new(game, me).serial_of(soldier);
+            if ai.roles.claim(escort, Role::Escort, turn, None).is_ok() {
+                let party = ai.roles.new_party();
+                ai.roles.group(&[escort], Role::Escort, party, Some(serial));
+            }
+        }
+    }
+    let Some(escort) = ai.roles.escort_of(serial) else {
+        return false;
+    };
+    let (unit, there) = {
+        let view = PlayerView::new(game, me);
+        let unit = view
+            .my_units()
+            .into_iter()
+            .find(|&u| view.serial_of(u) == escort);
+        (unit, unit.and_then(|u| view.unit_position(u)))
+    };
+    match (unit, there) {
+        (Some(_), Some(p)) if p == at => true,
+        (Some(u), _) => {
+            if !PlayerView::new(game, me).unit_has_order(u) {
+                ai.order(
+                    game,
+                    Command::GoTo {
+                        units: vec![u],
+                        to: at,
+                    },
+                    events,
+                );
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
 /// The soldier a city can spare for an escort: the strongest free one above what the city wants.
 fn spare_soldier(ai: &Ai, game: &Game, at: Position) -> Option<hecs::Entity> {
     let view = PlayerView::new(game, ai.player);
@@ -95,7 +164,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .filter(|&e| {
                 !ai.roles
                     .with_of(e)
-                    .is_some_and(|c| live.contains(&c) && ai.roles.is(c, Role::Settle))
+                    .is_some_and(|c| live.contains(&c) && guarded(ai, c))
             })
             .collect();
         ai.roles.release_many(&gone, Role::Escort);
@@ -227,6 +296,30 @@ mod tests {
         ai.roles.release(charge, Role::Settle);
         run(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(ai.roles.role_of(escort), Some(Role::AwaitingOrders));
+        Ok(())
+    }
+
+    /// An engineer at work away from the cities is given the soldier a city can spare, which walks
+    /// to it.
+    #[test]
+    fn an_engineer_in_the_field_is_given_an_escort_from_the_nearest_city() -> TestResult {
+        let (mut g, _, soldiers) = world();
+        let engineer = spawn(&mut g, P0, at(7, 6), 110 /* high_men_engineers */, 1)[0];
+        let mut ai = Ai::new(P0);
+        let with_it = guard(&mut ai, &mut g, engineer, &mut Vec::new());
+        assert!(!with_it, "the escort is still on its way");
+        let view = PlayerView::new(&g, P0);
+        let charge = view.serial_of(engineer);
+        let escort = ai.roles.escort_of(charge).ok_or("an escort was chosen")?;
+        assert!(soldiers.iter().any(|&s| view.serial_of(s) == escort));
+        // Once it stands with the engineer the engineer may work.
+        let escort_unit = soldiers
+            .iter()
+            .copied()
+            .find(|&s| view.serial_of(s) == escort)
+            .ok_or("the escort lives")?;
+        g.cheat_move_unit(escort_unit, at(7, 6));
+        assert!(guard(&mut ai, &mut g, engineer, &mut Vec::new()));
         Ok(())
     }
 }

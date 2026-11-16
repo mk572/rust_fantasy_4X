@@ -21,11 +21,13 @@ mod escort;
 mod expand;
 mod forge;
 mod garrison;
+mod meld;
 mod military;
 mod monster;
 mod naval;
 mod objective;
 mod offer;
+mod perimeter;
 mod persist;
 mod phase;
 mod pickup;
@@ -301,7 +303,7 @@ impl Ai {
     /// and whether a ship is on a voyage.
     pub fn landing(&self) -> Option<(Position, Position, bool)> {
         self.naval
-            .map(|p| (p.target, p.port, self.roles.any(crate::roles::Role::Voyage)))
+            .map(|p| (p.target, p.port, !self.roles.ferries().is_empty()))
     }
 
     /// Whether scouting by land is over: nothing the AI can walk to shows anything new.
@@ -384,6 +386,7 @@ impl Ai {
             expand::settlers(self, game, &mut events);
             escort::run(self, game, &mut events);
             road::run(self, game, &mut events);
+            meld::run(self, game, &mut events);
             scout::scout(self, game, &mut events);
             site::run(self, game, &mut events);
             military::army(self, game, &mut events);

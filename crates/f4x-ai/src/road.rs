@@ -6,12 +6,12 @@
 //! own city takes the nearest few cities, asks the game for the way it would walk there, and builds
 //! a road along it when any square of it has none. When the city has no such link it is marked
 //! looked at and the engineer walks to the nearest city not yet looked at. When every city has been
-//! looked at the engineer works toward the campaign target, a stretch at a time, from wherever it
-//! stands. With nothing left it gives the role back. The marks are cleared when the number of
-//! cities changes. One engineer unit is built (`build`) while there is work and none exists.
+//! looked at the engineer works toward the campaign target, else the nearest tower, a stretch at a
+//! time, from wherever it stands; within `ENEMY_NEAR` squares of a rival's city it works only with
+//! an escort (`escort::guard`) and waits for one. With nothing left it gives the role back. The marks are cleared when the number of
+//! cities changes. One engineer unit is built (`build_engineer`) while there is work and none exists.
 //!
-//! Not built: an escort for the engineers on the stretch toward the enemy (task 626 has the
-//! escort for settlers). See `docs/ai-unit-registry.md`.
+//! See `docs/ai-unit-registry.md`.
 
 use crate::roles::Role;
 use crate::Ai;
@@ -170,8 +170,33 @@ fn build(
     .is_ok()
 }
 
-/// A stretch of road toward the campaign target: built from where the engineer stands when the
-/// first square has none, else the engineer walks to the last square that has one.
+/// Squares from a rival's city within which an engineer works with an escort.
+const ENEMY_NEAR: u32 = 8;
+
+/// The way a road is built toward: the campaign target, else the nearest tower, whichever has a
+/// way to it that lacks a road. The squares of that way, the last (the city or tower itself) left
+/// out, and the first without a road.
+fn frontier_way(ai: &Ai, game: &Game, engineer: hecs::Entity) -> Option<(Vec<Position>, usize)> {
+    let view = PlayerView::new(game, ai.player);
+    let here = view.unit_position(engineer)?;
+    let mut towers: Vec<Position> = view
+        .towers()
+        .into_iter()
+        .map(|(p, _)| p)
+        .filter(|p| p.plane == here.plane)
+        .collect();
+    towers.sort_by_key(|&p| (view.distance(here, p).unwrap_or(u32::MAX), p.y, p.x));
+    ai.campaign.into_iter().chain(towers).find_map(|target| {
+        let mut path = view.path(&[engineer], target)?;
+        path.pop();
+        let first = path.iter().position(|&p| !view.has_road(p))?;
+        Some((path, first))
+    })
+}
+
+/// A stretch of road toward the campaign target or a tower: built from where the engineer
+/// stands when the first square has none, else the engineer walks to the last square that has
+/// one. Near a rival's cities it works only with an escort.
 fn frontier(
     ai: &mut Ai,
     game: &mut Game,
@@ -179,18 +204,24 @@ fn frontier(
     events: &mut Vec<Event>,
 ) -> Option<Position> {
     let me = ai.player;
-    let target = ai.campaign?;
-    let (path, first) = {
-        let view = PlayerView::new(game, me);
-        // The target is a city of the enemy: the road ends at the square before it.
-        let mut path = view.path(&[engineer], target)?;
-        path.pop();
-        let first = path.iter().position(|&p| !view.has_road(p))?;
-        (path, first)
-    };
+    let (path, first) = frontier_way(ai, game, engineer)?;
     if first == 0 {
         let stretch: Vec<Position> = path.into_iter().take(STRETCH).collect();
         let end = *stretch.last()?;
+        let near_enemy = {
+            let view = PlayerView::new(game, me);
+            view.known_cities().into_iter().any(|(_, owner, city)| {
+                owner != me
+                    && view.is_rival_wizard(owner)
+                    && stretch
+                        .iter()
+                        .any(|&p| view.distance(p, city).is_some_and(|d| d <= ENEMY_NEAR))
+            })
+        };
+        if near_enemy && !crate::escort::guard(ai, game, engineer, events) {
+            // It waits where it stands for the escort to come.
+            return PlayerView::new(game, me).unit_position(engineer);
+        }
         return build(ai, game, engineer, stretch, events).then_some(end);
     }
     let to = path[first - 1];
@@ -213,8 +244,9 @@ pub fn build_engineer(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let city = {
         let view = PlayerView::new(game, me);
         let cities = view.my_cities();
-        let work =
-            cities.len() >= 2 && ai.road_checked.len() < cities.len() || ai.campaign.is_some();
+        let work = cities.len() >= 2 && ai.road_checked.len() < cities.len()
+            || ai.campaign.is_some()
+            || !PlayerView::new(game, me).towers().is_empty();
         if !work || view.my_units().iter().any(|&u| is_engineer(&view, u)) {
             return;
         }
@@ -381,6 +413,31 @@ mod tests {
             matches!(item, Some(ProductionItem::Building(_))),
             "{item:?}"
         );
+        Ok(())
+    }
+
+    /// With every city looked at and no campaign, the engineer builds toward the nearest tower.
+    #[test]
+    fn an_engineer_builds_toward_a_tower_when_the_cities_are_linked() -> TestResult {
+        let (mut g, engineer) = world()?;
+        let tower = at(8, 3);
+        crate::testworld::spawn_tower(&mut g, tower, true)?;
+        g.explore(P0, tower, f4x_def::half_int::HalfInt::from_int(3));
+        let mut ai = Ai::new(P0);
+        {
+            let view = PlayerView::new(&g, P0);
+            ai.road_cities = view.my_cities().len();
+            ai.road_checked = view
+                .my_cities()
+                .iter()
+                .map(|&(c, _)| view.serial_of(c))
+                .collect();
+        }
+        run(&mut ai, &mut g, &mut Vec::new());
+        let view = PlayerView::new(&g, P0);
+        let serial = view.serial_of(engineer);
+        assert_eq!(ai.roles.role_of(serial), Some(Role::Road));
+        assert!(view.unit_builds_road(engineer) || view.unit_has_order(engineer));
         Ok(())
     }
 }

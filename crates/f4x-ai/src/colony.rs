@@ -202,7 +202,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let view = PlayerView::new(game, me);
         let wanted = crate::objective::traits(&view).cities_wanted;
         let chosen = ((view.my_cities().len() < wanted || !crate::expand::room_for_city(&view))
-            && !ai.roles.any(crate::roles::Role::Voyage))
+            && ai.roles.ferries().is_empty())
         .then(|| port_city(&view))
         .flatten()
         .and_then(|port| {
