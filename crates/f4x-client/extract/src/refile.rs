@@ -211,15 +211,15 @@ mod tests {
         let root = std::env::temp_dir().join(format!("f4x-extract-loose-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let art_dir = root.join("art");
-        fs::create_dir_all(art_dir.join("lilwiz"))?;
-        // Entry 5 is in the manifest; entry 105 (a new colour) is only a file.
-        fs::write(art_dir.join("lilwiz/005_00.png"), b"x")?;
-        fs::write(art_dir.join("lilwiz/105_00.png"), b"x")?;
-        fs::write(art_dir.join("lilwiz/105_00_cycle.png"), b"x")?;
-        fs::write(art_dir.join("manifest.tsv"), "lilwiz\t5\t1\t40\t40\n")?;
+        fs::create_dir_all(art_dir.join("magic"))?;
+        // Entry 18 is in the manifest; entry 118 (a portrait a script made) is only a file.
+        fs::write(art_dir.join("magic/018_00.png"), b"x")?;
+        fs::write(art_dir.join("magic/118_00.png"), b"x")?;
+        fs::write(art_dir.join("magic/118_00_cycle.png"), b"x")?;
+        fs::write(art_dir.join("manifest.tsv"), "magic\t18\t1\t33\t35\n")?;
         fs::write(root.join("index.tsv"), "")?;
         let wizards = crate::wizard_art::parse_wizard_art(
-            r#"[(id: "merlin", pictures: (gem: 0)), (id: "raven", pictures: (gem: 5))]"#,
+            r#"[(id: "merlin", pictures: (face: 18)), (id: "raven", pictures: (face: 118))]"#,
         )?;
         let placer = Placer::new(
             crate::screens::rules()?,
@@ -228,14 +228,14 @@ mod tests {
             &wizards,
         );
         assert_eq!(refile(&art_dir, &placer)?, 2);
+        assert!(root.join("art/wizards/merlin/face_00.png").exists());
         let folder = root.join("art/wizards/raven");
-        assert!(folder.join("gem_0_00.png").exists());
-        assert!(folder.join("gem_5_00.png").exists());
-        assert!(folder.join("gem_5_00_cycle.png").exists());
+        assert!(folder.join("face_00.png").exists());
+        assert!(folder.join("face_00_cycle.png").exists());
         let index = fs::read_to_string(root.join("index.tsv"))?;
         assert_eq!(
             index,
-            "lilwiz\t5\tart/wizards/raven/gem_0\nlilwiz\t105\tart/wizards/raven/gem_5\n"
+            "magic\t18\tart/wizards/merlin/face\nmagic\t118\tart/wizards/raven/face\n"
         );
         fs::remove_dir_all(&root)?;
         Ok(())

@@ -9,11 +9,9 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-/// The gems a wizard has in `lilwiz`: the original's five colours at `gem` ..`gem` + 5, and the five
-/// more of `make_banner_colours.py` at `NEW_GEMS_AT` + `gem` ..; ten in all, numbered like the banners.
-pub const GEM_COLOURS: usize = 10;
-pub const ORIGINAL_GEMS: usize = 5;
-pub const NEW_GEMS_AT: usize = 100;
+/// Where a wizard's portrait sits in its gem when the table says nothing (pixels from the gem's
+/// top left corner; the gem is 41 x 43, the portrait 33 x 35).
+pub const DEFAULT_FACE_AT: (usize, usize) = (4, 5);
 
 /// The entries of one wizard, one for each place the original draws or plays it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
@@ -27,8 +25,16 @@ pub struct WizardPictures {
     pub talk: usize,
     /// `wizlab`: the wizard in the lab.
     pub lab: usize,
-    /// `lilwiz`: the first of the wizard's gems (one for each banner colour).
-    pub gem: usize,
+    /// `magic`: the portrait of the wizard's gem (33 x 35, rounded corners), which the client puts
+    /// on the diamond of the wizard's banner colour (`gem.rs`); the original's finished gems
+    /// (`lilwiz`) are not drawn.
+    pub face: usize,
+    /// Where the portrait sits in the gem: pixels from its left and top edge. The original's artists
+    /// placed each by hand, so it is measured for each wizard. (0, 0), which no gem has, means "not
+    /// given": [`DEFAULT_FACE_AT`] (see [`WizardPictures::face_origin`]).
+    pub face_at: (usize, usize),
+    /// `diplomac`: the wizard fading into the mirror (five frames).
+    pub appear: usize,
     /// `halofam`: the hall of fame.
     pub hall: usize,
     /// `spellscr`: the summon scene.
@@ -54,14 +60,26 @@ pub struct WizardPictures {
 }
 
 impl WizardPictures {
+    /// Where the wizard's portrait sits in its gem: the table's place, or the default for a wizard
+    /// that gives none (a custom one).
+    pub fn face_origin(&self) -> (usize, usize) {
+        if self.face_at == (0, 0) {
+            DEFAULT_FACE_AT
+        } else {
+            self.face_at
+        }
+    }
+
     /// Every picture that is this wizard's alone, as `(file, entry, name)`: the name is the picture's
     /// place in the wizard's folder (`art/wizards/<id>/<name>`). `hands` is left out: the same
     /// hands go with several wizards.
     pub fn files(&self) -> Vec<(&'static str, usize, String)> {
-        let mut files = vec![
+        vec![
             ("wizards", self.portrait, "portrait".to_string()),
             ("moodwiz", self.mirror, "mirror".to_string()),
             ("diplomac", self.talk, "talk".to_string()),
+            ("diplomac", self.appear, "appear".to_string()),
+            ("magic", self.face, "face".to_string()),
             ("wizlab", self.lab, "lab".to_string()),
             ("halofam", self.hall, "hall".to_string()),
             ("spellscr", self.summon, "summon".to_string()),
@@ -74,17 +92,7 @@ impl WizardPictures {
             ("conquest", self.seize, "seize".to_string()),
             ("splmastr", self.parade, "parade".to_string()),
             ("splmastr", self.parade_rival, "parade_rival".to_string()),
-        ];
-        // The gems, one for each banner colour: the original's five, then the five more.
-        for colour in 0..GEM_COLOURS {
-            let entry = if colour < ORIGINAL_GEMS {
-                self.gem + colour
-            } else {
-                NEW_GEMS_AT + self.gem + colour - ORIGINAL_GEMS
-            };
-            files.push(("lilwiz", entry, format!("gem_{colour}")));
-        }
-        files
+        ]
     }
 }
 
@@ -140,6 +148,15 @@ mod tests {
         assert_eq!(wizards[0].id, "merlin");
         assert_eq!(wizards[13].pictures.parade, 27);
         assert_eq!(wizards[1].pictures.hands, 20);
+        // The portraits of the gems are the pictures 18 to 31 of `magic`, Horus's and Tauron's the
+        // other way round; each wizard has where its portrait sits, the same entry nowhere twice.
+        assert_eq!(wizards[8].id, "tauron");
+        assert_eq!(
+            (wizards[8].pictures.face, wizards[10].pictures.face),
+            (28, 26)
+        );
+        assert!(wizards.iter().all(|w| w.pictures.face_at != (0, 0)));
+        assert_eq!(WizardPictures::default().face_origin(), DEFAULT_FACE_AT);
         // No two pictures of the wizards share a file and an entry, and each has its own name.
         let mut seen = BTreeSet::new();
         for w in &wizards {
@@ -151,7 +168,7 @@ mod tests {
                 );
             }
         }
-        assert_eq!(seen.len(), 14 * 25);
+        assert_eq!(seen.len(), 14 * 17);
         let twice = parse_wizard_art(r#"[(id: "a", pictures: ()), (id: "a", pictures: ())]"#)?;
         assert_eq!(validate_wizard_art(&twice).len(), 1);
         Ok(())

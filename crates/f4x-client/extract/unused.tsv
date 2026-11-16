@@ -102,3 +102,5 @@ backgrnd	20	20	city_screen/button_cancel
 backgrnd	21	21	city_screen/button_ok_small
 combat	0	110	art/combat
 reload	25	25	credits/background
+lilwiz	0	169	art/lilwiz
+magic	1	5	art/magic

@@ -226,9 +226,7 @@ impl App {
             self.draw_neutral(lay, race.num(), crate::neutral_art::Kind::Gem, x, y);
         } else {
             let portrait = self.game.player(c.id).map_or(0, |p| p.portrait());
-            if let Some(entry) = crate::art::gem_entry(self.art.wizard(portrait).gem, c.banner) {
-                self.draw_pic(lay, "lilwiz", entry, 0, x, y);
-            }
+            self.draw_gem(lay, portrait, c.banner, x, y);
         }
     }
 

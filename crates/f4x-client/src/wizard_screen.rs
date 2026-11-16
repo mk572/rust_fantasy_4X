@@ -133,14 +133,12 @@ impl Page for WizardUi {
             return;
         };
         let me = app.game.player(ui.who);
-        let wizard_picture = crate::art::gem_entry(
-            app.art.wizard(me.map_or(0, |p| p.portrait())).gem,
+        let (portrait, banner) = (
+            me.map_or(0, |p| p.portrait()),
             me.map_or(NEUTRAL_BANNER, |p| p.banner()),
         );
         let name = me.map_or_else(String::new, |p| p.name());
-        if let Some(entry) = wizard_picture {
-            app.draw_pic(&lay, "lilwiz", entry, 0, px + 11.0, py + 11.0);
-        }
+        app.draw_gem(&lay, portrait, banner, px + 11.0, py + 11.0);
         app.draw_styled(
             view,
             &Style::gold_shadowed(4).center(),

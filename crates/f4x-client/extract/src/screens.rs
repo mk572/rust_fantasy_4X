@@ -507,29 +507,42 @@ mod tests {
     }
 
     #[test]
-    fn a_wizards_mirror_and_gems_go_to_its_folder_the_new_colours_included() -> TestResult {
+    fn a_wizards_mirror_face_and_fade_in_go_to_its_folder_and_the_finished_gems_are_unused(
+    ) -> TestResult {
         let wizards = crate::wizard_art::parse_wizard_art(
-            r#"[(id: "merlin", pictures: (mirror: 0, gem: 0)), (id: "raven", pictures: (mirror: 1, gem: 5))]"#,
+            r#"[(id: "merlin", pictures: (mirror: 0, face: 18, appear: 38)), (id: "raven", pictures: (mirror: 1, face: 19, appear: 39))]"#,
         )?;
         let p = Placer::new(rules()?, &[], &SpellArt::default(), &wizards);
         assert_eq!(
             p.place("moodwiz", 1).as_deref(),
             Some("art/wizards/raven/mirror")
         );
+        // The portrait of the gem is `magic`'s, not the screen's; the fade-in is `diplomac`'s, and
+        // the rest of `diplomac` stays with the diplomacy screen.
+        assert_eq!(
+            p.place("magic", 18).as_deref(),
+            Some("art/wizards/merlin/face")
+        );
+        assert_eq!(
+            p.place("diplomac", 39).as_deref(),
+            Some("art/wizards/raven/appear")
+        );
+        assert_eq!(
+            p.place("diplomac", 2).as_deref(),
+            Some("screens/diplomacy/diplomac_002")
+        );
+        // The original's finished gems and the five base diamonds (the client has its own copy of
+        // those) are not drawn: they go to `assets-unused/`.
+        assert!(p.is_unused("lilwiz", 3) && p.is_unused("lilwiz", 107));
         assert_eq!(
             p.place("lilwiz", 3).as_deref(),
-            Some("art/wizards/merlin/gem_3")
+            Some("../assets-unused/art/lilwiz/003")
         );
         assert_eq!(
-            p.place("lilwiz", 5).as_deref(),
-            Some("art/wizards/raven/gem_0")
+            p.place("magic", 3).as_deref(),
+            Some("../assets-unused/art/magic/003")
         );
-        // The five more colours of `make_banner_colours.py`: 100 + the first gem + 0 to 4.
-        assert_eq!(
-            p.place("lilwiz", 107).as_deref(),
-            Some("art/wizards/raven/gem_7")
-        );
-        assert_eq!(p.place("lilwiz", 50), None);
+        assert!(!p.is_unused("magic", 18));
         Ok(())
     }
 

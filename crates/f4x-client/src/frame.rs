@@ -138,6 +138,32 @@ impl App {
         self.draw_pic_tinted(lay, lbx, entry, frame, x, y, WHITE)
     }
 
+    /// Draw the gem of the wizard with `portrait` in the colour of `banner` (`gem.rs`) at the
+    /// original's `(x, y)`. None for the neutral banner or a wizard without its portrait.
+    pub(crate) fn draw_gem(
+        &mut self,
+        lay: &Layout,
+        portrait: u8,
+        banner: u8,
+        x: f32,
+        y: f32,
+    ) -> Option<Rect> {
+        let tex = self.art.gem(portrait, banner)?.clone();
+        let size = crate::resolution::logical_size(&tex) * lay.scale;
+        let at = lay.point(x, y);
+        draw_texture_ex(
+            &tex,
+            at.x,
+            at.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(size),
+                ..Default::default()
+            },
+        );
+        Some(Rect::new(at.x, at.y, size.x, size.y))
+    }
+
     /// Draw the picture for `role` that belongs to no one spell (a box, the sparkle).
     pub(crate) fn draw_shared_pic(
         &mut self,

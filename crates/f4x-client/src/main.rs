@@ -52,6 +52,7 @@ mod font;
 mod font_ramp;
 mod frame;
 mod game_over_screen;
+mod gem;
 mod global_spell;
 mod hall_of_fame;
 mod help_check;

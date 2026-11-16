@@ -123,3 +123,11 @@ The six river pictures of a battlefield (`cmbtcity` 103 to 108, five frames each
 (`river_myrror_<shape>_<frame>.png`) was generated once from Arcanus's, by repainting the water
 in the colour of Myrror's ocean and the banks in that of its ground, and kept as files. They are the original's art, kept in the
 repository at the project owner's choice (17 October 2026); everything else stays local-only.
+
+## Exception: the wizards' gem diamonds
+
+The five empty diamonds of the wizards' gems (`magic` 1 to 5, 41 x 43, no portrait in them) are committed as one sprite
+sheet, `crates/f4x-client/assets/gem/frame.sheet.png` (`scripts/make_gem_frames.py`), and embedded in the client
+(`gem.rs`), which turns the hue for the five newer colours and puts a wizard's portrait on the diamond. They are
+the original's art, kept in the repository at the project owner's choice (17 November 2026). The portraits
+(`art/wizards/<id>/face`) stay local-only, like every other wizard picture.

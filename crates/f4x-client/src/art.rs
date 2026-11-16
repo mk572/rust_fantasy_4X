@@ -187,6 +187,8 @@ pub struct Art {
     /// The pixels of pictures that code reads or edits (kept so they are read back from the
     /// graphics card once): lower-case name, entry, frame.
     pixels: HashMap<(String, usize, usize), Option<Image>>,
+    /// The wizards' gems put together (`gem.rs`), by (portrait, banner).
+    gems: HashMap<(u8, u8), Option<Texture2D>>,
     /// Figures with the glow of an enchantment: the figure's key, the realm and the step.
     glows: HashMap<(FigureKey, usize, usize), Option<Texture2D>>,
     /// Map pictures of units with the glow of an enchantment: (file, entry, banner, realm, step).
@@ -223,17 +225,6 @@ pub fn background_entry(banner: u8) -> usize {
         0..=4 => 14 + usize::from(banner),
         5..=9 => 95 + usize::from(banner),
         _ => 19,
-    }
-}
-
-/// The `lilwiz` entry of a wizard's gem, from the wizard's first gem (`WizardPictures::gem`): that
-/// plus the colour for the original's five, 100 + that + the new colour's number from 0 for the new
-/// ones. None for the neutral banner, which has no gem.
-pub fn gem_entry(gem: usize, banner: u8) -> Option<usize> {
-    match banner {
-        0..=4 => Some(gem + usize::from(banner)),
-        5..=9 => Some(100 + gem + usize::from(banner) - 5),
-        _ => None,
     }
 }
 
@@ -360,6 +351,7 @@ impl Art {
             unit_pictures: HashMap::new(),
             masked: HashMap::new(),
             pixels: HashMap::new(),
+            gems: HashMap::new(),
             spells,
             units: units.into_iter().map(|u| (u.id.clone(), u)).collect(),
             wizards,
@@ -894,6 +886,31 @@ impl Art {
         self.pixels.get(&key).and_then(Option::as_ref)
     }
 
+    /// The gem of the wizard with `portrait` in the colour of `banner`: its portrait (`face`) on the
+    /// diamond, put together the first time (`gem.rs`). None for the neutral banner and when the
+    /// portrait is not there.
+    pub fn gem(&mut self, portrait: u8, banner: u8) -> Option<&Texture2D> {
+        let key = (portrait, banner);
+        if !self.gems.contains_key(&key) {
+            let made = self.make_gem(portrait, banner);
+            self.gems.insert(key, made);
+        }
+        self.gems.get(&key)?.as_ref()
+    }
+
+    fn make_gem(&mut self, portrait: u8, banner: u8) -> Option<Texture2D> {
+        let pictures = self.wizard(portrait);
+        let frame = crate::gem::frame(banner)?;
+        let scale = usize::from(crate::resolution::art_scale());
+        let big = self.pixels("magic", pictures.face, 0)?;
+        // The portrait comes at the art scale; the diamond is made at the original's size.
+        let face = crate::gem::shrunk(big, scale);
+        let gem = crate::gem::compose(&frame, &face, pictures.face_origin());
+        let tex = Texture2D::from_image(&enlarged(gem, scale));
+        tex.set_filter(FilterMode::Nearest);
+        Some(tex)
+    }
+
     /// A picture from an original `.lbx` file: lower-case name, entry, frame.
     pub fn picture(&mut self, lbx: &str, entry: usize, frame: usize) -> Option<&Texture2D> {
         let path = picture_path(&self.placed, lbx, entry, frame);
@@ -1121,10 +1138,6 @@ mod banner_tests {
             backgrounds,
             [14, 15, 16, 17, 18, 100, 101, 102, 103, 104, 19]
         );
-        assert_eq!(gem_entry(10, 3), Some(13));
-        assert_eq!(gem_entry(0, 5), Some(100));
-        assert_eq!(gem_entry(65, 9), Some(169));
-        assert_eq!(gem_entry(0, f4x_core::player::NEUTRAL_BANNER), None);
     }
 }
 
