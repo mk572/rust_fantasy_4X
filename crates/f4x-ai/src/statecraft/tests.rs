@@ -8,8 +8,6 @@ use f4x_def::half_int::HalfInt;
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 const P2: PlayerId = PlayerId(2);
-/// The spearmen of the shipped content.
-const SPEARMEN: u16 = 95;
 const LIFE: u16 = 3;
 const DEATH: u16 = 4;
 
@@ -62,7 +60,13 @@ fn lopsided_at(rival: Option<(u32, u32)>) -> Result<Game, Box<dyn std::error::Er
     for p in [P0, P1] {
         wizard(&mut g, p, &[(RealmId::new(LIFE), 3)], &[], None);
     }
-    spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), SPEARMEN, 8);
+    spawn(
+        &mut g,
+        P0,
+        at(COAST_CITY.0, COAST_CITY.1),
+        95, /* high_elf_spearmen */
+        8,
+    );
     g.make_contact(P0, P1);
     if let Some((x, y)) = rival {
         g.explore(P0, at(x, y), HalfInt::from_raw(3));
@@ -80,8 +84,20 @@ fn strong_neighbour() -> Result<Game, Box<dyn std::error::Error>> {
     for p in [P0, P1] {
         wizard(&mut g, p, &[(RealmId::new(LIFE), 3)], &[], None);
     }
-    spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), SPEARMEN, 1);
-    spawn(&mut g, P1, at(WEST_RIVAL.0, WEST_RIVAL.1), SPEARMEN, 30);
+    spawn(
+        &mut g,
+        P0,
+        at(COAST_CITY.0, COAST_CITY.1),
+        95, /* high_elf_spearmen */
+        1,
+    );
+    spawn(
+        &mut g,
+        P1,
+        at(WEST_RIVAL.0, WEST_RIVAL.1),
+        95, /* high_elf_spearmen */
+        30,
+    );
     g.treasury_mut(P0).ok_or("treasury")?.gold = HalfInt::from_int(1000);
     g.make_contact(P0, P1);
     g.explore(P0, at(WEST_RIVAL.0, WEST_RIVAL.1), HalfInt::from_raw(3));
@@ -123,7 +139,13 @@ fn a_wizard_far_ahead_declares_war_and_says_why() -> TestResult {
 fn no_war_when_the_edge_is_small_or_the_turn_early() -> TestResult {
     // An army as large as its own.
     let mut g = lopsided()?;
-    spawn(&mut g, P1, at(WEST_RIVAL.0, WEST_RIVAL.1), SPEARMEN, 8);
+    spawn(
+        &mut g,
+        P1,
+        at(WEST_RIVAL.0, WEST_RIVAL.1),
+        95, /* high_elf_spearmen */
+        8,
+    );
     let mut ai = Ai::new(P0);
     run_turns(&mut g, &mut ai, 400);
     assert_ne!(g.treaty(P0, P1), Treaty::War);
@@ -181,7 +203,13 @@ fn late_in_the_game_a_straggler_is_finished_during_another_war() -> TestResult {
 fn a_rival_that_is_not_far_weaker_is_not_a_second_front_even_late() -> TestResult {
     // The same, but P1 has an army a third the size of P0's: not a straggler.
     let mut g = two_fronts()?;
-    spawn(&mut g, P1, at(WEST_RIVAL.0, WEST_RIVAL.1), SPEARMEN, 3);
+    spawn(
+        &mut g,
+        P1,
+        at(WEST_RIVAL.0, WEST_RIVAL.1),
+        95, /* high_elf_spearmen */
+        3,
+    );
     let mut ai = Ai::new(P0);
     run_turns(&mut g, &mut ai, 400);
     assert_ne!(g.treaty(P0, P1), Treaty::War);
@@ -250,13 +278,19 @@ fn a_losing_wizard_offers_peace_and_says_why() -> TestResult {
 fn the_weaker_wizards_ally_against_the_one_that_leads() -> TestResult {
     let mut g = lopsided()?;
     // P1 and P0 are of a size; P2 is far ahead of both and has met them.
-    spawn(&mut g, P1, at(WEST_RIVAL.0, WEST_RIVAL.1), SPEARMEN, 8);
+    spawn(
+        &mut g,
+        P1,
+        at(WEST_RIVAL.0, WEST_RIVAL.1),
+        95, /* high_elf_spearmen */
+        8,
+    );
     g.add_player(P2, "Leader");
     for (x, y) in [(32, 3), (32, 9), (28, 10)] {
         found(&mut g, P2, x, y);
     }
     wizard(&mut g, P2, &[(RealmId::new(LIFE), 3)], &[], None);
-    spawn(&mut g, P2, at(32, 3), SPEARMEN, 60);
+    spawn(&mut g, P2, at(32, 3), 95 /* high_elf_spearmen */, 60);
     g.make_contact(P0, P2);
     g.make_contact(P1, P2);
     for (x, y) in [(32, 3), (32, 9), (28, 10)] {
@@ -281,7 +315,13 @@ fn the_weaker_wizards_ally_against_the_one_that_leads() -> TestResult {
 fn an_alliance_against_a_leader_ends_when_the_leader_no_longer_leads() -> TestResult {
     for end in [0, 1] {
         let mut g = lopsided()?;
-        spawn(&mut g, P1, at(WEST_RIVAL.0, WEST_RIVAL.1), SPEARMEN, 8);
+        spawn(
+            &mut g,
+            P1,
+            at(WEST_RIVAL.0, WEST_RIVAL.1),
+            95, /* high_elf_spearmen */
+            8,
+        );
         g.add_player(P2, "Leader");
         found(&mut g, P2, 32, 3);
         wizard(&mut g, P2, &[(RealmId::new(LIFE), 3)], &[], None);

@@ -427,21 +427,17 @@ mod tests {
     use f4x_core::battle::Side;
     use f4x_def::testdir::TestResult;
 
-    const SPEARMEN: u16 = 104; // high_men_spearmen
-    const SWORDSMEN: u16 = 105; // high_men_swordsmen
-    const LONGBOWMEN: u16 = 101; // high_elf_longbowmen
-    const PEGASAI: u16 = 103; // high_elf_pegasai, fliers
-    const SETTLERS: u16 = 111; // high_men_settlers: no attack
-    const PALADINS: u16 = 113; // high_men_paladins
-    const GREAT_WYRM: u16 = 189; // has Merging
-
     fn duel(a: Pos, d: Pos) -> Battle {
-        real_battle(&[(SWORDSMEN, a)], &[(SPEARMEN, d)], 1)
+        real_battle(
+            &[(105 /* high_men_swordsmen */, a)],
+            &[(104 /* high_men_spearmen */, d)],
+            1,
+        )
     }
 
     #[test]
     fn a_side_that_the_enemy_outweighs_four_to_one_flees_and_an_even_one_fights() {
-        let (weak, strong) = (SETTLERS, GREAT_WYRM);
+        let (weak, strong) = (111 /* high_men_settlers */, 189 /* great_wyrm */);
         let lopsided = real_battle(
             &[(weak, (3, 5)), (weak, (3, 6))],
             &[(strong, (10, 5)), (strong, (10, 6))],
@@ -464,8 +460,11 @@ mod tests {
         // Two enemies stand next to the attacker: a full-strength unit and a nearly dead one of
         // the same kind. The wounded one gives the bigger share of a kill.
         let mut b = real_battle(
-            &[(SWORDSMEN, (5, 5))],
-            &[(PALADINS, (6, 5)), (PALADINS, (6, 6))],
+            &[(105 /* high_men_swordsmen */, (5, 5))],
+            &[
+                (113 /* high_men_paladins */, (6, 5)),
+                (113 /* high_men_paladins */, (6, 6)),
+            ],
             1,
         );
         b.units[2].figures = 1;
@@ -483,7 +482,11 @@ mod tests {
 
     #[test]
     fn a_shooter_with_shots_left_stays_put_instead_of_walking_into_melee() -> TestResult {
-        let mut b = real_battle(&[(LONGBOWMEN, (3, 5))], &[(SPEARMEN, (12, 5))], 1);
+        let mut b = real_battle(
+            &[(101 /* high_elf_longbowmen */, (3, 5))],
+            &[(104 /* high_men_spearmen */, (12, 5))],
+            1,
+        );
         assert_eq!(
             next_command(&b),
             BattleCommand::Shoot { unit: 0, target: 1 }
@@ -499,7 +502,11 @@ mod tests {
 
     #[test]
     fn a_shooter_out_of_shots_walks_up_to_the_enemy() {
-        let mut b = real_battle(&[(LONGBOWMEN, (3, 5))], &[(SPEARMEN, (12, 5))], 1);
+        let mut b = real_battle(
+            &[(101 /* high_elf_longbowmen */, (3, 5))],
+            &[(104 /* high_men_spearmen */, (12, 5))],
+            1,
+        );
         b.units[0].ammo = 0;
         assert!(matches!(
             next_command(&b),
@@ -509,7 +516,11 @@ mod tests {
 
     #[test]
     fn a_defender_behind_walls_holds_its_ground() -> TestResult {
-        let mut b = real_battle(&[(SWORDSMEN, (3, 12))], &[(SPEARMEN, (13, 11))], 1);
+        let mut b = real_battle(
+            &[(105 /* high_men_swordsmen */, (3, 12))],
+            &[(104 /* high_men_spearmen */, (13, 11))],
+            1,
+        );
         b.map = BattleMap::open().with_city(true);
         b.apply(BattleCommand::EndTurn)
             .map_err(|e| format!("{e:?}"))?;
@@ -520,7 +531,11 @@ mod tests {
 
     #[test]
     fn a_walker_expects_nothing_from_a_flier_in_melee_unless_the_setting_allows_it() {
-        let b = real_battle(&[(SWORDSMEN, (3, 5))], &[(PEGASAI, (10, 5))], 1);
+        let b = real_battle(
+            &[(105 /* high_men_swordsmen */, (3, 5))],
+            &[(103 /* high_elf_pegasai */, (10, 5))],
+            1,
+        );
         let (walker, bat) = (&b.units[0], &b.units[1]);
         assert!(bat.flies);
         let expect = |rule| expected_damage(walker, bat, false, rule);
@@ -534,9 +549,9 @@ mod tests {
         // Paladins strike spearmen (defence 2) and klackon spearmen (defence 4, as many figures
         // with as many hit points), and werewolves, which are immune to normal weapons.
         let b = real_battle(
-            &[(PALADINS, (3, 5))],
+            &[(113 /* high_men_paladins */, (3, 5))],
             &[
-                (SPEARMEN, (10, 5)),
+                (104 /* high_men_spearmen */, (10, 5)),
                 (114 /* klackon_spearmen */, (10, 6)),
                 (168 /* werewolves */, (10, 7)),
             ],
@@ -566,7 +581,7 @@ mod tests {
     fn a_walker_outmatched_by_fliers_it_cannot_hurt_holds_its_place() {
         // As strong as it is: the walk goes on (it blocks and fights what comes).
         let b = real_battle(
-            &[(SWORDSMEN, (3, 5))],
+            &[(105 /* high_men_swordsmen */, (3, 5))],
             &[(
                 66, /* draconian_spearmen: fliers no stronger than ours */
                 (10, 5),
@@ -578,7 +593,11 @@ mod tests {
             BattleCommand::Move { unit: 0, .. }
         ));
         // Stronger (a sky drake), and out of reach for a walker's melee: it stays.
-        let b = real_battle(&[(SWORDSMEN, (3, 5))], &[(196 /* sky_drake */, (10, 5))], 1);
+        let b = real_battle(
+            &[(105 /* high_men_swordsmen */, (3, 5))],
+            &[(196 /* sky_drake */, (10, 5))],
+            1,
+        );
         assert!(b.units[1].flies);
         assert_eq!(next_command(&b), BattleCommand::Done { unit: 0 });
     }
@@ -587,8 +606,11 @@ mod tests {
     fn a_hurt_merging_unit_with_an_enemy_near_goes_under_and_comes_up_beside_a_target() -> TestResult
     {
         let mut b = real_battle(
-            &[(GREAT_WYRM, (5, 5)), (SPEARMEN, (2, 2))],
-            &[(PALADINS, (6, 5))],
+            &[
+                (189 /* great_wyrm */, (5, 5)),
+                (104 /* high_men_spearmen */, (2, 2)),
+            ],
+            &[(113 /* high_men_paladins */, (6, 5))],
             1,
         );
         assert_eq!(merge_order(&b), None, "whole: it fights");
@@ -650,14 +672,14 @@ mod tests {
             let mut b = real_battle(
                 &[
                     (110 /* high_men_engineers: wall crusher */, (6, 12)),
-                    (PALADINS, (6, 11)),
-                    (PALADINS, (6, 13)),
-                    (PALADINS, (5, 12)),
+                    (113 /* high_men_paladins */, (6, 11)),
+                    (113 /* high_men_paladins */, (6, 13)),
+                    (113 /* high_men_paladins */, (5, 12)),
                 ],
                 &[
-                    (SPEARMEN, (12, 12)),
-                    (SPEARMEN, (13, 11)),
-                    (SPEARMEN, (13, 12)),
+                    (104 /* high_men_spearmen */, (12, 12)),
+                    (104 /* high_men_spearmen */, (13, 11)),
+                    (104 /* high_men_spearmen */, (13, 12)),
                 ],
                 seed,
             );

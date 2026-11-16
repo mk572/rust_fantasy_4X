@@ -280,8 +280,6 @@ mod tests {
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    const SPEARMEN: u16 = 104; // high_men_spearmen
-
     /// Player 0 with a city on the coast and a second one inland, and its circle on the coast.
     fn two_cities() -> Result<Game, Box<dyn std::error::Error>> {
         let mut g = game(COAST_CITY, 8 /* high_men */);
@@ -304,15 +302,13 @@ mod tests {
         PlayerView::new(g, P0).garrison(pos).len()
     }
 
-    const PALADINS: u16 = 113; // high_men_paladins
-
     #[test]
     fn late_in_the_game_the_cheap_units_of_a_full_city_are_let_go_and_the_strong_stay() -> TestResult
     {
         let mut g = two_cities()?;
         let coast = at(COAST_CITY.0, COAST_CITY.1);
-        spawn(&mut g, P0, coast, SPEARMEN, 6);
-        let paladins = spawn(&mut g, P0, coast, PALADINS, 2);
+        spawn(&mut g, P0, coast, 104 /* high_men_spearmen */, 6);
+        let paladins = spawn(&mut g, P0, coast, 113 /* high_men_paladins */, 2);
         g.turn = 400;
         let mut ai = Ai::new(P0);
         thin_out(&mut ai, &mut g, &mut Vec::new());
@@ -329,7 +325,7 @@ mod tests {
     fn the_cheap_units_stay_early_in_the_game_and_in_a_threatened_city() -> TestResult {
         let mut g = two_cities()?;
         let coast = at(COAST_CITY.0, COAST_CITY.1);
-        spawn(&mut g, P0, coast, SPEARMEN, 6);
+        spawn(&mut g, P0, coast, 104 /* high_men_spearmen */, 6);
         g.turn = 20;
         let mut ai = Ai::new(P0);
         thin_out(&mut ai, &mut g, &mut Vec::new());
@@ -345,7 +341,7 @@ mod tests {
     fn a_city_with_nine_or_fewer_keeps_them() -> TestResult {
         let mut g = two_cities()?;
         let coast = at(COAST_CITY.0, COAST_CITY.1);
-        spawn(&mut g, P0, coast, SPEARMEN, 9);
+        spawn(&mut g, P0, coast, 104 /* high_men_spearmen */, 9);
         let mut ai = Ai::new(P0);
         disperse(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(held(&g, coast), 9);
@@ -360,7 +356,7 @@ mod tests {
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
         // A full square at the summoning circle holds one more than the AI lets stand there.
         let limit = g.max_tile();
-        spawn(&mut g, P0, coast, SPEARMEN, limit);
+        spawn(&mut g, P0, coast, 104 /* high_men_spearmen */, limit);
         assert_eq!(held(&g, inland), 0);
         let cap = city_cap(&PlayerView::new(&g, P0), coast);
         assert!(cap < limit, "the circle keeps a slot free");
@@ -374,7 +370,13 @@ mod tests {
     #[test]
     fn a_soldier_waiting_for_a_ship_is_not_movable() -> TestResult {
         let mut g = game(COAST_CITY, 8 /* high_men */);
-        let units = spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), SPEARMEN, 2);
+        let units = spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            104, /* high_men_spearmen */
+            2,
+        );
         let mut ai = Ai::new(P0);
         let view = PlayerView::new(&g, P0);
         assert_eq!(movable(&ai, &view, &units).len(), 2);
@@ -393,7 +395,7 @@ mod tests {
         let mut g = two_cities()?;
         let coast = at(COAST_CITY.0, COAST_CITY.1);
         let limit = g.max_tile();
-        spawn(&mut g, P0, coast, SPEARMEN, limit);
+        spawn(&mut g, P0, coast, 104 /* high_men_spearmen */, limit);
         let ai = Ai::new(P0);
         assert_eq!(held(&g, coast), limit);
         assert!(make_room(&ai, &mut g, &mut Vec::new()));
