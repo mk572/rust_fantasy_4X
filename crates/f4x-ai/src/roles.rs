@@ -8,12 +8,13 @@
 
 use crate::view::{distance, is_fighter, is_ship};
 use crate::Ai;
+use f4x_core::game::serial::Serial;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 
 /// What a unit is doing, as far as the AI's lists say.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Role {
     /// Standing in one of the wizard's cities.
     Garrison,
@@ -49,6 +50,146 @@ pub enum Role {
     Ordered,
 }
 
+/// A unit's role as the registry holds it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Assignment {
+    pub role: Role,
+    /// The turn the unit took the role.
+    pub since: u32,
+    /// Where the role sends it (a city to return to, a shore tile to wait on), if anywhere.
+    pub to: Option<Position>,
+    /// Where it stood at the last audit, and for how many audits in a row it has not moved.
+    pub last_pos: Option<Position>,
+    pub stuck: u32,
+}
+
+/// The one place a unit's role lives: at most one per unit. A role is taken with [`claim`] and
+/// handed back with [`release`]; a claim of a lower-priority role than the one held is refused.
+///
+/// [`claim`]: Registry::claim
+/// [`release`]: Registry::release
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct Registry {
+    map: std::collections::BTreeMap<f4x_core::game::serial::Serial, Assignment>,
+}
+
+impl Registry {
+    /// The role the unit holds.
+    pub fn role_of(&self, serial: Serial) -> Option<Role> {
+        self.map.get(&serial).map(|a| a.role)
+    }
+
+    /// Whether the unit holds `role`.
+    pub fn is(&self, serial: Serial, role: Role) -> bool {
+        self.role_of(serial) == Some(role)
+    }
+
+    /// Whether the unit holds any role of the registry.
+    pub fn has_role(&self, serial: Serial) -> bool {
+        self.map.contains_key(&serial)
+    }
+
+    /// Where the unit's role sends it, if it holds `role`.
+    pub fn target_of(&self, serial: Serial, role: Role) -> Option<Position> {
+        self.map
+            .get(&serial)
+            .filter(|a| a.role == role)
+            .and_then(|a| a.to)
+    }
+
+    /// The units holding `role`, in serial order.
+    pub fn members(&self, role: Role) -> Vec<Serial> {
+        self.map
+            .iter()
+            .filter(|(_, a)| a.role == role)
+            .map(|(s, _)| *s)
+            .collect()
+    }
+
+    /// The places the units holding `role` are sent to.
+    pub fn targets(&self, role: Role) -> Vec<Position> {
+        self.map
+            .values()
+            .filter(|a| a.role == role)
+            .filter_map(|a| a.to)
+            .collect()
+    }
+
+    /// Every unit that holds a role of the registry.
+    pub fn assigned(&self) -> Vec<Serial> {
+        self.map.keys().copied().collect()
+    }
+
+    /// The assignment of a unit.
+    pub fn get(&self, serial: Serial) -> Option<&Assignment> {
+        self.map.get(&serial)
+    }
+
+    /// Give the unit `role`. A unit that holds another role of equal or higher priority keeps it
+    /// and the claim is refused (the error is the role it holds); the same role is renewed.
+    pub fn claim(
+        &mut self,
+        serial: Serial,
+        role: Role,
+        turn: u32,
+        to: Option<Position>,
+    ) -> Result<(), Role> {
+        match self.map.get_mut(&serial) {
+            Some(held) if held.role == role => {
+                held.to = to;
+                Ok(())
+            }
+            Some(held) if held.role.priority() <= role.priority() => Err(held.role),
+            _ => {
+                self.map.insert(
+                    serial,
+                    Assignment {
+                        role,
+                        since: turn,
+                        to,
+                        last_pos: None,
+                        stuck: 0,
+                    },
+                );
+                Ok(())
+            }
+        }
+    }
+
+    /// Hand back the role, if the unit holds it. Whether it did.
+    pub fn release(&mut self, serial: Serial, role: Role) -> bool {
+        if self.is(serial, role) {
+            self.map.remove(&serial);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Hand back whatever role the unit holds.
+    pub fn release_any(&mut self, serial: Serial) {
+        self.map.remove(&serial);
+    }
+
+    /// Keep only the units `keep` says are still around and doing it.
+    pub fn retain(&mut self, mut keep: impl FnMut(Serial, &Assignment) -> bool) {
+        self.map.retain(|s, a| keep(*s, a));
+    }
+
+    /// Note where each unit stands at the audit: for how many in a row it has not moved.
+    pub fn note_positions(&mut self, mut at: impl FnMut(Serial) -> Option<Position>) {
+        for (s, a) in &mut self.map {
+            let here = at(*s);
+            if here.is_some() && here == a.last_pos {
+                a.stuck += 1;
+            } else {
+                a.stuck = 0;
+            }
+            a.last_pos = here;
+        }
+    }
+}
+
 impl Role {
     /// Which role wins when a unit is found in two lists: the lower number. A settler's task and
     /// a ship's voyage come first, the fall-backs last.
@@ -71,6 +212,66 @@ impl Role {
             Role::AwaitingOrders => 14,
         }
     }
+}
+
+/// The roles the old lists of [`Ai`] give a unit (the ones not yet moved into the registry).
+fn legacy_roles(ai: &Ai, serial: Serial) -> Vec<Role> {
+    let mut roles = Vec::new();
+    // A planar scout and a sea party are scouts with a way to go: one role, the narrower.
+    let planar = ai.planar == Some(serial);
+    let sea = ai.sea_party.contains(&serial);
+    let listed: [(bool, Role); 9] = [
+        (ai.scouts.contains(&serial) && !planar && !sea, Role::Scout),
+        (planar, Role::PlanarScout),
+        (ai.raiders.contains(&serial), Role::Raid),
+        (ai.muster.contains(&serial), Role::Muster),
+        (ai.marching.contains(&serial), Role::March),
+        (sea, Role::SeaParty),
+        (
+            ai.ferries
+                .iter()
+                .any(|f| f.ship == serial || f.group.contains(&serial)),
+            Role::Voyage,
+        ),
+        (ai.pickups.iter().any(|p| p.ship == serial), Role::Pickup),
+        (ai.settler_targets.contains_key(&serial), Role::Settle),
+    ];
+    roles.extend(listed.iter().filter(|(on, _)| *on).map(|&(_, r)| r));
+    if ai
+        .colonists
+        .is_some_and(|(a, b)| a == serial || b == serial)
+    {
+        roles.push(Role::Settle);
+    }
+    roles
+}
+
+/// Give a unit a role of the registry, and only if it keeps to one role. The unit's roles in the
+/// old lists count: a unit holding an equal or better role anywhere keeps it and the claim is
+/// refused (the error is that role); one that holds only worse roles is taken out of their lists
+/// first. So the registry never gives a unit a second role.
+pub fn claim(
+    ai: &mut Ai,
+    serial: Serial,
+    role: Role,
+    turn: u32,
+    to: Option<Position>,
+) -> Result<(), Role> {
+    let listed = legacy_roles(ai, serial);
+    if let Some(best) = listed
+        .iter()
+        .copied()
+        .filter(|&r| r != role)
+        .min_by_key(|r| r.priority())
+        .filter(|r| r.priority() <= role.priority())
+    {
+        return Err(best);
+    }
+    ai.roles.claim(serial, role, turn, to)?;
+    for held in listed.into_iter().filter(|&r| r != role) {
+        release(ai, serial, held);
+    }
+    Ok(())
 }
 
 /// Take the unit out of the list that gives it `role`: the losing role of a unit found in two.
@@ -98,11 +299,8 @@ fn release(ai: &mut Ai, serial: f4x_core::game::serial::Serial, role: Role) {
                 f.group.retain(|s| *s != serial);
             }
         }
-        Role::AwaitTransport => {
-            ai.waiting.remove(&serial);
-        }
-        Role::Return => {
-            ai.returning.remove(&serial);
+        Role::AwaitTransport | Role::Return => {
+            ai.roles.release(serial, role);
         }
         // Derived from the world, or held by the unit's own task: nothing to take it out of.
         Role::Settle
@@ -145,35 +343,9 @@ pub fn derive(ai: &Ai, view: &PlayerView) -> Vec<Held> {
             Class::Other
         };
         let serial = view.serial_of(unit);
-        let mut roles = Vec::new();
-        // A planar scout and a sea party are scouts with a way to go: one role, the narrower.
-        let planar = ai.planar == Some(serial);
-        let sea = ai.sea_party.contains(&serial);
-        let listed: [(bool, Role); 9] = [
-            (ai.scouts.contains(&serial) && !planar && !sea, Role::Scout),
-            (planar, Role::PlanarScout),
-            (ai.raiders.contains(&serial), Role::Raid),
-            (ai.muster.contains(&serial), Role::Muster),
-            (ai.marching.contains(&serial), Role::March),
-            (sea, Role::SeaParty),
-            (
-                ai.ferries
-                    .iter()
-                    .any(|f| f.ship == serial || f.group.contains(&serial)),
-                Role::Voyage,
-            ),
-            (ai.pickups.iter().any(|p| p.ship == serial), Role::Pickup),
-            (ai.settler_targets.contains_key(&serial), Role::Settle),
-        ];
-        roles.extend(listed.iter().filter(|(on, _)| *on).map(|&(_, r)| r));
-        if ai.waiting.contains_key(&serial) {
+        let mut roles = legacy_roles(ai, serial);
+        if ai.roles.is(serial, Role::AwaitTransport) {
             roles.push(Role::AwaitTransport);
-        }
-        if ai
-            .colonists
-            .is_some_and(|(a, b)| a == serial || b == serial)
-        {
-            roles.push(Role::Settle);
         }
         if roles.is_empty() {
             let in_city = view
@@ -183,7 +355,7 @@ pub fn derive(ai: &Ai, view: &PlayerView) -> Vec<Held> {
             match class {
                 Class::Soldier if in_city => roles.push(Role::Garrison),
                 Class::Ship if in_city => roles.push(Role::Docked),
-                _ if ordered && ai.returning.contains_key(&serial) => roles.push(Role::Return),
+                _ if ordered && ai.roles.is(serial, Role::Return) => roles.push(Role::Return),
                 _ if ordered => roles.push(Role::Ordered),
                 _ => roles.push(Role::AwaitingOrders),
             }
@@ -217,6 +389,9 @@ pub fn tally(held: &[Held]) -> Tally {
     t
 }
 
+/// Audits in a row a soldier walking home may stand still before the role is taken from it.
+const RETURN_PATIENCE: u32 = 5;
+
 /// The end-of-turn check: every unit the wizard owns is looked at, each turn, and has a role. A
 /// soldier with none (a lone unit, or a party too small for any task, left on a tower or a road)
 /// walks to the nearest own city that can be reached and has room, and keeps that role (`Return`)
@@ -226,15 +401,25 @@ pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let counted = {
         let view = PlayerView::new(game, me);
-        // Soldiers that reached a city, or are gone, are no longer on their way home.
+        // Soldiers that reached a city, or are gone, are no longer on their way home; one that
+        // has not moved for a few audits is given up, and found adrift again.
         let held = derive(ai, &view);
-        ai.returning.retain(|s, _| {
-            held.iter().any(|h| {
-                view.serial_of(h.unit) == *s
+        ai.roles.retain(|s, a| {
+            if a.role != Role::Return {
+                return true;
+            }
+            let outside = held.iter().any(|h| {
+                view.serial_of(h.unit) == s
                     && view
                         .unit_position(h.unit)
                         .is_some_and(|p| view.city_at(p).is_none())
-            })
+            });
+            outside && a.stuck < RETURN_PATIENCE
+        });
+        ai.roles.note_positions(|s| {
+            held.iter()
+                .find(|h| view.serial_of(h.unit) == s)
+                .and_then(|h| view.unit_position(h.unit))
         });
         // Roles are exclusive: a unit in two lists keeps the one that comes first and is taken
         // out of the others.
@@ -337,7 +522,7 @@ fn send_home(
                 sent = true;
                 let view = PlayerView::new(game, me);
                 for &u in &group {
-                    ai.returning.insert(view.serial_of(u), (home, game.turn));
+                    let _ = claim(ai, view.serial_of(u), Role::Return, game.turn, Some(home));
                 }
                 break;
             }
@@ -424,7 +609,11 @@ mod tests {
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         audit(&mut ai, &mut g, &mut events);
-        assert_eq!(ai.waiting.len(), 2, "{events:?}");
+        assert_eq!(
+            ai.roles.members(Role::AwaitTransport).len(),
+            2,
+            "{events:?}"
+        );
         let view = PlayerView::new(&g, P0);
         let held = derive(&ai, &view);
         for &u in &stranded {
@@ -457,6 +646,103 @@ mod tests {
         assert_eq!(other_held.class, Class::Other);
         assert_eq!(other_held.roles, vec![Role::AwaitingOrders]);
         assert_eq!(tally(&held).unassigned, 1);
+        Ok(())
+    }
+
+    fn serial(n: u64) -> f4x_core::game::serial::Serial {
+        f4x_core::game::serial::Serial(n)
+    }
+
+    /// The registry holds one role per unit: a lower-priority claim on a held role is refused, a
+    /// better one takes over, and a release only gives back the role actually held.
+    #[test]
+    fn the_registry_holds_one_role_per_unit() {
+        let mut r = Registry::default();
+        let (a, b) = (serial(1), serial(2));
+        assert_eq!(r.claim(a, Role::Raid, 3, None), Ok(()));
+        assert_eq!(
+            r.claim(a, Role::Return, 4, None),
+            Err(Role::Raid),
+            "a raider is not sent home by a lower claim"
+        );
+        assert_eq!(r.role_of(a), Some(Role::Raid));
+        assert_eq!(r.claim(b, Role::Return, 4, None), Ok(()));
+        assert_eq!(
+            r.claim(b, Role::AwaitTransport, 5, None),
+            Ok(()),
+            "a better role takes over"
+        );
+        assert_eq!(r.role_of(b), Some(Role::AwaitTransport));
+        assert!(!r.release(b, Role::Return), "it does not hold that role");
+        assert!(r.release(b, Role::AwaitTransport));
+        assert!(!r.has_role(b));
+        assert_eq!(r.members(Role::Raid), vec![a]);
+        assert_eq!(r.assigned(), vec![a]);
+    }
+
+    /// The claim keeps a unit to one role even against the old lists: a better role there
+    /// refuses it, a worse one is taken over.
+    #[test]
+    fn a_claim_respects_the_roles_in_the_old_lists() {
+        let mut ai = Ai::new(P0);
+        let (raider, scout) = (serial(1), serial(2));
+        ai.raiders.push(raider);
+        ai.scouts.push(scout);
+        assert_eq!(
+            claim(&mut ai, raider, Role::Return, 5, None),
+            Err(Role::Raid),
+            "a raider is not sent home by the lower claim"
+        );
+        assert!(ai.raiders.contains(&raider));
+        assert!(!ai.roles.has_role(raider));
+        assert_eq!(claim(&mut ai, scout, Role::AwaitTransport, 5, None), Ok(()));
+        assert!(!ai.scouts.contains(&scout), "taken out of the worse list");
+        assert_eq!(ai.roles.role_of(scout), Some(Role::AwaitTransport));
+        assert_eq!(
+            legacy_roles(&ai, scout),
+            Vec::<Role>::new(),
+            "one role only"
+        );
+    }
+
+    /// The registry counts the audits a unit has stood still, and starts again when it moves.
+    #[test]
+    fn the_registry_counts_the_audits_a_unit_has_not_moved() {
+        let mut r = Registry::default();
+        let a = serial(1);
+        let _ = r.claim(a, Role::Return, 1, None);
+        let here = Some(crate::testworld::at(3, 3));
+        let elsewhere = Some(crate::testworld::at(4, 3));
+        for _ in 0..3 {
+            r.note_positions(|_| here);
+        }
+        assert_eq!(
+            r.get(a).map(|x| x.stuck),
+            Some(2),
+            "the first sight is no wait"
+        );
+        r.note_positions(|_| elsewhere);
+        assert_eq!(r.get(a).map(|x| x.stuck), Some(0));
+    }
+
+    /// A soldier given up on as stuck on its way home loses the role and is found again.
+    #[test]
+    fn a_soldier_that_does_not_get_home_loses_the_role_of_returning() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let lone = spawn(&mut g, P0, at(8, 6), 104, 1)[0];
+        let mut ai = Ai::new(P0);
+        let s = PlayerView::new(&g, P0).serial_of(lone);
+        let _ = ai
+            .roles
+            .claim(s, Role::Return, 1, Some(at(COAST_CITY.0, COAST_CITY.1)));
+        // It has no order and stands still.
+        for _ in 0..=RETURN_PATIENCE + 1 {
+            ai.roles.note_positions(|_| Some(at(8, 6)));
+        }
+        audit(&mut ai, &mut g, &mut Vec::new());
+        // The old assignment was dropped; the audit found the soldier adrift and sent it again.
+        assert_eq!(ai.roles.get(s).map(|a| a.since), Some(g.turn));
         Ok(())
     }
 

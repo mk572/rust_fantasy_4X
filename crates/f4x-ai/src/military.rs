@@ -117,7 +117,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         .collect();
     ferrying.extend(ai.raiders.iter().copied());
     // Soldiers waiting on a shore for a ship have their role (`pickup.rs`).
-    ferrying.extend(ai.waiting.keys().copied());
+    ferrying.extend(ai.roles.assigned());
     let own_cities: Vec<Position> = PlayerView::new(game, me)
         .my_cities()
         .into_iter()

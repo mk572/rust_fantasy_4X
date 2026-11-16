@@ -36,7 +36,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
         let busy = |serial| {
             ai.sea_party.contains(&serial)
-                || ai.waiting.contains_key(&serial)
+                || ai.roles.has_role(serial)
                 || ai.ferries.iter().any(|f| f.group.contains(&serial))
         };
         let healers: Vec<Position> = view

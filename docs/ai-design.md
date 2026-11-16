@@ -732,6 +732,11 @@ Every unit has exactly one role, and none has an empty one:
   keeps the role `Return` (`Ai::returning`) until it is in the city; if no city can be reached it
   waits on a shore (`AwaitTransport`). Ships and other units (settlers, engineers, spirits) in it
   are counted (`ships and other units with no role`), which is the list of roles still to build.
+- - **The registry** (`Ai::roles`, `roles::Registry`) is the one place a role lives: a map from a
+  unit's serial to one assignment (role, since, target, standstill count). `roles::claim` is the only
+  way to take a role, and it refuses a unit that holds an equal or better role, in the registry or
+  in an old list; a worse one is taken out of its lists first. `AwaitTransport` and `Return` are in
+  the registry; the other roles are still in the lists and move in family by family (task 624).
 - A soldier standing in an own city is on garrison duty, a ship in a city is docked, and a unit
   with an order is on its way somewhere. The plan to hold the roles in one registry, and the new roles
 (perimeter, escort, road, meld, await-transport), are tasks 624 to 629. Await-transport covers

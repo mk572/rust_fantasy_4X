@@ -3,7 +3,8 @@
 //! wait there (`Role::AwaitTransport`), a free ship sails to the sea square beside it, they step
 //! aboard with an ordinary move, and the ship carries them to the nearest own port.
 //!
-//! The roles are held in `Ai::waiting` (unit, shore tile) and the voyages in `Ai::pickups`.
+//! The waiting soldiers hold the role `AwaitTransport` in the registry (`Ai::roles`, with the
+//! shore tile as its target) and the voyages are in `Ai::pickups`.
 
 use crate::view::is_ship;
 use crate::Ai;
@@ -65,10 +66,14 @@ pub fn wait_at_shore(ai: &mut Ai, game: &mut Game, units: &[hecs::Entity]) -> bo
                 .collect::<Vec<Serial>>(),
         )
     };
+    let turn = game.turn;
+    let mut any = false;
     for s in serials {
-        ai.waiting.insert(s, tile);
+        // A soldier that holds a better role keeps it.
+        any |= crate::roles::claim(ai, s, crate::roles::Role::AwaitTransport, turn, Some(tile))
+            .is_ok();
     }
-    true
+    any
 }
 
 /// One turn of the waiting soldiers and the ships that fetch them.
@@ -82,11 +87,12 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .into_iter()
             .map(|u| (view.serial_of(u), view.unit_position(u)))
             .collect();
-        ai.waiting.retain(|s, _| {
-            alive
-                .iter()
-                .find(|(a, _)| a == s)
-                .is_some_and(|(_, p)| p.is_some_and(|p| view.city_at(p).is_none()))
+        ai.roles.retain(|s, a| {
+            a.role != crate::roles::Role::AwaitTransport
+                || alive
+                    .iter()
+                    .find(|(x, _)| *x == s)
+                    .is_some_and(|(_, p)| p.is_some_and(|p| view.city_at(p).is_none()))
         });
         ai.pickups
             .retain(|p| alive.iter().any(|(a, _)| *a == p.ship));
@@ -95,7 +101,12 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
         ai.pickups.retain(|p| !p.group.is_empty());
     }
-    if ai.waiting.is_empty() && ai.pickups.is_empty() {
+    if ai
+        .roles
+        .members(crate::roles::Role::AwaitTransport)
+        .is_empty()
+        && ai.pickups.is_empty()
+    {
         return;
     }
     walk_to_shore(ai, game, events);
@@ -114,7 +125,10 @@ fn walk_to_shore(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let aboard: Vec<Serial> = ai.pickups.iter().flat_map(|p| p.group.clone()).collect();
         for u in view.my_units() {
             let serial = view.serial_of(u);
-            let Some(&tile) = ai.waiting.get(&serial) else {
+            let Some(tile) = ai
+                .roles
+                .target_of(serial, crate::roles::Role::AwaitTransport)
+            else {
                 continue;
             };
             let Some(pos) = view.unit_position(u) else {
@@ -172,7 +186,7 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
             .collect();
         view.sort_by_serial(&mut free);
         let taken: Vec<Serial> = ai.pickups.iter().flat_map(|p| p.group.clone()).collect();
-        let mut tiles: Vec<Position> = ai.waiting.values().copied().collect();
+        let mut tiles: Vec<Position> = ai.roles.targets(crate::roles::Role::AwaitTransport);
         tiles.sort_by_key(|p| (p.plane as u8, p.y, p.x));
         tiles.dedup();
         for tile in tiles {
@@ -181,7 +195,7 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
                 .into_iter()
                 .filter(|&u| {
                     let s = view.serial_of(u);
-                    ai.waiting.get(&s) == Some(&tile)
+                    ai.roles.target_of(s, crate::roles::Role::AwaitTransport) == Some(tile)
                         && view.unit_position(u) == Some(tile)
                         && !taken.contains(&s)
                 })
@@ -276,7 +290,7 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
     if everyone && in_port {
         // Delivered: the soldiers are in a city, which is where they belong.
         for s in &pickup.group {
-            ai.waiting.remove(s);
+            ai.roles.release(*s, crate::roles::Role::AwaitTransport);
         }
         ai.pickups.retain(|p| p.ship != pickup.ship);
         return;
@@ -322,6 +336,7 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::roles::Role;
     use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0};
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -346,18 +361,22 @@ mod tests {
         g.balance_farmers(P0);
         let mut ai = Ai::new(P0);
         assert!(wait_at_shore(&mut ai, &mut g, &soldiers));
-        assert_eq!(ai.waiting.len(), 3);
+        assert_eq!(ai.roles.members(Role::AwaitTransport).len(), 3);
         let mut events = Vec::new();
         for _ in 0..60 {
             run(&mut ai, &mut g, &mut events);
             g.apply(f4x_core::game::Command::EndTurn);
             g.balance_farmers(P0);
-            if ai.waiting.is_empty() {
+            if ai.roles.members(Role::AwaitTransport).is_empty() {
                 break;
             }
         }
         let view = PlayerView::new(&g, P0);
-        assert!(ai.waiting.is_empty(), "{:?}", ai.waiting);
+        assert!(
+            ai.roles.members(Role::AwaitTransport).is_empty(),
+            "{:?}",
+            ai.roles
+        );
         assert!(ai.pickups.is_empty(), "{:?}", ai.pickups);
         for &u in &soldiers {
             assert_eq!(view.unit_position(u), Some(port), "the soldiers are home");
@@ -382,11 +401,11 @@ mod tests {
             g.apply(f4x_core::game::Command::EndTurn);
             g.balance_farmers(P0);
         }
-        assert_eq!(ai.waiting.len(), 2);
+        assert_eq!(ai.roles.members(Role::AwaitTransport).len(), 2);
         assert!(ai.pickups.is_empty());
         let view = PlayerView::new(&g, P0);
         for &u in &soldiers {
-            let tile = ai.waiting.get(&view.serial_of(u)).copied();
+            let tile = ai.roles.target_of(view.serial_of(u), Role::AwaitTransport);
             assert_eq!(view.unit_position(u), tile, "each waits on its shore tile");
         }
         Ok(())

@@ -32,7 +32,7 @@ mod plan_clock;
 mod race;
 mod raze;
 mod recover;
-mod roles;
+pub mod roles;
 mod scout;
 mod shortfall;
 mod siege;
@@ -166,17 +166,14 @@ pub struct Ai {
     record_refusals: bool,
     #[serde(skip)]
     refusals: RefCell<Vec<Refusal>>,
-    /// Soldiers stranded where no own city can be reached on foot, each with the shore tile it
-    /// waits at for a ship (`pickup.rs`).
-    #[serde(default, serialize_with = "persist::sorted")]
-    waiting: HashMap<Serial, Position>,
+    /// The one place a unit's role lives (`roles.rs`). It holds `AwaitTransport` (stranded
+    /// soldiers and the shore tile each waits at, `pickup.rs`) and `Return` (soldiers walking to
+    /// a city); the other roles are still in the lists below.
+    #[serde(default)]
+    roles: roles::Registry,
     /// The ships on their way to fetch them.
     #[serde(default)]
     pickups: Vec<pickup::Pickup>,
-    /// Soldiers walking to a city because they had no role: the city and the turn they were sent
-    /// (`roles.rs`).
-    #[serde(default, serialize_with = "persist::sorted")]
-    returning: HashMap<Serial, (Position, u32)>,
     /// The units out on a raid of a tower, node or encounter site (`site.rs`).
     raiders: Vec<Serial>,
     /// The site each raider is set on, so a party keeps to it as it walks (`site.rs`).
@@ -291,9 +288,8 @@ impl Ai {
             statecraft: Default::default(),
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
-            waiting: HashMap::new(),
+            roles: roles::Registry::default(),
             pickups: Vec::new(),
-            returning: HashMap::new(),
             raiders: Vec::new(),
             raid_targets: HashMap::new(),
             clock: plan_clock::PlanClock::default(),

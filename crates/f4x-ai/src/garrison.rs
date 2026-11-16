@@ -39,7 +39,7 @@ fn movable(ai: &Ai, view: &PlayerView, units: &[hecs::Entity]) -> Vec<hecs::Enti
             || ai.marching.contains(&serial)
             || ai.sea_party.contains(&serial)
             || ai.planar == Some(serial)
-            || ai.waiting.contains_key(&serial)
+            || ai.roles.has_role(serial)
             || ai.ferries.iter().any(|f| f.group.contains(&serial))
     };
     units
@@ -380,8 +380,12 @@ mod tests {
         let mut ai = Ai::new(P0);
         let view = PlayerView::new(&g, P0);
         assert_eq!(movable(&ai, &view, &units).len(), 2);
-        ai.waiting
-            .insert(view.serial_of(units[0]), at(COAST_CITY.0, COAST_CITY.1));
+        let _ = ai.roles.claim(
+            view.serial_of(units[0]),
+            crate::roles::Role::AwaitTransport,
+            1,
+            Some(at(COAST_CITY.0, COAST_CITY.1)),
+        );
         assert_eq!(movable(&ai, &view, &units), vec![units[1]]);
         Ok(())
     }
