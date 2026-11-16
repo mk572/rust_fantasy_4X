@@ -238,6 +238,9 @@ stranded soldiers waiting for a ship.
 
 ## 7. Plans and ends
 
+- A settler that waits in the port for the colony ship holds `AwaitTransport` with the port as its
+  `to` (`colony.rs`); the pickup planner leaves it alone (a city tile is no shore to fetch from);
+  the ship that takes it makes it `Colonize`.
 - Spirits: a spirit with a node to meld with holds `Meld`; one with none is recruited as a `Scout`
   (it flies); a node opening takes it from the scouting. The wizard summons a spirit ahead of
   every other spell when it has none and a node is open, a raid is out to clear one, or in the
@@ -257,8 +260,7 @@ stranded soldiers waiting for a ship.
 ## 8. Known gaps
 
 - No ship is built for a pickup; a stranded group waits until a free ship exists (task 635).
-- Healers and weak heroes get no escort (task 634); settlers waiting for a colony ship do not hold
-  `AwaitTransport` (task 636); `Muster` is only for the tower siege (task 637).
+- Healers and weak heroes get no escort (task 634); `Muster` is only for the tower siege (task 637).
 - The ship states `TransportSpace` and `TransportReady` follow the ship's order and passengers;
   The boarding decision is recorded in the registry (the passenger's `Voyage` or `AwaitTransport`
   with `with` = the ship), which is where it should be.

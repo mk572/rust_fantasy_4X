@@ -126,7 +126,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 630 | Low | AI | Road role: a second engineer when the roads are long (roads toward towers and the escort for engineers are built) |
 | 634 | Medium | AI | Escorts for healers and weak heroes; a charge waits when its escort is lost and an enemy is near |
 | 635 | High | AI | The autobuilder reads the registry: ships, scouts, soldiers and attackers follow the roles |
-| 636 | Medium | AI | Settlers waiting for a ship to colonize hold `AwaitTransport` |
 | 637 | Medium | AI | Muster is for assembling any attack, raid or march, not only towers |
 
 ## Descriptions
@@ -421,7 +420,5 @@ and make invalidation explicit and testable so the client never displays stale i
 **634. Escorts for healers and weak heroes; a charge waits when its escort is lost and an enemy is near.** Asked for by the user, 17 November 2026. Healers and heroes of low experience travel with an escort like settlers and engineers (`escort.rs`). The charge does not walk on while its escort is lost and an enemy is near. *Needs:* 624.
 
 **635. The autobuilder reads the registry.** Asked for by the user, 17 November 2026. Many ships `TransportFree` or units `AwaitingOrders`: no ship wanted. Many units `AwaitTransport` and no ship free: build a ship. Nobody holds `Scout`: build a unit that can scout (or summon a spirit). Too many military units `AwaitingOrders`: build no more military. At war and nobody holds `March`: build more attackers. *Needs:* 624.
-
-**636. Settlers waiting for a ship to colonize hold `AwaitTransport`.** Asked for by the user, 17 November 2026. A settler that waits in a port for the colony ship holds `AwaitTransport` (tied to the ship via `with` once one takes it), like a stranded soldier, so the transport planner sees one list of waiting units. It keeps `Colonize` once aboard. *Needs:* 624.
 
 **637. Muster is for assembling any attack, raid or march, not only towers.** Asked for by the user, 17 November 2026. `Muster` belongs to the tower siege today (`siege.rs`). A raid on a node, a march on a city and a campaign also gather their party first under `Muster` (the gathering square as target) and hand it on to `Raid` / `March` when it is complete. *Needs:* 624.

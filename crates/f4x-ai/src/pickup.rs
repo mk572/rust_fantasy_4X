@@ -75,7 +75,10 @@ pub fn reachable_waiting(
         .into_iter()
         .filter(|&u| {
             let s = view.serial_of(u);
-            ai.roles.is(s, Role::AwaitTransport) && ai.roles.with_of(s).is_none()
+            ai.roles.is(s, Role::AwaitTransport)
+                && ai.roles.with_of(s).is_none()
+                // A settler waiting in the port for the colony ship is not for this ship.
+                && !view.unit_has_ability(u, f4x_def::rules::Ability::new(12))
         })
         .filter_map(|u| {
             // Already there: no turns at all.
@@ -157,10 +160,11 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .collect();
         ai.roles.retain(|s, a| {
             a.role != crate::roles::Role::AwaitTransport
-                || alive
-                    .iter()
-                    .find(|(x, _)| *x == s)
-                    .is_some_and(|(_, p)| p.is_some_and(|p| view.city_at(p).is_none()))
+                || alive.iter().find(|(x, _)| *x == s).is_some_and(|(_, p)| {
+                    // A soldier in a city is home; a settler waiting in the port for the
+                    // colony ship (its tile is the city) stays on the list.
+                    p.is_some_and(|p| view.city_at(p).is_none() || a.to == Some(p))
+                })
         });
         let all: Vec<Serial> = alive.iter().map(|(s, _)| *s).collect();
         ai.roles.prune(&all);
@@ -258,6 +262,10 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
         tiles.sort_by_key(|p| (p.plane as u8, p.y, p.x));
         tiles.dedup();
         for tile in tiles {
+            // The settlers waiting in a port have their own ship (`colony.rs`).
+            if view.city_at(tile).is_some() {
+                continue;
+            }
             let group: Vec<hecs::Entity> = view
                 .my_units()
                 .into_iter()

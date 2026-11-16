@@ -178,6 +178,19 @@ fn port_city(view: &PlayerView) -> Option<Position> {
 
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
+    // With no voyage planned no settler waits for a ship.
+    if ai.colony.is_none() {
+        let view = PlayerView::new(game, me);
+        let waiting: Vec<Serial> = ai
+            .roles
+            .targeted(crate::roles::Role::AwaitTransport)
+            .into_iter()
+            .filter(|&(_, t)| view.city_at(t).is_some())
+            .map(|(s, _)| s)
+            .collect();
+        ai.roles
+            .release_many(&waiting, crate::roles::Role::AwaitTransport);
+    }
     // Forget a voyage whose ship or settler is gone, or whose port was lost.
     {
         let view = PlayerView::new(game, me);
@@ -289,6 +302,18 @@ fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
                 to: colony.port,
             },
             events,
+        );
+    }
+    // The settler that waits in the port for the ship awaits transport.
+    if let (None, Some(settler)) = (ship, settler) {
+        let (serial, turn) = (PlayerView::new(game, me).serial_of(settler), game.turn);
+        // It has no site on this island (`expand.rs`): the voyage is its task now.
+        ai.roles.release(serial, crate::roles::Role::Settle);
+        let _ = ai.roles.claim(
+            serial,
+            crate::roles::Role::AwaitTransport,
+            turn,
+            Some(colony.port),
         );
     }
     let (Some(ship), Some(settler)) = (ship, settler) else {
@@ -513,6 +538,50 @@ mod tests {
             cities.iter().any(|&(_, p)| p.x >= 28),
             "a city on the east island: {cities:?}"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_settler_waiting_in_the_port_for_the_ship_awaits_transport_until_it_sails() -> TestResult {
+        use crate::roles::Role;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        build(
+            &mut g,
+            port(),
+            &[
+                12, /* ship_wrights_guild */
+                15, /* sawmill */
+                13, /* ship_yard */
+            ],
+        );
+        g.explore(P0, port(), HalfInt::from_int(12));
+        for x in [16, 22, 26, 30] {
+            g.explore(P0, at(x, 6), HalfInt::from_int(3));
+        }
+        g.explore(P0, at(ENEMY_CITY.0 + 4, ENEMY_CITY.1), HalfInt::from_raw(7));
+        fill_west(&mut g);
+        g.wizard_mut(P0)
+            .ok_or("the west wizard exists")?
+            .put(Some(f4x_core::wizard::objective::Objective::Expansionist));
+        let settler = spawn(&mut g, P0, port(), 111 /* high_men_settlers */, 1)[0];
+        let serial = PlayerView::new(&g, P0).serial_of(settler);
+        let mut ai = Ai::new(P0);
+        crate::expand::settlers(&mut ai, &mut g, &mut Vec::new());
+        run(&mut ai, &mut g, &mut Vec::new());
+        assert!(ai.colony.is_some(), "a voyage is planned");
+        assert_eq!(ai.roles.role_of(serial), Some(Role::AwaitTransport));
+        assert_eq!(
+            ai.roles.target_of(serial, Role::AwaitTransport),
+            Some(port())
+        );
+        // The pickup planner leaves it alone.
+        crate::pickup::run(&mut ai, &mut g, &mut Vec::new());
+        assert_eq!(ai.roles.role_of(serial), Some(Role::AwaitTransport));
+        assert!(crate::pickup::voyages(&ai).is_empty());
+        // The ship comes: the settler sails under `Colonize`.
+        spawn(&mut g, P0, port(), 36 /* galley */, 1);
+        run(&mut ai, &mut g, &mut Vec::new());
+        assert_eq!(ai.roles.role_of(serial), Some(Role::Colonize));
         Ok(())
     }
 }
