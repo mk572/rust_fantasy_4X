@@ -56,13 +56,16 @@ pub fn derive(ai: &Ai, view: &PlayerView) -> Vec<Held> {
         }
         let serial = view.serial_of(unit);
         let mut roles = Vec::new();
+        // A planar scout and a sea party are scouts with a way to go: one role, the narrower.
+        let planar = ai.planar == Some(serial);
+        let sea = ai.sea_party.contains(&serial);
         let listed: [(bool, Role); 7] = [
-            (ai.scouts.contains(&serial), Role::Scout),
-            (ai.planar == Some(serial), Role::PlanarScout),
+            (ai.scouts.contains(&serial) && !planar && !sea, Role::Scout),
+            (planar, Role::PlanarScout),
             (ai.raiders.contains(&serial), Role::Raid),
             (ai.muster.contains(&serial), Role::Muster),
             (ai.marching.contains(&serial), Role::March),
-            (ai.sea_party.contains(&serial), Role::SeaParty),
+            (sea, Role::SeaParty),
             (
                 ai.ferries.iter().any(|f| f.group.contains(&serial)),
                 Role::Voyage,

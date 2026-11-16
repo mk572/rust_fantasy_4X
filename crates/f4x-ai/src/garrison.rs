@@ -39,6 +39,7 @@ fn movable(ai: &Ai, view: &PlayerView, units: &[hecs::Entity]) -> Vec<hecs::Enti
             || ai.marching.contains(&serial)
             || ai.sea_party.contains(&serial)
             || ai.planar == Some(serial)
+            || ai.waiting.contains_key(&serial)
             || ai.ferries.iter().any(|f| f.group.contains(&serial))
     };
     units
@@ -368,6 +369,20 @@ mod tests {
         let mut ai = Ai::new(P0);
         disperse(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(held(&g, coast), cap, "the extra units left the coast");
+        Ok(())
+    }
+
+    /// A soldier waiting on a shore for a ship has its role: the garrison does not send it off.
+    #[test]
+    fn a_soldier_waiting_for_a_ship_is_not_movable() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let units = spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), SPEARMEN, 2);
+        let mut ai = Ai::new(P0);
+        let view = PlayerView::new(&g, P0);
+        assert_eq!(movable(&ai, &view, &units).len(), 2);
+        ai.waiting
+            .insert(view.serial_of(units[0]), at(COAST_CITY.0, COAST_CITY.1));
+        assert_eq!(movable(&ai, &view, &units), vec![units[1]]);
         Ok(())
     }
 
