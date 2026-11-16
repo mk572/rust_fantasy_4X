@@ -99,11 +99,13 @@ pub struct Metrics {
     pub gold_rushed: u32,
     /// Rival wizards whose last city this wizard took (`Tally::defeats` says which).
     pub wizards_eliminated: u32,
+    /// Cities taken on the plane the wizard did not start on (`Tally::far_captures` says which).
+    pub cities_captured_far_plane: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 55] {
+    pub fn rows(&self) -> [(&'static str, u32); 56] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -160,6 +162,10 @@ impl Metrics {
             ("production rushed", self.production_rushed),
             ("gold paid for rushing", self.gold_rushed),
             ("wizards eliminated", self.wizards_eliminated),
+            (
+                "cities captured on the other plane",
+                self.cities_captured_far_plane,
+            ),
         ]
     }
 
@@ -272,6 +278,7 @@ impl AddAssign for Metrics {
             production_rushed,
             gold_rushed,
             wizards_eliminated,
+            cities_captured_far_plane,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -328,6 +335,7 @@ impl AddAssign for Metrics {
         self.production_rushed += production_rushed;
         self.gold_rushed += gold_rushed;
         self.wizards_eliminated += wizards_eliminated;
+        self.cities_captured_far_plane += cities_captured_far_plane;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -362,6 +370,13 @@ pub struct Tally {
     /// lost its last city some other way, razed, destroyed or lost to rebels).
     #[serde(default)]
     defeats: Vec<(u32, u8, Option<u8>)>,
+    /// The plane (index) each wizard started on, by player number.
+    #[serde(default)]
+    home_plane: Vec<Option<usize>>,
+    /// Cities taken on the plane the taker did not start on: the turn, the taker, the former
+    /// owner and the plane (index).
+    #[serde(default)]
+    far_captures: Vec<(u32, u8, u8, usize)>,
 }
 
 impl Tally {
@@ -387,6 +402,14 @@ impl Tally {
             mana_left: vec![0; count + 1],
             last_taker: BTreeMap::new(),
             defeats: Vec::new(),
+            home_plane: (0..=count)
+                .map(|k| {
+                    game.wizard(PlayerId(k as u8))
+                        .and_then(|w| w.fortress())
+                        .map(|at| at.plane.index())
+                })
+                .collect(),
+            far_captures: Vec::new(),
         };
         tally.mana_left = tally.mana_now(game);
         tally.ships_at_start = tally.ships_now(game);
@@ -461,6 +484,12 @@ impl Tally {
         &self.defeats
     }
 
+    /// The cities taken on the other plane than the taker started on, in order: the turn, the
+    /// taker, the former owner and the plane (index).
+    pub fn far_captures(&self) -> &[(u32, u8, u8, usize)] {
+        &self.far_captures
+    }
+
     /// The mana each wizard spent over the game and holds now, by player number.
     pub fn mana(&self) -> (&[i64], &[i64]) {
         (&self.mana_spent, &self.mana_left)
@@ -510,19 +539,34 @@ impl Tally {
                 }
                 Event::CityCaptured { city, from, to } => {
                     self.last_taker.insert(from.0, to.0);
-                    let by_sea = game
+                    let at = game
                         .economy()
                         .cities()
                         .iter()
                         .find(|(e, ..)| e == city)
-                        .is_some_and(|(.., pos)| {
-                            self.landed_on.get(usize::from(to.0)).is_some_and(|l| {
-                                l.contains(&(pos.plane.index(), game.landmass_of(*pos)))
-                            })
-                        });
+                        .map(|(.., pos)| *pos);
+                    let by_sea = at.is_some_and(|pos| {
+                        self.landed_on.get(usize::from(to.0)).is_some_and(|l| {
+                            l.contains(&(pos.plane.index(), game.landmass_of(pos)))
+                        })
+                    });
+                    let far = at.is_some_and(|pos| {
+                        self.home_plane
+                            .get(usize::from(to.0))
+                            .copied()
+                            .flatten()
+                            .is_some_and(|home| home != pos.plane.index())
+                    });
+                    if far {
+                        if let Some(pos) = at {
+                            self.far_captures
+                                .push((game.turn, to.0, from.0, pos.plane.index()));
+                        }
+                    }
                     if let Some(m) = self.at(*to) {
                         m.cities_captured += 1;
                         m.cities_by_sea += u32::from(by_sea);
+                        m.cities_captured_far_plane += u32::from(far);
                     }
                     if let Some(m) = self.at(*from) {
                         m.cities_lost += 1;
@@ -852,6 +896,46 @@ mod tests {
                 p.0
             );
         }
+        Ok(())
+    }
+
+    /// A city taken on the plane the taker did not start on is a far capture, with its turn,
+    /// taker, former owner and plane; one taken on the home plane is not.
+    #[test]
+    fn a_city_taken_on_the_other_plane_is_a_far_capture() -> TestResult {
+        let game = new_game(
+            shipped(),
+            &NewGame {
+                seed: 4,
+                all_ai: true,
+                ..NewGame::with_wizards(2)
+            },
+        )?;
+        let (city, plane) = game
+            .economy()
+            .cities()
+            .iter()
+            .find(|(e, ..)| game.economy().city_owner(*e) == Some(PlayerId(1)))
+            .map(|(e, .., pos)| (*e, pos.plane.index()))
+            .ok_or("player 1 has no city")?;
+        let taken = |home: usize| -> Result<Tally, Box<dyn std::error::Error>> {
+            let mut tally = Tally::new(&game);
+            tally.home_plane[0] = Some(home);
+            let event = Event::CityCaptured {
+                city,
+                from: PlayerId(1),
+                to: PlayerId(0),
+            };
+            tally.record(&game, None, &[event]);
+            Ok(tally)
+        };
+        let far = taken(1 - plane)?;
+        assert_eq!(far.far_captures(), &[(game.turn, 0, 1, plane)]);
+        assert_eq!(far.of(PlayerId(0)).cities_captured_far_plane, 1);
+        let home = taken(plane)?;
+        assert!(home.far_captures().is_empty());
+        assert_eq!(home.of(PlayerId(0)).cities_captured_far_plane, 0);
+        assert_eq!(home.of(PlayerId(0)).cities_captured, 1);
         Ok(())
     }
 

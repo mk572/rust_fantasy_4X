@@ -590,6 +590,7 @@ pub fn game(
         }
     }
     println!("{tag}: defeats: {}", defeat_line(&game, &tally));
+    println!("{tag}: far captures: {}", far_capture_line(&tally));
     for line in unit_lines(&game) {
         println!("{tag}: {line}");
     }
@@ -1098,6 +1099,28 @@ fn unit_lines(game: &Game) -> Vec<String> {
         ));
     }
     lines
+}
+
+/// The cities taken on the other plane than the taker started on, per taker and former owner:
+/// `p0 took 3 of p2 on Myrror (first turn 540)`; `none` when no city was. Task 435's evidence: a
+/// wizard that crosses by a tower to a rival's cities on the other plane.
+fn far_capture_line(tally: &Tally) -> String {
+    // (taker, former owner, plane) -> (cities, turn of the first)
+    let mut groups: std::collections::BTreeMap<(u8, u8, usize), (u32, u32)> = Default::default();
+    for &(turn, taker, from, plane) in tally.far_captures() {
+        groups.entry((taker, from, plane)).or_insert((0, turn)).0 += 1;
+    }
+    if groups.is_empty() {
+        return "none".to_string();
+    }
+    groups
+        .iter()
+        .map(|(&(taker, from, plane), &(n, first))| {
+            let name = if plane == 0 { "Arcanus" } else { "Myrror" };
+            format!("p{taker} took {n} of p{from} on {name} (first turn {first})")
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Who defeated each wizard that fell: `p3 by p1 (turn 340)` for a rival wizard, `p0 by neutral

@@ -33,6 +33,7 @@ PROFILE = re.compile(
     r"retorts \[(?P<retorts>[^\]]*)\]"
 )
 DEFEATS = re.compile(r"^seed (?P<seed>\d+): defeats: (?P<body>.*)$")
+FAR = re.compile(r"^seed (?P<seed>\d+): far captures: (?P<body>.*)$")
 DEFEAT = re.compile(r"p(?P<loser>\d+) by (?P<killer>.+?) \(turn (?P<turn>\d+)\)")
 STATS = re.compile(r"^seed (?P<seed>\d+): stats p(?P<id>\d+): (?P<body>.*)$")
 
@@ -80,6 +81,8 @@ class Game:
     turn: int
     # Who defeated each fallen wizard: (loser, killer text such as "p1", "neutral gnoll", "nobody").
     defeats: list[tuple[int, str]] = field(default_factory=list)
+    # Cities taken on the plane the taker did not start on, as the soak prints them (`none` if none).
+    far: str = "none"
 
 
 def strongest_realm(books: str) -> str:
@@ -124,6 +127,10 @@ def parse(path: Path) -> tuple[list[Game], list[Wizard]]:
             for game in games:
                 if game.seed == int(m["seed"]) and game.log == log:
                     game.defeats = [(int(d["loser"]), d["killer"]) for d in DEFEAT.finditer(m["body"])]
+        elif m := FAR.match(line):
+            for game in games:
+                if game.seed == int(m["seed"]) and game.log == log:
+                    game.far = m["body"]
         elif m := STATS.match(line):
             wizard = wizards.setdefault((int(m["seed"]), int(m["id"])), Wizard((log, int(m["seed"])), int(m["id"])))
             for item in m["body"].split("; "):
@@ -146,13 +153,13 @@ def summary(log: str, games: list[Game]) -> str:
         "",
         defeat_summary(games),
         "",
-        "| Seed | Result | Turn | Wizards defeated, and by whom |",
-        "|---|---|---|---|",
+        "| Seed | Result | Turn | Wizards defeated, and by whom | Cities taken on the other plane |",
+        "|---|---|---|---|---|",
     ]
     for g in sorted(games, key=lambda g: g.seed):
         result = f"p{g.winner} {g.how}" if g.winner is not None else "**no winner**"
         who = ", ".join(f"p{loser} by {killer}" for loser, killer in g.defeats) or "none"
-        lines.append(f"| {g.seed} | {result} | {g.turn} | {who} |")
+        lines.append(f"| {g.seed} | {result} | {g.turn} | {who} | {g.far} |")
     return "\n".join(lines)
 
 
