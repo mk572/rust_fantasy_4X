@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 """Try the wizard gem of task 570 as a composition: a base diamond (the first five pictures of
-`art/magic.sheet.png`, turned in hue for the five newer colours) with the wizard's small face (the
-30 x 32 `halofam` picture, the `hall` role) put on it, the face's outer pixel blended with the
-diamond and the diamond's pixel just outside the face tinted with the face's edge colour.
+`art/magic.sheet.png`, turned in hue for the five newer colours) with the wizard's portrait (the
+33 x 35 pictures of the same sheet, rounded corners included) put on it. The original blends the
+portrait into the frame over its outer three rows and columns; here the outer pixels are shown with
+the hue of the diamond under them, at the weight the original has, and the middle third of the top
+and the bottom is shown as it is (the top of the head is not covered).
 
 Writes a side-by-side picture (the original gem on the left, the composed one on the right, six times
 larger) and prints, for each colour, how far the composed gems are from the original ones (mean
-absolute difference per channel; the plain paste of the face is the baseline). The weights are
-those measured on the original's gems (see task 570): the face's edge pixel keeps 0.68 of the face
-(0.30 at the bottom) and the ring just outside it takes 0.32 of the face's edge colour (0.45 at
-the bottom). Only the wizards whose `sheet2` has the standard layout (gems 0 to 9 and the face in
-the first row, 132 pixels apart) are used. Needs Pillow (.venv) and the local art.
+absolute difference per channel; a plain paste of the portrait is the baseline). Only the wizards
+whose `sheet2` has the standard layout (gems 0 to 9 in the first row, 132 pixels apart) and whose
+portrait cell is listed here are used. Needs Pillow (.venv) and the local art.
 
-    .venv/bin/python scripts/gem_compose.py [--out FILE]
+    .venv/bin/python scripts/gem_compose.py [--out FILE] [--overlap hue|tint]
 """
 import argparse
 import colorsys
-import glob
 import sys
 from pathlib import Path
 
@@ -28,31 +27,35 @@ from make_banner_colours import NEW, OLD, turn_rgb  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 ART = ROOT / "assets-local" / "art"
 GEM_W, GEM_H = 41, 43
-FACE_W, FACE_H = 30, 32
-FACE_AT = (6, 6)
+PORTRAIT_W, PORTRAIT_H = 33, 35
 CELL = 132
-FACE_CELL = 10
-# Weight of the face's edge pixel, and of the face's edge colour in the diamond's pixel outside the
-# face, by side: top, bottom, left, right.
-EDGE_WEIGHT = {"top": 0.68, "bottom": 0.30, "left": 0.69, "right": 0.66}
-RING_WEIGHT = {"top": 0.30, "bottom": 0.45, "left": 0.32, "right": 0.33}
-# The corners of the overlap are rounded: a face pixel this far from a corner (steps along the two
-# sides) keeps at most this much of the face, and the diamond's pixels outside the face within
-# CORNER_RING pixels of a corner are not tinted at all.
-CORNER_WEIGHT = {0: 0.0, 1: 0.2, 2: 0.55, 3: 0.85}
-CORNER_RING = 3
-# What the overlap shows of the face: its colour with the hue of the diamond under it ("hue"), or
-# with the hue and saturation of the diamond ("tint"), the lightness of the face kept.
+# Where a wizard's portrait is in `magic.sheet.png` (row and column of the 41 x 43 cells) and where
+# the original puts it in the gem (the artists placed each by hand: 4 to 6 across, 4 or 5 down).
+PORTRAITS = {
+    "ariel": ((2, 5), (4, 5)),
+    "horus": ((2, 1), (5, 4)),
+    "jafar": ((1, 3), (4, 5)),
+    "kali": ((3, 1), (6, 5)),
+    "oberic": ((1, 4), (5, 5)),
+    "raven": ((1, 0), (4, 4)),
+    "tauron": ((2, 4), (5, 5)),
+}
+DEFAULT_AT = (4, 5)
+# How much of the portrait the gem shows at 0, 1 and 2 pixels from the portrait's edge (the original's
+# values, measured over six wizards and five colours); from 3 pixels in it is all of it.
+RAMP = {
+    "top": (0.0, 0.6, 0.85),
+    "bottom": (0.1, 0.4, 0.7),
+    "left": (0.1, 0.45, 0.8),
+    "right": (0.1, 0.45, 0.8),
+}
+# In the middle third of the top and the bottom the same three rows show this much of the portrait
+# (the top of the head); the change comes in over EASE pixels on each side of the middle third.
+MIDDLE = (0.5, 1.0, 1.0)
+EASE = 3
+# What the outer pixels show of the portrait: its colour with the hue of the diamond under it
+# ("hue"), or with the hue and saturation of it ("tint"), the lightness of the portrait kept.
 OVERLAPS = ("hue", "tint")
-# On the face's edge rows (top and bottom) the shift to the diamond's hue is reduced in the middle
-# third of the width, down to this share, and comes back to the full shift over RAMP pixels.
-MIDDLE_SHIFT = 0.35
-RAMP = 3
-# The pixel added above and below the face in the middle third takes the colour of the face's edge
-# row (each row of the face stays on its own row of the gem), at this weight, and only this share of
-# the shift to the diamond's hue: it is closer to the portrait than to the diamond.
-CUTOUT_WEIGHT = 0.8
-CUTOUT_SHIFT = 0.15
 
 
 def base_diamonds():
@@ -72,76 +75,71 @@ def base_diamonds():
     return old + new
 
 
+def portrait(cell):
+    """The portrait in the cell (row, column) of the magic sheet."""
+    sheet = Image.open(ART / "magic.sheet.png").convert("RGBA")
+    row, column = cell
+    left, top = GEM_W * column, GEM_H * row
+    return sheet.crop((left, top, left + PORTRAIT_W, top + PORTRAIT_H))
+
+
 def mix(under, over, weight):
     return tuple(round(under[i] * (1 - weight) + over[i] * weight) for i in range(3)) + (255,)
 
 
-def middle_share(fx):
-    """How much of the shift to the diamond's hue the face's edge pixel at column `fx` gets."""
-    third = FACE_W / 3
-    outside = max(third - fx, fx - (FACE_W - 1 - third), 0)
-    return MIDDLE_SHIFT + (1 - MIDDLE_SHIFT) * min(outside / RAMP, 1)
+def shifted(portrait_pixel, diamond_pixel, overlap):
+    """The portrait's pixel turned to the hue (for "tint" also the saturation) of the diamond's."""
+    _, saturation, value = colorsys.rgb_to_hsv(*(c / 255 for c in portrait_pixel[:3]))
+    hue, diamond_saturation, _ = colorsys.rgb_to_hsv(*(c / 255 for c in diamond_pixel[:3]))
+    r, g, b = colorsys.hsv_to_rgb(hue, diamond_saturation if overlap == "tint" else saturation, value)
+    return (round(r * 255), round(g * 255), round(b * 255), 255)
 
 
-def edge_middle(fx):
-    """1 in the middle third of the face's width, falling to 0 over RAMP pixels on both sides."""
-    return (1 - middle_share(fx)) / (1 - MIDDLE_SHIFT)
+def middle(x):
+    """1 in the middle third of the portrait's width, falling to 0 over EASE pixels either side."""
+    third = PORTRAIT_W / 3
+    outside = max(third - x, x - (PORTRAIT_W - 1 - third), 0)
+    return 1 - min(outside / EASE, 1)
 
 
-def shifted(face_pixel, diamond_pixel, overlap, share=1.0):
-    """The face's pixel turned to the hue (and for "tint" the saturation) of the diamond's."""
-    fh, fs, fv = colorsys.rgb_to_hsv(*(c / 255 for c in face_pixel[:3]))
-    dh, ds, _ = colorsys.rgb_to_hsv(*(c / 255 for c in diamond_pixel[:3]))
-    r, g, b = colorsys.hsv_to_rgb(dh, ds if overlap == "tint" else fs, fv)
-    turned = (round(r * 255), round(g * 255), round(b * 255), 255)
-    return mix(face_pixel, turned, share)
+def ramp(side, distance, x=None):
+    """How much of the portrait shows `distance` pixels from the edge `side`."""
+    if distance >= len(RAMP[side]):
+        return 1.0
+    weight = RAMP[side][distance]
+    if x is not None and side in ("top", "bottom"):
+        weight += (MIDDLE[distance] - weight) * middle(x)
+    return weight
 
 
-def corner_steps(fx, fy):
-    """How many steps a face pixel is from the nearest corner of the face, along the two sides."""
-    return min(fx, FACE_W - 1 - fx) + min(fy, FACE_H - 1 - fy)
+def weight_at(x, y):
+    """How much of the portrait shows at (x, y) of the portrait: the least of the four edges."""
+    return min(
+        ramp("left", x),
+        ramp("right", PORTRAIT_W - 1 - x),
+        ramp("top", y, x),
+        ramp("bottom", PORTRAIT_H - 1 - y, x),
+    )
 
 
-def compose(diamond, face, overlap="hue"):
-    """The diamond with the face on it. With overlap `None` the face is pasted as it is."""
+def compose(diamond, face, at=DEFAULT_AT, overlap="hue"):
+    """The diamond with the portrait at `at`. With overlap `None` the portrait is pasted as it is."""
     gem = diamond.copy()
-    at_x, at_y = FACE_AT
-    blend = overlap is not None
-    if blend:
-        for x in range(at_x - 1, at_x + FACE_W + 1):
-            if min(x - (at_x - 1), at_x + FACE_W - x) < CORNER_RING:
+    for y in range(PORTRAIT_H):
+        for x in range(PORTRAIT_W):
+            pixel = face.getpixel((x, y))
+            if pixel[3] == 0:
                 continue
-            for y, side, fy in ((at_y - 1, "top", 0), (at_y + FACE_H, "bottom", FACE_H - 1)):
-                under = gem.getpixel((x, y))
-                bump = edge_middle(x - at_x)
-                column = min(max(x - at_x, 0), FACE_W - 1)
-                source = face.getpixel((column, fy))
-                share = CUTOUT_SHIFT * bump + middle_share(x - at_x) * (1 - bump)
-                over = shifted(source, under, overlap, share)
-                weight = RING_WEIGHT[side] + (CUTOUT_WEIGHT - RING_WEIGHT[side]) * bump
-                gem.putpixel((x, y), mix(under, over, weight))
-        for y in range(at_y, at_y + FACE_H):
-            if min(y - at_y, at_y + FACE_H - 1 - y) < CORNER_RING - 1:
+            spot = (x + at[0], y + at[1])
+            under = gem.getpixel(spot)
+            if overlap is None:
+                gem.putpixel(spot, pixel)
                 continue
-            for x, side, fx in ((at_x - 1, "left", 0), (at_x + FACE_W, "right", FACE_W - 1)):
-                under = gem.getpixel((x, y))
-                over = shifted(face.getpixel((fx, y - at_y)), under, overlap)
-                gem.putpixel((x, y), mix(under, over, RING_WEIGHT[side]))
-    for fy in range(FACE_H):
-        for fx in range(FACE_W):
-            at = (fx + at_x, fy + at_y)
-            under = gem.getpixel(at)
-            weight, colour = 1.0, face.getpixel((fx, fy))
-            if blend:
-                side = {0: "top", FACE_H - 1: "bottom"}.get(fy) or {0: "left", FACE_W - 1: "right"}.get(fx)
-                if side:
-                    weight = EDGE_WEIGHT[side]
-                    if side in ("top", "bottom"):
-                        weight += (1 - weight) * edge_middle(fx)
-                    share = middle_share(fx) if side in ("top", "bottom") else 1.0
-                    colour = shifted(colour, under, overlap, share)
-                weight = min(weight, CORNER_WEIGHT.get(corner_steps(fx, fy), 1.0))
-            gem.putpixel(at, mix(under, colour, weight))
+            # Only the overlap is turned to the diamond's hue: the less of the pixel shows, the more
+            # of it is turned; a pixel shown whole is not touched.
+            weight = weight_at(x, y)
+            turned = mix(pixel, shifted(pixel, under, overlap), 1 - weight)
+            gem.putpixel(spot, mix(under, turned, weight))
     return gem
 
 
@@ -156,37 +154,34 @@ def distance(a, b):
 
 
 def wizards():
-    """(name, original gems, face) of every wizard whose sheet has the standard layout."""
+    """(name, original gems, portrait, where it is) of the wizards listed in PORTRAITS."""
     found = []
-    for path in sorted(glob.glob(str(ART / "wizards" / "*.sheet2.png"))):
-        sheet = Image.open(path).convert("RGBA")
-        cell = sheet.crop((CELL * FACE_CELL, 0, CELL * (FACE_CELL + 1), 60))
-        if cell.getbbox() != (0, 0, FACE_W, FACE_H):
-            continue
+    for name, (cell, at) in PORTRAITS.items():
+        sheet = Image.open(ART / "wizards" / f"{name}.sheet2.png").convert("RGBA")
         gems = [sheet.crop((CELL * c, 0, CELL * c + GEM_W, GEM_H)) for c in range(10)]
-        found.append((Path(path).name.split(".")[0], gems, cell.crop((0, 0, FACE_W, FACE_H))))
+        found.append((name, gems, portrait(cell), at))
     return found
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--out", default="/tmp/gem_compose.png", help="the comparison picture")
-    parser.add_argument("--overlap", choices=OVERLAPS, default="hue", help="what the overlap shows")
+    parser.add_argument("--overlap", choices=OVERLAPS, default="hue", help="what the outer pixels show")
     args = parser.parse_args()
     diamonds = base_diamonds()
     chosen = wizards()
     names = OLD + [n for n, *_ in NEW]
-    print(f"{len(chosen)} wizards with the standard layout: {', '.join(n for n, *_ in chosen)}")
+    print(f"{len(chosen)} wizards: {', '.join(n for n, *_ in chosen)}")
     scale = 6
     sheet = Image.new(
         "RGBA", (len(chosen) * 2 * GEM_W * scale + 20 * len(chosen), 10 * GEM_H * scale), (255, 255, 255, 255)
     )
     for colour in range(10):
         pasted, blended = [], []
-        for column, (_, gems, face) in enumerate(chosen):
+        for column, (_, gems, face, at) in enumerate(chosen):
             original = gems[colour]
-            pasted.append(distance(original, compose(diamonds[colour], face, None)))
-            mine = compose(diamonds[colour], face, args.overlap)
+            pasted.append(distance(original, compose(diamonds[colour], face, at, None)))
+            mine = compose(diamonds[colour], face, at, args.overlap)
             blended.append(distance(original, mine))
             left = column * (2 * GEM_W * scale + 20)
             top = colour * GEM_H * scale
@@ -194,7 +189,7 @@ def main():
             sheet.paste(mine.resize((GEM_W * scale, GEM_H * scale), Image.NEAREST), (left + GEM_W * scale, top))
         print(
             f"{names[colour]:>10}: plain paste {sum(pasted) / len(pasted):5.2f}, "
-            f"blended {sum(blended) / len(blended):5.2f}"
+            f"composed {sum(blended) / len(blended):5.2f}"
         )
     sheet.save(args.out)
     print(f"wrote {args.out}")
