@@ -36,7 +36,9 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
         let busy = |serial| {
             ai.sea_party.contains(&serial)
-                || ai.roles.has_role(serial)
+                || ai.roles.role_of(serial).is_some_and(|r| {
+                    !matches!(r, crate::roles::Role::Raid | crate::roles::Role::March)
+                })
                 || ai.ferries.iter().any(|f| f.group.contains(&serial))
         };
         let healers: Vec<Position> = view
@@ -57,7 +59,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             // In a city it mends where it stands, and on its way home it is left alone (a raid or a
             // march it was on has an order too, which it gives up).
             let serial = view.serial_of(u);
-            let on_a_raid = ai.raiders.contains(&serial) || ai.marching.contains(&serial);
+            let on_a_raid = ai.roles.is(serial, crate::roles::Role::Raid)
+                || ai.roles.is(serial, crate::roles::Role::March);
             if cities.contains(&at) || (view.unit_has_order(u) && !on_a_raid) {
                 continue;
             }
@@ -82,9 +85,14 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     for (unit, to) in orders {
         let serial = PlayerView::new(game, me).serial_of(unit);
-        ai.raiders.retain(|s| *s != serial);
-        ai.marching.retain(|s| *s != serial);
-        ai.raid_targets.remove(&serial);
+        ai.roles.retain_role(crate::roles::Role::Raid, |s| {
+            let s = &s;
+            *s != serial
+        });
+        ai.roles.retain_role(crate::roles::Role::March, |s| {
+            let s = &s;
+            *s != serial
+        });
         ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
         ai.order(
             game,
@@ -125,9 +133,12 @@ mod tests {
         g.scenario_set_hurt(u, max * 3 / 4);
         let serial = PlayerView::new(&g, P0).serial_of(u);
         let mut ai = Ai::new(P0);
-        ai.raiders.push(serial);
+        let _ = ai.roles.claim(serial, crate::roles::Role::Raid, 1, None);
         run(&mut ai, &mut g, &mut Vec::new());
-        assert!(ai.raiders.is_empty(), "the raid is dropped");
+        assert!(
+            !ai.roles.any(crate::roles::Role::Raid),
+            "the raid is dropped"
+        );
         assert!(
             PlayerView::new(&g, P0).unit_has_order(u),
             "it is on its way"

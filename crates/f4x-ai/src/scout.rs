@@ -214,7 +214,7 @@ fn board(ai: &mut Ai, game: &Game, ship: hecs::Entity, at: Position) -> Vec<hecs
         .filter(|&u| {
             is_fighter(&view, u)
                 && !ai.scouts.contains(&view.serial_of(u))
-                && !ai.raiders.contains(&view.serial_of(u))
+                && !ai.roles.is(view.serial_of(u), crate::roles::Role::Raid)
         })
         .collect();
     view.sort_by_serial(&mut spare);
@@ -427,7 +427,7 @@ fn recruit(ai: &Ai, game: &Game, reach: Option<Position>) -> Option<hecs::Entity
     for u in view.my_units() {
         if !is_fighter(&view, u)
             || ai.scouts.contains(&view.serial_of(u))
-            || ai.raiders.contains(&view.serial_of(u))
+            || ai.roles.is(view.serial_of(u), crate::roles::Role::Raid)
         {
             continue;
         }

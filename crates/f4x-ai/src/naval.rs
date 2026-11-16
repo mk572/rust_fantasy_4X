@@ -691,7 +691,12 @@ fn voyage(
             }
             // Soldiers put ashore at a tower go on to clear it.
             if is_tower(&PlayerView::new(game, me), plan.target) {
-                ai.raiders.extend(ferry.group.iter().copied());
+                let turn = game.turn;
+                // The ferry's passengers are put ashore: the raid is theirs now.
+                ai.roles
+                    .release_many(&ferry.group, crate::roles::Role::Voyage);
+                ai.roles
+                    .claim_all(ferry.group.iter().copied(), crate::roles::Role::Raid, turn);
             }
             if let Some(f) = ai.ferries.iter_mut().find(|f| f.ship == ferry.ship) {
                 f.group.clear();

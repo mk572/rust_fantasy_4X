@@ -115,7 +115,6 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         .iter()
         .flat_map(|f| f.group.iter().copied())
         .collect();
-    ferrying.extend(ai.raiders.iter().copied());
     // Soldiers waiting on a shore for a ship have their role (`pickup.rs`).
     ferrying.extend(ai.roles.assigned());
     let own_cities: Vec<Position> = PlayerView::new(game, me)
@@ -138,7 +137,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
             let committed = units
                 .iter()
-                .any(|&u| ai.marching.contains(&view.serial_of(u)));
+                .any(|&u| ai.roles.is(view.serial_of(u), crate::roles::Role::March));
             let ratio = if at_city {
                 sortie_ratio()
             } else if committed {
@@ -412,23 +411,23 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let trip = distance(&view, rally, target).unwrap_or(0);
         let too_long = march_called_off(game.turn, ai.march_started, trip);
         if too_long || ai.march_target != Some(target) {
-            if !ai.marching.is_empty() {
+            if ai.roles.any(crate::roles::Role::March) {
                 events.push(Event::MarchCalledOff {
                     player: me,
                     target: ai.march_target.unwrap_or(target),
-                    units: ai.marching.len() as u32,
+                    units: ai.roles.count(crate::roles::Role::March) as u32,
                     turns: game.turn.saturating_sub(ai.march_started),
                     target_changed: !too_long,
                 });
             }
-            ai.marching.clear();
+            ai.roles.release_role(crate::roles::Role::March);
             ai.march_target = Some(target);
         }
         let expected = expected_defence(&view, &ai.city_memory, game.turn, target);
         let (at_rally, elsewhere): (Vec<_>, Vec<_>) = free
             .iter()
             .copied()
-            .filter(|&u| !ai.marching.contains(&view.serial_of(u)))
+            .filter(|&u| !ai.roles.is(view.serial_of(u), crate::roles::Role::March))
             .partition(|&u| {
                 view.unit_position(u)
                     .is_some_and(|p| distance(&view, p, rally).is_some_and(|d| d <= GATHER_RADIUS))
@@ -610,7 +609,8 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 target,
                 units: launched.len() as u32,
             });
-            ai.marching = launched;
+            ai.roles
+                .assign(crate::roles::Role::March, launched, game.turn);
             ai.march_started = game.turn;
         }
     }
@@ -661,7 +661,7 @@ fn relieve(
             let mut candidates: Vec<(u32, hecs::Entity)> = free
                 .iter()
                 .copied()
-                .filter(|&u| !ai.marching.contains(&view.serial_of(u)))
+                .filter(|&u| !ai.roles.is(view.serial_of(u), crate::roles::Role::March))
                 .filter(|&u| !view.unit_has_order(u))
                 .filter_map(|u| {
                     let at = view.unit_position(u)?;
@@ -999,7 +999,7 @@ fn march_landed(
         let landed: Vec<hecs::Entity> = free
             .iter()
             .copied()
-            .filter(|&u| !ai.marching.contains(&view.serial_of(u)))
+            .filter(|&u| !ai.roles.is(view.serial_of(u), crate::roles::Role::March))
             .filter(|&u| {
                 if open.is_empty() {
                     return false;
@@ -1085,7 +1085,8 @@ fn march_landed(
             target,
             units: launched.len() as u32,
         });
-        ai.marching = launched;
+        ai.roles
+            .assign(crate::roles::Role::March, launched, game.turn);
         ai.march_started = game.turn;
     }
 }
@@ -1237,7 +1238,9 @@ mod tests {
         // No relief is called in: the spare troops are no part of a march or a raid. (Idle
         // soldiers outside a city go home, which is no relief either.)
         let _ = spare;
-        assert!(ai.marching.is_empty() && ai.raiders.is_empty());
+        assert!(
+            !ai.roles.any(crate::roles::Role::March) && !ai.roles.any(crate::roles::Role::Raid)
+        );
     }
 
     #[test]

@@ -117,14 +117,14 @@ pub(crate) fn blocked_planes(
 /// End a muster whose soldiers have come (or waited long enough): they are free soldiers again,
 /// and `site::deploy` sends the best nine of the square they stand on.
 pub(crate) fn release(ai: &mut Ai, game: &Game) {
-    if ai.muster.is_empty() {
+    if !ai.roles.any(crate::roles::Role::Muster) {
         return;
     }
     let view = PlayerView::new(game, ai.player);
     let alive: Vec<_> = view
         .my_units()
         .into_iter()
-        .filter(|&u| ai.muster.contains(&view.serial_of(u)))
+        .filter(|&u| ai.roles.is(view.serial_of(u), crate::roles::Role::Muster))
         .collect();
     let arrived = ai.muster_at.is_some_and(|at| {
         alive.iter().all(|&u| {
@@ -133,7 +133,7 @@ pub(crate) fn release(ai: &mut Ai, game: &Game) {
         })
     });
     if alive.is_empty() || arrived || game.turn.saturating_sub(ai.muster_since) > MUSTER_TURNS {
-        ai.muster.clear();
+        ai.roles.release_role(crate::roles::Role::Muster);
         ai.muster_at = None;
     }
 }
@@ -149,7 +149,7 @@ pub(crate) fn gather(
 ) {
     use f4x_core::game::Command;
     let me = ai.player;
-    if !ai.muster.is_empty() {
+    if ai.roles.any(crate::roles::Role::Muster) {
         return;
     }
     let (rally, orders) = {
@@ -163,7 +163,7 @@ pub(crate) fn gather(
             .filter(|&u| {
                 is_fighter(&view, u)
                     && !crate::recover::needs_rest(&view, u)
-                    && !ai.raiders.contains(&view.serial_of(u))
+                    && !ai.roles.is(view.serial_of(u), crate::roles::Role::Raid)
                     && !ai.scouts.contains(&view.serial_of(u))
                     && view.unit_position(u).is_some()
             })
@@ -235,7 +235,8 @@ pub(crate) fn gather(
             );
         }
     }
-    ai.muster = serials;
+    ai.roles
+        .assign(crate::roles::Role::Muster, serials, game.turn);
     ai.muster_at = Some(rally);
     ai.muster_since = game.turn;
 }
@@ -340,13 +341,17 @@ mod tests {
         let mut ai = Ai::new(P0);
         gather(&mut ai, &mut g, &party, &mut Vec::new());
         let view = PlayerView::new(&g, P0);
-        assert_eq!(ai.muster.len(), 5, "all five are mustered");
+        assert_eq!(
+            ai.roles.count(crate::roles::Role::Muster),
+            5,
+            "all five are mustered"
+        );
         assert_eq!(ai.muster_at, Some(at(COAST_CITY.0, COAST_CITY.1)));
         assert!(party.iter().all(|&u| view.unit_has_order(u)));
         // A second call while they walk changes nothing.
-        let before = ai.muster.clone();
+        let before = ai.roles.members(crate::roles::Role::Muster);
         gather(&mut ai, &mut g, &party, &mut Vec::new());
-        assert_eq!(ai.muster, before);
+        assert_eq!(ai.roles.members(crate::roles::Role::Muster), before);
         Ok(())
     }
 
@@ -361,7 +366,7 @@ mod tests {
         g.reveal_map(P0);
         let mut ai = Ai::new(P0);
         gather(&mut ai, &mut g, &few, &mut Vec::new());
-        assert!(ai.muster.is_empty());
+        assert!(!ai.roles.any(crate::roles::Role::Muster));
         // Strong enough, but a rival has a city on the tower's plane.
         let mut g = game(COAST_CITY, 8 /* high_men */);
         g.turn = 400;
@@ -371,7 +376,7 @@ mod tests {
         let mut ai = Ai::new(P0);
         ai.tower_blocked = blocked_planes(&PlayerView::new(&g, P0), &[], None);
         gather(&mut ai, &mut g, &many, &mut Vec::new());
-        assert!(ai.muster.is_empty());
+        assert!(!ai.roles.any(crate::roles::Role::Muster));
         Ok(())
     }
 
@@ -385,10 +390,14 @@ mod tests {
         let mut ai = Ai::new(P0);
         gather(&mut ai, &mut g, &party, &mut Vec::new());
         release(&mut ai, &g);
-        assert_eq!(ai.muster.len(), 5, "still on the way");
+        assert_eq!(
+            ai.roles.count(crate::roles::Role::Muster),
+            5,
+            "still on the way"
+        );
         g.turn += MUSTER_TURNS + 1;
         release(&mut ai, &g);
-        assert!(ai.muster.is_empty(), "gave up waiting");
+        assert!(!ai.roles.any(crate::roles::Role::Muster), "gave up waiting");
         // Or they arrive.
         let mut ai = Ai::new(P0);
         gather(&mut ai, &mut g, &party, &mut Vec::new());
@@ -396,7 +405,7 @@ mod tests {
             g.cheat_move_unit(u, at(COAST_CITY.0, COAST_CITY.1));
         }
         release(&mut ai, &g);
-        assert!(ai.muster.is_empty(), "arrived");
+        assert!(!ai.roles.any(crate::roles::Role::Muster), "arrived");
         Ok(())
     }
 }

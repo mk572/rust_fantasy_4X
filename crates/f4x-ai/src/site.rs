@@ -101,14 +101,13 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let out = {
         let view = PlayerView::new(game, me);
         let alive: Vec<Serial> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
-        ai.raiders.retain(|s| alive.contains(s));
-        let raiders = ai.raiders.clone();
-        ai.raid_targets.retain(|s, _| raiders.contains(s));
+        ai.roles
+            .retain_role(crate::roles::Role::Raid, |s| alive.contains(&s));
         let mut out: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
         let mut home: Vec<Serial> = Vec::new();
         for u in view.my_units() {
             let serial = view.serial_of(u);
-            if !ai.raiders.contains(&serial) {
+            if !ai.roles.is(serial, crate::roles::Role::Raid) {
                 continue;
             }
             match view.unit_position(u) {
@@ -121,7 +120,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 _ => home.push(serial),
             }
         }
-        ai.raiders.retain(|s| !home.contains(s));
+        ai.roles.retain_role(crate::roles::Role::Raid, |s| {
+            let s = &s;
+            !home.contains(s)
+        });
         out.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
         out
     };
@@ -144,7 +146,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let sites = sites_near(&view, pos, strength, &ai.tower_blocked);
             let kept = units
                 .iter()
-                .find_map(|&u| ai.raid_targets.get(&view.serial_of(u)).copied())
+                .find_map(|&u| {
+                    ai.roles
+                        .target_of(view.serial_of(u), crate::roles::Role::Raid)
+                })
                 .filter(|t| sites.contains(t));
             // The site it is set on first, then the nearest few: one it cannot walk to is
             // passed over, and a party with none it can reach goes home.
@@ -186,7 +191,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .iter()
                 .any(|e| matches!(e, Event::CityCaptured { to, .. } if *to == me))
             {
-                ai.raiders.retain(|s| !party.contains(s));
+                ai.roles.retain_role(crate::roles::Role::Raid, |s| {
+                    let s = &s;
+                    !party.contains(s)
+                });
                 let stay: Vec<hecs::Entity> = {
                     let view = PlayerView::new(game, me);
                     view.my_units()
@@ -223,7 +231,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 })
         {
             for &s in &party {
-                ai.raid_targets.insert(s, site);
+                ai.roles.set_target(s, crate::roles::Role::Raid, Some(site));
             }
         } else if let Some(home) = home {
             // No candidate could be walked to: that is worth a line (one site passed over is not).
@@ -234,9 +242,9 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     "Unreachable".to_string(),
                 );
             }
-            party.iter().for_each(|s| {
-                ai.raid_targets.remove(s);
-            });
+            for &s in &party {
+                ai.roles.set_target(s, crate::roles::Role::Raid, None);
+            }
             let serials: Vec<Serial> = {
                 let view = PlayerView::new(game, me);
                 units.iter().map(|&u| view.serial_of(u)).collect()
@@ -244,7 +252,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             // A party next to a city of its own is home: the raid is over. (A full city lets
             // nobody in, and a party sent into it waits at its gate for ever: task 515.)
             if distance(&PlayerView::new(game, me), pos, home).is_some_and(|d| d <= 1) {
-                ai.raiders.retain(|s| !serials.contains(s));
+                ai.roles.retain_role(crate::roles::Role::Raid, |s| {
+                    let s = &s;
+                    !serials.contains(s)
+                });
                 continue;
             }
             // A party that cannot find its way home (cut off by guarded ground or the sea) gives
@@ -262,13 +273,19 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         "Unreachable".to_string(),
                     );
                 }
-                ai.raiders.retain(|s| !serials.contains(s));
+                ai.roles.retain_role(crate::roles::Role::Raid, |s| {
+                    let s = &s;
+                    !serials.contains(s)
+                });
             }
         }
     }
     // A new party leaves a city with soldiers to spare, one raid at a time and never while the
     // army marches (its campaign comes first).
-    if ai.raiders.len() >= max_raiders(game) || !ai.marching.is_empty() || !ai.muster.is_empty() {
+    if ai.roles.count(crate::roles::Role::Raid) >= max_raiders(game)
+        || ai.roles.any(crate::roles::Role::March)
+        || ai.roles.any(crate::roles::Role::Muster)
+    {
         return;
     }
     let cities = {
@@ -313,7 +330,9 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         for site in sites {
             if march(ai, game, &party, site, events).is_ok() {
                 let view = PlayerView::new(game, me);
-                ai.raiders.extend(party.iter().map(|&u| view.serial_of(u)));
+                let serials: Vec<Serial> = party.iter().map(|&u| view.serial_of(u)).collect();
+                ai.roles
+                    .claim_all(serials, crate::roles::Role::Raid, game.turn);
                 return;
             }
         }
@@ -337,9 +356,9 @@ pub fn deploy(
         let view = PlayerView::new(game, me);
         for &u in free {
             let serial = view.serial_of(u);
-            if ai.raiders.contains(&serial)
+            if ai.roles.is(serial, crate::roles::Role::Raid)
                 || ai.scouts.contains(&serial)
-                || ai.muster.contains(&serial)
+                || ai.roles.is(serial, crate::roles::Role::Muster)
             {
                 continue;
             }
@@ -374,7 +393,9 @@ pub fn deploy(
             for site in sites {
                 if crate::assault::march_with(&mut reached, ai, game, party, site, events).is_ok() {
                     let view = PlayerView::new(game, me);
-                    ai.raiders.extend(party.iter().map(|&u| view.serial_of(u)));
+                    let serials: Vec<Serial> = party.iter().map(|&u| view.serial_of(u)).collect();
+                    ai.roles
+                        .claim_all(serials, crate::roles::Role::Raid, game.turn);
                     left = true;
                     break;
                 }
@@ -501,7 +522,11 @@ mod tests {
         let mut ai = Ai::new(P0);
         {
             let view = PlayerView::new(&g, P0);
-            ai.raiders = party.iter().map(|&u| view.serial_of(u)).collect();
+            ai.roles.assign(
+                crate::roles::Role::Raid,
+                party.iter().map(|&u| view.serial_of(u)),
+                1,
+            );
         }
         let mut events = Vec::new();
         run(&mut ai, &mut g, &mut events);
@@ -511,7 +536,7 @@ mod tests {
                 .any(|e| matches!(e, Event::CityCaptured { to, .. } if *to == P0)),
             "{events:?}"
         );
-        assert!(ai.raiders.is_empty(), "the raid is over");
+        assert!(!ai.roles.any(crate::roles::Role::Raid), "the raid is over");
         assert!(
             party
                 .iter()
@@ -533,7 +558,11 @@ mod tests {
         let party = spawn(&mut g, P0, at(9, 6), 113 /* high_men_paladins */, 5);
         {
             let view = PlayerView::new(&g, P0);
-            ai.raiders = party.iter().map(|&u| view.serial_of(u)).collect();
+            ai.roles.assign(
+                crate::roles::Role::Raid,
+                party.iter().map(|&u| view.serial_of(u)),
+                1,
+            );
         }
         // The party has been out for 90 turns when it clears the site.
         ai.drop_stale_plans(g.turn);
@@ -549,7 +578,7 @@ mod tests {
         ai.drop_stale_plans(g.turn);
         g.turn += 20;
         ai.drop_stale_plans(g.turn);
-        assert!(!ai.raiders.is_empty(), "not dropped");
+        assert!(ai.roles.any(crate::roles::Role::Raid), "not dropped");
         assert_eq!(ai.plans_dropped().iter().map(|(_, n)| n).sum::<u32>(), 0);
         Ok(())
     }
@@ -564,10 +593,15 @@ mod tests {
         let party = spawn(&mut g, P0, at(6, 7), 113 /* high_men_paladins */, 5);
         let mut ai = Ai::new(P0);
         let view = PlayerView::new(&g, P0);
-        ai.raiders = party.iter().map(|&u| view.serial_of(u)).collect();
+        ai.roles.assign(
+            crate::roles::Role::Raid,
+            party.iter().map(|&u| view.serial_of(u)),
+            1,
+        );
         // The party is set on the far site (4, 4) though (4, 9) is nearer to where it stands.
-        for &s in &ai.raiders.clone() {
-            ai.raid_targets.insert(s, at(4, 4));
+        for s in ai.roles.members(crate::roles::Role::Raid) {
+            ai.roles
+                .set_target(s, crate::roles::Role::Raid, Some(at(4, 4)));
         }
         let mut events = Vec::new();
         run(&mut ai, &mut g, &mut events);
@@ -576,7 +610,11 @@ mod tests {
             .unit_position(party[0])
             .ok_or("the party is on the map")?;
         assert!(here.y < 7, "it went towards (4, 4), not (4, 9): {here:?}");
-        assert!(ai.raid_targets.values().all(|&t| t == at(4, 4)));
+        assert!(ai
+            .roles
+            .targets(crate::roles::Role::Raid)
+            .iter()
+            .all(|&t| t == at(4, 4)));
         Ok(())
     }
 
@@ -589,17 +627,24 @@ mod tests {
         let party = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 5);
         let mut ai = Ai::new(P0);
         let view = PlayerView::new(&g, P0);
-        ai.raiders = party.iter().map(|&u| view.serial_of(u)).collect();
+        ai.roles.assign(
+            crate::roles::Role::Raid,
+            party.iter().map(|&u| view.serial_of(u)),
+            1,
+        );
         let mut events = Vec::new();
         for _ in 0..4 {
             run(&mut ai, &mut g, &mut events);
             g.apply(Command::EndTurn);
         }
-        assert!(ai.raid_targets.is_empty(), "no target it can walk to");
         assert!(
-            ai.raiders.is_empty(),
+            ai.roles.targets(crate::roles::Role::Raid).is_empty(),
+            "no target it can walk to"
+        );
+        assert!(
+            !ai.roles.any(crate::roles::Role::Raid),
             "the raid ended at the city: {:?}",
-            ai.raiders
+            ai.roles
         );
         Ok(())
     }
@@ -638,7 +683,7 @@ mod tests {
         )?;
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 4);
-        assert!(ai.raiders.is_empty());
+        assert!(!ai.roles.any(crate::roles::Role::Raid));
         assert!(g.economy().lair_at(at(8, 6)).is_some());
         assert!(all_home(&g));
         Ok(())
@@ -654,7 +699,7 @@ mod tests {
         )?;
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 4);
-        assert!(ai.raiders.is_empty());
+        assert!(!ai.roles.any(crate::roles::Role::Raid));
         assert!(g.economy().lair_at(at(8, 6)).is_some());
         Ok(())
     }
@@ -672,7 +717,7 @@ mod tests {
             g.economy().lair_at(at(8, 6)).is_none(),
             "the site is cleared"
         );
-        assert!(ai.raiders.is_empty(), "{:?}", ai.raiders);
+        assert!(!ai.roles.any(crate::roles::Role::Raid), "{:?}", ai.roles);
         assert!(all_home(&g));
         Ok(())
     }
@@ -687,7 +732,7 @@ mod tests {
         let free: Vec<hecs::Entity> = g.units().player_units(P0);
         let mut events = Vec::new();
         assert!(deploy(&mut ai, &mut g, &free, &mut events), "{events:?}");
-        assert_eq!(ai.raiders.len(), 6);
+        assert_eq!(ai.roles.count(crate::roles::Role::Raid), 6);
         Ok(())
     }
 

@@ -58,6 +58,13 @@ pub struct Assignment {
     pub since: u32,
     /// Where the role sends it (a city to return to, a shore tile to wait on), if anywhere.
     pub to: Option<Position>,
+    /// The group it acts with (a raid party, a march, a ferry and its passengers, an escort and
+    /// its charge): the units sharing the id. `Registry::new_party` gives a fresh one.
+    #[serde(default)]
+    pub party: Option<u32>,
+    /// The one unit it is tied to: the settler an escort guards, the ship a passenger is aboard.
+    #[serde(default)]
+    pub with: Option<Serial>,
     /// Where it stood at the last audit, and for how many audits in a row it has not moved.
     pub last_pos: Option<Position>,
     pub stuck: u32,
@@ -106,6 +113,106 @@ impl Registry {
             .collect()
     }
 
+    /// How many units hold `role`.
+    pub fn count(&self, role: Role) -> usize {
+        self.map.values().filter(|a| a.role == role).count()
+    }
+
+    /// Whether any unit holds `role`.
+    pub fn any(&self, role: Role) -> bool {
+        self.map.values().any(|a| a.role == role)
+    }
+
+    /// Give `role` to each of the units; the ones that hold a better role keep it. The units that
+    /// got it.
+    pub fn claim_all(
+        &mut self,
+        serials: impl IntoIterator<Item = Serial>,
+        role: Role,
+        turn: u32,
+    ) -> Vec<Serial> {
+        serials
+            .into_iter()
+            .filter(|&s| self.claim(s, role, turn, None).is_ok())
+            .collect()
+    }
+
+    /// The units that hold `role` become exactly `serials` (the ones with a better role excepted).
+    pub fn assign(&mut self, role: Role, serials: impl IntoIterator<Item = Serial>, turn: u32) {
+        self.release_role(role);
+        self.claim_all(serials, role, turn);
+    }
+
+    /// Hand back `role` from every unit that holds it.
+    pub fn release_role(&mut self, role: Role) {
+        self.map.retain(|_, a| a.role != role);
+    }
+
+    /// Hand back `role` from each of the units that hold it.
+    pub fn release_many(&mut self, serials: &[Serial], role: Role) {
+        self.map
+            .retain(|s, a| a.role != role || !serials.contains(s));
+    }
+
+    /// Keep `role` only on the units `keep` says so.
+    pub fn retain_role(&mut self, role: Role, mut keep: impl FnMut(Serial) -> bool) {
+        self.map.retain(|s, a| a.role != role || keep(*s));
+    }
+
+    /// Change where the unit's role sends it, if it holds `role`.
+    pub fn set_target(&mut self, serial: Serial, role: Role, to: Option<Position>) {
+        if let Some(a) = self.map.get_mut(&serial).filter(|a| a.role == role) {
+            a.to = to;
+        }
+    }
+
+    /// The units holding `role` with the place each is sent to.
+    pub fn targeted(&self, role: Role) -> Vec<(Serial, Position)> {
+        self.map
+            .iter()
+            .filter(|(_, a)| a.role == role)
+            .filter_map(|(s, a)| a.to.map(|p| (*s, p)))
+            .collect()
+    }
+
+    /// A group id nobody holds yet.
+    pub fn new_party(&self) -> u32 {
+        self.map
+            .values()
+            .filter_map(|a| a.party)
+            .max()
+            .map_or(1, |m| m + 1)
+    }
+
+    /// Put the units that hold `role` into the party, and tie each to `with` if given.
+    pub fn group(&mut self, serials: &[Serial], role: Role, party: u32, with: Option<Serial>) {
+        for s in serials {
+            if let Some(a) = self.map.get_mut(s).filter(|a| a.role == role) {
+                a.party = Some(party);
+                a.with = with;
+            }
+        }
+    }
+
+    /// The units of a party, in serial order.
+    pub fn members_of(&self, party: u32) -> Vec<Serial> {
+        self.map
+            .iter()
+            .filter(|(_, a)| a.party == Some(party))
+            .map(|(s, _)| *s)
+            .collect()
+    }
+
+    /// The party the unit is in.
+    pub fn party_of(&self, serial: Serial) -> Option<u32> {
+        self.map.get(&serial).and_then(|a| a.party)
+    }
+
+    /// The unit this one is tied to.
+    pub fn with_of(&self, serial: Serial) -> Option<Serial> {
+        self.map.get(&serial).and_then(|a| a.with)
+    }
+
     /// The places the units holding `role` are sent to.
     pub fn targets(&self, role: Role) -> Vec<Position> {
         self.map
@@ -147,6 +254,8 @@ impl Registry {
                         role,
                         since: turn,
                         to,
+                        party: None,
+                        with: None,
                         last_pos: None,
                         stuck: 0,
                     },
@@ -220,12 +329,9 @@ fn legacy_roles(ai: &Ai, serial: Serial) -> Vec<Role> {
     // A planar scout and a sea party are scouts with a way to go: one role, the narrower.
     let planar = ai.planar == Some(serial);
     let sea = ai.sea_party.contains(&serial);
-    let listed: [(bool, Role); 9] = [
+    let listed: [(bool, Role); 6] = [
         (ai.scouts.contains(&serial) && !planar && !sea, Role::Scout),
         (planar, Role::PlanarScout),
-        (ai.raiders.contains(&serial), Role::Raid),
-        (ai.muster.contains(&serial), Role::Muster),
-        (ai.marching.contains(&serial), Role::March),
         (sea, Role::SeaParty),
         (
             ai.ferries
@@ -287,19 +393,13 @@ fn release(ai: &mut Ai, serial: f4x_core::game::serial::Serial, role: Role) {
                 ai.planar = None;
             }
         }
-        Role::Raid => {
-            ai.raiders.retain(|s| *s != serial);
-            ai.raid_targets.remove(&serial);
-        }
-        Role::Muster => ai.muster.retain(|s| *s != serial),
-        Role::March => ai.marching.retain(|s| *s != serial),
         Role::SeaParty => ai.sea_party.retain(|s| *s != serial),
         Role::Voyage => {
             for f in &mut ai.ferries {
                 f.group.retain(|s| *s != serial);
             }
         }
-        Role::AwaitTransport | Role::Return => {
+        Role::AwaitTransport | Role::Return | Role::Raid | Role::Muster | Role::March => {
             ai.roles.release(serial, role);
         }
         // Derived from the world, or held by the unit's own task: nothing to take it out of.
@@ -344,8 +444,15 @@ pub fn derive(ai: &Ai, view: &PlayerView) -> Vec<Held> {
         };
         let serial = view.serial_of(unit);
         let mut roles = legacy_roles(ai, serial);
-        if ai.roles.is(serial, Role::AwaitTransport) {
-            roles.push(Role::AwaitTransport);
+        // A soldier on its way home keeps `Return` only while it has an order; a stale one is
+        // not a role (the audit drops it).
+        let ordered_now = view.unit_has_order(unit);
+        if let Some(role) = ai
+            .roles
+            .role_of(serial)
+            .filter(|&r| r != Role::Return || ordered_now)
+        {
+            roles.push(role);
         }
         if roles.is_empty() {
             let in_city = view
@@ -680,29 +787,43 @@ mod tests {
         assert_eq!(r.assigned(), vec![a]);
     }
 
-    /// The claim keeps a unit to one role even against the old lists: a better role there
-    /// refuses it, a worse one is taken over.
+    /// The claim keeps a unit to one role: a better role refuses a worse claim, a worse one is
+    /// taken over.
     #[test]
-    fn a_claim_respects_the_roles_in_the_old_lists() {
+    fn a_claim_keeps_a_unit_to_one_role() {
         let mut ai = Ai::new(P0);
         let (raider, scout) = (serial(1), serial(2));
-        ai.raiders.push(raider);
-        ai.scouts.push(scout);
+        let _ = ai.roles.claim(raider, Role::Raid, 1, None);
+        let _ = ai.roles.claim(scout, Role::Scout, 1, None);
         assert_eq!(
-            claim(&mut ai, raider, Role::Return, 5, None),
+            ai.roles.claim(raider, Role::Return, 5, None),
             Err(Role::Raid),
             "a raider is not sent home by the lower claim"
         );
-        assert!(ai.raiders.contains(&raider));
-        assert!(!ai.roles.has_role(raider));
-        assert_eq!(claim(&mut ai, scout, Role::AwaitTransport, 5, None), Ok(()));
-        assert!(!ai.scouts.contains(&scout), "taken out of the worse list");
+        assert_eq!(ai.roles.claim(scout, Role::AwaitTransport, 5, None), Ok(()));
         assert_eq!(ai.roles.role_of(scout), Some(Role::AwaitTransport));
-        assert_eq!(
-            legacy_roles(&ai, scout),
-            Vec::<Role>::new(),
-            "one role only"
-        );
+        assert_eq!(ai.roles.role_of(raider), Some(Role::Raid));
+    }
+
+    /// Units are grouped in the registry: a party lists its members, and an escort knows the
+    /// unit it guards.
+    #[test]
+    fn units_are_grouped_by_party_and_an_escort_knows_its_charge() {
+        let mut r = Registry::default();
+        let (settler, guard, other) = (serial(1), serial(2), serial(3));
+        for s in [settler, guard, other] {
+            let _ = r.claim(s, Role::Settle, 1, None);
+        }
+        let party = r.new_party();
+        r.group(&[settler, guard], Role::Settle, party, None);
+        r.group(&[guard], Role::Settle, party, Some(settler));
+        assert_eq!(r.members_of(party), vec![settler, guard]);
+        assert_eq!(r.with_of(guard), Some(settler));
+        assert_eq!(r.party_of(other), None);
+        assert_ne!(r.new_party(), party);
+        // Released, the unit leaves the party.
+        r.release(guard, Role::Settle);
+        assert_eq!(r.members_of(party), vec![settler]);
     }
 
     /// The registry counts the audits a unit has stood still, and starts again when it moves.
@@ -770,50 +891,6 @@ mod tests {
             "every unit is in the table"
         );
         assert!(held.iter().all(|h| !h.roles.is_empty()), "{held:?}");
-        Ok(())
-    }
-
-    /// Roles are exclusive: a unit found in two lists keeps the higher-priority role and is
-    /// taken out of the other list.
-    #[test]
-    fn a_unit_found_in_two_lists_keeps_one_and_leaves_the_other() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
-        let unit = spawn(&mut g, P0, at(8, 6), 104, 1)[0];
-        let mut ai = Ai::new(P0);
-        let serial = PlayerView::new(&g, P0).serial_of(unit);
-        ai.raiders.push(serial);
-        ai.marching.push(serial);
-        audit(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(
-            (ai.raiders.contains(&serial), ai.marching.contains(&serial)),
-            (true, false),
-            "the raid comes before the march"
-        );
-        let view = PlayerView::new(&g, P0);
-        let held = derive(&ai, &view);
-        let roles = held
-            .iter()
-            .find(|h| h.unit == unit)
-            .map(|h| h.roles.clone());
-        assert_eq!(roles, Some(vec![Role::Raid]));
-        assert_eq!(tally(&held).doubled, 0);
-        Ok(())
-    }
-
-    /// A unit in two role lists is counted as doubled.
-    #[test]
-    fn a_unit_in_two_lists_is_doubled() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let unit = spawn(&mut g, P0, at(8, 6), 104, 1);
-        let mut ai = Ai::new(P0);
-        let view = PlayerView::new(&g, P0);
-        let serial = view.serial_of(unit[0]);
-        ai.raiders.push(serial);
-        ai.marching.push(serial);
-        let counted = tally(&derive(&ai, &view));
-        assert!(counted.adrift.is_empty());
-        assert_eq!(counted.doubled, 1);
         Ok(())
     }
 }

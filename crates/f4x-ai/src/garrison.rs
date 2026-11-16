@@ -35,8 +35,8 @@ pub fn city_cap(view: &PlayerView, at: Position) -> usize {
 fn movable(ai: &Ai, view: &PlayerView, units: &[hecs::Entity]) -> Vec<hecs::Entity> {
     let busy = |serial| {
         ai.scouts.contains(&serial)
-            || ai.raiders.contains(&serial)
-            || ai.marching.contains(&serial)
+            || ai.roles.is(serial, crate::roles::Role::Raid)
+            || ai.roles.is(serial, crate::roles::Role::March)
             || ai.sea_party.contains(&serial)
             || ai.planar == Some(serial)
             || ai.roles.has_role(serial)
@@ -94,8 +94,8 @@ pub fn thin_out(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         let serial = view.serial_of(u);
                         crate::forge::low_tier(&view, u)
                             && !ai.scouts.contains(&serial)
-                            && !ai.raiders.contains(&serial)
-                            && !ai.marching.contains(&serial)
+                            && !ai.roles.is(serial, crate::roles::Role::Raid)
+                            && !ai.roles.is(serial, crate::roles::Role::March)
                             && !ai.sea_party.contains(&serial)
                             && !ai.ferries.iter().any(|f| f.group.contains(&serial))
                     })
@@ -200,7 +200,7 @@ pub fn disperse(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let view = PlayerView::new(game, me);
     for u in rest {
         let serial = view.serial_of(u);
-        if !ai.raiders.contains(&serial) && !ai.scouts.contains(&serial) {
+        if !ai.roles.is(serial, crate::roles::Role::Raid) && !ai.scouts.contains(&serial) {
             ai.scouts.push(serial);
         }
     }

@@ -89,8 +89,7 @@ pub struct Ai {
     scout_last: HashMap<Serial, (Position, u32)>,
     /// Targets scouts could not get to.
     bad_scout_targets: Vec<Position>,
-    /// The units on the march against `march_target`, and the turn they set out.
-    marching: Vec<Serial>,
+    /// The turn the units on the march against `march_target` set out.
     march_started: u32,
     march_target: Option<Position>,
     /// The landing the AI is working towards when the enemy lives on another land mass, the ship
@@ -121,8 +120,6 @@ pub struct Ai {
     /// The planes where a rival's city blocks the clearing of towers this turn (`siege.rs`).
     #[serde(skip)]
     tower_blocked: Vec<f4x_core::map::Plane>,
-    #[serde(default)]
-    muster: Vec<Serial>,
     #[serde(default)]
     muster_at: Option<Position>,
     #[serde(default)]
@@ -174,11 +171,6 @@ pub struct Ai {
     /// The ships on their way to fetch them.
     #[serde(default)]
     pickups: Vec<pickup::Pickup>,
-    /// The units out on a raid of a tower, node or encounter site (`site.rs`).
-    raiders: Vec<Serial>,
-    /// The site each raider is set on, so a party keeps to it as it walks (`site.rs`).
-    #[serde(default, serialize_with = "persist::sorted")]
-    raid_targets: HashMap<Serial, Position>,
     /// When each plan began, for the time limit on all of them (`plan_clock.rs`).
     #[serde(default)]
     clock: plan_clock::PlanClock,
@@ -253,7 +245,6 @@ impl Ai {
             scout_last: HashMap::new(),
             bad_scout_targets: Vec::new(),
             frontier_closed: false,
-            marching: Vec::new(),
             march_started: 0,
             march_target: None,
             naval: None,
@@ -267,7 +258,6 @@ impl Ai {
             sea_gave_up: false,
             planar_tower: None,
             tower_blocked: Vec::new(),
-            muster: Vec::new(),
             muster_at: None,
             muster_since: 0,
             planar: None,
@@ -290,8 +280,6 @@ impl Ai {
             refusals: RefCell::new(Vec::new()),
             roles: roles::Registry::default(),
             pickups: Vec::new(),
-            raiders: Vec::new(),
-            raid_targets: HashMap::new(),
             clock: plan_clock::PlanClock::default(),
             defended_by: Vec::new(),
             attacks: Vec::new(),

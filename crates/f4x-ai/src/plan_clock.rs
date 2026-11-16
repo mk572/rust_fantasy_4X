@@ -191,7 +191,7 @@ impl Ai {
                 self.campaign = None;
                 self.crossing = None;
                 self.march_target = None;
-                self.marching.clear();
+                self.roles.release_role(crate::roles::Role::March);
                 self.unreachable.push(target);
                 self.unreachable_since = turn;
             }
@@ -210,9 +210,15 @@ impl Ai {
                 self.colony_bad.push(c.land);
             }
         }
-        let raiders: Vec<Key> = self.raiders.iter().map(|&s| unit(s)).collect();
+        let raiders: Vec<Key> = self
+            .roles
+            .members(crate::roles::Role::Raid)
+            .into_iter()
+            .map(unit)
+            .collect();
         for key in clock.tick(PlanKind::Raid, turn, &raiders) {
-            self.raiders.retain(|s| s.0 != key.0);
+            self.roles
+                .retain_role(crate::roles::Role::Raid, |s| s.0 != key.0);
         }
         let settlers: Vec<Key> = self
             .settler_targets
@@ -370,14 +376,14 @@ mod tests {
         let mut ai = Ai::new(P0);
         let view = f4x_core::player::view::PlayerView::new(&g, P0);
         let old = view.serial_of(units[0]);
-        ai.raiders = vec![old];
+        let _ = ai.roles.claim(old, crate::roles::Role::Raid, 1, None);
         ai.drop_stale_plans(10);
         let fresh = view.serial_of(units[1]);
-        ai.raiders.push(fresh);
+        let _ = ai.roles.claim(fresh, crate::roles::Role::Raid, 1, None);
         ai.drop_stale_plans(10 + PLAN_TIMEOUT_TURNS - 1);
-        assert_eq!(ai.raiders, vec![old, fresh]);
+        assert_eq!(ai.roles.members(crate::roles::Role::Raid), vec![old, fresh]);
         ai.drop_stale_plans(10 + PLAN_TIMEOUT_TURNS);
-        assert_eq!(ai.raiders, vec![fresh]);
+        assert_eq!(ai.roles.members(crate::roles::Role::Raid), vec![fresh]);
         assert_eq!(ai.clock.dropped(PlanKind::Raid), 1);
     }
 
@@ -386,10 +392,12 @@ mod tests {
         let (mut ai, turn) = ai_at(10);
         ai.campaign = Some(at(9, 9));
         ai.march_target = Some(at(9, 9));
-        ai.marching = vec![crate::Serial(7)];
+        let _ = ai
+            .roles
+            .claim(crate::Serial(7), crate::roles::Role::March, 1, None);
         ai.drop_stale_plans(turn);
         ai.drop_stale_plans(turn + PLAN_TIMEOUT_TURNS);
-        assert!(ai.marching.is_empty() && ai.march_target.is_none());
+        assert!(!ai.roles.any(crate::roles::Role::March) && ai.march_target.is_none());
     }
 
     #[test]
