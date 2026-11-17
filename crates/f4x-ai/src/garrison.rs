@@ -1,15 +1,14 @@
 //! How many units stand in a city: what its defence wants (`wanted_strength`, `post`), the
-//! late-game dismissal of cheap units (`thin_out`), and the slot the wizard's summoning circle
-//! keeps free for the creatures a summoning spell brings (`make_room`). Sending soldiers to a
+//! late-game dismissal of cheap units (`thin_out`). Which unit steps off a full square is `crowd.rs`. Sending soldiers to a
 //! city that holds too little is `reinforce.rs`.
 //!
-//! Tests: below, on the shipped content, with a second city, a full circle and a summon.
+//! Tests: below, on the shipped content, with a second city.
 
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 
-use crate::view::{garrison_wanted, is_fighter, unit_strength, ReachCache};
+use crate::view::{garrison_wanted, is_fighter, unit_strength};
 use crate::Ai;
 
 /// The square the wizard's summoned creatures appear on.
@@ -113,25 +112,6 @@ pub fn post(view: &PlayerView, at: Position, soldiers: &[hecs::Entity]) -> Vec<h
     kept
 }
 
-/// Units that may be sent away: fighters with moves left and no task.
-fn movable(ai: &Ai, view: &PlayerView, units: &[hecs::Entity]) -> Vec<hecs::Entity> {
-    let busy = |serial| {
-        ai.roles.is_scouting(serial)
-            || ai.roles.is(serial, crate::roles::Role::Raid)
-            || ai.roles.is(serial, crate::roles::Role::March)
-            || ai.roles.is(serial, crate::roles::Role::SeaParty)
-            || ai.roles.is(serial, crate::roles::Role::PlanarScout)
-            || ai.roles.has_role(serial)
-    };
-    units
-        .iter()
-        .copied()
-        .filter(|&u| is_fighter(view, u))
-        .filter(|&u| view.unit_moves_left(u) > 0 && !view.unit_has_order(u))
-        .filter(|&u| !busy(view.serial_of(u)))
-        .collect()
-}
-
 /// Fighters a city keeps in the late game beyond [`garrison_wanted`]: a spare, so that a raid or a
 /// wandering monster does not find it empty.
 const LATE_SPARE: usize = 1;
@@ -187,74 +167,6 @@ pub fn thin_out(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     for unit in dismissed {
         ai.order(game, Command::DismissUnit { unit }, events);
     }
-}
-
-/// Could a summoning be given room now: the circle's square is full, but a fighter on it can
-/// still walk out? (When it has room already this is of no matter.)
-pub fn can_make_room(view: &PlayerView) -> bool {
-    let Some(at) = circle(view) else {
-        return false;
-    };
-    let units = view.garrison(at);
-    units.len() < view.max_tile()
-        || units
-            .iter()
-            .any(|&u| is_fighter(view, u) && view.unit_moves_left(u) > 0)
-}
-
-/// Make sure the summoning circle's square has a free slot for the creatures: when it is full,
-/// the weakest fighter that can walk leaves for the nearest other city with room. Returns
-/// whether there is room now.
-pub fn make_room(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
-    let me = ai.player;
-    let (at, plan) = {
-        let view = PlayerView::new(game, me);
-        let Some(at) = circle(&view) else {
-            return true;
-        };
-        let units = view.garrison(at);
-        if units.len() < view.max_tile() {
-            return true;
-        }
-        let mut leaving = movable(ai, &view, &units);
-        leaving.sort_by(|&a, &b| {
-            unit_strength(&view, a)
-                .total_cmp(&unit_strength(&view, b))
-                .then(view.serial_of(a).cmp(&view.serial_of(b)))
-        });
-        let mut homes: Vec<(u32, Position)> = view
-            .my_cities()
-            .into_iter()
-            .map(|(_, p)| p)
-            .filter(|&p| p != at && view.garrison(p).len() < city_cap(&view, p))
-            .filter_map(|p| Some((view.distance(at, p)?, p)))
-            .collect();
-        homes.sort_by_key(|&(d, p)| (d, p.y, p.x));
-        let mut reached = ReachCache::default();
-        let plan = leaving.into_iter().find_map(|u| {
-            homes
-                .iter()
-                .find(|&&(_, p)| reached.can_reach(&view, &[u], p))
-                .map(|&(_, p)| (u, p))
-        });
-        (at, plan)
-    };
-    let Some((unit, to)) = plan else {
-        return false;
-    };
-    // A unit that cannot leave has not made room.
-    let left = ai
-        .send(
-            game,
-            Command::GoTo {
-                units: vec![unit],
-                to,
-            },
-            events,
-        )
-        .is_ok();
-    let view = PlayerView::new(game, me);
-    left && view.garrison(at).len() < view.max_tile()
 }
 
 #[cfg(test)]
@@ -319,46 +231,6 @@ mod tests {
         ai.threatened = vec![coast];
         thin_out(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(held(&g, coast), 6);
-        Ok(())
-    }
-
-    /// A soldier waiting on a shore for a ship has its role: the garrison does not send it off.
-    #[test]
-    fn a_soldier_waiting_for_a_ship_is_not_movable() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let units = spawn(
-            &mut g,
-            P0,
-            at(COAST_CITY.0, COAST_CITY.1),
-            104, /* high_men_spearmen */
-            2,
-        );
-        let mut ai = Ai::new(P0);
-        let view = PlayerView::new(&g, P0);
-        assert_eq!(movable(&ai, &view, &units).len(), 2);
-        let _ = ai.roles.claim(
-            view.serial_of(units[0]),
-            crate::roles::Role::Reinforce,
-            1,
-            Some(at(COAST_CITY.0, COAST_CITY.1)),
-        );
-        assert_eq!(movable(&ai, &view, &units), vec![units[1]]);
-        Ok(())
-    }
-
-    #[test]
-    fn a_full_circle_gets_a_slot_by_sending_a_unit_to_another_city() -> TestResult {
-        let mut g = two_cities()?;
-        let coast = at(COAST_CITY.0, COAST_CITY.1);
-        let limit = g.max_tile();
-        spawn(&mut g, P0, coast, 104 /* high_men_spearmen */, limit);
-        let ai = Ai::new(P0);
-        assert_eq!(held(&g, coast), limit);
-        assert!(make_room(&ai, &mut g, &mut Vec::new()));
-        assert_eq!(held(&g, coast), limit - 1);
-        // With room already, nothing moves.
-        assert!(make_room(&ai, &mut g, &mut Vec::new()));
-        assert_eq!(held(&g, coast), limit - 1);
         Ok(())
     }
 

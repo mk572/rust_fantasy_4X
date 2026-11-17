@@ -567,8 +567,9 @@ impl Game {
             return None;
         };
         let too_small = self.economy().costs_a_citizen(u) && self.city_population(city).figures < 2;
-        // The human wizard is asked what to do with a full square (`unit/crowding.rs`).
-        let room = self.units().units_at(at).len() < self.max_tile() || self.crowds_allowed(owner);
+        // A full square asks for room (`unit/crowding.rs`): the human is asked what to do with
+        // it, a computer wizard's chooser moves a unit off it.
+        let room = self.make_room(at, owner, 1);
         if room && !too_small {
             return None;
         }

@@ -139,6 +139,7 @@ impl Game {
         kind: usize,
     ) -> Result<hecs::Entity, HeroError> {
         let at = self.summon_point(player).ok_or(HeroError::NoCircle)?;
+        self.make_room(at, player, 1);
         self.spawn_hero(player, at, kind)
     }
 
@@ -327,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn a_summoning_into_a_full_circle_is_refused_for_a_computer_wizard_and_let_in_for_the_human(
+    fn a_summoning_into_a_full_circle_makes_room_for_a_computer_wizard_and_is_let_in_for_the_human(
     ) -> TestResult {
         let mut g = caster();
         let war_bears = SpellId::new(6);
@@ -340,6 +341,16 @@ mod tests {
         for _ in 0..g.max_tile() {
             g.spawn_unit(P0, at(3, 3), unit);
         }
+        // A unit can step to a square next to the circle, so there is room to be made.
+        assert_eq!(g.check_target(P0, war_bears, None), Ok(()));
+        assert!(g.make_room(at(3, 3), P0, 1));
+        assert_eq!(g.units().units_at(at(3, 3)).len(), g.max_tile() - 1);
+        // With every unit out of moves nobody can step off: the summoning is refused.
+        for u in g.units().units_at(at(3, 3)) {
+            g.put(u, crate::unit::MovesLeft(HalfInt::ZERO));
+        }
+        let extra = g.spawn_unit(P0, at(3, 3), unit);
+        g.put(extra, crate::unit::MovesLeft(HalfInt::ZERO));
         assert_eq!(
             g.check_target(P0, war_bears, None),
             Err(crate::wizard::magic::MagicError::Target(

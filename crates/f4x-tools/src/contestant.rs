@@ -131,12 +131,14 @@ pub fn make(version: Version, player: PlayerId) -> Box<dyn Contestant> {
     }
 }
 
-/// The neutral players and the roaming monsters, played by one version of the AI. The new AI
-/// keeps one `Ai` for each neutral race player across the rounds, so a game keeps one of these
-/// for as long as it runs (the reference AI plays its own stateless neutrals).
+/// The neutral players and the roaming monsters, played by one version of the AI. Each version's
+/// `NeutralSeat` keeps one `Ai` for each neutral race player across the rounds, so a game keeps one
+/// of these for as long as it runs. Only the seat of the chosen version plays.
 pub struct Neutrals {
     version: Version,
     new: f4x_ai::NeutralSeat,
+    #[cfg(feature = "reference")]
+    reference: f4x_ai_ref::NeutralSeat,
 }
 
 impl Neutrals {
@@ -144,39 +146,71 @@ impl Neutrals {
         Self {
             version,
             new: f4x_ai::NeutralSeat::default(),
+            #[cfg(feature = "reference")]
+            reference: f4x_ai_ref::NeutralSeat::default(),
         }
     }
 
     /// Keep the commands the game refuses, as the wizards' AIs do.
     pub fn record_refusals(&mut self, on: bool) {
-        self.new.record_refusals(on);
+        match self.version {
+            Version::New => self.new.record_refusals(on),
+            #[cfg(feature = "reference")]
+            Version::Reference => self.reference.record_refusals(on),
+            #[cfg(not(feature = "reference"))]
+            Version::Reference => without_reference(),
+        }
     }
 
     /// The refused commands since the last call.
     pub fn take_refusals(&self) -> Vec<Refused> {
-        self.new
-            .take_refusals()
-            .into_iter()
-            .map(|r| Refused {
-                turn: r.turn,
-                player: r.player,
-                source: r.source,
-                command: r.command,
-                reason: r.reason,
-            })
-            .collect()
+        match self.version {
+            Version::New => self
+                .new
+                .take_refusals()
+                .into_iter()
+                .map(|r| Refused {
+                    turn: r.turn,
+                    player: r.player,
+                    source: r.source,
+                    command: r.command,
+                    reason: r.reason,
+                })
+                .collect(),
+            #[cfg(feature = "reference")]
+            Version::Reference => self
+                .reference
+                .take_refusals()
+                .into_iter()
+                .map(|r| Refused {
+                    turn: r.turn,
+                    player: r.player,
+                    source: r.source,
+                    command: r.command,
+                    reason: r.reason,
+                })
+                .collect(),
+            #[cfg(not(feature = "reference"))]
+            Version::Reference => without_reference(),
+        }
     }
 
     /// What the neutral players have in mind, as text for a save (`Game::set_plans`).
     pub fn plans(&self) -> Vec<(PlayerId, String)> {
-        self.new.plans()
+        match self.version {
+            Version::New => self.new.plans(),
+            #[cfg(feature = "reference")]
+            Version::Reference => self.reference.plans(),
+            #[cfg(not(feature = "reference"))]
+            Version::Reference => without_reference(),
+        }
     }
 
     fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) {
         match self.version {
             Version::New => self.new.play_turn(game, players, events),
             #[cfg(feature = "reference")]
-            Version::Reference => events.extend(f4x_ai_ref::play_neutrals(game)),
+            Version::Reference => self.reference.play_turn(game, players, events),
             #[cfg(not(feature = "reference"))]
             Version::Reference => without_reference(),
         }

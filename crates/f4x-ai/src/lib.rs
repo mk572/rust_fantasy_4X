@@ -16,6 +16,7 @@ mod budget;
 mod colony;
 mod controller;
 mod craft;
+mod crowd;
 mod diplomacy;
 mod dispatch;
 mod economy;
@@ -614,7 +615,8 @@ mod send_tests {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let units = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 1);
         // The square next to it is full of its own units.
-        spawn(&mut g, P0, at(5, 9), 113, f4x_core::unit::MAX_TILE_LIMIT);
+        let limit = g.max_tile();
+        spawn(&mut g, P0, at(5, 9), 113, limit);
         let mut events = Vec::new();
         let sent = Ai::new(P0).send(
             &mut g,

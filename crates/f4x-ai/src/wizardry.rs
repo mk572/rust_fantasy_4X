@@ -1190,17 +1190,6 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     if resurrect(ai, game, events) {
         return;
     }
-    // A summoning in the making needs the slot kept free until it is done.
-    let summoning = {
-        let view = PlayerView::new(game, me);
-        view.wizard()
-            .and_then(|m| m.casting())
-            .is_some_and(|c| matches!(kind(view.spell(c.spell)), Kind::Summon | Kind::SummonHero))
-    };
-    if summoning {
-        // Whether the room is made does not matter here (the cast is already begun); the next turn tries again.
-        crate::garrison::make_room(ai, game, events);
-    }
     let choice: Option<(SpellId, Option<Target>)> = {
         let view = PlayerView::new(game, me);
         let Some(magic) = view.wizard() else {
@@ -1285,9 +1274,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             let wanted = match k {
                 Kind::Mastery => true,
                 // Summoned creatures cost upkeep mana: only while the army is thin.
-                Kind::Summon if priority_spirit(spell) => {
-                    now && (view.can_aim(spell, None) || crate::garrison::can_make_room(&view))
-                }
+                Kind::Summon if priority_spirit(spell) => now && view.can_aim(spell, None),
                 Kind::Summon => {
                     // A conqueror in the late game summons whatever the mana pays for and the
                     // upkeep allows: the army cap is for a wizard that is still building up.
@@ -1296,15 +1283,13 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     now && (room || conquering)
                         && (fighters < 12 + 2 * view.my_cities().len()
                             || (conquering && upkeep_ok(&view, def)))
-                        // The square the creatures appear on may be full.
-                        && (view.can_aim(spell, None) || crate::garrison::can_make_room(&view))
+                        // The game makes room on a full square, or refuses the spell.
+                        && view.can_aim(spell, None)
                 }
                 // There is no cap on heroes: only the supply of heroes (`can_aim` is refused
                 // when none is left to send) and the mana limit it.
                 Kind::SummonHero => {
-                    now && room
-                        && view.hero_to_summon(spell)
-                        && (view.can_aim(spell, None) || crate::garrison::can_make_room(&view))
+                    now && room && view.hero_to_summon(spell) && view.can_aim(spell, None)
                 }
                 Kind::UnitBuff => {
                     now && room && fighters >= 3 && upkeep_ok(&view, def) && target.is_some()
@@ -1368,14 +1353,6 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         found
     };
     if let Some((spell, target)) = choice {
-        // A summoning needs a free slot where the creatures appear: a unit walks out first.
-        let summons = matches!(
-            kind(PlayerView::new(game, me).spell(spell)),
-            Kind::Summon | Kind::SummonHero
-        );
-        if summons && !crate::garrison::make_room(ai, game, events) {
-            return;
-        }
         ai.order(
             game,
             Command::CastSpell {

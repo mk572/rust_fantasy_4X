@@ -373,7 +373,7 @@ mod tests {
             .put(Some(crate::wizard::fortress::SummonAt(home)));
         cast(&mut g, 47 /* word_of_recall */, Target::Unit(u));
         assert_eq!(g.units().unit_position(u), Some(home));
-        for _ in 0..crate::unit::MAX_TILE_LIMIT - 1 {
+        for _ in 0..g.max_tile() - 1 {
             walker(&mut g, home);
         }
         let far = walker(&mut g, at(Plane::Arcanus, 1, 1));
@@ -396,7 +396,7 @@ mod tests {
         let far_square = at(Plane::Arcanus, 1, 1);
         let far = walker(&mut g, far_square);
         // The circle is full by the time the spell resolves.
-        for _ in 0..crate::unit::MAX_TILE_LIMIT {
+        for _ in 0..g.max_tile() {
             walker(&mut g, home);
         }
         let spell = g
@@ -565,7 +565,7 @@ mod tests {
             Err(TargetError::EnemyOnSquare)
         );
         g.world.despawn(enemy)?;
-        for _ in 0..crate::unit::MAX_TILE_LIMIT {
+        for _ in 0..g.max_tile() {
             g.spawn_unit(P0, sea, boat);
         }
         assert_eq!(

@@ -22,9 +22,8 @@ use f4x_newgame::setup::{new_game, NewGame};
 use serde::{Deserialize, Serialize};
 
 use crate::contestant::{self, Contestant, Version};
-use crate::metrics::{
-    add_casts, casts_line, known_never_cast, never_cast, never_cast_in, Metrics, Standing, Tally,
-};
+use crate::metrics::{casts_line, Metrics, Standing, Tally};
+use crate::report::{self, Played};
 
 pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off]";
 
@@ -241,6 +240,46 @@ pub struct GameResult {
     pub standing: Vec<(PlayerId, Standing)>,
     /// A fingerprint of the saved game at each snapshot turn.
     pub fingerprints: Vec<(u32, u64)>,
+    /// The lines the game printed when it ended (the same for every kind of soak), kept so that a
+    /// game taken from the cache prints them as a played one does.
+    #[serde(default)]
+    pub log: Vec<String>,
+}
+
+/// The lines of one game's report, tagged with the seed (and the variant). A game that prints as
+/// it goes (`--every`, `--trace`, `--detail`) prints each line at once; any other game prints
+/// them together when it ends, so that games played side by side do not interleave.
+struct Log {
+    tag: String,
+    live: bool,
+    lines: Vec<String>,
+}
+
+impl Log {
+    fn line(&mut self, text: String) {
+        let line = format!("{}: {text}", self.tag);
+        if self.live {
+            println!("{line}");
+        }
+        self.lines.push(line);
+    }
+
+    fn finish(self) -> Vec<String> {
+        if !self.live {
+            let mut out = std::io::stdout().lock();
+            for line in &self.lines {
+                let _ = writeln!(out, "{line}");
+            }
+        }
+        self.lines
+    }
+}
+
+/// `log.line(format!(..))` without the `format!`.
+macro_rules! logln {
+    ($log:expr, $($arg:tt)*) => {
+        $log.line(format!($($arg)*))
+    };
 }
 
 pub fn run(args: &[String]) -> Result<(), String> {
@@ -255,45 +294,17 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let results = in_parallel(opts.jobs(), &seeds, |&seed| {
         game(&content, seed, &opts, &roster, "", &refused)
     })?;
-    let summary: Vec<bool> = results.iter().map(|r| r.over.is_some()).collect();
-    println!(
-        "{} of {} games ended with a winner",
-        summary.iter().filter(|&&w| w).count(),
-        summary.len()
-    );
-    if opts.casts {
-        let all = add_casts(results.iter().map(|r| r.tally.casts()));
-        println!("all games, casts: {}", casts_line(&all));
-        println!(
-            "all games, map spells never cast: {}",
-            never_cast(&content.rules, &all).join(", ")
-        );
-        let fought = add_casts(results.iter().map(|r| r.tally.battle_casts()));
-        println!("all games, battle casts: {}", casts_line(&fought));
-        let known = add_casts(results.iter().map(|r| r.tally.known()));
-        println!(
-            "all games, map spells known and never cast (wizards that knew them): {}",
-            known_never_cast(
-                &content.rules,
-                &known,
-                &all,
-                f4x_def::rules::CastContext::Overland
-            )
-        );
-        println!("all games, spells known (wizards): {}", casts_line(&known));
-        let mana: std::collections::BTreeMap<String, u32> = results
-            .iter()
-            .flat_map(|r| r.tally.battle_mana().iter())
-            .fold(Default::default(), |mut m, (k, v)| {
-                *m.entry(k.clone()).or_default() += (*v).max(0) as u32;
-                m
-            });
-        println!("all games, battle mana by spell: {}", casts_line(&mana));
-        println!(
-            "all games, battle spells never cast: {}",
-            never_cast_in(&content.rules, &fought, f4x_def::rules::CastContext::Battle).join(", ")
-        );
-    }
+    let played: Vec<Played> = seeds
+        .iter()
+        .zip(&results)
+        .map(|(&seed, result)| Played {
+            seed,
+            label: "",
+            versions: &roster.versions,
+            result,
+        })
+        .collect();
+    report::print(&opts, &content, "Soak", &played);
     Ok(())
 }
 
@@ -448,8 +459,13 @@ pub fn game(
     let started = Instant::now();
     let mut last_line = started;
     let mut tally = Tally::new(&game);
+    let mut log = Log {
+        tag: tag.clone(),
+        live: opts.every > 0 || opts.trace > 0 || opts.detail,
+        lines: Vec::new(),
+    };
     for line in profile_lines(&game) {
-        println!("{tag}: {line}");
+        logln!(log, "{line}");
     }
     // Rounds that ended with a battle still open (nothing may be: every battle is fought out
     // inside the round), and the first such turn.
@@ -570,8 +586,8 @@ pub fn game(
     };
     let total = tally.total();
     let seconds = started.elapsed().as_secs_f32();
-    println!(
-        "{tag}: {outcome}; {}; {} battles, {} cities taken, {} wars declared, {} wizards met, {} diplomatic actions started, {} refused orders{open}; {seconds:.1}s",
+    logln!(log,
+        "{outcome}; {}; {} battles, {} cities taken, {} wars declared, {} wizards met, {} diplomatic actions started, {} refused orders{open}; {seconds:.1}s",
         status(&game),
         total.battles_won,
         total.cities_captured,
@@ -580,9 +596,10 @@ pub fn game(
         total.diplomacy_started,
         total.refused_orders,
     );
-    println!("{tag}: diplomacy: {}", diplomacy_line(&total));
-    println!(
-        "{tag}: planar: {}",
+    logln!(log, "diplomacy: {}", diplomacy_line(&total));
+    logln!(
+        log,
+        "planar: {}",
         total
             .rows()
             .into_iter()
@@ -600,31 +617,32 @@ pub fn game(
             .join(", ")
     );
     for line in magic_lines(&game) {
-        println!("{tag}: {line}");
+        logln!(log, "{line}");
     }
     for line in empire_lines(&game) {
-        println!("{tag}: {line}");
+        logln!(log, "{line}");
     }
     if game.game_over.is_none() {
         for line in scout_lines(&game) {
-            println!("{tag}: {line}");
+            logln!(log, "{line}");
         }
         for line in reach_lines(&game) {
-            println!("{tag}: {line}");
+            logln!(log, "{line}");
         }
     }
-    println!("{tag}: defeats: {}", defeat_line(&game, &tally));
-    println!("{tag}: far captures: {}", far_capture_line(&tally));
+    logln!(log, "defeats: {}", defeat_line(&game, &tally));
+    logln!(log, "far captures: {}", far_capture_line(&tally));
     for line in unit_lines(&game) {
-        println!("{tag}: {line}");
+        logln!(log, "{line}");
     }
     // Every counter of every wizard, one line each, for the report script (`scripts/soak_report.py`).
     for p in game.player_ids() {
         if game.wizard(p).is_none() {
             continue;
         }
-        println!(
-            "{tag}: stats p{}: {}",
+        logln!(
+            log,
+            "stats p{}: {}",
             p.0,
             tally
                 .of(p)
@@ -635,8 +653,9 @@ pub fn game(
                 .join("; ")
         );
     }
-    println!(
-        "{tag}: production rushed with gold (items, gold): {}",
+    logln!(
+        log,
+        "production rushed with gold (items, gold): {}",
         game.player_ids()
             .into_iter()
             .filter(|&p| game.wizard(p).is_some())
@@ -647,8 +666,9 @@ pub fn game(
             .collect::<Vec<_>>()
             .join(", ")
     );
-    println!(
-        "{tag}: research stalled turns: {}",
+    logln!(
+        log,
+        "research stalled turns: {}",
         game.player_ids()
             .into_iter()
             .filter(|&p| game.wizard(p).is_some())
@@ -674,20 +694,22 @@ pub fn game(
             }
         })
         .collect();
-    println!(
-        "{tag}: plans dropped by the time limit: {}",
+    logln!(
+        log,
+        "plans dropped by the time limit: {}",
         dropped.join(", ")
     );
     tally.note_known(&game);
-    println!("{tag}: mana {}", mana_line(&game, &tally));
+    logln!(log, "mana {}", mana_line(&game, &tally));
     for line in neutral_lines(&game, &tally) {
-        println!("{tag}: {line}");
+        logln!(log, "{line}");
     }
     if opts.casts {
-        println!("{tag}: casts: {}", casts_line(tally.casts()));
-        println!("{tag}: battle casts: {}", casts_line(tally.battle_casts()));
-        println!(
-            "{tag}: battle mana by spell: {}",
+        logln!(log, "casts: {}", casts_line(tally.casts()));
+        logln!(log, "battle casts: {}", casts_line(tally.battle_casts()));
+        logln!(
+            log,
+            "battle mana by spell: {}",
             casts_line(
                 &tally
                     .battle_mana()
@@ -696,13 +718,10 @@ pub fn game(
                     .collect()
             )
         );
-        println!(
-            "{tag}: spells known (wizards): {}",
-            casts_line(tally.known())
-        );
+        logln!(log, "spells known (wizards): {}", casts_line(tally.known()));
     }
     if opts.events {
-        println!("{tag}: {}", watch.summary(game.turn.saturating_sub(1)));
+        logln!(log, "{}", watch.summary(game.turn.saturating_sub(1)));
     }
     let standing = game
         .player_ids()
@@ -715,6 +734,7 @@ pub fn game(
         tally,
         standing,
         fingerprints,
+        log: log.finish(),
     })
 }
 

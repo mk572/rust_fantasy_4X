@@ -10,6 +10,7 @@ mod contestant;
 mod game_methods;
 mod metrics;
 mod queries;
+mod report;
 mod soak;
 #[cfg(test)]
 mod testutil;

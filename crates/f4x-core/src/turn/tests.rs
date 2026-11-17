@@ -1973,7 +1973,7 @@ fn just_cause_pacifies_one_rebel_in_every_city() -> TestResult {
 }
 
 #[test]
-fn a_finished_unit_waits_while_nine_units_stand_in_the_city() -> TestResult {
+fn a_finished_unit_on_a_full_square_moves_one_unit_off_it() -> TestResult {
     let mut g = world();
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     add_building(&mut g, city, 3 /* barracks */);
@@ -1984,19 +1984,45 @@ fn a_finished_unit_waits_while_nine_units_stand_in_the_city() -> TestResult {
         .units
         .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
-    for _ in 0..crate::unit::MAX_TILE_LIMIT {
+    for _ in 0..g.max_tile() {
         g.spawn_unit(P0, at(10, 6), spear);
     }
     g.set_production(city, ProductionItem::Unit(spear))
         .map_err(|e| format!("{e:?}"))?;
     let cost = g.economy().item_cost(city, ProductionItem::Unit(spear));
+    // A unit of the city can step to a square next to it, so the finished unit has room.
+    assert!(g
+        .production_blocked(city, f4x_def::half_int::HalfInt::from_int(cost as i32))
+        .is_none());
+    assert_eq!(g.units().units_at(at(10, 6)).len(), g.max_tile() - 1);
+    Ok(())
+}
+
+#[test]
+fn a_finished_unit_waits_while_no_unit_of_a_full_city_can_step_off() -> TestResult {
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 3 /* barracks */);
+    add_building(&mut g, city, 5 /* fighters_guild */);
+    let spear = g
+        .content
+        .rules
+        .units
+        .id_numbered(95)
+        .ok_or("high_elf_spearmen is not in the content")?;
+    for _ in 0..g.max_tile() {
+        g.spawn_unit(P0, at(10, 6), spear);
+    }
+    g.set_production(city, ProductionItem::Unit(spear))
+        .map_err(|e| format!("{e:?}"))?;
+    for u in g.units().units_at(at(10, 6)) {
+        g.put(u, crate::unit::MovesLeft(f4x_def::half_int::HalfInt::ZERO));
+    }
+    let cost = g.economy().item_cost(city, ProductionItem::Unit(spear));
     assert!(g
         .production_blocked(city, f4x_def::half_int::HalfInt::from_int(cost as i32))
         .is_some());
-    assert_eq!(
-        g.units().units_at(at(10, 6)).len(),
-        crate::unit::MAX_TILE_LIMIT
-    );
+    assert_eq!(g.units().units_at(at(10, 6)).len(), g.max_tile());
     assert_eq!(
         g.economy().city_production(city).item,
         Some(ProductionItem::Unit(spear))

@@ -223,6 +223,7 @@ impl EffectHost for GameHost<'_> {
     fn summon(&mut self, owner: PlayerId, at: Position, id: UnitId, count: u8) {
         // Summoned creatures appear at the summoning circle; without one, where aimed.
         let at = self.game.summon_point(owner).unwrap_or(at);
+        self.game.make_room(at, owner, usize::from(count));
         for _ in 0..count {
             self.game.spawn_unit(owner, at, id);
         }
@@ -610,9 +611,7 @@ impl Game {
                 Some(Target::Tile(p)) => self.summon_point(player).or(Some(p)),
                 _ => self.summon_point(player),
             };
-            if at.is_some_and(|p| self.units().units_at(p).len() >= self.max_tile())
-                && !self.crowds_allowed(player)
-            {
+            if at.is_some_and(|p| !self.can_make_room(p, player, 1)) {
                 return Err(MagicError::Target(TargetError::SquareFull));
             }
         }

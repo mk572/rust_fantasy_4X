@@ -8,12 +8,12 @@
 use std::path::{Path, PathBuf};
 
 use f4x_core::game::save::Snapshot;
-use f4x_core::player::PlayerId;
 
 use crate::cache;
 use crate::contestant::Version;
-use crate::metrics::{Metrics, Standing};
-use crate::soak::{self, GameResult, Options, Roster};
+use crate::metrics::Standing;
+use crate::report::{self, Played};
+use crate::soak::{self, Options, Roster};
 
 pub const USAGE: &str = "usage: f4x-tools soak-versus [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--detail] [--snapshots-every N (default 50, 0: none)] [--out DIR (default soak-out)] [--refused-log FILE] [--jobs N (default: one for each core)] [--no-cache] [--from SAVE (one game, on from that save)]\n       f4x-tools soak-diff SNAPSHOT_A SNAPSHOT_B [--content DIR]";
 
@@ -51,37 +51,6 @@ fn variants(players: u8) -> Vec<Variant> {
     ]
 }
 
-/// The wizards of one kind of seat over all games: how many wizard-games, their counts and
-/// their standing at the end.
-#[derive(Default)]
-struct Column {
-    wizards: usize,
-    metrics: Metrics,
-    standing: [i64; 9],
-}
-
-impl Column {
-    fn add(&mut self, game: &GameResult, seats: impl Fn(PlayerId) -> bool) {
-        for (player, standing) in &game.standing {
-            if !seats(*player) {
-                continue;
-            }
-            self.wizards += 1;
-            self.metrics += game.tally.of(*player);
-            for (slot, (_, value)) in self.standing.iter_mut().zip(standing.rows()) {
-                *slot += value;
-            }
-        }
-    }
-
-    fn per_wizard(&self, total: i64) -> String {
-        if self.wizards == 0 {
-            return "-".into();
-        }
-        format!("{:.1}", total as f64 / self.wizards as f64)
-    }
-}
-
 pub fn run(args: &[String]) -> Result<(), String> {
     let mut opts = Options::parse(args, USAGE)?;
     if opts.players < 2 {
@@ -92,11 +61,6 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let content = opts.load_content()?;
     let refused = soak::open_refused_log(&opts.refused_log)?;
     let variants = variants(opts.players);
-    let [mut ref_all, mut new_all, mut mixed_ref, mut mixed_new] = <[Column; 4]>::default();
-    // Wins of the mixed games by version, and games nobody won.
-    let (mut new_wins, mut ref_wins, mut undecided) = (0, 0, 0);
-    let (mut ref_all_ended, mut new_all_ended, mut seeds) = (0, 0, 0);
-    let mut divergence = Vec::new();
     // Every game of every seed, played `jobs` at a time; the reference-only game is taken from
     // the cache when this build has played it before.
     let out = opts.out.clone().unwrap_or_default();
@@ -108,6 +72,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         let cacheable = v.name == "ref-all" && !opts.no_cache && opts.battle_ai.is_none();
         if cacheable {
             if let Some(kept) = cache::load(&out, &opts, seed) {
+                report::print_log(&kept);
                 println!("seed {seed} [{}]: kept from an earlier run", v.name);
                 return Ok(kept);
             }
@@ -122,117 +87,23 @@ pub fn run(args: &[String]) -> Result<(), String> {
         }
         Ok(result)
     })?;
-    for (n, seed) in (opts.first..=opts.last).enumerate() {
-        seeds += 1;
-        let played = &all[n * variants.len()..(n + 1) * variants.len()];
-        for (v, result) in variants.iter().zip(played) {
-            let version_of = |p: PlayerId| v.versions[usize::from(p.0)];
-            match v.name {
-                "ref-all" => {
-                    ref_all.add(result, |_| true);
-                    ref_all_ended += usize::from(result.over.is_some());
-                }
-                "new-all" => {
-                    new_all.add(result, |_| true);
-                    new_all_ended += usize::from(result.over.is_some());
-                }
-                _ => {
-                    mixed_new.add(result, |p| version_of(p) == Version::New);
-                    mixed_ref.add(result, |p| version_of(p) == Version::Reference);
-                    match result.over.map(|o| version_of(o.winner)) {
-                        Some(Version::New) => new_wins += 1,
-                        Some(Version::Reference) => ref_wins += 1,
-                        None => undecided += 1,
-                    }
-                }
-            }
-        }
-        for (v, result) in variants.iter().zip(played).skip(1) {
-            divergence.push((
-                seed,
-                v.name,
-                first_difference(&played[0], result),
-                result.over.map(|o| o.turn),
-            ));
-        }
-    }
-    println!();
-    println!(
-        "== Versus: new AI against the reference, {seeds} seeds, {} players ==",
-        opts.players
-    );
-    println!(
-        "mixed games (new in the first half of the seats, then in the second): new won {new_wins}, reference won {ref_wins}, no winner {undecided}"
-    );
-    println!(
-        "games ended with a winner: ref-all {ref_all_ended}/{seeds}, new-all {new_all_ended}/{seeds}"
-    );
-    println!();
-    println!("Per wizard and game (average over {seeds} seeds):");
-    let columns = [
-        ("ref-all", &ref_all),
-        ("mixed: ref", &mixed_ref),
-        ("mixed: new", &mixed_new),
-        ("new-all", &new_all),
-    ];
-    print!("{:<20}", "");
-    for (name, _) in &columns {
-        print!("{name:>12}");
-    }
-    println!();
-    for (i, (label, _)) in Metrics::default().rows().iter().enumerate() {
-        print!("{label:<20}");
-        for (_, col) in &columns {
-            print!("{:>12}", col.per_wizard(i64::from(col.metrics.rows()[i].1)));
-        }
-        println!();
-    }
-    print!("{:<20}", "first landing turn");
-    for (_, col) in &columns {
-        print!(
-            "{:>12}",
-            col.metrics
-                .first_landing()
-                .map_or("-".into(), |t| format!("{t:.1}"))
-        );
-    }
-    println!();
-    println!("-- at the end of the game --");
-    for (i, (label, _)) in Standing::default().rows().iter().enumerate() {
-        print!("{label:<20}");
-        for (_, col) in &columns {
-            print!("{:>12}", col.per_wizard(col.standing[i]));
-        }
-        println!();
-    }
-    if opts.snapshots_every != Some(0) {
-        println!();
-        println!(
-            "First snapshot that differs from ref-all (snapshots in {}/seedN-VARIANT/tNNNN.f4x):",
-            opts.out
-                .as_deref()
-                .unwrap_or(Path::new("soak-out"))
-                .display()
-        );
-        for (seed, name, turn, ended) in divergence {
-            let ended = ended.map_or(String::new(), |t| format!(", game ended turn {t}"));
-            match turn {
-                Some(t) => println!("  seed {seed} {name}: turn {t}{ended}"),
-                None => println!("  seed {seed} {name}: none{ended}"),
-            }
-        }
-        println!("Compare two of them: f4x-tools soak-diff A B");
-    }
-    Ok(())
-}
-
-/// The first snapshot turn at which the two games' fingerprints differ, if any.
-fn first_difference(a: &GameResult, b: &GameResult) -> Option<u32> {
-    a.fingerprints
+    let played: Vec<Played> = work
         .iter()
-        .zip(&b.fingerprints)
-        .find(|((_, x), (_, y))| x != y)
-        .map(|((turn, _), _)| *turn)
+        .zip(&all)
+        .map(|(&(seed, k), result)| Played {
+            seed,
+            label: variants[k].name,
+            versions: &variants[k].versions,
+            result,
+        })
+        .collect();
+    report::print(
+        &opts,
+        &content,
+        "Versus: new AI against the reference",
+        &played,
+    );
+    Ok(())
 }
 
 /// `soak-diff`: show how two saved games differ.
