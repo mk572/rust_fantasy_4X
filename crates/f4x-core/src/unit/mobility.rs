@@ -1,6 +1,7 @@
 //! The second measure of a unit (the first is what it adds to a battle, `battle::power`): how
 //! quickly and easily it gets to a target square. It is the unit's movement rate times a
-//! multiplier for what its kind of movement and its abilities do for it. A flat multiplier, not a
+//! multiplier for what its kind of movement and its abilities do for it: the best one that applies,
+//! as they mostly overlap, never several multiplied together. A flat multiplier, not a
 //! walk over the terrain: a flier with two moves often gets where a walker with four is held up.
 //!
 //! Who asks: a garrison never does; a march or a raid is as slow as the slowest unit of the party,
@@ -25,8 +26,6 @@ const SWIMMING: f32 = 1.5;
 const TERRAIN_WISE: f32 = 1.2;
 /// Water walking: the water as the land, without a ship.
 const WATER_WALKING: f32 = 1.2;
-/// Cavalry: fast on open ground.
-const CAVALRY: f32 = 1.1;
 
 /// What carries a whole stack when any unit of it has it: every square of land costs half a move
 /// (pathfinding) or the stack flies (wind walking).
@@ -38,42 +37,31 @@ const ABILITY_FLYING: u16 = 24;
 const ABILITY_MOUNTAINEER: u16 = 45;
 const ABILITY_FORESTER: u16 = 25;
 const ABILITY_WATER_WALKING: u16 = 71;
-const ABILITY_CAVALRY: u16 = 9;
 
 /// How quickly a unit with `moves` movement points a turn, this kind of `movement` and the
 /// abilities `has` says it has, gets to a square: the rate times what its movement gives it.
 pub fn unit_mobility(moves: i32, movement: MovementType, has: impl Fn(Ability) -> bool) -> f32 {
     let has = |n: u16| has(Ability::new(n));
     let rate = moves.max(0) as f32;
-    // How the unit crosses ground: one of these, the best that applies.
-    let kind = if has(ABILITY_NON_CORPOREAL) {
-        NON_CORPOREAL
-    } else if has(STACK_WIND_WALKING) {
-        WIND_WALKING
-    } else if movement == MovementType::Flying || has(ABILITY_FLYING) {
-        FLYING
-    } else if movement == MovementType::Swimming {
-        SWIMMING
-    } else {
-        // A walker: what it is wise about adds up, the hills and the forests and the water.
-        let mut m = 1.0;
-        for (ability, share) in [
-            (ABILITY_MOUNTAINEER, TERRAIN_WISE),
-            (ABILITY_FORESTER, TERRAIN_WISE),
-            (ABILITY_WATER_WALKING, WATER_WALKING),
-            (ABILITY_CAVALRY, CAVALRY),
-        ] {
-            if has(ability) {
-                m *= share;
-            }
-        }
-        // Pathfinding makes every land square cost half, whatever the terrain: nothing to be wise
-        // about any more.
-        if has(STACK_PATHFINDING) {
-            m = f32::max(m, PATHFINDING);
-        }
-        m
-    };
+    // How the unit crosses ground: most of these overlap, so the best one that applies counts and
+    // they are never multiplied together.
+    let kind = [
+        (has(ABILITY_NON_CORPOREAL), NON_CORPOREAL),
+        (has(STACK_WIND_WALKING), WIND_WALKING),
+        (
+            movement == MovementType::Flying || has(ABILITY_FLYING),
+            FLYING,
+        ),
+        (has(STACK_PATHFINDING), PATHFINDING),
+        (movement == MovementType::Swimming, SWIMMING),
+        (has(ABILITY_MOUNTAINEER), TERRAIN_WISE),
+        (has(ABILITY_FORESTER), TERRAIN_WISE),
+        (has(ABILITY_WATER_WALKING), WATER_WALKING),
+    ]
+    .into_iter()
+    .filter(|&(applies, _)| applies)
+    .map(|(_, m)| m)
+    .fold(1.0, f32::max);
     rate * kind
 }
 
@@ -125,7 +113,7 @@ mod tests {
     const NONE: fn(Ability) -> bool = |_| false;
 
     /// The multipliers of the design: non-corporeal three times the rate, flying twice, swimming
-    /// one and a half, mountaineer and forester a fifth more each.
+    /// one and a half, mountaineer and forester a fifth more; the best one counts, none is multiplied.
     #[test]
     fn the_movement_kinds_multiply_the_rate() {
         let with = |n: u16| move |a: Ability| a == Ability::new(n);
@@ -136,7 +124,10 @@ mod tests {
         assert_eq!(unit_mobility(2, MovementType::Swimming, NONE), 3.0);
         assert!((unit_mobility(2, MovementType::Walking, with(45)) - 2.4).abs() < 1e-5);
         let both = |a: Ability| a == Ability::new(45) || a == Ability::new(25);
-        assert!((unit_mobility(2, MovementType::Walking, both) - 2.88).abs() < 1e-5);
+        assert!(
+            (unit_mobility(2, MovementType::Walking, both) - 2.4).abs() < 1e-5,
+            "the best one, not both multiplied"
+        );
         // What carries a whole stack rates higher than what only helps the unit: wind walking
         // above flying, pathfinding twice the rate of a walker.
         assert_eq!(unit_mobility(2, MovementType::Walking, with(74)), 6.0);
@@ -219,6 +210,5 @@ mod tests {
         assert_eq!(id(ABILITY_MOUNTAINEER).as_deref(), Some("mountaineer"));
         assert_eq!(id(ABILITY_FORESTER).as_deref(), Some("forester"));
         assert_eq!(id(ABILITY_WATER_WALKING).as_deref(), Some("water_walking"));
-        assert_eq!(id(ABILITY_CAVALRY).as_deref(), Some("cavalry"));
     }
 }

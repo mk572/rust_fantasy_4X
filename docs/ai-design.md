@@ -907,9 +907,9 @@ about it.
 
 **Mobility, the second measure (17 November 2026).** `f4x_core::unit::mobility` (`unit_mobility`,
 `def_mobility`, `party_mobility`, `PlayerView::unit_mobility`): the movement rate times a flat
-multiplier for the kind of movement (non-corporeal 3, wind walking 3, flying 2, swimming 1.5; a
-walker: mountaineer and forester 1.2 each, water walking 1.2, cavalry 1.1, pathfinding 2 instead of
-those). Wind walking and pathfinding carry the whole stack, so they rate above what only helps the
+multiplier for the kind of movement, the best one that applies and never several multiplied
+(non-corporeal 3, wind walking 3, flying 2, pathfinding 2, swimming 1.5, mountaineer, forester and
+water walking 1.2; cavalry adds nothing by itself). Wind walking and pathfinding carry the whole stack, so they rate above what only helps the
 unit; no unit has pathfinding by itself (the spell and an item give it), the wind mage and the djinn
 have wind walking. No walk over the terrain: a flier with two
 moves gets where a walker with four is held up. A party goes at the pace of its slowest unit, unless
