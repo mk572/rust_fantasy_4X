@@ -1,11 +1,9 @@
-//! How many units stand in a city. More than a stack's worth (nine) add nothing to the defence,
-//! so the excess is put to use: it shores up a city that holds too few, raids a site, tower or
-//! node, or scouts. The city with the wizard's summoning circle keeps a slot free for the
-//! creatures a summoning spell brings (`make_room`).
+//! How many units stand in a city: what its defence wants (`wanted_strength`, `post`), the
+//! late-game dismissal of cheap units (`thin_out`), and the slot the wizard's summoning circle
+//! keeps free for the creatures a summoning spell brings (`make_room`). Sending soldiers to a
+//! city that holds too little is `reinforce.rs`.
 //!
 //! Tests: below, on the shipped content, with a second city, a full circle and a summon.
-
-use std::collections::HashMap;
 
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
@@ -167,102 +165,6 @@ pub fn thin_out(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
 }
 
-/// Send the units a city holds beyond [`city_cap`] where they are of use: to the nearest city
-/// with fewer defenders than it wants, else on a raid (three or more on a square), else
-/// scouting. The strongest leave; the weakest stay at home.
-pub fn disperse(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
-    let me = ai.player;
-    let (sent, rest) = {
-        let view = PlayerView::new(game, me);
-        let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
-        let mut held: HashMap<Position, Vec<hecs::Entity>> = HashMap::new();
-        for u in view.my_units() {
-            if let Some(p) = view.unit_position(u).filter(|p| cities.contains(p)) {
-                held.entry(p).or_default().push(u);
-            }
-        }
-        // Cities that hold fewer defenders than they want, and the room left in each.
-        let mut needy: Vec<(Position, usize, usize)> = cities
-            .iter()
-            .filter_map(|&c| {
-                let units = held.get(&c).map_or(&[][..], Vec::as_slice);
-                let fighters = units.iter().filter(|&&u| is_fighter(&view, u)).count();
-                let wanted = garrison_wanted(&view, c);
-                let room = city_cap(&view, c).saturating_sub(units.len());
-                (fighters < wanted && room > 0).then(|| (c, wanted - fighters, room))
-            })
-            .collect();
-        let mut over: Vec<Position> = cities
-            .iter()
-            .copied()
-            .filter(|c| held.get(c).is_some_and(|u| u.len() > city_cap(&view, *c)))
-            .collect();
-        over.sort_by_key(|p| (p.plane as u8, p.y, p.x));
-        let mut reached = ReachCache::default();
-        let mut sent: Vec<(hecs::Entity, Position)> = Vec::new();
-        let mut rest: Vec<hecs::Entity> = Vec::new();
-        for city in over {
-            let units = &held[&city];
-            let excess = units.len() - city_cap(&view, city);
-            let mut leaving = movable(ai, &view, units);
-            leaving.sort_by(|&a, &b| {
-                unit_strength(&view, b)
-                    .total_cmp(&unit_strength(&view, a))
-                    .then(view.serial_of(a).cmp(&view.serial_of(b)))
-            });
-            leaving.truncate(excess);
-            for u in leaving {
-                let mut near: Vec<usize> = (0..needy.len())
-                    .filter(|&i| needy[i].0 != city && needy[i].2 > 0)
-                    .collect();
-                near.sort_by_key(|&i| {
-                    (view.distance(city, needy[i].0), needy[i].0.y, needy[i].0.x)
-                });
-                let home = near.into_iter().find(|&i| {
-                    view.distance(city, needy[i].0).is_some()
-                        && reached.can_reach(&view, &[u], needy[i].0)
-                });
-                match home {
-                    Some(i) => {
-                        sent.push((u, needy[i].0));
-                        needy[i].1 = needy[i].1.saturating_sub(1);
-                        needy[i].2 -= 1;
-                        if needy[i].1 == 0 {
-                            needy.remove(i);
-                        }
-                    }
-                    None => rest.push(u),
-                }
-            }
-        }
-        (sent, rest)
-    };
-    for (unit, to) in sent {
-        ai.order(
-            game,
-            Command::GoTo {
-                units: vec![unit],
-                to,
-            },
-            events,
-        );
-    }
-    if rest.is_empty() {
-        return;
-    }
-    if ai.frontier_closed {
-        return;
-    }
-    // What is left scouts: the scouting gives each a patch to walk to.
-    let view = PlayerView::new(game, me);
-    for u in rest {
-        let serial = view.serial_of(u);
-        let _ = ai
-            .roles
-            .claim(serial, crate::roles::Role::Scout, game.turn, None);
-    }
-}
-
 /// Could a summoning be given room now: the circle's square is full, but a fighter on it can
 /// still walk out? (When it has room already this is of no matter.)
 pub fn can_make_room(view: &PlayerView) -> bool {
@@ -393,35 +295,6 @@ mod tests {
         ai.threatened = vec![coast];
         thin_out(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(held(&g, coast), 6);
-        Ok(())
-    }
-
-    #[test]
-    fn a_city_with_nine_or_fewer_keeps_them() -> TestResult {
-        let mut g = two_cities()?;
-        let coast = at(COAST_CITY.0, COAST_CITY.1);
-        spawn(&mut g, P0, coast, 104 /* high_men_spearmen */, 9);
-        let mut ai = Ai::new(P0);
-        disperse(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(held(&g, coast), 9);
-        assert!(ai.roles.scouting().is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn the_excess_shores_up_a_weak_city_first() -> TestResult {
-        let mut g = two_cities()?;
-        let coast = at(COAST_CITY.0, COAST_CITY.1);
-        let inland = at(INLAND_CITY.0, INLAND_CITY.1);
-        // A full square at the summoning circle holds one more than the AI lets stand there.
-        let limit = g.max_tile();
-        spawn(&mut g, P0, coast, 104 /* high_men_spearmen */, limit);
-        assert_eq!(held(&g, inland), 0);
-        let cap = city_cap(&PlayerView::new(&g, P0), coast);
-        assert!(cap < limit, "the circle keeps a slot free");
-        let mut ai = Ai::new(P0);
-        disperse(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(held(&g, coast), cap, "the extra units left the coast");
         Ok(())
     }
 

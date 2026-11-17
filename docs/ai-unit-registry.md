@@ -63,7 +63,8 @@ Listed in priority order (the lower number wins a claim, section 4). The roles w
 | `PlanarScout` | the scout walking to an open tower to change plane (`to` = the tower) | one unit | `scout.rs` |
 | `TransportSpace` | a ship with a target whose planned passengers (tied to it) are fewer than it holds: on its way to the port to load a landing (`to` = the port), holding part of a load, or on its way to the sea square where stranded soldiers wait (`to` = the square) | ships | `naval.rs`, `pickup.rs` |
 | `AwaitTransport` (**deprecated**, task 647: use `Assignment::crossing`) | a stranded soldier waiting on a shore tile for a ship (`to` = the tile; `with` = the ship that comes) | soldiers | `pickup.rs`, the audit |
-| `Perimeter` | a soldier dealing with the enemy in the zone of a city (`to` = the enemy's square, or the city it joins) | soldiers | `perimeter.rs` |
+| `Perimeter` | a soldier dealing with the enemy in the zone of a city (`to` = the enemy's square) | soldiers | `perimeter.rs` |
+| `Reinforce` | a soldier on its way to an under-defended own city, or kept in a threatened one (`to` = the city; released on arrival unless the city is threatened) | soldiers | `reinforce.rs` |
 | `Raid` | out on a tower, node or encounter site (`to` = the site) | soldiers | `site.rs`, `naval.rs` |
 | `March` | on the march against a city | soldiers | `military.rs` |
 | `Muster` | walking to the rally square of a party being assembled (`to` = the rally, `party` = the muster) | soldiers | `raid.rs`, `military.rs` |

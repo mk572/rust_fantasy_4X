@@ -8,7 +8,7 @@
 //! - when the soldiers within reach are strong enough (`military::attack_ratio`) they gather on a
 //!   square beside it and, once they stand there together and are enough, attack it; they do
 //!   not follow it out of the zone. Their role is `Perimeter`, `to` = the enemy's square;
-//! - when it is the stronger, they join the garrison of the city: `Perimeter`, `to` = the city.
+//! - when it is the stronger nothing is done here: the city is sent soldiers by `reinforce.rs`.
 //!
 //! A holder whose enemy is gone gives the role back. `Ai::threatened` (the cities the economy
 //! builds soldiers for) is set here from the same look. See `docs/ai-unit-registry.md`.
@@ -27,8 +27,6 @@ const REACH: u32 = 6;
 
 /// A stack of the enemy in the zone of one of our cities.
 struct Threat {
-    /// The city whose zone it is in.
-    city: Position,
     square: Position,
     units: Vec<hecs::Entity>,
 }
@@ -78,11 +76,7 @@ fn threats(view: &PlayerView) -> Vec<Threat> {
             let Some(units) = view.hostile_at(square).filter(|u| !u.is_empty()) else {
                 continue;
             };
-            found.push(Threat {
-                city,
-                square,
-                units,
-            });
+            found.push(Threat { square, units });
         }
     }
     found
@@ -109,8 +103,7 @@ pub fn run(
         let view = PlayerView::new(game, me);
         for serial in ai.roles.members(Role::Perimeter) {
             let to = ai.roles.target_of(serial, Role::Perimeter);
-            let wanted =
-                to.is_some_and(|to| threats.iter().any(|t| t.square == to || t.city == to));
+            let wanted = to.is_some_and(|to| threats.iter().any(|t| t.square == to));
             let alive = view
                 .my_units()
                 .into_iter()
@@ -135,7 +128,7 @@ pub fn run(
                         && ai
                             .roles
                             .target_of(s, Role::Perimeter)
-                            .is_some_and(|to| to == threat.square || to == threat.city)
+                            .is_some_and(|to| to == threat.square)
                 })
                 .collect();
             for &u in &free {
@@ -176,13 +169,6 @@ pub fn run(
                 ai.roles.set_target(s, Role::Perimeter, Some(threat.square));
             }
             attack_or_gather(ai, game, &idle, &threat, their * ratio, events);
-        } else {
-            // The stronger enemy: the soldiers join the garrison.
-            for &s in &serials {
-                let _ = ai.roles.claim(s, Role::Perimeter, turn, Some(threat.city));
-                ai.roles.set_target(s, Role::Perimeter, Some(threat.city));
-            }
-            join_garrison(ai, game, &idle, threat.city, events);
         }
         free.retain(|u| !idle.contains(u));
     }
@@ -272,39 +258,6 @@ fn attack_or_gather(
     send_by_square(ai, game, &go, stage, events);
 }
 
-/// The soldiers go into the city when it has room.
-fn join_garrison(
-    ai: &mut Ai,
-    game: &mut Game,
-    idle: &[hecs::Entity],
-    city: Position,
-    events: &mut Vec<Event>,
-) {
-    let me = ai.player;
-    let go: Vec<hecs::Entity> = {
-        let view = PlayerView::new(game, me);
-        idle.iter()
-            .copied()
-            .filter(|&u| view.unit_position(u) != Some(city))
-            .collect()
-    };
-    for unit in go {
-        if !Ai::room_at(game, city, 1) {
-            break;
-        }
-        if PlayerView::new(game, me).can_reach(&[unit], city) {
-            let _ = ai.send(
-                game,
-                Command::GoTo {
-                    units: vec![unit],
-                    to: city,
-                },
-                events,
-            );
-        }
-    }
-}
-
 /// Send the units to one square, those standing together as a stack.
 fn send_by_square(
     ai: &mut Ai,
@@ -359,25 +312,6 @@ mod tests {
         let squares = zone(&view, at(10, 6));
         assert!(squares.len() >= 20 && squares.contains(&at(8, 6)));
         assert!(!squares.contains(&at(8, 4)), "the corners are out");
-    }
-
-    /// The enemy is the stronger: the spare soldiers join the garrison and hold the role with the
-    /// city as their target.
-    #[test]
-    fn a_stronger_enemy_in_the_zone_brings_the_spare_soldiers_into_the_city() {
-        let (mut g, spare) = besieged(5);
-        let mut ai = Ai::new(P0);
-        let free = run(&mut ai, &mut g, spare.clone(), &mut Vec::new());
-        assert!(free.is_empty());
-        let view = PlayerView::new(&g, P0);
-        for &u in &spare {
-            assert!(view.unit_has_order(u));
-            assert_eq!(
-                ai.roles.target_of(view.serial_of(u), Role::Perimeter),
-                Some(at(10, 6))
-            );
-        }
-        assert_eq!(ai.threatened, vec![at(10, 6)]);
     }
 
     /// A weak raider in the zone is gone for: the soldiers walk to a square beside it, with the

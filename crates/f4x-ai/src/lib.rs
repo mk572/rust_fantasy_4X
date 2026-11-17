@@ -40,6 +40,7 @@ mod race;
 mod raid;
 mod raze;
 mod recover;
+mod reinforce;
 mod road;
 pub mod roles;
 mod scout;

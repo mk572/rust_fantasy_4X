@@ -86,6 +86,7 @@ fn mission_valid(
         Role::Settle => !ai.bad_sites.contains(&target) && view.city_at(target).is_none(),
         Role::Scout => !view.explored(target),
         Role::Meld => crate::meld::open_nodes(ai, view).contains(&target),
+        Role::Reinforce => view.my_cities().into_iter().any(|(_, p)| p == target),
         _ => true,
     }
 }
@@ -198,6 +199,7 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
                 Role::March,
                 Role::Settle,
                 Role::Road,
+                Role::Reinforce,
             ] {
                 if !ai.roles.is(serial, role) {
                     continue;
@@ -282,13 +284,15 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // First the units whose mission is over, so the jobs below see them waiting.
     revalidate(ai, game, events);
     crate::recover::run(ai, game, events);
-    crate::garrison::disperse(ai, game, events);
     crate::garrison::thin_out(ai, game, events);
     // 0. a city in danger: the free soldiers deal with the enemy in its zone, before anything else
     {
         let free = free_soldiers(ai, game);
         crate::perimeter::run(ai, game, free, events);
     }
+    // 0b. an own city that holds less than it wants: the nearest free soldiers go in
+    crate::reinforce::run(ai, game, events);
+    // 0b. an own city that holds less than it wants: the nearest free soldiers go in
     // 1. settlers, engineers, spirits
     crate::expand::settlers(ai, game, events);
     crate::road::run(ai, game, events);
@@ -338,6 +342,8 @@ mod tests {
     fn a_waiting_soldier_with_no_job_is_left_where_it_stands() {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         g.reveal_map(P0);
+        // The city holds the one soldier its defence wants: the lone one is not needed there.
+        spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 1);
         let lone = spawn(&mut g, P0, at(8, 6), 104, 1)[0];
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();

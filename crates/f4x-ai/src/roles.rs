@@ -39,7 +39,7 @@ pub enum Role {
     /// A soldier that goes with a unit it protects (`escort.rs`); `with` is that unit.
     Escort,
     /// A soldier of the surplus dealing with what is in the zone of the cities (`perimeter.rs`):
-    /// `to` = the enemy square it goes for, or the city it joins when the enemy is the stronger.
+    /// `to` = the enemy square it goes for.
     Perimeter,
     /// A spirit on its way to an open node to meld with it (`meld.rs`, `to` = the node).
     Meld,
@@ -68,6 +68,8 @@ pub enum Role {
     AwaitTransport,
     /// On its way to a square by an order of its own (`to` = the end of the path).
     MoveTo,
+    /// A soldier on its way to an under-defended own city (`reinforce.rs`, `to` = the city).
+    Reinforce,
 }
 
 /// What carries a unit to its target when no walk leads there: the unit keeps its role and its
@@ -800,6 +802,7 @@ impl Role {
             Role::TransportSpace => 6,
             Role::AwaitTransport => 7,
             Role::Perimeter => 8,
+            Role::Reinforce => 8,
             Role::Raid => 9,
             Role::March => 10,
             Role::Muster => 11,

@@ -89,6 +89,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             || roles.in_muster(s, MusterKind::Campaign)
             || roles.is(s, Role::March)
             || roles.is(s, Role::Perimeter)
+            || roles.is(s, Role::Reinforce)
             || roles.is(s, Role::Garrison)
     });
     let stack_list = stacks(&PlayerView::new(game, me), fighters);

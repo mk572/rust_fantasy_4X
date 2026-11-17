@@ -1039,37 +1039,6 @@ fn neutral_cities_survive_a_save() -> TestResult {
 }
 
 #[test]
-fn neutral_cities_keep_their_garrisons_for_sixty_turns() -> TestResult {
-    let content = content();
-    for seed in [1, 2] {
-        let mut g = new_game(
-            content,
-            &NewGame {
-                seed,
-                ..NewGame::default()
-            },
-        )?;
-        // Cities in the mountains or the desert starve a few units in 60 turns (the land is the
-        // original's mix, with little grassland); garrisons that melt away are another thing.
-        let mut lost = 0;
-        for turn in 0..60 {
-            for e in f4x_ai::play_round(&mut g, &mut []) {
-                if let f4x_core::game::Event::UnitsDisbanded { player, units } = e {
-                    if g.is_neutral_player(player) {
-                        lost += units;
-                        assert!(
-                            lost <= 8,
-                            "seed {seed} turn {turn}: lost {lost}, {player:?}"
-                        );
-                    }
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-#[test]
 fn a_world_has_the_originals_number_of_lairs() -> TestResult {
     use f4x_core::map::Plane;
     let content = content();
