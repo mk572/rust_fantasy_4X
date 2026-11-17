@@ -810,20 +810,30 @@ missing strength.
 
 What the AI has not seen is *unknown*, not guessed, and the age of a picture counts against it.
 
-**Targets and their worth.** Worth is what taking the city gives (production, the fortress, the
-wizard's capital) minus what it costs (the defence to beat with the margin of `attack_ratio`, the walk,
-the enemy cities that can reinforce it). Each target has a role:
-- *main*: the fortress city or the best production city;
-- *pincer*: a second target on another axis, started to arrive in the same turn as the main one;
-- *pickoff*: a weakly held city beside or behind the front that a small fast group takes;
-- *screen*: a front that is held, not attacked, which protects our cities while the main force is away.
+**The town list and two priorities** (decided with the user, 17 November 2026). The strategist lists
+every town of the enemy at war (known or remembered, with the age of what is known) and rates each on
+two separate scales:
 
-The plan holds an ordered list. When one target falls the next is chosen at once, and the stack that
-is already there continues (exploit).
+1. **The war goal**: the prize the war is for. A fortress city, or the main production site. Rated by
+   importance (the wizard's fortress or capital, size, buildings seen), the closeness to our land,
+   and whether it is reachable at all. The goal is the long-term aim and changes rarely. It is not
+   always the highest value: a good target on the same plane is taken before a fortress on the other
+   plane, because the first is reachable now and the second needs a tower, a gate or a ship.
+2. **The next target**: the town to attack now, on the way to the goal. Rated by strategic location (it
+   lies on the route to the goal, it cuts the enemy's roads, it protects our border), closeness to
+   our units, a landing bridge or foothold (a coastal or planar-tower town that lets the army cross),
+   and a low defence (the strength to beat, with the age of the picture). The next target is
+   re-chosen when it falls or the picture changes.
+
+The goal sets the direction and the next target sets the step. A weakly held town in the back is a
+next target when taking it is cheap and does not pull the army off the route, and a pincer is a second
+next target on another axis, started so that both groups arrive in the same turn. A front that is only
+held is a *screen*: no attack, but our cities near it are covered while the army is away.
 
 **Recon before commitment.** A target whose picture is older than the limit, or whose route has unseen
 squares, becomes a *recon demand*: a fast unit goes (`scout.rs`, job 3). No group is committed to a
 target it has not seen recently, unless it is the only one in reach and the plan has waited the limit.
+A town whose picture is old also counts against its rating on both scales until it has been seen again.
 
 **Phases per group.** Recon, mass (at the rally point the plan names, on the side of the target the
 route comes from), strike, exploit. The groups of a pincer start together: a group's start turn is the
