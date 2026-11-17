@@ -205,47 +205,19 @@ impl App {
 
     /// Draw the question and take its answer.
     pub(crate) fn vizier_ask_frame(&mut self, input: &Input) -> Option<VizierAsk> {
-        let (w, h) = (screen_width(), screen_height());
-        draw_rectangle(
-            w / 2.0 - 330.0,
-            h / 2.0 - 60.0,
-            660.0,
-            120.0,
-            Color::new(0.08, 0.06, 0.04, 0.95),
-        );
-        draw_rectangle_lines(
-            w / 2.0 - 330.0,
-            h / 2.0 - 60.0,
-            660.0,
-            120.0,
-            3.0,
-            crate::ui::GOLD,
-        );
-        crate::frame::text_centered(
-            &self.text("advisor.vizier_question"),
-            w / 2.0,
-            h / 2.0 - 15.0,
-            20.0,
-            WHITE,
-        );
-        crate::frame::text_centered(
-            &self.text("advisor.vizier_keys"),
-            w / 2.0,
-            h / 2.0 + 30.0,
-            22.0,
-            crate::ui::GOLD,
-        );
-        if input.key_pressed(KeyCode::Y) || input.key_pressed(KeyCode::Enter) {
-            self.game.apply(Command::SetGrandVizier {
-                player: HUMAN,
-                on: true,
-            });
-            self.log.push(self.text("advisor.vizier_on"));
-            None
-        } else if input.key_pressed(KeyCode::N) || input.key_pressed(KeyCode::Escape) {
-            None
-        } else {
-            Some(VizierAsk)
+        // The original's stone confirmation box (`Confirmation_Box`).
+        let text = self.text("advisor.vizier_question");
+        match self.confirmation_box(&Layout::new(), &text, input) {
+            Some(true) => {
+                self.game.apply(Command::SetGrandVizier {
+                    player: HUMAN,
+                    on: true,
+                });
+                self.log.push(self.text("advisor.vizier_on"));
+                None
+            }
+            Some(false) => None,
+            None => Some(VizierAsk),
         }
     }
 

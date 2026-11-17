@@ -13,6 +13,7 @@ mod alchemy;
 mod assault;
 pub mod battle;
 mod budget;
+mod builder;
 mod colony;
 mod controller;
 mod craft;

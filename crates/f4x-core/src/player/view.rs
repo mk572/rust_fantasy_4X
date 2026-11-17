@@ -56,6 +56,25 @@ pub struct CityReport {
     pub summoning_circle: bool,
 }
 
+/// What the special tiles in a city's area give it, all of them counted (whoever else works a
+/// tile too): what the city could specialize in.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct CitySpecials {
+    pub gold: f32,
+    pub mana: f32,
+    pub food: f32,
+    /// Percent off the cost of military units (coal, iron).
+    pub unit_cost_percent: f32,
+    /// Nightshade plants.
+    pub nightshade: u32,
+}
+
+impl CitySpecials {
+    pub fn is_empty(&self) -> bool {
+        *self == CitySpecials::default()
+    }
+}
+
 impl CityReport {
     /// The size class the screen names it by: 0 outpost, 1 hamlet up to 5 city (the capital
     /// is named by its fortress, `fortress`).
@@ -633,6 +652,35 @@ impl<'a> PlayerView<'a> {
             garrison,
             summoning_circle: self.game.wizard(owner).and_then(|w| w.summon_at()) == Some(position),
         })
+    }
+
+    /// The special tiles in the area of one of the player's cities; `None` for another's.
+    pub fn city_specials(&self, city: hecs::Entity) -> Option<CitySpecials> {
+        if !self.is_my_city(city) {
+            return None;
+        }
+        let at = self.game.city_position(city)?;
+        let map = self.game.map()?;
+        let grid = map.plane(at.plane);
+        let features = &self.game.content().features;
+        let nightshade = features.id_numbered(16); // nightshade
+        let mut out = CitySpecials::default();
+        for (p, _) in self.game.economy().city_area(at) {
+            let Some(id) = grid.mineral(p.x as i32, p.y as i32) else {
+                continue;
+            };
+            if Some(id) == nightshade {
+                out.nightshade += 1;
+            }
+            let Some(def) = features.get(id) else {
+                continue;
+            };
+            out.gold += def.city.gold.as_f32();
+            out.mana += def.city.mana.as_f32();
+            out.food += def.city.food.as_f32();
+            out.unit_cost_percent += def.city.unit_cost_percent as f32;
+        }
+        Some(out)
     }
 
     /// Most units that may stand on one square in this game.

@@ -421,8 +421,9 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
   behaviour copied, or a reconstruction slip.
 - **The Tax Collector's rows come from the rules' tax table** (`tax_unrest_percent`), gold a half per
   rate step, so a changed table shows up there. The original has the seven rows written in.
-- **The Grand Vizier's question is a plain Y or N box**, not the original's confirmation box
-  (task 143 is about those boxes). Switching it off asks nothing, as in the original.
+- **The Grand Vizier's question is the original's stone confirmation box** (`Confirmation_Box`, with
+  its Yes and No buttons); switching it off asks nothing, as in the original. The list box marks the
+  Vizier with a star while it is on (as the original's "Grand Vizier*").
 - **The list box's colours are chosen by eye**: the original sets font colours by palette index
   (`COL_ListSel_Titles`), which we do not have.
 - **The Chancellor's scroll** lists what the player has lost and gained, but not everything the

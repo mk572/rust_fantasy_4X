@@ -100,7 +100,7 @@ A menu of nine entries, each a screen or window. All are **Done** (task 71): the
 | F5 | Astrologer (`Status_Screen`) | "Current Status Of Wizards": a comparison of the wizards (including research). **Replaced** (task 489) by the Diplomat, the Diplomacy list, which shows the same three scores as places. |
 | F6 | Chancellor (`Chancellor_Screen__WIP`, `REPORT.c`) | The report scroll: what happened this turn (see section 5). |
 | F7 | Tax Collector (`TaxCollector_Window`) | Tax rate table: gold per population and the unrest each rate causes. The tax rate is chosen here. |
-| F8 | Grand Vizier (`Grand_Vizier_Window`) | Asks whether the Grand Vizier may choose what the cities build (auto-build). **Done:** F8 asks the question over the map (a modal) when switching it on and switches it off at once; the console has `vizier on|off`. |
+| F8 | Grand Vizier (`Grand_Vizier_Window`) | Asks whether the Grand Vizier may choose what the cities build (auto-build). **Done:** F8 asks the question in the stone confirmation box over the map (a modal) when switching it on and switches it off at once; the console has `vizier on|off`. |
 | F9 | Mirror (`Mirror_Screen`, `WIZVIEW.c`) | A wizard's sheet: name, spell books, fame and, for another wizard, the treaty with you, personality and objective. Also opened from the Magic screen and used when a spell targets a wizard (`Target_Wizard_Screen`). **Done** (task 75, `wizard_screen.rs`): F9 and the right-click on a rival's gem on the Magic screen; a spell that targets a wizard asks by portrait (`wizard_pick.rs`, task 401). |
 
 ## 5. Windows opened from inside a screen
