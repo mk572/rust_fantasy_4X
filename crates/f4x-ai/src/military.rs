@@ -432,7 +432,11 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let Some(target) = ai.campaign else {
         // Nothing to march on: the army raids the sites and towers, which also opens the way to
         // the other plane.
+        // A march whose target has fallen is over: its units are available again where they
+        // stand, for the dispatcher to garrison or send on.
         ai.roles.end_musters(crate::roles::MusterKind::Campaign);
+        ai.roles.release_role(crate::roles::Role::March);
+        ai.march_target = None;
         crate::site::deploy(ai, game, &free, events);
         return;
     };
@@ -1306,6 +1310,105 @@ mod tests {
             ai.campaign
         );
         assert!(ai.roles.any(Role::March), "the march left");
+        Ok(())
+    }
+
+    /// Units that need rest are not mustered: they keep no role and no order while the healthy
+    /// ones of the same square are sent.
+    #[test]
+    fn hurt_soldiers_are_kept_out_of_the_muster() -> TestResult {
+        use crate::roles::Role;
+        let mut g = rival_with_a_seat((4, 4))?;
+        let troops = spawn(&mut g, P0, at(5, 9), 113 /* high_men_paladins */, 6);
+        let (hurt, healthy) = troops.split_at(3);
+        for &u in hurt {
+            let (_, max) = PlayerView::new(&g, P0).unit_hits(u);
+            g.scenario_set_hurt(u, max * 4 / 5); // damage taken
+        }
+        g.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        army(&mut ai, &mut g, &mut Vec::new());
+        let view = PlayerView::new(&g, P0);
+        for &u in hurt {
+            assert!(crate::recover::needs_rest(&view, u));
+            assert!(
+                !ai.roles.is(view.serial_of(u), Role::Muster),
+                "hurt unit mustered"
+            );
+            assert!(
+                !ai.roles.is(view.serial_of(u), Role::March),
+                "hurt unit marched"
+            );
+        }
+        let sent = healthy
+            .iter()
+            .filter(|&&u| ai.roles.is(view.serial_of(u), Role::Muster))
+            .count();
+        assert_eq!(sent, MIN_MARCH, "the healthy ones are sent");
+        Ok(())
+    }
+
+    /// When the march's target falls, its units stay where they stand with no role and no order:
+    /// the dispatcher decides what they do next (garrison, a new target).
+    #[test]
+    fn after_a_capture_the_marching_units_stay_put_and_are_available() -> TestResult {
+        use crate::roles::Role;
+        // P1's second city is the only one P0 knows, and it is not a fortress: taking it does
+        // not end the game.
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.make_contact(P0, P1);
+        let town = at(4, 4);
+        let events = g.apply(Command::FoundCity {
+            owner: P1,
+            pos: town,
+            name: "Town".into(),
+            race: g.content().rules.races.id_numbered(8),
+            population: 8,
+        });
+        assert!(
+            !events.iter().any(|e| matches!(e, Event::Rejected(_))),
+            "{events:?}"
+        );
+        g.explore(P0, town, HalfInt::from_raw(3));
+        g.declare_war(P0, P1);
+        let capital = at(COAST_CITY.0, COAST_CITY.1);
+        let tile = g.max_tile();
+        let troops = spawn(&mut g, P0, capital, 113 /* high_men_paladins */, tile);
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        army(&mut ai, &mut g, &mut Vec::new());
+        assert_eq!(ai.campaign, Some(town));
+        assert!(ai.roles.any(Role::March), "the march left");
+        let city = g
+            .economy()
+            .cities_of(P1)
+            .into_iter()
+            .find(|&(_, p)| p == town)
+            .ok_or("the town is a city of P1")?
+            .0;
+        g.conquer_city(city, P0, 0);
+        g.explore(P0, town, HalfInt::from_raw(3));
+        let before: Vec<_> = {
+            let view = PlayerView::new(&g, P0);
+            troops.iter().map(|&u| view.unit_position(u)).collect()
+        };
+        crate::roles::register(&mut ai, &g);
+        army(&mut ai, &mut g, &mut Vec::new());
+        assert_ne!(ai.campaign, Some(town), "the taken town is no target");
+        assert!(!ai.roles.any(Role::March), "the march is over");
+        assert!(ai.roles.musters().is_empty());
+        // Nothing sends the soldiers anywhere: they stay where they are with no task, for the
+        // dispatcher to keep as a garrison or give a new target.
+        let view = PlayerView::new(&g, P0);
+        for (&u, was) in troops.iter().zip(before) {
+            assert_eq!(view.unit_position(u), was, "stays where it stands");
+            assert!(
+                !ai.roles.has_role(view.serial_of(u)),
+                "no task: {:?}",
+                ai.roles.role_of(view.serial_of(u))
+            );
+        }
         Ok(())
     }
 

@@ -719,6 +719,46 @@ mod tests {
         Ok(())
     }
 
+    /// Soldiers who muster for the campaign hold that role; a raid takes only free soldiers, so the
+    /// same soldiers go on a raid when they are free and do not when they muster.
+    #[test]
+    fn a_raid_does_not_take_the_soldiers_of_a_campaign_muster() -> TestResult {
+        let guards = vec![(f4x_def::rules::UnitId::new(174) /* zombies */, 1)];
+        let city = at(10, 6);
+        let serials = |g: &Game| {
+            let view = PlayerView::new(g, P0);
+            view.garrison(city)
+                .into_iter()
+                .filter(|&u| is_fighter(&view, u))
+                .map(|u| view.serial_of(u))
+                .collect::<Vec<_>>()
+        };
+        // Control: free, they raid.
+        let mut g = world(6, guards.clone(), false)?;
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        run(&mut ai, &mut g, &mut Vec::new());
+        assert!(ai.roles.any(crate::roles::Role::Raid), "free soldiers raid");
+        // Mustering for the campaign, they stay out of it.
+        let mut g = world(6, guards, false)?;
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        let members = serials(&g);
+        assert!(ai
+            .roles
+            .begin_muster(
+                crate::roles::MusterKind::Campaign,
+                city,
+                Some(at(4, 4)),
+                &members,
+                g.turn,
+            )
+            .is_some());
+        run(&mut ai, &mut g, &mut Vec::new());
+        assert!(!ai.roles.any(crate::roles::Role::Raid), "{:?}", ai.roles);
+        Ok(())
+    }
+
     #[test]
     fn the_survivors_come_home_after_the_raid() -> TestResult {
         let mut g = world(
