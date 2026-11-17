@@ -29,6 +29,39 @@ use crate::player::finance::Budget;
 use crate::game::Game;
 use crate::rules::{RealmId, SpellDef, SpellId, Stat, UnitDef, UnitId};
 
+/// What the player may read of another wizard's city: the enemy city screen of the original
+/// (`Enemy_City_Screen`), which is what a human gets. The size and name, the race, the citizens,
+/// the units standing in it (invisible ones left out), the enchantments with who cast each, and
+/// the buildings. Not the production, the gold or the food: the screen shows none.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CityReport {
+    pub city: hecs::Entity,
+    pub owner: PlayerId,
+    pub position: Position,
+    pub race: Option<crate::rules::RaceId>,
+    /// The owner's fortress city (the screen calls it the capital).
+    pub fortress: bool,
+    /// Citizens in all (zero is an outpost).
+    pub figures: u32,
+    pub farmers: u32,
+    pub workers: u32,
+    pub rebels: u32,
+    /// What is built, in build order (a replaced building stays in the list).
+    pub buildings: Vec<crate::rules::BuildingId>,
+    /// The lasting spells on the city, each with the wizard who cast it.
+    pub enchantments: Vec<(SpellId, PlayerId)>,
+    /// The owner's units standing in it, in creation order. Invisible units are not listed.
+    pub garrison: Vec<hecs::Entity>,
+}
+
+impl CityReport {
+    /// The size class the screen names it by: 0 outpost, 1 hamlet up to 5 city (the capital
+    /// is named by its fortress, `fortress`).
+    pub fn size_class(&self) -> u32 {
+        crate::city::conquest::city_size_class(self.figures)
+    }
+}
+
 pub struct PlayerView<'a> {
     game: &'a Game,
     me: PlayerId,
@@ -515,6 +548,42 @@ impl<'a> PlayerView<'a> {
         self.game.economy().city_owner(city)
     }
 
+    /// What the enemy city screen shows of a city of another player on a square the player has
+    /// explored (`CityReport`); `None` for its own city, a city on a square it has not explored
+    /// (the screen says "No Report") and a handle that is no city. It is read live: what the
+    /// player explored once it may look at, as the human may, seen now or not.
+    pub fn city_report(&self, city: hecs::Entity) -> Option<CityReport> {
+        let economy = self.game.economy();
+        let owner = economy.city_owner(city)?;
+        let position = self.game.city_position(city)?;
+        if owner == self.me || !self.explored(position) {
+            return None;
+        }
+        let figures = economy.city_economy(city).unwrap_or_default();
+        let units = self.game.units();
+        let mut garrison: Vec<hecs::Entity> = units
+            .units_at(position)
+            .into_iter()
+            .filter(|&u| units.unit_owner(u) == Some(owner))
+            .filter(|&u| !units.unit_has_ability(u, Ability::new(33)))
+            .collect();
+        self.sort_by_serial(&mut garrison);
+        Some(CityReport {
+            city,
+            owner,
+            position,
+            race: economy.city_race(city),
+            fortress: economy.is_fortress_city(city),
+            figures: figures.figures,
+            farmers: figures.farmers,
+            workers: figures.workers,
+            rebels: figures.rebels,
+            buildings: self.game.city_buildings(city),
+            enchantments: self.game.city_enchantments(city),
+            garrison,
+        })
+    }
+
     /// Most units that may stand on one square in this game.
     pub fn max_tile(&self) -> usize {
         self.game.max_tile()
@@ -806,6 +875,40 @@ mod tests {
         assert!(view.city_at(at(20, 10)).is_some());
         assert!(!view.sees(at(20, 10)), "explored is not seen");
         assert_eq!(view.hostile_at(at(20, 10)), None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_report_of_an_enemy_city_is_what_the_enemy_city_screen_shows() -> TestResult {
+        let mut g = game();
+        let c = g.content();
+        let spearmen = c.rules.units.id_numbered(104).ok_or("no spearmen")?;
+        let barracks = c
+            .rules
+            .buildings
+            .id_numbered(3 /* barracks */)
+            .ok_or("no barracks")?;
+        let foe = g.spawn_unit(THEM, at(20, 10), spearmen);
+        let city = g.economy().city_at(at(20, 10)).ok_or("no city")?;
+        assert!(g.cheat_add_building(city, barracks));
+        let mine = g.economy().city_at(at(5, 5)).ok_or("no city")?;
+        let view = PlayerView::new(&g, ME);
+        assert_eq!(view.city_report(city), None, "never scouted: no report");
+        drop(view);
+        g.explore(ME, at(20, 10), HalfInt::from_raw(5));
+        // A unit of the player's own on the square is not the city's garrison.
+        g.spawn_unit(ME, at(20, 10), spearmen);
+        let view = PlayerView::new(&g, ME);
+        let report = view.city_report(city).ok_or("no report")?;
+        assert_eq!(report.owner, THEM);
+        assert_eq!(report.position, at(20, 10));
+        assert_eq!(report.figures, 3);
+        assert_eq!(report.farmers + report.workers + report.rebels, 3);
+        assert_eq!(report.size_class(), 1);
+        assert_eq!(report.buildings.last(), Some(&barracks));
+        assert_eq!(report.garrison, vec![foe]);
+        assert!(!report.fortress);
+        assert_eq!(view.city_report(mine), None, "the own city has no report");
         Ok(())
     }
 
