@@ -153,7 +153,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .collect();
         let target = {
             let view = PlayerView::new(game, me);
-            best_target(&view, unit, pos, &claimed)
+            best_target_with(&view, unit, pos, &claimed, &ai.war_plan.recon)
         };
         match target {
             Some(to) => {
@@ -467,6 +467,18 @@ pub(crate) fn best_target(
     from: Position,
     claimed: &[Position],
 ) -> Option<Position> {
+    best_target_with(view, unit, from, claimed, &[])
+}
+
+/// [`best_target`] with the towns the war plan wants looked at (`war_plan.rs`): new ground near
+/// one of them is worth more than other new ground.
+pub(crate) fn best_target_with(
+    view: &PlayerView,
+    unit: hecs::Entity,
+    from: Position,
+    claimed: &[Position],
+    recon: &[Position],
+) -> Option<Position> {
     let reachable = view.reachable(&[unit]);
     // A unit shows the squares within its sight of where it stands, and no more.
     let look = view.unit_sight(unit);
@@ -484,7 +496,13 @@ pub(crate) fn best_target(
             continue;
         }
         let walk = distance(view, from, p).unwrap_or(99) as f32;
-        let value = fresh as f32 - walk * WALK_COST * 4.0;
+        let mut value = fresh as f32 - walk * WALK_COST * 4.0;
+        if recon
+            .iter()
+            .any(|&r| distance(view, r, p).is_some_and(|d| d <= crate::war_plan::RECON_NEAR))
+        {
+            value += crate::war_plan::RECON_BONUS;
+        }
         // A strict comparison with the position as a tie-break keeps the choice deterministic
         // whatever order the set is walked in.
         let better = match best {

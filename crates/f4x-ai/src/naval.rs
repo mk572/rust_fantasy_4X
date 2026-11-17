@@ -1184,8 +1184,8 @@ mod tests {
         g.balance_farmers(P0);
         let mut ai = Ai::new(P0);
         ai.unreachable.push(enemy());
-        // The defence it remembers there is far too strong for the party.
-        ai.city_memory.insert(enemy(), (100_000.0, g.turn));
+        // The defence it reads in the explored city is far too strong for the party.
+        let guards = spawn(&mut g, P1, enemy(), 105 /* high_men_swordsmen */, 8);
         run(&mut ai, &mut g, &mut Vec::new());
         let plan = ai.naval.ok_or("a landing is planned")?;
         let serial = PlayerView::new(&g, P0).serial_of(ship);
@@ -1202,7 +1202,9 @@ mod tests {
         assert!(!ai.roles.passengers_of(serial).is_empty());
         assert!(!PlayerView::new(&g, P0).unit_has_order(ship));
         // The defence turns out weak: the next turn it sails.
-        ai.city_memory.insert(enemy(), (1.0, g.turn));
+        for guard in guards {
+            g.scenario_remove_unit(guard);
+        }
         run(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(
             ai.roles.role_of(serial),

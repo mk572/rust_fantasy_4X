@@ -854,3 +854,12 @@ reactions. They take their units from the pool but may not take a group's reserv
 
 The soak against `crates/f4x-ai-ref` is the measure at each step: conquest wins, the turn of the win,
 cities taken per war, turns from the declaration to the first city taken, armies lost.
+
+**Built (17 November 2026, first step).** `war_plan.rs`: the town list with the city report and the
+walk; `goal_score` and `next_score` on plain data (tests); the plan kept in `Ai::war_plan` and revised
+every turn by `military::army`, which sets its campaign from it; the recon list read by
+`scout::best_target_with`. `expected_defence` reads the garrison from the city report for a city the AI
+has explored, as the human's enemy city screen does, so the remembered strength (`city_memory`) is only
+the fallback. Not built: several groups, the route recon, the demands to the builder and the dispatcher.
+The numbers (`FORTRESS_WORTH`, `GOAL_ACROSS`, `NEXT_DEFENCE` and the others in `war_plan.rs`) are first
+guesses, to be set from soaks with more than two wizards.

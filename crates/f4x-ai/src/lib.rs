@@ -50,6 +50,7 @@ mod statecraft;
 mod testworld;
 mod trade;
 mod view;
+mod war_plan;
 mod wizardry;
 
 use std::cell::RefCell;
@@ -127,6 +128,9 @@ pub struct Ai {
     /// The strength last seen in each enemy city and the turn it was seen.
     #[serde(serialize_with = "persist::sorted")]
     city_memory: HashMap<Position, (f32, u32)>,
+    /// The war plan (task 648): the goal of the war, the next target and the towns to look at.
+    #[serde(default)]
+    war_plan: war_plan::WarPlan,
     /// Enemy cities no march found a way to, and when the last was added.
     unreachable: Vec<Position>,
     unreachable_since: u32,
@@ -247,6 +251,7 @@ impl Ai {
             road_cities: 0,
             city_memory: HashMap::new(),
             threatened: Vec::new(),
+            war_plan: war_plan::WarPlan::default(),
             unreachable: Vec::new(),
             unreachable_since: 0,
             mastery_seen: HashMap::new(),

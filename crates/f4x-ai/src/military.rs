@@ -326,22 +326,34 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 ai.campaign = None;
             }
         }
-        // The best city that can be walked to; those that cannot are put aside for the ships.
+        // The war plan names the town to march on (`war_plan.rs`): it is revised every turn, and
+        // keeps its choice until another is clearly better. A campaign the ships or a tower
+        // carry (a landing, a crossing) is not the plan's to change.
+        if ai.naval.is_none() && ai.crossing.is_none() {
+            ai.campaign = None;
+        }
+        // The towns the army cannot walk to are put aside for the ships.
         while ai.campaign.is_none() {
-            let Some(c) = best_enemy_city(
+            let focus = race::enemy(ai, &view);
+            let towns = crate::war_plan::towns(
                 &view,
+                &ai.city_memory,
+                game.turn,
                 capital,
                 &ai.unreachable,
-                &ai.city_memory,
-                race::enemy(ai, &view),
-            ) else {
-                break;
-            };
-            if on_foot(&view, capital, c) {
-                ai.campaign = Some(c);
-            } else {
-                ai.unreachable.push(c);
-                ai.unreachable_since = game.turn;
+                focus,
+            );
+            match crate::war_plan::revise(&mut ai.war_plan, &view, &towns, capital) {
+                Some(c) => ai.campaign = Some(c),
+                None => {
+                    // A goal on the other plane is the planar logic's below; one on this plane
+                    // that cannot be walked to is left to the ships.
+                    let Some(goal) = ai.war_plan.goal.filter(|g| g.plane == capital.plane) else {
+                        break;
+                    };
+                    ai.unreachable.push(goal);
+                    ai.unreachable_since = game.turn;
+                }
             }
         }
         // Nothing to walk to: a rival's city on the other plane, by an open tower. A rival's stack
@@ -756,20 +768,6 @@ pub(crate) fn average_strength(view: &PlayerView) -> f32 {
     })
 }
 
-/// Can the AI's soldiers walk to a square beside the city? Judged with a fighter of the capital.
-fn on_foot(view: &PlayerView, capital: Position, city: Position) -> bool {
-    let Some(walker) = view
-        .garrison(capital)
-        .into_iter()
-        .find(|&u| is_fighter(view, u))
-    else {
-        return true;
-    };
-    neighbours(view, city)
-        .into_iter()
-        .any(|s| view.hostile_at(s).is_none() && view.can_reach(&[walker], s))
-}
-
 /// What the AI expects to meet in an enemy city: the strength it last saw there (with the city's
 /// own walls counted in), or a guess of a few average units if it never saw it or saw it long
 /// ago.
@@ -779,6 +777,10 @@ pub(crate) fn expected_defence(
     turn: u32,
     at: Position,
 ) -> f32 {
+    // What the enemy city screen shows a human of a city it has explored: the units in it.
+    if let Some(report) = view.city_at(at).and_then(|c| view.city_report(c)) {
+        return fighting_strength(view, &report.garrison) * 1.3;
+    }
     if view.sees(at) {
         return fighting_strength(view, &view.hostile_at(at).unwrap_or_default()) * 1.3;
     }
