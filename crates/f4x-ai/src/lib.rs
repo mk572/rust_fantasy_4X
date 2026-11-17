@@ -311,7 +311,7 @@ impl Ai {
     /// and whether a ship is on a voyage.
     pub fn landing(&self) -> Option<(Position, Position, bool)> {
         self.naval
-            .map(|p| (p.target, p.port, !self.roles.ferries().is_empty()))
+            .map(|p| (p.target, p.port, !pickup::voyages(self).is_empty()))
     }
 
     /// Whether scouting by land is over: nothing the AI can walk to shows anything new.

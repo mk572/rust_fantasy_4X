@@ -490,6 +490,9 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
                 for s in &pickup.group {
                     ai.roles.set_crossing(*s, None);
                     ai.roles.unboard(*s);
+                    // A landing party is free again once ashore: the war job judges it where it
+                    // stands (`war::march_landed`). The other roles walk on to their target.
+                    ai.roles.release(*s, Role::March);
                 }
                 ai.roles.release_any(pickup.ship);
             }

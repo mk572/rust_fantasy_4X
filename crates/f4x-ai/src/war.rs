@@ -483,9 +483,13 @@ fn march_on(
             );
         }
     }
-    // Troops for a landing wait at the port; the ship takes them. Those already ashore on the
-    // target's land mass march on it when they are strong enough.
+    // Troops for a landing gather at the port; when strong enough they are tagged for a ship
+    // (`pickup.rs`). Those already ashore on the target's land mass march on it when they are
+    // strong enough.
     if ai.naval.is_some_and(|p| p.target == target) {
+        if force >= wanted && at_rally.len() >= MIN_MARCH {
+            set_sail(ai, game, target, &at_rally, events);
+        }
         march_landed(ai, game, free, target, events);
         return;
     }
@@ -557,6 +561,46 @@ fn march_on(
             ai.march_started = game.turn;
         }
     }
+}
+
+/// The units at the port are bound for a city across the sea: war is declared (a pact or an
+/// alliance is not broken for a landing: the city is given up), and they hold `March` with the
+/// city as target, tagged `Crossing::Sea`. The pickup planner sends them a ship.
+fn set_sail(
+    ai: &mut Ai,
+    game: &mut Game,
+    target: Position,
+    units: &[hecs::Entity],
+    events: &mut Vec<Event>,
+) {
+    let me = ai.player;
+    if !crate::naval::declare_war_on_city(ai, game, target, events) {
+        ai.naval_bad.push(target);
+        ai.naval = None;
+        ai.campaign = None;
+        return;
+    }
+    let serials: Vec<Serial> = {
+        let view = PlayerView::new(game, me);
+        units.iter().map(|&u| view.serial_of(u)).collect()
+    };
+    events.push(Event::MarchLaunched {
+        player: me,
+        target,
+        units: serials.len() as u32,
+    });
+    for &s in &serials {
+        if ai
+            .roles
+            .claim(s, crate::roles::Role::March, game.turn, Some(target))
+            .is_ok()
+        {
+            ai.roles
+                .set_target(s, crate::roles::Role::March, Some(target));
+            ai.roles.set_crossing(s, Some(crate::roles::Crossing::Sea));
+        }
+    }
+    ai.march_started = game.turn;
 }
 
 /// Has a march gone on too long? It has [`MARCH_TURNS`] and the walk to a far target on top (the
@@ -1363,5 +1407,120 @@ mod tests {
         assert!(march_called_off(100 + MARCH_TURNS + 31, 100, 30));
         // A clock that ran backwards (a loaded save) does not call it off.
         assert!(!march_called_off(5, 100, 0));
+    }
+
+    /// A rival's city across the sea: the army at the port, strong enough, is tagged for a ship
+    /// and the war is declared (task 647). Nothing is loaded by hand any more.
+    fn landing_world(n: usize) -> Result<(Game, Ai), Box<dyn std::error::Error>> {
+        use crate::testworld::{build, ENEMY_CITY};
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        build(
+            &mut g,
+            at(COAST_CITY.0, COAST_CITY.1),
+            &[
+                12, /* ship_wrights_guild */
+                15, /* sawmill */
+                13, /* ship_yard */
+            ],
+        );
+        g.reveal_map(P0);
+        g.make_contact(P0, P1);
+        g.treasury_mut(P0).ok_or("a treasury")?.gold = HalfInt::from_int(1_000_000);
+        spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            36, /* galley */
+            1,
+        );
+        // One stays as the garrison; the others are the army.
+        let keep =
+            crate::view::garrison_wanted(&PlayerView::new(&g, P0), at(COAST_CITY.0, COAST_CITY.1));
+        spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            113, /* high_men_paladins */
+            n + keep,
+        );
+        g.balance_farmers(P0);
+        let mut ai = Ai::new(P0);
+        ai.unreachable.push(at(ENEMY_CITY.0, ENEMY_CITY.1));
+        Ok((g, ai))
+    }
+
+    #[test]
+    fn the_army_at_the_port_is_tagged_for_a_ship_and_the_war_is_declared() -> TestResult {
+        use crate::roles::{Crossing, Role};
+        let (mut g, mut ai) = landing_world(6)?;
+        assert_ne!(g.treaty(P0, P1), f4x_core::diplomacy::Treaty::War);
+        for _ in 0..3 {
+            crate::roles::register(&mut ai, &g);
+            crate::naval::run(&mut ai, &mut g, &mut Vec::new());
+            run(&mut ai, &mut g, &mut Vec::new());
+        }
+        assert_eq!(g.treaty(P0, P1), f4x_core::diplomacy::Treaty::War);
+        let tagged = ai.roles.needing(Crossing::Sea);
+        assert!(tagged.len() >= MIN_MARCH, "{:?}", ai.roles);
+        let enemy = at(
+            crate::testworld::ENEMY_CITY.0,
+            crate::testworld::ENEMY_CITY.1,
+        );
+        assert!(tagged
+            .iter()
+            .all(|&(s, to)| to == enemy && ai.roles.is(s, Role::March)));
+        Ok(())
+    }
+
+    /// A pact is not broken for a landing: the city is put aside.
+    #[test]
+    fn a_pact_stops_the_landing_before_the_army_is_tagged() -> TestResult {
+        use crate::roles::Crossing;
+        let (mut g, mut ai) = landing_world(6)?;
+        g.start_treaty(P0, P1, f4x_core::diplomacy::Treaty::Pact);
+        for _ in 0..3 {
+            crate::roles::register(&mut ai, &g);
+            crate::naval::run(&mut ai, &mut g, &mut Vec::new());
+            run(&mut ai, &mut g, &mut Vec::new());
+        }
+        assert!(ai.roles.needing(Crossing::Sea).is_empty());
+        assert_eq!(g.treaty(P0, P1), f4x_core::diplomacy::Treaty::Pact);
+        Ok(())
+    }
+
+    /// The whole landing: the army gathers, is tagged, a ship fetches it and puts it ashore beside
+    /// the city, and it is free there for the war job to judge.
+    #[test]
+    fn the_army_is_carried_across_the_sea_and_lands_beside_the_city() -> TestResult {
+        use crate::testworld::ENEMY_CITY;
+        let (mut g, mut ai) = landing_world(6)?;
+        let enemy = at(ENEMY_CITY.0, ENEMY_CITY.1);
+        let mut landed = false;
+        for _ in 0..60 {
+            let mut events = Vec::new();
+            g.balance_farmers(P0);
+            crate::roles::register(&mut ai, &g);
+            crate::dispatch::revalidate(&mut ai, &mut g, &mut events);
+            crate::naval::run(&mut ai, &mut g, &mut events);
+            run(&mut ai, &mut g, &mut events);
+            crate::pickup::run(&mut ai, &mut g, &mut events);
+            g.apply(Command::EndTurn);
+            let view = PlayerView::new(&g, P0);
+            landed = view.my_units().into_iter().any(|u| {
+                is_fighter(&view, u)
+                    && view.unit_position(u).is_some_and(|p| {
+                        p.x >= 26 && distance(&view, p, enemy).is_some_and(|d| d <= 3)
+                    })
+            });
+            if landed {
+                break;
+            }
+        }
+        assert!(
+            landed,
+            "no soldier came ashore near the enemy city: {:?}",
+            ai.roles
+        );
+        Ok(())
     }
 }

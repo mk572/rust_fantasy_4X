@@ -30,8 +30,6 @@ pub enum Role {
     March,
     /// In the party a sea scout carries.
     SeaParty,
-    /// Aboard a ship on a voyage with a landing.
-    Voyage,
     /// A settler on its own way to a site to found a city.
     Settle,
     /// A soldier that goes with a unit it protects (`escort.rs`); `with` is that unit.
@@ -229,58 +227,6 @@ impl Registry {
             .map(|(s, _)| *s)
     }
 
-    /// The ships on a voyage with a landing, in serial order: a ship that is `TransportReady` or
-    /// `TransportSpace` and is not the one a rescue came with (those hold soldiers
-    /// `AwaitTransport` tied to them).
-    pub fn ferries(&self) -> Vec<Serial> {
-        self.map
-            .iter()
-            .filter(|(_, a)| {
-                matches!(
-                    a.role,
-                    Role::TransportReady | Role::Transporting | Role::TransportSpace
-                ) && a.with.is_none()
-                    && a.party.is_none()
-            })
-            .map(|(s, _)| *s)
-            .collect()
-    }
-
-    /// The units aboard the ship on a voyage.
-    pub fn passengers_of(&self, ship: Serial) -> Vec<Serial> {
-        self.map
-            .iter()
-            .filter(|(_, a)| a.role == Role::Voyage && a.with == Some(ship))
-            .map(|(s, _)| *s)
-            .collect()
-    }
-
-    /// A task takes the ship: it is `TransportSpace` while the passengers planned for it are fewer
-    /// than `capacity`, and `TransportReady` when they fill it, with `to` as its target. Each
-    /// passenger holds `Voyage`, tied to the ship; soldiers tied by an earlier plan that are not in
-    /// this one are let go. Returns whether all of them could take the role.
-    pub fn sail(
-        &mut self,
-        ship: Serial,
-        passengers: &[Serial],
-        turn: u32,
-        to: Position,
-        capacity: usize,
-    ) -> bool {
-        let stale: Vec<Serial> = self
-            .passengers_of(ship)
-            .into_iter()
-            .filter(|p| !passengers.contains(p))
-            .collect();
-        self.release_many(&stale, Role::Voyage);
-        let mut all = self.plan_ship(ship, passengers.len(), capacity, turn, to);
-        for &p in passengers {
-            all &= self.claim(p, Role::Voyage, turn, None).is_ok();
-            self.tie(p, Role::Voyage, ship);
-        }
-        all
-    }
-
     /// Give the ship the role its plan says: `TransportSpace` while `planned` is under `capacity`,
     /// `TransportReady` when it is at it, with `to` as its target. A ship that holds one of the two
     /// changes over; a free ship is taken. Not a ship already `Transporting`.
@@ -327,25 +273,6 @@ impl Registry {
         if let Some(a) = self.map.get_mut(&serial).filter(|a| a.role == from) {
             a.role = role;
             a.to = to;
-        }
-    }
-
-    /// The voyage is over: the ship and its passengers hand the role back.
-    pub fn end_voyage(&mut self, ship: Serial) {
-        let aboard = self.passengers_of(ship);
-        self.release_many(&aboard, Role::Voyage);
-        if matches!(
-            self.role_of(ship),
-            Some(Role::TransportReady | Role::Transporting | Role::TransportSpace)
-        ) {
-            self.release_any(ship);
-        }
-    }
-
-    /// Every ferry's voyage is over (the landing was given up).
-    pub fn end_voyages(&mut self) {
-        for ship in self.ferries() {
-            self.end_voyage(ship);
         }
     }
 
@@ -676,13 +603,6 @@ impl Registry {
         }
     }
 
-    /// Tie the unit, if it holds `role`, to another (a passenger to its ship).
-    pub fn tie(&mut self, serial: Serial, role: Role, with: Serial) {
-        if let Some(a) = self.map.get_mut(&serial).filter(|a| a.role == role) {
-            a.with = Some(with);
-        }
-    }
-
     /// The units of a party, in serial order.
     pub fn members_of(&self, party: u32) -> Vec<Serial> {
         self.map
@@ -827,7 +747,6 @@ impl Role {
     fn priority(self) -> u8 {
         match self {
             Role::Settle => 1,
-            Role::Voyage => 2,
             Role::TransportReady => 3,
             Role::Transporting => 3,
             Role::SeaParty => 4,
@@ -1270,23 +1189,21 @@ mod tests {
         Ok(())
     }
 
-    /// A task takes a free ship: space while fewer soldiers are planned than it holds, ready when
+    /// A task takes a free ship: space while fewer units are planned than it holds, ready when
     /// they fill it, transporting once it sails.
     #[test]
     fn a_ship_taken_by_a_task_is_space_until_its_load_is_full_then_ready() {
         let mut r = Registry::default();
-        let (ship, a, b) = (serial(1), serial(2), serial(3));
+        let ship = serial(1);
         let to = at(5, 5);
-        r.sail(ship, &[a], 1, to, 2);
+        assert!(r.plan_ship(ship, 1, 2, 1, to));
         assert_eq!(r.role_of(ship), Some(Role::TransportSpace));
         assert_eq!(r.target_of(ship, Role::TransportSpace), Some(to));
-        r.sail(ship, &[a, b], 2, to, 2);
+        assert!(r.plan_ship(ship, 2, 2, 2, to));
         assert_eq!(r.role_of(ship), Some(Role::TransportReady));
-        assert_eq!(r.passengers_of(ship), vec![a, b]);
-        // A smaller plan lets the extra soldier go and the ship has room again.
-        r.sail(ship, &[a], 3, to, 2);
+        // A smaller plan gives the ship room again.
+        assert!(r.plan_ship(ship, 1, 2, 3, to));
         assert_eq!(r.role_of(ship), Some(Role::TransportSpace));
-        assert_eq!(r.passengers_of(ship), vec![a]);
         r.depart(ship, to);
         assert_eq!(r.role_of(ship), Some(Role::Transporting));
     }
