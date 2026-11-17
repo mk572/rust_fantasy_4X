@@ -138,11 +138,14 @@ pub struct Metrics {
     /// Units whose mission was over (a rival cleared the lair, the order stopped) and that were
     /// reset to awaiting orders by the dispatcher.
     pub missions_reset: u32,
+    /// Units tagged for a ship that had not yet taken them aboard, summed over turns (unit-turns
+    /// of waiting for a ship, task 647).
+    pub waiting_for_ship: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 70] {
+    pub fn rows(&self) -> [(&'static str, u32); 71] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -222,6 +225,7 @@ impl Metrics {
                 "missions over, unit reset to awaiting orders",
                 self.missions_reset,
             ),
+            ("unit-turns waiting for a ship", self.waiting_for_ship),
             (
                 "cities captured on the other plane",
                 self.cities_captured_far_plane,
@@ -372,6 +376,7 @@ impl AddAssign for Metrics {
             units_unassigned,
             units_unregistered,
             missions_reset,
+            waiting_for_ship,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -443,6 +448,7 @@ impl AddAssign for Metrics {
         self.units_unassigned += units_unassigned;
         self.units_unregistered += units_unregistered;
         self.missions_reset += missions_reset;
+        self.waiting_for_ship += waiting_for_ship;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -810,11 +816,13 @@ impl Tally {
                     unassigned,
                     unregistered,
                     reset,
+                    waiting,
                 } => self.bump(*player, |m| {
                     m.units_adrift += adrift;
                     m.units_unassigned += unassigned;
                     m.units_unregistered += unregistered;
                     m.missions_reset += reset;
+                    m.waiting_for_ship += waiting;
                 }),
                 Event::PlaneShifted { player, units, .. } => self.bump(*player, |m| {
                     m.plane_shifts += 1;
@@ -1171,16 +1179,18 @@ mod tests {
         )?;
         let player = PlayerId(0);
         let mut tally = Tally::new(&game);
-        let audit = |adrift, unassigned| Event::RolesAudited {
+        let audit = |adrift, unassigned, waiting| Event::RolesAudited {
             player,
             adrift,
             unassigned,
             unregistered: 0,
             reset: 0,
+            waiting,
         };
-        tally.record(&game, None, &[audit(2, 4), audit(1, 5)]);
+        tally.record(&game, None, &[audit(2, 4, 3), audit(1, 5, 2)]);
         let m = tally.of(player);
         assert_eq!((m.units_adrift, m.units_unassigned), (3, 9));
+        assert_eq!(m.waiting_for_ship, 5);
         Ok(())
     }
 

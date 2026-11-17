@@ -760,7 +760,9 @@ priority, so a unit cannot be raiding and marching at once. A unit with nothing 
 settlers, engineers, spirits): the units awaiting orders are counted, soldiers as *adrift* and
 ships and the others as `ships and other units with no role`, and stay where they stand (since
 task 645: no walk home, no wait on a shore; the role `Return` is gone). The soak shows
-`units adrift (no role)`.
+`units adrift (no role)`, and `unit-turns waiting for a ship` (units tagged for a ship that has not
+taken them aboard, summed over turns; task 647). `troops landed` and `cities by sea` count from the
+unit moves and captures, so they read the same under the tag-based landings.
 
 The escort role is built (`escort.rs`: a settler leaving a city takes a spare soldier along). The new roles perimeter, road and meld are tasks 625, 627 and 628.
 

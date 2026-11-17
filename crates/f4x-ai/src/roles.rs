@@ -900,7 +900,13 @@ pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     let (counted, unregistered) = counted;
     let reset = std::mem::take(&mut ai.missions_reset);
-    if counted.adrift.is_empty() && counted.unassigned == 0 && unregistered == 0 && reset == 0 {
+    let waiting = ai.roles.waiting_for_ship().len() as u32;
+    if counted.adrift.is_empty()
+        && counted.unassigned == 0
+        && unregistered == 0
+        && reset == 0
+        && waiting == 0
+    {
         return;
     }
     events.push(Event::RolesAudited {
@@ -909,6 +915,7 @@ pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         unassigned: counted.unassigned,
         unregistered,
         reset,
+        waiting,
     });
     // Nothing more: a unit awaiting orders stays where it stands (task 645). The dispatcher
     // gives the waiting units their jobs.
@@ -1206,5 +1213,30 @@ mod tests {
         assert_eq!(r.role_of(ship), Some(Role::TransportSpace));
         r.depart(ship, to);
         assert_eq!(r.role_of(ship), Some(Role::Transporting));
+    }
+
+    /// Units tagged for a ship are counted by the audit, so a soak can tell how long they wait.
+    #[test]
+    fn units_waiting_for_a_ship_are_counted_by_the_audit() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let home = at(COAST_CITY.0, COAST_CITY.1);
+        let soldiers = spawn(&mut g, P0, home, 104 /* spearmen */, 2);
+        let mut ai = Ai::new(P0);
+        register(&mut ai, &g);
+        let view = PlayerView::new(&g, P0);
+        for &u in &soldiers {
+            let s = view.serial_of(u);
+            let _ = ai.roles.claim(s, Role::March, 1, Some(at(30, 6)));
+            ai.roles.set_crossing(s, Some(Crossing::Sea));
+        }
+        let mut events = Vec::new();
+        audit(&mut ai, &mut g, &mut events);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::RolesAudited { waiting: 2, .. })),
+            "{events:?}"
+        );
+        Ok(())
     }
 }
