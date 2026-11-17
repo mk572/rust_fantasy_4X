@@ -773,5 +773,5 @@ dispatcher counts the waiting units, goes through the open jobs in a fixed order
 against an enemy city, a scout, a raiding party, an under-defended city, a settler, an engineer) and
 hands each the units it needs; what is left stays waiting. A unit awaiting a ship carries the
 destination it wants, and ships take units that go to the same landmass, whatever they are. Tasks 645
-(the pool, the dispatcher and the first jobs; a city's base defenders keep `Role::Garrison` and are not in the pool, only the soldiers beyond `garrison_wanted` are), 646 (the war jobs) and 647 (transport) in `TASKS.md`.
+(the pool, the dispatcher and the first jobs; a city's base defenders keep `Role::Garrison` and are not in the pool, only the soldiers beyond the defence strength a city needs are; the need is a strength read from the enemies' nearness and the game phase, met first by slow defensive units, while cavalry, fliers and heroes stay free for scouting and war), 646 (the war jobs) and 647 (transport) in `TASKS.md`.
 
