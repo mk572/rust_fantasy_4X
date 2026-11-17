@@ -763,3 +763,15 @@ keep the role `Return` until they are in it, or wait on a shore for a ship (`Awa
 (`ships and other units with no role`). The soak shows `units adrift (no role)`.
 
 The escort role is built (`escort.rs`: a settler leaving a city takes a spare soldier along). The new roles perimeter, road and meld are tasks 625, 627 and 628.
+
+## 14. Job board (tasks 645 to 647)
+
+Decided on 17 November 2026, after the overnight soak: the unit-first logic ("I have a unit, what do I
+do with it") lets every module take units and produces uncoordinated orders. The new order of thought is
+job-first. A unit with nothing to do awaits orders where it stands. At the end of the turn the
+dispatcher counts the waiting units, goes through the open jobs in a fixed order (rally at war, the army
+against an enemy city, a scout, a raiding party, an under-defended city, a settler, an engineer) and
+hands each the units it needs; what is left stays waiting. A unit awaiting a ship carries the
+destination it wants, and ships take units that go to the same landmass, whatever they are. Tasks 645
+(the pool, the dispatcher and the first jobs), 646 (the war jobs) and 647 (transport) in `TASKS.md`.
+
