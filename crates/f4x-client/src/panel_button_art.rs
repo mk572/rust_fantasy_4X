@@ -105,7 +105,7 @@ fn sheen_label(app: &mut App, panel: Panel, sheen: &[u8], label: &str, size: Vec
         label,
         size,
         panel.label_at(size.x),
-        emboss_light(panel),
+        Emboss::of(emboss_light(panel)),
     )
 }
 
@@ -117,7 +117,7 @@ pub(crate) fn sheen_text(
     label: &str,
     size: Vec2,
     label_at: (f32, f32),
-    light: Color,
+    emboss: Emboss,
 ) -> Texture2D {
     let (w, h) = (size.x as u32, size.y as u32);
     let target = render_target(w, h);
@@ -153,10 +153,12 @@ pub(crate) fn sheen_text(
         for x in 0..w as i32 {
             let pixel = if ink(x, y) {
                 colours.get_pixel(x as u32, y as u32)
-            } else if ink(x - 1, y - 1) {
-                EMBOSS_DARK
+            } else if ink(x - 1, y - 1) || (emboss.deep && (ink(x - 1, y) || ink(x, y - 1))) {
+                emboss.dark
+            } else if emboss.deep && (ink(x - 2, y - 2) || ink(x - 2, y - 1) || ink(x - 1, y - 2)) {
+                EMBOSS_DEEP_EDGE
             } else if ink(x + 1, y + 1) {
-                light
+                emboss.light
             } else {
                 continue;
             };
@@ -167,6 +169,37 @@ pub(crate) fn sheen_text(
     tex.set_filter(FilterMode::Nearest);
     tex
 }
+
+/// The emboss of a sheen label: the colours of its edges. A deep one (the plaque title) has an
+/// opaque black shadow two pixels thick down and to the right, as the original's lettering.
+#[derive(Clone, Copy)]
+pub(crate) struct Emboss {
+    light: Color,
+    dark: Color,
+    deep: bool,
+}
+
+impl Emboss {
+    fn of(light: Color) -> Self {
+        Emboss {
+            light,
+            dark: EMBOSS_DARK,
+            deep: false,
+        }
+    }
+
+    /// The plaque title's: a light grey edge up and to the left, a black shadow down and right.
+    pub(crate) fn deep() -> Self {
+        Emboss {
+            light: Color::from_rgba(0x8e, 0x86, 0x82, 255),
+            dark: Color::from_rgba(0x08, 0x04, 0x04, 255),
+            deep: true,
+        }
+    }
+}
+
+/// The outer, softer half of a deep shadow.
+const EMBOSS_DEEP_EDGE: Color = Color::new(0.094, 0.063, 0.047, 1.0);
 
 /// The emboss of the sheen labels: a translucent dark edge down and to the right, a light one up
 /// and to the left.
@@ -214,7 +247,7 @@ impl App {
                 &label,
                 size,
                 VAULT_LABEL_AT,
-                EMBOSS_LIGHT,
+                Emboss::deep(),
             );
             VAULT.with(|c| *c.borrow_mut() = Some((label.clone(), t.clone())));
             t
