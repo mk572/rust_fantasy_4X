@@ -2,7 +2,9 @@
 //! known land route leads to it) wait for a ship, wherever their job (a reinforcement, a settler,
 //! a march) sent them. Here the ship comes for them (task 647).
 //!
-//! The units are grouped by destination and by the land they can walk over together. For each
+//! The units are grouped by destination and by the land they can walk over together; groups
+//! bound for the same landmass, near each other, share a ship (the first group, settlers first,
+//! sets the drop; the others walk on from there). For each
 //! group one boarding tile is chosen, so that the units walk to the same beach: the coastal tile
 //! (with a sea square beside it that a free ship can reach) where the last unit and the ship
 //! arrive soonest, with a unit whose walk is far longer than the others' left for the next ship.
@@ -28,6 +30,9 @@ use f4x_core::player::view::PlayerView;
 const CANDIDATES: usize = 12;
 /// How many turns longer than the best a unit may walk and still be taken aboard.
 const STRAGGLER_TURNS: u32 = 5;
+/// How far apart (squares) two destinations on one landmass may be for their units to share a
+/// ship: the units of the later group walk on from the first group's drop.
+const MERGE_RANGE: u32 = 10;
 /// How far from a unit a boarding tile is looked for, in squares.
 const SHORE_RANGE: i32 = 12;
 
@@ -62,7 +67,13 @@ pub fn voyages(ai: &Ai) -> Vec<Pickup> {
                 ship,
                 tile: ai.roles.boarding_of(first)?,
                 sea,
-                dest: ai.roles.destination_of(first)?,
+                dest: ai.roles.destination_of(
+                    group
+                        .iter()
+                        .copied()
+                        .find(|&s| ai.roles.is(s, Role::Settle))
+                        .unwrap_or(first),
+                )?,
                 group,
             })
         })
@@ -86,6 +97,42 @@ fn turns(view: &PlayerView, unit: hecs::Entity, to: Position) -> Option<u32> {
     let steps = view.path(&[unit], to)?.len() as u32;
     let moves = view.unit_stat(unit, f4x_def::rules::Stat::Moves).max(1) as u32;
     Some(steps.div_ceil(moves))
+}
+
+/// Whether units bound for `b` may share a ship with units bound for `a`: the squares lie on one
+/// landmass, at most `range` apart.
+fn rides_along(view: &PlayerView, a: Position, b: Position, range: u32) -> bool {
+    view.distance(a, b).is_some_and(|d| d <= range) && same_landmass(view, a, b)
+}
+
+/// Whether `a` and `b` are on one landmass: the known land squares join them.
+fn same_landmass(view: &PlayerView, a: Position, b: Position) -> bool {
+    use std::collections::{HashSet, VecDeque};
+    let mut seen: HashSet<Position> = HashSet::from([a]);
+    let mut queue = VecDeque::from([a]);
+    while let Some(here) = queue.pop_front() {
+        if here == b {
+            return true;
+        }
+        if seen.len() > 1500 {
+            break;
+        }
+        for dy in -1i32..=1 {
+            for dx in -1i32..=1 {
+                let Some(next) = view.shift(here, dx, dy) else {
+                    continue;
+                };
+                if view
+                    .terrain_class(next)
+                    .is_some_and(|t| t != TerrainClass::Ocean)
+                    && seen.insert(next)
+                {
+                    queue.push_back(next);
+                }
+            }
+        }
+    }
+    false
 }
 
 /// A sea square beside `land` that nobody hostile holds.
@@ -177,6 +224,7 @@ fn candidates(view: &PlayerView, units: &[hecs::Entity]) -> Vec<Position> {
 fn plan_group(
     view: &PlayerView,
     units: &[hecs::Entity],
+    lead: &[hecs::Entity],
     dest: Position,
     ships: &[(hecs::Entity, usize)],
 ) -> Option<Plan> {
@@ -189,8 +237,9 @@ fn plan_group(
             .iter()
             .filter_map(|&u| Some((turns(view, u, tile)?, u)))
             .collect();
-        walks.sort_by_key(|&(t, u)| (t, view.serial_of(u)));
-        let Some(&(fastest, _)) = walks.first() else {
+        // The lead group's units come first, whatever they walk: they are why the ship sails.
+        walks.sort_by_key(|&(t, u)| (!lead.contains(&u), t, view.serial_of(u)));
+        let Some(fastest) = walks.iter().map(|&(t, _)| t).min() else {
             continue;
         };
         for &(ship, room) in ships {
@@ -372,8 +421,26 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
         let settler =
             |u: &hecs::Entity| view.unit_has_ability(*u, f4x_def::rules::Ability::new(12));
         groups.sort_by_key(|(_, units)| !units.iter().any(settler));
-        for (dest, region) in groups {
-            let Some(plan) = plan_group(&view, &region, dest, &free) else {
+        let mut groups = groups
+            .into_iter()
+            .collect::<std::collections::VecDeque<_>>();
+        while let Some((dest, lead)) = groups.pop_front() {
+            // Later groups on the same landmass, near, and standing on the same ground, ride along.
+            let mut region = lead.clone();
+            let mut rest = std::collections::VecDeque::new();
+            while let Some((d, units)) = groups.pop_front() {
+                let together = rides_along(&view, dest, d, MERGE_RANGE)
+                    && view.unit_position(units[0]).is_some_and(|p| {
+                        view.unit_position(lead[0]) == Some(p) || view.can_reach(&[lead[0]], p)
+                    });
+                if together {
+                    region.extend(units);
+                } else {
+                    rest.push_back((d, units));
+                }
+            }
+            groups = rest;
+            let Some(plan) = plan_group(&view, &region, &lead, dest, &free) else {
                 continue;
             };
             free.retain(|&(s, _)| s != plan.ship);
@@ -764,6 +831,110 @@ mod tests {
             assert_eq!(view.unit_position(u), Some(land));
             assert_eq!(ai.roles.crossing_of(view.serial_of(u)), Some(Crossing::Sea));
         }
+        Ok(())
+    }
+
+    /// Known land squares on the far island, in a fixed order.
+    fn far_land(g: &Game) -> Vec<Position> {
+        let view = PlayerView::new(g, P0);
+        let centre = at(ENEMY_CITY.0, ENEMY_CITY.1);
+        let mut found: Vec<Position> = Vec::new();
+        for y in 0..14 {
+            for x in 20..40 {
+                let p = at(x, y);
+                if view
+                    .terrain_class(p)
+                    .is_some_and(|t| t != TerrainClass::Ocean)
+                    && same_landmass(&view, centre, p)
+                {
+                    found.push(p);
+                }
+            }
+        }
+        found
+    }
+
+    /// Two groups bound for squares of the far island, a few squares apart, share one ship.
+    #[test]
+    fn groups_for_the_same_landmass_ride_one_ship() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let land = far_land(&g);
+        let view = PlayerView::new(&g, P0);
+        let a = *land.first().ok_or("land")?;
+        let b = *land
+            .iter()
+            .find(|&&p| {
+                view.distance(a, p)
+                    .is_some_and(|d| (3..=MERGE_RANGE).contains(&d))
+            })
+            .ok_or("a second destination")?;
+        drop(view);
+        let first = spawn(&mut g, P0, port(), 104 /* spearmen */, 2);
+        let second = spawn(&mut g, P0, port(), 104 /* spearmen */, 1);
+        spawn(&mut g, P0, port(), 36 /* galley */, 2);
+        g.balance_farmers(P0);
+        let mut ai = Ai::new(P0);
+        strand(&mut ai, &g, &first, a);
+        strand(&mut ai, &g, &second, b);
+        run_turns(&mut ai, &mut g, 1);
+        let trips = voyages(&ai);
+        assert_eq!(trips.len(), 1, "one ship: {:?}", ai.roles);
+        assert_eq!(trips[0].group.len(), 3);
+        Ok(())
+    }
+
+    /// A settler's destination sets the drop, whatever the soldiers want.
+    #[test]
+    fn a_settler_sets_the_course_of_a_shared_ship() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let land = far_land(&g);
+        let view = PlayerView::new(&g, P0);
+        let a = *land.first().ok_or("land")?;
+        let b = *land
+            .iter()
+            .find(|&&p| {
+                view.distance(a, p)
+                    .is_some_and(|d| (3..=MERGE_RANGE).contains(&d))
+            })
+            .ok_or("a second destination")?;
+        drop(view);
+        let soldiers = spawn(&mut g, P0, port(), 104, 2);
+        let settler = spawn(&mut g, P0, port(), 109 /* settlers */, 1);
+        spawn(&mut g, P0, port(), 36 /* galley */, 1);
+        g.balance_farmers(P0);
+        let mut ai = Ai::new(P0);
+        strand(&mut ai, &g, &soldiers, a);
+        let view = PlayerView::new(&g, P0);
+        let s = view.serial_of(settler[0]);
+        let _ = ai.roles.claim(s, Role::Settle, g.turn, Some(b));
+        ai.roles.set_crossing(s, Some(Crossing::Sea));
+        drop(view);
+        run_turns(&mut ai, &mut g, 1);
+        let trips = voyages(&ai);
+        assert_eq!(trips.len(), 1, "{:?}", ai.roles);
+        assert_eq!(trips[0].dest, b, "the settler's site is the drop");
+        assert!(trips[0].group.contains(&s));
+        Ok(())
+    }
+
+    /// Destinations beyond the range do not ride along; a different plane never does.
+    #[test]
+    fn a_far_destination_does_not_ride_along() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let land = far_land(&g);
+        let view = PlayerView::new(&g, P0);
+        let a = *land.first().ok_or("land")?;
+        let b = *land
+            .iter()
+            .find(|&&p| view.distance(a, p) == Some(3))
+            .ok_or("a square 3 away")?;
+        assert!(rides_along(&view, a, b, 3));
+        assert!(!rides_along(&view, a, b, 2));
+        let home = at(COAST_CITY.0, COAST_CITY.1);
+        assert!(!rides_along(&view, a, home, 100), "another landmass");
         Ok(())
     }
 }
