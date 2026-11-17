@@ -170,6 +170,36 @@ wrong reason.
   (a test that depends on a seed's map may need a look). A test of the generators or of `new_game` itself
   lives in `f4x-newgame`.
 
+### Test the behaviour against the setting, not a copy of it
+
+**A test never writes down what a setting says.** An expected value typed into a test (a cost, a stat,
+a list of races, the spell that has an effect, the number of units a building gives) is a *shadow
+setting*: a second copy of the content that has to be edited together with it, that fails when the
+content is changed on purpose, and that shows nothing about the game. The test reads the setting and
+checks that **the game does what it says**.
+
+- **The expectation comes from the rules the game was built from.** Read the value from the shipped
+  content (`shipped()`, the registry, the settings) in the test, and drive the real game: the command,
+  the city builder, the battle, the turn change. Then compare the outcome with what was read.
+- **Example.** A test reads `buildings.ron`, finds a race that cannot build a building, opens the city
+  builder (or asks `can_build`) for a city of that race and checks the building is not offered and that
+  `SetProduction` for it is refused; it finds a race that can, and checks that it is offered and gets
+  built. Another: read a unit's `cost`, put it in production in a city with a known surplus and check
+  that it is done after the turns that cost needs, not after a number the test wrote down.
+- **A test names the setting it reads** (a comment or the helper's name: "the building's `races`
+  list"), so that a reader sees what the behaviour is checked against.
+- **Fixed numbers as input are no shadow settings.** The unit number to spawn, a position, a seed, a
+  number of turns to run are the scenario (and units are called by number with the alias, see above).
+  What counts is a number or a name *asserted* as the outcome that the content alone decides.
+- **Pick the case from the content, not from memory.** Do not write "high elves cannot build X": search the
+  content for a race and a building where the property holds (see the first rule of this section: pick
+  the row that has the property the test needs) and fail the test when there is none.
+- **A test that can only restate a field**, because no game code reads it, is deleted, and the field is
+  reported as dead.
+- **Check yourself:** change a content value on purpose (a cost, a race in a list). A test may fail
+  only when the behaviour then differs from the setting. If it fails because the number it wrote down
+  no longer matches, it is a shadow setting. (Task 653 replaces the existing ones.)
+
 ### Where a test lives
 
 Every test that needs rules or a game runs on the shipped content (see above). Where it lives depends on
