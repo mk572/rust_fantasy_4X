@@ -49,6 +49,10 @@ pub fn rate(view: &PlayerView, spell: SpellId, kind: Kind) -> f32 {
     let upkeep = def.upkeep as f32;
     let base = match kind {
         Kind::Summon => summoned_strength(view, def) / (cost + upkeep * upkeep_weight()).max(1.0),
+        // The strength the werewolf adds over the unit it replaces for the spell's mana and the
+        // unit given up, one for one: a summon of the same strength and cost is better, as it
+        // costs no unit.
+        Kind::Lycanthropy => crate::wizardry::lycanthropy_target(view, spell).map_or(0.0, |t| t.2),
         _ => cost / (1.0 + upkeep),
     };
     let affinity = view.wizard().map_or(1.0, |w| {

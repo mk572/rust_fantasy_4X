@@ -124,7 +124,10 @@ fn summons_melder(view: &PlayerView, def: &SpellDef) -> bool {
 /// The own fighter Lycanthropy turns into a werewolf and the extra mana it costs: the production
 /// cost of the unit given up, one for one. Only a unit the werewolf is clearly better than is
 /// turned (`LYCANTHROPY_EDGE`); of those, the one that gains most for the mana in all.
-fn lycanthropy_target(view: &PlayerView, spell: SpellId) -> Option<(hecs::Entity, i32)> {
+pub(crate) fn lycanthropy_target(
+    view: &PlayerView,
+    spell: SpellId,
+) -> Option<(hecs::Entity, i32, f32)> {
     let wolf = view.content().rules.units.id_numbered(WEREWOLVES)?;
     let wolf_power = f4x_core::battle::power::def_power(view.content().rules.units.get(wolf));
     let cast = view.casting_cost(spell).max(1) as f32;
@@ -143,7 +146,7 @@ fn lycanthropy_target(view: &PlayerView, spell: SpellId) -> Option<(hecs::Entity
                 .then(|| ((wolf_power - power) / (cast + extra as f32), u, extra))
         })
         .max_by(|a, b| a.0.total_cmp(&b.0))
-        .map(|(_, u, extra)| (u, extra))
+        .map(|(rate, u, extra)| (u, extra, rate))
 }
 
 /// The mana a cast adds to the spell's cost: the production cost of the unit Lycanthropy is
@@ -307,7 +310,8 @@ fn priority(k: Kind) -> u8 {
         Kind::Blast => 1,
         Kind::Stasis => 2,
         Kind::Mutate => 4,
-        Kind::Lycanthropy => 4,
+        // Rated against the summons: the same ladder step, the rate decides (`spellhelper::rate`).
+        Kind::Lycanthropy => 3,
         Kind::Recall => 2,
         Kind::PlaneShift => 2,
         Kind::Gate => 2,
@@ -324,7 +328,7 @@ fn priority(k: Kind) -> u8 {
 fn cast_rank(k: Kind, traits: &crate::objective::Traits) -> i32 {
     use crate::objective::Like;
     let like = match k {
-        Kind::Summon | Kind::SummonHero => Some(Like::Summon),
+        Kind::Summon | Kind::SummonHero | Kind::Lycanthropy => Some(Like::Summon),
         Kind::UnitBuff => Some(Like::UnitBuff),
         Kind::CityBuff => Some(Like::CityBuff),
         Kind::GlobalBuff => Some(Like::GlobalBuff),
@@ -845,7 +849,7 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
             .max_by_key(|&(s, i)| (view.spell(s).cost, std::cmp::Reverse(view.serial_of(i))))
             .map(|(_, i)| Target::Spell(i))
             .filter(|&t| view.can_aim(spell, Some(t))),
-        Kind::Lycanthropy => lycanthropy_target(view, spell).map(|(u, _)| Target::Unit(u)),
+        Kind::Lycanthropy => lycanthropy_target(view, spell).map(|(u, ..)| Target::Unit(u)),
         Kind::Mutate => {
             let mut units: Vec<hecs::Entity> = view
                 .my_units()
@@ -2345,14 +2349,27 @@ mod tests {
         let paladins = spawn(&mut g, P1, circle, 113 /* high_men_paladins */, 1);
         let before = lycanthropy_target(&PlayerView::new(&g, P1), lycanthropy);
         assert!(
-            before.is_none_or(|(u, _)| u != paladins[0]),
+            before.is_none_or(|(u, ..)| u != paladins[0]),
             "a paladin is no better as a werewolf"
         );
         let spearmen = spawn(&mut g, P1, circle, 104 /* high_men_spearmen */, 1);
-        let (aimed, extra) = lycanthropy_target(&PlayerView::new(&g, P1), lycanthropy)
+        let (aimed, extra, rate) = lycanthropy_target(&PlayerView::new(&g, P1), lycanthropy)
             .ok_or("an obsolete unit to turn")?;
         assert_eq!(aimed, spearmen[0]);
         assert_eq!(extra, spearmen_cost);
+        // The unit given up is part of the price: the same gain for the spell's mana alone would
+        // rate higher, as a summon of that strength does (it costs no unit).
+        let view = PlayerView::new(&g, P1);
+        let cast = view.casting_cost(lycanthropy) as f32;
+        let gain = rate * (cast + extra as f32);
+        assert!(rate < gain / cast);
+        assert!(crate::spellhelper::rate(&view, lycanthropy, Kind::Lycanthropy) > 0.0);
+        let traits = crate::objective::traits(&view);
+        assert_eq!(
+            cast_rank(Kind::Lycanthropy, &traits),
+            cast_rank(Kind::Summon, &traits),
+            "rated against the summons"
+        );
         let view = PlayerView::new(&g, P1);
         assert_eq!(
             lycanthropy_extra(&view, Kind::Lycanthropy, Some(Target::Unit(aimed))),
