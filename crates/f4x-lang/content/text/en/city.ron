@@ -2,6 +2,8 @@
 // One key is in one file only (docs/text.md).
 {
     "city.title": "{size} of {city}",
+    // The headings of the panels (they were baked into the background picture).
+    "city.heading_resources": "Resources",
     "city.size_outpost": "Outpost",
     "city.size_hamlet": "Hamlet",
     "city.size_village": "Village",

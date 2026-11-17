@@ -22,6 +22,25 @@ use crate::ui::GOLD;
 use crate::view::{App, Screen, HUMAN};
 use crate::wood_button_art::Wood;
 
+/// The background picture without the headings, 320 by 200.
+fn background_texture() -> Texture2D {
+    thread_local! {
+        static TEX: std::cell::RefCell<Option<Texture2D>> = const { std::cell::RefCell::new(None) };
+    }
+    TEX.with(|t| {
+        t.borrow_mut()
+            .get_or_insert_with(|| {
+                let tex = Texture2D::from_file_with_format(
+                    include_bytes!("../assets/city/background.png"),
+                    Some(ImageFormat::Png),
+                );
+                tex.set_filter(FilterMode::Nearest);
+                tex
+            })
+            .clone()
+    })
+}
+
 /// Virtual-to-screen mapping for the 320x200 layout.
 #[derive(Clone, Copy)]
 pub(crate) struct Layout {
@@ -221,31 +240,26 @@ impl App {
             crate::resolution::DESIGN_H,
         );
         draw_rectangle(full.x, full.y, full.w, full.h, WHITE);
-        match self.art.picture("backgrnd", 6, 0) {
-            Some(tex) => draw_texture_ex(
-                tex,
-                full.x,
-                full.y,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(full.w, full.h)),
-                    ..Default::default()
-                },
-            ),
-            None => draw_rectangle(
-                full.x,
-                full.y,
-                full.w,
-                full.h,
-                Color::new(0.3, 0.25, 0.2, 1.0),
-            ),
-        }
+        // The picture without its headings (`scripts/city_headings_text_free.py`): they are
+        // drawn from the text keys below.
+        let tex = background_texture();
+        draw_texture_ex(
+            &tex,
+            full.x,
+            full.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(full.w, full.h)),
+                ..Default::default()
+            },
+        );
         // While the auto-builder dialog is open the screen behind it takes no input.
         let was_choosing = self.choosing;
         if dialog || selling || renaming {
             self.choosing = true;
         }
         self.draw_city_header(page, lay, input);
+        self.draw_city_headings(lay);
         self.draw_city_resources(&mut page.panel, city, lay, input);
         self.draw_city_buildings(&mut page.panel, city, lay, input);
         self.draw_city_area(page, lay, input);
@@ -424,6 +438,15 @@ impl App {
         } else {
             page.naming = Some(name);
         }
+    }
+
+    /// The headings of the screen's panels, from the keys `city.heading_*`, in the style of the
+    /// race line (the same font and gold, measured from the picture).
+    fn draw_city_headings(&mut self, lay: Layout) {
+        let view = Self::view(lay);
+        let text = self.text("city.heading_resources");
+        let style = Style::city_figures().edge(rgb(0x59, 0x41, 0x34));
+        self.draw_styled(view, &style, &text, 6.0, 43.0);
     }
 
     fn draw_city_header(&mut self, page: &mut CityPage, lay: Layout, input: &Input) {
