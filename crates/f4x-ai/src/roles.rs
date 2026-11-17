@@ -128,7 +128,7 @@ impl Assignment {
 /// What a muster gathers for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MusterKind {
-    /// A raid on a site, tower or neutral city (`siege.rs`, `site.rs`).
+    /// A raid on a site, tower or neutral city (`raid.rs`, `site.rs`).
     Raid,
     /// The campaign march on a rival's city (`military.rs`).
     Campaign,

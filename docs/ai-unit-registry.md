@@ -66,7 +66,7 @@ Listed in priority order (the lower number wins a claim, section 4). The roles w
 | `Perimeter` | a soldier dealing with the enemy in the zone of a city (`to` = the enemy's square, or the city it joins) | soldiers | `perimeter.rs` |
 | `Raid` | out on a tower, node or encounter site (`to` = the site) | soldiers | `site.rs`, `naval.rs` |
 | `March` | on the march against a city | soldiers | `military.rs` |
-| `Muster` | walking to the rally square of a party being assembled (`to` = the rally, `party` = the muster) | soldiers | `siege.rs`, `military.rs` |
+| `Muster` | walking to the rally square of a party being assembled (`to` = the rally, `party` = the muster) | soldiers | `raid.rs`, `military.rs` |
 | `Escort` | going with a settler, an engineer or a spirit (`with` = the unit it guards) | soldiers | `escort.rs` |
 | `Meld` | a spirit on its way to an open node (`to` = the node) | spirits | `meld.rs` |
 | `Road` | engineers building a road or walking to where it starts (`to` = the city or frontier it leads to) | engineers | `road.rs` |
@@ -245,10 +245,10 @@ A party is assembled before it sets off. The registry holds one record per muste
 kind, rally square, objective, start turn) and the members hold `Muster` with the record's id as
 their `party` and the rally as `to`.
 
-- `MusterKind::Raid` (`siege::gather`): free soldiers spread over the empire, none of whose squares
+- `MusterKind::Raid` (`raid::gather`): free soldiers spread over the empire, none of whose squares
   could take a site alone but the best nine with the wizard's spells could, go to the own city
   nearest the easiest site they could take (a lair, a neutral city, a tower on a plane with no
-  rival city). `siege::release` ends it when all are within a square of the rally or after 20 turns;
+  rival city). `raid::release` ends it when all are within a square of the rally or after 20 turns;
   `site::deploy` then sends the party from there. No new raid starts while one is mustering.
 - `MusterKind::Campaign` (`war::run`): the free soldiers sent to the rally city of the
   campaign (the own city nearest the target, or the far side of a tower) and those already there

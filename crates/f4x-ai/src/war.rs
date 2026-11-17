@@ -57,7 +57,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         ai.roles.end_musters(crate::roles::MusterKind::Campaign);
         ai.roles.release_role(crate::roles::Role::March);
         ai.march_target = None;
-        crate::site::deploy(ai, game, &free, events);
+        crate::raid::deploy(ai, game, &free, events);
         return;
     };
 

@@ -262,3 +262,30 @@ pub fn real_battle(
     b.units = units;
     b
 }
+
+/// Teach the wizard a spell it can cast in a battle (`fire_bolt`, 15 mana).
+pub fn learn_a_battle_spell(g: &mut Game) -> Result<(), Box<dyn std::error::Error>> {
+    let id = g
+        .content()
+        .rules
+        .spells
+        .id_numbered(5)
+        .ok_or("a battle spell is in the content")?;
+    let spell = g.content().rules.spells.get(id);
+    assert!(spell
+        .contexts
+        .contains(&f4x_def::rules::CastContext::Battle));
+    g.cheat_learn_spell(P0, id);
+    g.wizard_mut(P0)
+        .ok_or("player 0 is a wizard")?
+        .put(Some(f4x_core::wizard::sheet::Skill {
+            points: 400,
+            left: 10,
+        }));
+    Ok(())
+}
+
+pub fn set_mana(g: &mut Game, mana: i32) -> Result<(), Box<dyn std::error::Error>> {
+    g.treasury_mut(P0).ok_or("a treasury")?.mana = f4x_def::half_int::HalfInt::from_int(mana);
+    Ok(())
+}

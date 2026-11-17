@@ -343,7 +343,7 @@ fn mana_wanted(view: &PlayerView, blocked: &[f4x_core::map::Plane]) -> i32 {
         .map_or(0, |c| c.remaining.max(0));
     // The summon is cast first and paid for, and the pool then holds the mana for the battle spells
     // that take a tower the soldiers alone cannot (task 502).
-    summon + crate::siege::mana_goal(view, blocked) + mastery
+    summon + crate::spellhelper::mana_goal(view, blocked) + mastery
 }
 
 /// A wizard rich in gold and short of the mana for a summon it could cast turns just enough of the

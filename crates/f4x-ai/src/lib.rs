@@ -37,13 +37,13 @@ mod phase;
 mod pickup;
 mod plan_clock;
 mod race;
+mod raid;
 mod raze;
 mod recover;
 mod road;
 pub mod roles;
 mod scout;
 mod shortfall;
-mod siege;
 mod site;
 mod spellhelper;
 mod statecraft;
@@ -108,7 +108,7 @@ pub struct Ai {
     /// The open tower the planar scout is bound for, to be set aside when it does not get there.
     #[serde(default)]
     planar_tower: Option<Position>,
-    /// The planes where a rival's city blocks the clearing of towers this turn (`siege.rs`).
+    /// The planes where a rival's city blocks the clearing of towers this turn (`raid.rs`).
     #[serde(skip)]
     tower_blocked: Vec<f4x_core::map::Plane>,
     /// The open tower an army crosses by to reach a rival's city on the other plane (`military.rs`).
@@ -377,7 +377,7 @@ impl Ai {
         alchemy::run(self, game, &mut events);
         race::run(self, game, &mut events);
         diplomacy::mastery_scare(self, game, &mut events);
-        self.tower_blocked = siege::blocked_planes(
+        self.tower_blocked = site::blocked_planes(
             &PlayerView::new(game, self.player),
             &self.unreachable,
             self.naval.map(|p| p.target),
