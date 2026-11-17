@@ -46,6 +46,11 @@ MADE_UP = [
         "hand-built definition (struct literal)",
     ),
     (r"\bcontent\.rules\.[a-z_]+\s*=[^=]", "assigns to `content.rules`"),
+    (
+        r"\b(?:MAX_TILE_LIMIT|MAX_STACK)\b",
+        "the setting's upper bound (`MAX_TILE_LIMIT`, `MAX_STACK`) in place of the game's own limit "
+        "(`max_tile()`, `max_battle_side()`)",
+    ),
 ]
 HAND_BUILT = [
     (

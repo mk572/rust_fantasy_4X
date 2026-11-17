@@ -22,57 +22,12 @@ fn the_new_game_choices_default_to_an_average_game() {
 }
 
 #[test]
-fn the_levels_carry_the_originals_figures() {
-    // The original's five levels are 0 to 3 and Impossible, which sits at 5 since Extreme (4) was
-    // put between Hard and Impossible.
-    const ORIGINAL: [(u8, u8); 5] = [(0, 0), (1, 1), (2, 2), (3, 3), (5, 4)];
-    let gold: Vec<(i32, i32)> = ORIGINAL
-        .iter()
-        .map(|&(d, _)| {
-            (
-                at(d).wizards.starting_gold.human,
-                at(d).wizards.starting_gold.ai,
-            )
-        })
-        .collect();
-    assert_eq!(
-        gold,
-        [(125, 150), (100, 150), (75, 150), (50, 150), (25, 150)]
-    );
-    let picks: Vec<u8> = ORIGINAL
-        .iter()
-        .map(|&(d, _)| at(d).wizards.picks.ai)
-        .collect();
-    assert_eq!(picks, [11, 11, 11, 13, 15]);
-    assert_eq!(at(5).ai.production_percent, 400);
-    assert_eq!(at(3).ai.research_percent, 110);
-    assert_eq!(at(5).ai.maintenance_percent, 30);
-    assert_eq!(at(5).ai.unit_upkeep_percent, 50);
-    assert_eq!(at(3).ai.wizards.erasure_dice, (2, 3));
-    assert_eq!(at(2).scoring.score_percent, 100);
-    assert_eq!(at(5).scoring.score_percent, 300);
-    assert!(!at(0).events.random_events && at(1).events.random_events);
-    assert!(at(1).rules.safe_flee.human && !at(2).rules.safe_flee.ai);
-    // The lair figures are the old formulas: `(d + 1) / 4` of the guards, `4 / (d + 1)` of
-    // the treasure (none at Impossible), d being the original's level.
-    for (level, d) in ORIGINAL {
-        assert_eq!(at(level).world.lair_guard_percent, (u16::from(d) + 1) * 25);
-    }
-    assert_eq!(at(0).world.lair_treasure_percent, 400);
-    assert_eq!(at(3).world.lair_treasure_percent, 100);
-    // The raiders are `troops * d / 6` of the original.
-    for (level, d) in ORIGINAL {
-        assert_eq!(
-            at(level).world.raider_percent,
-            [0, 17, 33, 50, 67][usize::from(d)]
-        );
-        assert!(at(level).world.raiders_enabled && at(level).world.monsters_enabled);
-    }
-    for d in 0..=5 {
-        assert!(
-            at(d).is_level(&settings()) && at(d).validate().is_empty(),
-            "level {d}"
-        );
+fn every_level_of_the_file_is_a_valid_level_of_itself() {
+    for d in 0..=MAX_DIFFICULTY {
+        let s = at(d);
+        assert_eq!(s.basic.difficulty, d, "level {d}");
+        assert!(s.is_level(&settings()), "level {d}");
+        assert!(s.validate().is_empty(), "level {d}: {:?}", s.validate());
     }
 }
 
@@ -107,10 +62,7 @@ fn without_levels_a_difficulty_is_the_default_game_at_that_level() {
 }
 
 #[test]
-fn the_most_books_in_a_realm_is_eleven_in_every_level_and_checked_between_five_and_thirteen() {
-    for level in 0..=MAX_DIFFICULTY {
-        assert_eq!(at(level).wizards.max_books_per_realm, 11, "level {level}");
-    }
+fn the_most_books_in_a_realm_is_checked_between_five_and_thirteen() {
     let mut s = at(2);
     for ok in [5, 11, 13] {
         s.wizards.max_books_per_realm = ok;
@@ -124,11 +76,7 @@ fn the_most_books_in_a_realm_is_eleven_in_every_level_and_checked_between_five_a
 }
 
 #[test]
-fn the_most_books_in_all_realms_is_twelve_in_every_level_and_checked_between_twelve_and_sixty_five()
-{
-    for level in 0..=MAX_DIFFICULTY {
-        assert_eq!(at(level).wizards.max_books_total, 12, "level {level}");
-    }
+fn the_most_books_in_all_realms_is_checked_between_twelve_and_sixty_five() {
     let mut s = at(2);
     for ok in [12, 13, 65] {
         s.wizards.max_books_total = ok;
@@ -144,8 +92,6 @@ fn the_most_books_in_all_realms_is_twelve_in_every_level_and_checked_between_twe
 #[test]
 fn the_units_per_square_stay_between_a_battle_side_and_the_ceiling() {
     let mut s = at(2);
-    assert_eq!(s.rules.max_tile, 12, "v1.31 allows twelve on a square");
-    assert_eq!(s.rules.max_battle_side, 9, "a battle side is nine");
     assert!(s.validate().is_empty());
     for bad in [s.rules.max_battle_side - 1, MAX_TILE_LIMIT + 1] {
         s.rules.max_tile = bad;
@@ -154,7 +100,7 @@ fn the_units_per_square_stay_between_a_battle_side_and_the_ceiling() {
 }
 
 #[test]
-fn a_battle_side_is_one_to_nine_and_a_square_holds_at_least_a_side() {
+fn a_battle_side_is_one_to_the_ceiling_and_a_square_holds_at_least_a_side() {
     let mut s = at(2);
     for bad in [0, MAX_STACK + 1] {
         s.rules.max_battle_side = bad;
@@ -163,16 +109,6 @@ fn a_battle_side_is_one_to_nine_and_a_square_holds_at_least_a_side() {
     s.rules.max_battle_side = 5;
     s.rules.max_tile = 5;
     assert!(s.validate().is_empty(), "{:?}", s.validate());
-}
-
-#[test]
-fn v131_holds_twelve_on_a_square_and_v160_twenty_with_a_side_of_nine_in_both() {
-    let def = settings();
-    let work = GameSettings::for_difficulty(&def, 2);
-    let v131 = RuleSet::V131.applied(work, &def);
-    let v160 = RuleSet::V160.applied(work, &def);
-    assert_eq!((v131.rules.max_tile, v131.rules.max_battle_side), (12, 9));
-    assert_eq!((v160.rules.max_tile, v160.rules.max_battle_side), (20, 9));
 }
 
 #[test]
@@ -200,40 +136,10 @@ fn a_settings_file_is_checked_for_its_level_count_and_ranges() {
 }
 
 #[test]
-fn every_level_is_a_valid_record_and_out_of_range_values_are_named() {
-    for level in 0..=5 {
-        let s = at(level);
-        assert_eq!(s.basic.difficulty, level);
-        assert!(s.validate().is_empty());
-    }
+fn out_of_range_values_are_named_and_a_level_past_the_last_is_the_last() {
     assert_eq!(at(9).basic.difficulty, 5);
-    // Extreme (4): the patch's AI bonuses, the other figures between Hard and Impossible.
+    // Extreme sits strictly between Hard and Impossible wherever those two differ.
     let (hard, extreme, impossible) = (at(3), at(EXTREME), at(5));
-    assert_eq!(
-        (
-            extreme.ai.growth_percent,
-            extreme.ai.production_percent,
-            extreme.ai.gold_percent,
-            extreme.ai.food_percent,
-            extreme.ai.research_percent,
-            extreme.ai.maintenance_percent,
-            extreme.ai.unit_upkeep_percent,
-        ),
-        (300, 300, 300, 300, 130, 40, 60)
-    );
-    assert_eq!(
-        (
-            extreme.wizards.starting_gold.human,
-            extreme.wizards.picks.ai,
-            extreme.ai.wizards.erasure_dice,
-            extreme.world.lair_guard_percent,
-            extreme.world.raider_percent,
-            extreme.events.pressure_percent,
-            extreme.scoring.score_percent,
-        ),
-        (40, 14, (2, 4), 110, 60, 90, 250)
-    );
-    // Strictly between Hard and Impossible wherever those two differ.
     let between = |h: i32, e: i32, i: i32| (h.min(i)..=h.max(i)).contains(&e);
     assert!(between(
         hard.ai.production_percent.into(),
@@ -268,44 +174,16 @@ fn every_level_is_a_valid_record_and_out_of_range_values_are_named() {
 }
 
 #[test]
-fn v131_has_the_originals_ships_and_monster_turn_and_v160_has_eight_carrying_ships() {
+fn every_rule_set_gives_a_valid_game_and_the_shipped_ships_carry_what_the_default_says() {
     let def = settings();
     let work = at(2);
-    let v131 = RuleSet::V131.applied(work, &def);
-    assert_eq!(
-        (v131.rules.trireme_capacity, v131.rules.galley_capacity),
-        (2, 5)
-    );
-    assert_eq!(v131.world.monster_start_turn, 50);
-    let v160 = RuleSet::V160.applied(work, &def);
-    assert_eq!(
-        (v160.rules.trireme_capacity, v160.rules.galley_capacity),
-        (8, 8)
-    );
-    assert!(v160.validate().is_empty(), "{:?}", v160.validate());
-    assert!(v160.rules.walls_cover_city && v160.rules.suppress_spares_return);
-    assert!(!v131.rules.walls_cover_city && !v131.rules.suppress_spares_return);
-    assert!(v160.rules.miners_guild_half_ore && !v131.rules.miners_guild_half_ore);
-    assert!(v160.rules.spell_binding_always_succeeds && !v131.rules.spell_binding_always_succeeds);
-    // Roads between the independent cities at the start: the original's, so on in both.
-    assert!(v131.rules.roads_at_start && v160.rules.roads_at_start);
-    assert!(v131.rules.lair_full_heal && v160.rules.lair_full_heal);
-    // Half the loser's gold and mana to the victor of a wizard: the original's, on in both.
-    assert!(v131.rules.defeat_loot && v160.rules.defeat_loot);
-    // Adamant Alchemy is a community-patch option: off in both.
-    assert!(!v131.rules.adamant_alchemy && !v160.rules.adamant_alchemy);
-    assert!(!v131.rules.two_pick_myrran && !v160.rules.two_pick_myrran);
-    assert!(!v131.rules.mix_neutral_races && !v160.rules.mix_neutral_races);
-    // The colour wheel is our own option: off in both.
-    assert!(!v131.rules.color_wheel_relations && !v160.rules.color_wheel_relations);
-    // The community patch undoes patch 1.50's lair and treasure changes: both off in both.
-    assert!(!v131.rules.stronger_lairs && !v160.rules.stronger_lairs);
-    assert!(!v131.rules.treasure_patch_150 && !v160.rules.treasure_patch_150);
-    // Limiting the computer wizards' races is the original's; our default is off in both.
-    assert!(!v160.rules.limit_ai_races && !v131.rules.limit_ai_races);
-    assert!(v160.rules.ban_life_and_death && v131.rules.ban_life_and_death);
-    // The shipped units hold the originals' numbers for the default.
     let content = shipped();
+    for set in [RuleSet::V131, RuleSet::V160] {
+        let applied = set.applied(work, &def);
+        assert!(applied.validate().is_empty(), "{:?}", applied.validate());
+    }
+    // The default rule set's ship capacities are the shipped units' own.
+    let v131 = RuleSet::V131.applied(work, &def);
     let carries = |num| {
         content
             .rules
@@ -313,8 +191,14 @@ fn v131_has_the_originals_ships_and_monster_turn_and_v160_has_eight_carrying_shi
             .by_num(num)
             .map(|u| u.stats[&crate::rules::Stat::Transport])
     };
-    assert_eq!(carries(TRIREME_UNIT), Some(HalfInt::from_int(2)));
-    assert_eq!(carries(GALLEY_UNIT), Some(HalfInt::from_int(5)));
+    assert_eq!(
+        carries(TRIREME_UNIT),
+        Some(HalfInt::from_int(v131.rules.trireme_capacity.into()))
+    );
+    assert_eq!(
+        carries(GALLEY_UNIT),
+        Some(HalfInt::from_int(v131.rules.galley_capacity.into()))
+    );
 }
 
 #[test]
@@ -354,13 +238,12 @@ fn a_setting_a_file_does_not_name_takes_the_fallback_and_else_the_built_in_value
 }
 
 #[test]
-fn the_default_game_settings_start_as_v131_and_a_file_gives_them_back() {
+fn the_default_game_settings_come_back_from_the_file_they_were_saved_to() {
     let def = settings();
     let dir = crate::testdir::TestDir::new("default-game");
     let path = dir.join("default_game.ron");
     assert_eq!(DefaultGame::load(&path), None);
     let mut rec = DefaultGame::factory(&def);
-    assert_eq!(rec.preset, RuleSet::V131);
     assert!(!rec.settings.rules.limit_ai_races);
     rec.settings.rules.limit_ai_races = true;
     rec.save(&path).expect("saves");

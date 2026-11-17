@@ -442,11 +442,11 @@ mod tests {
                 .id_numbered(name)
                 .ok_or("a unit is not in the content")
         });
-        for i in 0..12 {
+        for i in 0..app.game.max_tile() {
             app.game.spawn_unit(HUMAN, pos, kinds[i % 3]?);
         }
         let units = app.own_units_at(pos);
-        assert!(units.len() > f4x_core::unit::MAX_STACK);
+        assert!(units.len() > app.game.max_battle_side());
         let pick = app.new_fighter_pick(&units, true, false);
         assert_eq!(pick.units.len(), units.len());
         let strength: Vec<f32> = pick
@@ -457,7 +457,7 @@ mod tests {
         assert!(strength.windows(2).all(|w| w[0] >= w[1]), "{strength:?}");
         assert_eq!(
             pick.picked.iter().filter(|&&p| p).count(),
-            f4x_core::unit::MAX_STACK
+            app.game.max_battle_side()
         );
         Ok(())
     }

@@ -29,7 +29,7 @@ The crates and who may depend on whom: `docs/design.md` section 2 and `docs/rust
 
 ## Conventions
 
-For js, py and bash scripts, follow `docs/scripting_guidelines.md`
+For js, py and bash scripts, follow [`docs/scripting_guidelines.md`](docs/scripting_guidelines.md); read it before writing, changing or running a script (every script has `--help`, and `--help` never runs it).
 
 Refer to `docs/ecs-structure.md`
 
@@ -38,7 +38,8 @@ Refer to `docs/ecs-structure.md`
 
 - **Rust and testing rules** (safe coding, error handling, testing on the actual game data and rules,
   error handling and quality of tests) are in `docs/rust_coding_rules.md`; follow them when writing or
-  changing code and tests.
+  changing code and tests. A test never carries a game rule of its own (a limit, a count, a price): it reads
+  it from the game (`g.max_tile()`, the shipped content); `scripts/imaginary_tests.py` flags the offenders.
 
 - **Names are singular** for modules, files and types of an entity or a concept (`unit`, `lair`,
   `item`, `UnitView`), also in the other crates. Plural stays for `Vec` fields, registries and `.ron`

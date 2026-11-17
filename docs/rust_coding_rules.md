@@ -142,6 +142,11 @@ wrong reason.
   Where a result depends on a roll, cast or fight again until it happens (`cast_until`) or give the
   caster the means, rather than raising a number in the rules. Tests that only set a game setting or a
   config value (`g.settings.rules.x`, `rules.config.x`) are not rule sets.
+- **A test never carries a number of the game's rules of its own.** How many units a square holds,
+  how many fight in a battle, a price, a limit: read it from the game (`g.max_tile()`,
+  `g.max_battle_side()`, the shipped content), never a literal (`0..12`) and never the setting's
+  upper bound (`MAX_TILE_LIMIT`, `MAX_STACK`), which is not the limit of any game in play.
+  `scripts/imaginary_tests.py` flags the constants.
 - Build only situations the game can reach (a unit always has a real player as owner; see
   `ecs-structure.md` section 3.3). A situation the game cannot create belongs in a test only to check
   error handling (a rejected command, a refused save).

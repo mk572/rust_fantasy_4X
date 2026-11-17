@@ -317,9 +317,9 @@ fn enemies_block_and_ask_for_a_fight() {
 }
 
 #[test]
-fn a_tile_holds_twenty_units() {
+fn a_tile_holds_no_more_units_than_the_limit() {
     let mut g = world();
-    for _ in 0..crate::unit::MAX_TILE_LIMIT {
+    for _ in 0..g.max_tile() {
         unit(&mut g, P0, 107 /* high_men_cavalry */, at(2, 1));
     }
     let mover = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 1));
