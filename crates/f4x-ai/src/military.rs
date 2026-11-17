@@ -143,7 +143,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         roles.is_free(s) || roles.in_muster(s, MusterKind::Campaign)
     });
 
-    // 1. The pool is free to campaign.
+    // The pool is free to campaign.
     let (free, capital) = {
         let view = PlayerView::new(game, me);
         let free: Vec<hecs::Entity> = stacks(&view, pool)
@@ -157,7 +157,26 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         return;
     };
 
-    // 3. Choose (or keep) a city to attack. What is seen of enemy cities is remembered.
+    choose_target(ai, game, events, capital);
+    let Some(target) = ai.campaign else {
+        // Nothing to march on: the army raids the sites and towers, which also opens the way to
+        // the other plane.
+        // A march whose target has fallen is over: its units are available again where they
+        // stand, for the dispatcher to garrison or send on.
+        ai.roles.end_musters(crate::roles::MusterKind::Campaign);
+        ai.roles.release_role(crate::roles::Role::March);
+        ai.march_target = None;
+        crate::site::deploy(ai, game, &free, events);
+        return;
+    };
+
+    march_on(ai, game, events, &free, &own_cities, capital, target);
+}
+
+/// Choose (or keep) the city to attack, in `ai.campaign`: the war plan's, or a city across a
+/// plane, or the landing in preparation. What is seen of enemy cities is remembered.
+fn choose_target(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, capital: Position) {
+    let me = ai.player;
     let mut new_crossing: Option<Position> = None;
     {
         let view = PlayerView::new(game, me);
@@ -289,18 +308,19 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.unreachable_since = game.turn;
         }
     }
-    let Some(target) = ai.campaign else {
-        // Nothing to march on: the army raids the sites and towers, which also opens the way to
-        // the other plane.
-        // A march whose target has fallen is over: its units are available again where they
-        // stand, for the dispatcher to garrison or send on.
-        ai.roles.end_musters(crate::roles::MusterKind::Campaign);
-        ai.roles.release_role(crate::roles::Role::March);
-        ai.march_target = None;
-        crate::site::deploy(ai, game, &free, events);
-        return;
-    };
+}
 
+/// Gather the soldiers at the rally city and march on `target` when they are enough.
+fn march_on(
+    ai: &mut Ai,
+    game: &mut Game,
+    events: &mut Vec<Event>,
+    free: &[hecs::Entity],
+    own_cities: &[Position],
+    capital: Position,
+    target: Position,
+) {
+    let me = ai.player;
     // Targets that could not be reached are tried again after a while.
     if game.turn.saturating_sub(ai.unreachable_since) > UNREACHABLE_TURNS {
         ai.unreachable.clear();
@@ -586,7 +606,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // Troops for a landing wait at the port; the ship takes them. Those already ashore on the
     // target's land mass march on it when they are strong enough.
     if ai.naval.is_some_and(|p| p.target == target) {
-        march_landed(ai, game, &free, target, events);
+        march_landed(ai, game, free, target, events);
         return;
     }
     if force >= expected * attack_ratio() + 1.0 && at_rally.len() >= MIN_MARCH {
