@@ -498,9 +498,21 @@ impl<'a> PlayerView<'a> {
         self.game.economy().city_economy(city)
     }
 
-    /// The units standing in a city or on a square.
+    /// The units the player knows to stand in a city or on a square: nothing for a square it
+    /// has not explored; its own units there; and another player's only when the square is in
+    /// sight now and the unit can be made out (as `hostile_at`). Of another wizard's city it has
+    /// explored but does not see, `city_report` lists the units, as the enemy city screen does.
     pub fn garrison(&self, at: Position) -> Vec<hecs::Entity> {
-        self.game.economy().garrison(at)
+        if !self.explored(at) {
+            return Vec::new();
+        }
+        let sees = self.sees(at);
+        let mut units = self.game.economy().garrison(at);
+        units.retain(|&u| {
+            self.game.units().unit_owner(u) == Some(self.me)
+                || (sees && self.game.economy().unit_visible_to(u, self.me))
+        });
+        units
     }
 
     /// The game's difficulty: 0 intro, 1 easy, 2 normal, 3 hard, 4 extreme, 5 impossible.
@@ -943,6 +955,38 @@ mod tests {
             Err(ProductionError::NotACity)
         );
         assert!(view.city_economy(mine).is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn the_units_on_a_square_are_known_only_as_far_as_the_square_is_explored_and_seen() -> TestResult
+    {
+        let mut g = game();
+        let spearmen = g
+            .content()
+            .rules
+            .units
+            .id_numbered(104)
+            .ok_or("no spearmen")?;
+        let mine = g.spawn_unit(ME, at(5, 5), spearmen);
+        let foe = g.spawn_unit(THEM, at(20, 10), spearmen);
+        let view = PlayerView::new(&g, ME);
+        assert_eq!(view.garrison(at(5, 5)), vec![mine]);
+        assert!(view.garrison(at(20, 10)).is_empty(), "not explored");
+        drop(view);
+        g.explore(ME, at(20, 10), HalfInt::from_raw(5));
+        let view = PlayerView::new(&g, ME);
+        assert!(!view.sees(at(20, 10)));
+        assert!(
+            view.garrison(at(20, 10)).is_empty(),
+            "explored but not in sight: the report, not the square"
+        );
+        drop(view);
+        // A unit of the player's beside it sees the square.
+        g.spawn_unit(ME, at(20, 11), spearmen);
+        let view = PlayerView::new(&g, ME);
+        assert!(view.sees(at(20, 10)));
+        assert_eq!(view.garrison(at(20, 10)), vec![foe]);
         Ok(())
     }
 
