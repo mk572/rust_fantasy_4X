@@ -82,6 +82,7 @@ fn mission_valid(
                     p == target && !view.is_rival_wizard(owner) && owner != ai.player
                 })
         }
+        Role::Settle => !ai.bad_sites.contains(&target) && view.city_at(target).is_none(),
         Role::Scout => !view.explored(target),
         Role::Meld => crate::meld::open_nodes(ai, view).contains(&target),
         _ => true,
@@ -102,7 +103,13 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
         let view = f4x_core::player::view::PlayerView::new(game, me);
         for unit in view.my_units() {
             let serial = view.serial_of(unit);
-            for role in [Role::Raid, Role::Scout, Role::Meld, Role::March] {
+            for role in [
+                Role::Raid,
+                Role::Scout,
+                Role::Meld,
+                Role::March,
+                Role::Settle,
+            ] {
                 if !ai.roles.is(serial, role) {
                     continue;
                 }
@@ -458,5 +465,29 @@ mod tests {
         // A new target clears the tag.
         ai.roles.set_target(serial, Role::Scout, Some(at(5, 9)));
         assert_eq!(ai.roles.crossing_of(serial), None);
+    }
+
+    /// A settler whose site no walk leads to waits for a ship with its site kept; the settler job
+    /// does not choose another site for it.
+    #[test]
+    fn a_settler_with_no_walk_to_its_site_waits_for_a_ship_and_keeps_the_site() {
+        use crate::roles::{Crossing, Role};
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let site = at(30, 10);
+        let settler = spawn(&mut g, P0, at(9, 7), 111 /* high_men_settlers */, 1)[0];
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        let serial = f4x_core::player::view::PlayerView::new(&g, P0).serial_of(settler);
+        let _ = ai.roles.claim(serial, Role::Settle, 1, Some(site));
+        let mut events = Vec::new();
+        assert_eq!(revalidate(&mut ai, &mut g, &mut events), 0);
+        assert_eq!(ai.roles.crossing_of(serial), Some(Crossing::Sea));
+        crate::expand::settlers(&mut ai, &mut g, &mut events);
+        assert_eq!(
+            ai.roles.target_of(serial, Role::Settle),
+            Some(site),
+            "{events:?}"
+        );
+        assert_eq!(ai.roles.needing(Crossing::Sea), vec![(serial, site)]);
     }
 }

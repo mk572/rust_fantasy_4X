@@ -80,6 +80,11 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             (pos, view.serial_of(unit))
         };
+        // No walk leads to the site: the settler waits where it stands for the transport, the
+        // dispatcher (`revalidate`) has tagged it.
+        if ai.roles.crossing_of(serial).is_some() {
+            continue;
+        }
         if let Some(target) = ai.roles.target_of(serial, crate::roles::Role::Settle) {
             if target == pos {
                 let (can_found, name) = {
