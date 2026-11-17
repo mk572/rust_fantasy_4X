@@ -259,12 +259,13 @@ impl App {
             self.choosing = true;
         }
         self.draw_city_header(page, lay, input);
-        self.draw_city_headings(lay);
         self.draw_city_resources(&mut page.panel, city, lay, input);
         self.draw_city_buildings(&mut page.panel, city, lay, input);
         self.draw_city_area(page, lay, input);
         self.draw_city_garrison(city, lay);
         self.draw_city_production(page, lay, input);
+        // After the town view, so that nothing covers the tail of the g of Buildings.
+        self.draw_city_headings(lay);
         if renaming {
             self.choosing = was_choosing;
             self.draw_rename_box(page, input);
@@ -444,9 +445,18 @@ impl App {
     /// race line (the same font and gold, measured from the picture).
     fn draw_city_headings(&mut self, lay: Layout) {
         let view = Self::view(lay);
-        let text = self.text("city.heading_resources");
         let style = Style::city_figures().edge(rgb(0x59, 0x41, 0x34));
-        self.draw_styled(view, &style, &text, 6.0, 43.0);
+        // The top left of each heading's lettering, in the original's pixels.
+        for (key, x, y) in [
+            ("city.heading_resources", 6.0, 43.0),
+            ("city.heading_enchantments", 140.0, 43.0),
+            ("city.heading_buildings", 6.0, 95.0),
+            ("city.heading_units", 216.0, 95.0),
+            ("city.heading_producing", 216.0, 140.0),
+        ] {
+            let text = self.text(key);
+            self.draw_styled(view, &style, &text, x, y);
+        }
     }
 
     fn draw_city_header(&mut self, page: &mut CityPage, lay: Layout, input: &Input) {

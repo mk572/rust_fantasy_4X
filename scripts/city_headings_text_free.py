@@ -3,7 +3,7 @@
 
 Reads `assets-local/screens/city_screen/background_00.png` (local-only extractor output, `backgrnd`
 entry 6) and writes `crates/f4x-client/assets/city/background.png`: the same 320x200 picture with
-the headings taken out (Resources so far), so the client draws them itself from the text keys
+the headings taken out (Resources, Enchantments, Buildings, Units and Producing), so the client draws them itself from the text keys
 `city.heading_*` and they can be localised. Needs Pillow (`.venv`).
 
 A heading is gold lettering (df961c) with a darker edge and shadow on the speckled brown bar. The
@@ -26,6 +26,14 @@ GOLD = (0xDF, 0x96, 0x1C)
 # is inclusive.
 HEADINGS = [
     ("resources", 3, 52, 42, 48, 52),
+    # Taken from the clean stretch of the Resources bar, the same rows (the bar is 85 columns
+    # to the left).
+    ("enchantments", 137, 201, 42, 48, -85),
+    # The tail of the g reaches the row of the frame under the bar (101).
+    ("buildings", 4, 43, 94, 101, 45),
+    ("units", 213, 238, 94, 100, 25),
+    # The tail of the g reaches the first row of the panel (146), its shadow the next.
+    ("producing", 213, 260, 139, 147, 45),
 ]
 
 

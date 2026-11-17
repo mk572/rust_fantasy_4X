@@ -4,6 +4,10 @@
     "city.title": "{size} of {city}",
     // The headings of the panels (they were baked into the background picture).
     "city.heading_resources": "Resources",
+    "city.heading_enchantments": "Enchantments",
+    "city.heading_buildings": "Buildings",
+    "city.heading_units": "Units",
+    "city.heading_producing": "Producing",
     "city.size_outpost": "Outpost",
     "city.size_hamlet": "Hamlet",
     "city.size_village": "Village",
