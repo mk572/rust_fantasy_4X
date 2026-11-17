@@ -196,6 +196,12 @@ checks that **the game does what it says**.
   the row that has the property the test needs) and fail the test when there is none.
 - **A test that can only restate a field**, because no game code reads it, is deleted, and the field is
   reported as dead.
+- **No unproven gameplay assumption decides a test.** A test must not rely on a claim nobody has
+  shown, such as "four paladins lose to two great drakes" or "a spearman beats a scout": the test does
+  not know. When it needs a stronger or a weaker side, it builds it from the game's own measure
+  (as many of one unit as it takes to be worth three times the other, by `battle::power`), so that it
+  tests the decision that follows from the measure, not the measure. Whether the measure itself
+  matches the battles is the job of the duel harness (task 655).
 - **Check yourself:** change a content value on purpose (a cost, a race in a list). A test may fail
   only when the behaviour then differs from the setting. If it fails because the number it wrote down
   no longer matches, it is a shadow setting. (Task 653 replaces the existing ones.)

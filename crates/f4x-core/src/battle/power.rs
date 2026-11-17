@@ -5,7 +5,7 @@
 //!
 //! A battle is a series of blows from both sides, so the measure has no side to it: what a unit
 //! does when it attacks and what it takes when it is attacked are one number. It reads the unit's
-//! *full* health (`MaxHp` over all figures), not what it has left: moving the hurt back to safety
+//! *full* health (`MaxHp` over all figures, and every figure also strikes), not what it has left: moving the hurt back to safety
 //! is the army builder's business (`f4x_ai::recover`), not part of how strong a unit is. The
 //! numbers are a first draft, eyeballed; refine them here and every user follows.
 //!
@@ -72,9 +72,13 @@ pub fn unit_power(stat: impl Fn(Stat) -> i32, has: impl Fn(Ability) -> bool) -> 
     let (melee, ranged) = (stat(Stat::Melee).max(0), stat(Stat::Ranged).max(0));
     let attack = melee.max(ranged) as f32 + 0.25 * melee.min(ranged) as f32;
     let defense = stat(Stat::Defense) as f32 + 0.1 * stat(Stat::Resistance).max(0) as f32;
-    let hits = (stat(Stat::MaxHp).max(0) * stat(Stat::Figures).max(1)) as f32;
+    let figures = stat(Stat::Figures).max(1);
+    let hits = (stat(Stat::MaxHp).max(0) * figures) as f32;
     let (off, def) = ability_bonus(has);
-    kernel(attack, defense, hits) * (off + def - 1.0)
+    // Every figure attacks and every figure is hit points, so figures count twice: for the
+    // blows dealt and for the blows it takes to wear the unit down. (The firepower falls as
+    // figures die, which halves what a unit deals over a fight but not how it grows with them.)
+    kernel(attack, defense, hits) * figures as f32 * (off + def - 1.0)
 }
 
 /// [`unit_power`] of a unit definition (a unit that does not exist yet: what a city could build,
@@ -113,9 +117,10 @@ mod tests {
         assert!(base(0, 0, 0) == 0.0);
     }
 
-    /// The figures of a unit are its hit points: six figures are six times one.
+    /// Every figure strikes and every figure is hit points, and a figure that dies stops
+    /// striking: doubling the figures more than doubles what the unit adds to a battle.
     #[test]
-    fn figures_multiply_the_hits() {
+    fn figures_count_for_the_blows_and_for_the_hits() {
         let with = |figures: i32| {
             unit_power(
                 |s| match s {
@@ -128,7 +133,8 @@ mod tests {
                 |_| false,
             )
         };
-        assert!((with(6) - 6.0 * with(1)).abs() < 1e-3);
+        assert!(with(2) > 2.0 * with(1));
+        assert!(with(6) > 6.0 * with(1));
     }
 
     /// Every ability of the table that a shipped unit has makes it worth more than the same unit

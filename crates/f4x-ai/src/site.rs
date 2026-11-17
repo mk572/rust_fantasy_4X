@@ -681,11 +681,21 @@ mod tests {
 
     #[test]
     fn a_weak_party_leaves_a_site_whose_guards_it_knows_to_be_too_strong() -> TestResult {
-        let mut g = world(
-            4,
-            vec![(f4x_def::rules::UnitId::new(164) /* great_drake */, 2)],
-            true,
-        )?;
+        // The guards are as many great drakes as it takes for them to be worth three times the
+        // party in the measure of the rules (`battle::power`): the test is about the decision to
+        // leave a site that is too strong by that measure, not about which unit is stronger.
+        const PARTY: usize = 4;
+        let drake = f4x_def::rules::UnitId::new(164 /* great_drake */);
+        let content = game(COAST_CITY, 8 /* high_men */);
+        let rules = &content.content().rules;
+        let one_paladin = f4x_core::battle::power::def_power(rules.units.get(
+            f4x_def::rules::UnitId::new(113 /* high_men_paladins */),
+        ));
+        let one_drake = f4x_core::battle::power::def_power(rules.units.get(drake));
+        let guards = (3.0 * PARTY as f32 * one_paladin / one_drake)
+            .ceil()
+            .max(1.0) as u32;
+        let mut g = world(PARTY, vec![(drake, guards)], true)?;
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 4);
         assert!(!ai.roles.any(crate::roles::Role::Raid));
