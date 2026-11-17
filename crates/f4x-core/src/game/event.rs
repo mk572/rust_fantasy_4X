@@ -219,6 +219,12 @@ pub enum Event {
         target: map::Position,
         units: u32,
     },
+    /// The AI's war plan changed its goal (`goal` true) or its next target (false) from one town
+    /// to another (not a command's result: a soak counts them to see a plan that swings).
+    WarPlanChanged {
+        player: player::PlayerId,
+        goal: bool,
+    },
     /// The AI called a march off: it had gone on `turns` turns without a fight (`target_changed`
     /// false), or its target was dropped for another (`true`). `units` soldiers were on it.
     MarchCalledOff {

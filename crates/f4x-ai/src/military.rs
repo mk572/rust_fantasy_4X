@@ -30,8 +30,6 @@ const MEMORY_TURNS: u32 = 80;
 const HELD_WEIGHT: f32 = 1.5;
 /// A force that has marched and not fought for this many turns goes home to gather again.
 const MARCH_TURNS: u32 = 15;
-/// Units this close to the rally city count as gathered (a full city cannot hold them all).
-const GATHER_RADIUS: u32 = 2;
 /// What a landing party wants over the expected defence before it marches on the city.
 const COMMITTED_LANDING: f32 = 1.2;
 /// Turns an enemy city that no march could reach is left alone.
@@ -343,7 +341,17 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 &ai.unreachable,
                 focus,
             );
-            match crate::war_plan::revise(&mut ai.war_plan, &view, &towns, capital) {
+            let before = ai.war_plan.clone();
+            let revised = crate::war_plan::revise(&mut ai.war_plan, &view, &towns, capital);
+            for (old, new, goal) in [
+                (before.goal, ai.war_plan.goal, true),
+                (before.next, ai.war_plan.next, false),
+            ] {
+                if old.is_some() && new.is_some() && old != new {
+                    events.push(Event::WarPlanChanged { player: me, goal });
+                }
+            }
+            match revised {
                 Some(c) => ai.campaign = Some(c),
                 None => {
                     // A goal on the other plane is the planar logic's below; one on this plane
@@ -472,14 +480,19 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.march_target = Some(target);
         }
         let expected = expected_defence(&view, &ai.city_memory, game.turn, target);
-        let (at_rally, elsewhere): (Vec<_>, Vec<_>) = free
+        // The army attacks as one stack from one square: the units on the rally square, the
+        // strongest of them up to what a square holds. The rest of them stay available.
+        let (mut at_rally, elsewhere): (Vec<_>, Vec<_>) = free
             .iter()
             .copied()
             .filter(|&u| !ai.roles.is(view.serial_of(u), crate::roles::Role::March))
-            .partition(|&u| {
-                view.unit_position(u)
-                    .is_some_and(|p| distance(&view, p, rally).is_some_and(|d| d <= GATHER_RADIUS))
-            });
+            .partition(|&u| view.unit_position(u) == Some(rally));
+        at_rally.sort_by(|&a, &b| {
+            unit_strength(&view, b)
+                .total_cmp(&unit_strength(&view, a))
+                .then(view.serial_of(a).cmp(&view.serial_of(b)))
+        });
+        at_rally.truncate(view.max_tile());
         let force = stack_strength(&view, &at_rally);
         (rally, expected, at_rally, elsewhere, force)
     };
@@ -529,6 +542,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         });
         (strength, units)
     };
+    let available = at_rally.len() + elsewhere.len();
     let mut counted = 0;
     for u in &elsewhere {
         for &sent in &sent_to_rally[counted..] {
@@ -575,7 +589,8 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
             continue;
         }
-        if have >= needed && have_units >= MIN_MARCH {
+        // Nothing is sent while too few units are free to make a march at all.
+        if (have >= needed && have_units >= MIN_MARCH) || available < MIN_MARCH {
             continue;
         }
         // A gate is quicker than the road: an Earth Gate city sends its troops to the rally
@@ -833,7 +848,8 @@ pub(crate) fn force_wanted(
     target: Position,
 ) -> usize {
     let needed = expected_defence(view, memory, turn, target) * attack_ratio() + 1.0;
-    ((needed / average_strength(view).max(1.0)).ceil() as usize).clamp(3, MAX_FORCE)
+    ((needed / average_strength(view).max(1.0)).ceil() as usize)
+        .clamp(3, MAX_FORCE.min(view.max_tile()))
 }
 
 /// The fewest units a march starts with.
@@ -1371,6 +1387,45 @@ mod tests {
             wanted(&none)
         );
         assert!(wanted(&strong) <= MAX_FORCE);
+        // The army attacks from one square: no more is wanted than a square holds.
+        assert!(wanted(&strong) <= view.max_tile());
+    }
+
+    /// The march is one stack on one square: the strongest units of the rally square up to what a
+    /// square holds; a unit standing beside the rally is not counted as gathered, and what is
+    /// left over keeps no order.
+    #[test]
+    fn the_march_is_one_stack_from_the_rally_square_and_the_rest_stay_available() -> TestResult {
+        use crate::roles::Role;
+        let mut g = rival_with_a_seat((4, 4))?;
+        let capital = at(COAST_CITY.0, COAST_CITY.1);
+        let max = g.max_tile();
+        let stack = spawn(&mut g, P0, capital, 113 /* high_men_paladins */, max);
+        let beside = spawn(&mut g, P0, at(COAST_CITY.0 - 1, COAST_CITY.1), 113, 2);
+        g.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        army(&mut ai, &mut g, &mut Vec::new());
+        crate::roles::register(&mut ai, &g);
+        let view = PlayerView::new(&g, P0);
+        let marching: Vec<_> = stack
+            .iter()
+            .chain(&beside)
+            .copied()
+            .filter(|&u| ai.roles.is(view.serial_of(u), Role::March))
+            .collect();
+        assert!(!marching.is_empty(), "the march left");
+        assert!(marching.len() <= max);
+        let squares: std::collections::HashSet<_> = marching
+            .iter()
+            .filter_map(|&u| view.unit_destination(u))
+            .collect();
+        assert_eq!(squares.len(), 1, "one square: {squares:?}");
+        assert!(
+            marching.iter().all(|u| stack.contains(u)),
+            "only the rally square's units march"
+        );
+        Ok(())
     }
 
     #[test]

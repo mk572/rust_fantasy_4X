@@ -117,6 +117,9 @@ pub struct Metrics {
     pub march_units: u32,
     pub marches_called_off: u32,
     pub marches_dropped: u32,
+    /// Times the war plan swapped its goal, or its next target, for another town.
+    pub plan_goal_changes: u32,
+    pub plan_next_changes: u32,
     /// Turns the marches called off for going on too long had run, and the soldiers on them
     /// (task 436: why a march is called off).
     pub march_called_off_turns: u32,
@@ -139,7 +142,7 @@ pub struct Metrics {
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 68] {
+    pub fn rows(&self) -> [(&'static str, u32); 70] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -200,6 +203,8 @@ impl Metrics {
             ("soldiers sent on marches", self.march_units),
             ("marches called off", self.marches_called_off),
             ("marches dropped for another target", self.marches_dropped),
+            ("war plan goal changes", self.plan_goal_changes),
+            ("war plan next-target changes", self.plan_next_changes),
             ("turns of marches called off", self.march_called_off_turns),
             (
                 "soldiers on marches called off",
@@ -357,6 +362,8 @@ impl AddAssign for Metrics {
             march_units,
             marches_called_off,
             marches_dropped,
+            plan_goal_changes,
+            plan_next_changes,
             march_called_off_turns,
             march_called_off_units,
             war_turns,
@@ -426,6 +433,8 @@ impl AddAssign for Metrics {
         self.march_units += march_units;
         self.marches_called_off += marches_called_off;
         self.marches_dropped += marches_dropped;
+        self.plan_goal_changes += plan_goal_changes;
+        self.plan_next_changes += plan_next_changes;
         self.march_called_off_turns += march_called_off_turns;
         self.march_called_off_units += march_called_off_units;
         self.war_turns += war_turns;
@@ -772,6 +781,13 @@ impl Tally {
                 Event::MarchLaunched { player, units, .. } => self.bump(*player, |m| {
                     m.marches_launched += 1;
                     m.march_units += units;
+                }),
+                Event::WarPlanChanged { player, goal } => self.bump(*player, |m| {
+                    if *goal {
+                        m.plan_goal_changes += 1;
+                    } else {
+                        m.plan_next_changes += 1;
+                    }
                 }),
                 Event::MarchCalledOff {
                     player,
