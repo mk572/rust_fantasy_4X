@@ -234,14 +234,19 @@ ships (step 8).
   finished item). At the start of its turn the AI looks at the cities with nothing, Housing or Trade
   Goods, and only those (a standing order is left alone), and picks the next item: the garrison minimum,
   unrest, then the basics (gold when the net is low, food where the city is stuck, production, gold),
-  then settlers where `plan_for` allows them, then the city's specialty (the special tiles in its area,
+  then settlers where `plan_for` allows them (a wizard that has found a place for a city always has one
+  settler on the way, alive or in production, also when it builds up and does not press for more
+  cities), then, in a military city (first focus Offense: the share of its cities that the wizard's
+  objective gives to the army, and every city near a rival), the way to the strongest unit of the
+  race (`forge::step`: the cheapest missing building the treasury carries, then the unit), then the
+  city's specialty (the special tiles in its area,
   `PlayerView::city_specials`: gold and mana from ore and gems, wild game's food, coal and iron's
   cheaper units, land that gives production (forest, hills, mountains, desert, nature and chaos nodes: a specialty from four tiles' worth up; rivers: food, from four river squares), nightshade; the strongest is served first with the buildings that add to it, the
   miners guild for ore, and the buildings that let a city use nightshade), then the plan's mix (soldiers when the army is short,
   else buildings in the rules' `autobuild_order`), and last Housing (while the city can still grow) or
   Trade Goods. A basic that waits for another building (a miners guild needs a builders hall) makes the
-  city build the one it waits for. Engineers and ships are not chosen there: `road.rs` and `naval.rs`
-  order them, and the port, scout, colonist and forge items stay direct `SetProduction` overrides. The
+  city build the one it waits for. Engineers and ships are not chosen there: `road.rs` (one engineer
+  for every three cities, one at least, while there is road to build) and `naval.rs` order them, and the port, scout, colonist and forge items stay direct `SetProduction` overrides. The
   same item is never queued again by itself: the chooser picks it again only because it ranks first.
   Not done: the chooser has no weighting by focus beyond the plan's mix, and a treasury whose net is
   below a building's upkeep builds none (gold buildings included).

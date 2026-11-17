@@ -3,7 +3,8 @@
 //! A finished item leaves the city with nothing in hand. At the start of its turn the AI looks at
 //! the cities with nothing, Housing or Trade Goods (never at a standing order) and picks the next
 //! item here: the garrison first, then the basics (gold, production, food), then settlers, then
-//! what the plan of the city asks for. The plan is the AI's own (`economy::plan_for`); the
+//! (in a military city) the way to the race's strongest unit, then the specialty of the city's
+//! special tiles, then what the plan of the city asks for. The plan is the AI's own (`economy::plan_for`); the
 //! auto-builder of the core is a helper for the human player and the AI does not use it.
 //!
 //! Engineers and ships are not chosen here: their own modules order them (`road`, `naval`), so
@@ -350,6 +351,11 @@ pub fn next_item(
         }
     }
 
+    // 4a. A military city aims at the strongest unit of its race: the buildings it needs, then it.
+    if let Some(item) = military(view, city, plan, need) {
+        return item;
+    }
+
     // 4b. The specialty: a city with special tiles builds what makes more of them.
     if buildings_ok {
         if let Some(b) = specialty(view, city, need) {
@@ -379,6 +385,31 @@ pub fn next_item(
         ProductionItem::Housing
     } else {
         ProductionItem::TradeGoods
+    }
+}
+
+/// What a military city (a plan whose first focus is Offense: the wizard's objective gives it a
+/// share of its cities, and a rival's city near gives it one too) builds toward the strongest unit
+/// its race can have (`forge::step`): the cheapest missing building on the way that the treasury
+/// can carry, then the unit, unless the plan allows only buildings.
+fn military(
+    view: &PlayerView,
+    city: hecs::Entity,
+    plan: &BuildPlan,
+    need: Need,
+) -> Option<ProductionItem> {
+    if plan.primary != Focus::Offense {
+        return None;
+    }
+    match crate::forge::step(view, city) {
+        crate::forge::Step::Ready(u) if plan.mix != Mix::Buildings => Some(ProductionItem::Unit(u)),
+        crate::forge::Step::Build(b)
+            if need.net_gold
+                >= HalfInt::from_int(view.content().rules.buildings.get(b).upkeep_gold as i32) =>
+        {
+            Some(ProductionItem::Building(b))
+        }
+        _ => None,
     }
 }
 
@@ -492,6 +523,40 @@ mod tests {
             "{}",
             rules.buildings.get(b).id
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_military_city_builds_toward_the_strongest_unit_and_another_city_does_not() -> TestResult {
+        let g = game(COAST_CITY, 8 /* high_men */);
+        let city = g
+            .economy()
+            .city_at(at(COAST_CITY.0, COAST_CITY.1))
+            .ok_or("a city on the coast")?;
+        let view = PlayerView::new(&g, P0);
+        let need = Need {
+            net_gold: HalfInt::from_int(10),
+            rival_near: false,
+        };
+        let expected = match crate::forge::step(&view, city) {
+            crate::forge::Step::Ready(u) => Some(ProductionItem::Unit(u)),
+            crate::forge::Step::Build(b) => Some(ProductionItem::Building(b)),
+            crate::forge::Step::Wait => None,
+        };
+        assert!(
+            expected.is_some(),
+            "a new city has something to build toward the strongest unit of its race"
+        );
+        let military_plan = BuildPlan {
+            primary: Focus::Offense,
+            ..BuildPlan::default()
+        };
+        assert_eq!(military(&view, city, &military_plan, need), expected);
+        let other = BuildPlan {
+            primary: Focus::Production,
+            ..BuildPlan::default()
+        };
+        assert_eq!(military(&view, city, &other, need), None);
         Ok(())
     }
 

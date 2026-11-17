@@ -25,8 +25,8 @@ use f4x_core::rules::Stat;
 const NEIGHBOURS: usize = 3;
 /// Squares apart the cities of a link are at most.
 const LINK_RANGE: u32 = 12;
-/// Cities from which the roads are long enough for a second engineer.
-const LONG_ROADS: usize = 5;
+/// Cities for each engineer the wizard wants while there is road to build.
+const CITIES_PER_ENGINEER: usize = 3;
 
 /// Squares of a road toward the campaign target built at a time.
 const STRETCH: usize = 8;
@@ -290,18 +290,14 @@ fn frontier(
     .map(|()| to)
 }
 
-/// How many engineers the wizard wants: one, and a second when the roads are long (many cities
-/// still to link, or a campaign and towers to reach).
-fn engineers_wanted(cities: usize, checked: usize, far_work: bool) -> usize {
-    if cities >= LONG_ROADS && (checked + LONG_ROADS <= cities || far_work) {
-        2
-    } else {
-        1
-    }
+/// How many engineers the wizard wants while there is road to build: one for each
+/// [`CITIES_PER_ENGINEER`] cities, one at least.
+fn engineers_wanted(cities: usize) -> usize {
+    cities.div_ceil(CITIES_PER_ENGINEER).max(1)
 }
 
-/// The engineers' production: while there is road to build and no engineer, the city of most
-/// people that can make them builds one.
+/// The engineers' production: while there is road to build and fewer engineers than
+/// [`engineers_wanted`], the city of most people that can make them builds one.
 pub fn build_engineer(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let city = {
@@ -318,11 +314,7 @@ pub fn build_engineer(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .iter()
             .filter(|&&u| is_engineer(&view, u))
             .count();
-        let wanted = engineers_wanted(
-            cities.len(),
-            ai.road_checked.len(),
-            ai.campaign.is_some() && !view.towers().is_empty(),
-        );
+        let wanted = engineers_wanted(cities.len());
         if !work || engineers >= wanted {
             return;
         }
@@ -535,14 +527,13 @@ mod tests {
         Ok(())
     }
 
-    /// One engineer is enough for a few cities; with many still to link a second is wanted.
+    /// The wizard wants one engineer for each [`CITIES_PER_ENGINEER`] cities, and one at least.
     #[test]
-    fn long_roads_want_a_second_engineer() {
-        assert_eq!(engineers_wanted(2, 0, false), 1);
-        assert_eq!(engineers_wanted(6, 5, false), 1, "nearly all linked");
-        assert_eq!(engineers_wanted(6, 0, false), 2);
-        assert_eq!(engineers_wanted(6, 6, true), 2, "a far campaign");
-        assert_eq!(engineers_wanted(3, 0, true), 1, "too few cities");
+    fn a_wizard_wants_one_engineer_for_every_few_cities() {
+        assert_eq!(engineers_wanted(1), 1);
+        assert_eq!(engineers_wanted(CITIES_PER_ENGINEER), 1);
+        assert_eq!(engineers_wanted(CITIES_PER_ENGINEER + 1), 2);
+        assert_eq!(engineers_wanted(3 * CITIES_PER_ENGINEER), 3);
     }
 
     /// Two engineers in a city take two different links.

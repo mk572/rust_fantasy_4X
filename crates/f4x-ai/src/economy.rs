@@ -587,8 +587,10 @@ fn plan_for(
         Mix::Both
     };
     // Settlers: while there is room for more cities, from a city big enough to spare them and
-    // fed well enough to keep them.
-    let settlers = expanding
+    // fed well enough to keep them. A wizard that has found a place for a city always has one
+    // settler on the way (alive or in production), even a wizard that builds up and does not
+    // press for more cities.
+    let settlers = (expanding || (room && *settlers_planned == 0))
         && size >= 3
         && !broke
         && spare_food >= HalfInt::ZERO
@@ -873,6 +875,41 @@ mod tests {
         let plan = plan_of(&g, &ai, capital(&g)?)?;
         assert!(!plan.settlers);
         assert_eq!(plan.primary, Focus::Balanced);
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_that_builds_up_still_has_one_settler_on_the_way_while_there_is_room() -> TestResult
+    {
+        let g = game(COAST_CITY, 8 /* high_men */);
+        let ai = Ai::new(P0);
+        let city = capital(&g)?;
+        let view = PlayerView::new(&g, P0);
+        let pos = g.city_position(city).ok_or("the city has a position")?;
+        // All the cities it wanted, and a leaning to build up: it does not press for more.
+        let mut empire = Empire::of(&view);
+        empire.traits.cities_wanted = 0;
+        let plan_with = |planned: usize| {
+            let mut planned = planned;
+            plan_for(
+                &view,
+                &empire,
+                city,
+                pos,
+                Pressure {
+                    threatened: false,
+                    war_force: None,
+                    roster: Roster::of(&ai, &view),
+                },
+                &mut planned,
+                Growth {
+                    room: true,
+                    wide: 0.0,
+                },
+            )
+        };
+        assert!(plan_with(0).settlers, "room and no settler on the way");
+        assert!(!plan_with(1).settlers, "one is on the way");
         Ok(())
     }
 
