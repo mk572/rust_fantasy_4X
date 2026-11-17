@@ -250,7 +250,6 @@ pub fn disperse(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     if rest.is_empty() {
         return;
     }
-    crate::raid::deploy(ai, game, &rest, events);
     if ai.frontier_closed {
         return;
     }

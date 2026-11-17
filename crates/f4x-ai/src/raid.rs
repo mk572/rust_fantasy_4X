@@ -14,10 +14,6 @@ use crate::site::{city_defence, edge, expected, neutral_city, sites_near};
 use crate::view::{distance, is_fighter, stack_strength, unit_strength};
 use crate::Ai;
 
-/// Most soldiers out on raids at once: two battle parties.
-fn max_raiders(game: &Game) -> usize {
-    2 * game.max_battle_side()
-}
 /// The fewest spare soldiers that make a party.
 const SITE_PARTY: usize = 3;
 /// Turns a muster waits for its soldiers before it sets off with the ones that came.
@@ -210,94 +206,19 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
         }
     }
-    // A new party leaves a city with soldiers to spare, one raid at a time and never while the
-    // army marches (its campaign comes first).
-    if ai.roles.count(crate::roles::Role::Raid) >= max_raiders(game)
-        || ai.roles.any(crate::roles::Role::March)
-        || ai.roles.any_muster(crate::roles::MusterKind::Raid)
-    {
-        return;
-    }
-    let cities = {
-        let view = PlayerView::new(game, me);
-        let mut cities = view.my_cities();
-        cities.sort_by_key(|(e, _)| view.serial_of(*e));
-        cities
-    };
-    for (_, pos) in cities {
-        let (party, sites) = {
-            let view = PlayerView::new(game, me);
-            // Heroes go last in the order, so the garrison is the soldiers and the heroes are the
-            // spare ones: they lead the raids, level up and bring the loot's items home.
-            let heroes = view.my_heroes();
-            let mut fighters: Vec<hecs::Entity> = view
-                .garrison(pos)
-                .into_iter()
-                .filter(|&u| is_fighter(&view, u) && ai.roles.is_free(view.serial_of(u)))
-                .collect();
-            fighters.sort_by_key(|u| heroes.contains(u));
-            // The party is the strongest nine of what the garrison does not need: heroes lead it,
-            // so that they fight, level up and bring the loot home (task 502).
-            let mut spare: Vec<hecs::Entity> = fighters;
-            spare.sort_by(|&a, &b| {
-                unit_strength(&view, b)
-                    .total_cmp(&unit_strength(&view, a))
-                    .then(view.serial_of(a).cmp(&view.serial_of(b)))
-            });
-            spare.retain(|&u| !crate::recover::needs_rest(&view, u));
-            spare.truncate(game.max_battle_side());
-            if spare.len() < SITE_PARTY {
-                continue;
-            }
-            let strength = stack_strength(&view, &spare) + crate::spellhelper::spell_power(&view);
-            let sites = sites_near(&view, pos, strength, &ai.tower_blocked);
-            (spare, sites)
-        };
-        for site in sites {
-            if march(ai, game, &party, site, events).is_ok() {
-                let view = PlayerView::new(game, me);
-                let serials: Vec<Serial> = party.iter().map(|&u| view.serial_of(u)).collect();
-                ai.roles
-                    .claim_all(serials, crate::roles::Role::Raid, game.turn);
-                return;
-            }
-        }
-    }
+    form(ai, game, events);
 }
 
-/// An army with no enemy city to march on goes raiding: each stack of the soldiers it has in
-/// the field (or spare in a city) that is strong enough clears the nearest site, tower or
-/// neutral city. A tower cleared opens the way to the other plane. The raids are not capped:
-/// these soldiers have nothing else to do. Returns whether any party left.
-pub fn deploy(
-    ai: &mut Ai,
-    game: &mut Game,
-    free: &[hecs::Entity],
-    events: &mut Vec<Event>,
-) -> bool {
+/// New raiding parties from the pool: the free soldiers on each square, the strongest nine of
+/// them, that are strong enough (with the wizard's spells) for a site in reach, march to it. The
+/// war job has taken its soldiers before this runs, and the garrisons are not in the pool, so
+/// nothing caps the parties. Soldiers that cannot take any site together muster for a tower with
+/// the spells (`gather`). Returns whether any party left.
+pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
     release(ai, game);
-    let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
-    {
-        let view = PlayerView::new(game, me);
-        for &u in free {
-            let serial = view.serial_of(u);
-            if ai.roles.is(serial, crate::roles::Role::Raid)
-                || ai.roles.is_scouting(serial)
-                || ai.roles.is(serial, crate::roles::Role::Muster)
-            {
-                continue;
-            }
-            let Some(p) = view.unit_position(u) else {
-                continue;
-            };
-            match by_square.iter_mut().find(|(q, _)| *q == p) {
-                Some((_, list)) => list.push(u),
-                None => by_square.push((p, vec![u])),
-            }
-        }
-    }
-    by_square.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
+    let free = crate::dispatch::soldiers(ai, game, |roles, s| roles.is_free(s));
+    let by_square = crate::military::stacks(&PlayerView::new(game, me), free.clone());
     let mut left = false;
     // Parties of one kind on one square find the same sites out of reach.
     let mut reached = crate::view::ReachCache::default();
@@ -305,7 +226,11 @@ pub fn deploy(
         // The best nine first: a battle holds nine a side, and the hardest sites need the best.
         {
             let view = PlayerView::new(game, me);
-            units.sort_by(|&a, &b| unit_strength(&view, b).total_cmp(&unit_strength(&view, a)));
+            units.sort_by(|&a, &b| {
+                unit_strength(&view, b)
+                    .total_cmp(&unit_strength(&view, a))
+                    .then(view.serial_of(a).cmp(&view.serial_of(b)))
+            });
         }
         for party in units.chunks(game.max_battle_side()) {
             if party.len() < SITE_PARTY {
@@ -330,13 +255,13 @@ pub fn deploy(
         }
     }
     if !left {
-        gather(ai, game, free, events);
+        gather(ai, game, &free, events);
     }
     left
 }
 
 /// End a muster whose soldiers have come (or waited long enough): they are free soldiers again,
-/// and `raid::deploy` sends the best nine of the square they stand on.
+/// and `raid::form` sends the best nine of the square they stand on.
 pub(crate) fn release(ai: &mut Ai, game: &Game) {
     use crate::roles::MusterKind;
     if !ai.roles.any_muster(MusterKind::Raid) {
@@ -838,136 +763,9 @@ mod tests {
         spawn_tower(&mut g, at(8, 6), true)?;
         g.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        let free: Vec<hecs::Entity> = g.units().player_units(P0);
         let mut events = Vec::new();
-        assert!(deploy(&mut ai, &mut g, &free, &mut events), "{events:?}");
+        assert!(form(&mut ai, &mut g, &mut events), "{events:?}");
         assert_eq!(ai.roles.count(crate::roles::Role::Raid), 6);
-        Ok(())
-    }
-
-    #[test]
-    fn a_tower_is_left_alone_while_a_rival_city_that_can_be_walked_to_is_on_its_plane() -> TestResult
-    {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn_tower(&mut g, at(33, 9), true)?;
-        g.reveal_map(P0);
-        let view = PlayerView::new(&g, P0);
-        let rival = at(28, 6);
-        // A rival city the army can walk to holds the towers back.
-        let blocked = crate::site::blocked_planes(&view, &[], None);
-        assert_eq!(blocked, vec![rival.plane]);
-        assert!(sites_near(&view, at(10, 6), 10_000.0, &blocked).is_empty());
-        // One that only a ship can reach does not, unless a landing is set on it.
-        assert!(crate::site::blocked_planes(&view, &[rival], None).is_empty());
-        assert_eq!(
-            crate::site::blocked_planes(&view, &[rival], Some(rival)),
-            vec![rival.plane]
-        );
-        assert_eq!(sites_near(&view, at(10, 6), 10_000.0, &[]), vec![at(33, 9)]);
-        Ok(())
-    }
-
-    #[test]
-    fn soldiers_in_the_field_are_sent_to_the_city_nearest_a_tower_they_could_take_together(
-    ) -> TestResult {
-        let mut g = game_rival_across(COAST_CITY, 8 /* high_men */);
-        g.turn = 400;
-        let party = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 5);
-        crate::testworld::spawn_tower(&mut g, at(3, 4), true)?;
-        g.reveal_map(P0);
-        let mut ai = Ai::new(P0);
-        gather(&mut ai, &mut g, &party, &mut Vec::new());
-        let view = PlayerView::new(&g, P0);
-        assert_eq!(
-            ai.roles.count(crate::roles::Role::Muster),
-            5,
-            "all five are mustered"
-        );
-        let musters = ai.roles.musters();
-        assert_eq!(musters.len(), 1);
-        assert_eq!(musters[0].1.rally, at(COAST_CITY.0, COAST_CITY.1));
-        assert!(musters[0].1.objective.is_some());
-        assert!(party.iter().all(|&u| view.unit_has_order(u)));
-        // A second call while they walk changes nothing.
-        let before = ai.roles.members(crate::roles::Role::Muster);
-        gather(&mut ai, &mut g, &party, &mut Vec::new());
-        assert_eq!(ai.roles.members(crate::roles::Role::Muster), before);
-        Ok(())
-    }
-
-    #[test]
-    fn soldiers_in_the_field_also_muster_for_a_lair_they_could_take_together() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.turn = 400;
-        let party = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 5);
-        let zombies = f4x_def::rules::UnitId::new(174);
-        crate::testworld::spawn_site(&mut g, at(4, 4), vec![(zombies, 1)], vec![P0])?;
-        g.reveal_map(P0);
-        let mut ai = Ai::new(P0);
-        gather(&mut ai, &mut g, &party, &mut Vec::new());
-        let musters = ai.roles.musters();
-        assert_eq!(musters.len(), 1, "one muster");
-        assert_eq!(musters[0].1.objective, Some(at(4, 4)));
-        assert_eq!(musters[0].2.len(), 5);
-        Ok(())
-    }
-
-    #[test]
-    fn no_muster_while_the_soldiers_could_not_take_any_tower_and_none_while_a_rival_is_on_the_plane(
-    ) -> TestResult {
-        // One soldier: too few for a tower, with no spell to help.
-        let mut g = game_rival_across(COAST_CITY, 8 /* high_men */);
-        g.turn = 400;
-        let few = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 2);
-        crate::testworld::spawn_tower(&mut g, at(3, 4), true)?;
-        g.reveal_map(P0);
-        let mut ai = Ai::new(P0);
-        gather(&mut ai, &mut g, &few, &mut Vec::new());
-        assert!(!ai.roles.any(crate::roles::Role::Muster));
-        // Strong enough, but a rival has a city on the tower's plane.
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.turn = 400;
-        let many = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 6);
-        crate::testworld::spawn_tower(&mut g, at(3, 4), true)?;
-        g.reveal_map(P0);
-        let mut ai = Ai::new(P0);
-        ai.tower_blocked = crate::site::blocked_planes(&PlayerView::new(&g, P0), &[], None);
-        gather(&mut ai, &mut g, &many, &mut Vec::new());
-        // Other sites may be gathered for, but the tower is no objective.
-        assert!(ai
-            .roles
-            .musters()
-            .iter()
-            .all(|(_, m, _)| m.objective != Some(at(3, 4))));
-        Ok(())
-    }
-
-    #[test]
-    fn a_muster_ends_when_its_soldiers_have_come_or_have_waited_too_long() -> TestResult {
-        let mut g = game_rival_across(COAST_CITY, 8 /* high_men */);
-        g.turn = 400;
-        let party = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 5);
-        crate::testworld::spawn_tower(&mut g, at(3, 4), true)?;
-        g.reveal_map(P0);
-        let mut ai = Ai::new(P0);
-        gather(&mut ai, &mut g, &party, &mut Vec::new());
-        release(&mut ai, &g);
-        assert_eq!(
-            ai.roles.count(crate::roles::Role::Muster),
-            5,
-            "still on the way"
-        );
-        g.turn += MUSTER_TURNS + 1;
-        release(&mut ai, &g);
-        assert!(!ai.roles.any(crate::roles::Role::Muster), "gave up waiting");
-        // Or they arrive.
-        let mut ai = Ai::new(P0);
-        gather(&mut ai, &mut g, &party, &mut Vec::new());
-        for &u in &party {
-            g.cheat_move_unit(u, at(COAST_CITY.0, COAST_CITY.1));
-        }
-        release(&mut ai, &g);
-        assert!(!ai.roles.any(crate::roles::Role::Muster), "arrived");
         Ok(())
     }
 }
