@@ -739,9 +739,14 @@ impl App {
             .economy()
             .city_economy(city)
             .map_or(0, |e| e.figures);
+        self.size_name(figures, self.game.economy().is_fortress_city(city))
+    }
+
+    /// The name of a city's size: outpost, hamlet up to city, and capital for a fortress city.
+    pub(crate) fn size_name(&self, figures: u32, fortress: bool) -> String {
         let key = if figures == 0 {
             "city.size_outpost"
-        } else if self.game.economy().is_fortress_city(city) {
+        } else if fortress {
             "city.size_capital"
         } else {
             [

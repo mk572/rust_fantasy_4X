@@ -960,7 +960,7 @@ fn curse_city(view: &PlayerView, spell: SpellId) -> Option<hecs::Entity> {
                 && view.treaty_with(owner) == Treaty::War
                 && !view.city_enchantments(c).contains(&spell)
         })
-        .filter_map(|(c, _, _)| view.city_economy(c).map(|e| (e.figures, c)))
+        .filter_map(|(c, _, _)| view.city_report(c).map(|r| (r.figures, c)))
         .collect();
     cities.sort_by_key(|&(n, c)| (std::cmp::Reverse(n), view.serial_of(c)));
     cities

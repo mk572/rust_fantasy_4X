@@ -237,7 +237,7 @@ pub(crate) fn land_curse_target(view: &PlayerView, spell: SpellId) -> Option<Tar
         .filter(|&(_, owner, _)| {
             view.is_rival_wizard(owner) && view.treaty_with(owner) == Treaty::War
         })
-        .filter_map(|(c, _, p)| view.city_economy(c).map(|e| (e.figures, c, p)))
+        .filter_map(|(c, _, p)| view.city_report(c).map(|r| (r.figures, c, p)))
         .collect();
     cities.sort_by_key(|&(n, c, _)| (std::cmp::Reverse(n), view.serial_of(c)));
     cities.into_iter().find_map(|(_, _, city)| {

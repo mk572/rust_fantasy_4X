@@ -455,7 +455,17 @@ impl<'a> PlayerView<'a> {
         self.game.economy().city_race(city)
     }
 
+    /// Is the city the player's own? What a city makes, builds and costs is read of its own
+    /// cities only; of another wizard's the player has the `city_report`.
+    fn is_my_city(&self, city: hecs::Entity) -> bool {
+        self.game.economy().city_owner(city) == Some(self.me)
+    }
+
+    /// What one of the player's cities is building (nothing for another's: see `city_report`).
     pub fn city_production(&self, city: hecs::Entity) -> Production {
+        if !self.is_my_city(city) {
+            return Production::default();
+        }
         self.game.economy().city_production(city)
     }
 
@@ -464,14 +474,25 @@ impl<'a> PlayerView<'a> {
         city: hecs::Entity,
         item: ProductionItem,
     ) -> Result<(), ProductionError> {
+        if !self.is_my_city(city) {
+            return Err(ProductionError::NotACity);
+        }
         self.game.economy().can_build(city, item)
     }
 
     pub fn buy_cost(&self, city: hecs::Entity) -> Option<HalfInt> {
+        if !self.is_my_city(city) {
+            return None;
+        }
         self.game.economy().buy_cost(city)
     }
 
+    /// The figures of one of the player's cities (food, production, gold, ...); `None` for
+    /// another's, of which the player has the citizens in `city_report`.
     pub fn city_economy(&self, city: hecs::Entity) -> Option<CityEconomy> {
+        if !self.is_my_city(city) {
+            return None;
+        }
         self.game.economy().city_economy(city)
     }
 
@@ -909,6 +930,15 @@ mod tests {
         assert_eq!(report.garrison, vec![foe]);
         assert!(!report.fortress);
         assert_eq!(view.city_report(mine), None, "the own city has no report");
+        // What a city makes and builds is read of the own cities only.
+        assert_eq!(view.city_economy(city), None);
+        assert_eq!(view.city_production(city), Production::default());
+        assert_eq!(view.buy_cost(city), None);
+        assert_eq!(
+            view.can_build(city, ProductionItem::Building(barracks)),
+            Err(ProductionError::NotACity)
+        );
+        assert!(view.city_economy(mine).is_some());
         Ok(())
     }
 
