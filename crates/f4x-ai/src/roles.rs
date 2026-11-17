@@ -34,8 +34,6 @@ pub enum Role {
     Voyage,
     /// A settler on its own way to a site to found a city.
     Settle,
-    /// The ship and the settler of a colony by sea (`colony.rs`): the settler is tied to the ship.
-    Colonize,
     /// A soldier that goes with a unit it protects (`escort.rs`); `with` is that unit.
     Escort,
     /// A soldier of the surplus dealing with what is in the zone of the cities (`perimeter.rs`):
@@ -221,15 +219,6 @@ impl Registry {
             .filter(|(_, a)| matches!(a.role, Role::Scout | Role::PlanarScout | Role::SeaParty))
             .map(|(s, _)| *s)
             .collect()
-    }
-
-    /// The ship and settler of the colony voyage under way, if any: the settler is tied to the
-    /// ship.
-    pub fn colonists(&self) -> Option<(Serial, Serial)> {
-        self.map
-            .iter()
-            .filter(|(_, a)| a.role == Role::Colonize)
-            .find_map(|(s, a)| a.with.map(|ship| (ship, *s)))
     }
 
     /// The soldier escorting `charge`, if one is.
@@ -837,7 +826,6 @@ impl Role {
 
     fn priority(self) -> u8 {
         match self {
-            Role::Colonize => 0,
             Role::Settle => 1,
             Role::Voyage => 2,
             Role::TransportReady => 3,

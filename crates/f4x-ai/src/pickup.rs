@@ -114,7 +114,7 @@ fn drop_for(view: &PlayerView, ship: hecs::Entity, dest: Position) -> Option<Pos
         return Some(dest);
     }
     let sea = sea_beside(view, dest)?;
-    view.can_reach(&[ship], sea).then_some(sea)
+    (view.unit_position(ship) == Some(sea) || view.can_reach(&[ship], sea)).then_some(sea)
 }
 
 /// What a boarding plan costs: the later of the last unit and the ship, the walking turns in all,
@@ -347,6 +347,7 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
         let mut dests: Vec<Position> = waiting.iter().map(|&(_, d)| d).collect();
         dests.sort_by_key(|p| (p.plane as u8, p.y, p.x));
         dests.dedup();
+        let mut groups: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
         for dest in dests {
             let mut left: Vec<hecs::Entity> = waiting
                 .iter()
@@ -361,12 +362,19 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
                         })
                 });
                 left = rest;
-                let Some(plan) = plan_group(&view, &region, dest, &free) else {
-                    continue;
-                };
-                free.retain(|&(s, _)| s != plan.ship);
-                plans.push((plan, dest));
+                groups.push((dest, region));
             }
+        }
+        // Settlers first: a city founded late costs more than a soldier delivered late.
+        let settler =
+            |u: &hecs::Entity| view.unit_has_ability(*u, f4x_def::rules::Ability::new(12));
+        groups.sort_by_key(|(_, units)| !units.iter().any(settler));
+        for (dest, region) in groups {
+            let Some(plan) = plan_group(&view, &region, dest, &free) else {
+                continue;
+            };
+            free.retain(|&(s, _)| s != plan.ship);
+            plans.push((plan, dest));
         }
     }
     for (plan, _) in plans {
@@ -391,6 +399,41 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
             }
         }
     }
+}
+
+/// The units of the group, aboard at `at`, step onto the land square beside it that is nearest to
+/// `dest`. Whether they were sent.
+fn step_ashore(
+    ai: &Ai,
+    game: &mut Game,
+    group: &[Serial],
+    at: Position,
+    dest: Position,
+    events: &mut Vec<Event>,
+) -> bool {
+    let (units, shore) = {
+        let view = PlayerView::new(game, ai.player);
+        let units: Vec<hecs::Entity> = view
+            .my_units()
+            .into_iter()
+            .filter(|&u| group.contains(&view.serial_of(u)) && view.unit_position(u) == Some(at))
+            .collect();
+        let shore = (-1i32..=1)
+            .flat_map(|dy| (-1i32..=1).map(move |dx| (dx, dy)))
+            .filter_map(|(dx, dy)| view.shift(at, dx, dy))
+            .filter(|&p| {
+                view.terrain_class(p)
+                    .is_some_and(|t| t != TerrainClass::Ocean)
+                    && view.hostile_at(p).is_none()
+            })
+            .min_by_key(|&p| (view.distance(p, dest).unwrap_or(u32::MAX), p.y, p.x));
+        (units, shore)
+    };
+    let Some(shore) = shore.filter(|_| !units.is_empty()) else {
+        return false;
+    };
+    ai.send(game, Command::GoTo { units, to: shore }, events)
+        .is_ok()
 }
 
 /// One step of a voyage: sail to the sea square, take the units aboard, sail to the destination,
@@ -443,7 +486,7 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
         if ship_pos == drop {
             let in_port = PlayerView::new(game, me).city_at(ship_pos).is_some();
             // In a port the units are in their city; at sea they step ashore first.
-            if in_port || crate::naval::unload(ai, game, ship, ship_pos, &[], events) {
+            if in_port || step_ashore(ai, game, &pickup.group, ship_pos, pickup.dest, events) {
                 for s in &pickup.group {
                     ai.roles.set_crossing(*s, None);
                     ai.roles.unboard(*s);

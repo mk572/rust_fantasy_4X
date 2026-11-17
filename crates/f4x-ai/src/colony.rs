@@ -1,8 +1,10 @@
 //! Settlers by sea (`docs/ai-design.md` 11.3): a wizard whose own land mass has no site left for a
-//! city, and who holds fewer cities than it wants, sends a settler by ship to explored land that
-//! none of its own stands on and where a city can go. The port builds the ship and the settler
-//! (`economy.rs`); here the plan is chosen and the voyage sailed. The settler then founds the city
-//! like any other (`expand.rs`).
+//! city, and who holds fewer cities than it wants, picks explored land that none of its own stands
+//! on and where a city can go. The port builds the ship and the settler (`economy.rs`); here the
+//! site is chosen and given to a settler as its target. The settler is then like any other that
+//! cannot walk to its site (task 647): it is tagged `Crossing::Sea`, a ship picks it up first of
+//! all the units that wait (`pickup.rs`) and the settler founds the city like any other
+//! (`expand.rs`).
 
 use f4x_def::rules::Ability;
 use std::collections::{HashSet, VecDeque};
@@ -22,8 +24,6 @@ const LAND_LIMIT: usize = 1500;
 /// Sites keep this far from the cities seen, and from a rival's by more.
 const SPACING: u32 = 4;
 const FROM_RIVAL: u32 = 5;
-/// Turns a voyage may take before it is given up.
-const SAIL_TURNS: u32 = 30;
 /// Turns before a search that found nothing is made again.
 const RETRY_TURNS: u32 = 20;
 
@@ -178,24 +178,21 @@ fn port_city(view: &PlayerView) -> Option<Position> {
 
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    // Forget a voyage whose ship or settler is gone, or whose port was lost.
+    // The plan is over when the settler given the site is gone (it founded the city, or died), or
+    // when the port was lost.
     {
         let view = PlayerView::new(game, me);
-        let alive = |s: Serial| view.my_units().iter().any(|&u| view.serial_of(u) == s);
-        let gone = ai
-            .roles
-            .colonists()
-            .is_none_or(|(ship, settler)| !alive(ship) || !alive(settler));
-        if gone && ai.roles.any(crate::roles::Role::Colonize) {
-            ai.roles.release_role(crate::roles::Role::Colonize);
-            ai.colony = None;
-        }
-        if ai
-            .colony
-            .is_some_and(|c| view.city_at(c.port).and_then(|e| view.city_owner(e)) != Some(me))
-        {
-            ai.roles.release_role(crate::roles::Role::Colonize);
-            ai.colony = None;
+        if let Some(c) = ai.colony {
+            let settler_gone = ai.colony_since > 0
+                && !ai
+                    .roles
+                    .targets(crate::roles::Role::Settle)
+                    .contains(&c.land);
+            let port_lost = view.city_at(c.port).and_then(|e| view.city_owner(e)) != Some(me);
+            if settler_gone || port_lost {
+                ai.colony = None;
+                ai.colony_since = 0;
+            }
         }
     }
     if ai.colony.is_none() && game.turn >= ai.colony_retry {
@@ -221,10 +218,40 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         return;
     };
     release_scouts(ai, game, events);
-    match ai.roles.colonists() {
-        None => load(ai, game, colony, events),
-        Some((ship, settler)) => sail(ai, game, colony, ship, settler, events),
+    if ai.colony_since == 0 {
+        give_site(ai, game, colony);
     }
+}
+
+/// A settler in the port that has no site on this island is given the colony's site: it needs a
+/// ship to get there, and the pickup planner sends one.
+fn give_site(ai: &mut Ai, game: &Game, colony: Colony) {
+    let me = ai.player;
+    let view = PlayerView::new(game, me);
+    let mut settlers: Vec<hecs::Entity> = view
+        .garrison(colony.port)
+        .into_iter()
+        .filter(|&u| view.unit_has_ability(u, Ability::new(12)) && !view.unit_has_order(u))
+        .filter(|&u| {
+            ai.roles
+                .target_of(view.serial_of(u), crate::roles::Role::Settle)
+                .is_none()
+        })
+        .collect();
+    view.sort_by_serial(&mut settlers);
+    let Some(&settler) = settlers.first() else {
+        return;
+    };
+    let serial = view.serial_of(settler);
+    let _ = ai.roles.claim(
+        serial,
+        crate::roles::Role::Settle,
+        game.turn,
+        Some(colony.land),
+    );
+    ai.roles
+        .set_crossing(serial, Some(crate::roles::Crossing::Sea));
+    ai.colony_since = game.turn;
 }
 
 /// The sea scout is called off: the ship has a settler to carry.
@@ -248,172 +275,6 @@ pub(crate) fn release_scouts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Even
     ai.roles.release_role(crate::roles::Role::SeaParty);
     ai.sea_scouting = false;
     ai.order(game, Command::ClearOrders { units: ships }, events);
-}
-
-/// With the ship and a settler in the port, sail.
-fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
-    let me = ai.player;
-    let ferrying: Vec<Serial> = ai.roles.ferries();
-    let (ship, settler, strays) = {
-        let view = PlayerView::new(game, me);
-        let mut ships: Vec<hecs::Entity> = view
-            .my_units()
-            .into_iter()
-            .filter(|&u| is_ship(&view, u))
-            .filter(|&u| !ai.roles.is_scouting(view.serial_of(u)))
-            .filter(|&u| !ferrying.contains(&view.serial_of(u)) && !view.unit_has_order(u))
-            .collect();
-        view.sort_by_serial(&mut ships);
-        let (here, strays): (Vec<_>, Vec<_>) = ships
-            .into_iter()
-            .partition(|&s| view.unit_position(s) == Some(colony.port));
-        let mut settlers: Vec<hecs::Entity> = view
-            .garrison(colony.port)
-            .into_iter()
-            .filter(|&u| view.unit_has_ability(u, Ability::new(12)) && !view.unit_has_order(u))
-            .filter(|&u| {
-                ai.roles
-                    .target_of(view.serial_of(u), crate::roles::Role::Settle)
-                    .is_none()
-            })
-            .collect();
-        view.sort_by_serial(&mut settlers);
-        (here.first().copied(), settlers.first().copied(), strays)
-    };
-    // A ship left at sea by an earlier voyage comes home.
-    if !strays.is_empty() && Ai::room_at(game, colony.port, strays.len()) {
-        ai.order(
-            game,
-            Command::GoTo {
-                units: strays,
-                to: colony.port,
-            },
-            events,
-        );
-    }
-    let (Some(ship), Some(settler)) = (ship, settler) else {
-        return;
-    };
-    // Soldiers still aboard from an earlier voyage take up the ship's room: they step ashore
-    // first, and the settler sails next turn.
-    if crate::naval::unload(ai, game, ship, colony.port, &[], events) {
-        return;
-    }
-    let (ship_serial, settler_serial) = {
-        let view = PlayerView::new(game, me);
-        (view.serial_of(ship), view.serial_of(settler))
-    };
-    if ai
-        .send(
-            game,
-            Command::GoTo {
-                units: vec![ship, settler],
-                to: colony.sea,
-            },
-            events,
-        )
-        .is_ok()
-    {
-        let turn = game.turn;
-        ai.roles.claim_all(
-            [ship_serial, settler_serial],
-            crate::roles::Role::Colonize,
-            turn,
-        );
-        let party = ai.roles.new_party();
-        ai.roles
-            .group(&[ship_serial], crate::roles::Role::Colonize, party, None);
-        ai.roles.group(
-            &[settler_serial],
-            crate::roles::Role::Colonize,
-            party,
-            Some(ship_serial),
-        );
-        ai.colony_since = game.turn;
-    } else {
-        give_up(ai, colony);
-    }
-}
-
-/// The ship sails; when it is at the sea square the settler steps ashore and the settlers' own
-/// logic takes over.
-fn sail(
-    ai: &mut Ai,
-    game: &mut Game,
-    colony: Colony,
-    ship: Serial,
-    settler: Serial,
-    events: &mut Vec<Event>,
-) {
-    let me = ai.player;
-    let (ship_e, settler_e, settler_at, idle) = {
-        let view = PlayerView::new(game, me);
-        let find = |s: Serial| {
-            view.my_units()
-                .into_iter()
-                .find(|&u| view.serial_of(u) == s)
-        };
-        let (Some(ship_e), Some(settler_e)) = (find(ship), find(settler)) else {
-            return;
-        };
-        (
-            ship_e,
-            settler_e,
-            view.unit_position(settler_e),
-            !view.unit_has_order(ship_e),
-        )
-    };
-    if settler_at == Some(colony.sea) {
-        if ai
-            .send(
-                game,
-                Command::GoTo {
-                    units: vec![settler_e],
-                    to: colony.land,
-                },
-                events,
-            )
-            .is_ok()
-        {
-            ai.roles.release_role(crate::roles::Role::Colonize);
-            ai.colony = None;
-        } else {
-            give_up(ai, colony);
-        }
-        return;
-    }
-    if game.turn.saturating_sub(ai.colony_since) > SAIL_TURNS {
-        ai.order(
-            game,
-            Command::ClearOrders {
-                units: vec![ship_e, settler_e],
-            },
-            events,
-        );
-        give_up(ai, colony);
-        return;
-    }
-    if idle
-        && !ai
-            .send(
-                game,
-                Command::GoTo {
-                    units: vec![ship_e, settler_e],
-                    to: colony.sea,
-                },
-                events,
-            )
-            .is_ok()
-    {
-        give_up(ai, colony);
-    }
-}
-
-/// A landing that did not work out is not tried again.
-fn give_up(ai: &mut Ai, colony: Colony) {
-    ai.colony_bad.push(colony.land);
-    ai.roles.release_role(crate::roles::Role::Colonize);
-    ai.colony = None;
 }
 
 #[cfg(test)]
@@ -503,8 +364,11 @@ mod tests {
         let before = PlayerView::new(&g, P0).my_cities().len();
         for _ in 0..40 {
             let mut events = Vec::new();
+            crate::roles::register(&mut ai, &g);
+            crate::dispatch::revalidate(&mut ai, &mut g, &mut events);
             crate::expand::settlers(&mut ai, &mut g, &mut events);
             run(&mut ai, &mut g, &mut events);
+            crate::pickup::run(&mut ai, &mut g, &mut events);
             g.apply(f4x_core::game::Command::EndTurn);
         }
         let cities = PlayerView::new(&g, P0).my_cities();
@@ -516,19 +380,12 @@ mod tests {
         Ok(())
     }
 
+    /// The settler in the port of a full island is given the colony's site as its target and
+    /// tagged for a ship; the settler that waits has no special role.
     #[test]
-    fn a_settler_waiting_in_the_port_for_the_ship_awaits_transport_until_it_sails() -> TestResult {
-        use crate::roles::Role;
+    fn a_settler_in_the_port_is_given_the_colony_site_and_waits_for_a_ship() -> TestResult {
+        use crate::roles::{Crossing, Role};
         let mut g = game(COAST_CITY, 8 /* high_men */);
-        build(
-            &mut g,
-            port(),
-            &[
-                12, /* ship_wrights_guild */
-                15, /* sawmill */
-                13, /* ship_yard */
-            ],
-        );
         g.explore(P0, port(), HalfInt::from_int(12));
         for x in [16, 22, 26, 30] {
             g.explore(P0, at(x, 6), HalfInt::from_int(3));
@@ -543,14 +400,64 @@ mod tests {
         let mut ai = Ai::new(P0);
         crate::expand::settlers(&mut ai, &mut g, &mut Vec::new());
         run(&mut ai, &mut g, &mut Vec::new());
-        assert!(ai.colony.is_some(), "a voyage is planned");
-        // The pickup planner leaves it alone: the colony has its own ship.
-        crate::pickup::run(&mut ai, &mut g, &mut Vec::new());
-        assert!(crate::pickup::voyages(&ai).is_empty());
-        // The ship comes: the settler sails under `Colonize`.
+        let colony = ai.colony.ok_or("a site is chosen")?;
+        assert_eq!(ai.roles.role_of(serial), Some(Role::Settle));
+        assert_eq!(ai.roles.target_of(serial, Role::Settle), Some(colony.land));
+        assert_eq!(ai.roles.crossing_of(serial), Some(Crossing::Sea));
+        Ok(())
+    }
+
+    /// A settler gets the ship before soldiers that want it too.
+    #[test]
+    fn a_settler_gets_the_only_free_ship_before_soldiers() -> TestResult {
+        use crate::roles::{Crossing, Role};
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let land = {
+            let view = PlayerView::new(&g, P0);
+            crate::naval::landing(&view, at(ENEMY_CITY.0, ENEMY_CITY.1))
+                .ok_or("a shore on the far island")?
+                .0
+        };
+        // The settler's site is on the far island, on a tile that sorts after the port, so that the
+        // soldiers' group would come first were it not for the priority.
+        let site = {
+            let view = PlayerView::new(&g, P0);
+            (0..8i32)
+                .flat_map(|dy| (-6..=6i32).map(move |dx| (dx, dy)))
+                .filter_map(|(dx, dy)| view.shift(land, dx, dy))
+                .find(|&p| {
+                    p.y > port().y
+                        && view.terrain_class(p) != Some(TerrainClass::Ocean)
+                        && crate::view::is_coastal(&view, p)
+                })
+                .ok_or("a coastal tile on the far island south of the port")?
+        };
+        let soldiers = spawn(&mut g, P0, land, 104 /* spearmen */, 2);
+        let settler = spawn(&mut g, P0, port(), 111 /* high_men_settlers */, 1)[0];
         spawn(&mut g, P0, port(), 36 /* galley */, 1);
-        run(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(ai.roles.role_of(serial), Some(Role::Colonize));
+        let mut ai = Ai::new(P0);
+        let serials: Vec<(hecs::Entity, f4x_core::game::serial::Serial, Position)> = {
+            let view = PlayerView::new(&g, P0);
+            soldiers
+                .iter()
+                .map(|&u| (u, view.serial_of(u), port()))
+                .chain([(settler, view.serial_of(settler), site)])
+                .collect()
+        };
+        for &(_, s, to) in &serials {
+            let _ = ai.roles.claim(s, Role::Settle, g.turn, Some(to));
+            ai.roles.set_crossing(s, Some(Crossing::Sea));
+        }
+        crate::pickup::run(&mut ai, &mut g, &mut Vec::new());
+        let boards = |u: hecs::Entity| {
+            serials
+                .iter()
+                .find(|&&(e, _, _)| e == u)
+                .and_then(|&(_, s, _)| ai.roles.boarding_of(s))
+        };
+        assert!(boards(settler).is_some(), "the settler has the ship");
+        assert!(soldiers.iter().all(|&u| boards(u).is_none()));
         Ok(())
     }
 }

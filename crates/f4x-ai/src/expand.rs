@@ -66,13 +66,6 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
 
     for unit in mine {
-        // A settler on a ship's voyage is the ship's to carry (`colony.rs`).
-        if ai.roles.is(
-            PlayerView::new(game, me).serial_of(unit),
-            crate::roles::Role::Colonize,
-        ) {
-            continue;
-        }
         let (pos, serial) = {
             let view = PlayerView::new(game, me);
             let Some(pos) = view.unit_position(unit) else {

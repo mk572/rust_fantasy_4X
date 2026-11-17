@@ -36,8 +36,8 @@ A group is the set of units that share a `party` id (`new_party`, `group`, `memb
 
 - a **ferry**: the ship holds a transport role (space, ready or transporting) with no `with`; each passenger holds `Voyage` with
   `with` = the ship (`sail`, `ferries`, `passengers_of`, `end_voyage`);
-- a **colony voyage**: the ship and the settler hold `Colonize`, the settler's `with` is the ship
-  (`colonists`);
+- a **colony**: no role of its own (task 647): the settler holds `Settle` with the colony's site as
+  target and the tag `Crossing::Sea`, and a ship fetches it like any other waiting unit, settlers first;
 - a **pickup** (task 647): the ship holds `TransportSpace` (or `TransportReady` when the units fill it) with
   `to` = the sea square, then `Transporting` with the drop square beside the destination; the units it
   came for keep their own roles, tagged `Crossing::Sea`, with `with` = the ship and `boarding` = the
@@ -55,7 +55,6 @@ Listed in priority order (the lower number wins a claim, section 4). The roles w
 
 | Role | For | Held by | Taken and given in |
 |---|---|---|---|
-| `Colonize` | the ship and settler of a colony by sea | ship, settler | `colony.rs` |
 | `Settle` | a settler walking to a site to found a city (`to` = the site) | settlers | `expand.rs` |
 | `Voyage` | a passenger of a landing; `with` = its ship | soldiers | `naval.rs` |
 | `TransportReady` | a ship whose planned passengers (tied to it) fill it, with its target, until it sails (`to` = the sea square of a landing, the sea square of a rescue) | ships | `naval.rs`, `pickup.rs` |
@@ -112,7 +111,7 @@ plan changes; a smaller plan frees the soldiers that are no longer in it.
 
 `ferries()` lists the ships of landings (ready, transporting or space, with no party); a rescue ship has a party
 and is read back by `pickup::voyages`. `Ferry` and `Pickup` in the code are read-backs of the
-registry, not stores. A colony ship keeps the mission role `Colonize` with its settler.
+registry, not stores.
 
 The three scouting roles (`Scout`, `PlanarScout`, `SeaParty`) count as "out scouting"
 (`is_scouting`, `scouting`), which the army and garrison use to leave those units alone.
@@ -263,7 +262,8 @@ their `party` and the rally as `to`.
 - A healer or a weak hero (much weaker than the average fighter) alone outside a city is given an
   escort from the nearest city (`escort::stragglers`); it ends in a city or in a stack of fighters.
 - A settler that waits in the port for the colony ship holds no role (`colony.rs`; the pickup planner
-  only fetches units tagged `Crossing::Sea`); the ship that takes it makes it `Colonize`.
+  only fetches units tagged `Crossing::Sea`). When the colony's plan chooses a site, the settler in the port
+  gets it as its `Settle` target and the tag, and the pickup planner serves settlers before the other groups.
 - Spirits: a spirit with a node to meld with holds `Meld`; one with none is recruited as a `Scout`
   (it flies); a node opening takes it from the scouting. The wizard summons a spirit ahead of
   every other spell when it has none and a node is open, a raid is out to clear one, or in the
