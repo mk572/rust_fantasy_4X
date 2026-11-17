@@ -13,6 +13,7 @@ paused while the Mac is under thermal pressure; `AI_BATTLE_NO_COOL=1` runs it pl
 once unless `--jobs` says otherwise. A fork makes the reference equal to the live AI, so a battle
 right after one compares the AI with itself: freeze the AI before editing it (task 478).
 """
+import argparse
 import os
 import subprocess
 import sys
@@ -48,10 +49,32 @@ def build() -> subprocess.CompletedProcess:
             path.write_bytes(content)
 
 
+HELP = """\
+Arguments after the script name go to `f4x-tools` unchanged (it validates them); `--jobs 4` is added
+unless given. `AI_BATTLE_NO_COOL=1` runs without `cool_run.sh`. The reference is forked again from the live
+AI, replacing the old one, when it is missing, marked stale or no longer builds.
+"""
+
+
+def parser() -> argparse.ArgumentParser:
+    return argparse.ArgumentParser(
+        prog="ai_battle.py",
+        description=__doc__.split("\n\n")[0],
+        epilog=HELP,
+        usage="ai_battle.py [-h] f4x-tools-arguments...   (e.g. soak-versus --seeds 1..8 --turns 400)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+
 def main() -> int:
     args = sys.argv[1:]
+    # --help anywhere (also after `soak-versus`) only prints: nothing is forked or built for it.
+    if "-h" in args or "--help" in args:
+        parser().print_help()
+        return 0
     if not args:
-        print(__doc__)
+        parser().print_usage(sys.stderr)
+        print("ai_battle.py: no f4x-tools command given (see --help)", file=sys.stderr)
         return 2
     if not (REFERENCE / "Cargo.toml").exists():
         fork_again("there is none yet")

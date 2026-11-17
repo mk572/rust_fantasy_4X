@@ -13,6 +13,17 @@ import sys
 from pathlib import Path
 
 
+import argparse
+
+# Parsed before the heavy imports below, so `--help` and a wrong option never run the script.
+if __name__ == "__main__":
+    _parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    for _name, _kw in (
+    ("trace", dict(nargs="+", metavar="FILE", help="a file written with F4X_TRACE_ART=FILE by a client run")),
+    ):
+        _parser.add_argument(_name, **_kw)
+    _parser.parse_args()
+
 def main() -> None:
     if len(sys.argv) < 2:
         sys.exit(__doc__)

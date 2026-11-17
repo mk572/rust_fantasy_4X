@@ -20,6 +20,17 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+import argparse
+
+# Parsed before the heavy imports below, so `--help` and a wrong option never run the script.
+if __name__ == "__main__":
+    _parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    for _name, _kw in (
+    ("--check", dict(action="store_true", help="only report whether the picture is as written; change nothing")),
+    ):
+        _parser.add_argument(_name, **_kw)
+    _parser.parse_args()
+
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent

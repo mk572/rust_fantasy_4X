@@ -9,6 +9,18 @@ import struct
 import sys
 from pathlib import Path
 
+import argparse
+
+# Parsed before the heavy imports below, so `--help` and a wrong option never run the script.
+if __name__ == "__main__":
+    _parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    for _name, _kw in (
+    ("lbx", dict(nargs="?", help="FONTS.LBX (default: the Official Release in reference/mom-classic)")),
+    ("out", dict(nargs="?", help="output file (default: docs/palette.tsv)")),
+    ):
+        _parser.add_argument(_name, **_kw)
+    _parser.parse_args()
+
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LBX = ROOT / "reference/mom-classic/Master of Magic Official Release/FONTS.LBX"
 ENTRY = 2

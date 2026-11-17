@@ -18,6 +18,18 @@ import re
 import sys
 from pathlib import Path
 
+import argparse
+
+# Parsed before the heavy imports below, so `--help` and a wrong option never run the script.
+if __name__ == "__main__":
+    _parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    for _name, _kw in (
+    ("remom", dict(nargs="?", help="ReMoM source folder (default: ~/projects/ReMoM)")),
+    ("out", dict(nargs="?", help="output file (default: docs/font_colors_by_screen.tsv)")),
+    ):
+        _parser.add_argument(_name, **_kw)
+    _parser.parse_args()
+
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_REMOM = Path.home() / "projects/ReMoM"
 CALL = re.compile(r"Set_Font_Colors_15\(\s*([^,]+?)\s*,\s*(.+?)\s*\)\s*;")

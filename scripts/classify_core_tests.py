@@ -13,6 +13,17 @@ import re
 import sys
 from pathlib import Path
 
+import argparse
+
+# Parsed before the heavy imports below, so `--help` and a wrong option never run the script.
+if __name__ == "__main__":
+    _parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    for _name, _kw in (
+    ("--tests", dict(action="store_true", help="one line per test that moves, with the reasons")),
+    ):
+        _parser.add_argument(_name, **_kw)
+    _parser.parse_args()
+
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "crates/f4x-core/src"
 LONG = 25
@@ -115,4 +126,5 @@ def main():
     print(f"total: {moved} move, {stay} stay", file=sys.stderr)
 
 
-main()
+if __name__ == "__main__":
+    main()
