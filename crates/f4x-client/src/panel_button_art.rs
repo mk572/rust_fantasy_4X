@@ -155,8 +155,6 @@ pub(crate) fn sheen_text(
                 colours.get_pixel(x as u32, y as u32)
             } else if ink(x - 1, y - 1) || (emboss.deep && (ink(x - 1, y) || ink(x, y - 1))) {
                 emboss.dark
-            } else if emboss.deep && (ink(x - 2, y - 2) || ink(x - 2, y - 1) || ink(x - 1, y - 2)) {
-                EMBOSS_DEEP_EDGE
             } else if ink(x + 1, y + 1) {
                 emboss.light
             } else {
@@ -171,7 +169,7 @@ pub(crate) fn sheen_text(
 }
 
 /// The emboss of a sheen label: the colours of its edges. A deep one (the plaque title) has an
-/// opaque black shadow two pixels thick down and to the right, as the original's lettering.
+/// opaque black shadow one pixel thick down and to the right, as the original's lettering.
 #[derive(Clone, Copy)]
 pub(crate) struct Emboss {
     light: Color,
@@ -197,9 +195,6 @@ impl Emboss {
         }
     }
 }
-
-/// The outer, softer half of a deep shadow.
-const EMBOSS_DEEP_EDGE: Color = Color::new(0.094, 0.063, 0.047, 1.0);
 
 /// The emboss of the sheen labels: a translucent dark edge down and to the right, a light one up
 /// and to the left.
