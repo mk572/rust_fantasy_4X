@@ -204,7 +204,7 @@ Not built: a second engineer when the roads are long.
 
 ### The perimeter
 
-`perimeter::run` (called from `military::army` where the call-in of troops used to be) looks at
+`perimeter::run` (called from `war::run` where the call-in of troops used to be) looks at
 the zone of every own city: the 21 squares its people work and the towers and nodes within 4
 squares of it. For each stack of the enemy, a raider or a monster standing in a zone, it takes the
 free soldiers within 6 squares (the army's spare ones, over `garrison_wanted`) and the soldiers that
@@ -250,7 +250,7 @@ their `party` and the rally as `to`.
   nearest the easiest site they could take (a lair, a neutral city, a tower on a plane with no
   rival city). `siege::release` ends it when all are within a square of the rally or after 20 turns;
   `site::deploy` then sends the party from there. No new raid starts while one is mustering.
-- `MusterKind::Campaign` (`military::army`): the free soldiers sent to the rally city of the
+- `MusterKind::Campaign` (`war::run`): the free soldiers sent to the rally city of the
   campaign (the own city nearest the target, or the far side of a tower) and those already there
   hold `Muster`. They stay the army's (`stacks` counts them). The muster ends when the march
   leaves (they become `March`), when the target changes or is called off, or when there is no

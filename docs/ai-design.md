@@ -777,7 +777,7 @@ destination it wants, and ships take units that go to the same landmass, whateve
 
 ## 15. War plan (task 648)
 
-Asked for on 17 November 2026. What is there (`military::army`): diplomacy (`statecraft.rs`,
+Asked for on 17 November 2026. What is there (`war::run`): diplomacy (`statecraft.rs`,
 `diplomacy.rs`) decides *whether* to fight. Then one campaign target is chosen, the enemy city with the
 lowest "distance plus remembered garrison". The units that happen to be free gather at the own city
 nearest it and march when `force_wanted` is met. Everything else (a stack next to a weaker stack, the
@@ -842,7 +842,7 @@ turns, a destroyed stack, or a target that is no longer worth it makes the plan 
 must beat the one in progress by a margin, so the plan does not swing between two.
 
 **What it replaces.** `ai.campaign`, `best_enemy_city`, `planar_target`, `march_called_off`, the rally
-choice and the target selection in `military::army`; the builder's `war_force` becomes the plan's
+choice and the target selection in `war::run`; the builder's `war_force` becomes the plan's
 missing strength. Step 1 of the army (a stack hits a weaker stack next to it) and the perimeter stay as
 reactions. They take their units from the pool but may not take a group's reserved units.
 
@@ -857,7 +857,7 @@ cities taken per war, turns from the declaration to the first city taken, armies
 
 **Built (17 November 2026, first step).** `war_plan.rs`: the town list with the city report and the
 walk; `goal_score` and `next_score` on plain data (tests); the plan kept in `Ai::war_plan` and revised
-every turn by `military::army`, which sets its campaign from it; the recon list read by
+every turn by `war::run`, which sets its campaign from it; the recon list read by
 `scout::best_target_with`. `expected_defence` reads the garrison from the city report for a city the AI
 has explored, as the human's enemy city screen does, so the remembered strength (`city_memory`) is only
 the fallback. Not built: several groups, the route recon, the demands to the builder and the dispatcher.
@@ -885,7 +885,7 @@ route recon are task 651 and come after task 646 (the dispatcher fills the plan'
 **Party, not stack (17 November 2026).** A square holds `max_tile` units (12) but a battle holds
 `max_battle_side` (9) a side, and nobody joins a battle once it has begun. Every plan that attacks,
 gathers, marches, crosses or lands therefore counts and moves the *party* (`view::party`: the
-strongest nine of the units, strongest first), not the stack: the sorties of `military::army`, the
+strongest nine of the units, strongest first), not the stack: the sorties of `strike.rs`, the
 gathering and the march (a muster is full at nine, `force_wanted` is at most nine), the crossing
 by a tower, a landing (judged square by square), the perimeter, the stranded groups of `pickup.rs`
 and the neutral stacks. The soldiers beyond the party stay where they are, available. A stack of

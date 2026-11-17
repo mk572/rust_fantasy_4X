@@ -117,10 +117,8 @@ pub(crate) fn strength_wanted(
 /// How many average fighters a strength is, for the cities that build them: at least what a march
 /// starts with, at most what a battle holds.
 pub(crate) fn units_for(view: &PlayerView, strength: f32) -> usize {
-    ((strength / crate::military::average_strength(view).max(1.0)).ceil() as usize).clamp(
-        crate::military::MIN_MARCH,
-        MAX_FORCE.min(view.max_battle_side()),
-    )
+    ((strength / crate::military::average_strength(view).max(1.0)).ceil() as usize)
+        .clamp(crate::war::MIN_MARCH, MAX_FORCE.min(view.max_battle_side()))
 }
 
 /// The city where the army gathers to march on `target`: the own city nearest to it, the port of
@@ -556,7 +554,7 @@ mod tests {
             strength_wanted(&view, &strong, 2, target),
         );
         assert!(b > a);
-        assert_eq!(units_for(&view, a), crate::military::MIN_MARCH);
+        assert_eq!(units_for(&view, a), crate::war::MIN_MARCH);
         assert_eq!(
             units_for(&view, b),
             MAX_FORCE.min(view.max_battle_side()),

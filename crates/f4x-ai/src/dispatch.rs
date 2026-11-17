@@ -299,7 +299,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // 3. scouts
     crate::scout::scout(ai, game, events);
     // 4. the war (task 646): the army takes the soldiers its target needs, none at peace
-    crate::military::army(ai, game, events);
+    crate::war::run(ai, game, events);
     // 5. raiding parties from the soldiers the war left over
     crate::site::run(ai, game, events);
     // The ships and the colonies (task 647)

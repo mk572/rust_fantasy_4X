@@ -52,6 +52,7 @@ mod strike;
 mod testworld;
 mod trade;
 mod view;
+mod war;
 mod war_plan;
 mod wizardry;
 
