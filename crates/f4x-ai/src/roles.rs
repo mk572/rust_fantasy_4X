@@ -62,10 +62,6 @@ pub enum Role {
     /// Nothing found for the unit to do: a role of its own, so no unit has none. The unit stays
     /// where it stands until the dispatcher (`dispatch.rs`) has a job for it.
     AwaitingOrders,
-    /// Stranded where no own city can be reached: waits on a shore tile for a ship
-    /// (`pickup.rs`). **Deprecated** (task 647): a unit keeps the role of what it wants to do at
-    /// its target and carries `Assignment::crossing` for what takes it there.
-    AwaitTransport,
     /// On its way to a square by an order of its own (`to` = the end of the path).
     MoveTo,
     /// A soldier on its way to an under-defended own city (`reinforce.rs`, `to` = the city).
@@ -105,6 +101,9 @@ pub struct Assignment {
     /// What it needs to get to its target, when it cannot walk there.
     #[serde(default)]
     pub crossing: Option<Crossing>,
+    /// The shore tile where it boards the ship sent for it (`pickup.rs`).
+    #[serde(default)]
+    pub boarding: Option<Position>,
     /// Where it stood at the last audit, and for how many audits in a row it has not moved.
     pub last_pos: Option<Position>,
     pub stuck: u32,
@@ -121,6 +120,7 @@ impl Assignment {
             party: None,
             with: None,
             crossing: None,
+            boarding: None,
             last_pos: None,
             stuck: 0,
         }
@@ -458,6 +458,50 @@ impl Registry {
         }
     }
 
+    /// Tie the unit, whatever its role, to the ship that comes for it, with the shore tile where
+    /// it boards.
+    pub fn board_at(&mut self, serial: Serial, ship: Serial, tile: Position) {
+        if let Some(a) = self.map.get_mut(&serial) {
+            a.with = Some(ship);
+            a.boarding = Some(tile);
+        }
+    }
+
+    /// The ship no longer comes for the unit.
+    pub fn unboard(&mut self, serial: Serial) {
+        if let Some(a) = self.map.get_mut(&serial) {
+            a.with = None;
+            a.boarding = None;
+        }
+    }
+
+    /// The shore tile where the unit boards its ship, if one is coming.
+    pub fn boarding_of(&self, serial: Serial) -> Option<Position> {
+        self.map.get(&serial).and_then(|a| a.boarding)
+    }
+
+    /// The units tied to the ship (`with`), in serial order.
+    pub fn tied_with(&self, ship: Serial) -> Vec<Serial> {
+        self.map
+            .iter()
+            .filter(|(_, a)| a.with == Some(ship))
+            .map(|(s, _)| *s)
+            .collect()
+    }
+
+    /// The units that wait for a ship with none coming yet, with where each wants to go.
+    pub fn waiting_for_ship(&self) -> Vec<(Serial, Position)> {
+        self.needing(Crossing::Sea)
+            .into_iter()
+            .filter(|&(s, _)| self.map.get(&s).is_some_and(|a| a.boarding.is_none()))
+            .collect()
+    }
+
+    /// Where the unit's role sends it, whatever the role.
+    pub fn destination_of(&self, serial: Serial) -> Option<Position> {
+        self.map.get(&serial).and_then(|a| a.to)
+    }
+
     /// What the unit needs to reach its target, if it cannot walk there.
     pub fn crossing_of(&self, serial: Serial) -> Option<Crossing> {
         self.map.get(&serial).and_then(|a| a.crossing)
@@ -741,6 +785,7 @@ impl Registry {
                         party: None,
                         with: None,
                         crossing: None,
+                        boarding: None,
                         last_pos: None,
                         stuck: 0,
                     },
@@ -800,7 +845,6 @@ impl Role {
             Role::SeaParty => 4,
             Role::PlanarScout => 5,
             Role::TransportSpace => 6,
-            Role::AwaitTransport => 7,
             Role::Perimeter => 8,
             Role::Reinforce => 8,
             Role::Raid => 9,
@@ -1036,7 +1080,7 @@ mod tests {
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         audit(&mut ai, &mut g, &mut events);
-        assert!(ai.roles.members(Role::AwaitTransport).is_empty());
+        assert!(ai.roles.members(Role::Reinforce).is_empty());
         let view = PlayerView::new(&g, P0);
         let held = sync(&mut ai, &view, 1);
         for &u in &stranded {
@@ -1119,13 +1163,13 @@ mod tests {
         assert_eq!(r.role_of(a), Some(Role::Raid));
         assert_eq!(r.claim(b, Role::Road, 4, None), Ok(()));
         assert_eq!(
-            r.claim(b, Role::AwaitTransport, 5, None),
+            r.claim(b, Role::Reinforce, 5, None),
             Ok(()),
             "a better role takes over"
         );
-        assert_eq!(r.role_of(b), Some(Role::AwaitTransport));
+        assert_eq!(r.role_of(b), Some(Role::Reinforce));
         assert!(!r.release(b, Role::Road), "it does not hold that role");
-        assert!(r.release(b, Role::AwaitTransport));
+        assert!(r.release(b, Role::Reinforce));
         assert!(!r.has_role(b));
         assert_eq!(r.members(Role::Raid), vec![a]);
         assert_eq!(r.assigned(), vec![a]);
@@ -1144,8 +1188,8 @@ mod tests {
             Err(Role::Raid),
             "a raider is not sent to build a road by the lower claim"
         );
-        assert_eq!(ai.roles.claim(scout, Role::AwaitTransport, 5, None), Ok(()));
-        assert_eq!(ai.roles.role_of(scout), Some(Role::AwaitTransport));
+        assert_eq!(ai.roles.claim(scout, Role::Reinforce, 5, None), Ok(()));
+        assert_eq!(ai.roles.role_of(scout), Some(Role::Reinforce));
         assert_eq!(ai.roles.role_of(raider), Some(Role::Raid));
     }
 

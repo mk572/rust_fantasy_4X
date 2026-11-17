@@ -178,19 +178,6 @@ fn port_city(view: &PlayerView) -> Option<Position> {
 
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    // With no voyage planned no settler waits for a ship.
-    if ai.colony.is_none() {
-        let view = PlayerView::new(game, me);
-        let waiting: Vec<Serial> = ai
-            .roles
-            .targeted(crate::roles::Role::AwaitTransport)
-            .into_iter()
-            .filter(|&(_, t)| view.city_at(t).is_some())
-            .map(|(s, _)| s)
-            .collect();
-        ai.roles
-            .release_many(&waiting, crate::roles::Role::AwaitTransport);
-    }
     // Forget a voyage whose ship or settler is gone, or whose port was lost.
     {
         let view = PlayerView::new(game, me);
@@ -302,18 +289,6 @@ fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
                 to: colony.port,
             },
             events,
-        );
-    }
-    // The settler that waits in the port for the ship awaits transport.
-    if let (None, Some(settler)) = (ship, settler) {
-        let (serial, turn) = (PlayerView::new(game, me).serial_of(settler), game.turn);
-        // It has no site on this island (`expand.rs`): the voyage is its task now.
-        ai.roles.release(serial, crate::roles::Role::Settle);
-        let _ = ai.roles.claim(
-            serial,
-            crate::roles::Role::AwaitTransport,
-            turn,
-            Some(colony.port),
         );
     }
     let (Some(ship), Some(settler)) = (ship, settler) else {
@@ -569,14 +544,8 @@ mod tests {
         crate::expand::settlers(&mut ai, &mut g, &mut Vec::new());
         run(&mut ai, &mut g, &mut Vec::new());
         assert!(ai.colony.is_some(), "a voyage is planned");
-        assert_eq!(ai.roles.role_of(serial), Some(Role::AwaitTransport));
-        assert_eq!(
-            ai.roles.target_of(serial, Role::AwaitTransport),
-            Some(port())
-        );
-        // The pickup planner leaves it alone.
+        // The pickup planner leaves it alone: the colony has its own ship.
         crate::pickup::run(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(ai.roles.role_of(serial), Some(Role::AwaitTransport));
         assert!(crate::pickup::voyages(&ai).is_empty());
         // The ship comes: the settler sails under `Colonize`.
         spawn(&mut g, P0, port(), 36 /* galley */, 1);

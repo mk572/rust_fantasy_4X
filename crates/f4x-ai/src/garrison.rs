@@ -314,7 +314,7 @@ mod tests {
         assert_eq!(movable(&ai, &view, &units).len(), 2);
         let _ = ai.roles.claim(
             view.serial_of(units[0]),
-            crate::roles::Role::AwaitTransport,
+            crate::roles::Role::Reinforce,
             1,
             Some(at(COAST_CITY.0, COAST_CITY.1)),
         );

@@ -161,9 +161,8 @@ pub struct Ai {
     record_refusals: bool,
     #[serde(skip)]
     refusals: RefCell<Vec<Refusal>>,
-    /// The one place a unit's role lives (`roles.rs`). It holds `AwaitTransport` (stranded
-    /// soldiers and the shore tile each waits at, `pickup.rs`) and `Return` (soldiers walking to
-    /// a city); the other roles are still in the lists below.
+    /// The one place a unit's role lives (`roles.rs`). It holds each unit's role, its
+    /// target and, for a unit that cannot walk there, what it needs (`Crossing`).
     #[serde(default)]
     roles: roles::Registry,
     /// When each plan began, for the time limit on all of them (`plan_clock.rs`).

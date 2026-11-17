@@ -38,9 +38,10 @@ A group is the set of units that share a `party` id (`new_party`, `group`, `memb
   `with` = the ship (`sail`, `ferries`, `passengers_of`, `end_voyage`);
 - a **colony voyage**: the ship and the settler hold `Colonize`, the settler's `with` is the ship
   (`colonists`);
-- a **rescue**: the ship holds `TransportSpace` (or `TransportReady` when the soldiers fill it) with
-  `to` = the sea square, then `Transporting` with the port; the soldiers it came for keep
-  `AwaitTransport` and their `with` is the ship (`pickup::voyages`);
+- a **pickup** (task 647): the ship holds `TransportSpace` (or `TransportReady` when the units fill it) with
+  `to` = the sea square, then `Transporting` with the drop square beside the destination; the units it
+  came for keep their own roles, tagged `Crossing::Sea`, with `with` = the ship and `boarding` = the
+  shore tile where they board (`pickup::voyages`);
 - an **escort**: the escort holds `Escort` with `with` = the unit it guards (`escort_of`); when the
   charge no longer holds `Settle`, `Road` or `Meld` (it founded its city, finished, or died)
   `escort::run` releases the escort.
@@ -62,7 +63,6 @@ Listed in priority order (the lower number wins a claim, section 4). The roles w
 | `SeaParty` | the fighters a sea scout carries to put ashore | soldiers | `scout.rs` |
 | `PlanarScout` | the scout walking to an open tower to change plane (`to` = the tower) | one unit | `scout.rs` |
 | `TransportSpace` | a ship with a target whose planned passengers (tied to it) are fewer than it holds: on its way to the port to load a landing (`to` = the port), holding part of a load, or on its way to the sea square where stranded soldiers wait (`to` = the square) | ships | `naval.rs`, `pickup.rs` |
-| `AwaitTransport` (**deprecated**, task 647: use `Assignment::crossing`) | a stranded soldier waiting on a shore tile for a ship (`to` = the tile; `with` = the ship that comes) | soldiers | `pickup.rs`, the audit |
 | `Perimeter` | a soldier dealing with the enemy in the zone of a city (`to` = the enemy's square) | soldiers | `perimeter.rs` |
 | `Reinforce` | a soldier on its way to an under-defended own city, or kept in a threatened one (`to` = the city; released on arrival unless the city is threatened) | soldiers | `reinforce.rs` |
 | `Raid` | out on a tower, node or encounter site (`to` = the site) | soldiers | `site.rs`, `naval.rs` |
@@ -90,7 +90,7 @@ not a base role.
 A ship is in one of four states, each a role of its own. `TransportFree` means no plans for it: any
 task can take it. The moment a transport task takes a ship it holds a target (`to`) and the
 soldiers planned for it are tied to it (`with`: landing passengers hold `Voyage`, the soldiers of a
-rescue hold `AwaitTransport`), and its role is set by the count:
+pickup keep their own roles), and its role is set by the count:
 
 - `TransportSpace`: planned passengers < the ship's capacity. It may be on its way to the port to
   load (no passengers planned yet), or hold part of a load.
@@ -103,15 +103,9 @@ rescue hold `AwaitTransport`), and its role is set by the count:
   (`AwaitingOrders`, then `TransportFree` at the audit).
 
 A ship need not be full to sail: a part load goes (`TransportSpace` to `Transporting`) once the
-strength is enough. First it looks for soldiers awaiting transport (`AwaitTransport` with no ship)
-that can walk to the port within a window of half the journey, at most 5 turns, and none for a
-short journey (`pickup::reachable_waiting`, path length over moves; a soldier already in the port
-is 0 turns and boards the same turn). They take `Voyage` tied to the ship (they
-become planned passengers) and get the order to go to the port (`naval::board`); the ship keeps
-its role, `TransportSpace` (or `TransportReady` if they fill it), and does not sail while they are
-on the way. When they arrive they are part of the load. One that has not arrived when the window is
-over is let go and the ship sails without it. Soldiers further away than the window are not waited
-for.
+strength is enough. The ship does not recruit waiting soldiers any more (task 647): the soldiers of a
+landing are the war job's, and the units that wait for a ship are the ones a job sent somewhere they
+cannot walk to (`pickup.rs`).
 
 `Registry::sail` (a landing) and `plan_ship` (a rescue) set the role from the count each time the
 plan changes; a smaller plan frees the soldiers that are no longer in it.
@@ -268,9 +262,8 @@ their `party` and the rally as `to`.
 
 - A healer or a weak hero (much weaker than the average fighter) alone outside a city is given an
   escort from the nearest city (`escort::stragglers`); it ends in a city or in a stack of fighters.
-- A settler that waits in the port for the colony ship holds `AwaitTransport` with the port as its
-  `to` (`colony.rs`); the pickup planner leaves it alone (a city tile is no shore to fetch from);
-  the ship that takes it makes it `Colonize`.
+- A settler that waits in the port for the colony ship holds no role (`colony.rs`; the pickup planner
+  only fetches units tagged `Crossing::Sea`); the ship that takes it makes it `Colonize`.
 - Spirits: a spirit with a node to meld with holds `Meld`; one with none is recruited as a `Scout`
   (it flies); a node opening takes it from the scouting. The wizard summons a spirit ahead of
   every other spell when it has none and a node is open, a raid is out to clear one, or in the
@@ -294,7 +287,7 @@ their `party` and the rally as `to`.
 - soldiers holding `AwaitingOrders` (4 or more): no more soldiers are built; a war (a campaign)
   with nobody holding `March` makes the cities build attackers;
 - a ship holding `TransportFree` exists: no ship is built;
-- units hold `AwaitTransport` on a shore and no ship exists: the own port nearest to them builds one;
+- units are tagged `Crossing::Sea` and no ship exists: the own port nearest to them builds one;
 - nobody holds a scouting role, no soldier is spare and the frontier is open (build phase): one city
   builds the fastest cheap fighter, which `scout.rs` recruits.
 

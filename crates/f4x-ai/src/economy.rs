@@ -98,12 +98,7 @@ impl Roster {
             .iter()
             .filter(|&&u| crate::view::is_ship(view, u) && !ai.roles.is_scouting(view.serial_of(u)))
             .count();
-        let waiting = ai
-            .roles
-            .targeted(Role::AwaitTransport)
-            .into_iter()
-            .filter(|&(s, t)| ai.roles.with_of(s).is_none() && view.city_at(t).is_none())
-            .count();
+        let waiting = ai.roles.waiting_for_ship().len();
         Roster {
             idle_fighters,
             marching: ai.roles.count(Role::March),
@@ -372,13 +367,16 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// The own coastal city nearest to the units awaiting transport: it builds the ship that fetches
 /// them.
 fn rescue_port(ai: &Ai, view: &PlayerView) -> Option<Position> {
-    use crate::roles::Role;
     let waiting = ai
         .roles
-        .targeted(Role::AwaitTransport)
+        .waiting_for_ship()
         .into_iter()
-        .filter(|&(s, t)| ai.roles.with_of(s).is_none() && view.city_at(t).is_none())
-        .map(|(_, t)| t)
+        .filter_map(|(s, _)| {
+            view.my_units()
+                .into_iter()
+                .find(|&u| view.serial_of(u) == s)
+                .and_then(|u| view.unit_position(u))
+        })
         .min_by_key(|t| (t.plane as u8, t.y, t.x))?;
     view.my_cities()
         .into_iter()
@@ -780,7 +778,8 @@ mod tests {
         for s in &serials {
             let _ = ai
                 .roles
-                .claim(*s, crate::roles::Role::AwaitTransport, 1, Some(at(9, 9)));
+                .claim(*s, crate::roles::Role::Reinforce, 1, Some(port));
+            ai.roles.set_crossing(*s, Some(crate::roles::Crossing::Sea));
         }
         cities(&mut ai, &mut g, &mut Vec::new());
         let item = g.economy().city_production(capital(&g)?).item;
