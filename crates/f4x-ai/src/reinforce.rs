@@ -79,7 +79,29 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             near.sort_by_key(|&(d, serial, _)| (d, serial));
             near.into_iter().map(|(_, _, u)| u).collect()
         };
-        for unit in order {
+        // Soldiers that can walk to the city go first; the ones that cannot, on this plane, are
+        // tagged for a ship (`pickup.rs`) only when walkers are not enough.
+        let (walkers, sailors): (Vec<hecs::Entity>, Vec<hecs::Entity>) = {
+            let view = PlayerView::new(game, me);
+            order
+                .into_iter()
+                .partition(|&u| reached.can_reach(&view, &[u], city))
+        };
+        let by_sea: Vec<hecs::Entity> = {
+            let view = PlayerView::new(game, me);
+            sailors
+                .into_iter()
+                .filter(|&u| {
+                    crate::view::is_coastal(&view, city)
+                        && view.unit_position(u).is_some_and(|p| p.plane == city.plane)
+                })
+                .collect()
+        };
+        for (unit, sails) in walkers
+            .into_iter()
+            .map(|u| (u, false))
+            .chain(by_sea.into_iter().map(|u| (u, true)))
+        {
             if need <= 0.0 {
                 break;
             }
@@ -91,25 +113,25 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             if game.units().units_at(city).len() + on_the_way >= cap {
                 break;
             }
-            let strength = {
-                let view = PlayerView::new(game, me);
-                if !reached.can_reach(&view, &[unit], city) {
+            let strength = unit_strength(&PlayerView::new(game, me), unit);
+            if !sails {
+                let go = Command::GoTo {
+                    units: vec![unit],
+                    to: city,
+                };
+                if ai.send(game, go, events).is_err() {
                     continue;
                 }
-                unit_strength(&view, unit)
-            };
-            let go = Command::GoTo {
-                units: vec![unit],
-                to: city,
-            };
-            if ai.send(game, go, events).is_err() {
-                continue;
             }
             let serial = PlayerView::new(game, me).serial_of(unit);
             let _ = ai
                 .roles
                 .claim(serial, Role::Reinforce, game.turn, Some(city));
             ai.roles.set_target(serial, Role::Reinforce, Some(city));
+            if sails {
+                ai.roles
+                    .set_crossing(serial, Some(crate::roles::Crossing::Sea));
+            }
             need -= strength;
             pool.retain(|&u| u != unit);
             match sent_to.iter_mut().find(|(p, _)| *p == city) {
@@ -255,5 +277,65 @@ mod tests {
             .count();
         assert_eq!(held, 2);
         assert!(!extra.iter().any(|&u| ai.roles.is_free(view.serial_of(u))));
+    }
+
+    /// The empty home city and two soldiers on the far island.
+    fn overseas() -> Result<(Game, Vec<hecs::Entity>), Box<dyn std::error::Error>> {
+        use crate::testworld::ENEMY_CITY;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let far = {
+            let view = PlayerView::new(&g, P0);
+            crate::naval::landing(&view, at(ENEMY_CITY.0, ENEMY_CITY.1))
+                .ok_or("a shore on the far island")?
+                .0
+        };
+        let soldiers = spawn(&mut g, P0, far, 104 /* spearmen */, 2);
+        Ok((g, soldiers))
+    }
+
+    /// Soldiers on another island go to an under-defended city when none can walk there: one is
+    /// tagged for a ship, as many as the city wants.
+    #[test]
+    fn soldiers_across_the_sea_are_tagged_for_a_ship_when_no_walker_is_there() -> TestResult {
+        let (mut g, overseas) = overseas()?;
+        let city = at(COAST_CITY.0, COAST_CITY.1);
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        run(&mut ai, &mut g, &mut Vec::new());
+        let view = PlayerView::new(&g, P0);
+        let tagged: Vec<_> = overseas
+            .iter()
+            .filter(|&&u| {
+                ai.roles.crossing_of(view.serial_of(u)) == Some(crate::roles::Crossing::Sea)
+            })
+            .collect();
+        assert_eq!(tagged.len(), 1, "one soldier is what the city wants");
+        assert_eq!(
+            ai.roles
+                .target_of(view.serial_of(*tagged[0]), Role::Reinforce),
+            Some(city)
+        );
+        Ok(())
+    }
+
+    /// With a walker in reach, the walker goes and nobody is tagged.
+    #[test]
+    fn a_walker_in_reach_is_sent_before_anyone_is_tagged_for_a_ship() -> TestResult {
+        let (mut g, overseas) = overseas()?;
+        let walker = spawn(&mut g, P0, at(8, 6), 104, 1)[0];
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        run(&mut ai, &mut g, &mut Vec::new());
+        let view = PlayerView::new(&g, P0);
+        assert_eq!(
+            ai.roles.target_of(view.serial_of(walker), Role::Reinforce),
+            Some(at(COAST_CITY.0, COAST_CITY.1))
+        );
+        assert_eq!(ai.roles.crossing_of(view.serial_of(walker)), None);
+        assert!(overseas
+            .iter()
+            .all(|&u| ai.roles.crossing_of(view.serial_of(u)).is_none()));
+        Ok(())
     }
 }
