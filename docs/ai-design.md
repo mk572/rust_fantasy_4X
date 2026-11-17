@@ -877,3 +877,8 @@ its largest city. The cast square is the third square from the enchanted end of 
 them. Myrror needs none. Cast rank 2 (before the summons), research at half the turns when the AI
 has no spell of the kind. It enchants only the roads that exist; building them is task 650.
 
+**Scope (17 November 2026).** The basics come first (task 648): one army, one target at a time, one stack
+that attacks from one square, the next target from where the army stands, the campaign's units
+reserved, the plan visible in the soak. The pincer, the pickoff, the screen, several groups and the
+route recon are task 651 and come after task 646 (the dispatcher fills the plan's demands) and task 649.
+
