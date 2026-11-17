@@ -56,7 +56,8 @@ pub enum Kind {
     /// Chaos Channels: gives a fighter a lasting mutation.
     Mutate,
     /// Lycanthropy: turns an obsolete fighter into a werewolf. The unit is given up, so its
-    /// production cost counts as mana on top of the spell's (`lycanthropy_target`).
+    /// production cost counts against the spell when it is rated against the summons
+    /// (`lycanthropy_target`); the mana needed is the spell's own.
     Lycanthropy,
     /// Word of Recall: takes a hurt stack far from home back to the summoning circle.
     Recall,
@@ -121,9 +122,10 @@ fn summons_melder(view: &PlayerView, def: &SpellDef) -> bool {
     })
 }
 
-/// The own fighter Lycanthropy turns into a werewolf and the extra mana it costs: the production
-/// cost of the unit given up, one for one. Only a unit the werewolf is clearly better than is
-/// turned (`LYCANTHROPY_EDGE`); of those, the one that gains most for the mana in all.
+/// The own fighter Lycanthropy turns into a werewolf, the production cost of the unit given up
+/// (counted one for one as mana in the rating only, not in the mana needed) and the rate: the
+/// strength gained per mana in all. Only a unit the werewolf is clearly better than is turned
+/// (`LYCANTHROPY_EDGE`); of those, the one with the best rate.
 pub(crate) fn lycanthropy_target(
     view: &PlayerView,
     spell: SpellId,
@@ -147,15 +149,6 @@ pub(crate) fn lycanthropy_target(
         })
         .max_by(|a, b| a.0.total_cmp(&b.0))
         .map(|(rate, u, extra)| (u, extra, rate))
-}
-
-/// The mana a cast adds to the spell's cost: the production cost of the unit Lycanthropy is
-/// aimed at, else nothing.
-fn lycanthropy_extra(view: &PlayerView, k: Kind, target: Option<Target>) -> i32 {
-    match (k, target) {
-        (Kind::Lycanthropy, Some(Target::Unit(u))) => view.unit_def(u).map_or(0, |d| d.cost as i32),
-        _ => 0,
-    }
 }
 
 /// What the AI makes of a spell.
@@ -1288,9 +1281,6 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             } else {
                 pick_target(&view, spell)
             };
-            // The unit Lycanthropy gives up is paid for in mana as well, one for one with what it
-            // cost to make.
-            let cost = cost + lycanthropy_extra(&view, k, target);
             let now = cost * 3 / 2 <= mana;
             let wanted = match k {
                 Kind::Mastery => true,
@@ -2323,9 +2313,9 @@ mod tests {
     }
 
     /// Lycanthropy turns the obsolete (spearmen), not a unit the werewolf is no better than, and
-    /// the unit's production cost is mana on top of the spell's.
+    /// the unit's production cost weighs in the rating, not in the mana needed.
     #[test]
-    fn lycanthropy_is_aimed_at_an_obsolete_unit_and_its_cost_is_extra_mana() -> TestResult {
+    fn lycanthropy_is_aimed_at_an_obsolete_unit_and_its_cost_lowers_the_rate() -> TestResult {
         let mut g = fresh_game()?;
         let lycanthropy = spell(173)?;
         g.cheat_learn_spell(P1, lycanthropy);
@@ -2370,22 +2360,13 @@ mod tests {
             cast_rank(Kind::Summon, &traits),
             "rated against the summons"
         );
-        let view = PlayerView::new(&g, P1);
-        assert_eq!(
-            lycanthropy_extra(&view, Kind::Lycanthropy, Some(Target::Unit(aimed))),
-            spearmen_cost
-        );
-        assert_eq!(
-            lycanthropy_extra(&view, Kind::Summon, Some(Target::Unit(aimed))),
-            0
-        );
         Ok(())
     }
 
-    /// The cast waits until the mana pays for the spell and the unit given up, with the usual
-    /// margin; then the spearman is a werewolf.
+    /// The unit given up does not raise the mana needed: the spell's own cost with the usual
+    /// margin is enough, and a spearman becomes a werewolf.
     #[test]
-    fn lycanthropy_is_cast_only_when_the_mana_pays_for_the_unit_too() -> TestResult {
+    fn lycanthropy_needs_only_the_spells_own_mana() -> TestResult {
         let mut g = fresh_game()?;
         let lycanthropy = spell(173)?;
         g.cheat_learn_spell(P1, lycanthropy);
@@ -2395,7 +2376,7 @@ mod tests {
             .summon_at()
             .ok_or("a summoning circle")?;
         // An army big enough that no summon is wanted, so the spell under test is the one left.
-        let spearmen = spawn(&mut g, P1, circle, 104 /* high_men_spearmen */, 8);
+        spawn(&mut g, P1, circle, 104 /* high_men_spearmen */, 8);
         let land: Vec<_> = {
             let view = PlayerView::new(&g, P1);
             [(1, 0), (0, 1), (-1, 0), (0, -1)]
@@ -2411,11 +2392,6 @@ mod tests {
             spawn(&mut g, P1, p, 104, 8);
         }
         let cost = PlayerView::new(&g, P1).casting_cost(lycanthropy);
-        let extra = PlayerView::new(&g, P1)
-            .unit_def(spearmen[0])
-            .ok_or("a def")?
-            .cost as i32;
-        assert!(extra > 1, "the unit costs something");
         let ai = Ai::new(P1);
         let werewolves = |g: &Game| {
             PlayerView::new(g, P1)
@@ -2428,27 +2404,9 @@ mod tests {
                 })
                 .count()
         };
-        // Enough for the spell with the margin, not for the spell and the spearman: whatever
-        // else the wizard casts first, Lycanthropy is never begun.
-        for _ in 0..15 {
-            treasury(&mut g, P1)?.mana = HalfInt::from_int(cost * 3 / 2 + extra / 2);
-            for p in &land {
-                spawn(&mut g, P1, *p, 104, 3);
-            }
-            resolve_paid(&ai, &mut g, &mut Vec::new());
-            cast(&ai, &mut g, &mut Vec::new());
-            let casting = g
-                .wizard(P1)
-                .ok_or("a wizard")?
-                .casting()
-                .is_some_and(|c| c.spell == lycanthropy);
-            assert!(!casting, "Lycanthropy begun without the mana for the unit");
-            g.apply(f4x_core::game::Command::EndTurn);
-        }
-        assert_eq!(werewolves(&g), 0, "the mana does not pay for the spearman");
-        // The wizard may be paying for another spell first: top the mana up each turn.
+        // The spell's cost with the margin, and nothing for the spearman.
         for _ in 0..40 {
-            treasury(&mut g, P1)?.mana = HalfInt::from_int((cost + extra) * 3 / 2 + 500);
+            treasury(&mut g, P1)?.mana = HalfInt::from_int(cost * 3 / 2 + 1);
             // Turns kill units of a world with no food or gold: keep the army up.
             for p in &land {
                 spawn(&mut g, P1, *p, 104, 3);
@@ -2460,11 +2418,7 @@ mod tests {
             }
             g.apply(f4x_core::game::Command::EndTurn);
         }
-        let began = g.wizard(P1).ok_or("a wizard")?.casting().map(|c| c.spell);
-        assert!(
-            werewolves(&g) >= 1,
-            "a spearman is a werewolf; casting {began:?}"
-        );
+        assert!(werewolves(&g) >= 1, "a spearman is a werewolf");
         Ok(())
     }
 }
