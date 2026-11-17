@@ -102,7 +102,7 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
         let view = f4x_core::player::view::PlayerView::new(game, me);
         for unit in view.my_units() {
             let serial = view.serial_of(unit);
-            for role in [Role::Raid, Role::Scout, Role::Meld] {
+            for role in [Role::Raid, Role::Scout, Role::Meld, Role::March] {
                 if !ai.roles.is(serial, role) {
                     continue;
                 }
@@ -112,7 +112,7 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
                 let here = view.unit_position(unit);
                 // Failed: no order is left and the unit is not where it was going.
                 // A raid fights the site from the square beside it, so that counts as arrived.
-                let reach = u32::from(role == Role::Raid);
+                let reach = u32::from(matches!(role, Role::Raid | Role::March));
                 let arrived = here.is_some_and(|h| {
                     h == target
                         || (reach > 0
@@ -120,7 +120,10 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
                 });
                 if !mission_valid(ai, &view, role, target) {
                     reset.push((unit, role));
-                } else if !view.unit_has_order(unit) && !arrived {
+                } else if !view.unit_has_order(unit)
+                    && !arrived
+                    && ai.roles.crossing_of(serial).is_none()
+                {
                     // A unit can lose its walk for many reasons (a strike moved it, a battle,
                     // a refused step): the registry still knows where it goes.
                     lost.push((unit, role, target));
@@ -130,8 +133,13 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
     }
     // The walk is given again; a unit the game will not send is given up.
     for (unit, role, target) in lost {
-        let sent = match role {
-            Role::Raid => crate::assault::march(ai, game, &[unit], target, events).is_ok(),
+        use crate::SendError;
+        use f4x_core::game::Rejection;
+        use f4x_core::unit::movement::MoveError;
+        // `Err(true)`: no walk leads there; `Err(false)`: refused for another reason.
+        let sent: Result<(), bool> = match role {
+            Role::Raid | Role::March => crate::assault::march(ai, game, &[unit], target, events)
+                .map_err(|why| why == crate::assault::MarchError::Unreachable),
             _ => ai
                 .probe(
                     game,
@@ -141,10 +149,35 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
                     },
                     events,
                 )
-                .is_ok(),
+                .map_err(|why| {
+                    matches!(
+                        why,
+                        SendError::Rejected(Rejection::Move(MoveError::Impassable))
+                            | SendError::Stopped(MoveError::Impassable)
+                    )
+                }),
         };
-        if !sent {
-            reset.push((unit, role));
+        let unreachable = match sent {
+            Ok(()) => continue,
+            Err(no_walk) => no_walk,
+        };
+        // No walk leads there. A target on the other plane needs a crossing of the planes, one
+        // on this plane with no known land route needs a ship; the unit keeps its role and its
+        // target and waits for the transport. When even that is not possible it is given up.
+        let (serial, here) = {
+            let view = f4x_core::player::view::PlayerView::new(game, me);
+            (view.serial_of(unit), view.unit_position(unit))
+        };
+        match here {
+            Some(h) if h.plane != target.plane => {
+                ai.roles
+                    .set_crossing(serial, Some(crate::roles::Crossing::Plane));
+            }
+            Some(_) if unreachable => {
+                ai.roles
+                    .set_crossing(serial, Some(crate::roles::Crossing::Sea));
+            }
+            _ => reset.push((unit, role)),
         }
     }
     let mut serials = Vec::new();
@@ -332,10 +365,11 @@ mod tests {
         Ok(())
     }
 
-    /// A scout whose ground was explored meanwhile, and one whose order stopped short, are given
-    /// up and await orders; one still on its way keeps its mission.
+    /// A scout whose ground was explored meanwhile is given up and awaits orders; one still on
+    /// its way keeps its mission, and one with no walk to its target keeps it too, tagged with
+    /// the ship it needs.
     #[test]
-    fn a_unit_whose_mission_is_over_awaits_orders_and_one_on_its_way_keeps_it() {
+    fn a_unit_whose_mission_is_over_awaits_orders_and_one_that_cannot_walk_waits_for_a_ship() {
         use crate::roles::Role;
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let target = at(30, 10);
@@ -359,14 +393,19 @@ mod tests {
             &mut events,
         )
         .expect("the walker can walk");
-        // `walker` has an order and valid ground; `stopped` has no order and is not there.
-        assert_eq!(revalidate(&mut ai, &mut g, &mut events), 1);
+        // `walker` has an order and valid ground; `stopped` has no order and no walk leads to
+        // its target (across the sea): it keeps its mission and waits for a ship.
+        assert_eq!(revalidate(&mut ai, &mut g, &mut events), 0);
         assert!(ai.roles.is(a, Role::Scout));
-        assert!(!ai.roles.is(b, Role::Scout));
-        // The ground becomes known: the walker's mission is over too.
+        assert!(ai.roles.is(b, Role::Scout));
+        assert_eq!(ai.roles.crossing_of(b), Some(crate::roles::Crossing::Sea));
+        assert_eq!(ai.roles.crossing_of(a), None);
+        // The ground becomes known: both missions are over, the flag goes with the role.
         g.reveal_map(P0);
-        assert_eq!(revalidate(&mut ai, &mut g, &mut events), 1);
+        assert_eq!(revalidate(&mut ai, &mut g, &mut events), 2);
         assert!(!ai.roles.is(a, Role::Scout));
+        assert!(!ai.roles.is(b, Role::Scout));
+        assert_eq!(ai.roles.crossing_of(b), None);
         let view = f4x_core::player::view::PlayerView::new(&g, P0);
         assert!(!view.unit_has_order(walker));
         assert_eq!(ai.missions_reset, 2);
@@ -395,5 +434,29 @@ mod tests {
             view.unit_has_order(scout) || view.unit_position(scout) != Some(at(9, 7)),
             "walking again: {events:?}"
         );
+    }
+
+    /// A target on the other plane needs a crossing of the planes; the unit keeps its role and its
+    /// target and is not sent again every turn.
+    #[test]
+    fn a_unit_whose_target_is_on_the_other_plane_is_tagged_with_a_plane_crossing() {
+        use crate::roles::{Crossing, Role};
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut target = at(5, 9);
+        target.plane = f4x_core::map::Plane::Myrror;
+        let scout = spawn(&mut g, P0, at(9, 7), 104, 1)[0];
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        let view = f4x_core::player::view::PlayerView::new(&g, P0);
+        let serial = view.serial_of(scout);
+        assert!(!view.explored(target));
+        let _ = ai.roles.claim(serial, Role::Scout, 1, Some(target));
+        let mut events = Vec::new();
+        assert_eq!(revalidate(&mut ai, &mut g, &mut events), 0);
+        assert_eq!(ai.roles.crossing_of(serial), Some(Crossing::Plane));
+        assert_eq!(ai.roles.needing(Crossing::Plane), vec![(serial, target)]);
+        // A new target clears the tag.
+        ai.roles.set_target(serial, Role::Scout, Some(at(5, 9)));
+        assert_eq!(ai.roles.crossing_of(serial), None);
     }
 }

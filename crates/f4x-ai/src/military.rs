@@ -759,8 +759,15 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 units: launched.len() as u32,
             });
             ai.roles.end_musters(MusterKind::Campaign);
-            ai.roles
-                .assign(crate::roles::Role::March, launched, game.turn);
+            ai.roles.assign(
+                crate::roles::Role::March,
+                launched.iter().copied(),
+                game.turn,
+            );
+            for &s in &launched {
+                ai.roles
+                    .set_target(s, crate::roles::Role::March, Some(target));
+            }
             ai.march_started = game.turn;
         }
     }
@@ -1108,8 +1115,15 @@ fn march_landed(
             target,
             units: launched.len() as u32,
         });
-        ai.roles
-            .assign(crate::roles::Role::March, launched, game.turn);
+        ai.roles.assign(
+            crate::roles::Role::March,
+            launched.iter().copied(),
+            game.turn,
+        );
+        for &s in &launched {
+            ai.roles
+                .set_target(s, crate::roles::Role::March, Some(target));
+        }
         ai.march_started = game.turn;
     }
 }
@@ -1492,6 +1506,12 @@ mod tests {
             .collect();
         assert!(!marching.is_empty(), "the march left");
         assert!(marching.len() <= max);
+        // The registry knows where the march goes, so a lost walk can be given again.
+        let ahead = ai.campaign;
+        assert!(ahead.is_some());
+        assert!(marching
+            .iter()
+            .all(|&u| ai.roles.target_of(view.serial_of(u), Role::March) == ahead));
         let squares: std::collections::HashSet<_> = marching
             .iter()
             .filter_map(|&u| view.unit_destination(u))

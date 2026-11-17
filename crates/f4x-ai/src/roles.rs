@@ -63,10 +63,22 @@ pub enum Role {
     /// where it stands until the dispatcher (`dispatch.rs`) has a job for it.
     AwaitingOrders,
     /// Stranded where no own city can be reached: waits on a shore tile for a ship
-    /// (`pickup.rs`).
+    /// (`pickup.rs`). **Deprecated** (task 647): a unit keeps the role of what it wants to do at
+    /// its target and carries `Assignment::crossing` for what takes it there.
     AwaitTransport,
     /// On its way to a square by an order of its own (`to` = the end of the path).
     MoveTo,
+}
+
+/// What carries a unit to its target when no walk leads there: the unit keeps its role and its
+/// target and waits where it stands until the transport (ships, spells, towers: task 647) takes
+/// it. The unit is tagged with what it wants to do at the target, not with the means.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum Crossing {
+    /// The target is on the same plane but no known land route leads to it: a ship.
+    Sea,
+    /// The target is on the other plane: a tower, a gate or a spell.
+    Plane,
 }
 
 /// A unit's role as the registry holds it.
@@ -88,6 +100,9 @@ pub struct Assignment {
     /// The one unit it is tied to: the settler an escort guards, the ship a passenger is aboard.
     #[serde(default)]
     pub with: Option<Serial>,
+    /// What it needs to get to its target, when it cannot walk there.
+    #[serde(default)]
+    pub crossing: Option<Crossing>,
     /// Where it stood at the last audit, and for how many audits in a row it has not moved.
     pub last_pos: Option<Position>,
     pub stuck: u32,
@@ -103,6 +118,7 @@ impl Assignment {
             to: None,
             party: None,
             with: None,
+            crossing: None,
             last_pos: None,
             stuck: 0,
         }
@@ -427,9 +443,34 @@ impl Registry {
         if let Some(a) = self.map.get_mut(&serial).filter(|a| a.role == role) {
             if a.to != to {
                 a.planned = now;
+                a.crossing = None;
             }
             a.to = to;
         }
+    }
+
+    /// Tag the unit with what it needs to reach its target (or clear it with `None`).
+    pub fn set_crossing(&mut self, serial: Serial, crossing: Option<Crossing>) {
+        if let Some(a) = self.map.get_mut(&serial) {
+            a.crossing = crossing;
+        }
+    }
+
+    /// What the unit needs to reach its target, if it cannot walk there.
+    pub fn crossing_of(&self, serial: Serial) -> Option<Crossing> {
+        self.map.get(&serial).and_then(|a| a.crossing)
+    }
+
+    /// The units that need `crossing`, with where they want to go, in serial order.
+    pub fn needing(&self, crossing: Crossing) -> Vec<(Serial, Position)> {
+        let mut found: Vec<_> = self
+            .map
+            .iter()
+            .filter(|(_, a)| a.crossing == Some(crossing))
+            .filter_map(|(s, a)| a.to.map(|p| (*s, p)))
+            .collect();
+        found.sort_by_key(|&(s, _)| s);
+        found
     }
 
     /// Tell the registry the turn (it dates the roles handed back and the plans re-targeted).
@@ -682,6 +723,7 @@ impl Registry {
                 if to.is_some() && held.to != to {
                     held.to = to;
                     held.planned = turn;
+                    held.crossing = None;
                 }
                 Ok(())
             }
@@ -696,6 +738,7 @@ impl Registry {
                         to,
                         party: None,
                         with: None,
+                        crossing: None,
                         last_pos: None,
                         stuck: 0,
                     },
