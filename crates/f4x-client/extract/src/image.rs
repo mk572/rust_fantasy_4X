@@ -215,6 +215,21 @@ pub fn to_rgba_stone(pixels: &[u8], palette: &[u8]) -> Vec<u8> {
     out
 }
 
+/// [`to_rgba_glass`] for the picture frames of the notify boxes (`resource.lbx` 41, 42, 44, 45, 47
+/// and 48): the white glass blocks of their outline darken what is under them, as the selection
+/// box's frame ([`to_rgba_stone`]) does, so over the box's black fill they are dark grain, not
+/// light grey speckle.
+pub fn to_rgba_notify_frame(pixels: &[u8], palette: &[u8], glass: &[[u8; 4]]) -> Vec<u8> {
+    let mut out = to_rgba_glass(pixels, palette, glass);
+    for (k, _) in pixels.iter().enumerate().filter(|(_, &i)| i >= GLASS_FIRST) {
+        let px = &mut out[k * 4..k * 4 + 3];
+        if px == [255, 255, 255] {
+            px.copy_from_slice(&[0, 0, 0]);
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

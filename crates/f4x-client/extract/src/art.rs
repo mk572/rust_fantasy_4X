@@ -9,7 +9,9 @@
 use std::fs;
 use std::path::Path;
 
-use crate::image::{decode, to_rgba, to_rgba_glass, to_rgba_stone, vga_to_rgb8};
+use crate::image::{
+    decode, to_rgba, to_rgba_glass, to_rgba_notify_frame, to_rgba_stone, vga_to_rgb8,
+};
 use crate::lbx::Lbx;
 use crate::screens::{self, Placer};
 use crate::spell_art::SpellArt;
@@ -67,6 +69,10 @@ fn extract_cursors(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize,
 /// The pieces of the selection box's frame in `resource.lbx` (left, bottom left, right, bottom
 /// and bottom right): their glass indexes are opaque stone ([`to_rgba_stone`]).
 const SELECTION_FRAME: [usize; 5] = [5, 6, 8, 9, 10];
+
+/// The picture frames of the notify boxes in `resource.lbx` (green, red and brown boxes, the plain
+/// frame and the gem frame of each): their white glass blocks darken ([`to_rgba_notify_frame`]).
+const NOTIFY_FRAME: [usize; 6] = [41, 42, 44, 45, 47, 48];
 
 /// The glass table: 24 colours (6-bit red, green, blue and a percent) at 5376 bytes into the base
 /// palette's entry, which pixels from index 232 on tint the picture under them with. Block 0, the
@@ -691,6 +697,8 @@ pub fn extract_with(
                     to_rgba(&frame.pixels, &pal)
                 } else if stem == "resource" && SELECTION_FRAME.contains(&i) {
                     to_rgba_stone(&frame.pixels, &pal)
+                } else if stem == "resource" && NOTIFY_FRAME.contains(&i) {
+                    to_rgba_notify_frame(&frame.pixels, &pal, &glass)
                 } else {
                     to_rgba_glass(&frame.pixels, &pal, &glass)
                 };
