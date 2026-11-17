@@ -62,6 +62,21 @@ pub fn unit_strength(view: &PlayerView, unit: hecs::Entity) -> f32 {
     strength(attack, view.unit_stat(unit, Stat::Defense), hits as i32)
 }
 
+/// The units of `units` that would fight a battle together: the strongest `max_battle_side` of
+/// them, the strongest first. No more join a battle once it has begun, so every plan to attack,
+/// gather or march counts and moves this party and not the whole stack: a stack the size of a
+/// square only crowds the squares it stands on.
+pub fn party(view: &PlayerView, units: &[hecs::Entity]) -> Vec<hecs::Entity> {
+    let mut party = units.to_vec();
+    party.sort_by(|&a, &b| {
+        unit_strength(view, b)
+            .total_cmp(&unit_strength(view, a))
+            .then(view.serial_of(a).cmp(&view.serial_of(b)))
+    });
+    party.truncate(view.max_battle_side());
+    party
+}
+
 pub fn stack_strength(view: &PlayerView, units: &[hecs::Entity]) -> f32 {
     units.iter().map(|&u| unit_strength(view, u)).sum()
 }
@@ -187,6 +202,35 @@ mod tests {
             spear_s + paladin_s
         );
         Ok(())
+    }
+
+    #[test]
+    fn a_party_is_the_strongest_nine_of_a_stack_and_never_more() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut stack = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 10);
+        stack.extend(spawn(
+            &mut g,
+            P0,
+            city(),
+            113, /* high_men_paladins */
+            2,
+        ));
+        let view = PlayerView::new(&g, P0);
+        let band = party(&view, &stack);
+        assert_eq!(band.len(), view.max_battle_side());
+        assert!(
+            band.len() < stack.len(),
+            "a square holds more than a battle"
+        );
+        let paladin = unit_strength(&view, stack[10]);
+        assert!(band[..2]
+            .iter()
+            .all(|&u| unit_strength(&view, u) == paladin));
+        assert_eq!(
+            stack_strength(&view, &band),
+            fighting_strength(&view, &stack)
+        );
+        assert_eq!(party(&view, &stack[..3]).len(), 3);
     }
 
     #[test]

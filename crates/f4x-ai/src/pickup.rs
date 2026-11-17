@@ -195,7 +195,7 @@ fn give_up_waiting(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     for (pos, units) in groups {
         let target = {
             let view = PlayerView::new(game, me);
-            let mine = crate::view::stack_strength(&view, &units);
+            let mine = crate::view::stack_strength(&view, &crate::view::party(&view, &units));
             crate::military::neighbours(&view, pos)
                 .into_iter()
                 .filter_map(|n| view.hostile_at(n))
@@ -214,7 +214,10 @@ fn give_up_waiting(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.roles.release(s, Role::AwaitTransport);
         }
         match target {
-            Some(defenders) => crate::military::engage(ai, game, units, defenders, events),
+            Some(defenders) => {
+                let band = crate::view::party(&PlayerView::new(game, me), &units);
+                crate::military::engage(ai, game, band, defenders, events);
+            }
             None => {
                 for &s in &serials {
                     let _ = ai.roles.claim(s, Role::Perimeter, turn, Some(pos));

@@ -11,7 +11,7 @@ use f4x_core::player::PlayerId;
 use f4x_core::unit::pathing::ReachSignature;
 
 use crate::roles::MusterKind;
-use crate::view::{distance, fighting_strength, is_fighter, stack_strength, unit_strength};
+use crate::view::{distance, fighting_strength, is_fighter, party, stack_strength, unit_strength};
 use crate::{race, Ai};
 
 /// The AI attacks when its force is this much stronger than what it expects to meet.
@@ -203,7 +203,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     }
                 })
                 .collect();
-            (ratio, stack_strength(&view, &units), sorties)
+            (ratio, stack_strength(&view, &party(&view, &units)), sorties)
         };
         for sortie in sorties {
             match sortie {
@@ -238,15 +238,17 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
                 Sortie::Fight(defenders, theirs) => {
                     // A city's garrison holds: only the soldiers beyond it sally out.
+                    // Only the party that fights goes: the rest of the stack stays where it is.
                     let attackers: Vec<hecs::Entity> = {
                         let view = PlayerView::new(game, me);
-                        units
+                        let fit: Vec<hecs::Entity> = units
                             .iter()
                             .copied()
                             .filter(|&u| {
                                 !ai.roles.is(view.serial_of(u), crate::roles::Role::Garrison)
                             })
-                            .collect()
+                            .collect();
+                        party(&view, &fit)
                     };
                     let mine = if at_city {
                         stack_strength(&PlayerView::new(game, me), &attackers)
@@ -254,8 +256,8 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         mine
                     };
                     if mine >= theirs * ratio && !attackers.is_empty() {
+                        spent.extend(&attackers);
                         engage(ai, game, attackers, defenders, events);
-                        spent.extend(&units);
                         break;
                     }
                 }
@@ -492,7 +494,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .total_cmp(&unit_strength(&view, a))
                 .then(view.serial_of(a).cmp(&view.serial_of(b)))
         });
-        at_rally.truncate(view.max_tile());
+        at_rally.truncate(view.max_battle_side());
         let force = stack_strength(&view, &at_rally);
         (rally, expected, at_rally, elsewhere, force)
     };
@@ -571,7 +573,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 && reach
                 && !tower_full
                 && Ai::room_at(game, tower, 1)
-                && at_tower.len() < PlayerView::new(game, me).max_tile()
+                && at_tower.len() < PlayerView::new(game, me).max_battle_side()
                 && here.is_some_and(|p| p.plane == tower.plane)
             {
                 let sent = ai.send(
@@ -590,7 +592,13 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             continue;
         }
         // Nothing is sent while too few units are free to make a march at all.
-        if (have >= needed && have_units >= MIN_MARCH) || available < MIN_MARCH {
+        // The party is full at the most a battle holds (more only crowd the squares), or strong
+        // enough, or there are too few free units to make a march at all.
+        let party_size = PlayerView::new(game, me).max_battle_side();
+        if (have >= needed && have_units >= MIN_MARCH)
+            || have_units >= party_size
+            || available < MIN_MARCH
+        {
             continue;
         }
         // A gate is quicker than the road: an Earth Gate city sends its troops to the rally
@@ -693,7 +701,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
     }
     // The troops at the tower cross in stacks of what a square holds.
-    let stack = game.max_tile();
+    let stack = game.max_battle_side();
     for chunk in at_tower.chunks(stack) {
         if chunk.len() < MIN_CROSSING.min(elsewhere.len()) {
             continue;
@@ -735,7 +743,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
         }
         for (_, units) in &by_square {
-            for chunk in units.chunks(game.max_tile()) {
+            for chunk in units.chunks(game.max_battle_side()) {
                 let serials: Vec<Serial> = {
                     let view = PlayerView::new(game, me);
                     chunk.iter().map(|&u| view.serial_of(u)).collect()
@@ -849,7 +857,7 @@ pub(crate) fn force_wanted(
 ) -> usize {
     let needed = expected_defence(view, memory, turn, target) * attack_ratio() + 1.0;
     ((needed / average_strength(view).max(1.0)).ceil() as usize)
-        .clamp(3, MAX_FORCE.min(view.max_tile()))
+        .clamp(3, MAX_FORCE.min(view.max_battle_side()))
 }
 
 /// The fewest units a march starts with.
@@ -1060,7 +1068,7 @@ fn march_landed(
     events: &mut Vec<Event>,
 ) {
     let me = ai.player;
-    let (landed, force, expected) = {
+    let (landed, expected) = {
         let view = PlayerView::new(game, me);
         let open: Vec<Position> = neighbours(&view, target)
             .into_iter()
@@ -1125,13 +1133,11 @@ fn march_landed(
                 reached
             })
             .collect();
-        let force = stack_strength(&view, &landed);
         let expected = expected_defence(&view, &ai.city_memory, game.turn, target);
-        (landed, force, expected)
+        (landed, expected)
     };
-    if landed.len() < 2 || force < expected * COMMITTED_LANDING {
-        return;
-    }
+    // One battle is one square's party: each square is judged on its own best nine, and the
+    // soldiers beyond them stay where they are.
     let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
     {
         let view = PlayerView::new(game, me);
@@ -1147,14 +1153,23 @@ fn march_landed(
     }
     let mut launched: Vec<Serial> = Vec::new();
     for (_, units) in &by_square {
-        for chunk in units.chunks(game.max_tile()) {
-            let serials: Vec<Serial> = {
-                let view = PlayerView::new(game, me);
-                chunk.iter().map(|&u| view.serial_of(u)).collect()
-            };
-            if march(ai, game, chunk, target, events) == March::Sent {
-                launched.extend(serials);
-            }
+        let band = {
+            let view = PlayerView::new(game, me);
+            party(&view, units)
+        };
+        let strong_enough = {
+            let view = PlayerView::new(game, me);
+            band.len() >= 2 && stack_strength(&view, &band) >= expected * COMMITTED_LANDING
+        };
+        if !strong_enough {
+            continue;
+        }
+        let serials: Vec<Serial> = {
+            let view = PlayerView::new(game, me);
+            band.iter().map(|&u| view.serial_of(u)).collect()
+        };
+        if march(ai, game, &band, target, events) == March::Sent {
+            launched.extend(serials);
         }
     }
     if !launched.is_empty() {
@@ -1294,6 +1309,38 @@ mod tests {
         Ok(())
     }
 
+    /// A stack of a square's size attacks with the nine a battle holds and the rest stay on the
+    /// square, available.
+    #[test]
+    fn a_stack_attacks_with_a_battle_party_and_leaves_the_rest_on_its_square() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let (side, tile) = (g.max_battle_side(), g.max_tile());
+        let stack = spawn(
+            &mut g,
+            P0,
+            at(6, 3),
+            105, /* high_men_swordsmen */
+            tile,
+        );
+        spawn(&mut g, P1, at(7, 3), 104 /* high_men_spearmen */, 1);
+        let mut ai = Ai::new(P0);
+        ai.leave_defence_to(&[P1]);
+        army(&mut ai, &mut g, &mut Vec::new());
+        let attacks = ai.take_attacks();
+        assert_eq!(attacks.len(), 1);
+        assert_eq!(attacks[0].attackers.len(), side);
+        assert!(side < stack.len());
+        let view = PlayerView::new(&g, P0);
+        let left: Vec<_> = stack
+            .iter()
+            .filter(|u| !attacks[0].attackers.contains(u))
+            .collect();
+        assert_eq!(left.len(), tile - side);
+        assert!(left
+            .iter()
+            .all(|&&u| view.unit_position(u) == Some(at(6, 3))));
+    }
+
     #[test]
     fn an_attack_on_a_wizard_who_defends_in_person_is_kept_not_fought() {
         let (mut g, defenders) = field();
@@ -1388,7 +1435,7 @@ mod tests {
         );
         assert!(wanted(&strong) <= MAX_FORCE);
         // The army attacks from one square: no more is wanted than a square holds.
-        assert!(wanted(&strong) <= view.max_tile());
+        assert!(wanted(&strong) <= view.max_battle_side());
     }
 
     /// The march is one stack on one square: the strongest units of the rally square up to what a
@@ -1399,8 +1446,8 @@ mod tests {
         use crate::roles::Role;
         let mut g = rival_with_a_seat((4, 4))?;
         let capital = at(COAST_CITY.0, COAST_CITY.1);
-        let max = g.max_tile();
-        let stack = spawn(&mut g, P0, capital, 113 /* high_men_paladins */, max);
+        let (max, tile) = (g.max_battle_side(), g.max_tile());
+        let stack = spawn(&mut g, P0, capital, 113 /* high_men_paladins */, tile);
         let beside = spawn(&mut g, P0, at(COAST_CITY.0 - 1, COAST_CITY.1), 113, 2);
         g.reveal_map(P0);
         let mut ai = Ai::new(P0);

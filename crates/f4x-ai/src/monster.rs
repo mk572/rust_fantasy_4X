@@ -74,7 +74,7 @@ fn act(
         (
             around(&view, pos),
             view.vacant_zones(),
-            stack_strength(&view, &units),
+            stack_strength(&view, &crate::view::party(&view, &units)),
             view.turn(),
         )
     };
@@ -105,7 +105,8 @@ fn act(
                 }
             }
             Some((defenders, theirs)) if mine >= theirs * EDGE => {
-                strike(ai, game, units.clone(), defenders, events);
+                let band = crate::view::party(&PlayerView::new(game, MONSTERS), &units);
+                strike(ai, game, band, defenders, events);
                 return;
             }
             _ => {}

@@ -882,3 +882,12 @@ that attacks from one square, the next target from where the army stands, the ca
 reserved, the plan visible in the soak. The pincer, the pickoff, the screen, several groups and the
 route recon are task 651 and come after task 646 (the dispatcher fills the plan's demands) and task 649.
 
+**Party, not stack (17 November 2026).** A square holds `max_tile` units (12) but a battle holds
+`max_battle_side` (9) a side, and nobody joins a battle once it has begun. Every plan that attacks,
+gathers, marches, crosses or lands therefore counts and moves the *party* (`view::party`: the
+strongest nine of the units, strongest first), not the stack: the sorties of `military::army`, the
+gathering and the march (a muster is full at nine, `force_wanted` is at most nine), the crossing
+by a tower, a landing (judged square by square), the perimeter, the stranded groups of `pickup.rs`
+and the neutral stacks. The soldiers beyond the party stay where they are, available. A stack of
+twelve walking about only crowds the squares it stands on and blocks the next stack.
+

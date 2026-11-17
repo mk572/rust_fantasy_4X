@@ -154,7 +154,8 @@ pub fn run(
         if pool.is_empty() {
             continue;
         }
-        let total = stack_strength(&PlayerView::new(game, me), &pool);
+        // A battle is fought by a party of at most a battle side: more soldiers add nothing.
+        let total = crate::view::fighting_strength(&PlayerView::new(game, me), &pool);
         // Whoever takes the role from the free list is spent for this turn.
         let idle: Vec<hecs::Entity> = {
             let view = PlayerView::new(game, me);
@@ -220,11 +221,20 @@ fn attack_or_gather(
         groups.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
         let best = groups
             .into_iter()
-            .map(|(_, list)| (stack_strength(&view, &list), list))
+            .map(|(_, list)| {
+                let band = crate::view::party(&view, &list);
+                (stack_strength(&view, &band), band, list)
+            })
             .max_by(|a, b| a.0.total_cmp(&b.0))
-            .map(|(_, list)| list)
+            .map(|(_, band, list)| (band, list))
             .unwrap_or_default();
-        let apart: Vec<hecs::Entity> = idle.iter().copied().filter(|u| !best.contains(u)).collect();
+        let (best, square) = best;
+        // The soldiers beyond the party that stand on its square stay there.
+        let apart: Vec<hecs::Entity> = idle
+            .iter()
+            .copied()
+            .filter(|u| !best.contains(u) && !square.contains(u))
+            .collect();
         (best, apart)
     };
     let enough =
