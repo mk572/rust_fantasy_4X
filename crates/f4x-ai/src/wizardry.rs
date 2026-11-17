@@ -55,6 +55,9 @@ pub enum Kind {
     Stasis,
     /// Chaos Channels: gives a fighter a lasting mutation.
     Mutate,
+    /// Lycanthropy: turns an obsolete fighter into a werewolf. The unit is given up, so its
+    /// production cost counts as mana on top of the spell's (`lycanthropy_target`).
+    Lycanthropy,
     /// Word of Recall: takes a hurt stack far from home back to the summoning circle.
     Recall,
     /// Plane Shift: carries the whole stack on a square to the other plane (the army's way
@@ -92,6 +95,11 @@ const STASIS_RADIUS: i32 = 3;
 const SAVING_TURNS: i32 = 15;
 /// Mana kept in the reserve before the AI starts a global enchantment (the original's gate).
 const GLOBAL_RESERVE: i32 = 200;
+/// How many times the strength of a unit a werewolf must be for Lycanthropy to be worth it: only
+/// the obsolete (spearmen next to werewolves) are turned.
+const LYCANTHROPY_EDGE: f32 = 1.5;
+/// Werewolves, the unit Lycanthropy makes (content number).
+const WEREWOLVES: u16 = 168;
 
 fn has_hook(def: &SpellDef, name: &str) -> bool {
     def.effects
@@ -111,6 +119,40 @@ fn summons_melder(view: &PlayerView, def: &SpellDef) -> bool {
             .contains(&f4x_def::rules::Ability::new(42)),
         _ => false,
     })
+}
+
+/// The own fighter Lycanthropy turns into a werewolf and the extra mana it costs: the production
+/// cost of the unit given up, one for one. Only a unit the werewolf is clearly better than is
+/// turned (`LYCANTHROPY_EDGE`); of those, the one that gains most for the mana in all.
+fn lycanthropy_target(view: &PlayerView, spell: SpellId) -> Option<(hecs::Entity, i32)> {
+    let wolf = view.content().rules.units.id_numbered(WEREWOLVES)?;
+    let wolf_power = f4x_core::battle::power::def_power(view.content().rules.units.get(wolf));
+    let cast = view.casting_cost(spell).max(1) as f32;
+    let mut units: Vec<hecs::Entity> = view
+        .my_units()
+        .into_iter()
+        .filter(|&u| is_fighter(view, u) && !crate::recover::needs_rest(view, u))
+        .collect();
+    view.sort_by_serial(&mut units);
+    units
+        .into_iter()
+        .filter_map(|u| {
+            let power = unit_strength(view, u);
+            let extra = view.unit_def(u)?.cost as i32;
+            (wolf_power >= power * LYCANTHROPY_EDGE && view.can_aim(spell, Some(Target::Unit(u))))
+                .then(|| ((wolf_power - power) / (cast + extra as f32), u, extra))
+        })
+        .max_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, u, extra)| (u, extra))
+}
+
+/// The mana a cast adds to the spell's cost: the production cost of the unit Lycanthropy is
+/// aimed at, else nothing.
+fn lycanthropy_extra(view: &PlayerView, k: Kind, target: Option<Target>) -> i32 {
+    match (k, target) {
+        (Kind::Lycanthropy, Some(Target::Unit(u))) => view.unit_def(u).map_or(0, |d| d.cost as i32),
+        _ => 0,
+    }
 }
 
 /// What the AI makes of a spell.
@@ -147,6 +189,7 @@ pub fn kind(def: &SpellDef) -> Kind {
     match UnitEffect::of(def) {
         Some(UnitEffect::NaturesCures) => return Kind::Cure,
         Some(UnitEffect::ChaosChannels) => return Kind::Mutate,
+        Some(UnitEffect::Lycanthropy) => return Kind::Lycanthropy,
         _ => {}
     }
     if def.has_hook_arg(
@@ -264,6 +307,7 @@ fn priority(k: Kind) -> u8 {
         Kind::Blast => 1,
         Kind::Stasis => 2,
         Kind::Mutate => 4,
+        Kind::Lycanthropy => 4,
         Kind::Recall => 2,
         Kind::PlaneShift => 2,
         Kind::Gate => 2,
@@ -801,6 +845,7 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
             .max_by_key(|&(s, i)| (view.spell(s).cost, std::cmp::Reverse(view.serial_of(i))))
             .map(|(_, i)| Target::Spell(i))
             .filter(|&t| view.can_aim(spell, Some(t))),
+        Kind::Lycanthropy => lycanthropy_target(view, spell).map(|(u, _)| Target::Unit(u)),
         Kind::Mutate => {
             let mut units: Vec<hecs::Entity> = view
                 .my_units()
@@ -1214,6 +1259,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         | Kind::CityBuff
                         | Kind::GlobalBuff
                         | Kind::Mutate
+                        | Kind::Lycanthropy
                         | Kind::CityCurse
                         | Kind::WizardCurse
                         | Kind::Disjunction
@@ -1227,7 +1273,6 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             // Paid for from the reserve, over as many turns as the casting skill needs, with
             // a third of the mana left over for the upkeep. The Spell of Mastery goes on until it
             // is paid whatever the reserve.
-            let now = cost * 3 / 2 <= mana;
             // Summoned creatures and lasting spells cost mana every turn: not when the upkeep
             // already takes more than half of what the power makes (the split then leaves research
             // starved).
@@ -1239,6 +1284,10 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             } else {
                 pick_target(&view, spell)
             };
+            // The unit Lycanthropy gives up is paid for in mana as well, one for one with what it
+            // cost to make.
+            let cost = cost + lycanthropy_extra(&view, k, target);
+            let now = cost * 3 / 2 <= mana;
             let wanted = match k {
                 Kind::Mastery => true,
                 // Summoned creatures cost upkeep mana: only while the army is thin.
@@ -1267,6 +1316,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     now && room && fighters >= 3 && upkeep_ok(&view, def) && target.is_some()
                 }
                 Kind::Mutate => now && fighters >= 3 && target.is_some(),
+                Kind::Lycanthropy => now && fighters >= 3 && target.is_some(),
                 Kind::CityBuff => now && room && upkeep_ok(&view, def) && target.is_some(),
                 Kind::GlobalBuff => {
                     now && room
@@ -1531,6 +1581,7 @@ mod tests {
             (204 /* disenchant_area */, Kind::Disenchant),
             (52 /* disenchant_true */, Kind::Disenchant),
             (93 /* chaos_channels */, Kind::Mutate),
+            (173 /* lycanthropy */, Kind::Lycanthropy),
             (47 /* word_of_recall */, Kind::Recall),
             (210 /* disjunction */, Kind::Disjunction),
             (76 /* spell_binding */, Kind::Disjunction),
@@ -1974,10 +2025,6 @@ mod tests {
             "protects a unit from dispels in battle; no overland worth",
         ),
         (
-            173, /* lycanthropy */
-            "swaps a unit for a werewolf; no model of which is better",
-        ),
-        (
             163, /* dark_rituals */
             "costs the city its growth and adds unrest",
         ),
@@ -2267,6 +2314,139 @@ mod tests {
             mana_wanted(&PlayerView::new(&g, P1), &[]),
             before + 3000,
             "what is still owed is wanted on top"
+        );
+        Ok(())
+    }
+
+    /// Lycanthropy turns the obsolete (spearmen), not a unit the werewolf is no better than, and
+    /// the unit's production cost is mana on top of the spell's.
+    #[test]
+    fn lycanthropy_is_aimed_at_an_obsolete_unit_and_its_cost_is_extra_mana() -> TestResult {
+        let mut g = fresh_game()?;
+        let lycanthropy = spell(173)?;
+        g.cheat_learn_spell(P1, lycanthropy);
+        let circle = g
+            .wizard(P1)
+            .ok_or("player 1 is a wizard")?
+            .summon_at()
+            .ok_or("a summoning circle")?;
+        let view = PlayerView::new(&g, P1);
+        let spearmen_cost = {
+            let rules = &view.content().rules;
+            rules
+                .units
+                .get(rules.units.id_numbered(104).ok_or("spearmen")?)
+                .cost as i32
+        };
+        drop(view);
+        for u in PlayerView::new(&g, P1).my_units() {
+            g.scenario_set_hurt(u, 0);
+        }
+        let paladins = spawn(&mut g, P1, circle, 113 /* high_men_paladins */, 1);
+        let before = lycanthropy_target(&PlayerView::new(&g, P1), lycanthropy);
+        assert!(
+            before.is_none_or(|(u, _)| u != paladins[0]),
+            "a paladin is no better as a werewolf"
+        );
+        let spearmen = spawn(&mut g, P1, circle, 104 /* high_men_spearmen */, 1);
+        let (aimed, extra) = lycanthropy_target(&PlayerView::new(&g, P1), lycanthropy)
+            .ok_or("an obsolete unit to turn")?;
+        assert_eq!(aimed, spearmen[0]);
+        assert_eq!(extra, spearmen_cost);
+        let view = PlayerView::new(&g, P1);
+        assert_eq!(
+            lycanthropy_extra(&view, Kind::Lycanthropy, Some(Target::Unit(aimed))),
+            spearmen_cost
+        );
+        assert_eq!(
+            lycanthropy_extra(&view, Kind::Summon, Some(Target::Unit(aimed))),
+            0
+        );
+        Ok(())
+    }
+
+    /// The cast waits until the mana pays for the spell and the unit given up, with the usual
+    /// margin; then the spearman is a werewolf.
+    #[test]
+    fn lycanthropy_is_cast_only_when_the_mana_pays_for_the_unit_too() -> TestResult {
+        let mut g = fresh_game()?;
+        let lycanthropy = spell(173)?;
+        g.cheat_learn_spell(P1, lycanthropy);
+        let circle = g
+            .wizard(P1)
+            .ok_or("player 1 is a wizard")?
+            .summon_at()
+            .ok_or("a summoning circle")?;
+        // An army big enough that no summon is wanted, so the spell under test is the one left.
+        let spearmen = spawn(&mut g, P1, circle, 104 /* high_men_spearmen */, 8);
+        let land: Vec<_> = {
+            let view = PlayerView::new(&g, P1);
+            [(1, 0), (0, 1), (-1, 0), (0, -1)]
+                .into_iter()
+                .filter_map(|(dx, dy)| view.shift(circle, dx, dy))
+                .filter(|&p| {
+                    view.terrain_class(p)
+                        .is_some_and(|t| t != f4x_core::map::terrain::TerrainClass::Ocean)
+                })
+                .collect()
+        };
+        for &p in &land {
+            spawn(&mut g, P1, p, 104, 8);
+        }
+        let cost = PlayerView::new(&g, P1).casting_cost(lycanthropy);
+        let extra = PlayerView::new(&g, P1)
+            .unit_def(spearmen[0])
+            .ok_or("a def")?
+            .cost as i32;
+        assert!(extra > 1, "the unit costs something");
+        let ai = Ai::new(P1);
+        let werewolves = |g: &Game| {
+            PlayerView::new(g, P1)
+                .my_units()
+                .into_iter()
+                .filter(|&u| {
+                    PlayerView::new(g, P1)
+                        .unit_def(u)
+                        .is_some_and(|d| d.num == WEREWOLVES)
+                })
+                .count()
+        };
+        // Enough for the spell with the margin, not for the spell and the spearman: whatever
+        // else the wizard casts first, Lycanthropy is never begun.
+        for _ in 0..15 {
+            treasury(&mut g, P1)?.mana = HalfInt::from_int(cost * 3 / 2 + extra / 2);
+            for p in &land {
+                spawn(&mut g, P1, *p, 104, 3);
+            }
+            resolve_paid(&ai, &mut g, &mut Vec::new());
+            cast(&ai, &mut g, &mut Vec::new());
+            let casting = g
+                .wizard(P1)
+                .ok_or("a wizard")?
+                .casting()
+                .is_some_and(|c| c.spell == lycanthropy);
+            assert!(!casting, "Lycanthropy begun without the mana for the unit");
+            g.apply(f4x_core::game::Command::EndTurn);
+        }
+        assert_eq!(werewolves(&g), 0, "the mana does not pay for the spearman");
+        // The wizard may be paying for another spell first: top the mana up each turn.
+        for _ in 0..40 {
+            treasury(&mut g, P1)?.mana = HalfInt::from_int((cost + extra) * 3 / 2 + 500);
+            // Turns kill units of a world with no food or gold: keep the army up.
+            for p in &land {
+                spawn(&mut g, P1, *p, 104, 3);
+            }
+            resolve_paid(&ai, &mut g, &mut Vec::new());
+            cast(&ai, &mut g, &mut Vec::new());
+            if werewolves(&g) > 0 {
+                break;
+            }
+            g.apply(f4x_core::game::Command::EndTurn);
+        }
+        let began = g.wizard(P1).ok_or("a wizard")?.casting().map(|c| c.spell);
+        assert!(
+            werewolves(&g) >= 1,
+            "a spearman is a werewolf; casting {began:?}"
         );
         Ok(())
     }
