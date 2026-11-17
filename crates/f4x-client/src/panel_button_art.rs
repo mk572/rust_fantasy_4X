@@ -99,6 +99,26 @@ thread_local! {
 /// the sheen picture, and the pixels diagonally beside it are the emboss: a light one up and to
 /// the left, a dark one down and to the right.
 fn sheen_label(app: &mut App, panel: Panel, sheen: &[u8], label: &str, size: Vec2) -> Texture2D {
+    sheen_text(
+        app,
+        sheen,
+        label,
+        size,
+        panel.label_at(size.x),
+        emboss_light(panel),
+    )
+}
+
+/// [`sheen_label`] for any picture the size of `size` with the sheen `sheen`: the text centred
+/// at `label_at` (its middle and top), the light emboss `light`.
+pub(crate) fn sheen_text(
+    app: &mut App,
+    sheen: &[u8],
+    label: &str,
+    size: Vec2,
+    label_at: (f32, f32),
+    light: Color,
+) -> Texture2D {
     let (w, h) = (size.x as u32, size.y as u32);
     let target = render_target(w, h);
     target.texture.set_filter(FilterMode::Nearest);
@@ -109,7 +129,7 @@ fn sheen_label(app: &mut App, panel: Panel, sheen: &[u8], label: &str, size: Vec
         ..Default::default()
     });
     clear_background(Color::new(0.0, 0.0, 0.0, 0.0));
-    let (lx, ly) = panel.label_at(size.x);
+    let (lx, ly) = label_at;
     app.draw_styled_in(
         &label_font(),
         (0.0, 0.0, 1.0),
@@ -136,7 +156,7 @@ fn sheen_label(app: &mut App, panel: Panel, sheen: &[u8], label: &str, size: Vec
             } else if ink(x - 1, y - 1) {
                 EMBOSS_DARK
             } else if ink(x + 1, y + 1) {
-                emboss_light(panel)
+                light
             } else {
                 continue;
             };
@@ -163,7 +183,55 @@ fn emboss_light(panel: Panel) -> Color {
     }
 }
 
+thread_local! {
+    static VAULT: RefCell<Option<(String, Texture2D)>> = const { RefCell::new(None) };
+}
+
+/// The box of the item screen's plaque title in the picture (`scripts/vault_plaque_text_free.py`):
+/// where it lies from the picture's top left, and its size.
+const VAULT_BOX: (f32, f32, f32, f32) = (49.0, 154.0, 90.0, 16.0);
+/// The middle and the top of the title's lettering in that box.
+const VAULT_LABEL_AT: (f32, f32) = (45.0, 3.0);
+
 impl App {
+    /// The plaque title of the item screen ("Fortress Vault"), in the lavender metallic lettering
+    /// of the stone buttons, with `picture` the screen position of the background picture's top
+    /// left corner. The lettering is composed once per text and kept.
+    pub(crate) fn draw_vault_title(&mut self, lay: &Layout, picture: (f32, f32)) {
+        let label = self.text("item.vault");
+        let (bx, by, bw, bh) = VAULT_BOX;
+        let size = vec2(bw, bh);
+        let cached = VAULT.with(|c| {
+            c.borrow()
+                .as_ref()
+                .filter(|(l, _)| *l == label)
+                .map(|(_, t)| t.clone())
+        });
+        let tex = cached.unwrap_or_else(|| {
+            let t = sheen_text(
+                self,
+                include_bytes!("../assets/item/sheen_vault.png"),
+                &label,
+                size,
+                VAULT_LABEL_AT,
+                EMBOSS_LIGHT,
+            );
+            VAULT.with(|c| *c.borrow_mut() = Some((label.clone(), t.clone())));
+            t
+        });
+        let p = lay.point(picture.0 + bx, picture.1 + by);
+        draw_texture_ex(
+            &tex,
+            p.x,
+            p.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(size * lay.scale),
+                ..Default::default()
+            },
+        );
+    }
+
     /// The button with its top left at `at`, labelled by the text key `key`; it moves a pixel while
     /// held. True when clicked. The lavender labels are composed once per text and kept.
     pub(crate) fn panel_button(

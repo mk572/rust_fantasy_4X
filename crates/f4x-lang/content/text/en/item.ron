@@ -1,6 +1,8 @@
 // Player-facing messages about items. One key is in one file only (docs/text.md).
 {
     // A bonus line on an item: "+3 Attack".
+    // The title of the plaque under the heroes (it was baked into the background picture).
+    "item.vault": "Fortress Vault",
     "item.bonus": "+{n} {stat}",
     "item.spell_save": "-{n} Spell Save",
     // A spell charged into an item: "Fire Bolt x 3".

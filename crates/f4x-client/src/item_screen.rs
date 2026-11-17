@@ -300,6 +300,40 @@ impl ItemUi {
     }
 }
 
+fn hero_background() -> Texture2D {
+    thread_local! {
+        static TEX: std::cell::RefCell<Option<Texture2D>> = const { std::cell::RefCell::new(None) };
+    }
+    TEX.with(|t| {
+        t.borrow_mut()
+            .get_or_insert_with(|| {
+                let tex = Texture2D::from_file_with_format(
+                    include_bytes!("../assets/item/hero_background.png"),
+                    Some(ImageFormat::Png),
+                );
+                tex.set_filter(FilterMode::Nearest);
+                tex
+            })
+            .clone()
+    })
+}
+
+/// The item screen's picture (285 by 197) with its top left at `at`.
+fn draw_hero_background(lay: &Layout, at: (f32, f32)) {
+    let tex = hero_background();
+    let p = lay.point(at.0, at.1);
+    draw_texture_ex(
+        &tex,
+        p.x,
+        p.y,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(vec2(tex.width(), tex.height()) * lay.scale),
+            ..Default::default()
+        },
+    );
+}
+
 impl Page for ItemUi {
     fn frame(&mut self, app: &mut App, input: &Input) {
         clear_background(BLACK);
@@ -307,7 +341,9 @@ impl Page for ItemUi {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (wx, wy) = WINDOW;
         app.draw_pic(&lay, "armylist", 0, 0, 0.0, 0.0);
-        app.draw_pic(&lay, "armylist", 5, 0, wx, wy);
+        // The picture without the plaque title (`scripts/vault_plaque_text_free.py`).
+        draw_hero_background(&lay, (wx, wy));
+        app.draw_vault_title(&lay, (wx, wy));
         let busy = self.card.is_some() || self.confirm.is_some();
         let left = input.mouse_pressed(MouseButton::Left) && !busy;
         let right = input.mouse_pressed(MouseButton::Right) && !busy;
