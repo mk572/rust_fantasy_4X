@@ -23,6 +23,9 @@ fn is_ship(def: &UnitDef) -> bool {
 /// turns old (task 561; the plan clock of task 515 is 100 turns too).
 const STALLED_WAR_TURNS: u32 = 100;
 
+/// The ability of a settler (`Ability::new(12)`): a unit that can found a city.
+const SETTLER_ABILITY: u16 = 12;
+
 /// The key of two players in the tables of wars: the lower number first.
 fn pair(a: PlayerId, b: PlayerId) -> (u8, u8) {
     (a.0.min(b.0), a.0.max(b.0))
@@ -141,11 +144,16 @@ pub struct Metrics {
     /// Units tagged for a ship that had not yet taken them aboard, summed over turns (unit-turns
     /// of waiting for a ship, task 647).
     pub waiting_for_ship: u32,
+    /// Settlers that left the map without founding a city: killed (in a battle, or otherwise gone
+    /// with no word from the game), let go for lack of food, let go for lack of gold.
+    pub settlers_killed: u32,
+    pub settlers_starved: u32,
+    pub settlers_unpaid: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 71] {
+    pub fn rows(&self) -> [(&'static str, u32); 74] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -226,6 +234,9 @@ impl Metrics {
                 self.missions_reset,
             ),
             ("unit-turns waiting for a ship", self.waiting_for_ship),
+            ("settlers lost in battle", self.settlers_killed),
+            ("settlers let go for lack of food", self.settlers_starved),
+            ("settlers let go for lack of gold", self.settlers_unpaid),
             (
                 "cities captured on the other plane",
                 self.cities_captured_far_plane,
@@ -377,6 +388,9 @@ impl AddAssign for Metrics {
             units_unregistered,
             missions_reset,
             waiting_for_ship,
+            settlers_killed,
+            settlers_starved,
+            settlers_unpaid,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -449,6 +463,9 @@ impl AddAssign for Metrics {
         self.units_unregistered += units_unregistered;
         self.missions_reset += missions_reset;
         self.waiting_for_ship += waiting_for_ship;
+        self.settlers_killed += settlers_killed;
+        self.settlers_starved += settlers_starved;
+        self.settlers_unpaid += settlers_unpaid;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -503,6 +520,19 @@ pub struct Tally {
     /// owner and the plane (index).
     #[serde(default)]
     far_captures: Vec<(u32, u8, u8, usize)>,
+    /// The settlers on the map at the last sample, with their owner and square, to see which one
+    /// has gone, and the settlers the game let go of for lack of food or gold since then (by owner).
+    #[serde(skip)]
+    settlers_seen: Vec<(
+        f4x_core::game::serial::Serial,
+        PlayerId,
+        f4x_core::map::Position,
+    )>,
+    #[serde(skip)]
+    settlers_let_go: Vec<(PlayerId, f4x_core::game::event::LossCause)>,
+    /// The cities founded since the last sample, with their owner and square.
+    #[serde(skip)]
+    founded_now: Vec<(PlayerId, f4x_core::map::Position)>,
 }
 
 impl Tally {
@@ -540,6 +570,9 @@ impl Tally {
                 })
                 .collect(),
             far_captures: Vec::new(),
+            settlers_seen: Vec::new(),
+            settlers_let_go: Vec::new(),
+            founded_now: Vec::new(),
         };
         tally.mana_left = tally.mana_now(game);
         tally.ships_at_start = tally.ships_now(game);
@@ -577,6 +610,7 @@ impl Tally {
     /// income the turn change paid, less the pool now.
     pub fn sample_mana(&mut self, game: &Game) {
         self.sample_wars(game);
+        self.sample_settlers(game);
         let now = self.mana_now(game);
         for p in game.player_ids() {
             if game.wizard(p).is_none() {
@@ -612,6 +646,56 @@ impl Tally {
 
     /// Count a turn of war for each pair of wizards at war, and a stalled one when neither a
     /// battle nor a city taken between them is newer than `STALLED_WAR_TURNS` turns.
+    /// A settler that was on the map at the last sample and is not now either founded a city on
+    /// its square, was let go for lack of food or gold (the game said so), or was killed.
+    fn sample_settlers(&mut self, game: &Game) {
+        use f4x_core::game::event::LossCause;
+        let now: Vec<(
+            f4x_core::game::serial::Serial,
+            PlayerId,
+            f4x_core::map::Position,
+        )> = game
+            .units()
+            .all_units()
+            .into_iter()
+            .filter(|&u| {
+                game.units()
+                    .unit_has_ability(u, f4x_def::rules::Ability::new(SETTLER_ABILITY))
+            })
+            .filter_map(|u| {
+                Some((
+                    game.serial_of(u),
+                    game.units().unit_owner(u)?,
+                    game.units().unit_position(u)?,
+                ))
+            })
+            .collect();
+        let gone: Vec<_> = self
+            .settlers_seen
+            .iter()
+            .filter(|(u, ..)| !now.iter().any(|(n, ..)| n == u))
+            .copied()
+            .collect();
+        let mut let_go = std::mem::take(&mut self.settlers_let_go);
+        let mut founded = std::mem::take(&mut self.founded_now);
+        for (_, owner, at) in gone {
+            if let Some(i) = founded.iter().position(|&(p, pos)| p == owner && pos == at) {
+                founded.remove(i);
+                continue; // it founded a city
+            }
+            let cause = let_go
+                .iter()
+                .position(|&(p, _)| p == owner)
+                .map(|i| let_go.remove(i).1);
+            self.bump(owner, |m| match cause {
+                Some(LossCause::Food) => m.settlers_starved += 1,
+                Some(_) => m.settlers_unpaid += 1,
+                None => m.settlers_killed += 1,
+            });
+        }
+        self.settlers_seen = now;
+    }
+
     fn sample_wars(&mut self, game: &Game) {
         let wizards: Vec<PlayerId> = game
             .player_ids()
@@ -714,7 +798,10 @@ impl Tally {
         let owner = |city| game.economy().city_owner(city).or(source);
         for event in events {
             match event {
-                Event::CityFounded { city, .. } => {
+                Event::CityFounded { city, pos } => {
+                    if let Some(p) = owner(*city) {
+                        self.founded_now.push((p, *pos));
+                    }
                     if let Some(m) = owner(*city).and_then(|p| self.at(p)) {
                         m.cities_founded += 1;
                     }
@@ -873,7 +960,23 @@ impl Tally {
                         }
                     }
                 }
-                Event::UnitLost { player, .. } => self.bump(*player, |m| m.units_lost += 1),
+                Event::UnitLost {
+                    player,
+                    unit,
+                    cause,
+                } => {
+                    self.bump(*player, |m| m.units_lost += 1);
+                    if game
+                        .content()
+                        .rules
+                        .units
+                        .get(*unit)
+                        .abilities
+                        .contains(&f4x_def::rules::Ability::new(SETTLER_ABILITY))
+                    {
+                        self.settlers_let_go.push((*player, *cause));
+                    }
+                }
                 Event::SpellCast { player, spell } => {
                     *self
                         .casts
@@ -1123,6 +1226,85 @@ mod tests {
                 p.0
             );
         }
+        Ok(())
+    }
+
+    /// A settler that leaves the map is counted by what took it: killed when the game says
+    /// nothing, let go for lack of food or gold when the game says so; one that stays or founds
+    /// a city is no failure.
+    #[test]
+    fn a_settler_that_leaves_the_map_is_counted_by_what_took_it() -> TestResult {
+        use f4x_core::game::event::LossCause;
+        let content = shipped();
+        let mut game = new_game(
+            content,
+            &NewGame {
+                seed: 4,
+                all_ai: true,
+                ..NewGame::with_wizards(2)
+            },
+        )?;
+        let kind = content
+            .rules
+            .units
+            .defs()
+            .iter()
+            .find(|d| {
+                d.abilities
+                    .contains(&f4x_def::rules::Ability::new(SETTLER_ABILITY))
+            })
+            .and_then(|d| content.rules.units.id_numbered(d.num))
+            .ok_or("no settler in the content")?;
+        let home = game
+            .wizard(PlayerId(0))
+            .and_then(|w| w.fortress())
+            .ok_or("no fortress")?;
+        let mut made = Vec::new();
+        for _ in 0..3 {
+            game.apply(f4x_core::game::Command::CreateUnit {
+                owner: PlayerId(0),
+                pos: home,
+                unit: kind,
+            });
+        }
+        for u in game.units().units_at(home) {
+            if game
+                .units()
+                .unit_has_ability(u, f4x_def::rules::Ability::new(SETTLER_ABILITY))
+            {
+                made.push(u);
+            }
+        }
+        assert_eq!(made.len(), 3);
+        let mut tally = Tally::new(&game);
+        tally.sample_settlers(&game);
+        // One vanishes with no word, one is let go for lack of food, one stays.
+        game.scenario_remove_unit(made[0]);
+        game.scenario_remove_unit(made[1]);
+        tally.record(
+            &game,
+            None,
+            &[Event::UnitLost {
+                player: PlayerId(0),
+                unit: kind,
+                cause: LossCause::Food,
+            }],
+        );
+        tally.sample_settlers(&game);
+        let m = tally.of(PlayerId(0));
+        assert_eq!(
+            (m.settlers_killed, m.settlers_starved, m.settlers_unpaid),
+            (1, 1, 0)
+        );
+        // Nothing more is counted while the last one stays.
+        tally.sample_settlers(&game);
+        assert_eq!(tally.of(PlayerId(0)).settlers_killed, 1);
+        // The last one founds a city where it stands: that is no failure.
+        let city = game.economy().city_at(home).ok_or("no capital")?;
+        game.scenario_remove_unit(made[2]);
+        tally.record(&game, None, &[Event::CityFounded { city, pos: home }]);
+        tally.sample_settlers(&game);
+        assert_eq!(tally.of(PlayerId(0)).settlers_killed, 1);
         Ok(())
     }
 

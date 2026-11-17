@@ -237,6 +237,13 @@ impl Game {
         self.put(unit, Hurt(hurt));
     }
 
+    /// Scenario setup: the city has nothing in hand, as when its item has just been finished.
+    pub fn scenario_clear_production(&mut self, city: hecs::Entity) {
+        let mut p = self.economy().city_production(city);
+        p.item = None;
+        self.put(city, p);
+    }
+
     /// Set the number of citizens of a city, as a scenario sets it up.
     pub fn scenario_set_citizens(&mut self, city: hecs::Entity, figures: u32) {
         if let Ok(mut p) = self.world.get::<&mut Population>(city) {
@@ -302,6 +309,17 @@ impl Game {
     pub fn scenario_set_road(&mut self, at: crate::map::Position, road: bool) {
         if let Some(map) = self.map.as_mut() {
             map.plane_mut(at.plane).set_road(at.x, at.y, road);
+        }
+    }
+
+    /// Change the terrain of a square, as the setup of a game does when it builds an island out.
+    pub fn scenario_set_terrain(
+        &mut self,
+        at: crate::map::Position,
+        terrain: crate::map::TerrainId,
+    ) {
+        if let Some(map) = self.map.as_mut() {
+            map.plane_mut(at.plane).set(at.x, at.y, terrain);
         }
     }
 

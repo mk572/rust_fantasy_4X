@@ -226,7 +226,16 @@ one point.
 ## 7. Production in detail
 
 - **Items:** a building, a unit, trade goods (turn production into gold, two for one), or
-  housing (faster growth). A city always has one item; new cities start on housing.
+  housing (faster growth). New cities start on housing.
+- **A finished item ends the production** (rule: `design.md`, "Economy and movement"). The city
+  then has no item (`None`) until its owner chooses again: nothing queues the same item. Trade
+  goods and housing never finish; housing ends when the city's figures reach its maximum size
+  (`ProductionCompleted` with the housing). A city with an auto-builder plan (the human's
+  helper) gets the plan's next item at once. In the client, each of the human's cities that
+  finished something has its city screen opened at the start of the turn, after the boxes, with
+  the message "<city> has finished <item>" over it (`finished_city.rs`; the original shows the
+  box over the map first, this game over the city screen). A city that has an item again by then
+  (the auto-builder) does not open: a building is announced over the map, a unit only in the log. The switch "Open Finished Cities" on the Settings screen (`client_settings.ron`: `open_finished_cities`, default on) turns it off.
 - **Allowed** (`can_build`): a building must not already be built, must allow the city's
   race, and needs all its required buildings. A normal unit must be in the race's list; a
   fantastic unit (boats, siege) is open to all; both need their required buildings, and

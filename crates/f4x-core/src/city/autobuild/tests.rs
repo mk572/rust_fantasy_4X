@@ -126,6 +126,21 @@ fn a_city_below_its_garrison_minimum_builds_the_sturdiest_defender() {
     assert!(matches!(item, ProductionItem::Building(_)), "{item:?}");
 }
 
+/// Engineers have a melee value, but they walk off to build roads: a city that can build no
+/// other fighter (its barracks not yet built) does not build them to fill its garrison.
+#[test]
+fn a_city_that_can_build_only_engineers_does_not_use_them_as_its_garrison() {
+    let c = shipped();
+    let mut f = facts(&c);
+    f.units.retain(|&u| is_engineer(c.rules.units.get(u)));
+    assert!(!f.units.is_empty(), "no engineers among the units");
+    f.defenders = 0;
+    let item = choose(&c, &plan(Mix::Both, Focus::Gold), &f, &mut first);
+    if let ProductionItem::Unit(u) = item {
+        assert!(!is_engineer(c.rules.units.get(u)), "{item:?}");
+    }
+}
+
 #[test]
 fn the_garrison_minimum_rises_with_size_a_rival_and_the_defense_focus() {
     assert_eq!(

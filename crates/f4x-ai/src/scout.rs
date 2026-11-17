@@ -104,11 +104,23 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         view.sort_by_serial(&mut list);
         list
     };
-    let mut found_any = scouts.is_empty();
     let ship_out = {
         let view = PlayerView::new(game, me);
         scouts.iter().any(|&u| is_ship(&view, u))
     };
+    // A rider whose ship no longer scouts (sunk, or given another task) waits for nothing: it is
+    // free, and does not count as a scout at work.
+    let scouts: Vec<hecs::Entity> = if ship_out {
+        scouts
+    } else {
+        ai.roles.release_role(crate::roles::Role::SeaParty);
+        let view = PlayerView::new(game, me);
+        scouts
+            .into_iter()
+            .filter(|&u| ai.roles.is_scouting(view.serial_of(u)))
+            .collect()
+    };
+    let mut found_any = scouts.is_empty();
     for unit in scouts {
         let (serial, pos, idle) = {
             let view = PlayerView::new(game, me);
@@ -768,6 +780,25 @@ mod tests {
         );
         let landed = g.units().unit_position(walker);
         assert!(landed.is_some_and(|p| p.x == 28), "{landed:?}");
+    }
+
+    #[test]
+    fn a_rider_whose_ship_no_longer_scouts_is_set_free() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let sea = at(27, 9);
+        let boat = spawn(&mut g, P0, sea, 36 /* galley */, 1)[0];
+        let walker = spawn(&mut g, P0, sea, 104 /* high_men_spearmen */, 1)[0];
+        let view = PlayerView::new(&g, P0);
+        let (ship, rider) = (view.serial_of(boat), view.serial_of(walker));
+        let mut ai = Ai::new(P0);
+        // The ship has no role; the rider still waits to be put ashore.
+        let _ = ai.roles.claim(rider, crate::roles::Role::SeaParty, 1, None);
+        assert!(!ai.roles.is_scouting(ship));
+        scout(&mut ai, &mut g, &mut Vec::new());
+        assert!(
+            !ai.roles.is(rider, crate::roles::Role::SeaParty),
+            "no ship scouts, so nobody waits for one"
+        );
     }
 
     #[test]

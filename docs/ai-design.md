@@ -764,6 +764,14 @@ task 645: no walk home, no wait on a shore; the role `Return` is gone). The soak
 taken them aboard, summed over turns; task 647). `troops landed` and `cities by sea` count from the
 unit moves and captures, so they read the same under the tag-based landings.
 
+**Why a settler failed** (`settler_fate.rs`, the soak line `settlers that failed`). The clock's count of dropped settler
+plans says only that a plan ended. Each place that ends one says why: never picked up by a ship (the settler was tagged for
+a ship and the clock ran out), did not arrive in time, site settled by someone else, site not fit for a city, way to the
+site blocked, and (per turn) no suitable site. The soak adds what the game took from the AI: settlers lost in battle,
+let go for lack of food, let go for lack of gold (`metrics.rs`, from the game's events). The refused-order log
+(`--refused-log`) has a last column, `stood`: for how many turns in a row the same wizard has sent the same command from the
+same line and had it refused (1 for the first time).
+
 The escort role is built (`escort.rs`: a settler leaving a city takes a spare soldier along). The new roles perimeter, road and meld are tasks 625, 627 and 628.
 
 ## 14. Job board (tasks 645 to 648)

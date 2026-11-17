@@ -296,11 +296,47 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     if ai.roles.waiting_for_ship().is_empty() && voyages(ai).is_empty() {
         return;
     }
+    call_off_a_scout_ship(ai, game, events);
     assign_ships(ai, game);
     walk_to_shore(ai, game, events);
     for pickup in voyages(ai) {
         advance(ai, game, &pickup, events);
     }
+}
+
+/// Carrying units comes before scouting: when units wait for a ship and every ship is scouting
+/// (none is free and none is already on its way to them), the first scouting ship with nobody
+/// aboard is called off and takes the job. The search by sea goes on when a ship is free again.
+fn call_off_a_scout_ship(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    if ai.roles.waiting_for_ship().is_empty() || !voyages(ai).is_empty() {
+        return;
+    }
+    let me = ai.player;
+    let ship = {
+        let view = PlayerView::new(game, me);
+        let mut ships: Vec<hecs::Entity> = view
+            .my_units()
+            .into_iter()
+            .filter(|&u| is_ship(&view, u))
+            .collect();
+        view.sort_by_serial(&mut ships);
+        // A free ship takes the job as it is.
+        if ships
+            .iter()
+            .any(|&u| !ai.roles.has_role(view.serial_of(u)) && view.passengers_of(u).is_empty())
+        {
+            return;
+        }
+        ships.into_iter().find(|&u| {
+            ai.roles.is(view.serial_of(u), Role::Scout) && view.passengers_of(u).is_empty()
+        })
+    };
+    let Some(ship) = ship else {
+        return;
+    };
+    let serial = PlayerView::new(game, me).serial_of(ship);
+    ai.roles.release(serial, Role::Scout);
+    ai.order(game, Command::ClearOrders { units: vec![ship] }, events);
 }
 
 /// Forget the ties of units that no longer wait (their tag is gone: the target changed, they got
@@ -811,6 +847,38 @@ mod tests {
                 "{t} turns vs {fastest}"
             );
         }
+        Ok(())
+    }
+
+    /// The only ship is out scouting: carrying the stranded units comes first, so it is called off
+    /// and fetches them.
+    #[test]
+    fn a_scouting_ship_is_called_off_to_carry_units_that_wait_for_a_ship() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let land = shore(&g)?;
+        let soldiers = spawn(&mut g, P0, land, 104 /* spearmen */, 3);
+        let boat = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];
+        g.balance_farmers(P0);
+        let mut ai = Ai::new(P0);
+        let ship = PlayerView::new(&g, P0).serial_of(boat);
+        let _ = ai.roles.claim(ship, Role::Scout, 1, None);
+        strand(&mut ai, &g, &soldiers, port());
+        for _ in 0..60 {
+            run_turns(&mut ai, &mut g, 1);
+            let view = PlayerView::new(&g, P0);
+            if soldiers
+                .iter()
+                .all(|&u| ai.roles.crossing_of(view.serial_of(u)).is_none())
+            {
+                break;
+            }
+        }
+        let view = PlayerView::new(&g, P0);
+        for &u in &soldiers {
+            assert_eq!(view.unit_position(u), Some(port()), "{:?}", ai.roles);
+        }
+        assert!(!ai.roles.is(ship, Role::Scout), "no longer scouting");
         Ok(())
     }
 

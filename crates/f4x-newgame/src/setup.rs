@@ -104,6 +104,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         difficulty: settings.basic.difficulty,
         magic_strength: settings.basic.magic_strength,
         original_generator: settings.basic.original_map_generator,
+        extend_tiny_islands: settings.rules.extend_tiny_islands,
         lair_guard_percent: settings.world.lair_guard_percent,
         lair_treasure_percent: settings.world.lair_treasure_percent,
         lair_style: f4x_core::rules::lair::LairStyle {
@@ -360,6 +361,9 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     for k in 0..wizards {
         let site = rolled.clone().flatten().map(|v| v[k as usize]);
         start_player(&mut game, PlayerId(k), wizards, races[k as usize], site)?;
+        if settings.rules.extend_tiny_islands {
+            build_out_start_island(&mut game, PlayerId(k));
+        }
         reveal_start(&mut game, PlayerId(k), settings.world.start_reveal_radius);
     }
     // Independent cities on both planes, once the wizards' fortresses are down.
@@ -489,6 +493,28 @@ fn reveal_start(game: &mut Game, player: PlayerId, radius: HalfInt) {
 /// without spearmen), a smithy, barracks and builders hall, and three citizens on the farms.
 /// The site has to be land that can feed eight (seven for the later wizards), clear of other
 /// fortresses and of nodes, towers and lairs; those distances relax if nothing fits.
+/// A start town on a speck of land gets the island built out (`island::MIN_LAND`), so its wizard
+/// has ground to build on.
+fn build_out_start_island(game: &mut Game, player: PlayerId) {
+    let Some(at) = game.wizard(player).and_then(|w| w.fortress()) else {
+        return;
+    };
+    let Some(map) = game.map() else {
+        return;
+    };
+    let squares = crate::island::growth(map, game.content(), game.seed(), at, &|_, _| false);
+    let Some(grass) = game
+        .content()
+        .terrains
+        .first_of_class(f4x_core::map::terrain::TerrainClass::Grassland, at.plane)
+    else {
+        return;
+    };
+    for (x, y) in squares {
+        game.scenario_set_terrain(Position { x, y, ..at }, grass);
+    }
+}
+
 fn start_player(
     game: &mut Game,
     player: PlayerId,
@@ -786,6 +812,72 @@ mod tests {
         many.settings.basic.opponents = c.settings.max_opponents + 1;
         let err = new_game(c, &many).err().unwrap_or_default();
         assert!(err.contains("opponents"), "{err}");
+    }
+
+    /// With `extend_tiny_islands` on no wizard starts on a speck of land: the town stands on a land
+    /// mass of at least `island::MIN_LAND` squares, whatever the seed puts it on.
+    #[test]
+    fn with_the_setting_every_start_town_stands_on_land_enough_to_play_on() -> TestResult {
+        for seed in 0..40 {
+            let mut spec = spec(seed, 4);
+            spec.settings.rules.extend_tiny_islands = true;
+            let g = new_game(shipped(), &spec)?;
+            let map = g.map().ok_or("no map")?;
+            for k in 0..4 {
+                let at = g
+                    .wizard(PlayerId(k))
+                    .and_then(|w| w.fortress())
+                    .ok_or("no fortress")?;
+                let mass = crate::island::land_mass(map, g.content(), at, usize::MAX);
+                assert!(
+                    mass.len() >= crate::island::MIN_LAND,
+                    "seed {seed}, wizard {k}: {} squares",
+                    mass.len()
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// Off (the default and both rule sets), the map is what the generator made: the same game
+    /// with the setting on differs only where an island was built out.
+    #[test]
+    fn without_the_setting_the_map_is_left_as_generated() -> TestResult {
+        let content = shipped();
+        let def = &content.settings;
+        let base = f4x_def::settings::GameSettings::for_difficulty(def, 2);
+        for set in [
+            f4x_def::settings::RuleSet::V131,
+            f4x_def::settings::RuleSet::V160,
+        ] {
+            assert!(!set.applied(base, def).rules.extend_tiny_islands, "{set:?}");
+        }
+        let land = |on: bool| -> Result<usize, Box<dyn std::error::Error>> {
+            let mut total = 0;
+            for seed in 0..10 {
+                let mut spec = spec(seed, 4);
+                spec.settings.rules.extend_tiny_islands = on;
+                let g = new_game(content, &spec)?;
+                let map = g.map().ok_or("no map")?;
+                for plane in [Plane::Arcanus, Plane::Myrror] {
+                    for y in 0..map.height() {
+                        for x in 0..map.width() {
+                            let t = map.plane(plane).get(x as i32, y as i32);
+                            let class = t.and_then(|t| content.terrains.get(t)).map(|d| d.class);
+                            total += usize::from(
+                                class != Some(f4x_core::map::terrain::TerrainClass::Ocean),
+                            );
+                        }
+                    }
+                }
+            }
+            Ok(total)
+        };
+        assert!(
+            land(true)? > land(false)?,
+            "building out adds land somewhere"
+        );
+        Ok(())
     }
 
     #[test]

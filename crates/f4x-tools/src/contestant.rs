@@ -39,6 +39,11 @@ pub trait Contestant {
     fn plans_dropped(&self) -> Vec<(&'static str, u32)> {
         Vec::new()
     }
+    /// Why settlers' plans have ended without a city, by reason (task 515); none for a version
+    /// without it.
+    fn settler_failures(&self) -> Vec<(&'static str, u32)> {
+        Vec::new()
+    }
     /// What the AI has in mind, as text for a save (`Game::set_plans`); `None` for a version that
     /// cannot write it (a reference forked before plans existed).
     fn plans(&self) -> Option<String> {
@@ -50,7 +55,7 @@ pub trait Contestant {
 }
 
 macro_rules! contestant {
-    ($krate:ident $(, plans $plans:ident)? $(, dropped $dropped:ident)?) => {
+    ($krate:ident $(, plans $plans:ident)? $(, dropped $dropped:ident)? $(, settlers $settlers:ident)?) => {
         impl Contestant for $krate::Ai {
             fn player(&self) -> PlayerId {
                 self.player
@@ -96,6 +101,11 @@ macro_rules! contestant {
                 }
             )?
             $(
+                fn settler_failures(&self) -> Vec<(&'static str, u32)> {
+                    self.$settlers()
+                }
+            )?
+            $(
                 fn plans(&self) -> Option<String> {
                     self.$plans().ok()
                 }
@@ -107,7 +117,7 @@ macro_rules! contestant {
     };
 }
 
-contestant!(f4x_ai, plans to_text, dropped plans_dropped);
+contestant!(f4x_ai, plans to_text, dropped plans_dropped, settlers settler_failures);
 #[cfg(feature = "reference")]
 contestant!(f4x_ai_ref, plans to_text);
 

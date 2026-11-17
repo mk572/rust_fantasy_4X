@@ -227,8 +227,31 @@ pub fn open_refused_log(path: &Option<PathBuf>) -> Result<RefusedLog, String> {
     let mut f = std::io::BufWriter::new(
         std::fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?,
     );
-    writeln!(f, "seed\tturn\tplayer\tsource\treason\tcommand").map_err(|e| e.to_string())?;
+    writeln!(f, "seed\tturn\tplayer\tsource\treason\tcommand\tstood").map_err(|e| e.to_string())?;
     Ok(Mutex::new(Some(f)))
+}
+
+/// For how many turns in a row the same order has been refused: the same wizard sending the same
+/// command from the same line, in the turns one after the other. The last column of the refused
+/// log; 1 is the first refusal, and a command refused every turn for a hundred turns reads 100.
+#[derive(Default)]
+struct Stood {
+    /// By wizard, source and command: the first turn of the run and the last turn it was refused.
+    runs: std::collections::HashMap<(u8, String, String), (u32, u32)>,
+}
+
+impl Stood {
+    fn count(&mut self, r: &contestant::Refused) -> u32 {
+        let run = self
+            .runs
+            .entry((r.player.0, r.source.clone(), r.command.clone()))
+            .or_insert((r.turn, r.turn));
+        if r.turn > run.1 + 1 {
+            *run = (r.turn, r.turn);
+        }
+        run.1 = run.1.max(r.turn);
+        r.turn - run.0 + 1
+    }
 }
 
 /// How one game went.
@@ -459,6 +482,7 @@ pub fn game(
     let started = Instant::now();
     let mut last_line = started;
     let mut tally = Tally::new(&game);
+    let mut stood = Stood::default();
     let mut log = Log {
         tag: tag.clone(),
         live: opts.every > 0 || opts.trace > 0 || opts.detail,
@@ -511,9 +535,10 @@ pub fn game(
                 .chain(neutrals.take_refusals());
             {
                 for r in all {
+                    let stood = stood.count(&r);
                     writeln!(
                         out,
-                        "{seed}\t{}\t{}\t{}\t{}\t{}",
+                        "{seed}\t{}\t{}\t{}\t{}\t{}\t{stood}",
                         r.turn, r.player.0, r.source, r.reason, r.command
                     )
                     .map_err(|e| e.to_string())?;
@@ -699,6 +724,38 @@ pub fn game(
         "plans dropped by the time limit: {}",
         dropped.join(", ")
     );
+    // Why settlers failed: the AI's own reasons for ending a plan, and the settlers the game took
+    // from it (killed, let go for lack of food or gold).
+    let failed: Vec<String> = ais
+        .iter()
+        .map(|ai| {
+            let mut reasons: Vec<(String, u32)> = ai
+                .settler_failures()
+                .into_iter()
+                .map(|(k, n)| (k.to_string(), n))
+                .collect();
+            let lost = tally.of(ai.player());
+            reasons.push(("lost in battle".into(), lost.settlers_killed));
+            reasons.push(("let go for lack of food".into(), lost.settlers_starved));
+            reasons.push(("let go for lack of gold".into(), lost.settlers_unpaid));
+            let by_reason = reasons
+                .iter()
+                .filter(|(_, n)| *n > 0)
+                .map(|(k, n)| format!("{k} {n}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "p{} {}",
+                ai.player().0,
+                if by_reason.is_empty() {
+                    "none".into()
+                } else {
+                    by_reason
+                }
+            )
+        })
+        .collect();
+    logln!(log, "settlers that failed: {}", failed.join("; "));
     tally.note_known(&game);
     logln!(log, "mana {}", mana_line(&game, &tally));
     for line in neutral_lines(&game, &tally) {
@@ -1431,6 +1488,24 @@ const DIPLOMACY_ROWS: usize = 24;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_refusal_repeated_every_turn_counts_the_turns_it_has_stood_and_a_gap_starts_it_again() {
+        let refused = |turn, command: &str| contestant::Refused {
+            turn,
+            player: PlayerId(1),
+            source: "x.rs:1".into(),
+            command: command.into(),
+            reason: "StackFull".into(),
+        };
+        let mut stood = Stood::default();
+        let counts: Vec<u32> = [4, 4, 5, 6, 7, 20, 21]
+            .iter()
+            .map(|&t| stood.count(&refused(t, "go")))
+            .collect();
+        assert_eq!(counts, [1, 1, 2, 3, 4, 1, 2]);
+        assert_eq!(stood.count(&refused(21, "another")), 1, "another command");
+    }
+
     use super::*;
     use f4x_def::testdir::TestResult;
 

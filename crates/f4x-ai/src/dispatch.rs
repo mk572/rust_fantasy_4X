@@ -216,7 +216,20 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
                         || (reach > 0
                             && crate::view::distance(&view, h, target).is_some_and(|d| d <= reach))
                 });
-                if !mission_valid(ai, &view, role, target) {
+                // A ship that has sailed to its scouting target has explored it by arriving, and its
+                // mission is not over: `scout::scout` puts the party aboard ashore and picks the
+                // next target. Resetting it here left the party waiting for a ship that no longer
+                // scouted.
+                let arrived_ship =
+                    role == Role::Scout && arrived && crate::view::is_ship(&view, unit);
+                if !arrived_ship && !mission_valid(ai, &view, role, target) {
+                    if role == Role::Settle {
+                        ai.settler_fates.note(if view.city_at(target).is_some() {
+                            crate::settler_fate::SettlerFate::SiteTaken
+                        } else {
+                            crate::settler_fate::SettlerFate::SiteUnusable
+                        });
+                    }
                     reset.push((unit, role));
                 } else if !view.unit_has_order(unit)
                     && !view.unit_builds_road(unit)
@@ -316,7 +329,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
+    use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
 
     /// A city keeps the soldiers its defence needs; the rest, and a lone soldier in the field,
     /// are the pool.
@@ -494,6 +507,34 @@ mod tests {
         );
     }
 
+    /// A sea scout that arrives at its target has explored it by arriving. It keeps the scouting
+    /// (it is the one that puts its party ashore, `scout::scout`), where a walker on the same
+    /// ground is done and gives the mission up.
+    #[test]
+    fn a_ship_that_arrived_at_its_scouting_target_keeps_the_role_and_puts_its_party_ashore() {
+        use crate::roles::Role;
+        use f4x_def::half_int::HalfInt;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        // Off the east island's west shore, as in `scout`'s own landing test.
+        let sea = at(27, 9);
+        let boat = spawn(&mut g, P0, sea, 36 /* galley */, 1)[0];
+        let walker = spawn(&mut g, P0, sea, 104 /* high_men_spearmen */, 1)[0];
+        g.explore(P0, sea, HalfInt::from_raw(3));
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        let view = f4x_core::player::view::PlayerView::new(&g, P0);
+        let (ship, rider) = (view.serial_of(boat), view.serial_of(walker));
+        assert!(view.explored(sea), "arriving explored the target");
+        let _ = ai.roles.claim(ship, Role::Scout, 1, Some(sea));
+        let _ = ai.roles.claim(rider, Role::SeaParty, 1, None);
+        ai.sea_scouting = true;
+        assert_eq!(revalidate(&mut ai, &mut g, &mut Vec::new()), 0);
+        assert!(ai.roles.is(ship, Role::Scout), "the ship goes on scouting");
+        crate::scout::scout(&mut ai, &mut g, &mut Vec::new());
+        assert!(!ai.roles.is(rider, Role::SeaParty), "the rider went ashore");
+        assert_ne!(g.units().unit_position(walker), Some(sea));
+    }
+
     /// A target on the other plane needs a crossing of the planes; the unit keeps its role and its
     /// target and is not sent again every turn.
     #[test]
@@ -540,6 +581,28 @@ mod tests {
             "{events:?}"
         );
         assert_eq!(ai.roles.needing(Crossing::Sea), vec![(serial, site)]);
+    }
+
+    /// A settler whose site now holds a city (a rival settled first) is given up, and the soak
+    /// is told that is why.
+    #[test]
+    fn a_settler_whose_site_a_rival_settled_first_is_given_up_for_that_reason() {
+        use crate::roles::Role;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let site = at(ENEMY_CITY.0, ENEMY_CITY.1);
+        let settler = spawn(&mut g, P0, at(9, 7), 111 /* high_men_settlers */, 1)[0];
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        let serial = f4x_core::player::view::PlayerView::new(&g, P0).serial_of(settler);
+        let _ = ai.roles.claim(serial, Role::Settle, 1, Some(site));
+        assert_eq!(revalidate(&mut ai, &mut g, &mut Vec::new()), 1);
+        let said: Vec<_> = ai
+            .settler_failures()
+            .into_iter()
+            .filter(|&(_, n)| n > 0)
+            .collect();
+        assert_eq!(said, [("site settled by someone else", 1)]);
     }
 
     /// An engineer that is not building and has no walk goes on to its square, one that is

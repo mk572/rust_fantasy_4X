@@ -417,6 +417,12 @@ pub struct RuleSettings {
     /// plane it belongs to).
     #[serde(default = "fb_mix_neutral_races")]
     pub mix_neutral_races: bool,
+    /// Tiny islands. Off (the original, and v1.31 and v1.6): the map and the start towns stay as
+    /// the generator leaves them, so a wizard, a tower or a node can stand on a speck of land. On:
+    /// the land mass of every start town, tower and node is built out to a dozen squares
+    /// (`f4x-newgame/src/island.rs`).
+    #[serde(default = "fb_extend_tiny_islands")]
+    pub extend_tiny_islands: bool,
     /// Community patch, 2-Pick Myrran. Off (the original): the Myrran retort costs three picks
     /// and the fortress on Myrror makes five more mana. On: it costs two picks and the fortress
     /// makes no more mana than anywhere else.
@@ -581,6 +587,10 @@ fn fb_spell_binding_always_succeeds() -> bool {
 
 fn fb_two_pick_myrran() -> bool {
     fallback(|g| g.rules.two_pick_myrran, false)
+}
+
+fn fb_extend_tiny_islands() -> bool {
+    fallback(|g| g.rules.extend_tiny_islands, false)
 }
 
 fn fb_mix_neutral_races() -> bool {

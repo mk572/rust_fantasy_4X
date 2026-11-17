@@ -172,9 +172,13 @@ mod tests {
                 .iter()
                 .filter_map(|r| r.help.map(i32::from)),
         );
-        // The four switches of the Settings screen the original has no topic for (the screen's
-        // `help_topic` in the client names them).
-        opened.extend([807, 808, 809, 810]);
+        // The switches of the Settings screen are opened by their rows (the screen's `help_topic`
+        // names the topic of each; the original has none for the ones we added).
+        opened.extend(
+            crate::preferences::PREFS
+                .iter()
+                .map(|&p| i32::from(crate::settings_screen::help_topic(p))),
+        );
         for t in &help.topics {
             assert!(
                 opened.contains(&i32::from(t.index)),

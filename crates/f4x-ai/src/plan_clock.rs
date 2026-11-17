@@ -213,6 +213,14 @@ impl Ai {
         for (serial, site) in
             self.expired_plans(crate::roles::Role::Settle, PlanKind::Settler, turn)
         {
+            // Waiting for a ship is a fault of its own, not a walk that took too long.
+            self.settler_fates.note(
+                if self.roles.crossing_of(serial) == Some(crate::roles::Crossing::Sea) {
+                    crate::settler_fate::SettlerFate::NoShip
+                } else {
+                    crate::settler_fate::SettlerFate::TooSlow
+                },
+            );
             self.roles
                 .set_target(serial, crate::roles::Role::Settle, None);
             self.roles.clear_track(serial);
@@ -418,6 +426,28 @@ mod tests {
         assert_eq!(ai.roles.get(s).map(|a| a.stuck), Some(0));
         assert_eq!(ai.bad_sites, vec![at(9, 9)]);
         assert_eq!(ai.clock.dropped(PlanKind::Settler), 1);
+        assert_eq!(fates(&ai), [("did not arrive in time", 1)]);
+    }
+
+    /// The reasons that have been noted, with their counts.
+    fn fates(ai: &Ai) -> Vec<(&'static str, u32)> {
+        ai.settler_failures()
+            .into_iter()
+            .filter(|&(_, n)| n > 0)
+            .collect()
+    }
+
+    #[test]
+    fn a_settler_that_waited_for_a_ship_is_dropped_as_never_picked_up() {
+        let (mut ai, turn) = ai_at(10);
+        let s = crate::Serial(5);
+        let _ = ai
+            .roles
+            .claim(s, crate::roles::Role::Settle, turn, Some(at(9, 9)));
+        ai.roles.set_crossing(s, Some(crate::roles::Crossing::Sea));
+        ai.drop_stale_plans(turn);
+        ai.drop_stale_plans(turn + SETTLER_TIMEOUT_TURNS);
+        assert_eq!(fates(&ai), [("never picked up by a ship", 1)]);
     }
 
     #[test]

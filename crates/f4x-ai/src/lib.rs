@@ -45,6 +45,7 @@ mod reinforce;
 mod road;
 pub mod roles;
 mod scout;
+mod settler_fate;
 mod shortfall;
 mod site;
 mod spellhelper;
@@ -87,6 +88,9 @@ pub struct Ai {
     campaign: Option<Position>,
     /// Sites the AI gave up on.
     bad_sites: Vec<Position>,
+    /// Why settlers' plans ended without a city, for the soak (`settler_fate.rs`).
+    #[serde(default)]
+    settler_fates: settler_fate::SettlerFates,
     /// Targets scouts could not get to.
     bad_scout_targets: Vec<Position>,
     /// The turn the units on the march against `march_target` set out.
@@ -233,6 +237,7 @@ impl Ai {
             player,
             campaign: None,
             bad_sites: Vec::new(),
+            settler_fates: settler_fate::SettlerFates::default(),
             bad_scout_targets: Vec::new(),
             frontier_closed: false,
             march_started: 0,
@@ -316,6 +321,12 @@ impl Ai {
     }
 
     /// Whether scouting by land is over: nothing the AI can walk to shows anything new.
+    /// Why settlers' plans have ended without a city, by reason (`settler_fate.rs`), for the
+    /// soak's summary.
+    pub fn settler_failures(&self) -> Vec<(&'static str, u32)> {
+        self.settler_fates.counts()
+    }
+
     pub fn frontier_closed(&self) -> bool {
         self.frontier_closed
     }

@@ -468,6 +468,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.mix_neutral_races = v != 0,
         ),
         flag(
+            "custom.extend_tiny_islands",
+            |s| s.rules.extend_tiny_islands.into(),
+            |s, v| s.rules.extend_tiny_islands = v != 0,
+        ),
+        flag(
             "custom.two_pick_myrran",
             |s| s.rules.two_pick_myrran.into(),
             |s, v| s.rules.two_pick_myrran = v != 0,

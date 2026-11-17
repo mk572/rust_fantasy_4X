@@ -370,8 +370,9 @@ the original's ways. Kept there; listed so this file is a complete index.
 - Population is kept in citizens plus tens, and **surplus tens carry over** instead of being
   discarded.
 - Economy and movement rules in "Economy and movement" (spare food sold two for one, a finished
-  building drops the city back to housing, replaced buildings cost no upkeep, a unit with any
-  movement left may always step): check each against the original before relying on it.
+  item leaves the city with no production until its owner chooses again, replaced buildings cost no
+  upkeep, a unit with any movement left may always step): check each against the original before
+  relying on it.
 - Saves are snapshots, not command logs.
 - Help text rewritten where it disagrees with the game's code (the game's own help is `crates/f4x-lang/content/text/en/help/help.ron`, edited by hand; the importer no longer reads the original's help).
 

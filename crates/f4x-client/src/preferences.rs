@@ -1,6 +1,7 @@
 //! The player's preferences: the original's Settings screen, `MAGIC.SET`, and two of
-//! ours (Left Click Moves Units; off: a right click moves; Play Intro; Dim Behind Boxes; Edge Scrolling).
-//! Twenty switches that change how the game is shown or asked about, not its rules. They live outside
+//! ours (Left Click Moves Units; off: a right click moves; Play Intro; Dim Behind Boxes; Edge Scrolling;
+//! Open Finished Cities).
+//! Twenty-one switches that change how the game is shown or asked about, not its rules. They live outside
 //! the saves, in `saves/preferences.txt`, one `name=0|1` line each, so every game shares them.
 
 use std::collections::BTreeMap;
@@ -29,6 +30,7 @@ pub(crate) enum Pref {
     PlayIntro,
     DimBehindBoxes,
     EdgeScrolling,
+    OpenFinishedCities,
 }
 
 pub(crate) const PREFS: &[Pref] = &[
@@ -52,6 +54,7 @@ pub(crate) const PREFS: &[Pref] = &[
     Pref::PlayIntro,
     Pref::DimBehindBoxes,
     Pref::EdgeScrolling,
+    Pref::OpenFinishedCities,
 ];
 
 impl Pref {
@@ -78,6 +81,7 @@ impl Pref {
             Pref::PlayIntro => "play_intro",
             Pref::DimBehindBoxes => "dim_behind_boxes",
             Pref::EdgeScrolling => "edge_scrolling",
+            Pref::OpenFinishedCities => "open_finished_cities",
         }
     }
 
@@ -104,6 +108,7 @@ impl Pref {
             Pref::PlayIntro => "preferences.play_intro",
             Pref::DimBehindBoxes => "preferences.dim_behind_boxes",
             Pref::EdgeScrolling => "preferences.edge_scrolling",
+            Pref::OpenFinishedCities => "preferences.open_finished_cities",
         }
     }
 

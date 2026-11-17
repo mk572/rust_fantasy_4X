@@ -752,8 +752,8 @@ fn production_builds_units_and_buildings() -> TestResult {
     assert!(g.economy().has_building(city, barracks));
     assert_eq!(
         g.economy().city_production(city).item,
-        Some(ProductionItem::Housing),
-        "falls back to housing"
+        None,
+        "a finished building leaves the city with nothing in hand"
     );
     // Now swordsmen can be built (they need the barracks and a smithy); the fighters guild
     // trains them as Regulars.
@@ -856,13 +856,77 @@ fn vizier_city(on: bool) -> (Game, hecs::Entity) {
 }
 
 #[test]
-fn without_the_vizier_a_finished_building_leaves_the_city_on_housing() {
+fn without_the_vizier_a_finished_building_leaves_the_city_with_nothing_in_hand() {
     let (mut g, city) = vizier_city(false);
     g.apply_production(city, f4x_def::half_int::HalfInt::from_int(1000));
+    assert_eq!(g.economy().city_production(city).item, None);
+}
+
+/// A finished unit is not queued again: the city has nothing in hand until its owner chooses.
+#[test]
+fn a_finished_unit_leaves_the_city_with_nothing_in_hand() {
+    let (mut g, city) = vizier_city(false);
+    let unit = g
+        .content()
+        .rules
+        .units
+        .iter()
+        .filter(|(id, d)| {
+            d.cost > 0
+                && g.economy()
+                    .can_build(city, ProductionItem::Unit(*id))
+                    .is_ok()
+        })
+        .map(|(id, _)| id)
+        .next()
+        .expect("the city can build a unit");
+    g.set_production(city, ProductionItem::Unit(unit))
+        .expect("value succeeds");
+    let done = g.apply_production(city, f4x_def::half_int::HalfInt::from_int(1000));
+    assert_eq!(done, Some(ProductionItem::Unit(unit)));
+    assert_eq!(g.economy().city_production(city).item, None);
+}
+
+/// Housing and Trade Goods never finish; Housing ends only when the city cannot grow further.
+#[test]
+fn housing_ends_when_the_city_has_reached_the_population_it_can_sustain() {
+    let (mut g, city) = vizier_city(false);
+    g.set_production(city, ProductionItem::TradeGoods)
+        .expect("value succeeds");
+    g.apply(Command::EndTurn);
     assert_eq!(
         g.economy().city_production(city).item,
-        Some(ProductionItem::Housing)
+        Some(ProductionItem::TradeGoods)
     );
+    g.set_production(city, ProductionItem::Housing)
+        .expect("value succeeds");
+    let eco = g.economy().city_economy(city).expect("a city");
+    // Below its maximum size the city goes on housing; at it, the production ends.
+    if eco.figures < eco.max_size {
+        let events = g.apply(Command::EndTurn);
+        assert!(!events.contains(&Event::ProductionCompleted {
+            city,
+            item: ProductionItem::Housing
+        }));
+    }
+    let max = g.economy().city_economy(city).expect("a city").max_size;
+    g.world
+        .insert_one(
+            city,
+            crate::city::economy::Population {
+                figures: max,
+                tens: 0,
+            },
+        )
+        .expect("value succeeds");
+    g.set_production(city, ProductionItem::Housing)
+        .expect("value succeeds");
+    let events = g.apply(Command::EndTurn);
+    assert!(events.contains(&Event::ProductionCompleted {
+        city,
+        item: ProductionItem::Housing
+    }));
+    assert_eq!(g.economy().city_production(city).item, None);
 }
 
 #[test]

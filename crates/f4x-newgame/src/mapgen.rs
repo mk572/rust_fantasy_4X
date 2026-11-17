@@ -49,6 +49,9 @@ pub struct GenParams {
     /// Make the land with the original's random-walk generator (`mapgen/original.rs`) instead of
     /// the noise-based one.
     pub original_generator: bool,
+    /// Build out the land mass of every tower and node to `island::MIN_LAND` squares
+    /// (`rules.extend_tiny_islands`).
+    pub extend_tiny_islands: bool,
     /// Indexed by [`Plane::index`].
     pub planes: [PlaneParams; 2],
 }
@@ -68,6 +71,7 @@ impl Default for GenParams {
             lair_style: f4x_core::rules::lair::LairStyle::default(),
             magic_strength: 1,
             original_generator: false,
+            extend_tiny_islands: false,
             planes: [
                 PlaneParams {
                     mineral_percent: 6,
@@ -177,6 +181,27 @@ pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Gene
     let nodes = crate::node::generate_nodes(seed, &map, &placed, content);
     if params.original_generator {
         original::extend_islands(seed, &mut map, &placed, content);
+    }
+    // With the setting, a tower or a node on a speck of land gets its island built out, whichever
+    // generator made it.
+    if params.extend_tiny_islands {
+        let mut sites = Vec::new();
+        for plane in Plane::all() {
+            for y in 0..map.height() {
+                for x in 0..map.width() {
+                    let kind = placed
+                        .get(plane, x as i32, y as i32)
+                        .and_then(|f| content.features.get(f))
+                        .map(|d| d.kind);
+                    if matches!(kind, Some(FeatureKind::Node | FeatureKind::Tower)) {
+                        sites.push(Position { plane, x, y });
+                    }
+                }
+            }
+        }
+        crate::island::grow_site_islands(seed, &mut map, content, &sites, &|plane, x, y| {
+            placed.get(plane, x, y).is_some()
+        });
     }
     let lairs = crate::lair::generate_lairs(seed, params, &map, &placed, &nodes, content);
     let mut placements = Vec::new();

@@ -46,6 +46,7 @@ mod event_message;
 mod event_popup;
 mod extra_mana;
 mod fighter_pick;
+mod finished_city;
 mod first_run;
 mod fled_notice;
 mod font;

@@ -53,7 +53,7 @@ mod tests {
     fn the_shipped_settings_name_the_language_and_every_switch() -> TestResult {
         let c = ClientSettings::load(&[Path::new(crate::test_app::CLIENT_CONTENT)])?;
         assert_eq!(c.language, "en");
-        assert_eq!(c.preferences.len(), 20);
+        assert_eq!(c.preferences.len(), crate::preferences::PREFS.len());
         assert!(!c.preferences["strategic_combat_only"] && c.preferences["sound_effects"]);
         Ok(())
     }

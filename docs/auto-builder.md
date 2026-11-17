@@ -4,6 +4,10 @@ The design the project owner agreed, with every weight. Numbers marked *(tune)* 
 guesses to adjust in play; they are constants and one table at the top of
 `crates/f4x-core/src/city/autobuild.rs`, so tuning touches no rules.
 
+**The auto-builder is a helper for the human player.** The computer wizards do not use it: they
+choose what a city builds themselves, in `f4x-ai` (`design.md`, "A finished item ends the
+production"). A finished item leaves a city with no production unless a plan picks the next one.
+
 Before this, the Grand Vizier was one switch per player walking a fixed list
 (`rules.ron: autobuild_order`). The list stays as the **tie-break** between equal scores.
 

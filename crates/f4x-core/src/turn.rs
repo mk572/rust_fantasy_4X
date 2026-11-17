@@ -207,6 +207,20 @@ impl Game {
         let Some(eco) = self.economy().city_economy(city) else {
             return events;
         };
+        // Housing ends when the city cannot grow any further: there is nothing left to house.
+        if self.economy().city_production(city).item
+            == Some(crate::city::production::ProductionItem::Housing)
+            && eco.figures >= eco.max_size
+        {
+            let mut p = self.economy().city_production(city);
+            p.item = None;
+            self.put(city, p);
+            events.push(Event::ProductionCompleted {
+                city,
+                item: crate::city::production::ProductionItem::Housing,
+            });
+            return events;
+        }
         if let Some(item) = self.production_blocked(city, eco.production) {
             events.push(Event::ProductionBlocked { city, item });
         } else if let Some(item) = self.apply_production(city, eco.production) {

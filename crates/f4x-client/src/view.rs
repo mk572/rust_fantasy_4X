@@ -198,6 +198,10 @@ pub struct App {
     /// before it are closed (`Process_Item_Pool`: a lair's treasure, a gift, the merchant's item
     /// bought, an item made).
     pub(crate) item_pool_pending: bool,
+    /// The human's cities that finished their production at the turn change, whose screens open
+    /// one after the other (`finished_city.rs`).
+    pub(crate) finished_cities:
+        std::collections::VecDeque<(hecs::Entity, f4x_core::city::production::ProductionItem)>,
     /// The test battle is fought at sea (`--battle-field sea`).
     pub(crate) test_sea: bool,
     /// The screens converted to [`Page`](crate::page::Page): one page per kind of screen, kept
@@ -382,6 +386,7 @@ impl App {
             slides: Vec::new(),
             test_sea: false,
             item_pool_pending: false,
+            finished_cities: std::collections::VecDeque::new(),
             pages: Default::default(),
             quit: false,
             army_cursor: None,
@@ -614,9 +619,7 @@ impl App {
                     line
                 }
                 Event::ProductionCompleted { city, item } => {
-                    if let f4x_core::city::production::ProductionItem::Building(b) = item {
-                        self.announce_built(city, b);
-                    }
+                    self.note_finished(city, item);
                     let args = Args::new()
                         .text("city", self.city_name(city))
                         .text("item", self.item_name(item));
@@ -1653,6 +1656,9 @@ impl App {
             return self.modal_frame(input) && !self.quit;
         }
         if self.item_pool_frame(input) {
+            return true;
+        }
+        if self.finished_city_frame() {
             return true;
         }
         // A wizard just met greets the player on the next turn, on the diplomacy screen.

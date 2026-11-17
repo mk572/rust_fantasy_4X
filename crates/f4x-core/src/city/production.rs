@@ -604,13 +604,10 @@ impl Game {
                 self.autobuild_spent(city, item, cost);
                 // The building's upkeep is in the net gold the choice below reads.
                 self.note_production_change(city);
-                // Surplus production is lost; the city falls back to housing, unless the
-                // auto-builder picks the next item.
+                // Surplus production is lost. The city has nothing in hand until its owner
+                // chooses again, unless the auto-builder (a human's helper) picks the next item.
                 p = Production {
-                    item: Some(
-                        self.autobuild_choice(city, owner)
-                            .unwrap_or(ProductionItem::Housing),
-                    ),
+                    item: self.autobuild_choice(city, owner),
                     progress: HalfInt::ZERO,
                 };
             }
@@ -639,10 +636,8 @@ impl Game {
                 // The unit's upkeep (and the citizen it cost) is in the net gold the choice
                 // below reads.
                 self.note_production_change(city);
-                // A unit is built over and over, unless the auto-builder picks the next item.
-                if let Some(next) = self.autobuild_choice(city, owner) {
-                    p.item = Some(next);
-                }
+                // Likewise: nothing in hand, unless the auto-builder picks the next item.
+                p.item = self.autobuild_choice(city, owner);
             }
             ProductionItem::TradeGoods | ProductionItem::Housing => {}
         }

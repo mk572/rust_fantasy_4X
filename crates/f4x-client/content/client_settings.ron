@@ -29,6 +29,7 @@
         "play_intro": true,         // true: the original's opening movie plays at start-up (only if it was extracted)
         "left_click_moves": true,   // true: a left click moves the selected units; false: a right click does
         "edge_scrolling": false,    // true: the pointer on the edge of the window scrolls the map that way, after a moment; false: only the keys scroll it
+        "open_finished_cities": true, // true: at the start of the turn the screen of each city that finished its production opens, with the message over it; false: only the log says so
         "dim_behind_boxes": true,   // true: the screen under a question or notice is dimmed (the original does not); false: it stays as it is
     },
 )

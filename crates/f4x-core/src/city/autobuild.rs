@@ -339,6 +339,13 @@ fn is_combat(d: &crate::rules::UnitDef) -> bool {
     stat(d, Stat::Melee) > 0.0 || stat(d, Stat::Ranged) > 0.0
 }
 
+/// A unit that can hold a city: it fights, and is neither a settler nor an engineer (engineers
+/// have a melee value but walk off to build roads, and a city that counted them would build one
+/// after another to fill its garrison).
+fn is_garrison(d: &crate::rules::UnitDef) -> bool {
+    is_combat(d) && !is_settler(d) && !is_engineer(d)
+}
+
 fn is_engineer(d: &crate::rules::UnitDef) -> bool {
     stat(d, Stat::Construction) > 0.0
 }
@@ -491,7 +498,7 @@ fn best_defender(content: &Content, f: &CityFacts) -> Option<UnitId> {
         .copied()
         .filter(|&u| {
             let d = content.rules.units.get(u);
-            is_combat(d) && !is_settler(d) && d.movement != MovementType::Sailing
+            is_garrison(d) && d.movement != MovementType::Sailing
         })
         .collect();
     let best = max_profiles(content, &pool);
@@ -833,7 +840,7 @@ impl Game {
             .filter(|&u| {
                 self.units()
                     .unit_def(u)
-                    .is_some_and(|d| d.kind == UnitKind::Normal && is_combat(d) && !is_settler(d))
+                    .is_some_and(|d| d.kind == UnitKind::Normal && is_garrison(d))
             })
             .count() as u32;
         let rival_near = view.known_cities().into_iter().any(|(_, o, p)| {

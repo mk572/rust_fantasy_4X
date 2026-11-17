@@ -53,6 +53,22 @@ impl Modal for BuiltNotice {
     }
 }
 
+/// A finished item that is not a building (a unit, or the housing of a city that cannot grow any
+/// further), announced over the city screen with the same strip.
+pub(crate) struct FinishedNotice {
+    pub city: hecs::Entity,
+    pub item: f4x_core::city::production::ProductionItem,
+}
+
+impl Modal for FinishedNotice {
+    fn kind(&self) -> &'static str {
+        kind::BUILT
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.finished_popup_frame(*self, input))
+    }
+}
+
 impl App {
     /// For screenshots and checks: announce this building (an id) as if the first city had just
     /// finished it.
@@ -72,6 +88,30 @@ impl App {
         if self.game.economy().city_owner(city) == Some(HUMAN) {
             self.modals.enqueue(BuiltNotice { city, building });
         }
+    }
+
+    /// The box of a finished unit (or ended housing) over the screen until it is closed.
+    pub(crate) fn finished_popup_frame(
+        &mut self,
+        FinishedNotice { city, item }: FinishedNotice,
+        input: &Input,
+    ) -> Option<FinishedNotice> {
+        let lay = Layout::new();
+        let text = self.text_with(
+            "log.production_complete",
+            &Args::new()
+                .text("city", self.city_name(city))
+                .text("item", self.item_name(item)),
+        );
+        let closed = self.notify2_box(
+            &lay,
+            TOP,
+            crate::event_popup::GREEN,
+            &text,
+            |_, _, _| {},
+            input,
+        );
+        (!closed).then_some(FinishedNotice { city, item })
     }
 
     /// The box of a finished building over the screen until it is closed.

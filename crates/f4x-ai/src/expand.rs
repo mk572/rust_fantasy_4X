@@ -93,11 +93,16 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         .set_target(serial, crate::roles::Role::Settle, None);
                     continue;
                 }
+                // Blocked on arrival: the site is no place for a city after all.
+                ai.settler_fates
+                    .note(crate::settler_fate::SettlerFate::SiteUnusable);
                 ai.roles
                     .set_target(serial, crate::roles::Role::Settle, None); // blocked: choose again below
             } else if PlayerView::new(game, me).unit_has_order(unit) {
                 if ai.roles.track(serial, pos, true) >= 1 {
                     // It did not move all turn: the way is blocked. Give this site up.
+                    ai.settler_fates
+                        .note(crate::settler_fate::SettlerFate::WayBlocked);
                     ai.bad_sites.push(target);
                     ai.roles
                         .set_target(serial, crate::roles::Role::Settle, None);
@@ -140,7 +145,11 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     );
                     continue;
                 }
-                (None, None) => continue,
+                (None, None) => {
+                    ai.settler_fates
+                        .note(crate::settler_fate::SettlerFate::NoSite);
+                    continue;
+                }
             }
         }
         let Some(target) = ai.roles.target_of(serial, crate::roles::Role::Settle) else {
@@ -157,6 +166,8 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .set_target(serial, crate::roles::Role::Settle, None);
             }
         } else if !crate::escort::walk(ai, game, unit, target, events) {
+            ai.settler_fates
+                .note(crate::settler_fate::SettlerFate::WayBlocked);
             ai.roles
                 .set_target(serial, crate::roles::Role::Settle, None);
         }
@@ -352,6 +363,12 @@ mod tests {
         ai.roles.track(serial, here, false);
         settlers(&mut ai, &mut g, &mut Vec::new());
         assert!(ai.bad_sites.contains(&first), "{:?}", ai.bad_sites);
+        assert!(
+            ai.settler_failures()
+                .contains(&("way to the site blocked", 1)),
+            "{:?}",
+            ai.settler_failures()
+        );
         let second = ai
             .roles
             .target_of(serial, crate::roles::Role::Settle)
