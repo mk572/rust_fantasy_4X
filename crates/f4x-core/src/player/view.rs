@@ -393,6 +393,16 @@ impl<'a> PlayerView<'a> {
         self.game.units().unit_has_ability(unit, ability)
     }
 
+    /// How quickly the unit gets to a square (`unit::mobility`).
+    pub fn unit_mobility(&self, unit: hecs::Entity) -> f32 {
+        self.game.units().unit_mobility(unit)
+    }
+
+    /// How quickly a party gets to a square: the slowest unit's pace, unless the stack is carried.
+    pub fn party_mobility(&self, units: &[hecs::Entity]) -> f32 {
+        self.game.units().party_mobility(units)
+    }
+
     /// What the unit adds to a battle at full health (`battle::power::unit_power`).
     pub fn unit_power(&self, unit: hecs::Entity) -> f32 {
         self.game.units().unit_power(unit)

@@ -454,19 +454,17 @@ fn lifetime_cost(d: &crate::rules::UnitDef) -> f32 {
 
 /// The three profiles of a unit, before they are divided by the best candidate's.
 fn raw_profiles(d: &crate::rules::UnitDef) -> [f32; 3] {
-    let moves = stat(d, Stat::Moves);
     // What the unit adds to a battle is one number, whichever side begins it. An army unit is
     // also worth what it takes to get it to the fight: offence is that strength with the speed it
     // brings, defence is the strength alone (a garrison does not walk).
     let power = crate::battle::power::def_power(d);
-    let offense = power * (1.0 + 0.15 * (moves - 1.0).max(0.0));
+    let offense = power * (1.0 + 0.15 * (crate::unit::mobility::def_mobility(d) - 1.0).max(0.0));
     let defense = power;
-    let flying =
-        matches!(d.movement, MovementType::Flying) || d.abilities.contains(&Ability::new(24));
     let sailing = matches!(d.movement, MovementType::Sailing);
-    let exploration = moves
+    // A scout is chosen by how quickly it gets about (`unit::mobility`): the rate times what its
+    // movement and abilities do for it.
+    let exploration = crate::unit::mobility::def_mobility(d)
         + (stat(d, Stat::Sight) * 2.0 - 1.0) * 0.25
-        + if flying { 2.0 } else { 0.0 }
         + if sailing { 1.5 } else { 0.0 }
         + stat(d, Stat::Transport) * 0.3
         + stat(d, Stat::Construction) * 1.5

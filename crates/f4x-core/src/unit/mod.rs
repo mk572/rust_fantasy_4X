@@ -12,6 +12,7 @@ pub mod crowding;
 pub mod experience;
 pub(crate) mod healing;
 pub(crate) mod kept;
+pub mod mobility;
 pub mod movement;
 pub mod mutation;
 pub mod pathing;
@@ -526,6 +527,30 @@ impl<'a> UnitView<'a> {
             * self.unit_stat(unit, Stat::Figures).max(0)) as u32;
         let hurt = self.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
         (max.saturating_sub(hurt), max)
+    }
+
+    /// How quickly the unit gets to a square (`unit::mobility`): its movement rate times what
+    /// its kind of movement and its abilities do for it.
+    pub fn unit_mobility(&self, unit: hecs::Entity) -> f32 {
+        let Some(def) = self.unit_def(unit) else {
+            return 0.0;
+        };
+        mobility::unit_mobility(self.unit_stat(unit, Stat::Moves), def.movement, |a| {
+            self.unit_has_ability(unit, a)
+        })
+    }
+
+    /// How quickly a party of units gets to a square: as quickly as the slowest, unless one of
+    /// them carries the whole stack (pathfinding, wind walking).
+    pub fn party_mobility(&self, units: &[hecs::Entity]) -> f32 {
+        let members: Vec<(f32, i32)> = units
+            .iter()
+            .map(|&u| (self.unit_mobility(u), self.unit_stat(u, Stat::Moves)))
+            .collect();
+        let carried = units
+            .iter()
+            .any(|&u| mobility::carries_stack(|a| self.unit_has_ability(u, a)));
+        mobility::party_mobility(&members, carried)
     }
 
     /// What the unit adds to a battle at full health: the one measure of strength

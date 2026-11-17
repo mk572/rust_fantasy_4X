@@ -905,3 +905,13 @@ terrain abilities, the slowest of a party unless a spell lifts it) is the second
 not built yet: a garrison does not need it, a march is as slow as its slowest unit, a scout is all
 about it.
 
+**Mobility, the second measure (17 November 2026).** `f4x_core::unit::mobility` (`unit_mobility`,
+`def_mobility`, `party_mobility`, `PlayerView::unit_mobility`): the movement rate times a flat
+multiplier for the kind of movement (non-corporeal 3, flying 2, swimming 1.5; a walker: mountaineer
+and forester 1.2 each, water walking 1.2, cavalry 1.1). No walk over the terrain: a flier with two
+moves gets where a walker with four is held up. A party goes at the pace of its slowest unit, unless
+a unit of it carries the whole stack (pathfinding, wind walking), which doubles each unit's own rate.
+A garrison does not ask for it, a march or a raid asks for it only when a fast strike party is
+wanted, a scout is chosen by it first (the autobuilder's exploration profile and its offence
+profile read it). The war jobs of task 646 use `party_mobility` to pick a strike party.
+
