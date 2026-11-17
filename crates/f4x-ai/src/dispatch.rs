@@ -16,8 +16,9 @@
 //! 1. settlers to their sites, engineers to their roads, spirits to their nodes;
 //! 2. escorts for the settlers and engineers whose way is not safe;
 //! 3. scouts for unexplored land, the fast units first;
-//! 4. the war: the rally, the army against an enemy city (task 646);
-//! 5. raiding parties for a lair (646);
+//! 4. the war: the rally, the army against an enemy city (task 646); at peace it asks for nothing
+//!    and is skipped, at war it picks its soldiers before the raids do;
+//! 5. raiding parties for a lair, from the soldiers the war left over (646);
 //! 6. the other under-defended cities (646);
 //!
 //! Then come the ships and the colonies (task 647) and the audit that counts what is left.
@@ -182,9 +183,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::escort::run(ai, game, events);
     // 3. scouts
     crate::scout::scout(ai, game, events);
-    // 4 to 6 (until task 646): raids, the army, the war
-    crate::site::run(ai, game, events);
+    // 4. the war (task 646): the army takes the soldiers its target needs, none at peace
     crate::military::army(ai, game, events);
+    // 5. raiding parties from the soldiers the war left over
+    crate::site::run(ai, game, events);
     // The ships and the colonies (task 647)
     crate::naval::run(ai, game, events);
     crate::colony::run(ai, game, events);
@@ -195,7 +197,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, game, spawn, COAST_CITY, P0};
+    use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
 
     /// A city keeps the soldiers its defence needs; the rest, and a lone soldier in the field,
     /// are the pool.
@@ -229,6 +231,75 @@ mod tests {
         // The map is fully known, so there is nothing to scout; nobody is at war.
         assert!(!view.unit_has_order(lone), "{events:?}");
         assert_eq!(view.unit_position(lone), Some(at(8, 6)));
+    }
+
+    /// With the same soldiers and the same lair, a raid party forms at peace, and at war the
+    /// campaign holds the soldiers and the lair is left alone. (This does not tell the order of
+    /// the two jobs: the raid needs a few turns to form, the muster none; the order is in
+    /// `run`.)
+    #[test]
+    fn at_war_the_soldiers_gather_for_the_campaign_and_leave_the_lair_alone(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        use crate::roles::{MusterKind, Role};
+        let build = |war: bool| -> Result<(Game, Ai), Box<dyn std::error::Error>> {
+            let mut g = game(COAST_CITY, 8 /* high_men */);
+            if war {
+                // A rival's town that P0 knows and is at war with.
+                g.make_contact(P0, P1);
+                let town = at(4, 4);
+                g.apply(f4x_core::game::Command::FoundCity {
+                    owner: P1,
+                    pos: town,
+                    name: "Town".into(),
+                    race: g.content().rules.races.id_numbered(8),
+                    population: 8,
+                });
+                g.explore(P0, town, f4x_def::half_int::HalfInt::from_raw(3));
+                g.declare_war(P0, P1);
+            }
+            spawn(
+                &mut g,
+                P0,
+                at(COAST_CITY.0, COAST_CITY.1),
+                113, /* paladins */
+                6,
+            );
+            crate::testworld::spawn_site(
+                &mut g,
+                at(COAST_CITY.0 - 2, COAST_CITY.1),
+                vec![(f4x_def::rules::UnitId::new(174) /* zombies */, 1)],
+                Vec::new(),
+            )?;
+            g.reveal_map(P0);
+            Ok((g, Ai::new(P0)))
+        };
+        // Whether a raid party was formed in any of the turns (a short one may be over by the end).
+        let turns = |g: &mut Game, ai: &mut Ai, turns_run: usize| {
+            let mut raided = false;
+            for _ in 0..turns_run {
+                g.balance_farmers(P0);
+                run(ai, g, &mut Vec::new());
+                raided |= ai.roles.any(Role::Raid);
+                g.apply(f4x_core::game::Command::EndTurn);
+            }
+            raided
+        };
+        let (mut g, mut ai) = build(false)?;
+        assert!(turns(&mut g, &mut ai, 6), "at peace the soldiers raid");
+        assert!(!ai.roles.any_muster(MusterKind::Campaign));
+        let (mut g, mut ai) = build(true)?;
+        let raided = turns(&mut g, &mut ai, 6);
+        assert!(!raided, "at war the lair is a distraction");
+        assert!(
+            ai.roles.any_muster(MusterKind::Campaign) || ai.roles.any(Role::March),
+            "at war the campaign holds them"
+        );
+        let view = f4x_core::player::view::PlayerView::new(&g, P0);
+        for s in ai.roles.members(Role::Raid) {
+            assert!(!ai.roles.in_muster(s, MusterKind::Campaign));
+            let _ = &view;
+        }
+        Ok(())
     }
 
     /// A scout whose ground was explored meanwhile, and one whose order stopped short, are given
