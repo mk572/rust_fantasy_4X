@@ -89,13 +89,15 @@ fn mission_valid(
 }
 
 /// Before any new job is looked for: a unit sent on a mission that can no longer be fulfilled
-/// (a rival cleared the lair first, the order was stopped on a refused step, the ground was
-/// explored by another) is given up. It loses its role and its order and awaits orders where it
+/// (a rival cleared the lair first, the ground was explored by another) is given up. A unit whose
+/// walk is gone (it was moved by a strike, a battle, a refused step) but whose target stands in
+/// the registry is sent again; it is given up only when the game refuses. It loses its role and its order and awaits orders where it
 /// stands, so the jobs below see it in the pool. Returns how many were reset.
 pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 {
     use crate::roles::Role;
     let me = ai.player;
     let mut reset: Vec<(hecs::Entity, crate::roles::Role)> = Vec::new();
+    let mut lost: Vec<(hecs::Entity, crate::roles::Role, f4x_core::map::Position)> = Vec::new();
     {
         let view = f4x_core::player::view::PlayerView::new(game, me);
         for unit in view.my_units() {
@@ -116,11 +118,33 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
                         || (reach > 0
                             && crate::view::distance(&view, h, target).is_some_and(|d| d <= reach))
                 });
-                let stopped = !view.unit_has_order(unit) && !arrived;
-                if stopped || !mission_valid(ai, &view, role, target) {
+                if !mission_valid(ai, &view, role, target) {
                     reset.push((unit, role));
+                } else if !view.unit_has_order(unit) && !arrived {
+                    // A unit can lose its walk for many reasons (a strike moved it, a battle,
+                    // a refused step): the registry still knows where it goes.
+                    lost.push((unit, role, target));
                 }
             }
+        }
+    }
+    // The walk is given again; a unit the game will not send is given up.
+    for (unit, role, target) in lost {
+        let sent = match role {
+            Role::Raid => crate::assault::march(ai, game, &[unit], target, events).is_ok(),
+            _ => ai
+                .probe(
+                    game,
+                    f4x_core::game::Command::GoTo {
+                        units: vec![unit],
+                        to: target,
+                    },
+                    events,
+                )
+                .is_ok(),
+        };
+        if !sent {
+            reset.push((unit, role));
         }
     }
     let mut serials = Vec::new();
@@ -346,5 +370,30 @@ mod tests {
         let view = f4x_core::player::view::PlayerView::new(&g, P0);
         assert!(!view.unit_has_order(walker));
         assert_eq!(ai.missions_reset, 2);
+    }
+
+    /// A unit that lost its walk (a strike moved it, a battle) but whose target is in the
+    /// registry is sent on again, not given up.
+    #[test]
+    fn a_unit_that_lost_its_walk_is_sent_on_to_the_target_in_the_registry() {
+        use crate::roles::Role;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let target = at(5, 9);
+        let scout = spawn(&mut g, P0, at(9, 7), 104, 1)[0];
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        let view = f4x_core::player::view::PlayerView::new(&g, P0);
+        let serial = view.serial_of(scout);
+        assert!(!view.explored(target), "unexplored ground to scout");
+        let _ = ai.roles.claim(serial, Role::Scout, 1, Some(target));
+        assert!(!view.unit_has_order(scout), "no walk");
+        let mut events = Vec::new();
+        assert_eq!(revalidate(&mut ai, &mut g, &mut events), 0, "not given up");
+        assert!(ai.roles.is(serial, Role::Scout));
+        let view = f4x_core::player::view::PlayerView::new(&g, P0);
+        assert!(
+            view.unit_has_order(scout) || view.unit_position(scout) != Some(at(9, 7)),
+            "walking again: {events:?}"
+        );
     }
 }
