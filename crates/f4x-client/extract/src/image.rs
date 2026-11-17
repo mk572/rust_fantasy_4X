@@ -215,17 +215,65 @@ pub fn to_rgba_stone(pixels: &[u8], palette: &[u8]) -> Vec<u8> {
     out
 }
 
+/// The marble of a notify box's strip, dark to light (`resource.lbx` 40 green, 43 red, 46 blue
+/// grey: the colours of the strip's outer band), nine steps each. The frames of its picture box
+/// (the entry one or two on) continue that band around the picture.
+pub const NOTIFY_GREEN: [[u8; 3]; 9] = [
+    [20, 48, 56],
+    [28, 60, 69],
+    [36, 69, 77],
+    [44, 81, 89],
+    [56, 97, 105],
+    [65, 113, 121],
+    [73, 117, 125],
+    [77, 125, 134],
+    [81, 134, 142],
+];
+pub const NOTIFY_RED: [[u8; 3]; 9] = [
+    [36, 0, 4],
+    [60, 0, 4],
+    [77, 0, 0],
+    [105, 0, 0],
+    [130, 0, 0],
+    [146, 0, 0],
+    [170, 0, 0],
+    [186, 0, 0],
+    [199, 0, 0],
+];
+pub const NOTIFY_GREY: [[u8; 3]; 9] = [
+    [44, 44, 73],
+    [52, 52, 81],
+    [56, 56, 85],
+    [60, 60, 89],
+    [69, 69, 97],
+    [77, 77, 105],
+    [81, 81, 109],
+    [89, 89, 117],
+    [93, 93, 121],
+];
+
 /// [`to_rgba_glass`] for the picture frames of the notify boxes (`resource.lbx` 41, 42, 44, 45, 47
-/// and 48): the white glass blocks of their outline darken what is under them, as the selection
-/// box's frame ([`to_rgba_stone`]) does, so over the box's black fill they are dark grain, not
-/// light grey speckle.
-pub fn to_rgba_notify_frame(pixels: &[u8], palette: &[u8], glass: &[[u8; 4]]) -> Vec<u8> {
+/// and 48). Their outline is made of glass indexes that the original draws as the marble of the
+/// strip (yellow and blue like the strip's left end, for the green box): each becomes an opaque
+/// step of `ramp`, dark for the black blocks and light for the white ones by their percent, and
+/// the blue blocks (the colour slide) are the lightest step, the strip's light inner line.
+pub fn to_rgba_notify_frame(
+    pixels: &[u8],
+    palette: &[u8],
+    glass: &[[u8; 4]],
+    ramp: &[[u8; 3]; 9],
+) -> Vec<u8> {
     let mut out = to_rgba_glass(pixels, palette, glass);
     for (k, _) in pixels.iter().enumerate().filter(|(_, &i)| i >= GLASS_FIRST) {
-        let px = &mut out[k * 4..k * 4 + 3];
-        if px == [255, 255, 255] {
-            px.copy_from_slice(&[0, 0, 0]);
-        }
+        let px = &mut out[k * 4..k * 4 + 4];
+        let alpha = f32::from(px[3]) / 255.0;
+        let t = match [px[0], px[1], px[2]] {
+            [255, 255, 255] => 0.55 + 0.4 * alpha,
+            [0, 0, 0] => 0.45 - 0.4 * alpha,
+            _ => 1.0,
+        };
+        let [r, g, b] = ramp[(t * 8.0).round().clamp(0.0, 8.0) as usize];
+        px.copy_from_slice(&[r, g, b, 255]);
     }
     out
 }
@@ -233,6 +281,28 @@ pub fn to_rgba_notify_frame(pixels: &[u8], palette: &[u8], glass: &[[u8; 4]]) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A notify frame's glass becomes opaque marble: a white block lighter than a black one, the
+    /// blue slide block the lightest step.
+    #[test]
+    fn notify_frame_glass_becomes_the_marble_of_the_strip() {
+        let mut palette = vec![0u8; 768];
+        let glass = vec![[0, 0, 0, 0]; 24];
+        let mut glass = glass;
+        glass[1] = [63, 63, 63, 40];
+        glass[2] = [0, 0, 0, 60];
+        glass[3] = [0, 0, 63, 70];
+        palette[0] = 1;
+        let out = to_rgba_notify_frame(&[233, 234, 235], &palette, &glass, &NOTIFY_GREEN);
+        let step = |k: usize| {
+            NOTIFY_GREEN
+                .iter()
+                .position(|c| c[..] == out[k * 4..k * 4 + 3])
+        };
+        assert!(out.chunks(4).all(|p| p[3] == 255));
+        assert!(step(0) > step(1));
+        assert_eq!(step(2), Some(8));
+    }
 
     /// A 2x2 picture, one frame, copy packets: column 0 = [1,2], column 1 skips
     /// the first row then writes [3].

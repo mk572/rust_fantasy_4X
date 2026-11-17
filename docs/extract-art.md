@@ -175,6 +175,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   palette's entry, 5376 bytes in; block 0 is the shadow, black at 50 percent). `f4x-extract art` writes
   them as translucent pixels (tree and figure shadows, the glow of spell pictures). A picture with
   an embedded palette (the battle panel, the Info window) uses those indexes for colours.
+- **The notify boxes' picture frames (17 November 2026):** `resource.lbx` 41, 42, 44, 45, 47 and 48 are outlined with glass blocks that the original shows as the marble band of the strip (the green box: gold and blue like the strip's left end). `to_rgba_notify_frame` makes each glass pixel an opaque step of the strip's colour ramp (`NOTIFY_GREEN`, `_RED`, `_GREY`); `scripts/notify_frame_dark.py` does the same to the packed `resource.sheet4.png`.
 - **Also not reproduced:** fades, and the colour remapping for disabled or "ghost" drawing.
 
 **If a picture looks wrong:** (1) find where ReMoM loads it (`grep -rn "NAME" ~/projects/ReMoM/MoM/src`);

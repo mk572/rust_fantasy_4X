@@ -10,7 +10,8 @@ use std::fs;
 use std::path::Path;
 
 use crate::image::{
-    decode, to_rgba, to_rgba_glass, to_rgba_notify_frame, to_rgba_stone, vga_to_rgb8,
+    decode, to_rgba, to_rgba_glass, to_rgba_notify_frame, to_rgba_stone, vga_to_rgb8, NOTIFY_GREEN,
+    NOTIFY_GREY, NOTIFY_RED,
 };
 use crate::lbx::Lbx;
 use crate::screens::{self, Placer};
@@ -71,7 +72,7 @@ fn extract_cursors(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize,
 const SELECTION_FRAME: [usize; 5] = [5, 6, 8, 9, 10];
 
 /// The picture frames of the notify boxes in `resource.lbx` (green, red and brown boxes, the plain
-/// frame and the gem frame of each): their white glass blocks darken ([`to_rgba_notify_frame`]).
+/// frame and the gem frame of each): their glass blocks become the marble of the strip ([`to_rgba_notify_frame`]).
 const NOTIFY_FRAME: [usize; 6] = [41, 42, 44, 45, 47, 48];
 
 /// The glass table: 24 colours (6-bit red, green, blue and a percent) at 5376 bytes into the base
@@ -698,7 +699,14 @@ pub fn extract_with(
                 } else if stem == "resource" && SELECTION_FRAME.contains(&i) {
                     to_rgba_stone(&frame.pixels, &pal)
                 } else if stem == "resource" && NOTIFY_FRAME.contains(&i) {
-                    to_rgba_notify_frame(&frame.pixels, &pal, &glass)
+                    {
+                        let ramp = match i {
+                            41 | 42 => &NOTIFY_GREEN,
+                            44 | 45 => &NOTIFY_RED,
+                            _ => &NOTIFY_GREY,
+                        };
+                        to_rgba_notify_frame(&frame.pixels, &pal, &glass, ramp)
+                    }
                 } else {
                     to_rgba_glass(&frame.pixels, &pal, &glass)
                 };
