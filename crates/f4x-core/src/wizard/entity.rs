@@ -131,11 +131,6 @@ impl<'a> Wizard<'a> {
         self.world.get::<&CapitalRace>(self.entity).ok()?.0
     }
 
-    /// The cast the wizard is paying for over turns.
-    pub fn cast_instance(&self) -> Option<hecs::Entity> {
-        crate::spell::instance::Spells::new(self.world).cast_of(self.entity)
-    }
-
     /// The lasting spells the wizard keeps going on the whole world, oldest first, with the
     /// creation number of each.
     pub fn global_instances(&self) -> Vec<(crate::rules::SpellId, crate::game::serial::Serial)> {

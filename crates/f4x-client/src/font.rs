@@ -340,7 +340,7 @@ impl App {
         x: f32,
         y: f32,
     ) -> f32 {
-        let font = self.art.bm_font(style.font);
+        let font = crate::font::shared_font(style.font);
         draw_line_in(&font, view, style, style.ink, text, (x, y))
     }
 

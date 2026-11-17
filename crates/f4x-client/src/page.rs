@@ -107,11 +107,6 @@ impl App {
         }
     }
 
-    /// Whether a page is kept for `screen`.
-    pub(crate) fn has_page(&self, screen: &Screen) -> bool {
-        self.pages.get(screen).is_some()
-    }
-
     /// Forget the page of `screen`.
     pub(crate) fn close_page(&mut self, screen: &Screen) {
         self.pages.take(screen);

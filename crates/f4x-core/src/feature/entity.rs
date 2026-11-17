@@ -157,7 +157,8 @@ impl<'a> Economy<'a> {
         })
     }
 
-    fn lair_info(&self, entity: Entity) -> Option<LairInfo> {
+    /// A guarded site by its entity.
+    pub fn lair_of(&self, entity: Entity) -> Option<LairInfo> {
         let lair = self.world.get::<&Lair>(entity).ok()?;
         let pos = *self.world.get::<&Position>(entity).ok()?;
         let site = self.world.get::<&TerrainFeature>(entity).ok()?.0;
@@ -222,14 +223,14 @@ impl<'a> Economy<'a> {
     pub fn lairs(&self) -> Vec<LairInfo> {
         self.entities_with::<Lair>()
             .into_iter()
-            .filter_map(|e| self.lair_info(e))
+            .filter_map(|e| self.lair_of(e))
             .collect()
     }
 
     /// The intact guarded site on a square.
     pub fn lair_at(&self, at: Position) -> Option<LairInfo> {
         let e = self.feature_entity_at(at)?;
-        self.lair_info(e).filter(|l| l.intact)
+        self.lair_of(e).filter(|l| l.intact)
     }
 
     /// What guards the site on a square, if `player` knows: they have fought for it once, or a
@@ -273,11 +274,6 @@ impl<'a> Economy<'a> {
             let dy = at.y as i32 - pos.y as i32;
             crate::map::fog::in_sight(dx, dy, self.city_sight(city), self.diagonal_extra)
         })
-    }
-
-    /// A guarded site by its entity.
-    pub fn lair_of(&self, entity: Entity) -> Option<LairInfo> {
-        self.lair_info(entity)
     }
 
     /// The squares of the towers, nodes and encounter sites; a tower is on both planes.

@@ -1624,7 +1624,7 @@ impl App {
         self.selection
             .retain(|&u| self.game.units().unit_position(u).is_some());
         if self.game.in_battle() {
-            if !self.has_page(&Screen::Battle) {
+            if self.pages.get(&Screen::Battle).is_none() {
                 self.open_battle_screen();
             } else if !matches!(
                 self.screen,

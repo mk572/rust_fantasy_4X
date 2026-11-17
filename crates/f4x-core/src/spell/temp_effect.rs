@@ -2,7 +2,7 @@
 //! a city without an enchantment to carry them.
 //!
 //! They last until the bearer is gone (the original has no timed effects). Units read them
-//! through `unit_modifiers` and `unit_abilities`, cities through `city_modifiers`. Cities have
+//! through `modifiers_shared` and `unit_abilities`, cities through `city_modifiers`. Cities have
 //! no abilities, so granting or removing one there does nothing.
 
 use crate::battle::immunity::{effective_resistance, Immunities, Realm};

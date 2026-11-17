@@ -233,7 +233,7 @@ impl Game {
 
     /// Warp Node: a node somebody owns turns against them, draining five power.
     pub fn check_warp_node(&self, at: Position, caster: PlayerId) -> Result<(), TargetError> {
-        let node = self.node_at(at).ok_or(TargetError::NoNode)?;
+        let node = self.economy().node_at(at).ok_or(TargetError::NoNode)?;
         match node.owner {
             None => Err(TargetError::NodeUnowned),
             Some(o) if o == caster => Err(TargetError::NodeOwn),

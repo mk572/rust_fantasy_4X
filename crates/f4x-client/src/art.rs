@@ -411,11 +411,6 @@ impl Art {
         Some((lbx.to_string(), entry))
     }
 
-    /// A font style as a BMFont of the embedded files.
-    pub fn bm_font(&self, style: usize) -> std::rc::Rc<BmFont> {
-        crate::font::shared_font(style)
-    }
-
     /// Draw `text` in the colour set `set` of a font style: `(x, y)` is the top-left in window
     /// pixels and `scale` the window pixels per original pixel. Returns the width drawn.
     pub fn draw_bitmap_text(
@@ -449,7 +444,7 @@ impl Art {
         (x, y): (f32, f32),
         scale: f32,
     ) -> f32 {
-        let font = self.bm_font(style);
+        let font = crate::font::shared_font(style);
         let params = bm::TextParams {
             scale,
             ink,

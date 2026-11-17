@@ -191,30 +191,10 @@ impl<'a> Spells<'a> {
         self.has(SpellTarget::Unit(unit), spell)
     }
 
-    /// Like [`Spells::city_enchantments`], with the creation number of each.
-    pub fn city_instances(&self, city: hecs::Entity) -> Vec<(SpellId, PlayerId, Serial)> {
-        self.instances_on(SpellTarget::City(city))
-    }
-
-    /// Like [`Spells::unit_enchantments`], with the creation number of each.
-    pub fn unit_instances(&self, unit: hecs::Entity) -> Vec<(SpellId, PlayerId, Serial)> {
-        self.instances_on(SpellTarget::Unit(unit))
-    }
-
     pub fn enchantments_on(&self, target: SpellTarget) -> Vec<(SpellId, PlayerId)> {
         self.on(target)
             .into_iter()
             .filter_map(|i| Some((self.def(i)?, self.caster_player(i)?)))
-            .collect()
-    }
-
-    fn instances_on(&self, target: SpellTarget) -> Vec<(SpellId, PlayerId, Serial)> {
-        self.on(target)
-            .into_iter()
-            .filter_map(|i| {
-                let serial = *self.world.get::<&Serial>(i).ok()?;
-                Some((self.def(i)?, self.caster_player(i)?, serial))
-            })
             .collect()
     }
 

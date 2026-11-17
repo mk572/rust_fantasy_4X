@@ -465,12 +465,6 @@ impl Diplomacy {
     }
 }
 
-/// The wizards `player` meets by looking at the squares within `radius` of `at`: the owners of
-/// the cities and of the units it can make out there, in player order.
-pub fn met_near(view: &Game, player: PlayerId, at: Position, radius: u32) -> Vec<PlayerId> {
-    view.foreign_owners_near(player, at, radius)
-}
-
 /// The wizards `player` meets by what it sees now: the owners of the cities and of the units it
 /// can make out on the squares in its sight, in player order.
 pub fn met_in_sight(view: &Game, player: PlayerId) -> Vec<PlayerId> {
@@ -715,7 +709,7 @@ impl Diplomacy {
         if !ctx.view.takes_part_in_diplomacy(player) {
             return;
         }
-        for other in met_near(ctx.view, player, at, radius) {
+        for other in ctx.view.foreign_owners_near(player, at, radius) {
             self.make_contact(ctx, player, other);
         }
     }
@@ -1970,7 +1964,8 @@ impl Game {
                 Outcome::Spell { player, spell } => self.learn_spell(player, spell),
                 Outcome::Item { from, to, item } => self.pass_item(from, to, item),
                 Outcome::Unit { to, unit } => self.pass_unit(to, unit),
-                Outcome::Hero { to, hero } => self.pass_hero(to, hero),
+                // A hero goes like a unit: it keeps its experience and the items it carries.
+                Outcome::Hero { to, hero } => self.pass_unit(to, hero),
                 Outcome::DropCityCurses { a, b } => self.drop_city_curses(a, b),
             }
         }
@@ -2002,12 +1997,6 @@ impl Game {
         self.set_owner(unit, to);
         let _ = self.world.insert_one(unit, at);
         let _ = self.world.remove_one::<crate::unit::Order>(unit);
-    }
-
-    /// A hero of a city goes to `to` (a trade): like a unit, and it keeps its experience and
-    /// the items it carries.
-    fn pass_hero(&mut self, to: PlayerId, serial: crate::game::serial::Serial) {
-        self.pass_unit(to, serial);
     }
 
     /// Take off every city the spells that `a` and `b` cast on each other's cities.

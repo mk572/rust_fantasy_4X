@@ -265,12 +265,6 @@ impl Economy<'_> {
         })
     }
 
-    /// Whether a building that is built in the city needs `building`, directly or down a chain
-    /// of requirements (an unbuilt link in the chain does not break it).
-    pub fn has_dependants(&self, city: hecs::Entity, building: BuildingId) -> bool {
-        self.first_dependant(city, building).is_some()
-    }
-
     /// The built building that needs `building`, directly or down a chain of requirements:
     /// the one a sale is refused for (`City_Building_Has_Requirement`).
     pub fn first_dependant(&self, city: hecs::Entity, building: BuildingId) -> Option<BuildingId> {
@@ -399,7 +393,7 @@ impl Economy<'_> {
         if self.sold_this_turn(city) {
             return Err(ProductionError::AlreadySold);
         }
-        if self.has_dependants(city, building) {
+        if self.first_dependant(city, building).is_some() {
             return Err(ProductionError::MissingBuilding);
         }
         let def = self.content.rules.buildings.get(building);

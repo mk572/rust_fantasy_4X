@@ -60,10 +60,6 @@ impl EventKind {
         self as u32
     }
 
-    pub fn from_number(number: u32) -> Option<EventKind> {
-        Self::all().find(|e| e.number() == number)
-    }
-
     /// The name a save file and the console use.
     pub fn id(self) -> &'static str {
         match self {

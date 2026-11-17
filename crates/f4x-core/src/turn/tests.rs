@@ -1273,7 +1273,10 @@ fn a_wizard_turns_off_their_own_spell_on_a_city_and_no_one_elses() -> TestResult
         off(&mut g, P0),
         vec![crate::game::Event::EnchantmentLapsed { player: P0, spell }]
     );
-    assert_eq!(g.city_enchantments(city), vec![(spell, PlayerId(1))]);
+    assert_eq!(
+        g.spells().city_enchantments(city),
+        vec![(spell, PlayerId(1))]
+    );
     assert!(matches!(
         off(&mut g, P0)[..],
         [crate::game::Event::Rejected(_)]

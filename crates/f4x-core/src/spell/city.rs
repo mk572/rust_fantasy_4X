@@ -155,7 +155,7 @@ impl Game {
                     .map(|b| b.0.clone())
                     .unwrap_or_default()
                     .into_iter()
-                    .filter(|&b| !self.economy().has_dependants(city, b))
+                    .filter(|&b| self.economy().first_dependant(city, b).is_none())
                     .collect();
                 if !candidates.is_empty() {
                     let pick = candidates[self.roll(candidates.len() as u32) as usize - 1];

@@ -292,7 +292,7 @@ impl Page for CityListUi {
                 99.0,
                 158.0,
             );
-            let list: Vec<_> = app.game.city_enchantments(row.city);
+            let list: Vec<_> = app.game.spells().city_enchantments(row.city);
             let rules_names: Vec<(String, u8)> = list
                 .iter()
                 .take(8)

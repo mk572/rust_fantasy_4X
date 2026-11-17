@@ -87,11 +87,6 @@ pub(crate) fn is_trireme(view: &PlayerView, item: ProductionItem) -> bool {
         if view.content().rules.units.id_numbered(35 /* trireme */) == Some(u))
 }
 
-/// The turn the game is at (for the age of what the AI remembers).
-fn view_turn(view: &PlayerView) -> u32 {
-    view.turn()
-}
-
 /// The AI's ships, oldest first.
 fn my_ships(view: &PlayerView) -> Vec<hecs::Entity> {
     let mut ships: Vec<hecs::Entity> = view
@@ -232,7 +227,7 @@ fn choose_plan(ai: &Ai, view: &PlayerView) -> Option<Plan> {
     // The lightest held first: a landing of a few units needs a weak garrison.
     targets.sort_by(|a, b| {
         let held = |t: &Position| {
-            crate::military::expected_defence(view, &ai.city_memory, view_turn(view), *t)
+            crate::military::expected_defence(view, &ai.city_memory, view.turn(), *t)
         };
         held(a)
             .total_cmp(&held(b))

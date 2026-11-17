@@ -149,12 +149,12 @@ pub(crate) fn next_turn_styles() -> [Style; 2] {
 
 /// The font of the labels: style 0, with the serif "I" of the Build picture's lettering for Build
 /// (`scripts/button_label_font.py`).
-fn label_font(app: &App, action: Action) -> Rc<bm::BmFont> {
+fn label_font(action: Action) -> Rc<bm::BmFont> {
     thread_local! {
         static SERIF: RefCell<Option<Rc<bm::BmFont>>> = const { RefCell::new(None) };
     }
     if action != Action::Build {
-        return app.art.bm_font(0);
+        return crate::font::shared_font(0);
     }
     SERIF.with(|face| {
         face.borrow_mut()
@@ -221,7 +221,7 @@ impl App {
         );
         let push = f32::from(u8::from(look == Look::Pressed));
         let label = self.text(action.key());
-        let font = label_font(self, action);
+        let font = label_font(action);
         self.draw_styled_in(
             &font,
             (lay.origin.x, lay.origin.y, s),
@@ -295,7 +295,7 @@ impl App {
             Slab::Yes => rgb(4, 69, 36),
             Slab::No => rgb(93, 16, 16),
         };
-        let font = self.art.bm_font(4);
+        let font = crate::font::shared_font(4);
         self.draw_styled_in(
             &font,
             (lay.origin.x, lay.origin.y, s),

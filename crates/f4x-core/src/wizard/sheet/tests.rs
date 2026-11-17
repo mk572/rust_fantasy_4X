@@ -365,7 +365,7 @@ fn casting_is_paid_over_turns_and_cancelled_without_a_refund() -> TestResult {
     assert_eq!(w.view().casting_paid(), Some(strength));
     assert_eq!(reserve, 1000 - skill);
     assert_eq!(w.view().skill_left(), 0, "borrowed and paid back at once");
-    w.cancel_casting();
+    w.clear_casting();
     assert!(w.view().casting().is_none());
     Ok(())
 }

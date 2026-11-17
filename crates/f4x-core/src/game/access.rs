@@ -101,11 +101,6 @@ impl Game {
             .unwrap_or_default()
     }
 
-    /// The enchantments on a city, with the wizard who cast each.
-    pub fn city_enchantments(&self, city: hecs::Entity) -> Vec<(SpellId, PlayerId)> {
-        self.spells().city_enchantments(city)
-    }
-
     /// Has the unit a standing order (a path it is walking)?
     pub fn unit_has_order(&self, unit: hecs::Entity) -> bool {
         self.world.get::<&Order>(unit).is_ok()
@@ -387,7 +382,7 @@ mod tests {
         assert_eq!(g.city_population(city).figures, 4);
         assert!(g.city_position(city).is_some());
         assert!(!g.city_conquered(city));
-        assert!(g.city_enchantments(city).is_empty());
+        assert!(g.spells().city_enchantments(city).is_empty());
         g.scenario_set_citizens(city, 7);
         assert_eq!(g.city_population(city).figures, 7);
         // What is not a city reads as nothing.

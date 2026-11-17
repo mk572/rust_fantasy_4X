@@ -7,7 +7,6 @@ use std::sync::OnceLock;
 
 use crate::text::Texts;
 use f4x_core::game::setting::SettingsDef;
-use f4x_def::content::Content;
 
 use f4x_extract::spell_art::SpellArt;
 use f4x_extract::unit_art::UnitArt;
@@ -26,9 +25,7 @@ pub(crate) const LANG_CONTENT: &str = "../f4x-lang/content";
 pub(crate) mod shipped {
     use super::*;
 
-    pub(crate) fn content() -> &'static Content {
-        f4x_def::testdir::shipped()
-    }
+    pub(crate) use f4x_def::testdir::shipped as content;
 
     pub(crate) fn texts() -> &'static Texts {
         static CELL: OnceLock<Texts> = OnceLock::new();

@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser(
     description=__doc__.split("\n\nUsage:")[0] + "\n\n" + __doc__.split("\n\n", 2)[2],
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
-parser.add_argument("handle", choices=["units", "economy"],
+parser.add_argument("handle", choices=["units", "economy", "spells"],
                     help="the handle the callers should ask: `game.HANDLE()`")
 parser.add_argument("methods", nargs="+", metavar="METHOD",
                     help="names of the deleted wrapper methods whose callers to rewrite")

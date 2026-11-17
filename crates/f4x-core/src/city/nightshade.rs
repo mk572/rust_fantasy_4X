@@ -234,7 +234,7 @@ mod tests {
             }
             let events = g.resolve_cast(P1, spell, Some(crate::rules::exec::Target::City(city)));
             if matches!(events.as_slice(), [crate::game::Event::SpellFizzled { .. }]) {
-                assert!(g.city_enchantments(city).is_empty());
+                assert!(g.spells().city_enchantments(city).is_empty());
                 return;
             }
         }

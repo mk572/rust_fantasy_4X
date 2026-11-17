@@ -863,11 +863,6 @@ impl<'a> WizardMut<'a> {
     pub fn add_skill_left(&mut self, skill: i32) {
         self.get_mut::<Skill>().left += skill;
     }
-
-    /// Give up the spell being cast; the mana already paid is lost.
-    pub fn cancel_casting(&mut self) {
-        self.clear_casting();
-    }
 }
 
 #[cfg(test)]

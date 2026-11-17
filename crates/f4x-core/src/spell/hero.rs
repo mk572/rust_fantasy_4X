@@ -706,7 +706,7 @@ mod tests {
         // The cost is paid; the hero is named then.
         back.wizard_mut(P0)
             .ok_or("wizard_mut is missing")?
-            .cancel_casting();
+            .clear_casting();
         back.begin_casting(P0, spell, 0);
         let wrong = back.apply(Command::ResolveCast {
             player: P0,

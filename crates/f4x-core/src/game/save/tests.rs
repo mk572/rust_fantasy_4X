@@ -748,7 +748,7 @@ fn a_spell_on_a_city_stays_through_a_save() -> TestResult {
         .find(|(_, c, _)| c.owner == P0)
         .ok_or("find is missing")?
         .0;
-    assert_eq!(back.city_enchantments(again), vec![(spell, P0)]);
+    assert_eq!(back.spells().city_enchantments(again), vec![(spell, P0)]);
     assert_eq!(back.snapshot(), g.snapshot());
     Ok(())
 }

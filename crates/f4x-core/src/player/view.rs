@@ -285,6 +285,7 @@ impl<'a> PlayerView<'a> {
     /// The lasting spells on a city.
     pub fn city_enchantments(&self, city: hecs::Entity) -> Vec<SpellId> {
         self.game
+            .spells()
             .city_enchantments(city)
             .into_iter()
             .map(|(s, _)| s)
@@ -294,6 +295,7 @@ impl<'a> PlayerView<'a> {
     /// The lasting spells on a city that another wizard cast.
     pub fn city_curses(&self, city: hecs::Entity) -> Vec<SpellId> {
         self.game
+            .spells()
             .city_enchantments(city)
             .into_iter()
             .filter(|&(_, caster)| caster != self.me)
@@ -653,7 +655,7 @@ impl<'a> PlayerView<'a> {
             workers: figures.workers,
             rebels: figures.rebels,
             buildings: self.game.city_buildings(city),
-            enchantments: self.game.city_enchantments(city),
+            enchantments: self.game.spells().city_enchantments(city),
             garrison,
             summoning_circle: self.game.wizard(owner).and_then(|w| w.summon_at()) == Some(position),
         })

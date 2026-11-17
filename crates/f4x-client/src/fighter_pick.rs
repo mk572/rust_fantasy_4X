@@ -86,8 +86,9 @@ impl App {
         let mut sorted = units.to_vec();
         sorted.sort_by(|&a, &b| {
             self.game
-                .fighter_strength(b)
-                .total_cmp(&self.game.fighter_strength(a))
+                .units()
+                .unit_power(b)
+                .total_cmp(&self.game.units().unit_power(a))
         });
         let preset = self.game.fighter_preset(units);
         let picked = sorted
@@ -452,7 +453,7 @@ mod tests {
         let strength: Vec<f32> = pick
             .units
             .iter()
-            .map(|&u| app.game.fighter_strength(u))
+            .map(|&u| app.game.units().unit_power(u))
             .collect();
         assert!(strength.windows(2).all(|w| w[0] >= w[1]), "{strength:?}");
         assert_eq!(

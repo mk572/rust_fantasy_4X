@@ -387,12 +387,8 @@ impl<'a> UnitView<'a> {
         mods
     }
 
-    /// Every modifier currently affecting the unit: its abilities and level effects.
-    pub fn unit_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
-        self.modifiers_shared(unit).as_ref().clone()
-    }
-
-    /// [`Self::unit_modifiers`], shared: kept for a computer wizard's turn (see `unit::kept`).
+    /// Every modifier currently affecting the unit: its abilities and level effects. Shared: kept
+    /// for a computer wizard's turn (see `unit::kept`).
     pub(crate) fn modifiers_shared(&self, unit: hecs::Entity) -> std::rc::Rc<Vec<Modifier>> {
         if let Some(kept) = kept::modifiers(self.world, unit) {
             if kept::checking() {

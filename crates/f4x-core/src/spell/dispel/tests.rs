@@ -315,7 +315,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
         |g| {
             !g.world.get::<&Node>(node).is_ok_and(|n| n.warped)
                 && g.units().unit_enchantments(unit).is_empty()
-                && g.city_enchantments(city).is_empty()
+                && g.spells().city_enchantments(city).is_empty()
         },
     );
     let removed: u32 = events
@@ -326,7 +326,12 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
         })
         .sum();
     assert_eq!(removed, 3, "{events:?}");
-    assert!(!g.node_at(at(6, 6)).ok_or("node_at is missing")?.warped);
+    assert!(
+        !g.economy()
+            .node_at(at(6, 6))
+            .ok_or("node_at is missing")?
+            .warped
+    );
     let left = g.units().unit_enchantments(elsewhere).len();
     assert_eq!(left, 1, "another square is left alone");
     Ok(())

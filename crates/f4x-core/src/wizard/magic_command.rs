@@ -40,7 +40,7 @@ pub(crate) fn cancel_cast(wizard: &mut WizardMut, casting_return: bool) -> Resul
     if casting_return {
         return Err(MagicError::NotAvailable);
     }
-    wizard.cancel_casting();
+    wizard.clear_casting();
     Ok(())
 }
 

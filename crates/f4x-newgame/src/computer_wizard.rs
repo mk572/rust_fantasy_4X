@@ -54,10 +54,6 @@ fn book_total(b: &WizardBuild) -> u8 {
     b.books.values().sum()
 }
 
-fn picks_used(rules: &Rules, b: &WizardBuild) -> u8 {
-    b.picks_spent(rules)
-}
-
 /// Take away retorts the books no longer allow.
 fn drop_unavailable(rules: &Rules, b: &mut WizardBuild) {
     let books = b.books.clone();
@@ -265,7 +261,7 @@ pub(crate) fn fit_books_and_refill(game: &mut Game, b: &mut WizardBuild) {
 fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8, ban: bool) {
     let cap = book_cap(game);
     for _ in 0..500 {
-        let used = picks_used(&game.content().rules, b);
+        let used = b.picks_spent(&game.content().rules);
         if used >= picks {
             return;
         }
@@ -307,7 +303,7 @@ fn add_books(b: &mut WizardBuild, realm: RealmId, value: u8, opposed: Option<Rea
 }
 
 fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
-    let used = picks_used(&game.content().rules, b);
+    let used = b.picks_spent(&game.content().rules);
     let all: Vec<Retort> = all_retorts(&game.content().rules).collect();
     let r = all[game.roll(all.len() as u32) as usize - 1];
     if b.retorts.len() >= MAX_RETORTS || r == Retort::new(9)

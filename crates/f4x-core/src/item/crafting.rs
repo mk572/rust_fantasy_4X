@@ -1095,7 +1095,7 @@ mod tests {
         assert_eq!(g.items().count_held(|_| true), 1, "the item being made");
         g.wizard_mut(P0)
             .ok_or("wizard_mut is missing")?
-            .cancel_casting();
+            .clear_casting();
         assert!(g
             .wizard(P0)
             .ok_or("wizard is missing")?

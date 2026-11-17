@@ -1920,7 +1920,10 @@ mod tests {
             .ok_or("player 0 is a wizard")?
             .casting()
             .is_some()
-            || g.city_enchantments(enemy).iter().any(|&(s, _)| s == famine);
+            || g.spells()
+                .city_enchantments(enemy)
+                .iter()
+                .any(|&(s, _)| s == famine);
         assert!(began, "at war: Famine begun or cast");
         Ok(())
     }

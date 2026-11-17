@@ -595,7 +595,7 @@ fn a_defeat_clears_the_losers_enchantments_and_nodes() -> TestResult {
     g.add_city_enchantment(town, ward, P0);
     g.add_global(P0, ward);
     g.capture_city(capital, P1);
-    assert!(g.city_enchantments(town).is_empty());
+    assert!(g.spells().city_enchantments(town).is_empty());
     assert!(g.wizard(P0).ok_or("wizard is missing")?.global().is_empty());
     Ok(())
 }

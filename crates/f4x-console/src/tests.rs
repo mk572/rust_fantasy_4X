@@ -726,7 +726,11 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() -> TestResult
         .map_err(|e| format!("{e:?}"))?;
     // Paid over turns by the casting skill, then aimed.
     for _ in 0..60 {
-        if g.city_enchantments(city).iter().any(|&(s, _)| s == eye) {
+        if g.spells()
+            .city_enchantments(city)
+            .iter()
+            .any(|&(s, _)| s == eye)
+        {
             break;
         }
         g.apply(f4x_core::game::Command::EndTurn);
@@ -735,7 +739,11 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() -> TestResult
             target: Target::City(city),
         });
     }
-    assert!(g.city_enchantments(city).iter().any(|&(s, _)| s == eye));
+    assert!(g
+        .spells()
+        .city_enchantments(city)
+        .iter()
+        .any(|&(s, _)| s == eye));
     assert_eq!(
         g.economy().city_sight(city),
         f4x_def::half_int::HalfInt::from_raw(9)

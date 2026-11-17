@@ -405,12 +405,6 @@ impl Game {
         false
     }
 
-    /// How strong a unit is as a fighter: the number the preset and the pick screen sort by
-    /// (`battle::power::unit_power`, the one measure).
-    pub fn fighter_strength(&self, unit: hecs::Entity) -> f32 {
-        self.units().unit_power(unit)
-    }
-
     /// The units that fight when more than nine could, strongest first: heroes first; then units
     /// with an attack by strength, the more experienced first among equals; settlers, engineers
     /// and the other units with no attack last. The first nine fight.
@@ -428,7 +422,7 @@ impl Game {
             (
                 !hero,
                 !combat,
-                std::cmp::Reverse((self.fighter_strength(u) * 10.0) as i64),
+                std::cmp::Reverse((self.units().unit_power(u) * 10.0) as i64),
                 std::cmp::Reverse(self.units().unit_experience(u)),
             )
         });
@@ -796,7 +790,7 @@ impl Game {
             .node_covering(site)
             .and_then(|n| Realm::of(n.realm));
         let on = open_ground
-            .then(|| self.node_at(site))
+            .then(|| self.economy().node_at(site))
             .flatten()
             .and_then(|n| Realm::of(n.realm));
         (aura, on)

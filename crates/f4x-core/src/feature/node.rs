@@ -9,7 +9,6 @@ use crate::rules::{Ability, RealmId};
 use serde::{Deserialize, Serialize};
 
 use crate::feature::entity::NodeInfo;
-use crate::map::Position;
 use crate::player::PlayerId;
 
 use crate::game::{Event, Game};
@@ -101,11 +100,6 @@ impl Game {
             .sum()
     }
 
-    /// The node standing on `at`, if any.
-    pub fn node_at(&self, at: Position) -> Option<NodeInfo> {
-        self.economy().node_at(at)
-    }
-
     /// Meld a spirit into the node the stack stands on. The spirit is used up; a Guardian
     /// Spirit is preferred and leaves the node guarded. Against a rival's guarded node the
     /// meld succeeds one time in four, and the spirit dies either way.
@@ -179,7 +173,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::game::testutil::shipped;
     use crate::game::Command;
-    use crate::map::{Grid, Map, Plane};
+    use crate::map::{Grid, Map, Plane, Position};
     use crate::wizard::magic::Retort;
     use f4x_def::testdir::TestResult;
 

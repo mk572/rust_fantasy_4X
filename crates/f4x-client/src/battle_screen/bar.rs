@@ -167,18 +167,6 @@ impl App {
         self.art.draw_flat_text(style, text, at(0.0), s, ink);
     }
 
-    /// One of the six buttons, dimmed when it cannot be pressed; true on the frame it is clicked.
-    fn bar_button(
-        &mut self,
-        lay: &Layout,
-        key: &str,
-        at: (f32, f32),
-        enabled: bool,
-        input: &Input,
-    ) -> bool {
-        self.battle_button(lay, key, at, enabled, input)
-    }
-
     pub(super) fn draw_battle_panel(
         &mut self,
         ui: &mut BattleUi,
@@ -262,19 +250,19 @@ impl App {
                 || Self::my_caster(battle).is_some_and(|c| !c.cast_this_turn));
         let (lx, rx) = (LEFT_BUTTONS_X, RIGHT_BUTTONS_X);
         let row = |i: f32| BUTTONS_Y + 10.0 * i;
-        if self.bar_button(&lay, "battle.button_spell", (lx, row(0.0)), can_cast, input)
+        if self.battle_button(&lay, "battle.button_spell", (lx, row(0.0)), can_cast, input)
             || (can_cast && input.key_pressed(KeyCode::S))
         {
             ui.spell_list = !ui.spell_list;
             ui.spell_unit = unit_caster.filter(|_| ui.spell_list);
         }
-        if self.bar_button(&lay, "battle.button_wait", (rx, row(0.0)), my_turn, input)
+        if self.battle_button(&lay, "battle.button_wait", (rx, row(0.0)), my_turn, input)
             || (my_turn && input.key_pressed(KeyCode::W))
         {
             self.select_next(ui, sel);
         }
         // Done ends the selected unit's turn; with no unit left that can act it ends the side's.
-        if self.bar_button(&lay, "battle.button_done", (rx, row(2.0)), my_turn, input) {
+        if self.battle_button(&lay, "battle.button_done", (rx, row(2.0)), my_turn, input) {
             let active = sel.filter(|&u| battle.unit(u).is_some_and(super::unfinished));
             order = Some(match active {
                 Some(unit) => BattleCommand::Done { unit },
@@ -283,7 +271,7 @@ impl App {
         }
         // Auto hands your side to the computer; pressed again, it takes it back.
         let auto = ui.auto;
-        if self.bar_button(
+        if self.battle_button(
             &lay,
             "battle.button_auto",
             (rx, row(1.0)),
@@ -302,14 +290,14 @@ impl App {
             .game
             .battle_info(HUMAN)
             .is_some_and(|info| !info.is_empty());
-        if (self.bar_button(&lay, "battle.button_info", (lx, row(1.0)), has_info, input)
+        if (self.battle_button(&lay, "battle.button_info", (lx, row(1.0)), has_info, input)
             || (has_info && input.key_pressed(KeyCode::U)))
             && !ui.info_open
         {
             ui.info_open = true;
             return;
         }
-        if self.bar_button(&lay, "battle.button_flee", (lx, row(2.0)), my_turn, input)
+        if self.battle_button(&lay, "battle.button_flee", (lx, row(2.0)), my_turn, input)
             || (my_turn && input.key_pressed(KeyCode::F))
         {
             ui.confirm_flee = true;

@@ -166,10 +166,6 @@ impl BattleUnit {
     pub fn is_invisible(&self) -> bool {
         self.has(Ability::new(33)) || self.field.invisible
     }
-
-    pub(super) fn has_enchantment(&self, id: SpellId) -> bool {
-        self.enchantments.contains(&id)
-    }
 }
 
 impl Battle {
@@ -260,7 +256,7 @@ impl Battle {
         }
         if own(Field::MetalFires)
             && !u.is_fantastic()
-            && !u.has_enchantment(SpellId::new(94) /* flame_blade */)
+            && !u.enchantments.contains(&SpellId::new(94) /* flame_blade */)
         {
             if u.melee > 0 {
                 b.melee += 1;

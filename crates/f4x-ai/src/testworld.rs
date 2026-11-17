@@ -23,9 +23,7 @@ const EAST: std::ops::RangeInclusive<u32> = 28..=35;
 const ROWS: std::ops::RangeInclusive<u32> = 3..=10;
 
 /// The shipped content, parsed once for all the tests of the process.
-pub fn shipped() -> &'static Content {
-    f4x_def::testdir::shipped()
-}
+pub use f4x_def::testdir::shipped;
 
 /// A copy of the shipped content, for a `Game`, which owns its content.
 pub fn content() -> Content {

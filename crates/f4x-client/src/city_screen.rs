@@ -718,7 +718,7 @@ impl App {
         const PAGE: usize = 6;
         let mut hit = false;
         let view = Self::view(lay);
-        let list = self.game.city_enchantments(city);
+        let list = self.game.spells().city_enchantments(city);
         // The temporary effects follow the spells, in plain text and not clickable.
         let effects = self.temp_effect_lines(city);
         let total = list.len() + effects.len();
@@ -843,6 +843,7 @@ impl App {
                 sold: self.game.economy().sold_building(city),
                 enchantments: self
                     .game
+                    .spells()
                     .city_enchantments(city)
                     .into_iter()
                     .map(|(s, _)| s)
