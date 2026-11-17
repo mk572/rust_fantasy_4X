@@ -393,6 +393,11 @@ impl<'a> PlayerView<'a> {
         self.game.units().unit_has_ability(unit, ability)
     }
 
+    /// What the unit adds to a battle at full health (`battle::power::unit_power`).
+    pub fn unit_power(&self, unit: hecs::Entity) -> f32 {
+        self.game.units().unit_power(unit)
+    }
+
     /// Is the unit walking a path it was ordered to?
     pub fn unit_has_order(&self, unit: hecs::Entity) -> bool {
         self.game.unit_has_order(unit)

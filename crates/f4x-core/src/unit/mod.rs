@@ -528,6 +528,15 @@ impl<'a> UnitView<'a> {
         (max.saturating_sub(hurt), max)
     }
 
+    /// What the unit adds to a battle at full health: the one measure of strength
+    /// (`battle::power::unit_power`).
+    pub fn unit_power(&self, unit: hecs::Entity) -> f32 {
+        crate::battle::power::unit_power(
+            |s| self.unit_stat(unit, s),
+            |a| self.unit_has_ability(unit, a),
+        )
+    }
+
     /// Units standing on `pos`, in a stable order.
     pub fn units_at(&self, pos: Position) -> Vec<hecs::Entity> {
         let mut out: Vec<_> = self

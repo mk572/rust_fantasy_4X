@@ -5,10 +5,9 @@
 //! wizard's books favour its realm. The AI never names a spell itself. The weights are numbers
 //! in one place, so a run can tune them (`AIK_RATE_*`) and a later fit can learn them.
 
-use f4x_core::battle::strength;
 use f4x_core::player::view::PlayerView;
 use f4x_def::rules::effects::Effect;
-use f4x_def::rules::{SpellDef, SpellId, Stat};
+use f4x_def::rules::{SpellDef, SpellId};
 
 use crate::wizardry::Kind;
 
@@ -32,11 +31,8 @@ fn summoned_strength(view: &PlayerView, def: &SpellDef) -> f32 {
             _ => None,
         })
         .map(|(unit, count)| {
-            let stats = &view.content().rules.units.get(unit).stats;
-            let stat = |s: Stat| stats.get(&s).map_or(0, |v| v.floor());
-            let attack = stat(Stat::Melee).max(stat(Stat::Ranged));
-            let hits = stat(Stat::MaxHp) * stat(Stat::Figures).max(1);
-            strength(attack, stat(Stat::Defense), hits) * f32::from(count)
+            f4x_core::battle::power::def_power(view.content().rules.units.get(unit))
+                * f32::from(count)
         })
         .sum()
 }

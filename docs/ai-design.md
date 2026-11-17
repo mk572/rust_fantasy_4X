@@ -891,3 +891,17 @@ by a tower, a landing (judged square by square), the perimeter, the stranded gro
 and the neutral stacks. The soldiers beyond the party stay where they are, available. A stack of
 twelve walking about only crowds the squares it stands on and blocks the next stack.
 
+**One measure of a unit's strength (17 November 2026).** `f4x_core::battle::power`
+(`unit_power`, `def_power`, `PlayerView::unit_power`): what a unit adds to a battle, with no side
+to it (a battle is a series of blows both ways): attack (the better of melee and ranged, a quarter
+of the other), defence with a tenth of resistance, hit points over all figures at *full* health, and
+the ability bonuses (one table, `ABILITY_BONUS`). The strategic AI (`view::unit_strength`), the
+spell helper, the autobuilder (its offence profile is the strength with a little for speed, its
+defence profile the strength) and the engine's fighter preset use it; the battle AI weighs a
+unit in the fight by the same kernel with the hit points it has left. Hurt units are not weighed
+less: the army builders leave out units that need rest (`recover::needs_rest`). The numbers are a
+first draft, eyeballed. *Mobility* (how fast a unit gets to a square: moves, movement type,
+terrain abilities, the slowest of a party unless a spell lifts it) is the second measure and is
+not built yet: a garrison does not need it, a march is as slow as its slowest unit, a scout is all
+about it.
+

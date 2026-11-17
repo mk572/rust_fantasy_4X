@@ -19,6 +19,7 @@ pub mod immunity;
 pub mod info;
 pub mod legal;
 pub mod map;
+pub mod power;
 pub mod save;
 pub mod special;
 pub mod spell;
@@ -1795,10 +1796,11 @@ impl Battle {
     }
 }
 
-/// How hard a unit hits and how much it can take, as one number: the one strength both the
-/// battle AI (`f4x_ai::battle`) and the strategic AI weigh units by, and the pick screen sorts by.
+/// What an attack value, a defence value and hit points are worth together: the kernel of
+/// [`power::unit_power`], for a unit in a fight (the hit points it has left now) where no unit
+/// definition is at hand. Everything outside a fight uses `power::unit_power`.
 pub fn strength(attack: i32, defense: i32, hit_points: i32) -> f32 {
-    (attack.max(0) as f32 * 1.5 + defense.max(0) as f32 + 1.0) * hit_points.max(0) as f32
+    power::kernel(attack as f32, defense as f32, hit_points as f32)
 }
 
 #[cfg(test)]

@@ -406,18 +406,9 @@ impl Game {
     }
 
     /// How strong a unit is as a fighter: the number the preset and the pick screen sort by
-    /// (`battle::strength` of its better attack, defence and hit points now).
+    /// (`battle::power::unit_power`, the one measure).
     pub fn fighter_strength(&self, unit: hecs::Entity) -> f32 {
-        use crate::rules::Stat;
-        let e = self.units();
-        let attack = e
-            .unit_stat(unit, Stat::Melee)
-            .max(e.unit_stat(unit, Stat::Ranged));
-        super::strength(
-            attack,
-            e.unit_stat(unit, Stat::Defense),
-            e.unit_hits(unit).0 as i32,
-        )
+        self.units().unit_power(unit)
     }
 
     /// The units that fight when more than nine could, strongest first: heroes first; then units

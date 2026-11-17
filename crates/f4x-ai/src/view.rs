@@ -1,7 +1,6 @@
 //! How the AI weighs what it sees: strengths and who can fight. It reads the game only through
 //! a [`PlayerView`], which holds what a player may know.
 
-use f4x_core::battle::strength;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
@@ -53,13 +52,11 @@ impl ReachCache {
     }
 }
 
-/// How hard a unit hits and how much it can take, as one number.
+/// What a unit adds to a battle, as one number: the one measure of the rules engine
+/// (`f4x_core::battle::power`), at full health. Hurt units are kept out of the army by the
+/// callers (`recover::needs_rest`), not weighed less here.
 pub fn unit_strength(view: &PlayerView, unit: hecs::Entity) -> f32 {
-    let attack = view
-        .unit_stat(unit, Stat::Melee)
-        .max(view.unit_stat(unit, Stat::Ranged));
-    let (hits, _) = view.unit_hits(unit);
-    strength(attack, view.unit_stat(unit, Stat::Defense), hits as i32)
+    view.unit_power(unit)
 }
 
 /// The units of `units` that would fight a battle together: the strongest `max_battle_side` of

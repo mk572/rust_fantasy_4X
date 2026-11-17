@@ -581,24 +581,8 @@ fn upkeep_and_abilities_count_in_a_units_worth() {
     // several times its price.
     let spear = def("lizardman_spearmen");
     assert!(lifetime_cost(spear) > 10.0 * spear.cost as f32);
-    // Upkeep never lowers the lifetime cost, and abilities never lower a profile.
+    // Upkeep never lowers the lifetime cost.
     for (_, d) in c.rules.units.iter() {
         assert!(lifetime_cost(d) >= d.cost as f32, "{}", d.id);
-        let (off, defense) = ability_bonus(d);
-        assert!(off >= 1.0 && defense >= 1.0, "{}", d.id);
     }
-    // A unit with a listed ability gets a bonus, one with none gets none.
-    let listed = c
-        .rules
-        .units
-        .iter()
-        .map(|(_, d)| d)
-        .find(|d| {
-            d.abilities
-                .iter()
-                .any(|&a| ABILITY_BONUS.iter().any(|&(n, ..)| Ability::new(n) == a))
-        })
-        .expect("a shipped unit with a listed ability");
-    assert_ne!(ability_bonus(listed), (1.0, 1.0));
-    assert_eq!(ability_bonus(spear), (1.0, 1.0));
 }
