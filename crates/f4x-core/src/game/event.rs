@@ -232,12 +232,14 @@ pub enum Event {
     /// orders (they stay where they stand), `unassigned` ships and other units awaiting orders,
     /// and `unregistered` units that came into being during the turn with no entry in the
     /// registry (a summon, a hire; they are treated as awaiting orders, and the code that makes
-    /// them should register them: `f4x-ai/src/roles.rs`).
+    /// them should register them), and `reset` units whose mission was over (target gone, order
+    /// stopped) and that await orders again (`f4x-ai/src/dispatch.rs`, `roles.rs`).
     RolesAudited {
         player: player::PlayerId,
         adrift: u32,
         unassigned: u32,
         unregistered: u32,
+        reset: u32,
     },
     /// A Plane Shift took the stack `units` from the square `from` to the same square `to` on the
     /// other plane (the client fades the one into the other).

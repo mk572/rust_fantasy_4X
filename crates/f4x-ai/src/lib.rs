@@ -145,6 +145,10 @@ pub struct Ai {
     /// What the statecraft (`statecraft.rs`, task 510) keeps between turns.
     #[serde(default)]
     statecraft: statecraft::State,
+    /// Units whose mission the dispatcher found over this turn (`dispatch::revalidate`); counted
+    /// in the audit.
+    #[serde(skip)]
+    missions_reset: u32,
     #[serde(skip)]
     record_refusals: bool,
     #[serde(skip)]
@@ -250,6 +254,7 @@ impl Ai {
             war_on: None,
             quarrel: None,
             statecraft: Default::default(),
+            missions_reset: 0,
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
             roles: roles::Registry::default(),

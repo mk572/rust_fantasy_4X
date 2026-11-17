@@ -935,7 +935,8 @@ pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         (tally(&held), unregistered)
     };
     let (counted, unregistered) = counted;
-    if counted.adrift.is_empty() && counted.unassigned == 0 && unregistered == 0 {
+    let reset = std::mem::take(&mut ai.missions_reset);
+    if counted.adrift.is_empty() && counted.unassigned == 0 && unregistered == 0 && reset == 0 {
         return;
     }
     events.push(Event::RolesAudited {
@@ -943,6 +944,7 @@ pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         adrift: counted.adrift.len() as u32,
         unassigned: counted.unassigned,
         unregistered,
+        reset,
     });
     // Nothing more: a unit awaiting orders stays where it stands (task 645). The dispatcher
     // gives the waiting units their jobs.

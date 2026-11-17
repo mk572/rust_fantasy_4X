@@ -132,11 +132,14 @@ pub struct Metrics {
     /// Units that came into being during the turn with no registry entry (summoned, hired); they
     /// await orders, and the code that makes them should register them (task 645).
     pub units_unregistered: u32,
+    /// Units whose mission was over (a rival cleared the lair, the order stopped) and that were
+    /// reset to awaiting orders by the dispatcher.
+    pub missions_reset: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 67] {
+    pub fn rows(&self) -> [(&'static str, u32); 68] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -209,6 +212,10 @@ impl Metrics {
             (
                 "units made in the turn with no registry entry",
                 self.units_unregistered,
+            ),
+            (
+                "missions over, unit reset to awaiting orders",
+                self.missions_reset,
             ),
             (
                 "cities captured on the other plane",
@@ -357,6 +364,7 @@ impl AddAssign for Metrics {
             units_adrift,
             units_unassigned,
             units_unregistered,
+            missions_reset,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -425,6 +433,7 @@ impl AddAssign for Metrics {
         self.units_adrift += units_adrift;
         self.units_unassigned += units_unassigned;
         self.units_unregistered += units_unregistered;
+        self.missions_reset += missions_reset;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -784,10 +793,12 @@ impl Tally {
                     adrift,
                     unassigned,
                     unregistered,
+                    reset,
                 } => self.bump(*player, |m| {
                     m.units_adrift += adrift;
                     m.units_unassigned += unassigned;
                     m.units_unregistered += unregistered;
+                    m.missions_reset += reset;
                 }),
                 Event::PlaneShifted { player, units, .. } => self.bump(*player, |m| {
                     m.plane_shifts += 1;
@@ -1149,6 +1160,7 @@ mod tests {
             adrift,
             unassigned,
             unregistered: 0,
+            reset: 0,
         };
         tally.record(&game, None, &[audit(2, 4), audit(1, 5)]);
         let m = tally.of(player);

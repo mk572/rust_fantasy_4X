@@ -58,9 +58,88 @@ pub fn pool(ai: &Ai, game: &Game) -> Pool {
     pool
 }
 
+/// Whether the mission a unit holds is still worth pursuing: the lair a raid went for is still
+/// there (or the tower intact, the neutral city standing), the ground a scout went to is still
+/// unexplored, the node a spirit went to is still open. Missions of other roles are checked by
+/// their own modules each turn.
+fn mission_valid(
+    ai: &Ai,
+    view: &f4x_core::player::view::PlayerView,
+    role: crate::roles::Role,
+    target: f4x_core::map::Position,
+) -> bool {
+    use crate::roles::Role;
+    match role {
+        Role::Raid => {
+            view.has_lair(target)
+                || view
+                    .towers()
+                    .into_iter()
+                    .any(|(p, intact)| p == target && intact)
+                || view.known_cities().into_iter().any(|(_, owner, p)| {
+                    p == target && !view.is_rival_wizard(owner) && owner != ai.player
+                })
+        }
+        Role::Scout => !view.explored(target),
+        Role::Meld => crate::meld::open_nodes(ai, view).contains(&target),
+        _ => true,
+    }
+}
+
+/// Before any new job is looked for: a unit sent on a mission that can no longer be fulfilled
+/// (a rival cleared the lair first, the order was stopped on a refused step, the ground was
+/// explored by another) is given up. It loses its role and its order and awaits orders where it
+/// stands, so the jobs below see it in the pool. Returns how many were reset.
+pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 {
+    use crate::roles::Role;
+    let me = ai.player;
+    let mut reset: Vec<(hecs::Entity, crate::roles::Role)> = Vec::new();
+    {
+        let view = f4x_core::player::view::PlayerView::new(game, me);
+        for unit in view.my_units() {
+            let serial = view.serial_of(unit);
+            for role in [Role::Raid, Role::Scout, Role::Meld] {
+                if !ai.roles.is(serial, role) {
+                    continue;
+                }
+                let Some(target) = ai.roles.target_of(serial, role) else {
+                    continue;
+                };
+                let here = view.unit_position(unit);
+                // Failed: no order is left and the unit is not where it was going.
+                let stopped = !view.unit_has_order(unit) && here != Some(target);
+                if stopped || !mission_valid(ai, &view, role, target) {
+                    reset.push((unit, role));
+                }
+            }
+        }
+    }
+    let mut serials = Vec::new();
+    {
+        let view = f4x_core::player::view::PlayerView::new(game, me);
+        for &(unit, role) in &reset {
+            let serial = view.serial_of(unit);
+            ai.roles.release(serial, role);
+            serials.push(unit);
+        }
+    }
+    let count = serials.len() as u32;
+    if !serials.is_empty() {
+        ai.order(
+            game,
+            f4x_core::game::Command::ClearOrders { units: serials },
+            events,
+        );
+    }
+    ai.missions_reset += count;
+    count
+}
+
 /// One turn of the jobs, in the order of the checklist.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::roles::register(ai, game);
+    // First the units whose mission is over, so the jobs below see them waiting.
+    revalidate(ai, game, events);
     crate::recover::run(ai, game, events);
     crate::garrison::disperse(ai, game, events);
     crate::garrison::thin_out(ai, game, events);
@@ -119,5 +198,45 @@ mod tests {
         // The map is fully known, so there is nothing to scout; nobody is at war.
         assert!(!view.unit_has_order(lone), "{events:?}");
         assert_eq!(view.unit_position(lone), Some(at(8, 6)));
+    }
+
+    /// A scout whose ground was explored meanwhile, and one whose order stopped short, are given
+    /// up and await orders; one still on its way keeps its mission.
+    #[test]
+    fn a_unit_whose_mission_is_over_awaits_orders_and_one_on_its_way_keeps_it() {
+        use crate::roles::Role;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let target = at(30, 10);
+        let walker = spawn(&mut g, P0, at(9, 6), 104, 1)[0];
+        let stopped = spawn(&mut g, P0, at(9, 7), 104, 1)[0];
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        let view = f4x_core::player::view::PlayerView::new(&g, P0);
+        let (a, b) = (view.serial_of(walker), view.serial_of(stopped));
+        assert!(!view.explored(target), "unexplored ground to scout");
+        for s in [a, b] {
+            let _ = ai.roles.claim(s, Role::Scout, 1, Some(target));
+        }
+        let mut events = Vec::new();
+        ai.send(
+            &mut g,
+            f4x_core::game::Command::GoTo {
+                units: vec![walker],
+                to: at(5, 9),
+            },
+            &mut events,
+        )
+        .expect("the walker can walk");
+        // `walker` has an order and valid ground; `stopped` has no order and is not there.
+        assert_eq!(revalidate(&mut ai, &mut g, &mut events), 1);
+        assert!(ai.roles.is(a, Role::Scout));
+        assert!(!ai.roles.is(b, Role::Scout));
+        // The ground becomes known: the walker's mission is over too.
+        g.reveal_map(P0);
+        assert_eq!(revalidate(&mut ai, &mut g, &mut events), 1);
+        assert!(!ai.roles.is(a, Role::Scout));
+        let view = f4x_core::player::view::PlayerView::new(&g, P0);
+        assert!(!view.unit_has_order(walker));
+        assert_eq!(ai.missions_reset, 2);
     }
 }
