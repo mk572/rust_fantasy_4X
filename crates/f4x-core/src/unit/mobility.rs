@@ -15,6 +15,10 @@ use crate::rules::{Ability, MovementType, Stat, UnitDef};
 const NON_CORPOREAL: f32 = 3.0;
 /// Flying: over any terrain and across the water.
 const FLYING: f32 = 2.0;
+/// Wind walking: it flies the whole stack, so it rates above a unit that only flies itself.
+const WIND_WALKING: f32 = 3.0;
+/// Pathfinding: every land square for half a move, for the unit and the whole stack with it.
+const PATHFINDING: f32 = 2.0;
 /// Swimming: the water as well as the land.
 const SWIMMING: f32 = 1.5;
 /// Mountaineer and forester, each: the hills, mountains and forests at no extra cost.
@@ -44,6 +48,8 @@ pub fn unit_mobility(moves: i32, movement: MovementType, has: impl Fn(Ability) -
     // How the unit crosses ground: one of these, the best that applies.
     let kind = if has(ABILITY_NON_CORPOREAL) {
         NON_CORPOREAL
+    } else if has(STACK_WIND_WALKING) {
+        WIND_WALKING
     } else if movement == MovementType::Flying || has(ABILITY_FLYING) {
         FLYING
     } else if movement == MovementType::Swimming {
@@ -60,6 +66,11 @@ pub fn unit_mobility(moves: i32, movement: MovementType, has: impl Fn(Ability) -
             if has(ability) {
                 m *= share;
             }
+        }
+        // Pathfinding makes every land square cost half, whatever the terrain: nothing to be wise
+        // about any more.
+        if has(STACK_PATHFINDING) {
+            m = f32::max(m, PATHFINDING);
         }
         m
     };
@@ -126,6 +137,20 @@ mod tests {
         assert!((unit_mobility(2, MovementType::Walking, with(45)) - 2.4).abs() < 1e-5);
         let both = |a: Ability| a == Ability::new(45) || a == Ability::new(25);
         assert!((unit_mobility(2, MovementType::Walking, both) - 2.88).abs() < 1e-5);
+        // What carries a whole stack rates higher than what only helps the unit: wind walking
+        // above flying, pathfinding twice the rate of a walker.
+        assert_eq!(unit_mobility(2, MovementType::Walking, with(74)), 6.0);
+        assert!(
+            unit_mobility(2, MovementType::Walking, with(74))
+                > unit_mobility(2, MovementType::Walking, with(24))
+        );
+        assert_eq!(unit_mobility(2, MovementType::Walking, with(50)), 4.0);
+        let wise = |a: Ability| a == Ability::new(50) || a == Ability::new(45);
+        assert_eq!(
+            unit_mobility(2, MovementType::Walking, wise),
+            4.0,
+            "not on top of it"
+        );
     }
 
     /// A flier with two moves gets there as quickly as a walker with four: the terrain holds the
