@@ -243,8 +243,9 @@ fn spare_soldier(ai: &Ai, game: &Game, at: Position) -> Option<hecs::Entity> {
     free.first().copied()
 }
 
-/// One turn of the escorts after the settlers have moved: end the ones whose charge is gone, and
-/// send an escort that fell behind after its charge.
+/// One turn of the escorts after the settlers have moved: end the ones whose charge is gone, give
+/// a charge an escort, stop a charge with no escort when an enemy is near. (An escort that fell
+/// behind is sent after its charge by `dispatch::repair_escorts`.)
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     // A charge that no longer settles (founded its city, died, was taken over by a voyage) frees
@@ -289,43 +290,6 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // A healer or a weak hero alone in the field is given a soldier.
     for unit in stragglers(ai, game) {
         guard(ai, game, unit, events);
-    }
-    // An escort that fell behind (the stack was split by a fight, or the charge was ordered on
-    // by another routine) catches up with its charge.
-    let pairs: Vec<(Serial, Serial)> = ai
-        .roles
-        .members(Role::Escort)
-        .into_iter()
-        .filter_map(|e| ai.roles.with_of(e).map(|c| (c, e)))
-        .collect();
-    for (charge, escort) in pairs {
-        let behind = {
-            let view = PlayerView::new(game, me);
-            let find = |s: Serial| {
-                view.my_units()
-                    .into_iter()
-                    .find(|&u| view.serial_of(u) == s)
-            };
-            let (Some(c), Some(e)) = (find(charge), find(escort)) else {
-                continue;
-            };
-            match (view.unit_position(c), view.unit_position(e)) {
-                (Some(there), Some(here)) if there != here && !view.unit_has_order(e) => {
-                    Some((e, there))
-                }
-                _ => None,
-            }
-        };
-        if let Some((unit, to)) = behind {
-            ai.order(
-                game,
-                Command::GoTo {
-                    units: vec![unit],
-                    to,
-                },
-                events,
-            );
-        }
     }
 }
 
@@ -411,7 +375,7 @@ mod tests {
         ai.roles.group(&[escort], Role::Escort, 1, Some(charge));
         // The charge steps away: the escort is sent after it.
         g.cheat_move_unit(settler, at(7, 6));
-        run(&mut ai, &mut g, &mut Vec::new());
+        crate::dispatch::repair_escorts(&mut ai, &mut g, &mut Vec::new());
         assert!(PlayerView::new(&g, P0).unit_has_order(soldiers[0]));
         // The charge founds its city (is gone): the escort is a free soldier again.
         ai.roles.release(charge, Role::Settle);
