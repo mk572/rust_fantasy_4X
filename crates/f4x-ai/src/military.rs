@@ -34,8 +34,6 @@ const MARCH_TURNS: u32 = 15;
 const COMMITTED_LANDING: f32 = 1.2;
 /// Turns an enemy city that no march could reach is left alone.
 const UNREACHABLE_TURNS: u32 = 40;
-/// The most fighters the war plan asks the cities to build for one campaign.
-const MAX_FORCE: usize = 20;
 /// Once marched, a force attacks with this much of an edge.
 pub(crate) fn committed_ratio() -> f32 {
     crate::knob("COMMITTED", 1.1)
@@ -325,27 +323,17 @@ fn march_on(
     if game.turn.saturating_sub(ai.unreachable_since) > UNREACHABLE_TURNS {
         ai.unreachable.clear();
     }
-    // Gather at the own city nearest the target; march when strong enough.
-    let (rally, expected, at_rally, elsewhere, force) = {
+    // Gather at the rally city the war plan names; march when strong enough.
+    let (rally, wanted, at_rally, elsewhere, force) = {
         let view = PlayerView::new(game, me);
-        let rally = own_cities
-            .iter()
-            .copied()
-            .filter(|&c| distance(&view, c, target).is_some())
-            .min_by_key(|&c| distance(&view, c, target))
-            .unwrap_or(capital);
-        let rally = ai
-            .naval
-            .filter(|p| p.target == target)
-            .map_or(rally, |p| p.port);
-        // Across the plane the army gathers at the far side of the tower.
-        let rally = match ai.crossing {
-            Some(tower) if target.plane != tower.plane => Position {
-                plane: target.plane,
-                ..tower
-            },
-            _ => rally,
-        };
+        let rally = crate::war_plan::rally(
+            &view,
+            own_cities,
+            capital,
+            target,
+            ai.naval.filter(|p| p.target == target).map(|p| p.port),
+            ai.crossing,
+        );
         // A march that has gone on too long, or whose target has changed, is called off. A far
         // target gets the walk to it on top of the usual time (the slowest unit covers a square
         // a turn), or the stack would turn back before it arrived.
@@ -365,7 +353,7 @@ fn march_on(
             ai.roles.end_musters(crate::roles::MusterKind::Campaign);
             ai.march_target = Some(target);
         }
-        let expected = expected_defence(&view, &ai.city_memory, game.turn, target);
+        let wanted = crate::war_plan::strength_wanted(&view, &ai.city_memory, game.turn, target);
         // The army attacks as one stack from one square: the units on the rally square, the
         // strongest of them up to what a square holds. The rest of them stay available.
         let (mut at_rally, elsewhere): (Vec<_>, Vec<_>) = free
@@ -380,7 +368,7 @@ fn march_on(
         });
         at_rally.truncate(view.max_battle_side());
         let force = stack_strength(&view, &at_rally);
-        (rally, expected, at_rally, elsewhere, force)
+        (rally, wanted, at_rally, elsewhere, force)
     };
     // The port of a landing keeps a slot free: a ship cannot enter a city holding a full tile.
     let naval_rally = ai.naval.is_some_and(|p| p.target == target);
@@ -408,7 +396,7 @@ fn march_on(
     // rally and on its way is below what the march needs (and fewer than three). The others stay
     // where they are, available to the dispatcher's other jobs, as do the units of a town just
     // taken: nothing sends them anywhere.
-    let needed = expected * attack_ratio() + 1.0;
+    let needed = wanted;
     let mut elsewhere = elsewhere;
     let (mut have, mut have_units) = {
         let view = PlayerView::new(game, me);
@@ -609,7 +597,7 @@ fn march_on(
         march_landed(ai, game, free, target, events);
         return;
     }
-    if force >= expected * attack_ratio() + 1.0 && at_rally.len() >= MIN_MARCH {
+    if force >= wanted && at_rally.len() >= MIN_MARCH {
         let mut launched: Vec<Serial> = Vec::new();
         let mut refused = false;
         // Units march as stacks: those on one square, as many as a square holds at most.
@@ -751,21 +739,8 @@ pub(crate) fn expected_defence(
     }
 }
 
-/// How many average fighters the war plan needs to march on `target`: enough to beat what is
-/// expected there with the margin the march demands, and at least the three a march needs.
-pub(crate) fn force_wanted(
-    view: &PlayerView,
-    memory: &HashMap<Position, (f32, u32)>,
-    turn: u32,
-    target: Position,
-) -> usize {
-    let needed = expected_defence(view, memory, turn, target) * attack_ratio() + 1.0;
-    ((needed / average_strength(view).max(1.0)).ceil() as usize)
-        .clamp(3, MAX_FORCE.min(view.max_battle_side()))
-}
-
 /// The fewest units a march starts with.
-const MIN_MARCH: usize = 3;
+pub(crate) const MIN_MARCH: usize = 3;
 
 /// The fewest troops that cross a plane together.
 const MIN_CROSSING: usize = 3;
@@ -1302,7 +1277,9 @@ mod tests {
         let none = HashMap::new();
         let weak = HashMap::from([(target, (1.0, 1))]);
         let strong = HashMap::from([(target, (average_strength(&view) * 9.0, 1))]);
-        let wanted = |m: &HashMap<_, _>| force_wanted(&view, m, 2, target);
+        let wanted = |m: &HashMap<_, _>| {
+            crate::war_plan::units_for(&view, crate::war_plan::strength_wanted(&view, m, 2, target))
+        };
         assert_eq!(wanted(&weak), 3, "a march needs three at least");
         assert!(wanted(&none) >= 3);
         assert!(
@@ -1311,7 +1288,7 @@ mod tests {
             wanted(&strong),
             wanted(&none)
         );
-        assert!(wanted(&strong) <= MAX_FORCE);
+        assert!(wanted(&strong) <= crate::war_plan::MAX_FORCE);
         // The army attacks from one square: no more is wanted than a square holds.
         assert!(wanted(&strong) <= view.max_battle_side());
     }
