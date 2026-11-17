@@ -281,12 +281,14 @@ pub struct Report {
 
 /// Whether a folder is packed: the pictures under `art/` the client reads one at a time, and the
 /// city screen's buildings (`screens/city_screen/cityscape`) and its citizens, one pack for each
-/// race (`screens/city_screen/citizens/<race>`). Not the fonts (read in other ways), not the other
+/// race (`screens/city_screen/citizens/<race>`), and the diplomacy screen's small pictures
+/// (`screens/diplomacy/icons`). Not the fonts (read in other ways), not the other
 /// screens (each picture is large already), and not `neutral/`, `palette-swap/` or `shots/`
 /// (working files of scripts and the author, never read by the client).
 fn skipped(dir: &str) -> bool {
-    let packed_screen =
-        dir == "screens/city_screen/cityscape" || dir.starts_with("screens/city_screen/citizens/");
+    let packed_screen = dir == "screens/city_screen/cityscape"
+        || dir == "screens/diplomacy/icons"
+        || dir.starts_with("screens/city_screen/citizens/");
     !(dir.starts_with("art/") && !dir.starts_with("art/fonts") || packed_screen)
 }
 
@@ -384,11 +386,25 @@ fn read_sheets(root: &Path, files: &[String]) -> Result<Vec<Vec<u8>>, String> {
 
 /// Pack the loose pictures under `root` (`assets-local`). With `keep` the loose files stay.
 pub fn pack_tree(root: &Path, rules_dir: &Path, keep: bool) -> Result<Report, String> {
+    pack_folder(root, rules_dir, keep, None)
+}
+
+/// [`pack_tree`] for one folder (relative to `root`, as `packs.tsv` names it) when `only` is set:
+/// a few pictures moved or changed need no pass over every loose picture of the tree.
+pub fn pack_folder(
+    root: &Path,
+    rules_dir: &Path,
+    keep: bool,
+    only: Option<&str>,
+) -> Result<Report, String> {
     let mut units = unit_folders(rules_dir)?;
     units.extend(spell_folders(rules_dir)?);
     let mut table = read_table(root);
     let mut report = Report::default();
     for (dir, files) in folders_with_pngs(root)? {
+        if only.is_some_and(|o| o != dir) {
+            continue;
+        }
         let old = table.get(&dir).cloned().unwrap_or_default();
         let base = match old.first() {
             Some(first) => first.trim_end_matches(".sheet.png").to_string(),

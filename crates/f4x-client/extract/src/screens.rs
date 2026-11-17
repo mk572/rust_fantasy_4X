@@ -529,7 +529,12 @@ mod tests {
         );
         assert_eq!(
             p.place("diplomac", 2).as_deref(),
-            Some("screens/diplomacy/diplomac_002")
+            Some("screens/diplomacy/icons/diplomac_002")
+        );
+        // The treaty symbols of the magic file sit with them, one sheet for the folder.
+        assert_eq!(
+            p.place("magic", 60).as_deref(),
+            Some("screens/diplomacy/icons/magic_060")
         );
         // The original's finished gems and the five base diamonds (the client has its own copy of
         // those) are not drawn: they go to `assets-unused/`.

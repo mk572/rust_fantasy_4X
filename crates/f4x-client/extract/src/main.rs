@@ -23,7 +23,8 @@ const USAGE: &str = "usage:
                                           leave them as PNG files; default out: assets-local/art)
   f4x-extract audio <game-dir> [out-dir]  the original's effects as OGG, its music
                                           as XMI (default out: assets-local/audio)
-  f4x-extract pack [root] [--keep]        put the loose pictures under root (default: assets-local) into
+  f4x-extract pack [root] [--keep] [--only FOLDER]
+                                          put the loose pictures under root (default: assets-local) into
                                           sprite packs, one per folder (units by race), and write packs.tsv;
                                           --keep leaves the loose files
   f4x-extract unpack [root]               the reverse: every pack back to loose PNG files, for the scripts
@@ -65,23 +66,30 @@ fn main() -> ExitCode {
             None => Err(USAGE.to_string()),
         },
         Some("pack") => {
+            let at = args.iter().position(|a| a == "--only");
+            let only = at.and_then(|i| args.get(i + 1)).map(String::as_str);
             let root = args
                 .iter()
+                .enumerate()
                 .skip(1)
-                .find(|a| !a.starts_with("--"))
-                .map_or_else(|| PathBuf::from("assets-local"), PathBuf::from);
+                .find(|&(i, a)| !a.starts_with("--") && at.is_none_or(|at| i != at + 1))
+                .map_or_else(|| PathBuf::from("assets-local"), |(_, a)| PathBuf::from(a));
             let keep = args.iter().any(|a| a == "--keep");
-            pack_build::pack_tree(&root, &paths::game_file("crates/f4x-def/content"), keep).map(
-                |r| {
-                    println!(
-                        "{} packs, {} pictures, {} KB of PNG files became {} KB",
-                        r.packs,
-                        r.pictures,
-                        r.bytes_before / 1024,
-                        r.bytes_after / 1024
-                    );
-                },
+            pack_build::pack_folder(
+                &root,
+                &paths::game_file("crates/f4x-def/content"),
+                keep,
+                only,
             )
+            .map(|r| {
+                println!(
+                    "{} packs, {} pictures, {} KB of PNG files became {} KB",
+                    r.packs,
+                    r.pictures,
+                    r.bytes_before / 1024,
+                    r.bytes_after / 1024
+                );
+            })
         }
         Some("unpack") => {
             let root = dir(1, "assets-local");

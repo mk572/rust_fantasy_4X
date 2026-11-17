@@ -212,7 +212,10 @@ magic	59	59	alchemy	power_to_gold
 
 # Diplomacy (DIPLOMAC.c); diplomac 1 and backgrnd 18 (the mirror) are also used by spell animations
 diplomac	0	0	diplomacy	background
-diplomac	1	999	diplomacy
+diplomac	1	1	diplomacy
+diplomac	2	23	diplomacy/icons
+diplomac	24	999	diplomacy
+magic	60	74	diplomacy/icons
 backgrnd	18	18	diplomacy	mirror
 
 # Spell book (Spellbook.c)

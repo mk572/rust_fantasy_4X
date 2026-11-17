@@ -58,7 +58,7 @@ Not packed: the other `screens/` (each picture is large already), `art/fonts/`, 
 (working files of scripts and the author, never read by the client).
 
 ```
-f4x-extract pack [assets-local] [--keep]   pack every loose folder (a loose file replaces the same name on its sheets)
+f4x-extract pack [assets-local] [--keep] [--only FOLDER]   pack every loose folder (a loose file replaces the same name on its sheets); with --only just that folder, relative to the root
 f4x-extract unpack [assets-local]          every sheet back to PNG files, for the scripts below
 ```
 
