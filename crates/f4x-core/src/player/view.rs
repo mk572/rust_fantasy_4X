@@ -67,6 +67,11 @@ pub struct CitySpecials {
     pub unit_cost_percent: f32,
     /// Nightshade plants.
     pub nightshade: u32,
+    /// Percent of production the land itself gives (forest, hills, mountains, desert, nature and
+    /// chaos nodes), over the whole area.
+    pub terrain_production: f32,
+    /// River squares (two food each, whatever they are laid on).
+    pub rivers: u32,
 }
 
 impl CitySpecials {
@@ -666,6 +671,13 @@ impl<'a> PlayerView<'a> {
         let nightshade = features.id_numbered(16); // nightshade
         let mut out = CitySpecials::default();
         for (p, _) in self.game.economy().city_area(at) {
+            if grid.has_river(p.x as i32, p.y as i32) {
+                out.rivers += 1;
+            }
+            out.terrain_production +=
+                self.game
+                    .economy()
+                    .square_production(grid, p.x as i32, p.y as i32, false) as f32;
             let Some(id) = grid.mineral(p.x as i32, p.y as i32) else {
                 continue;
             };

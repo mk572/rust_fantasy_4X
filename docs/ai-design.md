@@ -236,7 +236,7 @@ ships (step 8).
   unrest, then the basics (gold when the net is low, food where the city is stuck, production, gold),
   then settlers where `plan_for` allows them, then the city's specialty (the special tiles in its area,
   `PlayerView::city_specials`: gold and mana from ore and gems, wild game's food, coal and iron's
-  cheaper units, nightshade; the strongest is served first with the buildings that add to it, the
+  cheaper units, land that gives production (forest, hills, mountains, desert, nature and chaos nodes: a specialty from four tiles' worth up; rivers: food, from four river squares), nightshade; the strongest is served first with the buildings that add to it, the
   miners guild for ore, and the buildings that let a city use nightshade), then the plan's mix (soldiers when the army is short,
   else buildings in the rules' `autobuild_order`), and last Housing (while the city can still grow) or
   Trade Goods. A basic that waits for another building (a miners guild needs a builders hall) makes the

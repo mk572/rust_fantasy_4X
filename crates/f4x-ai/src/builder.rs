@@ -205,6 +205,29 @@ fn listed_buildings(view: &PlayerView, city: hecs::Entity, need: Need) -> Vec<Bu
 /// The miners guild: it adds half to the gold, mana and ore savings of the tiles in the city's area.
 const MINERS_GUILD: BuildingId = BuildingId::new(34); // miners_guild
 
+/// Land that gives production (forests, hills, mountains, desert) is a specialty only when there is
+/// a good deal of it: a point of worth for each tile's 3%, and nothing below [`LAND_PRODUCTION_MIN`].
+const LAND_PRODUCTION_MIN: f32 = 12.0;
+
+/// A river square gives two food: a specialty in food from this many of them, half a point each.
+const RIVERS_MIN: u32 = 4;
+
+fn river_worth(rivers: u32) -> f32 {
+    if rivers >= RIVERS_MIN {
+        rivers as f32 * 0.5
+    } else {
+        0.0
+    }
+}
+
+fn terrain_production_worth(percent: f32) -> f32 {
+    if percent >= LAND_PRODUCTION_MIN {
+        percent / 3.0
+    } else {
+        0.0
+    }
+}
+
 /// What the special tiles of a city make worth building, the strongest first: gold and mana from
 /// ore and gems (gold and mana buildings, and the miners guild), wild game (food buildings), coal
 /// and iron (production buildings and the miners guild), nightshade (the buildings that let a
@@ -236,7 +259,7 @@ fn specialty(view: &PlayerView, city: hecs::Entity, need: Need) -> Option<Buildi
             best_adding(view, city, need, &[Stat::CityMana]).or(miners),
         ),
         (
-            sp.food,
+            sp.food + river_worth(sp.rivers),
             best_adding(
                 view,
                 city,
@@ -245,7 +268,7 @@ fn specialty(view: &PlayerView, city: hecs::Entity, need: Need) -> Option<Buildi
             ),
         ),
         (
-            sp.unit_cost_percent / 5.0,
+            sp.unit_cost_percent / 5.0 + terrain_production_worth(sp.terrain_production),
             best_adding(view, city, need, &[Stat::CityProduction]).or(miners),
         ),
         (sp.nightshade as f32 * 2.0, nightshade()),
@@ -466,6 +489,78 @@ mod tests {
             .any(|(o, d)| d.requires.contains(&b) && adds_gold(o));
         assert!(
             adds_gold(b) || opens_gold || b == MINERS_GUILD,
+            "{}",
+            rules.buildings.get(b).id
+        );
+        Ok(())
+    }
+
+    /// A city whose area gets the special `change` puts on the map, and what it specializes in.
+    fn specialty_after(
+        change: impl Fn(&mut f4x_core::map::Grid, u32, u32),
+    ) -> Result<(Option<BuildingId>, f4x_core::game::Game), Box<dyn std::error::Error>> {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let city = g
+            .economy()
+            .city_at(at(COAST_CITY.0, COAST_CITY.1))
+            .ok_or("a city on the coast")?;
+        let mut map = g.map().ok_or("the game has a map")?.clone();
+        change(
+            map.plane_mut(f4x_core::map::Plane::Arcanus),
+            COAST_CITY.0,
+            COAST_CITY.1,
+        );
+        g.set_map(map);
+        let need = Need {
+            net_gold: HalfInt::from_int(10),
+            rival_near: false,
+        };
+        let b = specialty(&PlayerView::new(&g, P0), city, need);
+        Ok((b, g))
+    }
+
+    #[test]
+    fn mana_crystals_make_a_city_build_what_adds_mana() -> TestResult {
+        let crystal = game(COAST_CITY, 8)
+            .content()
+            .features
+            .id_numbered(17 /* quork_crystal */);
+        let (b, g) = specialty_after(|grid, x, y| grid.set_mineral(x, y + 2, crystal))?;
+        let b = b.ok_or("a mana tile makes a specialty")?;
+        let view = PlayerView::new(&g, P0);
+        let rules = &view.content().rules;
+        let adds = |x: BuildingId| effect_total(&view, x, &[Stat::CityMana]) > 0.0;
+        assert!(
+            adds(b)
+                || b == MINERS_GUILD
+                || rules
+                    .buildings
+                    .iter()
+                    .any(|(o, d)| d.requires.contains(&b) && adds(o)),
+            "{}",
+            rules.buildings.get(b).id
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn rivers_make_a_city_build_what_adds_food() -> TestResult {
+        let (b, g) = specialty_after(|grid, x, y| {
+            for dx in 0..RIVERS_MIN {
+                grid.set_river(x + dx - 1, y + 1, true);
+            }
+        })?;
+        let b = b.ok_or("rivers make a specialty")?;
+        let view = PlayerView::new(&g, P0);
+        let rules = &view.content().rules;
+        let food = [Stat::CityFood, Stat::CityFoodFlat, Stat::FarmerFood];
+        let adds = |x: BuildingId| effect_total(&view, x, &food) > 0.0;
+        assert!(
+            adds(b)
+                || rules
+                    .buildings
+                    .iter()
+                    .any(|(o, d)| d.requires.contains(&b) && adds(o)),
             "{}",
             rules.buildings.get(b).id
         );
