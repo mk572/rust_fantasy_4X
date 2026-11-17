@@ -8,9 +8,8 @@ routines that take and give roles are named below.
 
 Every unit the wizard owns has **exactly one role, written in the registry**, at any time, and the
 AI never loses track of one. Nothing is derived: a soldier in a city is registered as `Garrison`
-with that city, a unit on its way as `MoveTo` with the square, a soldier sent home as `Return`
-with the city (no longer given, since task 645). A unit with nothing to do is registered as `AwaitingOrders`, the lowest priority
-but a role all the same. A routine that gives a role back puts the unit on `AwaitingOrders` at
+with that city, a unit on its way as `MoveTo` with the square. A unit with nothing to do is registered as
+`AwaitingOrders`, the lowest priority but a role all the same. A routine that gives a role back puts the unit on `AwaitingOrders` at
 once (it is never removed); the next audit gives it the base role its place says.
 
 The role of a unit lives in one place, the registry `Ai::roles` (`roles::Registry`). No routine
@@ -72,7 +71,6 @@ Listed in priority order (the lower number wins a claim, section 4). The roles w
 | `Meld` | a spirit on its way to an open node (`to` = the node) | spirits | `meld.rs` |
 | `Road` | engineers building a road or walking to where it starts (`to` = the city or frontier it leads to) | engineers | `road.rs` |
 | `Scout` | scouting by land or sea (`to` = the patch) | soldiers, ships | `scout.rs`, `garrison.rs`, `naval.rs` |
-| `Return` | walking home to the nearest own city (`to` = the city) | soldiers | the audit |
 
 Every role is stored. The last ones are **base roles** (`Role::is_base`): the audit gives them from
 where a unit stands and what it is doing when no routine has a task for it, and a routine's `claim`
@@ -137,8 +135,7 @@ The three scouting roles (`Scout`, `PlanarScout`, `SeaParty`) count as "out scou
   muster).
 - `members(role)`, `is`, `any`, `count`, `target_of`, `targets`, `targeted`, `set_target`: ask.
 - `track(unit, pos, ordered)` counts the looks a unit has stood still on an order (scouts and
-  settlers give a blocked target up after a few); `clear_track` forgets it. The audit's own count
-  for `Return` is `note_positions`.
+  settlers give a blocked target up after a few); `clear_track` forgets it.
 
 A routine that picks units for a task takes the free ones (a base role only, no task of a routine) and claims
 the role for them; the claim is the one test that a unit is free, so the routines no longer list
@@ -240,8 +237,7 @@ stands still four turns on the way gives the node up (`Ai::bad_sites`).
    better role.
 
 Tests (`roles.rs`, and each routine's own): every unit has an explicit role with its target, one role per unit, refused and taken-over claims,
-groups and ties, standstill count, the audit sending a lone soldier home and keeping it `Return`,
-stranded soldiers waiting for a ship.
+groups and ties, standstill count, stranded soldiers waiting for a ship.
 
 ## 7. Musters
 

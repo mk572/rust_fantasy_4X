@@ -757,10 +757,10 @@ In short: a map from a unit's serial to one assignment (role, since, target squa
 unit, standstill count). A claim of a role is refused for a unit that holds one of equal or higher
 priority, so a unit cannot be raiding and marching at once. A unit with nothing to do has
 `AwaitingOrders`. At the end of each turn `roles::audit` looks at every unit (soldiers, ships,
-settlers, engineers, spirits): soldiers awaiting orders (*adrift*) walk to the nearest own city and
-keep the role `Return` until they are in it, or wait on a shore for a ship (`AwaitTransport`,
-`pickup.rs`) when no city can be reached on foot; ships and other units awaiting orders are counted
-(`ships and other units with no role`). The soak shows `units adrift (no role)`.
+settlers, engineers, spirits): the units awaiting orders are counted, soldiers as *adrift* and
+ships and the others as `ships and other units with no role`, and stay where they stand (since
+task 645: no walk home, no wait on a shore; the role `Return` is gone). The soak shows
+`units adrift (no role)`.
 
 The escort role is built (`escort.rs`: a settler leaving a city takes a spare soldier along). The new roles perimeter, road and meld are tasks 625, 627 and 628.
 

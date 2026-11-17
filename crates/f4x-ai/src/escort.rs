@@ -87,7 +87,7 @@ fn guarded(ai: &Ai, view: &PlayerView, charge: Serial) -> bool {
     // A healer or a weak hero alone in the field (`stragglers`) keeps its guard on the way home.
     matches!(
         ai.roles.role_of(charge),
-        Some(Role::Return | Role::MoveTo | Role::AwaitingOrders)
+        Some(Role::MoveTo | Role::AwaitingOrders)
     ) && view
         .my_units()
         .into_iter()
@@ -148,7 +148,7 @@ fn stragglers(ai: &Ai, game: &Game) -> Vec<hecs::Entity> {
             // A unit with a task of its own travels with the party of that task.
             matches!(
                 ai.roles.role_of(s),
-                Some(Role::Return | Role::MoveTo | Role::AwaitingOrders)
+                Some(Role::MoveTo | Role::AwaitingOrders)
             )
         })
         .filter(|&u| {

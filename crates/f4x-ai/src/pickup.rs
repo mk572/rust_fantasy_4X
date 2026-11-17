@@ -112,43 +112,6 @@ fn sea_beside(view: &PlayerView, land: Position) -> Option<Position> {
     None
 }
 
-/// Put a group of stranded soldiers on the waiting list and send them to the shore. Whether a
-/// shore is known on their land mass. No longer called by the audit (task 645: a unit that
-/// awaits orders stays where it stands); the transport job of task 647 replaces it.
-#[cfg(test)]
-pub fn wait_at_shore(ai: &mut Ai, game: &mut Game, units: &[hecs::Entity]) -> bool {
-    let me = ai.player;
-    let (tile, serials) = {
-        let view = PlayerView::new(game, me);
-        let Some(&first) = units.first() else {
-            return false;
-        };
-        let Some(pos) = view.unit_position(first) else {
-            return false;
-        };
-        let Some((land, _)) = crate::naval::landing(&view, pos) else {
-            return false;
-        };
-        (
-            land,
-            units
-                .iter()
-                .map(|&u| view.serial_of(u))
-                .collect::<Vec<Serial>>(),
-        )
-    };
-    let turn = game.turn;
-    let mut any = false;
-    for s in serials {
-        // A soldier that holds a better role keeps it.
-        any |= ai
-            .roles
-            .claim(s, crate::roles::Role::AwaitTransport, turn, Some(tile))
-            .is_ok();
-    }
-    any
-}
-
 /// One turn of the waiting soldiers and the ships that fetch them.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
@@ -513,6 +476,20 @@ mod tests {
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
+    /// Put soldiers on the waiting list for a ship, on a shore tile (what the transport job of
+    /// task 647 will do).
+    fn strand(ai: &mut Ai, g: &Game, units: &[hecs::Entity], tile: Position) -> bool {
+        let view = PlayerView::new(g, P0);
+        let mut any = false;
+        for &u in units {
+            any |= ai
+                .roles
+                .claim(view.serial_of(u), Role::AwaitTransport, g.turn, Some(tile))
+                .is_ok();
+        }
+        any
+    }
+
     fn shore(g: &Game) -> Result<Position, Box<dyn std::error::Error>> {
         let view = PlayerView::new(g, P0);
         let (land, _) = crate::naval::landing(&view, at(ENEMY_CITY.0, ENEMY_CITY.1))
@@ -532,7 +509,7 @@ mod tests {
         let ship = spawn(&mut g, P0, port, 36 /* galley */, 1)[0];
         g.balance_farmers(P0);
         let mut ai = Ai::new(P0);
-        assert!(wait_at_shore(&mut ai, &mut g, &soldiers));
+        assert!(strand(&mut ai, &g, &soldiers, land));
         assert_eq!(ai.roles.members(Role::AwaitTransport).len(), 3);
         let mut events = Vec::new();
         for _ in 0..60 {
@@ -566,7 +543,7 @@ mod tests {
         let soldiers = spawn(&mut g, P0, land, 104 /* spearmen */, 3);
         g.balance_farmers(P0);
         let mut ai = Ai::new(P0);
-        assert!(wait_at_shore(&mut ai, &mut g, &soldiers));
+        assert!(strand(&mut ai, &g, &soldiers, land));
         g.turn += STRANDED_WAIT + 1;
         run(&mut ai, &mut g, &mut Vec::new());
         let view = PlayerView::new(&g, P0);
@@ -587,7 +564,7 @@ mod tests {
         let soldiers = spawn(&mut g, P0, land, 104, 2);
         g.balance_farmers(P0);
         let mut ai = Ai::new(P0);
-        wait_at_shore(&mut ai, &mut g, &soldiers);
+        strand(&mut ai, &g, &soldiers, land);
         let mut events = Vec::new();
         for _ in 0..3 {
             run(&mut ai, &mut g, &mut events);
