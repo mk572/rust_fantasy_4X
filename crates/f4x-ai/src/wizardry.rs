@@ -32,6 +32,9 @@ pub enum Kind {
     GlobalBuff,
     /// Earth Lore: explores a block of the map around the target square.
     Explore,
+    /// Enchant Road: the roads between the fortress and the places that matter, so that the
+    /// army and the settlers cross the land at no cost in moves (`enchant_road.rs`).
+    EnchantRoad,
     /// Nature's Cures: heals the whole stack on the target unit's square.
     Cure,
     /// A curse or blow on a city of a wizard the AI is at war with.
@@ -138,6 +141,9 @@ pub fn kind(def: &SpellDef) -> Kind {
     if f4x_core::spell::terraform::TerrainEffect::EarthLore.is_in(def) {
         return Kind::Explore;
     }
+    if f4x_core::spell::terraform::TerrainEffect::EnchantRoad.is_in(def) {
+        return Kind::EnchantRoad;
+    }
     match UnitEffect::of(def) {
         Some(UnitEffect::NaturesCures) => return Kind::Cure,
         Some(UnitEffect::ChaosChannels) => return Kind::Mutate,
@@ -241,6 +247,8 @@ fn priority(k: Kind) -> u8 {
     match k {
         Kind::Mastery => 0,
         Kind::Explore => 1,
+        // Fast movement is a big advantage: the road is cast before the summons and the buffs.
+        Kind::EnchantRoad => 2,
         Kind::Cure => 2,
         Kind::Summon => 3,
         Kind::SummonHero => 3,
@@ -610,6 +618,10 @@ fn research_score(
     if cat.0 == Kind::Mastery && turns > 250.0 && !racing {
         score = score * 100.0 + 1.0e6;
     }
+    // Roads at no cost in moves are a big advantage, so the spell is researched early.
+    if cat.0 == Kind::EnchantRoad {
+        score *= if owned { 1.0 } else { 0.5 };
+    }
     if liked(def, cat.0, traits) {
         score *= traits.like_share;
     }
@@ -771,6 +783,7 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
         Kind::Explore => explore_target(view)
             .map(Target::Tile)
             .filter(|&t| view.can_aim(spell, Some(t))),
+        Kind::EnchantRoad => crate::enchant_road::target(view, spell),
         Kind::Disenchant => cursed_city(view)
             .map(Target::Tile)
             .filter(|&t| view.can_aim(spell, Some(t))),
@@ -1258,6 +1271,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         && crate::intent::global_wanted(&view, def)
                 }
                 Kind::Explore
+                | Kind::EnchantRoad
                 | Kind::Cure
                 | Kind::Disenchant
                 | Kind::Recall
@@ -1507,6 +1521,7 @@ mod tests {
             (12 /* natures_eye */, Kind::CityBuff),
             (38 /* herb_mastery */, Kind::GlobalBuff),
             (10 /* earth_lore */, Kind::Explore),
+            (55 /* enchant_road */, Kind::EnchantRoad),
             (19 /* natures_cures */, Kind::Cure),
             (204 /* disenchant_area */, Kind::Disenchant),
             (52 /* disenchant_true */, Kind::Disenchant),
@@ -1932,10 +1947,6 @@ mod tests {
         (
             18, /* transmute */
             "no model of what a changed mineral is worth",
-        ),
-        (
-            55, /* enchant_road */
-            "no model of what a road on a square is worth",
         ),
         (
             43, /* floating_island */

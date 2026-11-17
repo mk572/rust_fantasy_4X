@@ -19,6 +19,7 @@ mod craft;
 mod diplomacy;
 mod dispatch;
 mod economy;
+mod enchant_road;
 mod escort;
 mod expand;
 mod forge;

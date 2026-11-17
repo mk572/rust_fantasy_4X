@@ -863,3 +863,17 @@ has explored, as the human's enemy city screen does, so the remembered strength 
 the fallback. Not built: several groups, the route recon, the demands to the builder and the dispatcher.
 The numbers (`FORTRESS_WORTH`, `GOAL_ACROSS`, `NEXT_DEFENCE` and the others in `war_plan.rs`) are first
 guesses, to be set from soaks with more than two wizards.
+
+## 16. Enchant Road (task 642)
+
+`enchant_road.rs`. The spell enchants every road within two squares of the square it is cast on, and
+a step between two enchanted road squares costs no movement, so a road is worth enchanting from end
+to end, a cast for every five squares. The places to join to the fortress, in order: a harbour city
+(when the fortress is inland), the other large cities (8 citizens or more), the border towns (an own
+city within `BORDER_RANGE` of a wizard's city) and the open towers. A place needs to be joined to the
+enchanted network of its continent once: the road is searched from the place to the nearest square of
+that network, not to the fortress, and a continent without the fortress has its own network around
+its largest city. The cast square is the third square from the enchanted end of the road between
+them. Myrror needs none. Cast rank 2 (before the summons), research at half the turns when the AI
+has no spell of the kind. It enchants only the roads that exist; building them is task 650.
+

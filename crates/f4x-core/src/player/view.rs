@@ -692,6 +692,16 @@ impl<'a> PlayerView<'a> {
                 .is_some_and(|m| m.plane(at.plane).has_river(at.x as i32, at.y as i32))
     }
 
+    /// Is there an enchanted road on an explored square (every road on Myrror is one)?
+    pub fn has_enchanted_road(&self, at: Position) -> bool {
+        self.explored(at)
+            && self.game.map().is_some_and(|m| {
+                let grid = m.plane(at.plane);
+                (at.plane == crate::map::Plane::Myrror && grid.has_road(at.x as i32, at.y as i32))
+                    || grid.has_enchanted_road(at.x as i32, at.y as i32)
+            })
+    }
+
     /// Is an explored square under a magic node's influence?
     pub fn in_node(&self, at: Position) -> bool {
         self.explored(at) && self.game.economy().node_covering(at).is_some()

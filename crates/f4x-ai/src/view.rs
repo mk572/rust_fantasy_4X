@@ -137,7 +137,7 @@ pub fn nearest_unexplored(view: &PlayerView, unit: hecs::Entity) -> Option<Posit
 }
 
 /// Squares within which a city of a wizard at war counts as near.
-const BORDER_RANGE: u32 = 12;
+pub(crate) const BORDER_RANGE: u32 = 12;
 
 /// Fighters a city keeps at home. A full garrison is for a city at war with an enemy city near,
 /// or one that matters (the fortress); every other city keeps one, the fortress two. The rest

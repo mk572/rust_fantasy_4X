@@ -298,6 +298,18 @@ impl Game {
         self.put(unit, crate::unit::MovesLeft(moves));
     }
 
+    /// Put a road on a square, or take it off, as an engineer's work would leave it.
+    pub fn scenario_set_road(&mut self, at: crate::map::Position, road: bool) {
+        if let Some(map) = self.map.as_mut() {
+            map.plane_mut(at.plane).set_road(at.x, at.y, road);
+        }
+    }
+
+    /// Enchant the roads within two squares of `at`, as the spell does.
+    pub fn scenario_enchant_roads(&mut self, at: crate::map::Position) {
+        self.enchant_roads(at);
+    }
+
     /// Remove a unit from the game.
     pub fn scenario_remove_unit(&mut self, unit: hecs::Entity) {
         self.remove_unit(unit, crate::hero::Fate::Released);
