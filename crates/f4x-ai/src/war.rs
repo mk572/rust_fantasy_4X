@@ -1523,4 +1523,49 @@ mod tests {
         );
         Ok(())
     }
+
+    /// A guarded tower across the sea, with no rival known: the army is tagged and carried like
+    /// any landing (task 647), and comes ashore beside the tower.
+    #[test]
+    fn the_army_is_carried_across_the_sea_to_a_guarded_tower() -> TestResult {
+        use crate::testworld::{build, spawn_tower};
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let port = at(COAST_CITY.0, COAST_CITY.1);
+        build(&mut g, port, &[12, 15, 13]);
+        let tower = at(33, 9);
+        spawn_tower(&mut g, tower, true)?;
+        g.explore(P0, tower, HalfInt::from_raw(5));
+        g.treasury_mut(P0).ok_or("a treasury")?.gold = HalfInt::from_int(1_000_000);
+        spawn(&mut g, P0, port, 36 /* galley */, 1);
+        let keep = crate::view::garrison_wanted(&PlayerView::new(&g, P0), port);
+        spawn(&mut g, P0, port, 113 /* high_men_paladins */, 6 + keep);
+        let mut ai = Ai::new(P0);
+        let mut landed = false;
+        for _ in 0..60 {
+            let mut events = Vec::new();
+            g.balance_farmers(P0);
+            crate::roles::register(&mut ai, &g);
+            crate::dispatch::revalidate(&mut ai, &mut g, &mut events);
+            crate::naval::run(&mut ai, &mut g, &mut events);
+            run(&mut ai, &mut g, &mut events);
+            crate::pickup::run(&mut ai, &mut g, &mut events);
+            g.apply(Command::EndTurn);
+            let view = PlayerView::new(&g, P0);
+            landed = view.my_units().into_iter().any(|u| {
+                is_fighter(&view, u)
+                    && view
+                        .unit_position(u)
+                        .is_some_and(|p| distance(&view, p, tower).is_some_and(|d| d <= 2))
+            });
+            if landed {
+                break;
+            }
+        }
+        assert!(
+            landed,
+            "no soldier came ashore at the tower: {:?}",
+            ai.roles
+        );
+        Ok(())
+    }
 }

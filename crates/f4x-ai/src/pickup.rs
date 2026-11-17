@@ -113,7 +113,10 @@ fn drop_for(view: &PlayerView, ship: hecs::Entity, dest: Position) -> Option<Pos
     {
         return Some(dest);
     }
-    let sea = sea_beside(view, dest)?;
+    // A destination inland (a tower, a far city) is reached from the nearest coast: the units
+    // walk the rest.
+    let sea =
+        sea_beside(view, dest).or_else(|| crate::naval::landing(view, dest).map(|(_, sea)| sea))?;
     (view.unit_position(ship) == Some(sea) || view.can_reach(&[ship], sea)).then_some(sea)
 }
 
