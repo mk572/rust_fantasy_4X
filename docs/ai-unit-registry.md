@@ -9,7 +9,7 @@ routines that take and give roles are named below.
 Every unit the wizard owns has **exactly one role, written in the registry**, at any time, and the
 AI never loses track of one. Nothing is derived: a soldier in a city is registered as `Garrison`
 with that city, a unit on its way as `MoveTo` with the square, a soldier sent home as `Return`
-with the city. A unit with nothing to do is registered as `AwaitingOrders`, the lowest priority
+with the city (no longer given, since task 645). A unit with nothing to do is registered as `AwaitingOrders`, the lowest priority
 but a role all the same. A routine that gives a role back puts the unit on `AwaitingOrders` at
 once (it is never removed); the next audit gives it the base role its place says.
 
@@ -144,28 +144,35 @@ A routine that picks units for a task takes the free ones (a base role only, no 
 the role for them; the claim is the one test that a unit is free, so the routines no longer list
 each other's roles to stay out of the way.
 
-## 5. The end-of-turn audit
+## 5. The dispatcher and the end-of-turn audit
 
-`roles::audit` runs at the end of the AI's turn (`lib.rs`, after `colony`, `pickup`):
+Since task 645 (`docs/ai-design.md` section 14) a unit with nothing to do **awaits orders where it
+stands**, and the turn is run by the dispatcher (`dispatch.rs`):
 
-1. **Tidy the registry**: drop the units that are gone.
-2. **Look at every unit** (`roles::sync`, which also runs at the start of the turn as
-   `roles::register`, so units built, hired or summoned since are registered before any routine
-   runs): a unit a routine has a task for keeps its role; a `Return` ends when the soldier is in a
-   city, has no order or has not moved for `RETURN_PATIENCE` looks; every other unit is written
-   into the registry with its base role and target (the table above).
-3. **Count** the soldiers and the other units awaiting orders, and report them in
-   `Event::RolesAudited { adrift, unassigned }` (the soak lines `units adrift (no role)` and
-   `ships and other units with no role`).
-4. **Soldiers awaiting orders** go to the nearest own city that can be reached and has room, in
-   groups by square (`send_home`), and take the role `Return` until they are there. A group no
-   city can take (no own city reachable by land) walks to a shore tile and takes `AwaitTransport`
-   (`pickup::wait_at_shore`); a free ship then fetches it (`pickup::run`).
-5. Ships and other units awaiting orders are only counted. Each is a role still to build (roads
-   for engineers, nodes for spirits, an escort for a settler).
+1. **Register** (`roles::register`, also at the very start of the AI's turn): units built, hired or
+   summoned since are written into the registry at once, with the base role their place says. A
+   unit with no entry at all counts as awaiting orders (`Roles::is_free`).
+2. **Give up the missions that are over** (`dispatch::revalidate`, before any new job): a unit whose
+   raid, scout or meld mission cannot be fulfilled any more (the lair is gone, the ground is
+   explored, the node is taken) or whose order stopped short of its target (a raid counts as arrived
+   beside its site) loses its role and its order and awaits orders. Counted as `missions over,
+   unit reset to awaiting orders`.
+3. **The jobs, in the order of the checklist** (the list in `dispatch.rs`): a city in danger
+   (`perimeter.rs`), settlers, engineers and spirits, escorts, scouts, then the old war code
+   (`site`, `military`, `naval`, `colony`, `pickup`) until tasks 646 and 647 move it into jobs. A job
+   takes units that are **free** (`Roles::is_free`: no task, not a city's garrison) and claims a
+   role for them.
+4. **The audit** (`roles::audit`, the last step): tidy the registry, sync every unit again, and
+   count. `Event::RolesAudited { adrift, unassigned, unregistered, reset }` is the soak's `units
+   adrift (no role)` (soldiers awaiting orders, summed over turns: the pool), `ships and other
+   units with no role`, `units made in the turn with no registry entry` (code that makes a unit in
+   the middle of the turn without registering it: to be fixed one by one) and the resets of step 2.
+   The audit sends nobody anywhere.
 
-The number to watch in a soak is `units adrift`: the audit sends those soldiers home, but a soldier
-that needs it every turn shows a routine that lets go of its units without a next role.
+**Garrison** is the role of a city's base defenders only: `garrison::post` picks them by the defence
+strength the city wants (`wanted_strength`: `garrison_wanted` average soldiers), slow defensive
+units first; fast units and heroes are kept for the pool. The soldiers beyond that in the city
+await orders like any other.
 
 ### The escort
 

@@ -282,8 +282,17 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         (free, capital)
     };
 
-    // 2b. The perimeter: spare troops deal with what is in the zone of the cities (`perimeter.rs`).
-    let free = crate::perimeter::run(ai, game, free, events);
+    // 2b. The perimeter was dealt with first by the dispatcher (job 0, `dispatch.rs`): what its
+    // soldiers took is no longer free.
+    let free: Vec<hecs::Entity> = {
+        let view = PlayerView::new(game, me);
+        free.into_iter()
+            .filter(|&u| {
+                !ai.roles
+                    .is(view.serial_of(u), crate::roles::Role::Perimeter)
+            })
+            .collect()
+    };
     let Some(capital) = capital else {
         return;
     };
@@ -1273,7 +1282,8 @@ mod tests {
         let (mut g, spare) = besieged(true);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
-        army(&mut ai, &mut g, &mut events);
+        // The dispatcher's job 0 calls the troops in; the army follows.
+        crate::dispatch::run(&mut ai, &mut g, &mut events);
         assert_eq!(ai.threatened, vec![at(10, 6)], "{events:?}");
         let view = PlayerView::new(&g, P0);
         assert!(

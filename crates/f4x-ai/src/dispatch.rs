@@ -11,7 +11,8 @@
 //!
 //! The order of the checklist:
 //!
-//! 0. a city in danger (the perimeter, inside the army's turn until task 646 moves it here);
+//! 0. a city in danger (the perimeter: the free soldiers go for the enemy in its zone, or join the
+//!    garrison when it is the stronger);
 //! 1. settlers to their sites, engineers to their roads, spirits to their nodes;
 //! 2. escorts for the settlers and engineers whose way is not safe;
 //! 3. scouts for unexplored land, the fast units first;
@@ -142,6 +143,24 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
     count
 }
 
+/// The soldiers of the pool that can act: fighters that are free (or gather for the campaign),
+/// are not resting and stand somewhere.
+fn free_soldiers(ai: &Ai, game: &Game) -> Vec<hecs::Entity> {
+    use crate::roles::{MusterKind, Role};
+    let view = f4x_core::player::view::PlayerView::new(game, ai.player);
+    view.my_units()
+        .into_iter()
+        .filter(|&u| crate::view::is_fighter(&view, u) && view.unit_position(u).is_some())
+        .filter(|&u| !crate::recover::needs_rest(&view, u))
+        .filter(|&u| {
+            let s = view.serial_of(u);
+            ai.roles.is_free(s)
+                || ai.roles.is(s, Role::Perimeter)
+                || ai.roles.in_muster(s, MusterKind::Campaign)
+        })
+        .collect()
+}
+
 /// One turn of the jobs, in the order of the checklist.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::roles::register(ai, game);
@@ -150,6 +169,11 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::recover::run(ai, game, events);
     crate::garrison::disperse(ai, game, events);
     crate::garrison::thin_out(ai, game, events);
+    // 0. a city in danger: the free soldiers deal with the enemy in its zone, before anything else
+    {
+        let free = free_soldiers(ai, game);
+        crate::perimeter::run(ai, game, free, events);
+    }
     // 1. settlers, engineers, spirits
     crate::expand::settlers(ai, game, events);
     crate::road::run(ai, game, events);
@@ -158,7 +182,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::escort::run(ai, game, events);
     // 3. scouts
     crate::scout::scout(ai, game, events);
-    // 0, 4 to 6 (until task 646): raids, the army with the perimeter, the war
+    // 4 to 6 (until task 646): raids, the army, the war
     crate::site::run(ai, game, events);
     crate::military::army(ai, game, events);
     // The ships and the colonies (task 647)
