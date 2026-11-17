@@ -11,6 +11,8 @@ use f4x_core::city::economy::Resource;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
+use f4x_core::player::view::PlayerView;
+use f4x_core::rules::{BuildingId, RaceId, SpellId};
 use f4x_def::half_int::HalfInt;
 use macroquad::prelude::*;
 
@@ -59,6 +61,18 @@ const EDGE_ENCHANTMENT: Color = rgb(0x69, 0x61, 0x5D);
 const EDGE_PRODUCT: Color = rgb(0x49, 0x41, 0x3C);
 
 const GARRISON: (f32, f32) = (215.0, 102.0);
+
+/// What the cityscape of a city is drawn from (`App::city_data`).
+#[derive(Default)]
+struct CityData {
+    population: u32,
+    buildings: Vec<BuildingId>,
+    sold: Option<BuildingId>,
+    enchantments: Vec<SpellId>,
+    race: Option<RaceId>,
+    fortress: bool,
+    summoning_circle: bool,
+}
 
 /// The city screen of one city.
 pub(crate) struct CityPage {
@@ -760,26 +774,55 @@ impl App {
         self.text(key)
     }
 
+    /// What the cityscape draws a city from. The player's own city is read from the game. Of
+    /// another wizard's city it is only what the human may know: the report of the view
+    /// (`PlayerView::city_report`, the same the AI reads), and nothing for a city not explored.
+    fn city_data(&self, city: hecs::Entity) -> CityData {
+        if self.game.economy().city_owner(city) == Some(HUMAN) {
+            let at = self.city_position(city);
+            return CityData {
+                population: self.game.city_population(city).figures,
+                buildings: self.game.city_buildings(city),
+                // A building sold this turn keeps its place as rubble.
+                sold: self.game.economy().sold_building(city),
+                enchantments: self
+                    .game
+                    .city_enchantments(city)
+                    .into_iter()
+                    .map(|(s, _)| s)
+                    .collect(),
+                race: self.game.city_race(city),
+                fortress: self.game.economy().is_fortress_city(city),
+                summoning_circle: self.game.wizard(HUMAN).and_then(|w| w.summon_at()) == Some(at),
+            };
+        }
+        let Some(report) = PlayerView::new(&self.game, HUMAN).city_report(city) else {
+            return CityData::default();
+        };
+        CityData {
+            population: report.figures,
+            buildings: report.buildings,
+            sold: None,
+            enchantments: report.enchantments.into_iter().map(|(s, _)| s).collect(),
+            race: report.race,
+            fortress: report.fortress,
+            summoning_circle: report.summoning_circle,
+        }
+    }
+
     /// What the cityscape layout needs from a city.
-    fn cityscape_info(&self, city: hecs::Entity) -> crate::cityscape::CityInfo {
+    fn cityscape_info(&self, city: hecs::Entity, data: &CityData) -> crate::cityscape::CityInfo {
         use crate::cityscape as cs;
         let rules = &self.game.content().rules;
         let at = self.city_position(city);
-        let pop = self.game.city_population(city).figures;
-        // A building sold this turn keeps its place as rubble.
-        let buildings = self
-            .game
-            .city_buildings(city)
-            .into_iter()
-            .chain(self.game.economy().sold_building(city))
+        let buildings = data
+            .buildings
+            .iter()
+            .copied()
+            .chain(data.sold)
             .map(|id| (id.num() as i16, rules.buildings.get(id).shape))
             .collect();
-        let enchanted = |spell: u16| {
-            self.game
-                .city_enchantments(city)
-                .iter()
-                .any(|&(s, _)| s.num() == spell)
-        };
+        let enchanted = |spell: u16| data.enchantments.iter().any(|s| s.num() == spell);
         let mut magic = Vec::new();
         for (spell, idx) in [
             (37 /* earth_gate */, cs::EARTH_GATE),
@@ -792,25 +835,19 @@ impl App {
                 magic.push(idx);
             }
         }
-        let owner = self.game.economy().city_owner(city);
-        if owner
-            .and_then(|o| self.game.wizard(o))
-            .and_then(|w| w.summon_at())
-            == Some(at)
-        {
+        if data.summoning_circle {
             magic.push(cs::SUMMONING_CIRCLE);
         }
         let class = self.game.economy().terrain_class_at(at);
-        let house_type = self
-            .game
-            .city_race(city)
+        let house_type = data
+            .race
             .map(|r| rules.races.get(r).house_type)
             .unwrap_or(0);
         cs::CityInfo {
-            population: pop,
+            population: data.population,
             buildings,
             magic,
-            fortress: self.game.economy().is_fortress_city(city),
+            fortress: data.fortress,
             many_trees: class == Some(f4x_core::map::terrain::TerrainClass::Forest)
                 || house_type == 1,
             many_rocks: matches!(
@@ -854,13 +891,8 @@ impl App {
         let view = Self::view(lay);
         let at = self.city_position(city);
         let myrror = at.plane == f4x_core::map::Plane::Myrror;
-        let spells: Vec<u16> = self
-            .game
-            .city_enchantments(city)
-            .iter()
-            .map(|&(s, _)| s.num())
-            .collect();
-        let enchanted = |spell: u16| spells.contains(&spell);
+        let data = self.city_data(city);
+        let enchanted = |spell: u16| data.enchantments.iter().any(|s| s.num() == spell);
         // The original counts its animations in draws of the screen.
         let draws = (get_time() * cs::DRAWS_PER_SECOND) as u64;
         let building_counter = cs::anim_counter(draws, 60);
@@ -971,19 +1003,17 @@ impl App {
         }
         self.city_pic(lay, "cityscap", 5, 0, x0 + 2.0, y0 + 16.0);
 
-        let info = self.cityscape_info(city);
+        let info = self.cityscape_info(city, &data);
         let grid = cs::make_layout(&info);
-        let house_type = self
-            .game
-            .city_race(city)
+        let house_type = data
+            .race
             .map(|r| self.game.content().rules.races.get(r).house_type as usize)
             .unwrap_or(0);
         // Variants of houses, trees and rocks are drawn from the layout's own seed so they
         // stay put from frame to frame.
         let mut mouse_over: Option<i16> = None;
         let mut over_rubble = false;
-        let sold = self.game.economy().sold_building(city);
-        let rubble_of = sold.map(|b| {
+        let rubble_of = data.sold.map(|b| {
             (
                 b.num() as i16,
                 self.game.content().rules.buildings.get(b).shape,

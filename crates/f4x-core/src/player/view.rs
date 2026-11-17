@@ -52,6 +52,8 @@ pub struct CityReport {
     pub enchantments: Vec<(SpellId, PlayerId)>,
     /// The owner's units standing in it, in creation order. Invisible units are not listed.
     pub garrison: Vec<hecs::Entity>,
+    /// Does the owner's summoning circle stand in it? The cityscape draws it.
+    pub summoning_circle: bool,
 }
 
 impl CityReport {
@@ -602,6 +604,7 @@ impl<'a> PlayerView<'a> {
             buildings: self.game.city_buildings(city),
             enchantments: self.game.city_enchantments(city),
             garrison,
+            summoning_circle: self.game.wizard(owner).and_then(|w| w.summon_at()) == Some(position),
         })
     }
 
@@ -929,6 +932,7 @@ mod tests {
         assert_eq!(report.buildings.last(), Some(&barracks));
         assert_eq!(report.garrison, vec![foe]);
         assert!(!report.fortress);
+        assert!(!report.summoning_circle);
         assert_eq!(view.city_report(mine), None, "the own city has no report");
         // What a city makes and builds is read of the own cities only.
         assert_eq!(view.city_economy(city), None);
