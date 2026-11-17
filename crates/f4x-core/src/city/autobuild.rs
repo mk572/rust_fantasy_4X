@@ -555,6 +555,11 @@ fn best_defender(content: &Content, f: &CityFacts) -> Option<UnitId> {
         .map(|(u, _)| u)
 }
 
+/// The weight of the exploration profile an engineer is rated with at least, under any focus.
+const ENGINEER_WEIGHT: f32 = 0.5;
+/// Outside the exploration focus there is one engineer for this many cities (rounded up).
+const ENGINEER_SHARE: u32 = 4;
+
 /// The units the plan may build with their scores, best first. Settlers and engineers join only
 /// under the exploration focus (and settlers only where `settlers_ok`).
 fn ranked_units(
@@ -576,7 +581,10 @@ fn ranked_units(
             if is_settler(d) {
                 exploring && settlers_ok
             } else if is_engineer(d) {
-                exploring && f.engineers < f.cities.div_ceil(3).max(1)
+                // Roads halve every army's and settler's walk: engineers are built under any
+                // focus, a third of the cities' number under exploration, a quarter otherwise.
+                let share = if exploring { 3 } else { ENGINEER_SHARE };
+                f.engineers < f.cities.div_ceil(share).max(1)
             } else if is_transport(d) {
                 exploring && f.transports < f.cities.div_ceil(4).max(1)
             } else {
@@ -613,6 +621,12 @@ fn ranked_units(
         .map(|u| {
             let d = content.rules.units.get(u);
             let p = raw_profiles(d);
+            // Engineers are valued for the roads they build whatever the focus.
+            let exp = if is_engineer(d) {
+                exp.max(ENGINEER_WEIGHT)
+            } else {
+                exp
+            };
             let fit = off_weight * p[0] / best[0] + def * p[1] / best[1] + exp * p[2] / best[2];
             // Value for the cost over the unit's life (price and upkeep): the square root of it,
             // or, for an elite army, a tenth power only, so the dear units win.

@@ -620,7 +620,12 @@ fn research_score(
     }
     // Roads at no cost in moves are a big advantage, so the spell is researched early.
     if cat.0 == Kind::EnchantRoad {
-        score *= if owned { 1.0 } else { 0.5 };
+        // Dearer when no road is ever built: only the roads of the world's start are left.
+        score *= match (owned, crate::road::engineers_possible(view)) {
+            (true, _) => 1.0,
+            (false, true) => 0.5,
+            (false, false) => 2.0,
+        };
     }
     if liked(def, cat.0, traits) {
         score *= traits.like_share;

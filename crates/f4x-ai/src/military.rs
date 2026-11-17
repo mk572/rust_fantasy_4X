@@ -505,7 +505,37 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let mut reached = crate::view::ReachCache::default();
     // The units sent to the rally this turn (they hold `Muster` from now on).
     let mut sent_to_rally: Vec<hecs::Entity> = Vec::new();
+    // The force wanted is gathered by need: the nearest units are sent while the strength at the
+    // rally and on its way is below what the march needs (and fewer than three). The others stay
+    // where they are, available to the dispatcher's other jobs, as do the units of a town just
+    // taken: nothing sends them anywhere.
+    let needed = expected * attack_ratio() + 1.0;
+    let mut elsewhere = elsewhere;
+    let (mut have, mut have_units) = {
+        let view = PlayerView::new(game, me);
+        elsewhere.sort_by_key(|&u| {
+            (
+                view.unit_position(u)
+                    .and_then(|p| distance(&view, p, rally))
+                    .unwrap_or(u32::MAX),
+                view.serial_of(u),
+            )
+        });
+        let on_its_way = elsewhere.iter().copied().filter(|&u| {
+            view.unit_has_order(u) && ai.roles.in_muster(view.serial_of(u), MusterKind::Campaign)
+        });
+        let (strength, units) = on_its_way.fold((force, at_rally.len()), |(s, n), u| {
+            (s + unit_strength(&view, u), n + 1)
+        });
+        (strength, units)
+    };
+    let mut counted = 0;
     for u in &elsewhere {
+        for &sent in &sent_to_rally[counted..] {
+            have += unit_strength(&PlayerView::new(game, me), sent);
+            have_units += 1;
+        }
+        counted = sent_to_rally.len();
         if let Some(tower) = ai.crossing.filter(|t| t.plane != rally.plane) {
             let (here, ordered, reach) = {
                 let view = PlayerView::new(game, me);
@@ -543,6 +573,9 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
                 tower_full = sent.is_err_and(|why| why.is_no_room());
             }
+            continue;
+        }
+        if have >= needed && have_units >= MIN_MARCH {
             continue;
         }
         // A gate is quicker than the road: an Earth Gate city sends its troops to the rally
@@ -669,7 +702,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         march_landed(ai, game, &free, target, events);
         return;
     }
-    if force >= expected * attack_ratio() + 1.0 && at_rally.len() >= 3 {
+    if force >= expected * attack_ratio() + 1.0 && at_rally.len() >= MIN_MARCH {
         let mut launched: Vec<Serial> = Vec::new();
         let mut refused = false;
         // Units march as stacks: those on one square, as many as a square holds at most.
@@ -802,6 +835,9 @@ pub(crate) fn force_wanted(
     let needed = expected_defence(view, memory, turn, target) * attack_ratio() + 1.0;
     ((needed / average_strength(view).max(1.0)).ceil() as usize).clamp(3, MAX_FORCE)
 }
+
+/// The fewest units a march starts with.
+const MIN_MARCH: usize = 3;
 
 /// The fewest troops that cross a plane together.
 const MIN_CROSSING: usize = 3;
@@ -1213,13 +1249,21 @@ mod tests {
         assert_eq!(muster.kind, MusterKind::Campaign);
         assert_eq!(muster.objective, Some(at(4, 4)));
         assert_eq!(muster.rally, capital);
-        assert_eq!(members.len(), 9);
+        // Only the units the march needs are sent; the others stay where they are, available.
+        assert_eq!(members.len(), MIN_MARCH, "{members:?}");
         let view = PlayerView::new(&g, P0);
-        assert!(troops
+        let sent: Vec<_> = troops
             .iter()
-            .all(|&u| ai.roles.is(view.serial_of(u), Role::Muster)));
+            .copied()
+            .filter(|&u| ai.roles.is(view.serial_of(u), Role::Muster))
+            .collect();
+        assert_eq!(sent.len(), MIN_MARCH);
+        for &u in troops.iter().filter(|u| !sent.contains(u)) {
+            assert!(!view.unit_has_order(u), "left alone");
+            assert_eq!(view.unit_position(u), Some(at(5, 9)));
+        }
         // They arrive and are strong enough: the march leaves and the muster is over.
-        for &u in &troops {
+        for &u in &sent {
             g.cheat_move_unit(u, capital);
         }
         crate::roles::register(&mut ai, &g);

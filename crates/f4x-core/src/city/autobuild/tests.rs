@@ -360,17 +360,27 @@ fn defense_and_exploration_pick_their_own_units() {
     assert!(is_combat(by_id(&defense).expect("a shipped unit")));
     assert!(is_combat(by_id(&offense).expect("a shipped unit")));
     assert!(explores(&exploration) >= explores(&defense));
-    // Engineers and scouts are only for exploration.
+    // Engineers are built under any focus, but not before the fighters, and not past their share.
     let p = BuildPlan {
         mix: Mix::Units,
         primary: Focus::Offense,
         ..BuildPlan::default()
     };
-    let ids: Vec<String> = ranked_units(&c, &p, &f, false)
-        .iter()
-        .map(|&(u, _)| c.rules.units.get(u).id.clone())
-        .collect();
-    assert!(!ids.contains(&"high_men_engineers".to_string()), "{ids:?}");
+    let ids = |f: &CityFacts| -> Vec<String> {
+        ranked_units(&c, &p, f, false)
+            .iter()
+            .map(|&(u, _)| c.rules.units.get(u).id.clone())
+            .collect()
+    };
+    let listed = ids(&f);
+    assert!(
+        listed.contains(&"high_men_engineers".to_string()),
+        "{listed:?}"
+    );
+    assert_ne!(listed[0], "high_men_engineers");
+    let mut enough = f.clone();
+    enough.engineers = enough.cities;
+    assert!(!ids(&enough).contains(&"high_men_engineers".to_string()));
 }
 
 #[test]

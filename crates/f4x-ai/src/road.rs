@@ -36,6 +36,17 @@ fn is_engineer(view: &PlayerView, unit: hecs::Entity) -> bool {
     view.unit_stat(unit, Stat::Construction) > 0
 }
 
+/// Whether this wizard can have roads built at all: an engineer is alive, or an own city can
+/// build engineers (or the hall that makes them). Some races have none (`engineer_item`), and a
+/// wizard of one has them only through cities of another race.
+pub(crate) fn engineers_possible(view: &PlayerView) -> bool {
+    view.my_units().into_iter().any(|u| is_engineer(view, u))
+        || view
+            .my_cities()
+            .into_iter()
+            .any(|(c, _)| engineer_item(view, c).is_some())
+}
+
 /// One turn of the engineers: each that is idle gets a road to build, or a place to walk to.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
@@ -295,6 +306,9 @@ pub fn build_engineer(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let city = {
         let view = PlayerView::new(game, me);
+        if !engineers_possible(&view) {
+            return;
+        }
         let cities = view.my_cities();
         let work = cities.len() >= 2 && ai.road_checked.len() < cities.len()
             || ai.campaign.is_some()
@@ -374,6 +388,29 @@ fn engineer_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, INLAND_CITY, P0};
+
+    /// A race with engineers can have roads built; one without can not, until an engineer exists.
+    #[test]
+    fn roads_are_possible_only_with_a_race_that_has_engineers_or_an_engineer() {
+        let possible = |race: u16| {
+            let g = game(COAST_CITY, race);
+            engineers_possible(&PlayerView::new(&g, P0))
+        };
+        assert!(possible(8), "high men build engineers");
+        assert!(!possible(7), "high elves have none");
+        let mut g = game(COAST_CITY, 7);
+        spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            110, /* high_men_engineers */
+            1,
+        );
+        assert!(
+            engineers_possible(&PlayerView::new(&g, P0)),
+            "a captured one"
+        );
+    }
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
