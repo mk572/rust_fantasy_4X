@@ -764,7 +764,7 @@ keep the role `Return` until they are in it, or wait on a shore for a ship (`Awa
 
 The escort role is built (`escort.rs`: a settler leaving a city takes a spare soldier along). The new roles perimeter, road and meld are tasks 625, 627 and 628.
 
-## 14. Job board (tasks 645 to 647)
+## 14. Job board (tasks 645 to 648)
 
 Decided on 17 November 2026, after the overnight soak: the unit-first logic ("I have a unit, what do I
 do with it") lets every module take units and produces uncoordinated orders. The new order of thought is
@@ -775,3 +775,72 @@ hands each the units it needs; what is left stays waiting. A unit awaiting a shi
 destination it wants, and ships take units that go to the same landmass, whatever they are. Tasks 645
 (the pool, the dispatcher and the first jobs; a city's base defenders keep `Role::Garrison` and are not in the pool, only the soldiers beyond the defence strength a city needs are; the need is a strength read from the enemies' nearness and the game phase, met first by slow defensive units, while cavalry, fliers and heroes stay free for scouting and war), 646 (the war jobs) and 647 (transport) in `TASKS.md`.
 
+## 15. War plan (task 648)
+
+Asked for on 17 November 2026. What is there (`military::army`): diplomacy (`statecraft.rs`,
+`diplomacy.rs`) decides *whether* to fight. Then one campaign target is chosen, the enemy city with the
+lowest "distance plus remembered garrison". The units that happen to be free gather at the own city
+nearest it and march when `force_wanted` is met. Everything else (a stack next to a weaker stack, the
+perimeter, raids) is a reaction. Nothing sits between "we are at war with X" and "these units go
+there". So the AI attacks the nearest city. It cannot take the weak city behind the front, make a
+pincer, go for the production bases or the fortress by a chosen path, or look before it commits.
+
+**Where it sits.** Diplomacy, then the **war plan**, then the dispatcher jobs and the builder, then
+the unit orders.
+
+    statecraft: war with X, peace with X
+        |
+    war plan (one per enemy): analysis, targets, recon, phases
+        |  demands: recon squares, groups (rally, strength, target, start turn), strength missing
+    dispatcher jobs (646) and the builder (economy.rs)     transport (647) for the sea and the planes
+        |
+    unit orders
+
+The plan is the only place that chooses a target. The dispatcher never decides *what* to attack, only
+fills a demand from the pool. If the pool cannot, the demand stays open and the builder reads the
+missing strength.
+
+**Analysis (what a human can see).** For the enemy at war:
+- the cities known, each with the remembered defence and its age (`city_memory`), the size and
+  buildings seen, and whether it is the fortress city;
+- the distance from our cities and from their other cities (depth: a city behind others is "in the
+  back");
+- the route in (land path, open tower, Plane Shift, sea) and what is known of the squares on it;
+- the army scores.
+
+What the AI has not seen is *unknown*, not guessed, and the age of a picture counts against it.
+
+**Targets and their worth.** Worth is what taking the city gives (production, the fortress, the
+wizard's capital) minus what it costs (the defence to beat with the margin of `attack_ratio`, the walk,
+the enemy cities that can reinforce it). Each target has a role:
+- *main*: the fortress city or the best production city;
+- *pincer*: a second target on another axis, started to arrive in the same turn as the main one;
+- *pickoff*: a weakly held city beside or behind the front that a small fast group takes;
+- *screen*: a front that is held, not attacked, which protects our cities while the main force is away.
+
+The plan holds an ordered list. When one target falls the next is chosen at once, and the stack that
+is already there continues (exploit).
+
+**Recon before commitment.** A target whose picture is older than the limit, or whose route has unseen
+squares, becomes a *recon demand*: a fast unit goes (`scout.rs`, job 3). No group is committed to a
+target it has not seen recently, unless it is the only one in reach and the plan has waited the limit.
+
+**Phases per group.** Recon, mass (at the rally point the plan names, on the side of the target the
+route comes from), strike, exploit. The groups of a pincer start together: a group's start turn is the
+arrival turn of the slowest group minus its own trip. A group that has made no progress for a limit of
+turns, a destroyed stack, or a target that is no longer worth it makes the plan revise. A better target
+must beat the one in progress by a margin, so the plan does not swing between two.
+
+**What it replaces.** `ai.campaign`, `best_enemy_city`, `planar_target`, `march_called_off`, the rally
+choice and the target selection in `military::army`; the builder's `war_force` becomes the plan's
+missing strength. Step 1 of the army (a stack hits a weaker stack next to it) and the perimeter stay as
+reactions. They take their units from the pool but may not take a group's reserved units.
+
+**Order of work.**
+1. 648: analysis and targets, with the recon demand and one group.
+2. 646: the dispatcher fills the plan's demands.
+3. Pincers and pickoffs (several groups at once).
+4. 647: transport as a route type.
+
+The soak against `crates/f4x-ai-ref` is the measure at each step: conquest wins, the turn of the win,
+cities taken per war, turns from the declaration to the first city taken, armies lost.
