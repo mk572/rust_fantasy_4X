@@ -19,7 +19,7 @@ pub(crate) fn attack_ratio() -> f32 {
     crate::knob("ATTACK", 1.4)
 }
 /// An attack out of a city's garrison needs a much bigger edge.
-fn sortie_ratio() -> f32 {
+pub(crate) fn sortie_ratio() -> f32 {
     crate::knob("SORTIE", 2.5)
 }
 /// Strength assumed for a defence the AI cannot see.
@@ -37,15 +37,15 @@ const UNREACHABLE_TURNS: u32 = 40;
 /// The most fighters the war plan asks the cities to build for one campaign.
 const MAX_FORCE: usize = 20;
 /// Once marched, a force attacks with this much of an edge.
-fn committed_ratio() -> f32 {
+pub(crate) fn committed_ratio() -> f32 {
     crate::knob("COMMITTED", 1.1)
 }
 
 /// How near an enemy stack must be to threaten a city.
-const THREAT_RADIUS: i32 = 3;
+pub(crate) const THREAT_RADIUS: i32 = 3;
 
 /// The enemy has the better of the garrison when it is this share of its strength.
-const THREAT_RATIO: f32 = 0.8;
+pub(crate) const THREAT_RATIO: f32 = 0.8;
 
 const NEIGHBOURS: &[(i32, i32)] = &[
     (-1, -1),
@@ -66,7 +66,10 @@ pub(crate) fn neighbours(view: &PlayerView, at: Position) -> Vec<Position> {
 }
 
 /// The units grouped by square, in a stable order.
-fn stacks(view: &PlayerView, units: Vec<hecs::Entity>) -> Vec<(Position, Vec<hecs::Entity>)> {
+pub(crate) fn stacks(
+    view: &PlayerView,
+    units: Vec<hecs::Entity>,
+) -> Vec<(Position, Vec<hecs::Entity>)> {
     let mut by_pos: HashMap<Position, Vec<hecs::Entity>> = HashMap::new();
     for u in units {
         if let Some(p) = view.unit_position(u) {
@@ -79,16 +82,6 @@ fn stacks(view: &PlayerView, units: Vec<hecs::Entity>) -> Vec<(Position, Vec<hec
     }
     list.sort_by_key(|(_, units)| view.serial_of(units[0]));
     list
-}
-
-/// What a stack decides about one square next to it.
-enum Sortie {
-    /// Nothing hostile there.
-    Nothing,
-    /// An enemy city with no one in it, on this square: walk in.
-    WalkIn(Position),
-    /// Defended: fight if this force is enough.
-    Fight(Vec<hecs::Entity>, f32),
 }
 
 /// Attack: a human defender fights the battle in person (kept for the client), any other is
@@ -144,125 +137,18 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         .map(|(_, p)| p)
         .collect();
 
-    // 1. Hit what stands next to us, when we are clearly the stronger.
-    let mut spent: Vec<hecs::Entity> = Vec::new();
-    // The army's soldiers are the pool's (free, or gathering for the campaign); the strikes of a
-    // square also use the city garrisons. A unit with a task of another job is not the army's.
+    // The army's soldiers are the pool's (free, or gathering for the campaign). A unit with a task
+    // of another job is not the army's.
     let pool = crate::dispatch::soldiers(ai, game, |roles, s| {
         roles.is_free(s) || roles.in_muster(s, MusterKind::Campaign)
     });
-    let stack_list = {
-        let mut with_garrisons = pool.clone();
-        with_garrisons.extend(crate::dispatch::soldiers(ai, game, |roles, s| {
-            roles.is(s, crate::roles::Role::Garrison)
-        }));
-        stacks(&PlayerView::new(game, me), with_garrisons)
-    };
-    for (pos, units) in stack_list {
-        let at_city = own_cities.contains(&pos);
-        // One view for the whole stack: nothing changes until a command is sent, and a command
-        // that works ends the stack's turn.
-        let (ratio, mine, sorties) = {
-            let view = PlayerView::new(game, me);
-            if view.game_over() {
-                return;
-            }
-            let committed = units
-                .iter()
-                .any(|&u| ai.roles.is(view.serial_of(u), crate::roles::Role::March));
-            let ratio = if at_city {
-                sortie_ratio()
-            } else if committed {
-                committed_ratio()
-            } else {
-                attack_ratio()
-            };
-            let sorties: Vec<Sortie> = neighbours(&view, pos)
-                .into_iter()
-                .map(|target| match view.hostile_at(target) {
-                    None => Sortie::Nothing,
-                    Some(defenders) if defenders.is_empty() => Sortie::WalkIn(target),
-                    Some(defenders) => {
-                        // A square we see is a square we know the defence of.
-                        let theirs = fighting_strength(&view, &defenders)
-                            * if view.city_at(target).is_some() {
-                                1.3
-                            } else {
-                                1.0
-                            };
-                        Sortie::Fight(defenders, theirs)
-                    }
-                })
-                .collect();
-            (ratio, stack_strength(&view, &party(&view, &units)), sorties)
-        };
-        for sortie in sorties {
-            match sortie {
-                Sortie::Nothing => continue,
-                Sortie::WalkIn(target) => {
-                    // An empty enemy city: walk in, with the units that can still move.
-                    let walkers: Vec<hecs::Entity> = {
-                        let view = PlayerView::new(game, me);
-                        units
-                            .iter()
-                            .copied()
-                            .filter(|&u| view.unit_moves_left(u) > 0)
-                            .collect()
-                    };
-                    if walkers.is_empty() {
-                        continue;
-                    }
-                    if ai
-                        .send(
-                            game,
-                            Command::MoveStack {
-                                units: walkers,
-                                to: target,
-                            },
-                            events,
-                        )
-                        .is_ok()
-                    {
-                        spent.extend(&units);
-                        break;
-                    }
-                }
-                Sortie::Fight(defenders, theirs) => {
-                    // A city's garrison holds: only the soldiers beyond it sally out.
-                    // Only the party that fights goes: the rest of the stack stays where it is.
-                    let attackers: Vec<hecs::Entity> = {
-                        let view = PlayerView::new(game, me);
-                        let fit: Vec<hecs::Entity> = units
-                            .iter()
-                            .copied()
-                            .filter(|&u| {
-                                !ai.roles.is(view.serial_of(u), crate::roles::Role::Garrison)
-                            })
-                            .collect();
-                        party(&view, &fit)
-                    };
-                    let mine = if at_city {
-                        stack_strength(&PlayerView::new(game, me), &attackers)
-                    } else {
-                        mine
-                    };
-                    if mine >= theirs * ratio && !attackers.is_empty() {
-                        spent.extend(&attackers);
-                        engage(ai, game, attackers, defenders, events);
-                        break;
-                    }
-                }
-            }
-        }
-    }
 
-    // 2. The pool, less the units that fought in the strikes above, is free to campaign.
+    // 1. The pool is free to campaign.
     let (free, capital) = {
         let view = PlayerView::new(game, me);
         let free: Vec<hecs::Entity> = stacks(&view, pool)
             .into_iter()
             .flat_map(|(_, units)| units)
-            .filter(|u| !spent.contains(u))
             .collect();
         let capital = view.fortress().or_else(|| own_cities.first().copied());
         (free, capital)
@@ -1136,14 +1022,6 @@ mod tests {
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    /// West's six swordsmen stand next to one of East's spearmen, away from every city.
-    fn field() -> (Game, Vec<hecs::Entity>) {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, at(6, 3), 105 /* high_men_swordsmen */, 6);
-        let defenders = spawn(&mut g, P1, at(7, 3), 104 /* high_men_spearmen */, 1);
-        (g, defenders)
-    }
-
     /// P1 has its capital in the west of the east island and a second city, its seat, at `seat`;
     /// P0 sees both and is at war with it.
     fn rival_with_a_seat(seat: (u32, u32)) -> Result<Game, Box<dyn std::error::Error>> {
@@ -1350,69 +1228,6 @@ mod tests {
             );
         }
         Ok(())
-    }
-
-    /// A stack of a square's size attacks with the nine a battle holds and the rest stay on the
-    /// square, available.
-    #[test]
-    fn a_stack_attacks_with_a_battle_party_and_leaves_the_rest_on_its_square() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let (side, tile) = (g.max_battle_side(), g.max_tile());
-        let stack = spawn(
-            &mut g,
-            P0,
-            at(6, 3),
-            105, /* high_men_swordsmen */
-            tile,
-        );
-        spawn(&mut g, P1, at(7, 3), 104 /* high_men_spearmen */, 1);
-        let mut ai = Ai::new(P0);
-        ai.leave_defence_to(&[P1]);
-        army(&mut ai, &mut g, &mut Vec::new());
-        let attacks = ai.take_attacks();
-        assert_eq!(attacks.len(), 1);
-        assert_eq!(attacks[0].attackers.len(), side);
-        assert!(side < stack.len());
-        let view = PlayerView::new(&g, P0);
-        let left: Vec<_> = stack
-            .iter()
-            .filter(|u| !attacks[0].attackers.contains(u))
-            .collect();
-        assert_eq!(left.len(), tile - side);
-        assert!(left
-            .iter()
-            .all(|&&u| view.unit_position(u) == Some(at(6, 3))));
-    }
-
-    #[test]
-    fn an_attack_on_a_wizard_who_defends_in_person_is_kept_not_fought() {
-        let (mut g, defenders) = field();
-        let mut ai = Ai::new(P0);
-        ai.leave_defence_to(&[P1]);
-        let mut events = Vec::new();
-        army(&mut ai, &mut g, &mut events);
-        let attacks = ai.take_attacks();
-        assert_eq!(attacks.len(), 1, "{events:?}");
-        assert_eq!(attacks[0].defenders, defenders);
-        assert_eq!(attacks[0].attackers.len(), 6);
-        assert!(
-            g.units().unit_owner(defenders[0]).is_some(),
-            "nothing was fought"
-        );
-        assert!(ai.take_attacks().is_empty(), "taken once");
-    }
-
-    #[test]
-    fn without_one_the_same_attack_is_fought_at_once() {
-        let (mut g, defenders) = field();
-        let mut ai = Ai::new(P0);
-        let mut events = Vec::new();
-        army(&mut ai, &mut g, &mut events);
-        assert!(ai.take_attacks().is_empty());
-        assert!(
-            g.units().unit_owner(defenders[0]).is_none(),
-            "the spearman fell: {events:?}"
-        );
     }
 
     /// West's city holds one spearman; four of East's swordsmen stand two squares away and three

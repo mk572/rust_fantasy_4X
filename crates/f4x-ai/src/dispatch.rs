@@ -9,7 +9,8 @@
 //! the pool by the registry's claim (a unit holds one role, so two jobs never have the same unit),
 //! and gives them back when it is done.
 //!
-//! The order of the checklist:
+//! The order of the checklist (before it, the quick strikes of `strike.rs`: a stack next to an
+//! enemy it can clearly beat fights it, before any unit has moved):
 //!
 //! 0. a city in danger (the perimeter: the free soldiers go for the enemy in its zone, or join the
 //!    garrison when it is the stronger);
@@ -276,6 +277,8 @@ fn free_soldiers(ai: &Ai, game: &Game) -> Vec<hecs::Entity> {
 /// One turn of the jobs, in the order of the checklist.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::roles::register(ai, game);
+    // Quick strikes come first: no unit has used a move or got an order yet.
+    crate::strike::run(ai, game, events);
     // First the units whose mission is over, so the jobs below see them waiting.
     revalidate(ai, game, events);
     crate::recover::run(ai, game, events);

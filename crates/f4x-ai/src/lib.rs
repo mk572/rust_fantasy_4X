@@ -47,6 +47,7 @@ mod siege;
 mod site;
 mod spellhelper;
 mod statecraft;
+mod strike;
 #[cfg(test)]
 mod testworld;
 mod trade;

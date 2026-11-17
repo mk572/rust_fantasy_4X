@@ -918,3 +918,7 @@ A garrison does not ask for it, a march or a raid asks for it only when a fast s
 wanted, a scout is chosen by it first (the autobuilder's exploration profile and its offence
 profile read it). The war jobs of task 646 use `party_mobility` to pick a strike party.
 
+
+## Quick strikes (17 November 2026)
+
+`strike.rs` runs first in the dispatcher's turn, before any unit has used a move or received an order. A stack next to an enemy square it can clearly beat (the party of nine against what is seen there, with the ratios of `military::attack_ratio`, `committed_ratio` and, out of a city, `sortie_ratio`) fights now. Targets: units of wizards and neutral cities we are at war with, and roaming monster bands; never a lair's guards, and never a town that is a war target (the plan's goal and next target, `ai.campaign`, `ai.march_target`). The strike changes nothing in the registry; the units that fought stand on the enemy's square and the dispatcher's repair sends them on to their targets. A city's garrison may join when no other enemy is near the city; its soldiers walk home at once. The engine needs all attackers on one square, so gathering units from several squares first is a later step.
