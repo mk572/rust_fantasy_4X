@@ -65,11 +65,13 @@ impl Page for EnemyCityPage {
         let lay = Layout::new();
         let view = App::view(lay);
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        if app.city_pic(lay, "reload", 26, 0, X - 1.0, 0.0) {
-        } else {
-            let r = lay.rect(X - 1.0, 0.0, 212.0, crate::resolution::DESIGN_H);
-            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.3, 0.25, 0.2, 1.0));
-        }
+        // The picture without its headings (`scripts/city_headings_text_free.py`).
+        let corner = lay.rect(X - 1.0, 0.0, 0.0, 0.0);
+        crate::city_screen::draw_plain(
+            crate::city_screen::Plain::Enemy,
+            vec2(corner.x, corner.y),
+            lay.scale,
+        );
 
         // What a human may know of the city is the report of the view, the same the AI reads
         // (`PlayerView::city_report`); a square never scouted gives none ("No Report").
@@ -103,8 +105,15 @@ impl Page for EnemyCityPage {
             })
             .unwrap_or_default();
         app.draw_styled(view, &Style::city_figures(), &race_name, X + 6.0, 19.0);
-        let units = app.text("enemy_city.units");
-        app.draw_styled(view, &Style::city_figures(), &units, X + 6.0, 43.0);
+        let heading = crate::city_screen::heading_style();
+        for (key, x, y) in [
+            ("enemy_city.units", X + 6.0, 43.0),
+            ("city.heading_enchantments", X + 140.0, 43.0),
+            ("city.heading_buildings", X + 6.0, 95.0),
+        ] {
+            let text = app.text(key);
+            app.draw_styled(view, &heading, &text, x, y);
+        }
 
         // The citizens, farmers then workers then rebels.
         let total = (report.farmers + report.workers + report.rebels).max(1) as f32;

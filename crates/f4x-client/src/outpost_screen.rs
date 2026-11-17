@@ -248,9 +248,19 @@ impl Page for OutpostUi {
         // The map stays under the window, as the original's does.
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         app.draw_map();
-        let r = lay.rect((wx, wy, 250.0, 100.0));
-        if app.draw_pic(&lay, "backgrnd", 32, 0, wx, wy).is_none() {
-            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.25, 0.2, 0.3, 1.0));
+        // The window without its headings (`scripts/city_headings_text_free.py`).
+        crate::city_screen::draw_plain(
+            crate::city_screen::Plain::Outpost,
+            lay.point(wx, wy),
+            lay.scale,
+        );
+        let heading = crate::city_screen::heading_style();
+        for (key, x) in [
+            ("city.heading_units", wx + 7.0),
+            ("city.heading_enchantments", wx + 114.0),
+        ] {
+            let text = app.text(key);
+            app.draw_styled(view, &heading, &text, x, wy + 46.0);
         }
         app.draw_outpost_scape(&lay, city);
 

@@ -22,23 +22,56 @@ use crate::ui::GOLD;
 use crate::view::{App, Screen, HUMAN};
 use crate::wood_button_art::Wood;
 
-/// The background picture without the headings, 320 by 200.
-fn background_texture() -> Texture2D {
+/// The pictures of the city screen, the enemy city screen and the outpost window without their
+/// headings (`scripts/city_headings_text_free.py`).
+#[derive(Clone, Copy)]
+pub(crate) enum Plain {
+    City,
+    Enemy,
+    Outpost,
+}
+
+fn plain_texture(which: Plain) -> Texture2D {
     thread_local! {
-        static TEX: std::cell::RefCell<Option<Texture2D>> = const { std::cell::RefCell::new(None) };
+        static TEX: std::cell::RefCell<[Option<Texture2D>; 3]> =
+            const { std::cell::RefCell::new([None, None, None]) };
     }
     TEX.with(|t| {
-        t.borrow_mut()
+        t.borrow_mut()[which as usize]
             .get_or_insert_with(|| {
-                let tex = Texture2D::from_file_with_format(
-                    include_bytes!("../assets/city/background.png"),
-                    Some(ImageFormat::Png),
-                );
+                let bytes: &[u8] = match which {
+                    Plain::City => include_bytes!("../assets/city/background.png"),
+                    Plain::Enemy => include_bytes!("../assets/city/enemy_background.png"),
+                    Plain::Outpost => include_bytes!("../assets/city/outpost_background.png"),
+                };
+                let tex = Texture2D::from_file_with_format(bytes, Some(ImageFormat::Png));
                 tex.set_filter(FilterMode::Nearest);
                 tex
             })
             .clone()
     })
+}
+
+/// Draw one of the plain pictures with its top left corner at `at` (window pixels) and the
+/// layout's `scale`.
+pub(crate) fn draw_plain(which: Plain, at: Vec2, scale: f32) {
+    let tex = plain_texture(which);
+    draw_texture_ex(
+        &tex,
+        at.x,
+        at.y,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(vec2(tex.width(), tex.height()) * scale),
+            ..Default::default()
+        },
+    );
+}
+
+/// The style of the headings over the panels: the race line's (the same font and gold, measured
+/// from the pictures) with the shadow the pictures have.
+pub(crate) fn heading_style() -> Style {
+    Style::city_figures().edge(rgb(0x59, 0x41, 0x34))
 }
 
 /// Virtual-to-screen mapping for the 320x200 layout.
@@ -242,17 +275,7 @@ impl App {
         draw_rectangle(full.x, full.y, full.w, full.h, WHITE);
         // The picture without its headings (`scripts/city_headings_text_free.py`): they are
         // drawn from the text keys below.
-        let tex = background_texture();
-        draw_texture_ex(
-            &tex,
-            full.x,
-            full.y,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(full.w, full.h)),
-                ..Default::default()
-            },
-        );
+        draw_plain(Plain::City, vec2(full.x, full.y), lay.scale);
         // While the auto-builder dialog is open the screen behind it takes no input.
         let was_choosing = self.choosing;
         if dialog || selling || renaming {
@@ -445,7 +468,7 @@ impl App {
     /// race line (the same font and gold, measured from the picture).
     fn draw_city_headings(&mut self, lay: Layout) {
         let view = Self::view(lay);
-        let style = Style::city_figures().edge(rgb(0x59, 0x41, 0x34));
+        let style = heading_style();
         // The top left of each heading's lettering, in the original's pixels.
         for (key, x, y) in [
             ("city.heading_resources", 6.0, 43.0),
