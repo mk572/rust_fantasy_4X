@@ -48,11 +48,35 @@ fn typical_strength(view: &PlayerView) -> f32 {
     each.iter().sum::<f32>() / each.len() as f32
 }
 
+/// What share of the peace-time defence a wizard in `phase` keeps (task 645): while it builds, a
+/// young city is held by little and the gold goes to settlers and buildings. A tuning number
+/// (`AIK_BUILD_GARRISON`), to be measured by the soak.
+fn phase_factor(phase: crate::phase::Phase) -> f32 {
+    match phase {
+        crate::phase::Phase::Build => crate::knob("BUILD_GARRISON", 0.6),
+        crate::phase::Phase::Secure | crate::phase::Phase::Win => 1.0,
+    }
+}
+
 /// The defence strength a city wants: the soldiers `garrison_wanted` asks for, each of the
 /// strength of an average soldier of the wizard (so a few strong units or many weak ones meet it
-/// alike).
+/// alike). A city with no enemy near it (the base count) wants the share its phase gives; a
+/// city near the border keeps what the border asks.
 pub fn wanted_strength(view: &PlayerView, at: Position) -> f32 {
-    garrison_wanted(view, at) as f32 * typical_strength(view)
+    wanted_share(view, at) * typical_strength(view)
+}
+
+/// How many average soldiers a city wants: `garrison_wanted`, less the share a building wizard
+/// does not keep in a city with no enemy near it. The autobuilder counts the same.
+pub fn wanted_share(view: &PlayerView, at: Position) -> f32 {
+    let wanted = garrison_wanted(view, at);
+    let base = if view.fortress() == Some(at) { 2 } else { 1 };
+    let factor = if wanted == base {
+        phase_factor(crate::phase::phase(view))
+    } else {
+        1.0
+    };
+    wanted as f32 * factor
 }
 
 /// The soldiers of `at` that are its garrison (`Role::Garrison`): the slow, defensive units
@@ -335,6 +359,29 @@ mod tests {
         // With room already, nothing moves.
         assert!(make_room(&ai, &mut g, &mut Vec::new()));
         assert_eq!(held(&g, coast), limit - 1);
+        Ok(())
+    }
+
+    /// A wizard that is still building holds its cities with less than one that has settled; a
+    /// city near an enemy asks the same in both.
+    #[test]
+    fn a_building_wizard_wants_less_in_a_quiet_city_than_a_settled_one() -> TestResult {
+        let mut g = two_cities()?;
+        let inland = at(INLAND_CITY.0, INLAND_CITY.1);
+        spawn(&mut g, P0, inland, 104 /* high_men_spearmen */, 1);
+        g.turn = 1;
+        let building = {
+            let view = PlayerView::new(&g, P0);
+            assert_eq!(crate::phase::phase(&view), crate::phase::Phase::Build);
+            wanted_strength(&view, inland)
+        };
+        g.turn = 250;
+        let settled = {
+            let view = PlayerView::new(&g, P0);
+            assert_eq!(crate::phase::phase(&view), crate::phase::Phase::Secure);
+            wanted_strength(&view, inland)
+        };
+        assert!(building < settled, "{building} against {settled}");
         Ok(())
     }
 }

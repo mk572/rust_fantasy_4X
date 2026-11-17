@@ -10,7 +10,7 @@ use f4x_def::half_int::HalfInt;
 use f4x_def::rules::Ability;
 
 use crate::expand;
-use crate::view::{garrison_wanted, is_fighter};
+use crate::view::is_fighter;
 use crate::Ai;
 
 /// The lowest tax rate (up to a limit) that leaves the treasury a small surplus, else the
@@ -453,8 +453,9 @@ impl Empire {
             cities: my_cities.len(),
             home_guard: my_cities
                 .iter()
-                .map(|&(_, p)| garrison_wanted(view, p))
-                .sum(),
+                .map(|&(_, p)| crate::garrison::wanted_share(view, p))
+                .sum::<f32>()
+                .ceil() as usize,
             traits: crate::objective::traits(view),
             temper: view.wizard().map_or(0, |w| {
                 crate::objective::army_bias(w.personality(), view.difficulty())
