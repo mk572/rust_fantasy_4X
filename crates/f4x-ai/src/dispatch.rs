@@ -144,22 +144,28 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
     count
 }
 
-/// The soldiers of the pool that can act: fighters that are free (or gather for the campaign),
-/// are not resting and stand somewhere.
-fn free_soldiers(ai: &Ai, game: &Game) -> Vec<hecs::Entity> {
-    use crate::roles::{MusterKind, Role};
+/// The fighters that are rested and stand somewhere, of the roles `role_ok` allows.
+pub(crate) fn soldiers(
+    ai: &Ai,
+    game: &Game,
+    role_ok: impl Fn(&crate::roles::Registry, f4x_core::game::serial::Serial) -> bool,
+) -> Vec<hecs::Entity> {
     let view = f4x_core::player::view::PlayerView::new(game, ai.player);
     view.my_units()
         .into_iter()
         .filter(|&u| crate::view::is_fighter(&view, u) && view.unit_position(u).is_some())
         .filter(|&u| !crate::recover::needs_rest(&view, u))
-        .filter(|&u| {
-            let s = view.serial_of(u);
-            ai.roles.is_free(s)
-                || ai.roles.is(s, Role::Perimeter)
-                || ai.roles.in_muster(s, MusterKind::Campaign)
-        })
+        .filter(|&u| role_ok(&ai.roles, view.serial_of(u)))
         .collect()
+}
+
+/// The soldiers of the pool that the danger job (job 0) may take: the free ones, those that
+/// gather for the campaign and those that hold the perimeter already.
+fn free_soldiers(ai: &Ai, game: &Game) -> Vec<hecs::Entity> {
+    use crate::roles::{MusterKind, Role};
+    soldiers(ai, game, |roles, s| {
+        roles.is_free(s) || roles.is(s, Role::Perimeter) || roles.in_muster(s, MusterKind::Campaign)
+    })
 }
 
 /// One turn of the jobs, in the order of the checklist.

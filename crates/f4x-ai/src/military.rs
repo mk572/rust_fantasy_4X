@@ -65,21 +65,11 @@ pub(crate) fn neighbours(view: &PlayerView, at: Position) -> Vec<Position> {
         .collect()
 }
 
-/// My fighting units, grouped by square, in a stable order.
-fn stacks(
-    view: &PlayerView,
-    scouts: &[Serial],
-    ferrying: &[Serial],
-) -> Vec<(Position, Vec<hecs::Entity>)> {
+/// The units grouped by square, in a stable order.
+fn stacks(view: &PlayerView, units: Vec<hecs::Entity>) -> Vec<(Position, Vec<hecs::Entity>)> {
     let mut by_pos: HashMap<Position, Vec<hecs::Entity>> = HashMap::new();
-    for u in view.my_units() {
-        if scouts.contains(&view.serial_of(u)) || ferrying.contains(&view.serial_of(u)) {
-            continue;
-        }
-        if let (true, Some(p)) = (
-            is_fighter(view, u) && !crate::recover::needs_rest(view, u),
-            view.unit_position(u),
-        ) {
+    for u in units {
+        if let Some(p) = view.unit_position(u) {
             by_pos.entry(p).or_default().push(u);
         }
     }
@@ -148,16 +138,6 @@ pub(crate) fn resolve(
 
 pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    // Units on a ship's errand or a raid on a site are not the army's to command.
-    let mut ferrying: Vec<Serial> = Vec::new();
-    // Soldiers waiting on a shore for a ship have their role (`pickup.rs`).
-    // The soldiers gathering for the campaign are the army's own.
-    ferrying.extend(
-        ai.roles
-            .assigned()
-            .into_iter()
-            .filter(|&s| !ai.roles.in_muster(s, crate::roles::MusterKind::Campaign)),
-    );
     let own_cities: Vec<Position> = PlayerView::new(game, me)
         .my_cities()
         .into_iter()
@@ -166,7 +146,18 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 
     // 1. Hit what stands next to us, when we are clearly the stronger.
     let mut spent: Vec<hecs::Entity> = Vec::new();
-    let stack_list = stacks(&PlayerView::new(game, me), &ai.roles.scouting(), &ferrying);
+    // The army's soldiers are the pool's (free, or gathering for the campaign); the strikes of a
+    // square also use the city garrisons. A unit with a task of another job is not the army's.
+    let pool = crate::dispatch::soldiers(ai, game, |roles, s| {
+        roles.is_free(s) || roles.in_muster(s, MusterKind::Campaign)
+    });
+    let stack_list = {
+        let mut with_garrisons = pool.clone();
+        with_garrisons.extend(crate::dispatch::soldiers(ai, game, |roles, s| {
+            roles.is(s, crate::roles::Role::Garrison)
+        }));
+        stacks(&PlayerView::new(game, me), with_garrisons)
+    };
     for (pos, units) in stack_list {
         let at_city = own_cities.contains(&pos);
         // One view for the whole stack: nothing changes until a command is sent, and a command
@@ -265,33 +256,16 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
     }
 
-    // 2. Everyone who is neither at home guarding nor fighting is free to campaign.
+    // 2. The pool, less the units that fought in the strikes above, is free to campaign.
     let (free, capital) = {
         let view = PlayerView::new(game, me);
-        let mut free: Vec<hecs::Entity> = Vec::new();
-        for (_, units) in stacks(&view, &ai.roles.scouting(), &ferrying) {
-            free.extend(
-                units
-                    .into_iter()
-                    .filter(|&u| !ai.roles.is(view.serial_of(u), crate::roles::Role::Garrison))
-                    .filter(|u| !spent.contains(u))
-                    .filter(|&u| view.unit_position(u).is_some()),
-            );
-        }
+        let free: Vec<hecs::Entity> = stacks(&view, pool)
+            .into_iter()
+            .flat_map(|(_, units)| units)
+            .filter(|u| !spent.contains(u))
+            .collect();
         let capital = view.fortress().or_else(|| own_cities.first().copied());
         (free, capital)
-    };
-
-    // 2b. The perimeter was dealt with first by the dispatcher (job 0, `dispatch.rs`): what its
-    // soldiers took is no longer free.
-    let free: Vec<hecs::Entity> = {
-        let view = PlayerView::new(game, me);
-        free.into_iter()
-            .filter(|&u| {
-                !ai.roles
-                    .is(view.serial_of(u), crate::roles::Role::Perimeter)
-            })
-            .collect()
     };
     let Some(capital) = capital else {
         return;
