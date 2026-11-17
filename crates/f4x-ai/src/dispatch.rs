@@ -107,7 +107,14 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
                 };
                 let here = view.unit_position(unit);
                 // Failed: no order is left and the unit is not where it was going.
-                let stopped = !view.unit_has_order(unit) && here != Some(target);
+                // A raid fights the site from the square beside it, so that counts as arrived.
+                let reach = u32::from(role == Role::Raid);
+                let arrived = here.is_some_and(|h| {
+                    h == target
+                        || (reach > 0
+                            && crate::view::distance(&view, h, target).is_some_and(|d| d <= reach))
+                });
+                let stopped = !view.unit_has_order(unit) && !arrived;
                 if stopped || !mission_valid(ai, &view, role, target) {
                     reset.push((unit, role));
                 }
