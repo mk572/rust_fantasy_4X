@@ -32,7 +32,9 @@ const ROWS: usize = 9;
 /// Where the columns start: the banner square, the name, the attitude, the treaty; the centres of
 /// the three ranks (army, magic, research, as the Astrologer's three bars).
 const BANNER_X: f32 = 31.0;
-const NAME_X: f32 = 41.0;
+const NAME_X: f32 = 43.0;
+/// The tint of a treaty symbol of a neutral race (the yellow picture, greyed).
+const NEUTRAL_ICON: Color = Color::new(0.75, 0.75, 0.75, 1.0);
 const ATTITUDE_X: f32 = 104.0;
 const TREATY_X: f32 = 150.0;
 const RANK_X: [f32; 3] = [226.0, 255.0, 284.0];
@@ -105,6 +107,18 @@ fn treaty_words(c: &Contact) -> (&'static str, Option<Color>) {
     }
 }
 
+/// The symbol of the treaty with a contact in the `magic` pictures (0 the scroll of a pact or an
+/// alliance, 1 the peace sign, 2 the crossed swords of war); none for no treaty and no peace, where
+/// the row shows the banner's square.
+fn treaty_icon(c: &Contact) -> Option<usize> {
+    match c.treaty {
+        Treaty::War => Some(2),
+        Treaty::Pact | Treaty::Alliance => Some(0),
+        Treaty::None if c.peace => Some(1),
+        Treaty::None => None,
+    }
+}
+
 fn flat(colour: Color) -> Style {
     Style::inked(1, Ink::Flat(colour))
         .shadow()
@@ -112,6 +126,19 @@ fn flat(colour: Color) -> Style {
 }
 
 impl App {
+    /// The treaty symbol `n` (see [`treaty_icon`]) in the colour of `banner`, with its top left at
+    /// (`x`, `y`); the wizards' banners have the pictures, a neutral race's is the yellow one in
+    /// a grey tint.
+    fn draw_treaty_icon(&mut self, lay: &Layout, n: usize, banner: u8, x: f32, y: f32) {
+        if banner < f4x_core::player::NEUTRAL_BANNER {
+            let entry = 60 + n + usize::from(banner) * 3;
+            self.draw_pic(lay, "magic", entry, 0, x, y);
+        } else {
+            let entry = 60 + n + 4 * 3;
+            self.draw_pic_tinted(lay, "magic", entry, 0, x, y, NEUTRAL_ICON);
+        }
+    }
+
     pub(crate) fn open_diplomacy_list(&mut self) {
         self.open_page(Screen::DiplomacyList, DiplomacyListUi::default());
     }
@@ -442,8 +469,13 @@ impl Page for DiplomacyListUi {
                             right = Some(c.id);
                         }
                     }
-                    let b = lay.rect((BANNER_X, y + 2.0, 6.0, 6.0));
-                    draw_rectangle(b.x, b.y, b.w, b.h, app.art.banner_color(c.banner));
+                    match treaty_icon(c) {
+                        Some(n) => app.draw_treaty_icon(&lay, n, c.banner, BANNER_X - 1.0, y),
+                        None => {
+                            let b = lay.rect((BANNER_X, y + 2.0, 6.0, 6.0));
+                            draw_rectangle(b.x, b.y, b.w, b.h, app.art.banner_color(c.banner));
+                        }
+                    }
                     if c.gone {
                         let gone = app.text("diplomacy.list_gone");
                         app.draw_styled(view, &flat(GREY), &c.name, NAME_X, ty);
@@ -585,6 +617,19 @@ mod tests {
         assert_eq!(c.treaty, Treaty::War);
         assert_eq!(c.relation, app.game.relation(HUMAN, rival));
         assert_eq!(treaty_words(c).0, "treaty.war");
+        assert_eq!(treaty_icon(c), Some(2), "crossed swords for war");
+        let mut calm = c.clone();
+        calm.treaty = Treaty::None;
+        calm.peace = false;
+        assert_eq!(
+            treaty_icon(&calm),
+            None,
+            "no treaty keeps the banner's square"
+        );
+        calm.peace = true;
+        assert_eq!(treaty_icon(&calm), Some(1), "the peace sign for peace");
+        calm.treaty = Treaty::Alliance;
+        assert_eq!(treaty_icon(&calm), Some(0), "the scroll for an alliance");
         assert_eq!(c.name, app.diplo_name(rival));
     }
 
