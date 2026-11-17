@@ -8,7 +8,7 @@ use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 
-use crate::assault::{around, assault, guard_strength, march, strike};
+use crate::assault::{assault, guard_strength, march, strike};
 use crate::military::average_strength;
 use crate::view::{distance, fighting_strength, is_fighter, stack_strength, unit_strength};
 use crate::Ai;
@@ -141,10 +141,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let (next_to, city_next, candidates, home) = {
             let view = PlayerView::new(game, me);
             let strength = stack_strength(&view, &units) + crate::siege::spell_power(&view);
-            let next_to = around(&view, pos)
+            let next_to = crate::military::neighbours(&view, pos)
                 .into_iter()
                 .find(|&p| view.has_lair(p) && strength >= expected(&view, p) * edge());
-            let city_next = around(&view, pos)
+            let city_next = crate::military::neighbours(&view, pos)
                 .into_iter()
                 .find(|&p| neutral_city(&view, p) && strength >= city_defence(&view, p) * edge());
             // The site the party is set on stays its target while it is still worth taking:

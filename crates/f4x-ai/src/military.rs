@@ -726,10 +726,23 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     let view = PlayerView::new(game, me);
                     chunk.iter().map(|&u| view.serial_of(u)).collect()
                 };
-                match march(ai, game, chunk, target, events) {
-                    March::Sent => launched.extend(serials),
-                    March::Refused => refused = true,
-                    March::NoWay => {}
+                // A stack already next to the target has arrived: it attacks from where it is.
+                let beside = {
+                    let view = PlayerView::new(game, me);
+                    chunk.iter().all(|&u| {
+                        view.unit_position(u)
+                            .and_then(|p| distance(&view, p, target))
+                            .is_some_and(|d| d <= 1)
+                    })
+                };
+                if beside {
+                    launched.extend(serials);
+                    continue;
+                }
+                match crate::assault::march(ai, game, chunk, target, events) {
+                    Ok(()) => launched.extend(serials),
+                    Err(crate::assault::MarchError::Refused(_)) => refused = true,
+                    Err(_) => {}
                 }
             }
         }
@@ -968,67 +981,6 @@ fn best_enemy_city(
         .map(|(_, p)| p)
 }
 
-/// Send a stack towards a square next to the target; it attacks from there next turn.
-fn march(
-    ai: &mut Ai,
-    game: &mut Game,
-    units: &[hecs::Entity],
-    target: Position,
-    events: &mut Vec<Event>,
-) -> March {
-    let mut way = false;
-    let spots = {
-        let view = PlayerView::new(game, ai.player);
-        let mut spots = neighbours(&view, target);
-        spots.sort_by_key(|&s| distance(&view, s, view.unit_position(units[0]).unwrap_or(target)));
-        spots
-    };
-    // Squares where the stack would not fit (`StackFull`): a way to them exists, but sending the
-    // order there is refused until the units standing there move on.
-    let full = game.economy().full_squares(units.len());
-    for spot in spots {
-        {
-            let view = PlayerView::new(game, ai.player);
-            if view.hostile_at(spot).is_some() || !view.can_reach(units, spot) {
-                continue;
-            }
-            way = true;
-        }
-        if full.contains(&spot) {
-            continue;
-        }
-        let sent = ai
-            .send(
-                game,
-                Command::GoTo {
-                    units: units.to_vec(),
-                    to: spot,
-                },
-                events,
-            )
-            .is_ok();
-        if sent {
-            return March::Sent;
-        }
-    }
-    if way {
-        March::Refused
-    } else {
-        March::NoWay
-    }
-}
-
-/// How a march order came out.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum March {
-    /// The units are on their way.
-    Sent,
-    /// A way exists but the order was refused now (no moves left, say): try again next turn.
-    Refused,
-    /// No square next to the target can be walked to.
-    NoWay,
-}
-
 /// Troops that came ashore (they can walk to the target, which the rest cannot) march on the city
 /// when together they are strong enough for what is expected there.
 /// Set `F4X_CHECK_REACH` to make the search for every unit anyway and compare it with the
@@ -1146,7 +1098,7 @@ fn march_landed(
             let view = PlayerView::new(game, me);
             band.iter().map(|&u| view.serial_of(u)).collect()
         };
-        if march(ai, game, &band, target, events) == March::Sent {
+        if crate::assault::march(ai, game, &band, target, events).is_ok() {
             launched.extend(serials);
         }
     }

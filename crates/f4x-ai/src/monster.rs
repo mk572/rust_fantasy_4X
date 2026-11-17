@@ -11,7 +11,7 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::{PlayerId, MONSTERS};
 
-use crate::assault::{around, march, strike};
+use crate::assault::{march, strike};
 use crate::military::expected_defence;
 use crate::scout::best_target;
 use crate::view::{distance, stack_strength};
@@ -72,7 +72,7 @@ fn act(
     let (neighbours, zones, mine, turn) = {
         let view = PlayerView::new(game, MONSTERS);
         (
-            around(&view, pos),
+            crate::military::neighbours(&view, pos),
             view.vacant_zones(),
             stack_strength(&view, &crate::view::party(&view, &units)),
             view.turn(),

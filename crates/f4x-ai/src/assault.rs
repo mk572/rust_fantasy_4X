@@ -29,19 +29,6 @@ pub(crate) fn guard_strength(view: &PlayerView, site: Position) -> Option<f32> {
     )
 }
 
-/// The eight squares round `at`.
-pub(crate) fn around(view: &PlayerView, at: Position) -> Vec<Position> {
-    let mut out = Vec::new();
-    for dy in -1..=1 {
-        for dx in -1..=1 {
-            if (dx, dy) != (0, 0) {
-                out.extend(view.shift(at, dx, dy));
-            }
-        }
-    }
-    out
-}
-
 /// Why a party could not be sent to a site.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MarchError {
@@ -91,7 +78,7 @@ pub(crate) fn march_with(
     let spots = {
         let view = PlayerView::new(game, ai.player);
         let from = view.unit_position(first).unwrap_or(site);
-        let open: Vec<Position> = around(&view, site)
+        let open: Vec<Position> = crate::military::neighbours(&view, site)
             .into_iter()
             .filter(|&p| view.hostile_at(p).is_none() && !view.has_lair(p) && p != from)
             .collect();
