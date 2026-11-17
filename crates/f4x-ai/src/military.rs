@@ -11,9 +11,7 @@ use f4x_core::player::PlayerId;
 use f4x_core::unit::pathing::ReachSignature;
 
 use crate::roles::MusterKind;
-use crate::view::{
-    distance, fighting_strength, garrison_wanted, is_fighter, stack_strength, unit_strength,
-};
+use crate::view::{distance, fighting_strength, is_fighter, stack_strength, unit_strength};
 use crate::{race, Ai};
 
 /// The AI attacks when its force is this much stronger than what it expects to meet.
@@ -241,13 +239,23 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     }
                 }
                 Sortie::Fight(defenders, theirs) => {
-                    if mine >= theirs * ratio && (!at_city || units.len() > 1) {
-                        let attackers = if at_city {
-                            // Leave the weakest at home.
-                            units.iter().skip(1).copied().collect()
-                        } else {
-                            units.clone()
-                        };
+                    // A city's garrison holds: only the soldiers beyond it sally out.
+                    let attackers: Vec<hecs::Entity> = {
+                        let view = PlayerView::new(game, me);
+                        units
+                            .iter()
+                            .copied()
+                            .filter(|&u| {
+                                !ai.roles.is(view.serial_of(u), crate::roles::Role::Garrison)
+                            })
+                            .collect()
+                    };
+                    let mine = if at_city {
+                        stack_strength(&PlayerView::new(game, me), &attackers)
+                    } else {
+                        mine
+                    };
+                    if mine >= theirs * ratio && !attackers.is_empty() {
                         engage(ai, game, attackers, defenders, events);
                         spent.extend(&units);
                         break;
@@ -261,20 +269,11 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let (free, capital) = {
         let view = PlayerView::new(game, me);
         let mut free: Vec<hecs::Entity> = Vec::new();
-        for (pos, units) in stacks(&view, &ai.roles.scouting(), &ferrying) {
-            let skip = if own_cities.contains(&pos) {
-                garrison_wanted(&view, pos)
-            } else {
-                0
-            };
-            let mut units = units;
-            if skip > 0 {
-                crate::view::weakest_first(&view, &mut units);
-            }
+        for (_, units) in stacks(&view, &ai.roles.scouting(), &ferrying) {
             free.extend(
                 units
                     .into_iter()
-                    .skip(skip)
+                    .filter(|&u| !ai.roles.is(view.serial_of(u), crate::roles::Role::Garrison))
                     .filter(|u| !spent.contains(u))
                     .filter(|&u| view.unit_position(u).is_some()),
             );
@@ -1212,6 +1211,7 @@ mod tests {
         for &u in &troops {
             g.cheat_move_unit(u, capital);
         }
+        crate::roles::register(&mut ai, &g);
         army(&mut ai, &mut g, &mut Vec::new());
         assert!(
             ai.roles.musters().is_empty(),
@@ -1436,6 +1436,7 @@ mod tests {
         let troops = spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 6);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
+        crate::roles::register(&mut ai, &g);
         army(&mut ai, &mut g, &mut events);
         assert_eq!(
             ai.crossing,

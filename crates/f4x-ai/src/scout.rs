@@ -214,11 +214,11 @@ fn board(ai: &mut Ai, game: &Game, ship: hecs::Entity, at: Position) -> Vec<hecs
     let mut spare: Vec<hecs::Entity> = view
         .garrison(at)
         .into_iter()
-        .filter(|&u| is_fighter(&view, u) && !ai.roles.has_role(view.serial_of(u)))
+        .filter(|&u| is_fighter(&view, u) && ai.roles.is_free(view.serial_of(u)))
         .collect();
     view.sort_by_serial(&mut spare);
-    // The city keeps a fighter.
-    let free = spare.len().saturating_sub(1);
+    // The city's garrison holds its role and is not in the pool.
+    let free = spare.len();
     let taken: Vec<hecs::Entity> = spare
         .into_iter()
         .take(room.saturating_sub(party.len()).min(free))
@@ -437,19 +437,13 @@ fn recruit(ai: &Ai, game: &Game, reach: Option<Position>) -> Option<hecs::Entity
         // A spirit scouts too (it flies, and a city does not need it); a node it could meld
         // with takes it from the scouting (`meld.rs`).
         let spirit = crate::meld::is_melder(&view, u);
-        if !(is_fighter(&view, u) || spirit) || ai.roles.has_role(view.serial_of(u)) {
+        if !(is_fighter(&view, u) || spirit) || !ai.roles.is_free(view.serial_of(u)) {
             continue;
         }
-        let Some(at) = view.unit_position(u) else {
+        if view.unit_position(u).is_none() {
             continue;
-        };
+        }
         if reach.is_some_and(|to| !reached.can_reach(&view, &[u], to)) {
-            continue;
-        }
-        // A city keeps one fighter at least: only take from a stack of two or more, or from
-        // a unit that stands outside a city.
-        let in_city = view.city_at(at).is_some();
-        if !spirit && in_city && view.garrison(at).len() < 2 {
             continue;
         }
         let key = (
@@ -608,10 +602,13 @@ mod tests {
     fn a_city_keeps_its_last_fighter() {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1);
-        assert_eq!(recruit(&Ai::new(P0), &g, None), None);
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        assert_eq!(recruit(&ai, &g, None), None);
         // A lone fighter outside any city is free to go.
         let outside = spawn(&mut g, P0, at(5, 5), 104 /* high_men_spearmen */, 1)[0];
-        assert_eq!(recruit(&Ai::new(P0), &g, None), Some(outside));
+        crate::roles::register(&mut ai, &g);
+        assert_eq!(recruit(&ai, &g, None), Some(outside));
     }
 
     #[test]
@@ -641,6 +638,7 @@ mod tests {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1);
         let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
         scout(&mut ai, &mut g, &mut Vec::new());
         assert!(ai.roles.scouting().is_empty());
         assert!(!ai.frontier_closed);

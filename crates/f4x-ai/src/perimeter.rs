@@ -433,7 +433,11 @@ mod tests {
         let before = g.units().player_units(P1).len();
         let mut events = Vec::new();
         let _ = run(&mut ai, &mut g, beside, &mut events);
-        assert!(ai.refusals.borrow().is_empty(), "{:?}", ai.refusals.borrow());
+        assert!(
+            ai.refusals.borrow().is_empty(),
+            "{:?}",
+            ai.refusals.borrow()
+        );
         assert!(
             g.units().player_units(P1).len() < before,
             "the raider fell: {events:?}"

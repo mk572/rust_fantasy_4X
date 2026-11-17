@@ -31,6 +31,66 @@ pub fn city_cap(view: &PlayerView, at: Position) -> usize {
     }
 }
 
+/// Moves from which a unit is fast: it serves the scouting and the war better than the defence
+/// of a city (cavalry, fliers).
+const FAST: i32 = 2;
+
+/// The strength an average soldier of the wizard has: the unit the defence wanted of a city is
+/// counted in.
+fn typical_strength(view: &PlayerView) -> f32 {
+    let each: Vec<f32> = view
+        .my_units()
+        .into_iter()
+        .filter(|&u| is_fighter(view, u))
+        .map(|u| unit_strength(view, u))
+        .collect();
+    if each.is_empty() {
+        return 1.0;
+    }
+    each.iter().sum::<f32>() / each.len() as f32
+}
+
+/// The defence strength a city wants: the soldiers `garrison_wanted` asks for, each of the
+/// strength of an average soldier of the wizard (so a few strong units or many weak ones meet it
+/// alike).
+pub fn wanted_strength(view: &PlayerView, at: Position) -> f32 {
+    garrison_wanted(view, at) as f32 * typical_strength(view)
+}
+
+/// The soldiers of `at` that are its garrison (`Role::Garrison`): the slow, defensive units
+/// first, a hero or a fast unit only when nothing else makes the strength wanted. The others of
+/// the city are free for the dispatcher's jobs (task 645).
+pub fn post(view: &PlayerView, at: Position, soldiers: &[hecs::Entity]) -> Vec<hecs::Entity> {
+    let wanted = wanted_strength(view, at);
+    let hero = |u: hecs::Entity| {
+        view.unit_def(u)
+            .is_some_and(|d| d.kind == f4x_def::rules::UnitKind::Hero)
+    };
+    let mut order: Vec<hecs::Entity> = soldiers.to_vec();
+    order.sort_by(|&a, &b| {
+        let key = |u: hecs::Entity| {
+            (
+                hero(u),
+                view.unit_stat(u, f4x_def::rules::Stat::Moves) >= FAST,
+            )
+        };
+        key(a)
+            .cmp(&key(b))
+            .then(unit_strength(view, b).total_cmp(&unit_strength(view, a)))
+            .then(view.serial_of(a).cmp(&view.serial_of(b)))
+    });
+    let mut kept = Vec::new();
+    let mut strength = 0.0;
+    for u in order {
+        if strength >= wanted {
+            break;
+        }
+        strength += unit_strength(view, u);
+        kept.push(u);
+    }
+    kept
+}
+
 /// Units that may be sent away: fighters with moves left and no task.
 fn movable(ai: &Ai, view: &PlayerView, units: &[hecs::Entity]) -> Vec<hecs::Entity> {
     let busy = |serial| {

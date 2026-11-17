@@ -113,7 +113,9 @@ fn sea_beside(view: &PlayerView, land: Position) -> Option<Position> {
 }
 
 /// Put a group of stranded soldiers on the waiting list and send them to the shore. Whether a
-/// shore is known on their land mass.
+/// shore is known on their land mass. No longer called by the audit (task 645: a unit that
+/// awaits orders stays where it stands); the transport job of task 647 replaces it.
+#[cfg(test)]
 pub fn wait_at_shore(ai: &mut Ai, game: &mut Game, units: &[hecs::Entity]) -> bool {
     let me = ai.player;
     let (tile, serials) = {

@@ -17,6 +17,7 @@ mod colony;
 mod controller;
 mod craft;
 mod diplomacy;
+mod dispatch;
 mod economy;
 mod escort;
 mod expand;
@@ -334,6 +335,8 @@ impl Ai {
                 return events;
             }
         }
+        // Units built or hired since the last turn await orders from the first moment.
+        roles::register(self, game);
         let dropped = self.drop_stale_plans(game.turn);
         if dropped.sea {
             colony::release_scouts(self, game, &mut events);
@@ -373,21 +376,7 @@ impl Ai {
             .time_stopper()
             .is_some_and(|keeper| keeper != self.player)
         {
-            roles::register(self, game);
-            recover::run(self, game, &mut events);
-            garrison::disperse(self, game, &mut events);
-            garrison::thin_out(self, game, &mut events);
-            expand::settlers(self, game, &mut events);
-            escort::run(self, game, &mut events);
-            road::run(self, game, &mut events);
-            meld::run(self, game, &mut events);
-            scout::scout(self, game, &mut events);
-            site::run(self, game, &mut events);
-            military::army(self, game, &mut events);
-            naval::run(self, game, &mut events);
-            colony::run(self, game, &mut events);
-            pickup::run(self, game, &mut events);
-            roles::audit(self, game, &mut events);
+            dispatch::run(self, game, &mut events);
         }
         raze::run(self, game, &mut events);
         economy::cities(self, game, &mut events);

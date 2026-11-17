@@ -9,7 +9,7 @@
 //! (`with`); see `docs/ai-unit-registry.md`.
 
 use crate::roles::Role;
-use crate::view::{garrison_wanted, is_fighter, unit_strength};
+use crate::view::{is_fighter, unit_strength};
 use crate::Ai;
 use f4x_core::game::serial::Serial;
 use f4x_core::game::{Command, Event, Game};
@@ -230,13 +230,10 @@ pub fn guard(ai: &mut Ai, game: &mut Game, charge: hecs::Entity, events: &mut Ve
 fn spare_soldier(ai: &Ai, game: &Game, at: Position) -> Option<hecs::Entity> {
     let view = PlayerView::new(game, ai.player);
     view.city_at(at)?;
-    let garrison = view.garrison(at);
-    if garrison.len() <= garrison_wanted(&view, at) {
-        return None;
-    }
-    let mut free: Vec<hecs::Entity> = garrison
+    let mut free: Vec<hecs::Entity> = view
+        .garrison(at)
         .into_iter()
-        .filter(|&u| is_fighter(&view, u) && !ai.roles.has_role(view.serial_of(u)))
+        .filter(|&u| is_fighter(&view, u) && ai.roles.is_free(view.serial_of(u)))
         .collect();
     free.sort_by(|&a, &b| {
         unit_strength(&view, b)
@@ -378,7 +375,7 @@ mod tests {
                 .into_iter()
                 .filter(|&u| is_fighter(&view, u))
                 .count()
-                >= garrison_wanted(&view, city)
+                >= crate::view::garrison_wanted(&view, city)
         );
         Ok(())
     }

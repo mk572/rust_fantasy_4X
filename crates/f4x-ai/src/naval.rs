@@ -10,7 +10,7 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_def::rules::Stat;
 
-use crate::view::{garrison_wanted, is_coastal, is_fighter, is_ship};
+use crate::view::{is_coastal, is_fighter, is_ship};
 use crate::Ai;
 
 /// Fighters that must stand in the port before a ship sails.
@@ -494,18 +494,17 @@ fn load_and_sail(
                 let s = view.serial_of(u);
                 // Those aboard another ship are that ship's; one with a task of its own is not
                 // free to sail.
-                !ai.roles.has_role(s)
+                ai.roles.is_free(s)
                     || (ai.roles.is(s, crate::roles::Role::Voyage)
                         && ai.roles.with_of(s) == Some(view.serial_of(ship)))
             })
             .collect();
         view.sort_by_serial(&mut here);
-        // The city keeps its own garrison. Those still aboard from an earlier voyage sail first:
+        // The city's garrison holds its role and is not here. Those still aboard from an earlier voyage sail first:
         // a ship does not take more than its room.
-        let keep = garrison_wanted(&view, plan.port);
         let aboard = view.passengers_of(ship);
         let (mut group, rest): (Vec<_>, Vec<_>) = here.iter().partition(|u| aboard.contains(u));
-        group.extend(rest.into_iter().skip(keep));
+        group.extend(rest);
         // Everyone waiting for a ship counts for the landing: the fleet sails one ship after
         // the other and the soldiers gather ashore.
         let waiting = crate::view::stack_strength(&view, &group);
@@ -1232,7 +1231,7 @@ mod tests {
             f4x_def::half_int::HalfInt::from_int(1_000_000);
         let ship = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];
         // Three soldiers over the garrison: a part load for a ship of five.
-        let keep = garrison_wanted(&PlayerView::new(&g, P0), port());
+        let keep = crate::view::garrison_wanted(&PlayerView::new(&g, P0), port());
         spawn(
             &mut g,
             P0,
@@ -1244,6 +1243,7 @@ mod tests {
         let waiting = spawn(&mut g, P0, at(8, 6), 104, 1)[0];
         let mut ai = Ai::new(P0);
         ai.unreachable.push(enemy());
+        crate::roles::register(&mut ai, &g);
         let waiting_serial = PlayerView::new(&g, P0).serial_of(waiting);
         let _ = ai.roles.claim(
             waiting_serial,
@@ -1293,7 +1293,7 @@ mod tests {
         g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
             f4x_def::half_int::HalfInt::from_int(1_000_000);
         let ship = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];
-        let keep = garrison_wanted(&PlayerView::new(&g, P0), port());
+        let keep = crate::view::garrison_wanted(&PlayerView::new(&g, P0), port());
         spawn(
             &mut g,
             P0,
@@ -1339,7 +1339,7 @@ mod tests {
         g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
             f4x_def::half_int::HalfInt::from_int(1_000_000);
         let ship = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];
-        let keep = garrison_wanted(&PlayerView::new(&g, P0), port());
+        let keep = crate::view::garrison_wanted(&PlayerView::new(&g, P0), port());
         spawn(
             &mut g,
             P0,

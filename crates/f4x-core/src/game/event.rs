@@ -228,13 +228,16 @@ pub enum Event {
         turns: u32,
         target_changed: bool,
     },
-    /// The AI's end-of-turn check of what its soldiers are for found `adrift` awaiting orders
-    /// (no role, no order, outside a city: they are sent home), and `unassigned` ships and other
-    /// units awaiting orders (`f4x-ai/src/roles.rs`).
+    /// The AI's end-of-turn check of what its units are for found `adrift` soldiers awaiting
+    /// orders (they stay where they stand), `unassigned` ships and other units awaiting orders,
+    /// and `unregistered` units that came into being during the turn with no entry in the
+    /// registry (a summon, a hire; they are treated as awaiting orders, and the code that makes
+    /// them should register them: `f4x-ai/src/roles.rs`).
     RolesAudited {
         player: player::PlayerId,
         adrift: u32,
         unassigned: u32,
+        unregistered: u32,
     },
     /// A Plane Shift took the stack `units` from the square `from` to the same square `to` on the
     /// other plane (the client fades the one into the other).

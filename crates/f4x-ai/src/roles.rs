@@ -6,10 +6,10 @@
 //! The roles live in the lists of [`Ai`] (`scouts`, `raiders`, `marching`, ...), and [`derive`]
 //! reads them back as one table. The design is in `docs/ai-design.md`.
 
-use crate::view::{distance, is_fighter, is_ship};
+use crate::view::{is_fighter, is_ship};
 use crate::Ai;
 use f4x_core::game::serial::Serial;
-use f4x_core::game::{Command, Event, Game};
+use f4x_core::game::{Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 
@@ -165,6 +165,14 @@ impl Registry {
     /// given one.
     pub fn has_role(&self, serial: Serial) -> bool {
         self.map.get(&serial).is_some_and(|a| !a.role.is_base())
+    }
+
+    /// Whether the unit is in the dispatcher's pool: no routine has a task for it and it is not
+    /// a city's garrison (task 645). Only these units are given jobs.
+    pub fn is_free(&self, serial: Serial) -> bool {
+        self.map
+            .get(&serial)
+            .is_none_or(|a| a.role.is_base() && a.role != Role::Garrison)
     }
 
     /// Where the unit's role sends it, if it holds `role`.
@@ -805,7 +813,8 @@ pub struct Held {
 /// stood still too long). Every other unit gets the base role its place and orders say, written
 /// into the registry with its target:
 ///
-/// - a soldier in an own city: `Garrison`, `to` = the city;
+/// - a soldier in an own city that its defence needs (`garrison::post`): `Garrison`, `to` = the
+///   city; the soldiers beyond that await orders;
 /// - a unit with an order of its own: `MoveTo`, `to` = the end of its path;
 /// - a ship with no mission and no order: `TransportFree` (with a mission it holds
 ///   `TransportSpace`, `TransportReady` or `Transporting`, which `naval.rs` and `pickup.rs` set);
@@ -813,6 +822,30 @@ pub struct Held {
 pub fn sync(ai: &mut Ai, view: &PlayerView, turn: u32) -> Vec<Held> {
     ai.roles.now = ai.roles.now.max(turn);
     let mut out = Vec::new();
+    // The soldiers each city keeps as its garrison; the others standing in it await orders.
+    let mut posts: std::collections::HashSet<hecs::Entity> = std::collections::HashSet::new();
+    {
+        let mut by_city: std::collections::BTreeMap<(u8, i32, i32), (Position, Vec<hecs::Entity>)> =
+            std::collections::BTreeMap::new();
+        for unit in view.my_units() {
+            if is_ship(view, unit) || !is_fighter(view, unit) {
+                continue;
+            }
+            if let Some(at) = view
+                .unit_position(unit)
+                .filter(|&p| view.city_at(p).is_some())
+            {
+                by_city
+                    .entry((at.plane as u8, at.y as i32, at.x as i32))
+                    .or_insert_with(|| (at, Vec::new()))
+                    .1
+                    .push(unit);
+            }
+        }
+        for (at, soldiers) in by_city.into_values() {
+            posts.extend(crate::garrison::post(view, at, &soldiers));
+        }
+    }
     for unit in view.my_units() {
         let class = if is_ship(view, unit) {
             Class::Ship
@@ -834,7 +867,7 @@ pub fn sync(ai: &mut Ai, view: &PlayerView, turn: u32) -> Vec<Held> {
         }
         let target = view.unit_destination(unit);
         let (role, to) = match class {
-            Class::Soldier if city.is_some() => (Role::Garrison, city),
+            Class::Soldier if city.is_some() && posts.contains(&unit) => (Role::Garrison, city),
             // A ship with no mission is free; its transport roles (space, ready) are the ones
             // `naval.rs` and `pickup.rs` give it with a target.
             Class::Ship if !ordered => (Role::TransportFree, None),
@@ -881,10 +914,8 @@ pub fn register(ai: &mut Ai, game: &Game) {
 const RETURN_PATIENCE: u32 = 5;
 
 /// The end-of-turn check: every unit the wizard owns is looked at, each turn, and has a role. A
-/// soldier awaiting orders (a lone unit, or a party too small for any task, left on a tower or a
-/// road) walks to the nearest own city that can be reached and has room, and keeps that role
-/// (`Return`) until it is there; if no city can be reached it waits on a shore for a ship. Ships
-/// and the other units with none are counted. The audit is counted in an
+/// unit with nothing to do awaits orders and stays where it stands: the soldiers among them are
+/// counted (adrift), as are the ships and the other units (unassigned). The audit is counted in an
 /// [`Event::RolesAudited`].
 pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
@@ -893,114 +924,42 @@ pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // The units that are gone leave the registry; the others each get their role.
         let alive: Vec<_> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
         ai.roles.prune(&alive);
+        // Units with no entry yet came into being since the start of the turn.
+        let unregistered = alive.iter().filter(|&&s| ai.roles.get(s).is_none()).count() as u32;
         let held = sync(ai, &view, game.turn);
         ai.roles.note_positions(|s| {
             held.iter()
                 .find(|h| view.serial_of(h.unit) == s)
                 .and_then(|h| view.unit_position(h.unit))
         });
-        tally(&held)
+        (tally(&held), unregistered)
     };
-    if counted.adrift.is_empty() && counted.unassigned == 0 {
+    let (counted, unregistered) = counted;
+    if counted.adrift.is_empty() && counted.unassigned == 0 && unregistered == 0 {
         return;
     }
     events.push(Event::RolesAudited {
         player: me,
         adrift: counted.adrift.len() as u32,
         unassigned: counted.unassigned,
+        unregistered,
     });
-    for group in send_home(ai, game, &counted.adrift, events) {
-        // No own city can be reached by land: wait for a ship on the shore.
-        crate::pickup::wait_at_shore(ai, game, &group);
-    }
-}
-
-/// Send each group of units standing on one square to the nearest own city that has room. The
-/// groups no city took are returned.
-fn send_home(
-    ai: &mut Ai,
-    game: &mut Game,
-    units: &[hecs::Entity],
-    events: &mut Vec<Event>,
-) -> Vec<Vec<hecs::Entity>> {
-    let mut left_out = Vec::new();
-    let me = ai.player;
-    let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
-    let cities: Vec<Position> = {
-        let view = PlayerView::new(game, me);
-        for &u in units {
-            let Some(p) = view.unit_position(u) else {
-                continue;
-            };
-            match by_square.iter_mut().find(|(q, _)| *q == p) {
-                Some((_, list)) => list.push(u),
-                None => by_square.push((p, vec![u])),
-            }
-        }
-        view.my_cities().into_iter().map(|(_, p)| p).collect()
-    };
-    by_square.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
-    for (pos, group) in by_square {
-        let mut homes: Vec<(u32, Position)> = {
-            let view = PlayerView::new(game, me);
-            cities
-                .iter()
-                .filter(|&&c| c.plane == pos.plane)
-                .filter_map(|&c| distance(&view, pos, c).map(|d| (d, c)))
-                .collect()
-        };
-        homes.sort_by_key(|&(d, c)| (d, c.y, c.x));
-        // Whether any city can be reached on foot at all (full cities are a wait, not a strand).
-        let reachable = {
-            let view = PlayerView::new(game, me);
-            homes.iter().any(|&(_, c)| view.can_reach(&group, c))
-        };
-        let mut sent = false;
-        for (_, home) in homes {
-            let ok = {
-                let view = PlayerView::new(game, me);
-                Ai::room_at(game, home, group.len()) && view.can_reach(&group, home)
-            };
-            if ok
-                && ai
-                    .send(
-                        game,
-                        Command::GoTo {
-                            units: group.clone(),
-                            to: home,
-                        },
-                        events,
-                    )
-                    .is_ok()
-            {
-                sent = true;
-                let view = PlayerView::new(game, me);
-                for &u in &group {
-                    let _ = ai
-                        .roles
-                        .claim(view.serial_of(u), Role::Return, game.turn, Some(home));
-                }
-                break;
-            }
-        }
-        if !sent && !reachable {
-            left_out.push(group);
-        }
-    }
-    left_out
+    // Nothing more: a unit awaiting orders stays where it stands (task 645). The dispatcher
+    // gives the waiting units their jobs.
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, spawn_tower, COAST_CITY, P0};
+    use f4x_core::game::Command;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// A soldier standing outside a city with no list, no order and no city under it is adrift:
-    /// the audit sends it home and counts it.
+    /// the audit counts it and leaves it where it stands.
     #[test]
-    fn a_lone_soldier_outside_a_city_is_found_and_sent_home() -> TestResult {
+    fn a_lone_soldier_outside_a_city_is_counted_and_left_where_it_stands() -> TestResult {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let tower = at(8, 6);
         spawn_tower(&mut g, tower, false)?;
@@ -1016,12 +975,11 @@ mod tests {
             "{events:?}"
         );
         let view = PlayerView::new(&g, P0);
-        assert!(lone.iter().all(|&u| view.unit_has_order(u)));
-        // It keeps the role until it is in the city: next turn it is `Return`, not adrift.
+        assert!(lone.iter().all(|&u| !view.unit_has_order(u)));
+        assert!(events.iter().all(|e| !matches!(e, Event::Rejected(_))));
         let held = sync(&mut ai, &view, 1);
         let roles = held.iter().find(|h| h.unit == lone[0]).map(|h| h.role);
-        assert_eq!(roles, Some(Role::Return));
-        assert!(tally(&held).adrift.is_empty());
+        assert_eq!(roles, Some(Role::AwaitingOrders));
         Ok(())
     }
 
@@ -1046,10 +1004,10 @@ mod tests {
         Ok(())
     }
 
-    /// Soldiers with no own city they can walk to take the waiting role and head for the shore:
-    /// they are not sent on an impossible way home every turn.
+    /// Soldiers with no own city they can walk to stay where they stand and await orders: the
+    /// audit sends them nowhere (the transport job of task 647 takes them to a ship).
     #[test]
-    fn soldiers_with_no_city_in_reach_wait_for_a_ship() -> TestResult {
+    fn soldiers_with_no_city_in_reach_await_orders_where_they_stand() -> TestResult {
         use crate::testworld::ENEMY_CITY;
         let mut g = game(COAST_CITY, 8 /* high_men */);
         g.reveal_map(P0);
@@ -1063,18 +1021,14 @@ mod tests {
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         audit(&mut ai, &mut g, &mut events);
-        assert_eq!(
-            ai.roles.members(Role::AwaitTransport).len(),
-            2,
-            "{events:?}"
-        );
+        assert!(ai.roles.members(Role::AwaitTransport).is_empty());
         let view = PlayerView::new(&g, P0);
         let held = sync(&mut ai, &view, 1);
         for &u in &stranded {
             let roles = held.iter().find(|h| h.unit == u).map(|h| h.role);
-            assert_eq!(roles, Some(Role::AwaitTransport));
+            assert_eq!(roles, Some(Role::AwaitingOrders));
+            assert!(!view.unit_has_order(u));
         }
-        assert!(tally(&held).adrift.is_empty());
         Ok(())
     }
 

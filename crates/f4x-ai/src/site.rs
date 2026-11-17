@@ -10,9 +10,7 @@ use f4x_core::player::view::PlayerView;
 
 use crate::assault::{around, assault, guard_strength, march, strike};
 use crate::military::average_strength;
-use crate::view::{
-    distance, fighting_strength, garrison_wanted, is_fighter, stack_strength, unit_strength,
-};
+use crate::view::{distance, fighting_strength, is_fighter, stack_strength, unit_strength};
 use crate::Ai;
 
 /// Squares from a city (or from a party in the field) within which a site is looked for.
@@ -314,16 +312,12 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let mut fighters: Vec<hecs::Entity> = view
                 .garrison(pos)
                 .into_iter()
-                .filter(|&u| is_fighter(&view, u) && !ai.roles.is_scouting(view.serial_of(u)))
+                .filter(|&u| is_fighter(&view, u) && ai.roles.is_free(view.serial_of(u)))
                 .collect();
-            crate::view::weakest_first(&view, &mut fighters);
             fighters.sort_by_key(|u| heroes.contains(u));
             // The party is the strongest nine of what the garrison does not need: heroes lead it,
             // so that they fight, level up and bring the loot home (task 502).
-            let mut spare: Vec<hecs::Entity> = fighters
-                .into_iter()
-                .skip(garrison_wanted(&view, pos))
-                .collect();
+            let mut spare: Vec<hecs::Entity> = fighters;
             spare.sort_by(|&a, &b| {
                 unit_strength(&view, b)
                     .total_cmp(&unit_strength(&view, a))
