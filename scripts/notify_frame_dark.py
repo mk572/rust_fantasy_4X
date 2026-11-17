@@ -1,30 +1,90 @@
 #!/usr/bin/env python3
-"""Give the notify boxes' picture frames the marble of their strips in the packed art (task 511).
+"""Give the notify boxes' picture frames the colours of their strips in the packed art (task 511).
 
 `resource.lbx` 41, 42, 44, 45, 47 and 48 (the plain and gem frames of the green, red and blue-grey
-event boxes) are outlined with glass blocks. The original draws that outline as the marble band of
-the strip around the picture (yellow and blue like the strip's left end, for the green box), not
-as translucent tints. Every translucent pixel of the frames becomes an opaque step of the strip's
-ramp (the same table as `NOTIFY_GREEN`, `NOTIFY_RED` and `NOTIFY_GREY` in
-`crates/f4x-client/extract/src/image.rs`): dark for black blocks, light for white ones by their
-alpha, the lightest for the blue ones (the colour slide). `f4x-extract art` writes them this way
-(`to_rgba_notify_frame`); this does the same to art already extracted, in
-`assets-local/art/resource.sheet4.png` only (no full unpack and pack), keeping the sheet's picture
-list. Safe to run again: it only touches translucent pixels. Needs Pillow (`.venv`).
+event boxes) have no palette of their own. They use the colours 224 to 243 that the strip's palette
+(entries 40, 43 and 46, `Notify_Load` loads the strip first) set when it was loaded: the marble band
+that runs around the picture, gold and blue for the green box. Extracted with the base palette those
+indexes came out as translucent glass tints (light speckle). `f4x-extract art` now gives each frame
+its strip's palette (`NOTIFY_FRAME` in `art.rs`); this script does the same to art already
+extracted, in `assets-local/art/resource.sheet4.png` only (no full unpack and pack): it decodes the
+frames from the game's `RESOURCE.LBX` and repaints every pixel of index 224 or more with the strip's
+colour, opaque, keeping the sheet's picture list. Safe to run again.
+
+    .venv/bin/python scripts/notify_frame_dark.py [RESOURCE.LBX]
+
+The default LBX is `reference/mom-classic/Master of Magic Official Release/RESOURCE.LBX`. Needs
+Pillow (`.venv`).
 """
+import struct
+import sys
 from pathlib import Path
 
 from PIL import Image, PngImagePlugin
 
-SHEET = Path(__file__).resolve().parent.parent / "assets-local/art/resource.sheet4.png"
+ROOT = Path(__file__).resolve().parent.parent
+SHEET = ROOT / "assets-local/art/resource.sheet4.png"
+LBX = ROOT / "reference/mom-classic/Master of Magic Official Release/RESOURCE.LBX"
+STRIP = {41: 40, 42: 40, 44: 43, 45: 43, 47: 46, 48: 46}
 
-GREEN = [(20, 48, 56), (28, 60, 69), (36, 69, 77), (44, 81, 89), (56, 97, 105), (65, 113, 121), (73, 117, 125), (77, 125, 134), (81, 134, 142)]
-RED = [(36, 0, 4), (60, 0, 4), (77, 0, 0), (105, 0, 0), (130, 0, 0), (146, 0, 0), (170, 0, 0), (186, 0, 0), (199, 0, 0)]
-GREY = [(44, 44, 73), (52, 52, 81), (56, 56, 85), (60, 60, 89), (69, 69, 97), (77, 77, 105), (81, 81, 109), (89, 89, 117), (93, 93, 121)]
-RAMPS = {41: GREEN, 42: GREEN, 44: RED, 45: RED, 47: GREY, 48: GREY}
+
+def entry(data, i):
+    n = struct.unpack("<H", data[:2])[0]
+    offs = struct.unpack(f"<{n + 1}I", data[8 : 8 + 4 * (n + 1)])
+    return data[offs[i] : offs[i + 1]]
+
+
+def palette(e):
+    """(first index, [(r, g, b)]) of an entry's own palette, colours widened from 6 bits."""
+    off = struct.unpack("<H", e[14:16])[0]
+    data_off, start, n = struct.unpack("<HHH", e[off : off + 6])
+    wide = lambda v: ((v & 63) << 2) | ((v & 63) >> 4)
+    return start, [tuple(wide(c) for c in e[data_off + 3 * k : data_off + 3 * k + 3]) for k in range(n)]
+
+
+def frame_indexes(e):
+    """The first frame's palette indexes, row-major (the column RLE of `draw_frame` in `image.rs`)."""
+    w, h = struct.unpack("<HH", e[:4])
+    first = struct.unpack("<I", e[18:22])[0]
+    d = e[first + 1 :]
+    buf = [0] * (w * h)
+    p = 0
+    for x in range(w):
+        op = d[p]
+        p += 1
+        if op == 0xFF:
+            continue
+        packet = d[p]
+        p += 1
+        y = 0
+        while True:
+            seq, skip = d[p], d[p + 1]
+            p += 2
+            y += skip
+            packet -= seq + 2
+            left = seq
+            while left > 0:
+                b = d[p]
+                p += 1
+                left -= 1
+                if op == 0x80 and b >= 224:
+                    run, v = b - 224 + 1, d[p]
+                    p += 1
+                    left -= 1
+                    for _ in range(run):
+                        buf[y * w + x] = v
+                        y += 1
+                else:
+                    buf[y * w + x] = b
+                    y += 1
+            if packet < 1:
+                break
+    return w, h, buf
 
 
 def main():
+    lbx = Path(sys.argv[1]) if len(sys.argv) > 1 else LBX
+    data = lbx.read_bytes()
     src = Image.open(SHEET)
     # The sheet carries its picture list in a tEXt chunk (`f4x-sheet`): "cell WxH" then one
     # "NNN_FF.png<TAB>w<TAB>h" line per picture, in cell order, left to right and top to bottom.
@@ -38,22 +98,21 @@ def main():
     px = im.load()
     per_row = im.width // cw
     n = 0
-    for k, entry in enumerate(entries):
-        ramp = RAMPS.get(entry)
-        if ramp is None:
+    for k, num in enumerate(entries):
+        if num not in STRIP:
             continue
+        start, colours = palette(entry(data, STRIP[num]))
+        w, h, idx = frame_indexes(entry(data, num))
+        assert (w, h) == (cw, ch)
         x0, y0 = (k % per_row) * cw, (k // per_row) * ch
-        for y in range(y0, y0 + ch):
-            for x in range(x0, x0 + cw):
-                r, g, b, a = px[x, y]
-                if not 0 < a < 255:
-                    continue
-                alpha = a / 255
-                t = 0.55 + 0.4 * alpha if (r, g, b) == (255, 255, 255) else 0.45 - 0.4 * alpha if (r, g, b) == (0, 0, 0) else 1.0
-                px[x, y] = (*ramp[min(8, max(0, round(t * 8)))], 255)
-                n += 1
+        for y in range(h):
+            for x in range(w):
+                i = idx[y * w + x]
+                if start <= i < start + len(colours):
+                    px[x0 + x, y0 + y] = (*colours[i - start], 255)
+                    n += 1
     im.save(SHEET, pnginfo=info)
-    print(f"{n} pixels changed in {SHEET.name}")
+    print(f"{n} pixels set in {SHEET.name}")
 
 
 if __name__ == "__main__":
