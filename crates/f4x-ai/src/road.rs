@@ -333,12 +333,20 @@ pub fn build_engineer(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         if !work || engineers >= wanted {
             return;
         }
+        let spare = crate::builder::spare_food(&view);
         let mut best: Option<(u32, hecs::Entity, ProductionItem)> = None;
         for (city, pos) in cities {
             let current = view.city_production(city).item;
             let Some(item) = engineer_item(&view, city) else {
                 continue;
             };
+            // An engineer the empire cannot feed is let go at the turn change, and the next one
+            // is started at once.
+            if let ProductionItem::Unit(u) = item {
+                if view.content().rules.units.get(u).upkeep.food > spare {
+                    continue;
+                }
+            }
             // A building under way is not thrown away for the hall.
             if (matches!(current, Some(ProductionItem::Building(_))) && current != Some(item))
                 || ai.threatened.contains(&pos)

@@ -37,6 +37,17 @@ pub struct Need {
     pub garrison_cap: u32,
     /// The wizard holds one city: its second city comes before the basics (the opening of a 4X game).
     pub settler_first: bool,
+    /// The food the empire has left once the units it has and the units it has in production
+    /// are fed: a unit that eats more than this is not started (it would be let go at the turn
+    /// change).
+    pub spare_food: HalfInt,
+}
+
+/// The food the empire has left over once the units it has are fed (negative when they starve),
+/// counting what its cities would grow with half of their workers in the fields: the balance of
+/// farmers puts people there as the army needs them, so a surplus of nothing is not yet a want.
+pub fn spare_food(view: &PlayerView) -> HalfInt {
+    view.budget().food_surplus - view.food_of(&view.my_units()) + view.farming_headroom()
 }
 
 /// Whether production in this city is for the AI to decide at the start of its turn: nothing in
@@ -141,12 +152,17 @@ fn is_soldier(d: &UnitDef) -> bool {
         && d.stat(Stat::Melee).max(d.stat(Stat::Ranged)) > 0.0
 }
 
-fn soldiers(view: &PlayerView, city: hecs::Entity) -> Vec<UnitId> {
+/// Whether the empire has the food to keep a unit of this kind (`Need::spare_food`).
+fn fed(d: &UnitDef, need: Need) -> bool {
+    d.upkeep.food <= need.spare_food
+}
+
+fn soldiers(view: &PlayerView, city: hecs::Entity, need: Need) -> Vec<UnitId> {
     view.content()
         .rules
         .units
         .iter()
-        .filter(|&(_, d)| is_soldier(d))
+        .filter(|&(_, d)| is_soldier(d) && fed(d, need))
         .map(|(u, _)| u)
         .filter(|&u| view.can_build(city, ProductionItem::Unit(u)).is_ok())
         .collect()
@@ -175,7 +191,8 @@ fn best_soldier(view: &PlayerView, pool: &[UnitId], elite: bool, walks: bool) ->
         .map(|(u, _)| u)
 }
 
-/// The cheapest settlers the city may build.
+/// The cheapest settlers the city may build. They are not held to the food rule of the soldiers:
+/// they leave to found a city (`plan_for` builds them only with food to spare).
 fn cheapest_settler(view: &PlayerView, city: hecs::Entity) -> Option<UnitId> {
     let rules = &view.content().rules;
     rules
@@ -291,7 +308,7 @@ pub fn next_item(
     let eco = view.city_economy(city).unwrap_or_default();
     let units_ok = plan.mix != Mix::Buildings;
     let buildings_ok = plan.mix != Mix::Units;
-    let pool = soldiers(view, city);
+    let pool = soldiers(view, city, need);
 
     // 1. The garrison.
     let mut minimum = garrison_minimum(eco.figures).min(need.garrison_cap);
@@ -410,7 +427,11 @@ fn military(
         return None;
     }
     match crate::forge::step(view, city) {
-        crate::forge::Step::Ready(u) if plan.mix != Mix::Buildings => Some(ProductionItem::Unit(u)),
+        crate::forge::Step::Ready(u)
+            if plan.mix != Mix::Buildings && fed(view.content().rules.units.get(u), need) =>
+        {
+            Some(ProductionItem::Unit(u))
+        }
         crate::forge::Step::Build(b)
             if need.net_gold
                 >= HalfInt::from_int(view.content().rules.buildings.get(b).upkeep_gold as i32) =>
@@ -458,6 +479,58 @@ mod tests {
     }
 
     #[test]
+    fn the_food_to_spare_counts_what_the_workers_could_farm() {
+        let g = game(COAST_CITY, 8 /* high_men */);
+        let view = PlayerView::new(&g, P0);
+        let plain = view.budget().food_surplus - view.food_of(&view.my_units());
+        assert!(
+            view.farming_headroom() > HalfInt::ZERO,
+            "the city has workers"
+        );
+        assert_eq!(spare_food(&view), plain + view.farming_headroom());
+    }
+
+    #[test]
+    fn a_city_with_no_food_to_spare_does_not_build_a_soldier_that_eats() -> TestResult {
+        let g = game(COAST_CITY, 8 /* high_men */);
+        let city = g
+            .economy()
+            .city_at(at(COAST_CITY.0, COAST_CITY.1))
+            .ok_or("a city on the coast")?;
+        let view = PlayerView::new(&g, P0);
+        let plan = BuildPlan::default();
+        let pick = |spare: HalfInt| {
+            next_item(
+                &view,
+                city,
+                &plan,
+                Need {
+                    net_gold: HalfInt::from_int(5),
+                    rival_near: false,
+                    garrison_cap: u32::MAX,
+                    settler_first: false,
+                    spare_food: spare,
+                },
+                0,
+            )
+        };
+        // The city has no defender, so with food to spare its first item is a soldier.
+        let ProductionItem::Unit(fed) = pick(HalfInt::from_int(10)) else {
+            return Err("a soldier was expected with food to spare".into());
+        };
+        assert!(view.content().rules.units.get(fed).upkeep.food > HalfInt::ZERO);
+        // With none to spare it builds no unit that eats.
+        if let ProductionItem::Unit(u) = pick(HalfInt::ZERO) {
+            assert_eq!(
+                view.content().rules.units.get(u).upkeep.food,
+                HalfInt::ZERO,
+                "a unit that eats was chosen"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
     fn a_garrisoned_city_builds_a_basic_building_before_the_rest_of_the_list() -> TestResult {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let city = g
@@ -476,6 +549,7 @@ mod tests {
                 rival_near: false,
                 garrison_cap: u32::MAX,
                 settler_first: false,
+                spare_food: HalfInt::from_int(10),
             },
             4,
         );
@@ -512,6 +586,7 @@ mod tests {
             rival_near: false,
             garrison_cap: u32::MAX,
             settler_first: false,
+            spare_food: HalfInt::from_int(10),
         };
         assert_eq!(specialty(&PlayerView::new(&g, P0), city, need), None);
         let gold_ore = g.content().features.id_numbered(10 /* gold_ore */);
@@ -551,6 +626,7 @@ mod tests {
             rival_near: false,
             garrison_cap: u32::MAX,
             settler_first: false,
+            spare_food: HalfInt::from_int(10),
         };
         let expected = match crate::forge::step(&view, city) {
             crate::forge::Step::Ready(u) => Some(ProductionItem::Unit(u)),
@@ -595,6 +671,7 @@ mod tests {
             rival_near: false,
             garrison_cap: u32::MAX,
             settler_first: false,
+            spare_food: HalfInt::from_int(10),
         };
         let b = specialty(&PlayerView::new(&g, P0), city, need);
         Ok((b, g))

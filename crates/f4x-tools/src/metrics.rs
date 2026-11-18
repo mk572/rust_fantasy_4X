@@ -149,11 +149,13 @@ pub struct Metrics {
     pub settlers_killed: u32,
     pub settlers_starved: u32,
     pub settlers_unpaid: u32,
+    /// Units of any kind let go for lack of food (the settlers among them too).
+    pub units_starved: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 74] {
+    pub fn rows(&self) -> [(&'static str, u32); 75] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -237,6 +239,7 @@ impl Metrics {
             ("settlers lost in battle", self.settlers_killed),
             ("settlers let go for lack of food", self.settlers_starved),
             ("settlers let go for lack of gold", self.settlers_unpaid),
+            ("units let go for lack of food", self.units_starved),
             (
                 "cities captured on the other plane",
                 self.cities_captured_far_plane,
@@ -391,6 +394,7 @@ impl AddAssign for Metrics {
             settlers_killed,
             settlers_starved,
             settlers_unpaid,
+            units_starved,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -466,6 +470,7 @@ impl AddAssign for Metrics {
         self.settlers_killed += settlers_killed;
         self.settlers_starved += settlers_starved;
         self.settlers_unpaid += settlers_unpaid;
+        self.units_starved += units_starved;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -971,7 +976,12 @@ impl Tally {
                     unit,
                     cause,
                 } => {
-                    self.bump(*player, |m| m.units_lost += 1);
+                    self.bump(*player, |m| {
+                        m.units_lost += 1;
+                        if *cause == f4x_core::game::event::LossCause::Food {
+                            m.units_starved += 1;
+                        }
+                    });
                     if game
                         .content()
                         .rules

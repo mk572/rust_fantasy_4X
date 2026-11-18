@@ -109,8 +109,12 @@ impl Roster {
 }
 
 /// The fastest unit the city can build that fights or can scout, the cheapest of those: the
-/// scout of a wizard that has none.
-fn scout_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem> {
+/// scout of a wizard that has none, if the empire has the food to keep it (`spare_food`).
+fn scout_item(
+    view: &PlayerView,
+    city: hecs::Entity,
+    spare_food: HalfInt,
+) -> Option<ProductionItem> {
     let rules = &view.content().rules;
     rules
         .units
@@ -122,6 +126,7 @@ fn scout_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem> {
                     .get(&f4x_def::rules::Stat::Melee)
                     .is_some_and(|m| m.floor() > 0)
                 && d.deck.is_none()
+                && d.upkeep.food <= spare_food
         })
         .map(|(id, d)| {
             let moves = d
@@ -221,7 +226,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .find(|&(c, p)| {
                     view.city_economy(c).is_some_and(|e| e.figures > 0)
                         && view.garrison(p).len() < view.max_tile()
-                        && scout_item(&view, c).is_some()
+                        && scout_item(&view, c, builder::spare_food(&view)).is_some()
                 })
                 .map(|(c, _)| c)
         })
@@ -233,6 +238,19 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // Each city's auto-builder reads the net gold: kept and patched for the cities whose item
     // changes, not worked out for the whole empire in every city.
     game.begin_kept_budget();
+    // The food of the units the cities have in production: they are not in `empire.spare_food`
+    // yet, and each unit chosen below joins them.
+    let mut queued_food = {
+        let view = PlayerView::new(game, me);
+        mine.iter()
+            .filter_map(|&(c, _)| match view.city_production(c).item {
+                Some(ProductionItem::Unit(u)) => {
+                    Some(view.content().rules.units.get(u).upkeep.food)
+                }
+                _ => None,
+            })
+            .sum::<HalfInt>()
+    };
     for (city, pos) in mine {
         let port_item = {
             let view = PlayerView::new(game, me);
@@ -308,7 +326,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             });
             let mut port_item = port_item;
             if port_item.is_none() && scout_city == Some(city) && !broke {
-                port_item = scout_item(&view, city);
+                port_item = scout_item(&view, city, empire.spare_food - queued_food);
             }
             // Past the build-up the army is a few strong units: every city prefers the dear
             // ones, and the forge cities build out toward the race's top unit and make it.
@@ -367,6 +385,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                             rival_near,
                             garrison_cap: quiet_cap(&view, pos),
                             settler_first: empire.cities <= 1,
+                            spare_food: empire.spare_food - queued_food,
                         },
                         defenders,
                     )
@@ -374,6 +393,11 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             });
             item
         };
+        if let Some(ProductionItem::Unit(u)) = port_item {
+            if game.economy().city_production(city).item != port_item {
+                queued_food += game.content().rules.units.get(u).upkeep.food;
+            }
+        }
         if let Some(item) = port_item {
             if game.economy().city_production(city).item != Some(item) {
                 ai.order(game, Command::SetProduction { city, item }, events);
@@ -441,12 +465,11 @@ impl Empire {
     fn of(view: &PlayerView) -> Empire {
         let gold = view.treasury().gold.floor();
         let budget = view.budget();
-        let upkeep = view.food_of(&view.my_units());
         let my_cities = view.my_cities();
         Empire {
             gold,
             net: budget.net_gold() + (gold / 100).max(0),
-            spare_food: budget.food_surplus - upkeep,
+            spare_food: builder::spare_food(view),
             fighters: view
                 .my_units()
                 .into_iter()

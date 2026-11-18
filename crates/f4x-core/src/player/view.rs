@@ -545,6 +545,21 @@ impl<'a> PlayerView<'a> {
         self.game.economy().city_economy(city)
     }
 
+    /// The food the player's cities would add if half of their workers went to the fields: what
+    /// an army that eats more can still be fed with, at the cost of production (the balance of
+    /// farmers puts people there as the food is needed).
+    pub fn farming_headroom(&self) -> f4x_def::half_int::HalfInt {
+        let economy = self.game.economy();
+        self.my_cities()
+            .into_iter()
+            .filter_map(|(city, _)| {
+                let now = economy.city_economy(city)?;
+                let more = economy.city_economy_with(city, now.farmers + now.workers / 2)?;
+                Some((more.food - now.food).max(f4x_def::half_int::HalfInt::ZERO))
+            })
+            .sum()
+    }
+
     /// The units the player knows to stand in a city or on a square: nothing for a square it
     /// has not explored; its own units there; and another player's only when the square is in
     /// sight now and the unit can be made out (as `hostile_at`). Of another wizard's city it has
