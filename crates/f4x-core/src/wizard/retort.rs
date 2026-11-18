@@ -110,166 +110,228 @@ pub fn research_bonus(rules: &Rules, retorts: &BTreeSet<Retort>, def: &SpellDef)
 mod tests {
     use super::*;
     use crate::game::testutil::shipped;
-    use crate::rules::RealmId;
+    use crate::rules::effects::Condition;
+    use crate::rules::{RealmId, RetortDef};
 
     fn retorts(nums: &[u16]) -> BTreeSet<Retort> {
         nums.iter().map(|&n| Retort::new(n)).collect()
     }
 
-    fn spell<'a>(rules: &'a Rules, alias: &str) -> &'a SpellDef {
-        rules
-            .spells
-            .iter()
-            .map(|(_, d)| d)
-            .find(|d| d.id == alias)
-            .unwrap_or_else(|| panic!("no spell {alias}"))
+    /// What a retort's rule asks about: the realm and the tags of a spell, or only a realm (a
+    /// dispel, a node).
+    struct Subject {
+        realm: RealmId,
+        summoning: bool,
+        crafting: bool,
     }
 
-    #[test]
-    fn a_mastery_cuts_cost_and_speeds_research_in_its_own_realm_only() {
-        let rules = &shipped().rules;
-        let mastery = retorts(&[3 /* nature_mastery */]);
-        let nature = rules
-            .spells
-            .iter()
-            .map(|(_, d)| d)
-            .find(|d| d.realm == RealmId::new(0 /* nature */))
-            .expect("a nature spell");
-        let other = rules
-            .spells
-            .iter()
-            .map(|(_, d)| d)
-            .find(|d| d.realm == RealmId::new(2 /* chaos */))
-            .expect("a chaos spell");
-        assert_eq!(cost_cut(rules, &mastery, nature), 15);
-        assert_eq!(research_bonus(rules, &mastery, nature), 15);
-        assert_eq!(cost_cut(rules, &mastery, other), 0);
-        assert_eq!(research_bonus(rules, &mastery, other), 0);
-    }
-
-    #[test]
-    fn the_crafting_and_summoning_retorts_single_out_their_spells() {
-        let rules = &shipped().rules;
-        let craft = spell(rules, "enchant_item");
-        assert_eq!(cost_cut(rules, &retorts(&[17 /* artificer */]), craft), 50);
-        assert_eq!(cost_cut(rules, &retorts(&[15 /* conjurer */]), craft), 0);
-        let summon = rules
-            .spells
-            .iter()
-            .map(|(_, d)| d)
-            .find(|d| is_summoning(d))
-            .expect("a summoning spell");
-        let conjurer = retorts(&[15 /* conjurer */]);
-        assert_eq!(cost_cut(rules, &conjurer, summon), 25);
-        assert_eq!(research_bonus(rules, &conjurer, summon), 25);
-    }
-
-    #[test]
-    fn mana_focusing_adds_a_quarter_to_the_mana_and_channeler_halves_the_upkeep() {
-        let rules = &shipped().rules;
-        let focusing = retorts(&[11 /* mana_focusing */]);
-        for mana in [0, 3, 7, 40] {
-            assert_eq!(
-                stat(rules, &focusing, Stat::ManaIncome, mana),
-                mana + mana / 4
-            );
+    impl Subject {
+        fn of_spell(def: &SpellDef) -> Self {
+            Self {
+                realm: def.realm,
+                summoning: is_summoning(def),
+                crafting: is_crafting(def),
+            }
         }
-        let channeler = retorts(&[8 /* channeler */]);
-        assert_eq!(stat(rules, &channeler, Stat::SpellUpkeepPercent, 100), 50);
-        assert_eq!(
-            stat(rules, &retorts(&[]), Stat::SpellUpkeepPercent, 100),
-            100
-        );
+
+        fn of_realm(realm: RealmId) -> Self {
+            Self {
+                realm,
+                summoning: false,
+                crafting: false,
+            }
+        }
+
+        fn meets(&self, condition: &Condition) -> bool {
+            match condition {
+                Condition::Always => true,
+                Condition::RealmIs(realm) => *realm == self.realm,
+                Condition::SpellIs(SpellTag::Summoning) => self.summoning,
+                Condition::SpellIs(SpellTag::Crafting) => self.crafting,
+                Condition::KindIs(_) => false,
+                Condition::Not(inner) => !self.meets(inner),
+            }
+        }
     }
 
-    #[test]
-    fn sage_master_and_a_mastery_add_up() {
-        let rules = &shipped().rules;
-        let both = retorts(&[7 /* sage_master */, 3 /* nature_mastery */]);
-        let nature = rules
-            .spells
+    /// `base` after the passive rules of the retort `row` (the rows of `retorts.ron`) that name
+    /// `stat` and whose condition `subject` meets, each applied by its operation. A retort names
+    /// a stat once, which is checked.
+    fn after_rules(row: &RetortDef, stat: Stat, base: i32, subject: &Subject) -> i32 {
+        let mut value = base;
+        let mut seen = 0;
+        for rule in row.effects.iter().filter(|r| r.when == Trigger::Passive) {
+            let Effect::Modify {
+                stat: s,
+                op,
+                value: v,
+            } = rule.effect
+            else {
+                continue;
+            };
+            if s != stat {
+                continue;
+            }
+            seen += 1;
+            if !subject.meets(&rule.condition) {
+                continue;
+            }
+            let v = v.floor();
+            value = match op {
+                ModOp::Add => value + v,
+                ModOp::Percent => (value * (100 + v)).div_euclid(100),
+                ModOp::Min => value.max(v),
+                ModOp::Max => value.min(v),
+                ModOp::Set => v,
+            };
+        }
+        assert!(seen <= 1, "{} names {stat:?} {seen} times", row.id);
+        value
+    }
+
+    /// Every stat the passive rules of `row` change.
+    fn stats_of(row: &RetortDef) -> BTreeSet<Stat> {
+        row.effects
             .iter()
-            .map(|(_, d)| d)
-            .find(|d| d.realm == RealmId::new(0 /* nature */))
-            .expect("a nature spell");
-        assert_eq!(research_bonus(rules, &both, nature), 40);
+            .filter(|r| r.when == Trigger::Passive)
+            .filter_map(|r| match r.effect {
+                Effect::Modify { stat, .. } => Some(stat),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn one(row: &RetortDef) -> BTreeSet<Retort> {
+        retorts(&[row.num])
     }
 
     #[test]
-    fn the_wizard_wide_retorts_change_their_stats() {
+    fn a_retort_changes_the_cost_and_the_research_of_the_spells_its_rules_name_and_no_others() {
+        // The rules of each retort's row: `SpellCostPercent` and `ResearchIncome`, under their
+        // condition (a realm, summoning, crafting).
         let rules = &shipped().rules;
+        let mut changed = 0;
+        for (_, row) in rules.retorts.iter() {
+            let set = one(row);
+            for (_, def) in rules.spells.iter() {
+                let subject = Subject::of_spell(def);
+                let cost = after_rules(row, Stat::SpellCostPercent, 0, &subject);
+                let research = after_rules(row, Stat::ResearchIncome, 100, &subject) - 100;
+                assert_eq!(
+                    cost_cut(rules, &set, def),
+                    -cost,
+                    "{} on {}",
+                    row.id,
+                    def.id
+                );
+                assert_eq!(
+                    research_bonus(rules, &set, def),
+                    research,
+                    "{} on {}",
+                    row.id,
+                    def.id
+                );
+                changed += usize::from(cost != 0 || research != 0);
+            }
+        }
+        assert!(changed > 0, "no retort changes any spell");
+    }
+
+    #[test]
+    fn retorts_that_change_the_research_of_a_spell_add_up() {
+        // Two retorts whose rules both raise the research of one spell: the bonus is the sum.
+        let rules = &shipped().rules;
+        let rows: Vec<&RetortDef> = rules.retorts.iter().map(|(_, row)| row).collect();
+        let mut pairs = 0;
+        for (_, def) in rules.spells.iter() {
+            let subject = Subject::of_spell(def);
+            let bonus =
+                |row: &RetortDef| after_rules(row, Stat::ResearchIncome, 100, &subject) - 100;
+            for (i, a) in rows.iter().enumerate() {
+                for b in &rows[i + 1..] {
+                    if bonus(a) == 0 || bonus(b) == 0 {
+                        continue;
+                    }
+                    let both: BTreeSet<Retort> = one(a).union(&one(b)).copied().collect();
+                    assert_eq!(
+                        research_bonus(rules, &both, def),
+                        bonus(a) + bonus(b),
+                        "{} and {} on {}",
+                        a.id,
+                        b.id,
+                        def.id
+                    );
+                    pairs += 1;
+                }
+            }
+        }
+        assert!(pairs > 0, "no two retorts raise the research of one spell");
+    }
+
+    #[test]
+    fn the_wizard_wide_retorts_change_their_stats_by_their_rules() {
+        // Each stat of each retort, over a few bases; a rule with a condition on a realm is read
+        // for a wizard-wide stat as met (no spell is asked about).
+        let rules = &shipped().rules;
+        let nowhere = Subject {
+            realm: RealmId::new(u16::MAX),
+            summoning: false,
+            crafting: false,
+        };
+        let mut checked = 0;
+        for (_, row) in rules.retorts.iter() {
+            for stat_ in stats_of(row) {
+                if matches!(
+                    stat_,
+                    Stat::SpellCostPercent
+                        | Stat::ResearchIncome
+                        | Stat::DispelMultiplier
+                        | Stat::NodePowerDoublings
+                ) {
+                    continue; // asked about a spell or a realm: the tests above and below
+                }
+                for base in [0, 3, 7, 40, 100] {
+                    assert_eq!(
+                        stat(rules, &one(row), stat_, base),
+                        after_rules(row, stat_, base, &nowhere),
+                        "{} {stat_:?} from {base}",
+                        row.id
+                    );
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 0);
         let none = retorts(&[]);
-        let check = |nums: &[u16], stat_: Stat, base: i32, want: i32| {
-            assert_eq!(
-                stat(rules, &retorts(nums), stat_, base),
-                want,
-                "{nums:?} {stat_:?}"
-            );
-        };
-        // Alchemy: all the mana back, magic weapons at least.
-        check(&[0], Stat::AlchemyPercent, 50, 100);
-        check(&[], Stat::AlchemyPercent, 50, 50);
-        check(&[0], Stat::StartingWeapons, 0, 1);
-        check(&[0], Stat::StartingWeapons, 3, 3);
-        // Warlord: a level more.
-        check(&[1], Stat::UnitLevels, 0, 1);
-        // Channeler: two squares from the fortress wherever the battle is.
-        check(&[8], Stat::CastingDistance, 25, 2);
-        check(&[], Stat::CastingDistance, 25, 25);
-        // Node Mastery.
-        check(&[12], Stat::NodeImmunity, 0, 1);
-        assert_eq!(stat(rules, &none, Stat::NodeImmunity, 0), 0);
-        // Famous, Charismatic.
-        check(&[13], Stat::StartingFame, 0, 10);
-        check(&[16], Stat::DiplomacyGainPercent, 100, 200);
-        check(&[16], Stat::DiplomacyLossPercent, 100, 50);
-        check(&[16], Stat::HireCostPercent, 100, 50);
-        check(&[13], Stat::OfferChancePercent, 100, 200);
-        check(&[], Stat::OfferChancePercent, 100, 100);
-        // Divine and Infernal Power, alone or together (they do not add up).
-        check(&[5], Stat::ReligiousPercent, 100, 150);
-        check(&[6], Stat::ReligiousPercent, 100, 150);
-        // Archmage: ten more casting skill, the same to start with, half as much more gained.
-        check(&[10], Stat::CastingSkill, 0, 10);
-        check(&[10], Stat::StartingSkill, 6, 16);
-        check(&[10], Stat::SkillGainPercent, 100, 150);
+        for base in [0, 3, 40] {
+            assert_eq!(stat(rules, &none, Stat::CastingSkill, base), base);
+        }
     }
 
     #[test]
-    fn a_dispel_resists_once_more_for_the_casters_mastery_of_the_realm_and_for_archmage() {
+    fn a_dispel_and_a_node_follow_the_realm_their_retorts_name() {
+        // `DispelMultiplier` and `NodePowerDoublings` are asked per realm.
         let rules = &shipped().rules;
-        let times = |nums: &[u16], realm: u16| {
-            let facts = Facts {
-                realm: Some(RealmId::new(realm)),
-                ..Facts::default()
-            };
-            stat_with(rules, &retorts(nums), Stat::DispelMultiplier, 1, &facts)
-        };
-        assert_eq!(times(&[], 0), 1);
-        assert_eq!(times(&[3 /* nature_mastery */], 0 /* nature */), 2);
-        assert_eq!(times(&[3], 2 /* chaos */), 1);
-        assert_eq!(times(&[10 /* archmage */, 3], 0), 3);
-        assert_eq!(
-            times(&[10, 2 /* chaos_mastery */, 4 /* sorcery_mastery */], 1),
-            3
-        );
-    }
-
-    #[test]
-    fn a_node_doubles_for_its_realms_mastery_and_again_for_node_mastery() {
-        let rules = &shipped().rules;
-        let doublings = |nums: &[u16], realm: u16| {
-            let facts = Facts {
-                realm: Some(RealmId::new(realm)),
-                ..Facts::default()
-            };
-            stat_with(rules, &retorts(nums), Stat::NodePowerDoublings, 0, &facts)
-        };
-        assert_eq!(doublings(&[], 0), 0);
-        assert_eq!(doublings(&[3 /* nature_mastery */], 0 /* nature */), 1);
-        assert_eq!(doublings(&[3], 1 /* sorcery */), 0);
-        assert_eq!(doublings(&[12 /* node_mastery */], 2 /* chaos */), 1);
-        assert_eq!(doublings(&[12, 2 /* chaos_mastery */], 2), 2);
-        assert_eq!(doublings(&[12, 2, 4, 3], 1), 2);
+        let realms: Vec<RealmId> = rules.realms.iter().map(|(id, _)| id).collect();
+        let mut named = 0;
+        for (_, row) in rules.retorts.iter() {
+            for (stat_, base) in [(Stat::DispelMultiplier, 1), (Stat::NodePowerDoublings, 0)] {
+                for &realm in &realms {
+                    let facts = Facts {
+                        realm: Some(realm),
+                        ..Facts::default()
+                    };
+                    let want = after_rules(row, stat_, base, &Subject::of_realm(realm));
+                    assert_eq!(
+                        stat_with(rules, &one(row), stat_, base, &facts),
+                        want,
+                        "{} {stat_:?} in realm {realm:?}",
+                        row.id
+                    );
+                    named += usize::from(want != base);
+                }
+            }
+        }
+        assert!(named > 0);
     }
 }

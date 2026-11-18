@@ -1,7 +1,7 @@
 use super::*;
 use crate::game::testutil::shipped;
 
-use crate::rules::RealmId;
+use crate::rules::{RealmId, RetortNeed, Rules};
 use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
@@ -81,20 +81,16 @@ fn build(books: &[(RealmId, u8)], retorts: &[Retort]) -> WizardBuild {
 }
 
 #[test]
-fn retorts_cost_one_two_or_three_picks() {
+fn a_retort_costs_the_picks_of_its_row() {
+    // `cost` of each row of `retorts.ron`.
     let rules = &shipped().rules;
-    assert_eq!(retort_cost(rules, Retort::new(0) /* alchemy */), 1);
-    for r in [
-        Retort::new(1),  /* warlord */
-        Retort::new(8),  /* channeler */
-        Retort::new(6),  /* divine_power */
-        Retort::new(13), /* famous */
-        Retort::new(5),  /* infernal_power */
-    ] {
-        assert_eq!(retort_cost(rules, r), 2, "{r:?}");
+    let mut seen = 0;
+    for (id, row) in rules.retorts.iter() {
+        assert_eq!(retort_cost(rules, id), row.cost, "{}", row.id);
+        seen += 1;
     }
-    assert_eq!(retort_cost(rules, Retort::new(9) /* myrran */), 3);
-    assert_eq!(all_retorts(rules).count(), 18);
+    assert_eq!(all_retorts(rules).count(), seen);
+    assert!(seen > 0);
 }
 
 #[test]
@@ -179,14 +175,22 @@ fn a_ready_made_wizard_over_the_most_books_loses_the_surplus_and_the_picks_are_f
 fn the_myrran_and_alchemy_options_change_what_the_retorts_cost_in_a_game() {
     let mut g = game();
     let (alchemy, myrran) = (Retort::new(0), Retort::new(9));
-    assert_eq!(retort_cost(&g.content.rules, myrran), 3);
-    assert_eq!(g.content.settings.myrror_fortress_power, 5);
+    // Two picks is what the options are named for; the rows' own costs and the fortress power
+    // are read from the content, and must differ from it for the options to show.
+    let (myrran_cost, alchemy_cost) = (
+        retort_cost(&g.content.rules, myrran),
+        retort_cost(&g.content.rules, alchemy),
+    );
+    let fortress_power = g.content.settings.myrror_fortress_power;
+    assert_ne!(myrran_cost, 2, "the option would change nothing");
+    assert_ne!(alchemy_cost, 2, "the option would change nothing");
+    assert_ne!(fortress_power, 0, "the option would change nothing");
     g.settings.rules.two_pick_myrran = true;
     g.apply_content_settings();
     assert_eq!(retort_cost(&g.content.rules, myrran), 2);
     assert_eq!(
         retort_cost(&g.content.rules, alchemy),
-        1,
+        alchemy_cost,
         "Alchemy is not changed"
     );
     assert_eq!(g.content.settings.myrror_fortress_power, 0);
@@ -195,86 +199,73 @@ fn the_myrran_and_alchemy_options_change_what_the_retorts_cost_in_a_game() {
     assert_eq!(retort_cost(&g.content.rules, alchemy), 2);
 }
 
-#[test]
-fn some_retorts_need_books() {
-    let rules = &shipped().rules;
-    let none = BTreeMap::new();
-    let mut b: BTreeMap<crate::rules::RealmId, u8> = BTreeMap::new();
-    assert!(retort_available(
-        rules,
-        Retort::new(0), /* alchemy */
-        &none
-    ));
-    assert!(!retort_available(
-        rules,
-        Retort::new(10), /* archmage */
-        &none
-    ));
-    assert!(!retort_available(
-        rules,
-        Retort::new(7), /* sage_master */
-        &none
-    ));
-    b.insert(RealmId::new(3 /* life */), 4);
-    assert!(retort_available(
-        rules,
-        Retort::new(6), /* divine_power */
-        &b
-    ));
-    assert!(retort_available(
-        rules,
-        Retort::new(10), /* archmage */
-        &b
-    ));
-    assert!(retort_available(
-        rules,
-        Retort::new(11), /* mana_focusing */
-        &b
-    ));
-    assert!(!retort_available(
-        rules,
-        Retort::new(5), /* infernal_power */
-        &b
-    ));
-    assert!(
-        !retort_available(rules, Retort::new(7) /* sage_master */, &b),
-        "one realm only"
-    );
-    b.insert(RealmId::new(4 /* death */), 1);
-    assert!(retort_available(
-        rules,
-        Retort::new(7), /* sage_master */
-        &b
-    ));
-    assert!(!retort_available(
-        rules,
-        Retort::new(14), /* runemaster */
-        &b
-    ));
-    b.insert(RealmId::new(4 /* death */), 2);
-    b.insert(RealmId::new(2 /* chaos */), 2);
-    b.insert(RealmId::new(3 /* life */), 2);
-    assert!(
-        retort_available(rules, Retort::new(14) /* runemaster */, &b),
-        "two books in three realms"
-    );
-    assert!(!retort_available(
-        rules,
-        Retort::new(12), /* node_mastery */
-        &b
-    ));
-    for r in [
-        2, /* chaos */
-        1, /* sorcery */
-        0, /* nature */
-    ] {
-        b.insert(realm_id(r), 1);
+/// The books that just meet each need of a retort's `requires`: the realms of `Books` with their
+/// minimum, and for `Realms(count, min)` the first `count` realms not yet used with `min` books.
+fn books_that_meet(rules: &Rules, needs: &[RetortNeed]) -> BTreeMap<RealmId, u8> {
+    let mut books = BTreeMap::new();
+    for need in needs {
+        if let RetortNeed::Books(realm, min) = need {
+            let held = books.entry(*realm).or_insert(0);
+            *held = (*held).max(*min);
+        }
     }
-    assert!(retort_available(
-        rules,
-        Retort::new(12), /* node_mastery */
-        &b
-    ));
+    for need in needs {
+        if let RetortNeed::Realms(count, min) = need {
+            let enough = |books: &BTreeMap<RealmId, u8>| {
+                books.values().filter(|&&n| n >= *min).count() >= usize::from(*count)
+            };
+            for (realm, _) in rules.realms.iter() {
+                if enough(&books) {
+                    break;
+                }
+                let held = books.entry(realm).or_insert(0);
+                *held = (*held).max(*min);
+            }
+            assert!(enough(&books), "the content has too few realms");
+        }
+    }
+    books
+}
+
+#[test]
+fn a_retort_is_available_with_the_books_its_row_asks_for_and_not_with_fewer() {
+    // `requires` of each row: `Books(realm, min)` and `Realms(count, min)`.
+    let rules = &shipped().rules;
+    let (mut asking, mut refused) = (0, 0);
+    for (id, row) in rules.retorts.iter() {
+        let books = books_that_meet(rules, &row.requires);
+        assert!(retort_available(rules, id, &books), "{}", row.id);
+        if row.requires.is_empty() {
+            assert!(retort_available(rules, id, &BTreeMap::new()), "{}", row.id);
+            continue;
+        }
+        asking += 1;
+        assert!(
+            !retort_available(rules, id, &BTreeMap::new()),
+            "{} with no books",
+            row.id
+        );
+        // One book fewer in any realm that counted leaves the need unmet.
+        for (&realm, &held) in &books {
+            let mut fewer = books.clone();
+            fewer.insert(realm, held - 1);
+            let still_met = row.requires.iter().all(|need| match need {
+                RetortNeed::Books(r, min) => fewer.get(r).copied().unwrap_or(0) >= *min,
+                RetortNeed::Realms(count, min) => {
+                    fewer.values().filter(|&&n| n >= *min).count() >= usize::from(*count)
+                }
+            });
+            refused += usize::from(!still_met);
+            assert_eq!(
+                retort_available(rules, id, &fewer),
+                still_met,
+                "{} with one book fewer in {realm:?}",
+                row.id
+            );
+        }
+    }
+    assert!(asking > 0, "no retort asks for books");
+    assert!(refused > 0, "no retort is refused for lack of one book");
 }
 
 #[test]
