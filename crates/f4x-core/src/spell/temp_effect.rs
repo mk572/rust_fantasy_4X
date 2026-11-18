@@ -199,7 +199,8 @@ impl<'a> UnitView<'a> {
             }
         }
         if self.unit_counts_as_undead(unit) {
-            for &a in crate::unit::undead::UNDEAD_IMMUNITIES {
+            for &n in &self.content.rules.config.abilities.undead_immunities {
+                let a = Ability::new(n);
                 if !out.contains(&a) {
                     out.push(a);
                 }

@@ -23,7 +23,6 @@
 //! Tests: in turn/tests.rs and spell/wizard/tests.rs.
 
 use crate::game::Game;
-use crate::rules::Ability;
 use crate::unit::{Unit, UnitView};
 use hecs::World;
 
@@ -33,14 +32,6 @@ pub struct Undead;
 
 /// The realm of the death creatures.
 pub const DEATH: crate::rules::RealmId = crate::rules::RealmId::new(4) /* death */;
-
-/// What an undead unit is immune to, besides what its kind already is.
-pub const UNDEAD_IMMUNITIES: &[Ability] = &[
-    Ability::new(16), // death immunity
-    Ability::new(10), // cold immunity
-    Ability::new(52), // poison immunity
-    Ability::new(31), // illusion immunity
-];
 
 impl UnitView<'_> {
     /// Whether the unit was made undead (not merely black channeled).

@@ -136,7 +136,7 @@ fn rolled_heroes_follow_init_heroes() -> TestResult {
             if !unit
                 .abilities
                 .iter()
-                .any(|x| f4x_core::hero::kind::MAGIC_RANGED.contains(x))
+                .any(|x| rules.config.abilities.magic_ranged.contains(&x.num()))
             {
                 assert_eq!(a.arcane_power, fixed.arcane_power, "{}", t.unit.num());
             }

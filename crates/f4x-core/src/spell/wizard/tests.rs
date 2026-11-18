@@ -1151,23 +1151,27 @@ fn chaos_channels_gives_one_mutation_once_and_makes_a_creature_of_chaos() {
         let units = g.units();
         assert_eq!(units.unit_realm(u), Some(RealmId::new(2 /* chaos */)));
         // The unit sheet names the mutation by this marker.
-        let marker = crate::unit::mutation::MUTATION_MARKERS
-            .iter()
-            .find(|(k, _)| *k == m)
-            .map(|(_, name)| *name)
-            .expect("a marker");
-        assert!(units.unit_has_ability(u, marker));
+        let rules = g.content.rules.config.abilities.mutation.clone();
+        assert!(units.unit_has_ability(u, m.marker(&rules)));
         match m {
             Mutation::Armor => {
-                assert_eq!(units.unit_stat(u, crate::rules::Stat::Defense), def0 + 3)
+                assert_eq!(
+                    units.unit_stat(u, crate::rules::Stat::Defense),
+                    def0 + rules.armor_defense
+                )
             }
             Mutation::Wings => {
-                assert!(units.unit_has_ability(u, Ability::new(24)));
-                assert!(units.unit_stat(u, crate::rules::Stat::Moves) >= mv0.max(2));
+                assert!(units.unit_has_ability(u, Ability::new(rules.wings_ability)));
+                assert!(
+                    units.unit_stat(u, crate::rules::Stat::Moves) >= mv0.max(rules.wings_moves)
+                );
             }
             Mutation::Breath => {
-                assert!(units.unit_has_ability(u, Ability::new(20)));
-                assert_eq!(units.unit_stat(u, crate::rules::Stat::Ranged), 2);
+                assert!(units.unit_has_ability(u, Ability::new(rules.breath_ability)));
+                assert_eq!(
+                    units.unit_stat(u, crate::rules::Stat::Ranged),
+                    rules.breath_strength
+                );
             }
         }
         let again = cast(&mut g, 93 /* chaos_channels */, Some(Target::Unit(u)));

@@ -10,67 +10,41 @@
 //!
 //! Tests: below.
 
-use crate::rules::{Ability, MovementType, Stat, UnitDef};
-
-/// Non-corporeal: doubles the rate and moves through any terrain.
-const NON_CORPOREAL: f32 = 3.0;
-/// Flying: over any terrain and across the water.
-const FLYING: f32 = 2.0;
-/// Wind walking: it flies the whole stack, so it rates above a unit that only flies itself.
-const WIND_WALKING: f32 = 3.0;
-/// Pathfinding: every land square for half a move, for the unit and the whole stack with it.
-const PATHFINDING: f32 = 2.0;
-/// Swimming: the water as well as the land.
-const SWIMMING: f32 = 1.5;
-/// Mountaineer and forester, each: the hills, mountains and forests at no extra cost.
-const TERRAIN_WISE: f32 = 1.2;
-/// Water walking: the water as the land, without a ship.
-const WATER_WALKING: f32 = 1.2;
-
-/// What carries a whole stack when any unit of it has it: every square of land costs half a move
-/// (pathfinding) or the stack flies (wind walking).
-const STACK_PATHFINDING: u16 = 50;
-const STACK_WIND_WALKING: u16 = 74;
-
-const ABILITY_NON_CORPOREAL: u16 = 49;
-const ABILITY_FLYING: u16 = 24;
-const ABILITY_MOUNTAINEER: u16 = 45;
-const ABILITY_FORESTER: u16 = 25;
-const ABILITY_WATER_WALKING: u16 = 71;
+use crate::rules::{Ability, AbilityRules, MovementType, Stat, UnitDef};
 
 /// How quickly a unit with `moves` movement points a turn, this kind of `movement` and the
-/// abilities `has` says it has, gets to a square: the rate times what its movement gives it.
-pub fn unit_mobility(moves: i32, movement: MovementType, has: impl Fn(Ability) -> bool) -> f32 {
-    let has = |n: u16| has(Ability::new(n));
+/// abilities `has` says it has, gets to a square: the rate times what its movement gives it
+/// (`AbilityRules::mobility` and the movement kinds, `rules.ron`).
+pub fn unit_mobility(
+    moves: i32,
+    movement: MovementType,
+    has: impl Fn(Ability) -> bool,
+    rules: &AbilityRules,
+) -> f32 {
     let rate = moves.max(0) as f32;
+    let percent = |p: u32| p as f32 / 100.0;
     // How the unit crosses ground: most of these overlap, so the best one that applies counts and
     // they are never multiplied together.
-    let kind = [
-        (has(ABILITY_NON_CORPOREAL), NON_CORPOREAL),
-        (has(STACK_WIND_WALKING), WIND_WALKING),
-        (
-            movement == MovementType::Flying || has(ABILITY_FLYING),
-            FLYING,
-        ),
-        (has(STACK_PATHFINDING), PATHFINDING),
-        (movement == MovementType::Swimming, SWIMMING),
-        (has(ABILITY_MOUNTAINEER), TERRAIN_WISE),
-        (has(ABILITY_FORESTER), TERRAIN_WISE),
-        (has(ABILITY_WATER_WALKING), WATER_WALKING),
-    ]
-    .into_iter()
-    .filter(|&(applies, _)| applies)
-    .map(|(_, m)| m)
-    .fold(1.0, f32::max);
-    rate * kind
+    let by_ability = rules
+        .mobility
+        .iter()
+        .filter(|&&(n, _)| has(Ability::new(n)))
+        .map(|&(_, p)| percent(p));
+    let by_movement = match movement {
+        MovementType::Flying => Some(percent(rules.flying_movement_pct)),
+        MovementType::Swimming => Some(percent(rules.swimming_movement_pct)),
+        _ => None,
+    };
+    rate * by_ability.chain(by_movement).fold(1.0, f32::max)
 }
 
 /// [`unit_mobility`] of a unit definition (a unit a city could build).
-pub fn def_mobility(d: &UnitDef) -> f32 {
+pub fn def_mobility(d: &UnitDef, rules: &AbilityRules) -> f32 {
     unit_mobility(
         d.stats.get(&Stat::Moves).map_or(0, |v| v.floor()),
         d.movement,
         |a| d.abilities.contains(&a),
+        rules,
     )
 }
 
@@ -78,8 +52,8 @@ pub fn def_mobility(d: &UnitDef) -> f32 {
 /// something that carries the whole stack (pathfinding: every land square for half a move; wind
 /// walking: the stack flies), which makes every unit of it twice as quick as its rate.
 /// `members` are the mobility and the movement rate of each unit; `carried` says whether any unit
-/// has a stack-carrying ability.
-pub fn party_mobility(members: &[(f32, i32)], carried: bool) -> f32 {
+/// has a stack-carrying ability. `flying` is the flying multiplier in percent.
+pub fn party_mobility(members: &[(f32, i32)], carried: bool, flying: f32) -> f32 {
     let slowest = members
         .iter()
         .map(|&(m, _)| m)
@@ -90,19 +64,17 @@ pub fn party_mobility(members: &[(f32, i32)], carried: bool) -> f32 {
     if !carried {
         return slowest;
     }
-    // Carried: each unit goes at twice its own rate, so the slowest of them sets the pace.
+    // Carried: each unit goes at the flying rate, so the slowest of them sets the pace.
     let lifted = members
         .iter()
-        .map(|&(m, rate)| m.max(FLYING * rate.max(0) as f32))
+        .map(|&(m, rate)| m.max(flying * rate.max(0) as f32))
         .fold(f32::INFINITY, f32::min);
     lifted.max(slowest)
 }
 
 /// Whether the unit has an ability that carries the stack it stands in (pathfinding, wind walking).
-pub fn carries_stack(has: impl Fn(Ability) -> bool) -> bool {
-    [STACK_PATHFINDING, STACK_WIND_WALKING]
-        .iter()
-        .any(|&n| has(Ability::new(n)))
+pub fn carries_stack(has: impl Fn(Ability) -> bool, rules: &AbilityRules) -> bool {
+    rules.stack_carriers.iter().any(|&n| has(Ability::new(n)))
 }
 
 #[cfg(test)]
@@ -112,103 +84,109 @@ mod tests {
 
     const NONE: fn(Ability) -> bool = |_| false;
 
-    /// The multipliers of the design: non-corporeal three times the rate, flying twice, swimming
-    /// one and a half, mountaineer and forester a fifth more; the best one counts, none is multiplied.
-    #[test]
-    fn the_movement_kinds_multiply_the_rate() {
-        let with = |n: u16| move |a: Ability| a == Ability::new(n);
-        assert_eq!(unit_mobility(2, MovementType::Walking, NONE), 2.0);
-        assert_eq!(unit_mobility(2, MovementType::Walking, with(49)), 6.0);
-        assert_eq!(unit_mobility(2, MovementType::Flying, NONE), 4.0);
-        assert_eq!(unit_mobility(2, MovementType::Walking, with(24)), 4.0);
-        assert_eq!(unit_mobility(2, MovementType::Swimming, NONE), 3.0);
-        assert!((unit_mobility(2, MovementType::Walking, with(45)) - 2.4).abs() < 1e-5);
-        let both = |a: Ability| a == Ability::new(45) || a == Ability::new(25);
-        assert!(
-            (unit_mobility(2, MovementType::Walking, both) - 2.4).abs() < 1e-5,
-            "the best one, not both multiplied"
-        );
-        // What carries a whole stack rates higher than what only helps the unit: wind walking
-        // above flying, pathfinding twice the rate of a walker.
-        assert_eq!(unit_mobility(2, MovementType::Walking, with(74)), 6.0);
-        assert!(
-            unit_mobility(2, MovementType::Walking, with(74))
-                > unit_mobility(2, MovementType::Walking, with(24))
-        );
-        assert_eq!(unit_mobility(2, MovementType::Walking, with(50)), 4.0);
-        let wise = |a: Ability| a == Ability::new(50) || a == Ability::new(45);
-        assert_eq!(
-            unit_mobility(2, MovementType::Walking, wise),
-            4.0,
-            "not on top of it"
-        );
+    fn rules() -> AbilityRules {
+        shipped().rules.config.abilities.clone()
     }
 
-    /// A flier with two moves gets there as quickly as a walker with four: the terrain holds the
-    /// walker up.
+    /// What the best ability of the table gives a walker of two moves.
+    fn with(n: u16) -> f32 {
+        unit_mobility(2, MovementType::Walking, |a| a == Ability::new(n), &rules())
+    }
+
+    fn pct(rules: &AbilityRules, n: u16) -> f32 {
+        let p = rules.mobility.iter().find(|&&(a, _)| a == n);
+        p.map_or(0.0, |&(_, p)| p as f32 / 100.0)
+    }
+
+    /// Each ability of the table multiplies the rate by its percent, the movement kinds too; the best
+    /// one counts, none is multiplied.
     #[test]
-    fn a_flier_of_two_moves_is_as_mobile_as_a_walker_of_four() {
-        assert_eq!(
-            unit_mobility(2, MovementType::Flying, NONE),
-            unit_mobility(4, MovementType::Walking, NONE)
+    fn the_movement_kinds_multiply_the_rate() {
+        let rules = rules();
+        assert_eq!(unit_mobility(2, MovementType::Walking, NONE, &rules), 2.0);
+        for &(n, p) in &rules.mobility {
+            let want = 2.0 * (p as f32 / 100.0).max(1.0);
+            assert!((with(n) - want).abs() < 1e-5, "ability {n}");
+        }
+        let flying = unit_mobility(2, MovementType::Flying, NONE, &rules);
+        assert!((flying - 2.0 * rules.flying_movement_pct as f32 / 100.0).abs() < 1e-5);
+        let swimming = unit_mobility(2, MovementType::Swimming, NONE, &rules);
+        assert!((swimming - 2.0 * rules.swimming_movement_pct as f32 / 100.0).abs() < 1e-5);
+        // Two abilities of the table: the better one, not both multiplied.
+        let mut best = rules.mobility.clone();
+        best.sort_by_key(|&(_, p)| p);
+        let ((a, pa), (b, pb)) = (best[best.len() - 1], best[best.len() - 2]);
+        let both = unit_mobility(
+            2,
+            MovementType::Walking,
+            |x| x == Ability::new(a) || x == Ability::new(b),
+            &rules,
         );
+        assert!((both - 2.0 * pa.max(pb) as f32 / 100.0).abs() < 1e-5);
+        assert!(pct(&rules, a) > 0.0);
+    }
+
+    /// What carries a whole stack rates at least as high as what only helps the unit.
+    #[test]
+    fn what_carries_the_stack_rates_above_what_helps_one_unit() {
+        let rules = rules();
+        let flying = unit_mobility(2, MovementType::Flying, NONE, &rules);
+        for &n in &rules.stack_carriers {
+            assert!(with(n) >= flying.min(4.0), "ability {n}");
+        }
+        assert!(!rules.stack_carriers.is_empty());
     }
 
     /// A party is as slow as its slowest unit, and magic that carries the stack lifts the slow
     /// ones.
     #[test]
     fn a_party_goes_at_the_pace_of_its_slowest_unit_unless_the_stack_is_carried() {
+        let flying = shipped().rules.config.abilities.flying_movement_pct as f32 / 100.0;
         let party = [(1.0, 1), (6.0, 3), (2.0, 2)];
-        assert_eq!(party_mobility(&party, false), 1.0);
+        assert_eq!(party_mobility(&party, false, flying), 1.0);
+        // Carried, each unit goes at the flying rate, the slowest of them sets the pace.
+        let lifted = party_mobility(&party, true, flying);
+        assert_eq!(lifted, (flying * 1.0).min(flying * 2.0).max(1.0));
+        assert_eq!(party_mobility(&[], false, flying), 0.0);
         assert_eq!(
-            party_mobility(&party, true),
-            2.0,
-            "the slowest at twice its rate"
-        );
-        assert_eq!(party_mobility(&[], false), 0.0);
-        assert_eq!(
-            party_mobility(&[(4.0, 2)], true),
-            4.0,
+            party_mobility(&[(4.0 * flying, 2)], true, flying),
+            4.0 * flying,
             "never lifted below what it has"
         );
     }
 
-    /// On the shipped content: a unit that flies or is non-corporeal is at least as mobile as a
-    /// walker of its own rate, and no unit is less mobile than its rate.
+    /// On the shipped content: no unit is less mobile than its rate, and a flier is at least as
+    /// mobile as the flying movement makes it.
     #[test]
     fn the_shipped_units_are_never_less_mobile_than_their_rate() {
         let c = shipped();
+        let rules = &c.rules.config.abilities;
         let mut fliers = 0;
         for (_, d) in c.rules.units.iter() {
             let rate = d.stats.get(&Stat::Moves).map_or(0, |v| v.floor());
-            let m = def_mobility(d);
+            let m = def_mobility(d, rules);
             assert!(m >= rate as f32, "{}", d.id);
             if d.movement == MovementType::Flying {
-                assert!(m >= 2.0 * rate as f32, "{}", d.id);
+                let flies = rules.flying_movement_pct as f32 / 100.0;
+                assert!(m >= flies * rate as f32, "{}", d.id);
                 fliers += 1;
             }
         }
         assert!(fliers > 5, "shipped fliers: {fliers}");
     }
 
-    /// The stack-carrying abilities exist in the shipped content with the numbers the code reads.
+    /// The abilities the table names are in the content.
     #[test]
-    fn the_carrying_abilities_are_pathfinding_and_wind_walking() {
+    fn the_abilities_of_the_table_are_in_the_content() {
         let c = shipped();
-        let id = |n: u16| {
-            c.rules
-                .abilities
-                .iter()
-                .map(|(_, d)| d)
-                .find(|d| d.num == n)
-                .map(|d| d.id.clone())
-        };
-        assert_eq!(id(STACK_PATHFINDING).as_deref(), Some("pathfinding"));
-        assert_eq!(id(STACK_WIND_WALKING).as_deref(), Some("wind_walking"));
-        assert_eq!(id(ABILITY_NON_CORPOREAL).as_deref(), Some("non_corporeal"));
-        assert_eq!(id(ABILITY_FLYING).as_deref(), Some("flying"));
-        assert_eq!(id(ABILITY_MOUNTAINEER).as_deref(), Some("mountaineer"));
-        assert_eq!(id(ABILITY_FORESTER).as_deref(), Some("forester"));
-        assert_eq!(id(ABILITY_WATER_WALKING).as_deref(), Some("water_walking"));
+        let rules = &c.rules.config.abilities;
+        let numbers = rules
+            .mobility
+            .iter()
+            .map(|&(n, _)| n)
+            .chain(rules.stack_carriers.iter().copied());
+        for n in numbers {
+            assert!(c.rules.abilities.iter().any(|(_, d)| d.num == n), "{n}");
+        }
     }
 }

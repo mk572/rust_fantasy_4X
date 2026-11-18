@@ -540,9 +540,12 @@ impl<'a> UnitView<'a> {
         let Some(def) = self.unit_def(unit) else {
             return 0.0;
         };
-        mobility::unit_mobility(self.unit_stat(unit, Stat::Moves), def.movement, |a| {
-            self.unit_has_ability(unit, a)
-        })
+        mobility::unit_mobility(
+            self.unit_stat(unit, Stat::Moves),
+            def.movement,
+            |a| self.unit_has_ability(unit, a),
+            &self.content.rules.config.abilities,
+        )
     }
 
     /// How quickly a party of units gets to a square: as quickly as the slowest, unless one of
@@ -552,10 +555,14 @@ impl<'a> UnitView<'a> {
             .iter()
             .map(|&u| (self.unit_mobility(u), self.unit_stat(u, Stat::Moves)))
             .collect();
-        let carried = units
-            .iter()
-            .any(|&u| mobility::carries_stack(|a| self.unit_has_ability(u, a)));
-        mobility::party_mobility(&members, carried)
+        let carried = units.iter().any(|&u| {
+            mobility::carries_stack(
+                |a| self.unit_has_ability(u, a),
+                &self.content.rules.config.abilities,
+            )
+        });
+        let flying = self.content.rules.config.abilities.flying_movement_pct as f32 / 100.0;
+        mobility::party_mobility(&members, carried, flying)
     }
 
     /// What the unit adds to a battle at full health: the one measure of strength

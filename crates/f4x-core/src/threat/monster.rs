@@ -19,10 +19,7 @@ use crate::unit::Unit;
 use f4x_def::half_int::HalfInt;
 use f4x_def::settings::MONSTER_START_TURN;
 
-/// The realm that keeps its monsters at home.
-const LIFE: RealmId = RealmId::new(3) /* life */;
-
-// The extra damage a rampage counts and the cheapest monster a budget buys are `threat` of `rules.ron`.
+// The realms that keep their monsters at home (`spared_realms`), the extra damage a rampage counts and the cheapest monster a budget buys are `threat` of `rules.ron`.
 
 impl Game {
     /// The realm of the creatures that guard a site, `None` for a site without guards.
@@ -44,12 +41,16 @@ impl Game {
     /// Run the monsters' clock and, when it runs out, let a stack take over a random lair.
     pub(super) fn make_monsters(&mut self) -> Vec<Event> {
         let d = u32::from(self.difficulty());
+        let spared = self.content.rules.config.threat.spared_realms.clone();
         let zones: Vec<_> = self
             .economy()
             .lairs()
             .into_iter()
             .filter(|l| l.intact && !l.guards.is_empty())
-            .filter(|l| self.guard_realm_of(&l.guards).is_some_and(|r| r != LIFE))
+            .filter(|l| {
+                self.guard_realm_of(&l.guards)
+                    .is_some_and(|r| !spared.contains(&r.num()))
+            })
             .collect();
         if zones.is_empty() {
             return Vec::new();

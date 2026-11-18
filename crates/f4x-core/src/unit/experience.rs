@@ -24,16 +24,13 @@ use crate::rules::UnitKind;
 use crate::unit::{Experience, UnitView, HEROISM, HEROISM_LEVEL};
 use hecs::World;
 
-/// A hero's ability ids.
-pub const ARMSMASTER: Ability = Ability::new(81);
-pub const SUPER_ARMSMASTER: Ability = Ability::new(82);
-
 impl UnitView<'_> {
     /// Experience a hero with Armsmaster gives its stack each turn (0 without the ability).
     pub fn armsmaster_xp(&self, hero: hecs::Entity) -> u32 {
-        let tier = if self.unit_has_ability(hero, SUPER_ARMSMASTER) {
+        let abilities = &self.content.rules.config.abilities;
+        let tier = if self.unit_has_ability(hero, Ability::new(abilities.super_armsmaster)) {
             f4x_def::hero::Tier::Super
-        } else if self.unit_has_ability(hero, ARMSMASTER) {
+        } else if self.unit_has_ability(hero, Ability::new(abilities.armsmaster)) {
             f4x_def::hero::Tier::Normal
         } else {
             return 0;
@@ -322,15 +319,26 @@ mod tests {
         let near = spawn(&mut g, 107 /* high_men_cavalry */, at(3, 3));
         let far = spawn(&mut g, 107 /* high_men_cavalry */, at(4, 3));
         // The real swordsman is an armsmaster; a hero's tier decides the xp per level.
-        let per = if g.units().unit_has_ability(hero, SUPER_ARMSMASTER) {
-            3
+        let abilities = g.content.rules.config.abilities.clone();
+        let tier = if g
+            .units()
+            .unit_has_ability(hero, Ability::new(abilities.super_armsmaster))
+        {
+            f4x_def::hero::Tier::Super
         } else {
-            2
+            f4x_def::hero::Tier::Normal
         };
-        assert!(g.units().unit_has_ability(hero, ARMSMASTER) || per == 3);
-        let level = g.units().unit_level(hero) as u32;
+        assert!(
+            g.units()
+                .unit_has_ability(hero, Ability::new(abilities.armsmaster))
+                || tier == f4x_def::hero::Tier::Super
+        );
+        let level = g.units().unit_level(hero);
         let first = g.units().armsmaster_xp(hero);
-        assert_eq!(first, (level + 1) * per);
+        assert_eq!(
+            first,
+            g.content.rules.hero_value("armsmaster", tier, level) as u32
+        );
         set_xp(&mut g, hero, 120);
         let top = g.units().armsmaster_xp(hero);
         assert!(top > first, "a higher level trains more");

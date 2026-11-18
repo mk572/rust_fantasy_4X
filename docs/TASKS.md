@@ -131,7 +131,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 675 | Medium | Rules | Battle rules numbers (strengths, costs, limits) move into content |
 | 676 | Medium | Rules | Experience, fame, spoils and hero constants move into content |
 | 677 | Medium | Rules | Spell effect numbers (city, dispel, terraform, wizard, world spells) move into content |
-| 678 | Medium | Rules | Abilities the code knows by number (mobility, armsmaster, mutation, undead, magic ranged) become flags on the ability rows |
 
 ## Descriptions
 
@@ -438,5 +437,3 @@ For each of the eleven: give it an intent read from its effect, as `f4x-ai/src/i
 **676. Experience, fame, spoils and hero constants move into content.** Found by task 483, 18 November 2026; the list and the reason are in [`constants-review.md`](constants-review.md), group "Experience, fame and spoils". Move the constants of the group into the row they belong to (or `rules.ron`), make the code read them, replace the tests that pin the numbers by tests that read them (or delete them), run `python3 scripts/ron_hashes.py --update` and check by changing a value that only the hash test fails.
 
 **677. Spell effect numbers (city, dispel, terraform, wizard, world spells) move into content.** Found by task 483, 18 November 2026; the list and the reason are in [`constants-review.md`](constants-review.md), group "Spell effects". Move the constants of the group into the row they belong to (or `rules.ron`), make the code read them, replace the tests that pin the numbers by tests that read them (or delete them), run `python3 scripts/ron_hashes.py --update` and check by changing a value that only the hash test fails.
-
-**678. Abilities the code knows by number (mobility, armsmaster, mutation, undead, magic ranged) become flags on the ability rows.** Found by task 483, 18 November 2026; the list and the reason are in [`constants-review.md`](constants-review.md), group "Abilities known by number". Move the constants of the group into the row they belong to (or `rules.ron`), make the code read them, replace the tests that pin the numbers by tests that read them (or delete them), run `python3 scripts/ron_hashes.py --update` and check by changing a value that only the hash test fails.

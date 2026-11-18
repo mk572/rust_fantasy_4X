@@ -179,7 +179,9 @@ fn best_soldier(view: &PlayerView, pool: &[UnitId], elite: bool, walks: bool) ->
             let power = f4x_core::battle::power::def_power(d);
             // An army walks to the fight, a garrison does not.
             let reach = if walks {
-                1.0 + 0.15 * (f4x_core::unit::mobility::def_mobility(d) - 1.0).max(0.0)
+                1.0 + 0.15
+                    * (f4x_core::unit::mobility::def_mobility(d, &rules.config.abilities) - 1.0)
+                        .max(0.0)
             } else {
                 1.0
             };

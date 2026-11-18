@@ -12,26 +12,10 @@
 
 use crate::game::rng::GameRng;
 use crate::game::Game;
-use crate::rules::Ability;
+use crate::rules::{Ability, MutationRules};
 use crate::rules::{ModOp, Modifier, MovementType, Source, Stat, UnitKind};
 use crate::spell::target_error::TargetError;
 use crate::unit::UnitView;
-
-/// The ability that marks a unit as mutated.
-pub const MUTATED: Ability = Ability::new(98);
-/// The ability that says which mutation a unit has, for the unit sheet to name it.
-pub const MUTATION_MARKERS: &[(Mutation, Ability)] = &[
-    (Mutation::Armor, Ability::new(104)),
-    (Mutation::Wings, Ability::new(105)),
-    (Mutation::Breath, Ability::new(106)),
-];
-
-/// Defence the demon-skin armour adds.
-const ARMOR_DEFENSE: i32 = 3;
-/// Moves (whole) a unit with demon wings has at least.
-const WINGS_MOVES: i32 = 2;
-/// Strength of the fire breath.
-const BREATH_STRENGTH: i32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mutation {
@@ -40,10 +24,24 @@ pub enum Mutation {
     Breath,
 }
 
+impl Mutation {
+    /// The ability that names this mutation on a unit, for the unit sheet.
+    pub fn marker(self, rules: &MutationRules) -> Ability {
+        Ability::new(match self {
+            Mutation::Armor => rules.armor_marker,
+            Mutation::Wings => rules.wings_marker,
+            Mutation::Breath => rules.breath_marker,
+        })
+    }
+}
+
 impl UnitView<'_> {
     /// Whether the unit has been mutated by chaos.
     pub fn unit_is_mutated(&self, unit: hecs::Entity) -> bool {
-        self.unit_has_ability(unit, MUTATED)
+        self.unit_has_ability(
+            unit,
+            Ability::new(self.content.rules.config.abilities.mutation.mutated),
+        )
     }
 }
 
@@ -69,15 +67,19 @@ impl Game {
     fn mutations_for(&self, unit: hecs::Entity) -> Vec<Mutation> {
         let units = self.units();
         let mut options = vec![Mutation::Armor];
+        let rules = &self.content.rules.config.abilities.mutation;
         let flies = units
             .unit_def(unit)
             .is_some_and(|d| matches!(d.movement, MovementType::Flying | MovementType::Sailing))
-            || units.unit_has_ability(unit, Ability::new(24));
+            || units.unit_has_ability(unit, Ability::new(rules.wings_ability));
         if !flies {
             options.push(Mutation::Wings);
         }
         let ranged = units.unit_stat(unit, Stat::Ranged);
-        if ranged <= 0 || (units.unit_has_ability(unit, Ability::new(69)) && ranged <= 3) {
+        if ranged <= 0
+            || (units.unit_has_ability(unit, Ability::new(rules.thrown_ability))
+                && ranged <= rules.thrown_most)
+        {
             options.push(Mutation::Breath);
         }
         options
@@ -93,33 +95,32 @@ impl Game {
         let channels =
             crate::spell::unit_effect::UnitEffect::ChaosChannels.spell_in(&self.content.rules)?;
         let source = Source::Spell(channels);
+        let rules = self.content.rules.config.abilities.mutation.clone();
         let who = crate::rules::exec::Target::Unit(unit);
         match pick {
             Mutation::Armor => self.add_temp_modifier(
                 who,
-                Modifier::new(Stat::Defense, ModOp::Add, ARMOR_DEFENSE, source),
+                Modifier::new(Stat::Defense, ModOp::Add, rules.armor_defense, source),
             ),
             Mutation::Wings => {
-                self.grant_temp_ability(who, Ability::new(24));
+                self.grant_temp_ability(who, Ability::new(rules.wings_ability));
                 self.add_temp_modifier(
                     who,
-                    Modifier::new(Stat::Moves, ModOp::Min, WINGS_MOVES, source),
+                    Modifier::new(Stat::Moves, ModOp::Min, rules.wings_moves, source),
                 );
             }
             Mutation::Breath => {
-                self.grant_temp_ability(who, Ability::new(20));
+                self.grant_temp_ability(who, Ability::new(rules.breath_ability));
                 for (stat, op, value) in [
-                    (Stat::Ranged, ModOp::Set, BREATH_STRENGTH),
-                    (Stat::Ammo, ModOp::Min, 1),
+                    (Stat::Ranged, ModOp::Set, rules.breath_strength),
+                    (Stat::Ammo, ModOp::Min, rules.breath_ammo),
                 ] {
                     self.add_temp_modifier(who, Modifier::new(stat, op, value, source));
                 }
             }
         }
-        self.grant_temp_ability(who, MUTATED);
-        if let Some((_, marker)) = MUTATION_MARKERS.iter().find(|(m, _)| *m == pick) {
-            self.grant_temp_ability(who, *marker);
-        }
+        self.grant_temp_ability(who, Ability::new(rules.mutated));
+        self.grant_temp_ability(who, pick.marker(&rules));
         Some(pick)
     }
 

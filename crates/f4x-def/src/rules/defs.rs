@@ -644,6 +644,10 @@ pub struct ItemPowerDef {
     pub ranged_bonus: i32,
     #[serde(default)]
     pub ranged_kinds: Vec<ItemKind>,
+    /// The power that puts a spell with charges in the item (a design names the spell and the
+    /// charges instead of listing it).
+    #[serde(default)]
+    pub holds_spell: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -748,6 +752,119 @@ pub struct RulesConfig {
     pub wizard: WizardRules,
     /// Making, holding and moving magic items.
     pub item: ItemRules,
+    /// The abilities the rules treat as a group, by number.
+    pub abilities: AbilityRules,
+    /// The rows of the content that a setting of the game changes.
+    pub targets: SettingTargets,
+}
+
+/// The rows a setting of the game changes: the retorts that cost two picks under Adamant Alchemy
+/// and 2-Pick Myrran, and the ships whose capacity the player sets (numbers of `retorts.ron` and
+/// `units.ron`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SettingTargets {
+    pub alchemy_retort: u16,
+    pub myrran_retort: u16,
+    pub trireme_unit: u16,
+    pub galley_unit: u16,
+}
+
+impl Default for SettingTargets {
+    fn default() -> Self {
+        Self {
+            alchemy_retort: 0,
+            myrran_retort: 9,
+            trireme_unit: 35,
+            galley_unit: 36,
+        }
+    }
+}
+
+/// Abilities (numbers of `abilities.ron`) the rules treat as a group, and what they are worth.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AbilityRules {
+    /// What a unit's ability does for how quickly it gets to a square, in percent of its movement
+    /// rate (`mobility`): `(ability, percent)`; the best that applies counts, none is multiplied.
+    pub mobility: Vec<(u16, u32)>,
+    /// The same for the movement kind of the unit: flying and swimming.
+    pub flying_movement_pct: u32,
+    pub swimming_movement_pct: u32,
+    /// Abilities that carry the whole stack a unit stands in (pathfinding, wind walking).
+    pub stack_carriers: Vec<u16>,
+    /// What an undead unit is immune to, besides what its kind already is.
+    pub undead_immunities: Vec<u16>,
+    /// The magic ranged attacks, the only ones Arcane Power adds to.
+    pub magic_ranged: Vec<u16>,
+    /// The hero abilities that train the stack, and their super forms.
+    pub armsmaster: u16,
+    pub super_armsmaster: u16,
+    pub mutation: MutationRules,
+}
+
+/// Chaos mutations: what each gives, and the abilities that mark a mutated unit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MutationRules {
+    /// The ability that marks a unit as mutated, and the ones that name its mutation.
+    pub mutated: u16,
+    pub armor_marker: u16,
+    pub wings_marker: u16,
+    pub breath_marker: u16,
+    /// The ability the wings give (flying) and the breath (fire breath).
+    pub wings_ability: u16,
+    pub breath_ability: u16,
+    /// The thrown-attack ability: a unit with it and a ranged attack of at most
+    /// `thrown_most` may still get the breath.
+    pub thrown_ability: u16,
+    pub thrown_most: i32,
+    /// Defence the demon-skin armour adds; whole moves a unit with wings has at least; strength
+    /// and ammunition of the fire breath.
+    pub armor_defense: i32,
+    pub wings_moves: i32,
+    pub breath_strength: i32,
+    pub breath_ammo: i32,
+}
+
+impl Default for MutationRules {
+    fn default() -> Self {
+        Self {
+            mutated: 98,
+            armor_marker: 104,
+            wings_marker: 105,
+            breath_marker: 106,
+            wings_ability: 24,
+            breath_ability: 20,
+            thrown_ability: 69,
+            thrown_most: 3,
+            armor_defense: 3,
+            wings_moves: 2,
+            breath_strength: 2,
+            breath_ammo: 1,
+        }
+    }
+}
+
+impl Default for AbilityRules {
+    fn default() -> Self {
+        Self {
+            mobility: vec![
+                (49, 300),
+                (74, 300),
+                (24, 200),
+                (50, 200),
+                (45, 120),
+                (25, 120),
+                (71, 120),
+            ],
+            flying_movement_pct: 200,
+            swimming_movement_pct: 150,
+            stack_carriers: vec![50, 74],
+            undead_immunities: vec![16, 10, 52, 31],
+            magic_ranged: vec![36, 22, 60, 14, 29, 58, 47],
+            armsmaster: 81,
+            super_armsmaster: 82,
+            mutation: MutationRules::default(),
+        }
+    }
 }
 
 /// What it costs to make an item and how many a wizard may hold and carry.
@@ -987,6 +1104,8 @@ pub struct ThreatRules {
     pub cheapest_monster: i32,
     /// Marriage and the Great Meteor wait for this turn.
     pub big_events_from_turn: u32,
+    /// Lairs guarded by creatures of these realms (realm numbers) do not send out monsters.
+    pub spared_realms: Vec<u16>,
 }
 
 impl Default for ThreatRules {
@@ -996,6 +1115,7 @@ impl Default for ThreatRules {
             rampage_damage: 40,
             cheapest_monster: 25,
             big_events_from_turn: 150,
+            spared_realms: vec![3 /* life */],
         }
     }
 }
@@ -1046,6 +1166,8 @@ impl Default for RulesConfig {
             event_ores: Vec::new(),
             wizard: WizardRules::default(),
             item: ItemRules::default(),
+            abilities: AbilityRules::default(),
+            targets: SettingTargets::default(),
         }
     }
 }

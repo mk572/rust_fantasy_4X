@@ -48,10 +48,7 @@ fn design(
     let magic = game.wizard(me)?;
     let kind = kind_for(slot);
     let mut powers = crafting::available_powers(kind, craft, &magic, rules);
-    powers.retain(|p| {
-        f4x_def::rules::ItemPowerId::new(p.num) != crafting::SPELL_CHARGES
-            && useful(p.bonus.map(|b| b.0))
-    });
+    powers.retain(|p| !p.holds_spell && useful(p.bonus.map(|b| b.0)));
     // The dearest first.
     powers.sort_by_key(|p| std::cmp::Reverse(p.cost));
     let mut design = ItemDesign {

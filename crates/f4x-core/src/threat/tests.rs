@@ -164,15 +164,38 @@ fn with_the_setting_off_the_clock_does_not_move() {
     );
 }
 
+/// The number of a creature of a realm the monsters do come from, and the realm's number.
+fn unspared_guard(g: &Game) -> Result<(u16, u16), String> {
+    guard_of_realms(g, false)
+}
+
+/// The same for a realm that keeps its monsters at home.
+fn spared_guard(g: &Game) -> Result<(u16, u16), String> {
+    guard_of_realms(g, true)
+}
+
+fn guard_of_realms(g: &Game, spared_realm: bool) -> Result<(u16, u16), String> {
+    let spared = &g.content.rules.config.threat.spared_realms;
+    g.content
+        .rules
+        .units
+        .iter()
+        .filter(|(_, d)| d.kind == crate::rules::UnitKind::Summoned)
+        .filter_map(|(id, d)| Some((id.num(), d.realm?.num())))
+        .find(|(_, realm)| spared.contains(realm) == spared_realm)
+        .ok_or("a creature of the realm asked for".into())
+}
+
 #[test]
 fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() -> TestResult {
     let mut g = world(0);
     g.settings.world.raiders_enabled = false;
     g.turn = 100;
+    let (guard, realm) = unspared_guard(&g)?;
     let site = g.put_lair(
         at(14, 8),
-        13,                   /* monster_lair */
-        lair(vec![(165, 2)]), /* skeletons */
+        13, /* monster_lair */
+        lair(vec![(guard, 2)]),
     );
     g.threat.monster_clock = 1000;
     let events = g.process_threats();
@@ -192,8 +215,7 @@ fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() -> 
     assert_eq!(lair.guards.iter().map(|(_, n)| n).sum::<u32>(), count);
     assert!(lair.guards.iter().all(|(id, _)| {
         let def = g.content.rules.units.get(*id);
-        def.kind == crate::rules::UnitKind::Summoned
-            && def.realm.map(|r| r.num()) == Some(4 /* death */)
+        def.kind == crate::rules::UnitKind::Summoned && def.realm.map(|r| r.num()) == Some(realm)
     }));
     assert!(lair.fought_by.is_empty(), "nobody knows the new guards");
     let roaming = g.units().player_units(MONSTERS);
@@ -211,13 +233,14 @@ fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() -> 
 }
 
 #[test]
-fn life_lairs_keep_their_guards() {
+fn life_lairs_keep_their_guards() -> TestResult {
     let mut g = world(0);
     g.turn = 100;
+    let (guard, _) = spared_guard(&g)?;
     g.put_lair(
         at(14, 8),
-        13,                   /* monster_lair */
-        lair(vec![(177, 1)]), /* angel */
+        13, /* monster_lair */
+        lair(vec![(guard, 1)]),
     );
     g.threat.monster_clock = 1000;
     assert!(g.process_threats().is_empty());
@@ -225,20 +248,23 @@ fn life_lairs_keep_their_guards() {
         g.threat.monster_clock, 1000,
         "no lair can send monsters, so the clock waits"
     );
+    Ok(())
 }
 
 #[test]
-fn nothing_comes_before_the_first_monster_turn_and_the_clock_starts_again() {
+fn nothing_comes_before_the_first_monster_turn_and_the_clock_starts_again() -> TestResult {
     let mut g = world(0);
     g.turn = g.monster_first_turn() - 1;
+    let (guard, _) = unspared_guard(&g)?;
     g.put_lair(
         at(14, 8),
-        13,                   /* monster_lair */
-        lair(vec![(165, 2)]), /* skeletons */
+        13, /* monster_lair */
+        lair(vec![(guard, 2)]),
     );
     g.threat.monster_clock = 1000;
     assert!(g.process_threats().is_empty());
     assert_eq!(g.threat.monster_clock, 0);
+    Ok(())
 }
 
 #[test]

@@ -72,5 +72,5 @@
     (num: 62, id: "merging", group: 9, cost: 1500, kinds: [Staff, Wand, Misc], realm: Some(0), books: 6, attack: Some(43)),
     (num: 63, id: "flight", group: 9, cost: 200, kinds: [Misc], realm: Some(1), books: 3, spell: Some(56)),
     (num: 64, id: "invisibility", group: 9, cost: 1000, kinds: [Misc], realm: Some(1), books: 5, spell: Some(62)),
-    (num: 65, id: "spell_charges", group: 9, cost: 1000, kinds: [Staff, Wand]),
+    (num: 65, id: "spell_charges", group: 9, cost: 1000, kinds: [Staff, Wand], holds_spell: true),
 ]

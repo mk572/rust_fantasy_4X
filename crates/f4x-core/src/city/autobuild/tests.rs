@@ -388,7 +388,7 @@ fn defense_and_exploration_pick_their_own_units() {
         top(Focus::Offense),
         top(Focus::Exploration),
     );
-    let explores = |id: &String| raw_profiles(by_id(id).expect("a shipped unit"))[2];
+    let explores = |id: &String| raw_profiles(by_id(id).expect("a shipped unit"), &c.rules)[2];
     for id in [&defense, &offense, &exploration] {
         assert!(by_id(id).is_some(), "{id}");
     }

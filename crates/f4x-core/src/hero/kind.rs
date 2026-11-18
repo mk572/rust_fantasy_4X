@@ -38,19 +38,6 @@ pub fn unit_of(rules: &Rules, kind: usize) -> Option<UnitId> {
     (rules.hero_templates.get(kind)?.unit == id).then_some(id)
 }
 
-/// The magic ranged attacks, the only ones Arcane Power adds to. (The original's `Init_Heroes`
-/// tests the range `rat_Fireball` to `rat_Nat_Bolt`, which leaves the lightning attack out, and
-/// lets a hero without any of them draw Arcane Power; we count lightning and skip the rest.)
-pub const MAGIC_RANGED: &[Ability] = &[
-    Ability::new(36), // lightning bolt
-    Ability::new(22), // fireball attack
-    Ability::new(60), // sorcery bolt
-    Ability::new(14), // death bolt
-    Ability::new(29), // ice bolt
-    Ability::new(58), // shaman bolt
-    Ability::new(47), // nature bolt
-];
-
 /// The 0-based experience level `xp` gives a unit on its level path.
 pub fn level_of(rules: &Rules, unit: UnitId, xp: u32) -> usize {
     rules
@@ -143,7 +130,12 @@ pub fn roll_one(
                 // draw (the original gives it to anyone but the Knight).
                 if abilities.arcane_power != Tier::Super
                     && mage > 0
-                    && MAGIC_RANGED.iter().any(|&a| has(a))
+                    && rules
+                        .config
+                        .abilities
+                        .magic_ranged
+                        .iter()
+                        .any(|&n| has(Ability::new(n)))
                 {
                     raise(&mut abilities.arcane_power);
                     spent = true;

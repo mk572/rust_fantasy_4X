@@ -457,17 +457,18 @@ fn lifetime_cost(d: &crate::rules::UnitDef) -> f32 {
 }
 
 /// The three profiles of a unit, before they are divided by the best candidate's.
-fn raw_profiles(d: &crate::rules::UnitDef) -> [f32; 3] {
+fn raw_profiles(d: &crate::rules::UnitDef, rules: &crate::rules::Rules) -> [f32; 3] {
+    let mobility = crate::unit::mobility::def_mobility(d, &rules.config.abilities);
     // What the unit adds to a battle is one number, whichever side begins it. An army unit is
     // also worth what it takes to get it to the fight: offence is that strength with the speed it
     // brings, defence is the strength alone (a garrison does not walk).
     let power = crate::battle::power::def_power(d);
-    let offense = power * (1.0 + 0.15 * (crate::unit::mobility::def_mobility(d) - 1.0).max(0.0));
+    let offense = power * (1.0 + 0.15 * (mobility - 1.0).max(0.0));
     let defense = power;
     let sailing = matches!(d.movement, MovementType::Sailing);
     // A scout is chosen by how quickly it gets about (`unit::mobility`): the rate times what its
     // movement and abilities do for it.
-    let exploration = crate::unit::mobility::def_mobility(d)
+    let exploration = mobility
         + (d.stat(Stat::Sight) * 2.0 - 1.0) * 0.25
         + if sailing { 1.5 } else { 0.0 }
         + d.stat(Stat::Transport) * 0.3
@@ -479,7 +480,7 @@ fn raw_profiles(d: &crate::rules::UnitDef) -> [f32; 3] {
 fn max_profiles(content: &Content, candidates: &[UnitId]) -> [f32; 3] {
     let mut best = [f32::EPSILON; 3];
     for &u in candidates {
-        let p = raw_profiles(content.rules.units.get(u));
+        let p = raw_profiles(content.rules.units.get(u), &content.rules);
         for i in 0..3 {
             best[i] = best[i].max(p[i]);
         }
@@ -502,7 +503,7 @@ fn best_defender(content: &Content, f: &CityFacts) -> Option<UnitId> {
     pool.into_iter()
         .map(|u| {
             let d = content.rules.units.get(u);
-            let s = raw_profiles(d)[1] / best[1] / lifetime_cost(d).sqrt();
+            let s = raw_profiles(d, &content.rules)[1] / best[1] / lifetime_cost(d).sqrt();
             (u, s)
         })
         .max_by(|a, b| a.1.total_cmp(&b.1))
@@ -574,7 +575,7 @@ fn ranked_units(
         .into_iter()
         .map(|u| {
             let d = content.rules.units.get(u);
-            let p = raw_profiles(d);
+            let p = raw_profiles(d, &content.rules);
             // Engineers are valued for the roads they build whatever the focus.
             let exp = if is_engineer(d) {
                 exp.max(ENGINEER_WEIGHT)

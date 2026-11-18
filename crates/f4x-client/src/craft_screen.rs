@@ -14,11 +14,11 @@ use crate::text::Args;
 use crate::ui;
 use f4x_core::game::{Command, Event};
 use f4x_core::item::crafting::{
-    available_powers, check, cost, made_name, Craft, ItemDesign, SPELL_CHARGES,
+    available_powers, check, cost, made_name, spell_charges, Craft, ItemDesign,
 };
 use f4x_def::rules::ItemPowerId;
 use f4x_def::rules::SpellId;
-use f4x_def::rules::{CastContext, ItemKind, ItemPowerDef, ItemRules};
+use f4x_def::rules::{CastContext, ItemKind, ItemPowerDef, ItemRules, Rules};
 use macroquad::prelude::*;
 
 use crate::craft_art::TAB_KEYS;
@@ -154,11 +154,11 @@ impl CraftUi {
 
     /// Choose a kind: the picture is the kind's first, and the powers the new kind cannot
     /// have go.
-    pub(crate) fn set_kind(&mut self, kind: ItemKind, allowed: &[ItemPowerId]) {
+    pub(crate) fn set_kind(&mut self, kind: ItemKind, allowed: &[ItemPowerId], rules: &Rules) {
         self.design.kind = kind;
         self.design.icon = kind.icon_range().0;
         self.design.powers.retain(|p| allowed.contains(p));
-        if !allowed.contains(&SPELL_CHARGES) {
+        if !spell_charges(rules).is_some_and(|c| allowed.contains(&c)) {
             self.design.charges = None;
         }
     }
@@ -436,7 +436,11 @@ impl Page for CraftUi {
             let on = kind == ui.design.kind;
             let rect = app.craft_tab(&lay, TAB_KEYS[i], on, (x, y), (!busy, input));
             if ui::hit(rect, click, input).clicked() {
-                ui.set_kind(kind, &app.craft_allowed(ui.craft, kind));
+                ui.set_kind(
+                    kind,
+                    &app.craft_allowed(ui.craft, kind),
+                    &app.game.content().rules,
+                );
                 ui.message = None;
             }
         }
@@ -508,7 +512,7 @@ impl Page for CraftUi {
                 let Some(power) = rules.item_powers.try_get(id) else {
                     continue;
                 };
-                let charges = id == SPELL_CHARGES;
+                let charges = rules.item_powers.try_get(id).is_some_and(|p| p.holds_spell);
                 let chosen = if charges {
                     ui.design.charges.is_some()
                 } else {
@@ -678,7 +682,10 @@ mod tests {
             .iter()
             .filter(|p| p.group == rules.free_group && p.bonus.is_none())
             .map(|p| p.num)
-            .filter(|&n| ItemPowerId::new(n) != SPELL_CHARGES)
+            .filter(|&n| {
+                ItemPowerId::new(n)
+                    != spell_charges(&shipped::content().rules).expect("the spell power")
+            })
             .collect();
         assert!(special.len() > rules.max_powers);
         for &id in &special[..rules.max_powers - 1] {
@@ -717,7 +724,11 @@ mod tests {
             ItemPowerId::new(6), /* defense_1 */
         ];
         ui.design.charges = Some((SpellId::new(83) /* fire_bolt */, 1));
-        ui.set_kind(ItemKind::Shield, &[ItemPowerId::new(6) /* defense_1 */]);
+        ui.set_kind(
+            ItemKind::Shield,
+            &[ItemPowerId::new(6) /* defense_1 */],
+            &shipped::content().rules,
+        );
         assert_eq!(ui.design.powers, [ItemPowerId::new(6) /* defense_1 */]);
         assert_eq!(ui.design.charges, None);
         assert_eq!(ui.design.icon, ItemKind::Shield.icon_range().0);

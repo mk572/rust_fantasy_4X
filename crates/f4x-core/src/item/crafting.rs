@@ -14,9 +14,16 @@ use serde::{Deserialize, Serialize};
 use crate::item::{Item, ItemBonus};
 use crate::rules::{ItemKind, ItemPowerDef, PowerBonus, Rules};
 
-/// The id of the power that puts a spell in the item; a design names the spell and the number of
-/// charges in [`ItemDesign::charges`] instead of listing the power.
-pub const SPELL_CHARGES: ItemPowerId = ItemPowerId::new(65); /* spell_charges */
+/// The power that puts a spell in the item (the row with `holds_spell`); a design names the spell
+/// and the number of charges in [`ItemDesign::charges`] instead of listing the power.
+pub fn spell_charges(rules: &Rules) -> Option<ItemPowerId> {
+    rules
+        .item_powers
+        .defs()
+        .iter()
+        .find(|p| p.holds_spell)
+        .map(|p| ItemPowerId::new(p.num))
+}
 /// The effect hook of the two crafting spells: the finished item goes to the armory.
 pub const CRAFT_ITEM: &str = "craft_item";
 
@@ -62,7 +69,7 @@ pub struct ItemDesign {
     /// gives the first of the range.
     #[serde(default)]
     pub icon: u16,
-    /// Numbers in `item_powers.ron`, not [`SPELL_CHARGES`].
+    /// Numbers in `item_powers.ron`, not [`spell_charges`].
     pub powers: Vec<ItemPowerId>,
     /// The spell the hero can cast from the item and how many times.
     pub charges: Option<(SpellId, u32)>,
@@ -170,7 +177,7 @@ pub fn check(
         let power = rules
             .item_powers
             .try_get(id)
-            .filter(|_| id != SPELL_CHARGES)
+            .filter(|p| !p.holds_spell)
             .ok_or(CraftError::UnknownPower)?;
         if design.powers[..i].contains(&id) {
             return Err(CraftError::Repeated);
@@ -186,7 +193,9 @@ pub fn check(
     if let Some((spell, charges)) = &design.charges {
         let power = rules
             .item_powers
-            .try_get(SPELL_CHARGES)
+            .defs()
+            .iter()
+            .find(|p| p.holds_spell)
             .ok_or(CraftError::UnknownPower)?;
         check_power(power, design.kind, craft, magic, rules)?;
         if !(1..=rules.config.item.max_charges).contains(charges) {
@@ -223,7 +232,7 @@ fn check_power(
 }
 
 /// The powers an item of `kind` may be given by this spell and wizard, in the table's order
-/// (the power list of the item screen). [`SPELL_CHARGES`] is among them for a staff or wand;
+/// (the power list of the item screen). [`spell_charges`] is among them for a staff or wand;
 /// choosing it needs a spell and a count as well.
 pub fn available_powers<'a>(
     kind: ItemKind,

@@ -211,19 +211,15 @@ impl HeroItems {
     }
 }
 
-/// The special powers that change the carrier's attacks in [`modifiers`] rather than becoming a
-/// lasting spell or an ability, or that do nothing to a unit.
-pub const OTHER_POWERS: &[ItemPowerId] = &[ItemPowerId::new(65) /* spell_charges */];
-
 /// Whether the rules do something with a special power: it puts a lasting spell on the carrier,
-/// gives an attack ability, adds to the blows (`melee_bonus`, `ranged_bonus`), or is one of
-/// [`OTHER_POWERS`].
+/// gives an attack ability, adds to the blows (`melee_bonus`, `ranged_bonus`), or holds a spell
+/// with charges (`holds_spell`), which the item's own charges carry out.
 pub fn power_is_handled(power: &ItemPowerDef) -> bool {
     power.spell.is_some()
         || power.attack.is_some()
         || power.melee_bonus != 0
         || power.ranged_bonus != 0
-        || OTHER_POWERS.contains(&ItemPowerId::new(power.num))
+        || power.holds_spell
 }
 
 /// The stat modifiers of the item in slot `slot` of a hero whose abilities are `abilities` and

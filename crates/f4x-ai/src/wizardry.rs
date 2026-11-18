@@ -849,7 +849,12 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
                 .into_iter()
                 .filter(|&u| {
                     is_fighter(view, u)
-                        && !view.unit_has_ability(u, f4x_core::unit::mutation::MUTATED)
+                        && !view.unit_has_ability(
+                            u,
+                            f4x_core::rules::Ability::new(
+                                view.content().rules.config.abilities.mutation.mutated,
+                            ),
+                        )
                 })
                 .collect();
             view.sort_by_serial(&mut units);

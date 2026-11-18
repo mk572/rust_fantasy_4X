@@ -527,9 +527,6 @@ pub const TRIREME_CAPACITY: u8 = 2;
 pub const GALLEY_CAPACITY: u8 = 5;
 /// The most a Trireme or Galley may carry.
 pub const MAX_SHIP_CAPACITY: u8 = 8;
-/// The unit numbers (`units.ron`) of the Trireme and the Galley.
-pub const TRIREME_UNIT: u16 = 35;
-pub const GALLEY_UNIT: u16 = 36;
 
 /// The original's first turn for monsters leaving their lairs.
 pub const MONSTER_START_TURN: u8 = 50;

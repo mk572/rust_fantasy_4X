@@ -192,11 +192,11 @@ fn every_rule_set_gives_a_valid_game_and_the_shipped_ships_carry_what_the_defaul
             .map(|u| u.stats[&crate::rules::Stat::Transport])
     };
     assert_eq!(
-        carries(TRIREME_UNIT),
+        carries(content.rules.config.targets.trireme_unit),
         Some(HalfInt::from_int(v131.rules.trireme_capacity.into()))
     );
     assert_eq!(
-        carries(GALLEY_UNIT),
+        carries(content.rules.config.targets.galley_unit),
         Some(HalfInt::from_int(v131.rules.galley_capacity.into()))
     );
 }
