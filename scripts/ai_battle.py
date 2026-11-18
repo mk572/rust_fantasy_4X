@@ -5,13 +5,16 @@
 
 Everything after the script name goes to `f4x-tools`. The reference (`crates/f4x-ai-ref`) is
 outside the workspace and is never repaired when a change breaks it. Before the battle this
-script forks it again from the live AI (`scripts/fork_ai.py`) if it is marked stale
-(`crates/f4x-ai-ref/STALE`), or if it no longer builds; then it builds `f4x-tools` with the
+script never forks it: if it is missing, marked stale (`crates/f4x-ai-ref/STALE`) or no longer
+builds, the script stops and says so, and the reference is forked by hand
+(`python3 scripts/fork_ai.py --from REF`, with `--replace` over an existing one). A reference is the
+baseline of a measurement and is expensive to rebuild: nothing replaces it behind your back. It
+builds `f4x-tools` with the
 `reference` feature (adding the reference to the `f4x-tools` manifest for the build, then
 restoring the manifest and `Cargo.lock`) and runs it through `scripts/cool_run.sh` (low priority,
 paused while the Mac is under thermal pressure; `AI_BATTLE_NO_COOL=1` runs it plainly) with four games at
-once unless `--jobs` says otherwise. A fork makes the reference equal to the live AI, so a battle
-right after one compares the AI with itself: freeze the AI before editing it (task 478).
+once unless `--jobs` says otherwise. A fork from the working tree makes the reference equal to the live AI,
+so a battle right after one compares the AI with itself: freeze the AI before editing it (task 478).
 """
 import argparse
 import os
@@ -32,9 +35,14 @@ DEPENDENCY = 'f4x-ai-ref = { path = "../f4x-ai-ref" }'
 BUILD = ["cargo", "build", "--release", "-p", "f4x-tools", "--features", "reference"]
 
 
-def fork_again(reason: str) -> None:
-    print(f"ai_battle: forking f4x-ai-ref again ({reason})", flush=True)
-    subprocess.run([sys.executable, str(FORK)], cwd=ROOT, check=True)
+def refuse(reason: str) -> int:
+    """Stop: the reference is never forked here, only by hand (it is the baseline of the battle)."""
+    print(
+        f"ai_battle: the reference AI (crates/f4x-ai-ref) {reason}. Nothing was forked or replaced.\n"
+        "Fork it by hand: python3 scripts/fork_ai.py --from REF   (add --replace over an existing one)",
+        file=sys.stderr,
+    )
+    return 1
 
 
 def build() -> subprocess.CompletedProcess:
@@ -51,8 +59,9 @@ def build() -> subprocess.CompletedProcess:
 
 HELP = """\
 Arguments after the script name go to `f4x-tools` unchanged (it validates them); `--jobs 4` is added
-unless given. `AI_BATTLE_NO_COOL=1` runs without `cool_run.sh`. The reference is forked again from the live
-AI, replacing the old one, when it is missing, marked stale or no longer builds.
+unless given. `AI_BATTLE_NO_COOL=1` runs without `cool_run.sh`. The reference is the one frozen by hand from the live
+AI. It is never forked here: when it is missing, marked stale or no longer builds the script stops and says
+so (fork it by hand: `scripts/fork_ai.py --from REF`, `--replace` over an existing one).
 """
 
 
@@ -77,13 +86,13 @@ def main() -> int:
         print("ai_battle.py: no f4x-tools command given (see --help)", file=sys.stderr)
         return 2
     if not (REFERENCE / "Cargo.toml").exists():
-        fork_again("there is none yet")
-    elif subprocess.run([sys.executable, str(FORK), "--is-stale"], cwd=ROOT).returncode:
-        fork_again("marked stale")
+        return refuse("does not exist")
+    if subprocess.run([sys.executable, str(FORK), "--is-stale"], cwd=ROOT).returncode:
+        return refuse("is marked stale")
     built = build()
     if built.returncode and "f4x-ai-ref" in built.stderr:
-        fork_again("it no longer builds")
-        built = build()
+        sys.stderr.write(built.stderr)
+        return refuse("no longer builds (it is not repaired)")
     sys.stderr.write(built.stderr)
     if built.returncode:
         return built.returncode

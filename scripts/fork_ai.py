@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Freeze the scripted strategic AI as the reference opponent of `f4x-tools soak-versus`.
 
-Copies `crates/f4x-ai` to `crates/f4x-ai-ref` (replacing the previous reference), renames the
+Copies `crates/f4x-ai` to `crates/f4x-ai-ref` (an existing reference is only replaced with
+`--replace`: it is the baseline of the battles and costly to rebuild), renames the
 package, and turns off its own tests (the live crate's tests already cover the same code). Edit
 `f4x-ai` afterwards; the reference keeps the old behaviour, and plays the neutral cities and
 monsters in every versus game.
 
-    python3 scripts/fork_ai.py [--from REF]
+    python3 scripts/fork_ai.py [--from REF] [--replace]
     python3 scripts/fork_ai.py --mark-stale [REASON]
     python3 scripts/fork_ai.py --is-stale
 
@@ -15,8 +16,8 @@ monsters in every versus game.
 The reference is outside the workspace (`exclude` in the root `Cargo.toml`), so a change to the
 core never breaks `cargo build/test --workspace`. When a change does break it, do not repair it:
 `--mark-stale` writes `crates/f4x-ai-ref/STALE`, its `build.rs` then refuses to build it, and
-`scripts/ai_battle.py` forks it again from the live AI before the next battle. A fork removes
-the marker. The copy is a standalone package (no workspace inheritance) with that `build.rs`.
+`scripts/ai_battle.py` then stops and asks for a fork by hand (it never forks itself). A fork
+removes the marker. The copy is a standalone package (no workspace inheritance) with that `build.rs`.
 """
 import argparse
 import io
@@ -132,6 +133,8 @@ def rewrite_manifest() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--from", dest="ref", help="a git ref to freeze instead of the working tree")
+    parser.add_argument("--replace", action="store_true",
+                        help="replace an existing reference (refused without it)")
     parser.add_argument("--mark-stale", nargs="?", const="broken by a change", metavar="REASON",
                         help="write the STALE marker instead of forking")
     parser.add_argument("--is-stale", action="store_true", help="exit 1 if the marker is there")
@@ -140,8 +143,15 @@ def main() -> int:
         return 1 if MARKER.exists() else 0
     if args.mark_stale:
         MARKER.write_text(args.mark_stale + "\n")
-        print(f"{MARKER.relative_to(ROOT)} written: the next battle forks the reference again")
+        print(f"{MARKER.relative_to(ROOT)} written: the next battle stops until the reference is forked by hand")
         return 0
+    if (REFERENCE / "Cargo.toml").exists() and not args.replace:
+        print(
+            "fork_ai: crates/f4x-ai-ref exists and is the baseline of the battles; nothing was changed.\n"
+            "Run again with --replace to overwrite it.",
+            file=sys.stderr,
+        )
+        return 1
     copy_tree(args.ref)
     rewrite_manifest()
     source = f"git ref {args.ref}" if args.ref else "the working tree"

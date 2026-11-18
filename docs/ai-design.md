@@ -493,9 +493,12 @@ To measure a change to the scripted strategic AI: freeze the AI before editing i
 by git and outside the workspace (`ai_battle.py` builds it with `f4x-tools --features reference`;
 `scripts/ai_snapshot.py begin` / `end` make and drop one around an experiment), so a change to the core never
 breaks the workspace's build or tests through it. When a change breaks it, do not repair it: mark
-it with `python3 scripts/fork_ai.py --mark-stale`; `ai_battle.py` forks it again from the live AI
-before the next battle (and does the same when it finds the reference no longer builds). A battle
-right after such a fork compares the AI with itself. Per seed it plays four games with the reference's
+it with `python3 scripts/fork_ai.py --mark-stale`. `ai_battle.py` never forks it: when the reference is
+missing, stale or no longer builds it stops and says so, and the reference is forked by hand
+(`python3 scripts/fork_ai.py --from REF`, with `--replace` over an existing one, which `fork_ai.py` refuses
+otherwise: the reference is the baseline of the measurement, and a fork from the working tree is the live
+AI, so a battle right after it compares the AI with itself; changed 18 November 2026 after the 14 November
+baseline was replaced by an automatic fork twice). Per seed it plays four games with the reference's
 neutral cities and monsters (so the neutrals stay the same whatever the live AI does; fork again
 after a change to `assault.rs` to test it): reference only, new in the first half of the seats,
 new in the second half, new only. The report gives per wizard and game the counts of

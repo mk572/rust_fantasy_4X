@@ -57,7 +57,7 @@ Refer to `docs/ecs-structure.md`
   find something like that.
 
 - **`crates/f4x-ai-ref` is never repaired.** It is outside the workspace; if a change breaks it, run
-  `python3 scripts/fork_ai.py --mark-stale` and go on. `scripts/ai_battle.py` forks it again before the
+  `python3 scripts/fork_ai.py --mark-stale` and go on. `scripts/ai_battle.py` never forks it itself: it stops and asks for a fork by hand (`python3 scripts/fork_ai.py --from REF --replace`) before the
   next AI battle (`docs/ai-design.md` 8.1a).
 
 - **Always check what scripts exist** before writing a new one or doing a repetitive job by hand:
