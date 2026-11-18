@@ -109,6 +109,9 @@ fn resend(
     use f4x_core::unit::movement::MoveError;
     let mut refused = Vec::new();
     for (unit, role, target) in lost {
+        // A unit with planar travel of its own (a shadow demon, or any unit with the spell or an
+        // item) changes plane where it stands, with no tower, gate or spell to wait for.
+        shift_by_itself(ai, game, unit, target, events);
         // `Err(true)`: no walk leads there; `Err(false)`: refused for another reason.
         let sent: Result<(), bool> = match role {
             Role::Raid | Role::March => crate::assault::march(ai, game, &[unit], target, events)
@@ -156,6 +159,33 @@ fn resend(
         }
     }
     refused
+}
+
+/// A unit on the other plane from `target` that can travel between the planes by itself shifts
+/// now (`Ability::new(51)`, its own, its enchantments' or its items'), so that its walk is an
+/// ordinary one and it is never tagged `Crossing::Plane`. Does nothing for any other unit, or
+/// while the game will not let it shift (Planar Seal, no moves left).
+fn shift_by_itself(
+    ai: &mut Ai,
+    game: &mut Game,
+    unit: hecs::Entity,
+    target: f4x_core::map::Position,
+    events: &mut Vec<Event>,
+) {
+    let shifts = {
+        let view = f4x_core::player::view::PlayerView::new(game, ai.player);
+        view.unit_position(unit)
+            .is_some_and(|p| p.plane != target.plane)
+            && view.unit_has_ability(unit, f4x_def::rules::Ability::new(51))
+            && view.can_shift_plane(&[unit])
+    };
+    if shifts {
+        let _ = ai.send(
+            game,
+            f4x_core::game::Command::ShiftPlane { units: vec![unit] },
+            events,
+        );
+    }
 }
 
 /// An escort that fell behind its charge (the stack was split by a fight, or the charge was
@@ -563,6 +593,32 @@ mod tests {
         // A new target clears the tag.
         ai.roles.set_target(serial, Role::Scout, Some(at(5, 9)));
         assert_eq!(ai.roles.crossing_of(serial), None);
+    }
+
+    /// A unit that travels between the planes by itself shifts and walks on: it is not tagged.
+    #[test]
+    fn a_unit_with_planar_travel_shifts_itself_instead_of_waiting_for_a_crossing() {
+        use crate::roles::Role;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut target = at(5, 9);
+        target.plane = f4x_core::map::Plane::Myrror;
+        let demon = spawn(&mut g, P0, at(9, 7), 171 /* shadow_demons */, 1)[0];
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        let serial = f4x_core::player::view::PlayerView::new(&g, P0).serial_of(demon);
+        let _ = ai.roles.claim(serial, Role::Scout, 1, Some(target));
+        let mut events = Vec::new();
+        revalidate(&mut ai, &mut g, &mut events);
+        assert_eq!(
+            ai.roles.crossing_of(serial),
+            None,
+            "no crossing to wait for"
+        );
+        assert_eq!(
+            g.units().unit_position(demon).map(|p| p.plane),
+            Some(f4x_core::map::Plane::Myrror),
+            "it is across"
+        );
     }
 
     /// A settler whose site no walk leads to waits for a ship with its site kept; the settler job
