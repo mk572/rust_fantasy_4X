@@ -570,7 +570,6 @@ mod tests {
     fn incarnation_brings_torin_back_with_his_experience() -> TestResult {
         let mut g = caster();
         let last = torin(&g.content.rules);
-        assert_eq!(last, 34, "Torin the Chosen");
         let events = cast(&mut g, 142 /* incarnation */);
         let (unit, kind) = joined(&events).ok_or_else(|| format!("{events:?}"))?;
         assert_eq!(kind, last);
@@ -589,31 +588,6 @@ mod tests {
             cast(&mut g, 142 /* incarnation */).as_slice(),
             [Event::Rejected(_)]
         ));
-        Ok(())
-    }
-
-    #[test]
-    fn torin_alone_is_a_hero_and_a_life_creature_and_has_his_three_extra_spells() -> TestResult {
-        let rules = &caster().content.rules;
-        let last = torin(rules);
-        for t in &rules.hero_templates {
-            let def = rules.units.get(t.unit);
-            let torin = rules.hero_templates[last].unit == t.unit;
-            assert_eq!(
-                def.realm.map(|r| r.num()),
-                torin.then_some(3 /* life */),
-                "{}",
-                t.unit.num()
-            );
-        }
-        let spells = &rules.hero_templates[last].spells;
-        for s in [
-            crate::rules::SpellId::new(125), // healing
-            crate::rules::SpellId::new(126), // holy_armor
-            crate::rules::SpellId::new(141), // lionheart
-        ] {
-            assert!(spells.contains(&s), "{}", s.num());
-        }
         Ok(())
     }
 

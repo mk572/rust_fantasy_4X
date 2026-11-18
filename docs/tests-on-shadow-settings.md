@@ -7,11 +7,11 @@ it"): a test reads the setting from the shipped rules and checks the game does w
 It is a text search for a test that reads the content and asserts a number, so most rows are a
 number used as the input of a scenario (no shadow setting); read each row's assert.
 
-**171 of 2505 tests.**
+**167 of 2508 tests.**
 
 | Crate | Tests |
 |---|---|
-| `f4x-core` | 106 |
+| `f4x-core` | 102 |
 | `f4x-ai` | 20 |
 | `f4x-newgame` | 19 |
 | `f4x-tools` | 10 |
@@ -134,9 +134,8 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 | `dispel_magic_takes_down_the_defenders_walls_of_fire_and_darkness` | 5600 | `assert!(downs >= 6, );` |
 | `spells_the_battle_reads_by_name_can_be_cast_and_stay_on_the_unit` | 6728 | `assert_eq!( cast_on_first(&mut g, 121 ), Err(BattleError::Spell(SpellError::AlreadyEnchanted)) );` |
 | `the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve` | 7058 | `assert_eq!(g.strategic_mana_default(A), Some(skill.clamp(1, 250)));` |
-| `the_dislike_a_battle_breeds_counts_every_unit_that_fell` | 7805 | `assert!(fallen >= 6, );` |
-| `the_twelve_units_with_a_casting_ability_cast_its_spell_once_for_no_mana` | 4046 | `assert_eq!(casters.len(), 12);` |
-| `wraith_form_is_no_shelter_from_flame_strike_death_spell_and_holy_word` | 7752 | `assert_eq!( (wraiths.len(), others.len()), (40, 32), );` |
+| `the_dislike_a_battle_breeds_counts_every_unit_that_fell` | 7804 | `assert!( fallen >= 2, );` |
+| `the_units_with_a_casting_ability_cast_its_spell_once_for_no_mana` | 4046 | `assert!(!cast.aims.is_empty(), ), (_, None) => return Err(format!( ).into()), } let aim = SpellAim::` |
 
 ## `crates/f4x-core/src/city/autobuild/tests.rs`
 
@@ -288,9 +287,8 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `incarnation_brings_torin_back_with_his_experience` | 570 | `assert_eq!(last, 34, );` |
+| `incarnation_brings_torin_back_with_his_experience` | 570 | `assert!(matches!( cast(&mut g, 142 ).as_slice(), [Event::Rejected(_)] ));` |
 | `summoning_is_refused_when_nobody_is_left_or_without_a_circle_and_costs_nothing` | 498 | `assert!(matches!( cast(&mut g, 208 ).as_slice(), [Event::Rejected(_)] ));` |
-| `torin_alone_is_a_hero_and_a_life_creature_and_has_his_three_extra_spells` | 596 | `assert_eq!( def.realm.map(/r/ r.num()), torin.then_some(3 ), , t.unit.num() );` |
 
 ## `crates/f4x-core/src/spell/stacking/tests.rs`
 
@@ -335,9 +333,7 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `a_units_allowance_is_its_moves` | 771 | `assert_eq!(max(104 , 1), 1);` |
-| `a_units_figures_come_from_a_world_and_content_alone` | 831 | `assert!(!units.unit_has_ability(e, Ability::new(24)));` |
-| `basic_troops_cost_half_the_upkeep_when_the_setting_is_on` | 786 | `assert_eq!(costs(&content), [(1, 1), (1, 1), (1, 1), (3, 1), (1, 1)]);` |
+| `a_units_figures_come_from_a_world_and_content_alone` | 857 | `assert!(!units.unit_has_ability(e, Ability::new(24)));` |
 
 ## `crates/f4x-core/src/unit/movement/tests.rs`
 

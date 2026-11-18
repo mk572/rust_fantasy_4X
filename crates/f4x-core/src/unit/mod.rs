@@ -777,8 +777,22 @@ mod tests {
             let e = spawn(&mut world, &content, Serial(n), owner, AT, def);
             UnitView::new(&world, &content).unit_max_moves(e)
         };
-        assert_eq!(max(104 /* high_men_spearmen */, 1), 1);
-        assert_eq!(max(107 /* high_men_cavalry */, 2), 2);
+        // The unit row's `Moves`.
+        for (n, serial) in [
+            (104 /* high_men_spearmen */, 1),
+            (107 /* high_men_cavalry */, 2),
+        ] {
+            let def = content
+                .rules
+                .units
+                .get(content.rules.units.id_numbered(n).expect("unit"));
+            assert_eq!(
+                max(n, serial),
+                HalfInt::from_int(def.stat(Stat::Moves) as i32),
+                "{}",
+                def.id
+            );
+        }
         Ok(())
     }
 
@@ -817,13 +831,25 @@ mod tests {
                 .map(|&u| (units.unit_gold_upkeep(u).floor(), units.unit_food(u).ceil()))
                 .collect::<Vec<_>>()
         };
-        // Off: every unit pays in full.
+        // Off: every unit pays what its row says (upkeep gold and food).
+        let full: Vec<(i32, i32)> = made
+            .iter()
+            .map(|&u| {
+                let def = UnitView::new(&world, &content).unit_def(u).expect("a unit");
+                (def.upkeep.gold.floor(), def.upkeep.food.ceil())
+            })
+            .collect();
         content.settings.half_upkeep.enabled = false;
-        assert_eq!(costs(&content), [(1, 1), (1, 1), (1, 1), (3, 1), (1, 1)]);
+        assert_eq!(costs(&content), full);
         content.settings.half_upkeep.enabled = true;
-        // A basic troop with an odd serial number is free (serials 1 to 5 here); the knight, with
-        // its own upkeep, is not touched.
-        assert_eq!(costs(&content), [(0, 0), (1, 1), (0, 0), (3, 1), (0, 0)]);
+        // A basic troop with an odd serial number is free (serials 1 to 5 here, the first, third
+        // and fifth); the paladin, a unit with its own upkeep, is not touched.
+        let half: Vec<(i32, i32)> = full
+            .iter()
+            .enumerate()
+            .map(|(i, &c)| if i % 2 == 0 && i != 3 { (0, 0) } else { c })
+            .collect();
+        assert_eq!(costs(&content), half);
         Ok(())
     }
 
@@ -841,8 +867,9 @@ mod tests {
         let units = UnitView::new(&world, &content);
         assert_eq!(units.unit_owner(e), Some(PlayerId(0)));
         assert_eq!(units.unit_position(e), Some(AT));
-        assert_eq!(units.unit_max_moves(e), 1);
-        assert_eq!(units.unit_moves_left(e), 1);
+        let moves = HalfInt::from_int(content.rules.units.get(spear).stat(Stat::Moves) as i32);
+        assert_eq!(units.unit_max_moves(e), moves);
+        assert_eq!(units.unit_moves_left(e), moves);
         let (left, max) = units.unit_hits(e);
         assert!(max > 0 && left == max);
         assert_eq!(units.unit_level(e), 0);
