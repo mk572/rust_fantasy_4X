@@ -16,7 +16,7 @@ What is wired:
 
 | Where | Plays |
 |---|---|
-| A left press that lands on a button (any screen; on the overland map and the battle field only outside the map window) | click, `SOUNDFX 2` |
+| A left press that lands on a button (any screen, on purpose: the original clicks on some screens and not on others, such as the menus, Settings and the diplomacy room, and the client stays the same on all of them (decided 18 November 2026); on the overland map and the battle field only outside the map window) | click, `SOUNDFX 2` |
 | Battle: a unit walks (each square), strikes in melee, shoots | its move sound, its `CMBTSND` melee sound, the shot sound of its missile type |
 | Battle: a spell is cast by a wizard or a unit | the spell's sound, as its picture starts |
 | Overland: a spell is cast (yours; rivals' with Enemy Spells on) | the spell's sound |
