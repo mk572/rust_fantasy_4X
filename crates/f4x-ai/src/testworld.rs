@@ -287,3 +287,19 @@ pub fn set_mana(g: &mut Game, mana: i32) -> Result<(), Box<dyn std::error::Error
     g.treasury_mut(P0).ok_or("a treasury")?.mana = f4x_def::half_int::HalfInt::from_int(mana);
     Ok(())
 }
+
+/// The west island filled with cities of player 0, as close as the rules let them stand.
+pub fn fill_west(g: &mut Game) {
+    let race = g.content().rules.races.id_numbered(8);
+    for x in 3..=10 {
+        for y in 3..=10 {
+            g.apply(Command::FoundCity {
+                owner: P0,
+                pos: at(x, y),
+                name: format!("C{x}{y}"),
+                race,
+                population: 5,
+            });
+        }
+    }
+}

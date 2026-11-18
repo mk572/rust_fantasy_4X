@@ -27,11 +27,14 @@ const KEEP_APART: u32 = 5;
 /// How many fighters a sea scout carries to put ashore.
 const PARTY: usize = 2;
 
-/// How many scouts the wizard wants.
-fn wanted(cities: usize) -> usize {
+/// How many scouts the wizard wants. While it builds up (`phase::Phase::Build`) it looks harder
+/// for places to settle and for its neighbours: two scouts until it has four cities. No settler is
+/// built before a place for a city is known, so the sooner the land is seen the sooner the second
+/// city is founded.
+pub(crate) fn wanted(cities: usize, building: bool) -> usize {
     let base = match cities {
         0 => 0,
-        1..=3 => 1,
+        1..=3 => 1 + usize::from(building),
         _ => 2,
     };
     base + crate::knob("SCOUTS", 0.0) as usize
@@ -74,7 +77,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     if ai.frontier_closed {
         return;
     }
-    let (scouts, cities) = {
+    let (scouts, cities, building) = {
         let view = PlayerView::new(game, me);
         let alive: Vec<Serial> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
         ai.roles.prune(&alive);
@@ -84,9 +87,13 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .filter(|&u| ai.roles.is_scouting(view.serial_of(u)))
             .collect();
         view.sort_by_serial(&mut scouts);
-        (scouts, view.my_cities().len())
+        (
+            scouts,
+            view.my_cities().len(),
+            crate::phase::phase(&view) == crate::phase::Phase::Build,
+        )
     };
-    if scouts.len() < wanted(cities) {
+    if scouts.len() < wanted(cities, building) {
         if let Some(unit) = recruit(ai, game, None) {
             let serial = PlayerView::new(game, me).serial_of(unit);
             let _ = ai
@@ -559,11 +566,37 @@ mod tests {
 
     #[test]
     fn the_number_of_scouts_grows_with_the_cities() {
-        assert_eq!(wanted(0), 0);
-        assert_eq!(wanted(1), 1);
-        assert_eq!(wanted(3), 1);
-        assert_eq!(wanted(4), 2);
-        assert_eq!(wanted(12), 2);
+        assert_eq!(wanted(0, true), 0);
+        assert_eq!(wanted(1, false), 1);
+        assert_eq!(wanted(3, false), 1);
+        assert_eq!(wanted(4, false), 2);
+        assert_eq!(wanted(12, false), 2);
+    }
+
+    #[test]
+    fn a_wizard_that_builds_up_wants_a_second_scout() {
+        assert_eq!(wanted(1, true), 2);
+        assert_eq!(wanted(3, true), 2);
+        assert_eq!(wanted(2, false), 1);
+    }
+
+    /// The two units a wizard starts with are one garrison and one scout (a new game, no map seen).
+    #[test]
+    fn of_the_two_starting_units_one_scouts_from_the_first_turn() -> TestResult {
+        use crate::roles::Role;
+        let mut g = crate::testworld::fresh_game()?;
+        let mut ai = Ai::new(crate::testworld::P0);
+        ai.play_turn(&mut g);
+        let view = PlayerView::new(&g, crate::testworld::P0);
+        let roles: Vec<Option<Role>> = view
+            .my_units()
+            .iter()
+            .map(|&u| ai.roles.role_of(view.serial_of(u)))
+            .collect();
+        assert_eq!(roles.len(), 2, "a wizard starts with two units: {roles:?}");
+        assert!(roles.contains(&Some(Role::Garrison)), "{roles:?}");
+        assert!(roles.contains(&Some(Role::Scout)), "{roles:?}");
+        Ok(())
     }
 
     #[test]

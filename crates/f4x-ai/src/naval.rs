@@ -362,7 +362,6 @@ fn sea_scout(ai: &mut Ai, game: &mut Game) {
         .iter()
         .any(|&(_, o, _)| view.is_rival_wizard(o));
     if ai.naval.is_some()
-        || ai.colony.is_some()
         || ai.campaign.is_some()
         || !ai.frontier_closed
         || !nothing_known
@@ -389,6 +388,29 @@ fn sea_scout(ai: &mut Ai, game: &mut Game) {
         ai.frontier_closed = false;
         ai.sea_scouting = true;
     }
+}
+
+/// The sea scout is called off: the ship has a settler to carry.
+pub(crate) fn release_scouts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    let me = ai.player;
+    let ships: Vec<hecs::Entity> = {
+        let view = PlayerView::new(game, me);
+        view.my_units()
+            .into_iter()
+            .filter(|&u| is_ship(&view, u) && ai.roles.is_scouting(view.serial_of(u)))
+            .collect()
+    };
+    if ships.is_empty() {
+        return;
+    }
+    let serials: Vec<Serial> = {
+        let view = PlayerView::new(game, me);
+        ships.iter().map(|&s| view.serial_of(s)).collect()
+    };
+    ai.roles.release_many(&serials, crate::roles::Role::Scout);
+    ai.roles.release_role(crate::roles::Role::SeaParty);
+    ai.sea_scouting = false;
+    ai.order(game, Command::ClearOrders { units: ships }, events);
 }
 
 #[cfg(test)]

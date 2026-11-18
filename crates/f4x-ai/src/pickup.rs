@@ -650,6 +650,7 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0};
+    use f4x_core::map::terrain::TerrainClass;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -1003,6 +1004,60 @@ mod tests {
         assert!(!rides_along(&view, a, b, 2));
         let home = at(COAST_CITY.0, COAST_CITY.1);
         assert!(!rides_along(&view, a, home, 100), "another landmass");
+        Ok(())
+    }
+
+    /// A settler gets the ship before soldiers that want it too.
+    #[test]
+    fn a_settler_gets_the_only_free_ship_before_soldiers() -> TestResult {
+        use crate::roles::{Crossing, Role};
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let land = {
+            let view = PlayerView::new(&g, P0);
+            crate::naval::landing(&view, at(ENEMY_CITY.0, ENEMY_CITY.1))
+                .ok_or("a shore on the far island")?
+                .0
+        };
+        // The settler's site is on the far island, on a tile that sorts after the port, so that the
+        // soldiers' group would come first were it not for the priority.
+        let site = {
+            let view = PlayerView::new(&g, P0);
+            (0..8i32)
+                .flat_map(|dy| (-6..=6i32).map(move |dx| (dx, dy)))
+                .filter_map(|(dx, dy)| view.shift(land, dx, dy))
+                .find(|&p| {
+                    p.y > port().y
+                        && view.terrain_class(p) != Some(TerrainClass::Ocean)
+                        && crate::view::is_coastal(&view, p)
+                })
+                .ok_or("a coastal tile on the far island south of the port")?
+        };
+        let soldiers = spawn(&mut g, P0, land, 104 /* spearmen */, 2);
+        let settler = spawn(&mut g, P0, port(), 111 /* high_men_settlers */, 1)[0];
+        spawn(&mut g, P0, port(), 36 /* galley */, 1);
+        let mut ai = Ai::new(P0);
+        let serials: Vec<(hecs::Entity, f4x_core::game::serial::Serial, Position)> = {
+            let view = PlayerView::new(&g, P0);
+            soldiers
+                .iter()
+                .map(|&u| (u, view.serial_of(u), port()))
+                .chain([(settler, view.serial_of(settler), site)])
+                .collect()
+        };
+        for &(_, s, to) in &serials {
+            let _ = ai.roles.claim(s, Role::Settle, g.turn, Some(to));
+            ai.roles.set_crossing(s, Some(Crossing::Sea));
+        }
+        crate::pickup::run(&mut ai, &mut g, &mut Vec::new());
+        let boards = |u: hecs::Entity| {
+            serials
+                .iter()
+                .find(|&&(e, _, _)| e == u)
+                .and_then(|&(_, s, _)| ai.roles.boarding_of(s))
+        };
+        assert!(boards(settler).is_some(), "the settler has the ship");
+        assert!(soldiers.iter().all(|&u| boards(u).is_none()));
         Ok(())
     }
 }

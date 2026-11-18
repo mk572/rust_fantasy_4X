@@ -83,7 +83,9 @@ fn mission_valid(
                     p == target && !view.is_rival_wizard(owner) && owner != ai.player
                 })
         }
-        Role::Settle => !ai.bad_sites.contains(&target) && view.city_at(target).is_none(),
+        // A target with a city on it is dropped (a landing square of a voyage is no site: the settler
+        // looks for one ashore).
+        Role::Settle => view.city_at(target).is_none(),
         Role::Scout => !view.explored(target),
         Role::Meld => crate::meld::open_nodes(ai, view).contains(&target),
         Role::Reinforce => view.my_cities().into_iter().any(|(_, p)| p == target),
@@ -319,9 +321,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::war::run(ai, game, events);
     // 5. raiding parties from the soldiers the war left over
     crate::raid::run(ai, game, events);
-    // The ships and the colonies (task 647)
+    // The ships (task 647)
     crate::naval::run(ai, game, events);
-    crate::colony::run(ai, game, events);
     crate::pickup::run(ai, game, events);
     crate::roles::audit(ai, game, events);
 }

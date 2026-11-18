@@ -32,6 +32,11 @@ pub struct Need {
     pub net_gold: HalfInt,
     /// A rival wizard's city is near.
     pub rival_near: bool,
+    /// The most soldiers the garrison floor asks of the city: while the wizard builds up and no enemy
+    /// is near, the soldiers `garrison::wanted_share` gives it, rounded up (`u32::MAX` otherwise).
+    pub garrison_cap: u32,
+    /// The wizard holds one city: its second city comes before the basics (the opening of a 4X game).
+    pub settler_first: bool,
 }
 
 /// Whether production in this city is for the AI to decide at the start of its turn: nothing in
@@ -293,7 +298,7 @@ pub fn next_item(
     let pool = soldiers(view, city);
 
     // 1. The garrison.
-    let mut minimum = garrison_minimum(eco.figures);
+    let mut minimum = garrison_minimum(eco.figures).min(need.garrison_cap);
     if minimum > 0 {
         minimum += u32::from(need.rival_near);
         match (plan.primary, plan.secondary) {
@@ -304,6 +309,13 @@ pub fn next_item(
     }
     if units_ok && defenders < minimum {
         if let Some(u) = best_soldier(view, &pool, false, false) {
+            return ProductionItem::Unit(u);
+        }
+    }
+
+    // 1b. The opening: a wizard with one city builds its first settler before anything else.
+    if need.settler_first && units_ok && plan.settlers && eco.figures >= plan.min_settler_pop {
+        if let Some(u) = cheapest_settler(view, city) {
             return ProductionItem::Unit(u);
         }
     }
@@ -466,6 +478,8 @@ mod tests {
             Need {
                 net_gold: HalfInt::from_int(5),
                 rival_near: false,
+                garrison_cap: u32::MAX,
+                settler_first: false,
             },
             4,
         );
@@ -500,6 +514,8 @@ mod tests {
         let need = Need {
             net_gold: HalfInt::from_int(10),
             rival_near: false,
+            garrison_cap: u32::MAX,
+            settler_first: false,
         };
         assert_eq!(specialty(&PlayerView::new(&g, P0), city, need), None);
         let gold_ore = g.content().features.id_numbered(10 /* gold_ore */);
@@ -537,6 +553,8 @@ mod tests {
         let need = Need {
             net_gold: HalfInt::from_int(10),
             rival_near: false,
+            garrison_cap: u32::MAX,
+            settler_first: false,
         };
         let expected = match crate::forge::step(&view, city) {
             crate::forge::Step::Ready(u) => Some(ProductionItem::Unit(u)),
@@ -579,6 +597,8 @@ mod tests {
         let need = Need {
             net_gold: HalfInt::from_int(10),
             rival_near: false,
+            garrison_cap: u32::MAX,
+            settler_first: false,
         };
         let b = specialty(&PlayerView::new(&g, P0), city, need);
         Ok((b, g))

@@ -70,12 +70,19 @@ pub fn wanted_strength(view: &PlayerView, at: Position) -> f32 {
 pub fn wanted_share(view: &PlayerView, at: Position) -> f32 {
     let wanted = garrison_wanted(view, at);
     let base = if view.fortress() == Some(at) { 2 } else { 1 };
-    let factor = if wanted == base {
-        phase_factor(crate::phase::phase(view))
+    if wanted != base {
+        return wanted as f32;
+    }
+    // While the wizard builds up, a city with no enemy near it holds the share of its defence the
+    // phase gives; above one soldier the share is rounded down to whole soldiers: the two units a
+    // wizard starts with are one garrison and one scout, not two garrisons (and `reinforce.rs` does
+    // not call the scout back to make up the difference).
+    let share = wanted as f32 * phase_factor(crate::phase::phase(view));
+    if share > 1.0 {
+        share.floor()
     } else {
-        1.0
-    };
-    wanted as f32 * factor
+        share
+    }
 }
 
 /// The soldiers of `at` that are its garrison (`Role::Garrison`): the slow, defensive units

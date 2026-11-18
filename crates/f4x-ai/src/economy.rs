@@ -10,7 +10,6 @@ use f4x_def::half_int::HalfInt;
 use f4x_def::rules::Ability;
 
 use crate::builder;
-use crate::expand;
 use crate::view::is_fighter;
 use crate::Ai;
 
@@ -41,7 +40,7 @@ pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// fighters beyond the first, at most [`MAX_SHIPS`].
 fn ships_wanted(ai: &Ai, view: &PlayerView) -> usize {
     let base = crate::knob("SHIPS", 1.0) as usize;
-    if ai.naval.is_none() || ai.colony.is_some() {
+    if ai.naval.is_none() {
         return base;
     }
     let fighters = view
@@ -55,11 +54,11 @@ fn ships_wanted(ai: &Ai, view: &PlayerView) -> usize {
 /// The most ships a landing builds.
 const MAX_SHIPS: usize = 4;
 
-/// How a wizard should grow: whether the land has room for another city, and how wide it leans
-/// (`phase::width`).
+/// How a wizard should grow: how many places for a city no settler has taken yet
+/// (`city_site::free_sites`), and how wide it leans (`phase::width`).
 #[derive(Clone, Copy)]
 struct Growth {
-    room: bool,
+    free_sites: usize,
     wide: f32,
 }
 
@@ -197,7 +196,11 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let planned = settlers_alive(&view) + in_production;
         (mine, planned)
     };
-    let room = expand::room_for_city(&PlayerView::new(game, me));
+    let free_sites = {
+        let view = PlayerView::new(game, me);
+        let taken = ai.roles.targets(crate::roles::Role::Settle);
+        crate::city_site::free_sites(ai.sites.refreshed(&view), &taken, &view)
+    };
     let wide = crate::phase::width(&PlayerView::new(game, me));
     let war_force = ai.campaign.map(|target| {
         let view = PlayerView::new(game, me);
@@ -206,9 +209,10 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     });
     let empire = Empire::of(&PlayerView::new(game, me));
     let roster = Roster::of(ai, &PlayerView::new(game, me));
-    // Nobody scouts and no soldier is spare: one city builds the unit that does (the first that
-    // is not full, so that the others go on with their plans).
-    let scout_city = (roster.scouts == 0
+    // Fewer scouts than a wizard that builds up wants (`scout::wanted`) and no soldier spare: one
+    // city builds the unit that scouts (the first that is not full, so that the others go on with
+    // their plans).
+    let scout_city = (roster.scouts < crate::scout::wanted(mine.len(), true)
         && roster.idle_fighters == 0
         && !ai.frontier_closed
         && crate::phase::phase(&PlayerView::new(game, me)) == crate::phase::Phase::Build)
@@ -257,20 +261,13 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let rescue_port = (roster.waiting > 0 && roster.ships == 0)
                 .then(|| rescue_port(ai, &view))
                 .flatten();
-            let port = ai
-                .naval
-                .map(|p| p.port)
-                .or(ai.sea_port)
-                .or(ai.colony.map(|c| c.port))
-                .or(rescue_port);
+            let port = ai.naval.map(|p| p.port).or(ai.sea_port).or(rescue_port);
             let broke = empire.broke();
             // The port of a landing builds the ship (and what the ship needs) when there is none.
             let port_item = (port == Some(pos)
                 && !broke
                 && !matches!(current, Some(ProductionItem::Building(_))))
-            .then(|| {
-                crate::naval::port_item(&view, city, ai.naval.is_some() && ai.colony.is_none())
-            })
+            .then(|| crate::naval::port_item(&view, city, ai.naval.is_some()))
             .flatten()
             // Ships that stand idle (`TransportFree`) are the fleet: no more are built.
             .filter(|_| roster.free_ships == 0)
@@ -287,13 +284,12 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .iter()
                     .filter(|&&u| crate::view::is_ship(&view, u))
                     .filter(|&&u| {
-                        (ai.naval.is_none() || ai.colony.is_some())
+                        ai.naval.is_none()
                             || view.unit_stat(u, f4x_def::rules::Stat::Transport) >= needed
                     })
                     .count()
                     < ships_wanted(ai, &view)
-            })
-            .or_else(|| colonist_item(ai, &view, &empire, city, pos));
+            });
             let threatened = ai.threatened.contains(&pos);
             // Only a city with nothing in hand (or Housing, or Trade Goods) gets a new goal; a
             // standing order is left alone, and counts no plan.
@@ -309,7 +305,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         roster,
                     },
                     &mut settlers_planned,
-                    Growth { room, wide },
+                    Growth { free_sites, wide },
                 )
             });
             let mut port_item = port_item;
@@ -371,6 +367,8 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         builder::Need {
                             net_gold: empire.net,
                             rival_near,
+                            garrison_cap: quiet_cap(&view, pos),
+                            settler_first: empire.cities <= 1,
                         },
                         defenders,
                     )
@@ -386,6 +384,17 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     game.end_kept_budget();
     spend_gold(ai, game, events);
+}
+
+/// The most soldiers the garrison floor asks of a city while the wizard builds up and no enemy is near
+/// it: the soldiers the phase gives it (`garrison::wanted_share`), rounded up; no limit otherwise.
+fn quiet_cap(view: &PlayerView, pos: Position) -> u32 {
+    let share = crate::garrison::wanted_share(view, pos);
+    if share < crate::view::garrison_wanted(view, pos) as f32 {
+        share.ceil() as u32
+    } else {
+        u32::MAX
+    }
 }
 
 /// The own coastal city nearest to the units awaiting transport: it builds the ship that fetches
@@ -411,35 +420,6 @@ fn rescue_port(ai: &Ai, view: &PlayerView) -> Option<Position> {
         })
         .min_by_key(|&(_, p)| (view.distance(p, waiting).unwrap_or(u32::MAX), p.y, p.x))
         .map(|(_, p)| p)
-}
-
-/// The settler a port builds for a voyage by sea once its ship is there: none while one waits in
-/// the port.
-fn colonist_item(
-    ai: &Ai,
-    view: &PlayerView,
-    empire: &Empire,
-    city: hecs::Entity,
-    pos: Position,
-) -> Option<ProductionItem> {
-    let waiting = view
-        .garrison(pos)
-        .into_iter()
-        .any(|u| view.unit_has_ability(u, Ability::new(12)));
-    let ship = view
-        .my_units()
-        .iter()
-        .any(|&u| crate::view::is_ship(view, u));
-    let size = view.city_economy(city).map_or(0, |e| e.figures);
-    (ai.colony.is_some_and(|c| c.port == pos)
-        && ai.colony_since == 0
-        && ship
-        && !waiting
-        && !empire.broke()
-        && size >= 3
-        && empire.spare_food >= HalfInt::ZERO)
-        .then(|| settler_item(view, city))
-        .flatten()
 }
 
 /// What every city's plan reads of the whole empire, worked out once for the round of cities:
@@ -523,7 +503,8 @@ fn plan_for(
         temper,
         ref known,
     } = *empire;
-    let Growth { room, wide } = growth;
+    let Growth { free_sites, wide } = growth;
+    let room = free_sites > 0;
     let size = view.city_economy(city).map_or(0, |e| e.figures);
     let garrison = view
         .garrison(pos)
@@ -540,7 +521,9 @@ fn plan_for(
     // with nobody marching wants attackers.
     let army_short = if threatened {
         true
-    } else if roster.idle_army() {
+    } else if roster.idle_army() || crate::phase::phase(view) == crate::phase::Phase::Build {
+        // While the wizard builds up, with nothing threatening, the army waits: the food and the
+        // production go to settlers and buildings (a soldier eats a settler's food).
         false
     } else {
         (fighters < home_guard + strike || (war_force.is_some() && roster.marching == 0))
@@ -586,11 +569,23 @@ fn plan_for(
     } else {
         Mix::Both
     };
-    // Settlers: while there is room for more cities, from a city big enough to spare them and
-    // fed well enough to keep them. A wizard that has found a place for a city always has one
-    // settler on the way (alive or in production), even a wizard that builds up and does not
-    // press for more cities.
-    let settlers = (expanding || (room && *settlers_planned == 0))
+    // Settlers: one for each place for a city that no settler has taken (`city_site`), no more, none
+    // while no place is known (the scouts find them: `scout.rs`, which looks harder while the wizard
+    // builds up), except the first settler of a wizard with one city; a wizard under the number of cities its objective wants takes them all, any other
+    // keeps one on the way (two or three when it leans wide), from a city big enough to spare them
+    // and fed well enough to keep them.
+    let wanted = crate::knob("CITIES", traits.cities_wanted as f32) as usize;
+    let cap = if free_sites == 0 {
+        // Nothing known yet: the wizard with one city starts its first settler anyway. A settler takes
+        // longer to build than the scouts take to find a place, and the city would spend those turns
+        // on units that eat the settler's food.
+        usize::from(all <= 1 && all + *settlers_planned < wanted)
+    } else if all + *settlers_planned < wanted {
+        free_sites
+    } else {
+        free_sites.min(more_settlers(wide).max(1))
+    };
+    let settlers = *settlers_planned < cap
         && size >= 3
         && !broke
         && spare_food >= HalfInt::ZERO
@@ -714,7 +709,11 @@ mod tests {
             },
             &mut planned,
             Growth {
-                room: expand::room_for_city(&view),
+                free_sites: crate::city_site::free_sites(
+                    &crate::city_site::scan(&view),
+                    &ai.roles.targets(crate::roles::Role::Settle),
+                    &view,
+                ),
                 wide: crate::phase::width(&view),
             },
         ))
@@ -723,6 +722,8 @@ mod tests {
     #[test]
     fn a_young_wizard_plans_for_growth_and_the_city_builds_by_the_plan() -> TestResult {
         let mut g = game(COAST_CITY, 8 /* high_men */);
+        // The wizard has looked at its island: there are places for cities.
+        g.explore(P0, crate::testworld::at(7, 6), HalfInt::from_int(4));
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         let city = capital(&g)?;
@@ -903,13 +904,72 @@ mod tests {
                 },
                 &mut planned,
                 Growth {
-                    room: true,
+                    free_sites: 1,
                     wide: 0.0,
                 },
             )
         };
         assert!(plan_with(0).settlers, "room and no settler on the way");
         assert!(!plan_with(1).settlers, "one is on the way");
+        Ok(())
+    }
+
+    /// The plan of the capital with `free` places for a city and `planned` settlers on the way, for
+    /// a wizard that has all the cities its objective wants.
+    fn plan_with_sites(
+        free: usize,
+        planned: usize,
+    ) -> Result<BuildPlan, Box<dyn std::error::Error>> {
+        let g = game(COAST_CITY, 8 /* high_men */);
+        let ai = Ai::new(P0);
+        let city = capital(&g)?;
+        let view = PlayerView::new(&g, P0);
+        let pos = g.city_position(city).ok_or("the city has a position")?;
+        let mut empire = Empire::of(&view);
+        empire.traits.cities_wanted = 0;
+        let mut planned = planned;
+        Ok(plan_for(
+            &view,
+            &empire,
+            city,
+            pos,
+            Pressure {
+                threatened: false,
+                war_force: None,
+                roster: Roster::of(&ai, &view),
+            },
+            &mut planned,
+            Growth {
+                free_sites: free,
+                wide: 1.0,
+            },
+        ))
+    }
+
+    #[test]
+    fn no_settler_is_planned_for_a_wizard_that_knows_no_place_for_a_city() -> TestResult {
+        assert!(!plan_with_sites(0, 0)?.settlers);
+        Ok(())
+    }
+
+    #[test]
+    fn a_settler_is_planned_only_while_places_are_left_that_no_settler_has_taken() -> TestResult {
+        assert!(
+            plan_with_sites(3, 2)?.settlers,
+            "three places, two settlers"
+        );
+        assert!(!plan_with_sites(3, 3)?.settlers, "a settler for each place");
+        assert!(!plan_with_sites(1, 1)?.settlers, "the one place is taken");
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_with_many_free_places_plans_more_than_one_settler() -> TestResult {
+        // The wizard builds wide (`phase::width`): several at a time, not just the one on the way.
+        assert!(
+            plan_with_sites(8, 1)?.settlers,
+            "one on the way, eight places"
+        );
         Ok(())
     }
 

@@ -14,7 +14,7 @@ mod assault;
 pub mod battle;
 mod budget;
 mod builder;
-mod colony;
+mod city_site;
 mod controller;
 mod craft;
 mod crowd;
@@ -87,8 +87,11 @@ pub struct Ai {
     pub player: PlayerId,
     /// The enemy city the army is gathering to attack, once it has chosen one.
     campaign: Option<Position>,
-    /// Sites the AI gave up on.
+    /// Nodes and raid sites the AI gave up on (task 667 replaces it; settlers no longer use it).
     bad_sites: Vec<Position>,
+    /// The ranked places for the next cities (`city_site.rs`).
+    #[serde(default)]
+    sites: city_site::SiteBook,
     /// Why settlers' plans ended without a city, for the soak (`settler_fate.rs`).
     #[serde(default)]
     settler_fates: settler_fate::SettlerFates,
@@ -121,12 +124,6 @@ pub struct Ai {
     /// The open tower an army crosses by to reach a rival's city on the other plane (`military.rs`).
     #[serde(default)]
     crossing: Option<Position>,
-    /// Settlers by sea (`colony.rs`): the voyage planned, the ship and settler on it and the turn
-    /// they set out, landings that failed, and the turn the search is made again.
-    colony: Option<colony::Colony>,
-    colony_since: u32,
-    colony_bad: Vec<Position>,
-    colony_retry: u32,
     /// Own cities the engineers found no road to build at, and how many cities there were then
     /// (`road.rs`).
     #[serde(default)]
@@ -238,6 +235,7 @@ impl Ai {
             player,
             campaign: None,
             bad_sites: Vec::new(),
+            sites: city_site::SiteBook::default(),
             settler_fates: settler_fate::SettlerFates::default(),
             bad_scout_targets: Vec::new(),
             frontier_closed: false,
@@ -253,10 +251,6 @@ impl Ai {
             planar_tower: None,
             tower_blocked: Vec::new(),
             crossing: None,
-            colony: None,
-            colony_since: 0,
-            colony_bad: Vec::new(),
-            colony_retry: 0,
             road_checked: Vec::new(),
             road_cities: 0,
             city_memory: HashMap::new(),
@@ -365,7 +359,7 @@ impl Ai {
         roles::register(self, game);
         let dropped = self.drop_stale_plans(game.turn);
         if dropped.sea {
-            colony::release_scouts(self, game, &mut events);
+            naval::release_scouts(self, game, &mut events);
         }
         if !dropped.release.is_empty() {
             let units: Vec<hecs::Entity> = {

@@ -34,8 +34,8 @@ A map from a unit's `Serial` to one `Assignment`, ordered by serial, saved with 
 A group is the set of units that share a `party` id (`new_party`, `group`, `members_of`,
 `party_of`). `with` ties one unit to another. Together they cover:
 
-- a **colony**: no role of its own (task 647): the settler holds `Settle` with the colony's site as
-  target and the tag `Crossing::Sea`, and a ship fetches it like any other waiting unit, settlers first;
+- a **settler by sea**: no role of its own (task 647): the settler holds `Settle` with a site of the
+  ranked list (`city_site.rs`) as target and the tag `Crossing::Sea`, and a ship fetches it like any other waiting unit, settlers first;
 - a **pickup** (task 647): the ship holds `TransportSpace` (or `TransportReady` when the units fill it) with
   `to` = the sea square, then `Transporting` with the drop square beside the destination; the units it
   came for keep their own roles, tagged `Crossing::Sea`, with `with` = the ship and `boarding` = the
@@ -44,8 +44,7 @@ A group is the set of units that share a `party` id (`new_party`, `group`, `memb
   charge no longer holds `Settle`, `Road` or `Meld` (it founded its city, finished, or died)
   `escort::run` releases the escort.
 
-The voyage data that is not about units (the landing plan, the colony plan, `naval_bad`,
-`colony_bad`) stays in the plan fields of `Ai`; only who is on it is in the registry.
+The voyage data that is not about units (the landing plan, `naval_bad`) stays in the plan fields of `Ai`; only who is on it is in the registry.
 
 ## 3. The roles
 
@@ -96,7 +95,7 @@ and the units planned for it are tied to it (`with`; they keep their own roles a
   cleared (a landing party is released: the war job judges it where it stands) and the ship is free.
 
 Every voyage is a pickup, whoever its units are: a landing party (`March` with the enemy city as
-target), a reinforcement, a colony settler. `Registry::plan_ship` sets the role from the count; the
+target), a reinforcement, a settler for a site over the sea. `Registry::plan_ship` sets the role from the count; the
 campaign has no ferry code of its own any more, and `Role::Voyage` and `Role::Colonize` are gone.
 
 `Pickup` in the code is a read-back of the registry (`pickup::voyages`), not a store.
@@ -138,7 +137,7 @@ stands**, and the turn is run by the dispatcher (`dispatch.rs`):
    unit reset to awaiting orders`.
 3. **The jobs, in the order of the checklist** (the list in `dispatch.rs`): a city in danger
    (`perimeter.rs`), settlers, engineers and spirits, escorts, scouts, then the old war code
-   (`site`, `military`, `naval`, `colony`, `pickup`) until tasks 646 and 647 move it into jobs. A job
+   (`site`, `military`, `naval`, `pickup`) until tasks 646 and 647 move it into jobs. A job
    takes units that are **free** (`Roles::is_free`: no task, not a city's garrison) and claims a
    role for them.
 4. **The audit** (`roles::audit`, the last step): tidy the registry, sync every unit again, and
@@ -249,9 +248,9 @@ their `party` and the rally as `to`.
 
 - A healer or a weak hero (much weaker than the average fighter) alone outside a city is given an
   escort from the nearest city (`escort::stragglers`); it ends in a city or in a stack of fighters.
-- A settler that waits in the port for the colony ship holds no role (`colony.rs`; the pickup planner
-  only fetches units tagged `Crossing::Sea`). When the colony's plan chooses a site, the settler in the port
-  gets it as its `Settle` target and the tag, and the pickup planner serves settlers before the other groups.
+- A settler whose site (`city_site.rs`) is over the sea holds `Settle` with that site as target and the tag
+  `Crossing::Sea`; the pickup planner fetches it, before the other groups, and the general rule for units waiting
+  for a ship builds one when none is free (`economy.rs`, `rescue_port`). There is no separate voyage plan.
 - Spirits: a spirit with a node to meld with holds `Meld`; one with none is recruited as a `Scout`
   (it flies); a node opening takes it from the scouting. The wizard summons a spirit ahead of
   every other spell when it has none and a node is open, a raid is out to clear one, or in the

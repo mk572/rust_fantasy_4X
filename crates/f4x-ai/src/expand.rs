@@ -1,18 +1,16 @@
 //! Settlers: choose a place for the next city, walk there and found it.
 
 use f4x_core::game::{Command, Event, Game};
-use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_def::rules::Ability;
 
+use crate::city_site::{Free, SPACING};
 use crate::view::{distance, nearest_unexplored};
 use crate::Ai;
 
-/// How far from the settler the AI looks for a site.
+/// How far from a city of the wizard `room_for_city` looks for a place for another.
 const SEARCH_RADIUS: i32 = 9;
-/// Sites keep this far apart from each other and from cities.
-const SPACING: u32 = 4;
 
 /// Is there ground near one of the wizard's cities where a city could still be founded? There is
 /// no cost to growing in this game, so a wizard keeps settling until the land is full.
@@ -65,6 +63,30 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         mine
     };
 
+    // The free settlers get a site each, the best site to the nearest settler.
+    let mut avoid_now: Vec<Position> = Vec::new();
+    let plan: Vec<(hecs::Entity, Position, bool)> = {
+        let view = PlayerView::new(game, me);
+        let list = ai.sites.refreshed(&view).to_vec();
+        let taken = ai.roles.targets(crate::roles::Role::Settle);
+        let free: Vec<Free> = mine
+            .iter()
+            .filter(|&&u| {
+                ai.roles
+                    .target_of(view.serial_of(u), crate::roles::Role::Settle)
+                    .is_none()
+            })
+            .filter_map(|&u| {
+                Some(Free {
+                    unit: u,
+                    at: view.unit_position(u)?,
+                    reach: view.reachable(&[u]),
+                })
+            })
+            .collect();
+        crate::city_site::assign(&view, &list, &free, &taken, &[])
+    };
+
     for unit in mine {
         let (pos, serial) = {
             let view = PlayerView::new(game, me);
@@ -103,7 +125,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     // It did not move all turn: the way is blocked. Give this site up.
                     ai.settler_fates
                         .note(crate::settler_fate::SettlerFate::WayBlocked);
-                    ai.bad_sites.push(target);
+                    avoid_now.push(target);
                     ai.roles
                         .set_target(serial, crate::roles::Role::Settle, None);
                     ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
@@ -118,21 +140,44 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .target_of(serial, crate::roles::Role::Settle)
             .is_none()
         {
-            let others: Vec<Position> = ai.roles.targets(crate::roles::Role::Settle);
-            let mut avoid = others;
-            avoid.extend(ai.bad_sites.iter().copied());
             let (site, scout) = {
                 let view = PlayerView::new(game, me);
-                match choose_site(&view, unit, pos, &avoid) {
-                    Some(site) => (Some(site), None),
-                    // No explored square will do: walk to unexplored land to see more of it.
+                let given = plan
+                    .iter()
+                    .find(|&&(u, _, _)| u == unit)
+                    .map(|&(_, site, ship)| (site, ship))
+                    .filter(|&(site, _)| !avoid_now.contains(&site) && view.can_found_city(site));
+                // The planned site, or the best one left for this settler alone (a settler whose
+                // site just failed, or one that came after the plan was made).
+                let chosen = given.or_else(|| {
+                    let list = ai.sites.refreshed(&view).to_vec();
+                    let taken = ai.roles.targets(crate::roles::Role::Settle);
+                    let free = [Free {
+                        unit,
+                        at: pos,
+                        reach: view.reachable(&[unit]),
+                    }];
+                    crate::city_site::assign(&view, &list, &free, &taken, &avoid_now)
+                        .first()
+                        .map(|&(_, site, ship)| (site, ship))
+                });
+                match chosen {
+                    Some(chosen) => (Some(chosen), None),
+                    // No site on the explored map: walk to unexplored land to see more of it.
                     None => (None, nearest_unexplored(&view, unit)),
                 }
             };
             match (site, scout) {
-                (Some(site), _) => {
+                (Some((site, ship)), _) => {
                     ai.roles
                         .set_target(serial, crate::roles::Role::Settle, Some(site));
+                    // A site over the sea: the settler waits for a ship like any unit tagged so (the
+                    // ship is built by the general rule, `economy.rs`).
+                    if ship {
+                        ai.roles
+                            .set_crossing(serial, Some(crate::roles::Crossing::Sea));
+                        continue;
+                    }
                 }
                 (None, Some(to)) => {
                     ai.order(
@@ -182,76 +227,6 @@ fn city_name(view: &PlayerView, unit: hecs::Entity) -> String {
         .copied()
         .map(|r| view.city_name_for(r, used))
         .unwrap_or_else(|| format!("Outpost {}", used + 1))
-}
-
-/// How good a city here would be: the land it can work (only what has been explored counts).
-fn site_value(view: &PlayerView, at: Position) -> f32 {
-    let mut value = 0.0;
-    for dy in -2i32..=2 {
-        for dx in -2i32..=2 {
-            if dx.abs() == 2 && dy.abs() == 2 {
-                continue;
-            }
-            let Some(p) = view.shift(at, dx, dy) else {
-                continue;
-            };
-            value += match view.terrain_class(p) {
-                Some(TerrainClass::Grassland | TerrainClass::SorceryNode) => 3.0,
-                Some(TerrainClass::Forest | TerrainClass::NatureNode | TerrainClass::Hills) => 2.0,
-                Some(TerrainClass::Swamp | TerrainClass::Mountains | TerrainClass::ChaosNode) => {
-                    1.0
-                }
-                Some(TerrainClass::Desert) | Some(TerrainClass::Tundra) => 0.5,
-                Some(TerrainClass::Ocean) => 0.7,
-                None => 0.0,
-            };
-            if view.has_river(p) {
-                value += 0.5;
-            }
-        }
-    }
-    value
-}
-
-fn choose_site(
-    view: &PlayerView,
-    unit: hecs::Entity,
-    from: Position,
-    taken: &[Position],
-) -> Option<Position> {
-    let mut candidates: Vec<(f32, Position)> = Vec::new();
-    for dy in -SEARCH_RADIUS..=SEARCH_RADIUS {
-        // Not the first or last row: nothing can be founded there.
-        let Some(row) = view.shift(from, 0, dy) else {
-            continue;
-        };
-        if row.y < 1 || view.shift(from, 0, dy + 1).is_none() {
-            continue;
-        }
-        for dx in -SEARCH_RADIUS..=SEARCH_RADIUS {
-            let Some(p) = view.shift(from, dx, dy) else {
-                continue;
-            };
-            if !view.can_found_city(p)
-                || view.has_lair(p)
-                || view.in_node(p)
-                || taken
-                    .iter()
-                    .any(|&t| distance(view, t, p).is_some_and(|d| d < SPACING))
-            {
-                continue;
-            }
-            let walk = dx.abs().max(dy.abs()) as f32;
-            candidates.push((site_value(view, p) - walk * 0.7, p));
-        }
-    }
-    candidates.sort_by(|a, b| b.0.total_cmp(&a.0));
-    let reachable = view.reachable(&[unit]);
-    candidates
-        .into_iter()
-        .take(10)
-        .map(|(_, p)| p)
-        .find(|&p| p == from || reachable.contains(&p))
 }
 
 #[cfg(test)]
@@ -347,7 +322,8 @@ mod tests {
     }
 
     #[test]
-    fn a_settler_that_did_not_move_all_turn_gives_its_site_up_and_chooses_another() -> TestResult {
+    fn a_settler_that_did_not_move_all_turn_leaves_its_site_for_now_and_chooses_another(
+    ) -> TestResult {
         let (mut g, units) = island_with_settlers(1);
         let mut ai = Ai::new(P0);
         settlers(&mut ai, &mut g, &mut Vec::new());
@@ -362,7 +338,7 @@ mod tests {
             .ok_or("the settler is on the map")?;
         ai.roles.track(serial, here, false);
         settlers(&mut ai, &mut g, &mut Vec::new());
-        assert!(ai.bad_sites.contains(&first), "{:?}", ai.bad_sites);
+        assert!(ai.bad_sites.is_empty(), "no blacklist: {:?}", ai.bad_sites);
         assert!(
             ai.settler_failures()
                 .contains(&("way to the site blocked", 1)),
@@ -411,6 +387,73 @@ mod tests {
             city_name(&view, units[0]),
             format!("{}_city_{used:02}", race.id)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_settler_on_a_full_island_is_sent_over_the_sea_and_founds_a_city_across() -> TestResult {
+        use crate::testworld::{build, fill_west, ENEMY_CITY};
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let port = at(COAST_CITY.0, COAST_CITY.1);
+        build(
+            &mut g,
+            port,
+            &[
+                12, /* ship_wrights_guild */
+                15, /* sawmill */
+                13, /* ship_yard */
+            ],
+        );
+        g.explore(P0, port, HalfInt::from_int(12));
+        for x in [16, 22, 26, 30] {
+            g.explore(P0, at(x, 6), HalfInt::from_int(3));
+        }
+        g.explore(P0, at(ENEMY_CITY.0 + 4, ENEMY_CITY.1), HalfInt::from_raw(7));
+        fill_west(&mut g);
+        spawn(&mut g, P0, port, 36 /* galley */, 1);
+        spawn(&mut g, P0, port, 111 /* high_men_settlers */, 1);
+        let mut ai = Ai::new(P0);
+        let before = PlayerView::new(&g, P0).my_cities().len();
+        for _ in 0..40 {
+            let mut events = Vec::new();
+            crate::roles::register(&mut ai, &g);
+            crate::dispatch::revalidate(&mut ai, &mut g, &mut events);
+            settlers(&mut ai, &mut g, &mut events);
+            crate::pickup::run(&mut ai, &mut g, &mut events);
+            g.apply(Command::EndTurn);
+        }
+        let cities = PlayerView::new(&g, P0).my_cities();
+        assert!(cities.len() > before, "{cities:?}");
+        assert!(
+            cities.iter().any(|&(_, p)| p.x >= 28),
+            "a city on the east island: {cities:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_settler_given_a_site_over_the_sea_is_tagged_for_a_ship_and_keeps_the_site() -> TestResult {
+        use crate::roles::{Crossing, Role};
+        use crate::testworld::{fill_west, ENEMY_CITY};
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let port = at(COAST_CITY.0, COAST_CITY.1);
+        g.explore(P0, port, HalfInt::from_int(12));
+        for x in [16, 22, 26, 30] {
+            g.explore(P0, at(x, 6), HalfInt::from_int(3));
+        }
+        g.explore(P0, at(ENEMY_CITY.0 + 4, ENEMY_CITY.1), HalfInt::from_raw(7));
+        fill_west(&mut g);
+        let settler = spawn(&mut g, P0, port, 111 /* high_men_settlers */, 1)[0];
+        let serial = PlayerView::new(&g, P0).serial_of(settler);
+        let mut ai = Ai::new(P0);
+        settlers(&mut ai, &mut g, &mut Vec::new());
+        let site = ai
+            .roles
+            .target_of(serial, Role::Settle)
+            .ok_or("the settler has a site")?;
+        assert!(site.x >= 28, "over the sea: {site:?}");
+        assert_eq!(ai.roles.crossing_of(serial), Some(Crossing::Sea));
+        assert!(ai.bad_sites.is_empty());
         Ok(())
     }
 }

@@ -31,8 +31,6 @@ pub enum PlanKind {
     Campaign,
     /// The landing from a port against a city on another land mass.
     Landing,
-    /// Settlers by sea.
-    Colony,
     /// A unit out on a raid of a tower, node, encounter site or neutral city.
     Raid,
     /// A settler on its way to the site it chose (key: the settler and the site).
@@ -49,10 +47,9 @@ pub enum PlanKind {
 // its clock, and `military.rs` calls the stack back every `MARCH_TURNS` and sends it out again.
 
 impl PlanKind {
-    pub const ALL: [PlanKind; 8] = [
+    pub const ALL: [PlanKind; 7] = [
         PlanKind::Campaign,
         PlanKind::Landing,
-        PlanKind::Colony,
         PlanKind::Raid,
         PlanKind::Settler,
         PlanKind::Scout,
@@ -73,7 +70,6 @@ impl PlanKind {
         match self {
             PlanKind::Campaign => "campaign",
             PlanKind::Landing => "landing",
-            PlanKind::Colony => "colony",
             PlanKind::Raid => "raid",
             PlanKind::Settler => "settler",
             PlanKind::Scout => "scout",
@@ -172,7 +168,6 @@ impl Ai {
         if turn.saturating_sub(clock.forgiven) >= FORGIVE_TURNS {
             clock.forgiven = turn;
             self.naval_bad.clear();
-            self.colony_bad.clear();
             self.bad_sites.clear();
             self.bad_scout_targets.clear();
             if std::mem::take(&mut self.sea_gave_up) {
@@ -197,22 +192,13 @@ impl Ai {
                 self.naval_bad.push(plan.target);
             }
         }
-        let colony: Vec<Key> = self.colony.map(|c| square(c.land)).into_iter().collect();
-        for key in clock.tick(PlanKind::Colony, turn, &colony) {
-            if let Some(c) = self.colony.filter(|c| square(c.land) == key) {
-                self.colony = None;
-                self.colony_bad.push(c.land);
-            }
-        }
         // The plans of single units: each unit's registry entry says when its plan began.
         for (serial, ..) in self.expired_plans(crate::roles::Role::Raid, PlanKind::Raid, turn) {
             self.roles
                 .retain_role(crate::roles::Role::Raid, |s| s != serial);
             clock.count(PlanKind::Raid);
         }
-        for (serial, site) in
-            self.expired_plans(crate::roles::Role::Settle, PlanKind::Settler, turn)
-        {
+        for (serial, _) in self.expired_plans(crate::roles::Role::Settle, PlanKind::Settler, turn) {
             // Waiting for a ship is a fault of its own, not a walk that took too long.
             self.settler_fates.note(
                 if self.roles.crossing_of(serial) == Some(crate::roles::Crossing::Sea) {
@@ -224,9 +210,6 @@ impl Ai {
             self.roles
                 .set_target(serial, crate::roles::Role::Settle, None);
             self.roles.clear_track(serial);
-            if let Some(site) = site {
-                self.bad_sites.push(site);
-            }
             out.release.push(serial);
             clock.count(PlanKind::Settler);
         }
@@ -356,22 +339,6 @@ mod tests {
     }
 
     #[test]
-    fn a_colony_voyage_is_dropped() {
-        let (mut ai, turn) = ai_at(10);
-        let c = crate::colony::Colony {
-            port: at(1, 1),
-            sea: at(2, 2),
-            land: at(3, 3),
-        };
-        ai.colony = Some(c);
-        ai.drop_stale_plans(turn);
-        ai.drop_stale_plans(turn + PLAN_TIMEOUT_TURNS);
-        assert_eq!(ai.colony, None);
-        assert_eq!(ai.colony_bad, vec![c.land]);
-        assert_eq!(ai.clock.dropped(PlanKind::Colony), 1);
-    }
-
-    #[test]
     fn a_raider_out_for_the_time_is_called_back_and_a_fresh_one_is_not() {
         let mut g = game(COAST_CITY, 8);
         let units = spawn(&mut g, P0, at(6, 3), 105, 2);
@@ -424,7 +391,7 @@ mod tests {
         assert_eq!(out.release, vec![s]);
         assert!(ai.roles.targets(crate::roles::Role::Settle).is_empty());
         assert_eq!(ai.roles.get(s).map(|a| a.stuck), Some(0));
-        assert_eq!(ai.bad_sites, vec![at(9, 9)]);
+        assert!(ai.bad_sites.is_empty(), "a slow settler blacklists nothing");
         assert_eq!(ai.clock.dropped(PlanKind::Settler), 1);
         assert_eq!(fates(&ai), [("did not arrive in time", 1)]);
     }
@@ -542,10 +509,9 @@ mod tests {
     fn the_failure_lists_are_forgiven_after_a_while() {
         let (mut ai, _) = ai_at(10);
         ai.naval_bad.push(at(9, 9));
-        ai.colony_bad.push(at(3, 3));
         ai.drop_stale_plans(10);
         assert!(!ai.naval_bad.is_empty());
         ai.drop_stale_plans(10 + FORGIVE_TURNS);
-        assert!(ai.naval_bad.is_empty() && ai.colony_bad.is_empty());
+        assert!(ai.naval_bad.is_empty());
     }
 }

@@ -667,12 +667,23 @@ impl<'a> PlayerView<'a> {
             return None;
         }
         let at = self.game.city_position(city)?;
-        let map = self.game.map()?;
+        Some(self.site_specials(at))
+    }
+
+    /// The special tiles in the area a city founded at `at` would work, as far as the player has
+    /// explored them (what is not explored counts for nothing).
+    pub fn site_specials(&self, at: Position) -> CitySpecials {
+        let mut out = CitySpecials::default();
+        let Some(map) = self.game.map() else {
+            return out;
+        };
         let grid = map.plane(at.plane);
         let features = &self.game.content().features;
         let nightshade = features.id_numbered(16); // nightshade
-        let mut out = CitySpecials::default();
         for (p, _) in self.game.economy().city_area(at) {
+            if !self.explored(p) {
+                continue;
+            }
             if grid.has_river(p.x as i32, p.y as i32) {
                 out.rivers += 1;
             }
@@ -694,7 +705,12 @@ impl<'a> PlayerView<'a> {
             out.food += def.city.food.as_f32();
             out.unit_cost_percent += def.city.unit_cost_percent as f32;
         }
-        Some(out)
+        out
+    }
+
+    /// Width and height of a plane of the map.
+    pub fn map_size(&self) -> Option<(u32, u32)> {
+        self.game.map().map(|m| (m.width(), m.height()))
     }
 
     /// Most units that may stand on one square in this game.

@@ -229,14 +229,30 @@ ships (step 8).
 
 ### 5.4 Economy (step 6)
 
+- **The opening** (Build phase). Of the two units a wizard starts with, one is the garrison and one scouts from turn 1
+  (`garrison::wanted_share` rounds the Build-phase share down to whole soldiers, so `reinforce.rs` does not call the scout
+  back); a wizard with fewer than four cities wants two scouts (`scout::wanted`); the capital builds its first settler
+  before the basics, with no army while nothing threatens; the site list is rebuilt as soon as a few new squares are explored.
+- **Where the next cities go** (`city_site.rs`, tasks 664 to 666). The AI keeps one ranked list of the
+  places on the explored map where a city can be founded (`SiteBook`, rebuilt when the number of known
+  cities changes and every five turns). A site is scored by the land its city would work (terrain for
+  food and growth, the production the land gives, mana, gold and food of special squares, cheaper
+  soldiers, rivers), the squares another city already works count for less, and the score rises with
+  nearness to the wizard's own cities and falls with nearness to a rival's (more at war) and with a
+  crossing: a site over the sea or on the other plane ranks below any site on the home land. Of two
+  sites too close to be two cities only the better is kept. Settlers get their sites in rank order, the
+  best site to the nearest settler (`assign`); a site is left out only for a reason the view shows (an
+  enemy in sight on or next to it, a city founded, the ground no longer taking one), and there is no list
+  of failed sites. A site over the sea is a site like any other with a crossing cost: its settler is tagged `Crossing::Sea` and waits for a ship, which the general rule for units waiting for a ship builds (`colony.rs` is gone).
+
 - **What a city builds** (`builder.rs`, `economy::cities`). The AI does not use the auto-builder of the core
   (the human's helper): a finished item leaves a city with nothing in hand (`design.md`, the rule for a
   finished item). At the start of its turn the AI looks at the cities with nothing, Housing or Trade
   Goods, and only those (a standing order is left alone), and picks the next item: the garrison minimum,
   unrest, then the basics (gold when the net is low, food where the city is stuck, production, gold),
-  then settlers where `plan_for` allows them (a wizard that has found a place for a city always has one
-  settler on the way, alive or in production, also when it builds up and does not press for more
-  cities), then, in a military city (first focus Offense: the share of its cities that the wizard's
+  then settlers where `plan_for` allows them (one for each place for a city that no settler has taken,
+  from the ranked list of `city_site.rs`, no more; a wizard that wants more cities and knows no place
+  yet sends one to look), then, in a military city (first focus Offense: the share of its cities that the wizard's
   objective gives to the army, and every city near a rival), the way to the strongest unit of the
   race (`forge::step`: the cheapest missing building the treasury carries, then the unit), then the
   city's specialty (the special tiles in its area,
@@ -611,7 +627,7 @@ unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/
   an ordinary move onto the land next to the target. What the AI would have to add: a port, the
   buildings, a gathering of nine or more units over several trips, and a landing area it holds
   until the force is whole. Built in `naval.rs` (port, ship, one landing at a time); a ship loaded for a rival's city declares war first; what stays open is a second ship, planes (a sea scout lands a fighter on empty land, a ship takes a party to a guarded tower, a scout changes plane on a cleared one; an army does not cross yet), and why seeds 2 and 8 make no landing on the other wizard (task 230).
-- **Settlers by sea** (`colony.rs`, 31 October 2026). A wizard whose land mass has no site left for a city and who holds fewer cities than its objective wants plans a voyage: the nearest explored land of another land mass that none of its own stands on and that has a site. The port builds a ship (a trireme or its guild first, not the yard chain: a ship that only scouts or carries one settler does not need a galley) and then a settler; the ship takes the settler to the sea square beside the land, and the settler steps ashore and is then an ordinary settler (`expand.rs`). The voyage waits for the sea scout to find land (it takes the scout's ship), and a landing on a rival's city waits for it (`naval::run`).
+- **Settlers by sea** (31 October 2026, rebuilt 18 November 2026: `colony.rs` is gone, task 665). A site on another landmass that a ship from a coastal city can reach over explored water is on the ranked list of `city_site.rs` with a crossing cost, below the sites of the home land. When no site is left on the home land a settler is given the best of them and tagged `Crossing::Sea`; the port builds the ship by the general rule for units waiting for one, the pickup planner (`pickup.rs`) fetches the settler first of all the groups, and after landing it is an ordinary settler (`expand.rs`). The sea scout is called off for the ship (`pickup.rs`, `naval::release_scouts`), and a landing on a rival's city waits for it (`naval::run`).
 - **Memory of enemy garrisons** and a **threat map** (section 5.2): a city out of sight is
   guessed at three average units.
 - **The special spells in the AI** (step 5): Earth Lore, Word of Recall and Nature's Cures are
