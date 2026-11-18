@@ -3457,12 +3457,20 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
     let plain = g
         .battle_unit_from(unit, Side::Attacker, 0)
         .ok_or("battle_unit_from is missing")?;
+    // A premade sword with a power that adds to the blow (`melee_bonus`) and a bonus of its own.
+    let rules = &shipped().rules;
     let sword = real_item(|d| {
         d.kind == ItemKind::Sword
             && d.powers
-                .contains(&crate::rules::ItemPowerId::new(33 /* flaming */))
+                .iter()
+                .any(|&p| rules.item_powers.get(p).melee_bonus > 0)
             && Item::from_def(d).bonus.attack > 0
     });
+    let blow: i32 = sword
+        .powers
+        .iter()
+        .map(|&p| rules.item_powers.get(p).melee_bonus)
+        .sum();
     let shield = real_item(|d| {
         let b = Item::from_def(d).bonus;
         d.kind == ItemKind::Shield && d.powers.is_empty() && b.defense > 0 && b.resistance > 0
@@ -3475,8 +3483,8 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
         .ok_or("battle_unit_from is missing")?;
     assert_eq!(
         armed.melee,
-        plain.melee + sword_bonus.attack + 3,
-        "attack and Flaming"
+        plain.melee + sword_bonus.attack + blow,
+        "the item's attack and its power's"
     );
     assert_eq!(armed.melee_plus, sword_bonus.to_hit);
     assert_eq!(armed.ranged_plus, 0);

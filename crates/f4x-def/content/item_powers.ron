@@ -2,6 +2,9 @@
 // bonus (`bonus`; movement in whole moves, spell save as the size of the penalty) or a special power with the
 // `realm` and number of `books` a wizard needs to add it. `group`: one power of a group per
 // item. `cost` is the mana to add it. A special power puts a lasting spell on the carrier (`spell`, an id of `spells.ron`), gives a special attack ability (`attack`), or is one of the few the code handles by its id (`items::OTHER_POWERS`).
+// `melee_bonus` and `ranged_bonus` add to the carrier's blows on top of the item's own bonus (Flaming 3
+// to both, Giant Strength 1 to the melee attack and, as `ranged_kinds` says, to a thrown axe); an empty
+// `ranged_kinds` means every item that counts for the ranged attack.
 // `num` is the original's power number (its row in ITEMPOW.LBX); `id` is the alias for human editing.
 [
     (num: 0, id: "attack_1", group: 0, cost: 50, kinds: [Sword, Mace, Axe, Bow, Staff, Wand, Misc], bonus: Some((Attack, 1))),
@@ -37,7 +40,7 @@
     (num: 30, id: "spell_save_2", group: 4, cost: 200, kinds: [Staff, Wand, Misc], bonus: Some((SpellSave, 2))),
     (num: 31, id: "spell_save_3", group: 4, cost: 400, kinds: [Staff, Misc], bonus: Some((SpellSave, 3))),
     (num: 32, id: "spell_save_4", group: 4, cost: 800, kinds: [Staff, Misc], bonus: Some((SpellSave, 4))),
-    (num: 33, id: "flaming", group: 9, cost: 300, kinds: [Sword, Mace, Axe, Bow, Staff, Wand], realm: Some(2), books: 2),
+    (num: 33, id: "flaming", group: 9, cost: 300, kinds: [Sword, Mace, Axe, Bow, Staff, Wand], realm: Some(2), books: 2, melee_bonus: 3, ranged_bonus: 3),
     (num: 34, id: "lightning", group: 9, cost: 800, kinds: [Sword, Mace, Axe, Bow, Staff, Wand], realm: Some(2), books: 5, attack: Some(1)),
     (num: 35, id: "chaos", group: 9, cost: 2000, kinds: [Sword, Mace, Axe, Bow, Staff], realm: Some(2), books: 6, attack: Some(101)),
     (num: 36, id: "destruction", group: 9, cost: 1000, kinds: [Sword, Mace, Axe, Bow, Staff, Wand], realm: Some(2), books: 5, attack: Some(100)),
@@ -48,7 +51,7 @@
     (num: 41, id: "true_sight", group: 9, cost: 500, kinds: [Misc], realm: Some(3), books: 6, spell: Some(131)),
     (num: 42, id: "resist_elements", group: 7, cost: 100, kinds: [Sword, Mace, Axe, Bow, Staff, Wand, Misc, Shield, Chainmail, Platemail], realm: Some(0), books: 2, spell: Some(2)),
     (num: 43, id: "elemental_armor", group: 7, cost: 500, kinds: [Sword, Mace, Axe, Bow, Staff, Wand, Misc, Shield, Chainmail, Platemail], realm: Some(0), books: 4, spell: Some(21)),
-    (num: 44, id: "giant_strength", group: 9, cost: 300, kinds: [Sword, Mace, Axe, Misc], realm: Some(0), books: 3),
+    (num: 44, id: "giant_strength", group: 9, cost: 300, kinds: [Sword, Mace, Axe, Misc], realm: Some(0), books: 3, melee_bonus: 1, ranged_bonus: 1, ranged_kinds: [Axe]),
     (num: 45, id: "stoning", group: 9, cost: 150, kinds: [Sword, Mace, Axe, Bow, Staff, Wand], realm: Some(0), books: 2, attack: Some(66)),
     (num: 46, id: "phantasmal", group: 9, cost: 1500, kinds: [Sword, Mace, Axe, Bow, Staff, Wand], realm: Some(1), books: 6, attack: Some(30)),
     (num: 47, id: "guardian_wind", group: 9, cost: 400, kinds: [Staff, Wand, Misc, Shield, Chainmail, Platemail], realm: Some(1), books: 3, spell: Some(44)),

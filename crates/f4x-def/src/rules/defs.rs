@@ -634,6 +634,16 @@ pub struct ItemPowerDef {
     /// The ability the power gives the carrier: a special attack, or Merging.
     #[serde(default)]
     pub attack: Option<Id<AbilityDef>>,
+    /// Added to the carrier's melee attack on top of the item's own attack bonus (Flaming 3,
+    /// Giant Strength 1).
+    #[serde(default)]
+    pub melee_bonus: i32,
+    /// Added to the carrier's ranged attack on top of the item's own attack bonus, for an item of
+    /// one of the `ranged_kinds` (any item that counts for the ranged attack when that is empty).
+    #[serde(default)]
+    pub ranged_bonus: i32,
+    #[serde(default)]
+    pub ranged_kinds: Vec<ItemKind>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

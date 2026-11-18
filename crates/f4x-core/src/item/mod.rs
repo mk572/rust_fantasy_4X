@@ -213,27 +213,32 @@ impl HeroItems {
 
 /// The special powers that change the carrier's attacks in [`modifiers`] rather than becoming a
 /// lasting spell or an ability, or that do nothing to a unit.
-pub const OTHER_POWERS: &[ItemPowerId] = &[
-    ItemPowerId::new(33), /* flaming */
-    ItemPowerId::new(44), /* giant_strength */
-    ItemPowerId::new(65), /* spell_charges */
-];
+pub const OTHER_POWERS: &[ItemPowerId] = &[ItemPowerId::new(65) /* spell_charges */];
 
 /// Whether the rules do something with a special power: it puts a lasting spell on the carrier,
-/// gives an attack ability, or is one of [`OTHER_POWERS`].
+/// gives an attack ability, adds to the blows (`melee_bonus`, `ranged_bonus`), or is one of
+/// [`OTHER_POWERS`].
 pub fn power_is_handled(power: &ItemPowerDef) -> bool {
     power.spell.is_some()
         || power.attack.is_some()
+        || power.melee_bonus != 0
+        || power.ranged_bonus != 0
         || OTHER_POWERS.contains(&ItemPowerId::new(power.num))
 }
 
 /// The stat modifiers of the item in slot `slot` of a hero whose abilities are `abilities` and
 /// who has a ranged attack if `has_ranged`. Defence, resistance and movement count for all
 /// items; attack and to hit go to the melee attack or the ranged one by the kind of the item
-/// (`Battle_Unit_Item_Stats`). Flaming adds 3 to both attacks and Giant Strength 1 to the melee
-/// attack (and to a thrown axe's). The item's to hit is kept apart from the unit's
+/// (`Battle_Unit_Item_Stats`). A power adds its `melee_bonus` and `ranged_bonus` (`item_powers.ron`:
+/// Flaming to both attacks, Giant Strength to the melee attack and a thrown axe's). The item's to hit is kept apart from the unit's
 /// ([`Stat::MeleeToHit`] and [`Stat::RangedToHit`]) because it counts for one attack only.
-pub fn modifiers(item: &Item, slot: u8, abilities: &[Ability], has_ranged: bool) -> Vec<Modifier> {
+pub fn modifiers(
+    rules: &Rules,
+    item: &Item,
+    slot: u8,
+    abilities: &[Ability],
+    has_ranged: bool,
+) -> Vec<Modifier> {
     let source = Source::Item(slot);
     let mut mods = Vec::new();
     let mut add = |stat: Stat, value: i32| {
@@ -245,25 +250,25 @@ pub fn modifiers(item: &Item, slot: u8, abilities: &[Ability], has_ranged: bool)
     add(Stat::Defense, b.defense);
     add(Stat::Resistance, b.resistance);
     add(Stat::Moves, b.moves.floor());
-    let flaming = if item.has_power(ItemPowerId::new(33) /* flaming */) {
-        3
-    } else {
-        0
-    };
-    let giant = if item.has_power(ItemPowerId::new(44) /* giant_strength */) {
-        1
-    } else {
-        0
-    };
+    let powers: Vec<&ItemPowerDef> = item
+        .powers
+        .iter()
+        .filter_map(|&p| rules.item_powers.try_get(p))
+        .collect();
+    let melee: i32 = powers.iter().map(|p| p.melee_bonus).sum();
     if item.adds_to_melee() {
-        add(Stat::Melee, b.attack + flaming + giant);
+        add(Stat::Melee, b.attack + melee);
         add(Stat::MeleeToHit, b.to_hit);
     }
     let kind = ranged_kind_of(abilities);
     let thrown = abilities.iter().any(|a| *a == Ability::new(69));
     if has_ranged && item.adds_to_ranged(kind, thrown) {
-        let giant = if item.kind == ItemKind::Axe { giant } else { 0 };
-        add(Stat::Ranged, b.attack + flaming + giant);
+        let ranged: i32 = powers
+            .iter()
+            .filter(|p| p.ranged_kinds.is_empty() || p.ranged_kinds.contains(&item.kind))
+            .map(|p| p.ranged_bonus)
+            .sum();
+        add(Stat::Ranged, b.attack + ranged);
         add(Stat::RangedToHit, b.to_hit);
     }
     mods
@@ -373,7 +378,9 @@ impl<'a> ItemView<'a> {
             .is_some_and(|d| d.stats.get(&Stat::Ranged).map_or(0, |v| v.floor()) > 0);
         items
             .iter()
-            .flat_map(|(slot, item)| modifiers(item, *slot, &abilities, has_ranged))
+            .flat_map(|(slot, item)| {
+                modifiers(&self.content.rules, item, *slot, &abilities, has_ranged)
+            })
             .collect()
     }
 }
@@ -442,7 +449,13 @@ mod tests {
             let b = Item::from_def(d).bonus;
             d.kind == ItemKind::Sword && d.powers.is_empty() && b.attack > 0 && b.to_hit > 0
         });
-        let mods = modifiers(&sword, 0, &[Ability::new(3 /* bow */)], true);
+        let mods = modifiers(
+            &shipped().rules,
+            &sword,
+            0,
+            &[Ability::new(3 /* bow */)],
+            true,
+        );
         assert_eq!(total(&mods, Stat::Melee), sword.bonus.attack);
         assert_eq!(total(&mods, Stat::MeleeToHit), sword.bonus.to_hit);
         assert_eq!(total(&mods, Stat::Ranged), 0);
@@ -459,14 +472,24 @@ mod tests {
         });
         let archer = vec![Ability::new(3 /* bow */)];
         let mage = vec![Ability::new(22 /* fireball_attack */)];
-        let ranged =
-            |item: &Item, who: &[Ability]| total(&modifiers(item, 0, who, true), Stat::Ranged);
+        let ranged = |item: &Item, who: &[Ability]| {
+            total(
+                &modifiers(&shipped().rules, item, 0, who, true),
+                Stat::Ranged,
+            )
+        };
         assert_eq!(ranged(&bow, &archer), bow.bonus.attack);
         assert_eq!(ranged(&bow, &mage), 0);
         assert_eq!(ranged(&staff, &mage), staff.bonus.attack);
         assert_eq!(ranged(&staff, &archer), 0);
         // Neither of them touches the melee attack.
-        assert_eq!(total(&modifiers(&bow, 0, &archer, true), Stat::Melee), 0);
+        assert_eq!(
+            total(
+                &modifiers(&shipped().rules, &bow, 0, &archer, true),
+                Stat::Melee
+            ),
+            0
+        );
     }
 
     #[test]
@@ -474,39 +497,83 @@ mod tests {
         let ring = real(|d| {
             d.kind == ItemKind::Misc && d.powers.is_empty() && Item::from_def(d).bonus.attack > 0
         });
-        let mods = modifiers(&ring, 2, &[Ability::new(3 /* bow */)], true);
+        let mods = modifiers(
+            &shipped().rules,
+            &ring,
+            2,
+            &[Ability::new(3 /* bow */)],
+            true,
+        );
         assert_eq!(total(&mods, Stat::Melee), ring.bonus.attack);
         assert_eq!(total(&mods, Stat::Ranged), ring.bonus.attack);
         // A hero with no ranged attack gets no phantom one.
-        let mods = modifiers(&ring, 2, &[], false);
+        let mods = modifiers(&shipped().rules, &ring, 2, &[], false);
         assert_eq!(total(&mods, Stat::Ranged), 0);
     }
 
     #[test]
     fn a_thrown_axe_counts_for_the_ranged_attack() {
-        // An axe with Giant Strength: +1 to the blow on top of its own bonus.
-        let giant = ItemPowerId::new(44);
-        let axe = real(|d| d.kind == ItemKind::Axe && d.powers == [giant]);
+        // An axe with a power that adds to the blow (Giant Strength): its `melee_bonus` and, thrown,
+        // its `ranged_bonus` on top of the axe's own bonus.
+        let rules = &shipped().rules;
+        let (id, power) = rules
+            .item_powers
+            .iter()
+            .find(|(_, p)| p.ranged_kinds.contains(&ItemKind::Axe))
+            .expect("a power that adds to a thrown axe");
+        let axe = real(|d| d.kind == ItemKind::Axe && d.powers == [id]);
         let thrower = vec![Ability::new(69 /* thrown */)];
-        let mods = modifiers(&axe, 0, &thrower, true);
-        assert_eq!(total(&mods, Stat::Melee), axe.bonus.attack + 1);
-        assert_eq!(total(&mods, Stat::Ranged), axe.bonus.attack + 1);
-        let mods = modifiers(&axe, 0, &[], false);
+        let mods = modifiers(rules, &axe, 0, &thrower, true);
+        assert_eq!(
+            total(&mods, Stat::Melee),
+            axe.bonus.attack + power.melee_bonus
+        );
+        assert_eq!(
+            total(&mods, Stat::Ranged),
+            axe.bonus.attack + power.ranged_bonus
+        );
+        let mods = modifiers(&shipped().rules, &axe, 0, &[], false);
         assert_eq!(total(&mods, Stat::Ranged), 0);
     }
 
     #[test]
-    fn flaming_and_giant_strength_add_to_the_blow() {
-        let flaming = ItemPowerId::new(33);
-        // A flaming sword: the blow gets 3 over its own bonus.
-        let blade = real(|d| d.kind == ItemKind::Sword && d.powers == [flaming]);
-        let mods = modifiers(&blade, 0, &[], false);
-        assert_eq!(total(&mods, Stat::Melee), blade.bonus.attack + 3);
-        // A bow's flaming arrows get the 3 and its own bonus goes to the arrows too.
-        let bow = real(|d| d.kind == ItemKind::Bow && d.powers == [flaming]);
-        let mods = modifiers(&bow, 0, &[Ability::new(3 /* bow */)], true);
-        assert_eq!(total(&mods, Stat::Ranged), bow.bonus.attack + 3);
-        assert_eq!(total(&mods, Stat::Melee), 0);
+    fn a_power_adds_its_bonus_to_the_blow() {
+        // `melee_bonus`, `ranged_bonus` and `ranged_kinds` of the item power rows: every power that
+        // adds to the blows, on a premade item that has it.
+        let rules = &shipped().rules;
+        let mut checked = 0;
+        for (id, power) in rules.item_powers.iter() {
+            if power.melee_bonus == 0 && power.ranged_bonus == 0 {
+                continue;
+            }
+            for (_, def) in rules.items.iter().filter(|(_, d)| d.powers == [id]) {
+                let item = Item::from_def(def);
+                let mods = modifiers(rules, &item, 0, &[Ability::new(3 /* bow */)], true);
+                if item.adds_to_melee() {
+                    assert_eq!(
+                        total(&mods, Stat::Melee),
+                        item.bonus.attack + power.melee_bonus,
+                        "{}",
+                        def.id
+                    );
+                }
+                let ranged_counts =
+                    power.ranged_kinds.is_empty() || power.ranged_kinds.contains(&item.kind);
+                if item.kind == ItemKind::Bow && ranged_counts {
+                    assert_eq!(
+                        total(&mods, Stat::Ranged),
+                        item.bonus.attack + power.ranged_bonus,
+                        "{}",
+                        def.id
+                    );
+                }
+                checked += 1;
+            }
+        }
+        assert!(
+            checked > 0,
+            "no premade item carries a power that adds to the blows"
+        );
     }
 
     #[test]
@@ -519,7 +586,7 @@ mod tests {
                 && b.resistance > 0
                 && b.moves > HalfInt::from_int(0)
         });
-        let mods = modifiers(&mail, 1, &[], false);
+        let mods = modifiers(&shipped().rules, &mail, 1, &[], false);
         assert_eq!(total(&mods, Stat::Defense), mail.bonus.defense);
         assert_eq!(total(&mods, Stat::Resistance), mail.bonus.resistance);
         assert_eq!(total(&mods, Stat::Moves), mail.bonus.moves.floor());
