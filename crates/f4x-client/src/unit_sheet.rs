@@ -352,6 +352,8 @@ pub(crate) struct SpecialsInput<'a> {
     /// The help topic of an ability (its `help`).
     pub ability_help: &'a dyn Fn(Ability) -> Option<u16>,
     pub texts: &'a Texts,
+    /// The rules, for what a hero's abilities give per level (`abilities.ron`).
+    pub rules: &'a f4x_def::rules::Rules,
     /// The unit's special level (poison strength, the penalty of its touches and gazes) and its
     /// ranged strength, which the abilities that have a number show.
     pub special_level: i32,
@@ -389,26 +391,26 @@ const MERGING_POWER_ICON: usize = 18;
 fn hero_abilities(input: &SpecialsInput, level: usize, out: &mut Vec<Special>) {
     use f4x_def::hero::{self, HeroAbilities, Tier};
     let abilities = HeroAbilities::from_ids(input.abilities);
-    type Value = fn(Tier, usize) -> i32;
-    let tiered: &[(&str, usize, Value)] = &[
-        ("leadership", 43, hero::leadership),
-        ("legendary", 45, hero::legendary),
-        ("blademaster", 47, hero::blademaster),
-        ("armsmaster", 46, hero::armsmaster),
-        ("constitution", 50, hero::constitution),
-        ("might", 52, hero::might),
-        ("arcane_power", 54, hero::arcane_power),
-        ("sage", 61, hero::sage),
-        ("prayermaster", 57, hero::prayermaster),
-        ("agility", 143, hero::agility),
+    // The ability and its picture in the original's `special_seg`.
+    let tiered: &[(&str, usize)] = &[
+        ("leadership", 43),
+        ("legendary", 45),
+        ("blademaster", 47),
+        ("armsmaster", 46),
+        ("constitution", 50),
+        ("might", 52),
+        ("arcane_power", 54),
+        ("sage", 61),
+        ("prayermaster", 57),
+        ("agility", 143),
     ];
-    for &(name, icon, value) in tiered {
+    for &(name, icon) in tiered {
         let Some(tier) = abilities.tier(name).filter(|&t| t != Tier::None) else {
             continue;
         };
         let id = Ability::new(hero::tiered_number(name) + u16::from(tier == Tier::Super));
         let shown = (input.ability_name)(id);
-        let n = value(tier, level);
+        let n = input.rules.hero_value(name, tier, level);
         out.push(Special {
             name: if n > 0 {
                 input.texts.get(
@@ -756,6 +758,7 @@ impl App {
             ability_name: &ability_name,
             ability_help: &ability_help,
             texts: self.texts(),
+            rules: &content.rules,
             enchantments,
             special_level: stat(Stat::SpecialLevel),
             ranged: stat(Stat::Ranged),
@@ -912,6 +915,7 @@ impl App {
             ability_name: &ability_name,
             ability_help: &ability_help,
             texts: self.texts(),
+            rules: &content.rules,
             enchantments: Vec::new(),
             special_level: stat(Stat::SpecialLevel),
             ranged: stat(Stat::Ranged),
@@ -1020,6 +1024,7 @@ impl App {
             ability_name: &ability_name,
             ability_help: &ability_help,
             texts: self.texts(),
+            rules: &content.rules,
             enchantments,
             special_level: u.special_level,
             ranged: u.ranged,
@@ -1109,6 +1114,11 @@ mod tests {
         crate::test_app::shipped::texts()
     }
 
+    /// What the heroes' abilities give, from the shipped content.
+    fn formulas() -> &'static f4x_def::rules::Rules {
+        &f4x_def::testdir::shipped().rules
+    }
+
     fn names(list: &[Special]) -> Vec<&str> {
         list.iter().map(|s| s.name.as_str()).collect()
     }
@@ -1166,6 +1176,7 @@ mod tests {
             ability_help: &no_help,
             stasis_held: false,
             texts: en(),
+            rules: formulas(),
             enchantments: Vec::new(),
             special_level: 0,
             ranged: 0,
@@ -1202,6 +1213,7 @@ mod tests {
             ability_help: &no_help,
             stasis_held: false,
             texts: en(),
+            rules: formulas(),
             enchantments: Vec::new(),
             special_level: 0,
             ranged: 0,
@@ -1230,6 +1242,7 @@ mod tests {
             ability_help: &no_help,
             stasis_held: false,
             texts: en(),
+            rules: formulas(),
             enchantments: Vec::new(),
             special_level: 0,
             ranged: 0,
@@ -1270,6 +1283,7 @@ mod tests {
             ability_help: &no_help,
             stasis_held: false,
             texts: en(),
+            rules: formulas(),
             special_level: 2,
             ranged: 0,
             granted: &granted,
@@ -1309,6 +1323,7 @@ mod tests {
             ability_help: &no_help,
             stasis_held: false,
             texts: en(),
+            rules: formulas(),
             special_level,
             ranged,
             granted: &[],
@@ -1404,6 +1419,7 @@ mod tests {
             ability_help: &no_help,
             stasis_held: false,
             texts: en(),
+            rules: formulas(),
             special_level: 0,
             ranged: 0,
             granted: &[],

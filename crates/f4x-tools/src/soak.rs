@@ -227,8 +227,25 @@ pub fn open_refused_log(path: &Option<PathBuf>) -> Result<RefusedLog, String> {
     let mut f = std::io::BufWriter::new(
         std::fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?,
     );
-    writeln!(f, "seed\tturn\tplayer\tsource\treason\tcommand\tstood").map_err(|e| e.to_string())?;
+    writeln!(
+        f,
+        "seed\tturn\tplayer\tsource\treason\tcommand\tstood\tdetail"
+    )
+    .map_err(|e| e.to_string())?;
     Ok(Mutex::new(Some(f)))
+}
+
+/// One line of the refused-order log. The AI gives the facts of a failure after its reason,
+/// split by `f4x_ai::DETAIL_SEPARATOR`; they go to the last column.
+fn refused_line(seed: u64, r: &contestant::Refused, stood: u32) -> String {
+    let (reason, detail) = r
+        .reason
+        .split_once(f4x_ai::DETAIL_SEPARATOR)
+        .unwrap_or((&r.reason, ""));
+    format!(
+        "{seed}\t{}\t{}\t{}\t{reason}\t{}\t{stood}\t{detail}",
+        r.turn, r.player.0, r.source, r.command
+    )
 }
 
 /// For how many turns in a row the same order has been refused: the same wizard sending the same
@@ -305,8 +322,23 @@ macro_rules! logln {
     };
 }
 
+/// A panic names the seed, turn and player whose turn it happened in, and the last order the AI
+/// sent (which holds the unit), before the usual report (task 668).
+fn name_panics() {
+    let usual = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let at = contestant::playing();
+        if !at.is_empty() {
+            let order = f4x_ai::last_order().unwrap_or_default();
+            eprintln!("panic in {at}; last order sent: {order}");
+        }
+        usual(info);
+    }));
+}
+
 pub fn run(args: &[String]) -> Result<(), String> {
     let opts = Options::parse(args, USAGE)?;
+    name_panics();
     let content = opts.load_content()?;
     let refused = open_refused_log(&opts.refused_log)?;
     let roster = Roster {
@@ -536,12 +568,8 @@ pub fn game(
             {
                 for r in all {
                     let stood = stood.count(&r);
-                    writeln!(
-                        out,
-                        "{seed}\t{}\t{}\t{}\t{}\t{}\t{stood}",
-                        r.turn, r.player.0, r.source, r.reason, r.command
-                    )
-                    .map_err(|e| e.to_string())?;
+                    writeln!(out, "{}", refused_line(seed, &r, stood))
+                        .map_err(|e| e.to_string())?;
                 }
             }
         }
@@ -1508,6 +1536,29 @@ mod tests {
 
     use super::*;
     use f4x_def::testdir::TestResult;
+
+    #[test]
+    fn the_facts_of_a_failure_go_to_their_own_column() {
+        let refused = |reason: &str| contestant::Refused {
+            turn: 9,
+            player: PlayerId(2),
+            source: "x.rs:1".into(),
+            command: "GoTo".into(),
+            reason: reason.into(),
+        };
+        let with = format!(
+            "NoPath(Target(Water)){}to (3, 4): target is water",
+            f4x_ai::DETAIL_SEPARATOR
+        );
+        assert_eq!(
+            refused_line(131, &refused(&with), 3),
+            "131\t9\t2\tx.rs:1\tNoPath(Target(Water))\tGoTo\t3\tto (3, 4): target is water"
+        );
+        assert_eq!(
+            refused_line(131, &refused("StackFull"), 1),
+            "131\t9\t2\tx.rs:1\tStackFull\tGoTo\t1\t"
+        );
+    }
 
     #[test]
     fn the_profile_and_neutral_lines_name_each_wizard_and_the_neutral_races() -> TestResult {

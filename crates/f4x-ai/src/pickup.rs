@@ -385,6 +385,32 @@ fn walk_to_shore(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     sends.sort_by_key(|(p, t, _)| (p.plane as u8, p.y, p.x, t.y, t.x));
     for (_, tile, units) in sends {
+        // A boarding tile with no room for them is not asked: they wait where they are.
+        if !Ai::room_at(game, tile, units.len()) {
+            continue;
+        }
+        // No way to the tile. Through full squares only: the traffic moves on, they wait. Else the
+        // units were grouped by what one of them reaches and cannot walk there: they are let off
+        // the plan, which is made again, and the log says why.
+        if game.find_path(&units, tile).is_none() {
+            let why = game.why_no_path(&units, tile);
+            if why == f4x_core::unit::pathing::failure::NoPath::OnlyThroughFullSquares {
+                continue;
+            }
+            let serials: Vec<_> = {
+                let view = PlayerView::new(game, me);
+                units.iter().map(|&u| view.serial_of(u)).collect()
+            };
+            ai.note_failure(
+                game,
+                format!("units {serials:?} cannot walk to their boarding tile {tile:?}"),
+                format!("NoPath({}){}{why}", why.name(), crate::DETAIL_SEPARATOR),
+            );
+            for s in serials {
+                ai.roles.unboard(s);
+            }
+            continue;
+        }
         let _ = ai.send(game, Command::GoTo { units, to: tile }, events);
     }
 }
@@ -604,7 +630,7 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
             }
             return;
         }
-        if idle {
+        if idle && Ai::room_at(game, drop, 1) {
             let sailed = ai
                 .send(
                     game,
@@ -622,6 +648,13 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
         return;
     }
     if ship_pos == pickup.sea {
+        // The square holds the ship, what is aboard and whatever else stands there, up to the
+        // limit of a square: no more units are sent than it has room for.
+        let room = game
+            .max_tile()
+            .saturating_sub(game.economy().army_at(pickup.sea).len());
+        let mut on_land = on_land;
+        on_land.truncate(room);
         if !on_land.is_empty() {
             let _ = ai.send(
                 game,
@@ -634,7 +667,7 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
         }
         return;
     }
-    if idle {
+    if idle && Ai::room_at(game, pickup.sea, 1) {
         let _ = ai.send(
             game,
             Command::GoTo {

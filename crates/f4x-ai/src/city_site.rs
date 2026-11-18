@@ -31,47 +31,9 @@ pub(crate) const SPACING: u32 = 4;
 const REFRESH_TURNS: u32 = 5;
 const REFRESH_SQUARES: usize = 3;
 
-/// What the terrain of a square of the city's area is worth (food and growth).
-fn land_value(class: Option<TerrainClass>) -> f32 {
-    match class {
-        Some(TerrainClass::Grassland | TerrainClass::SorceryNode) => 3.0,
-        Some(TerrainClass::Forest | TerrainClass::NatureNode | TerrainClass::Hills) => 2.0,
-        Some(TerrainClass::Swamp | TerrainClass::Mountains | TerrainClass::ChaosNode) => 1.0,
-        Some(TerrainClass::Desert | TerrainClass::Tundra) => 0.5,
-        Some(TerrainClass::Ocean) => 0.7,
-        None => 0.0,
-    }
-}
-/// A square that another city works too gives only this share of its value.
-const SHARED_SHARE: f32 = 0.4;
-/// Per point of the production the land gives (percent over the area).
-const PRODUCTION_WEIGHT: f32 = 0.1;
-/// Per point of mana a special square gives.
-const MANA_WEIGHT: f32 = 1.5;
-/// Per point of gold a special square gives.
-const GOLD_WEIGHT: f32 = 1.0;
-/// Per point of food a special square gives.
-const FOOD_WEIGHT: f32 = 1.0;
-/// Per percent off the cost of soldiers (coal, iron).
-const UNIT_COST_WEIGHT: f32 = 0.2;
-/// Per river square.
-const RIVER_WEIGHT: f32 = 0.5;
-/// The most a site gains from standing next to the wizard's own cities, and what each square of
-/// distance takes off.
-const NEAR_OWN: f32 = 6.0;
-const NEAR_OWN_STEP: f32 = 0.8;
-/// A rival's city this near (squares) lowers the site; at war it lowers it more.
-const ENEMY_RANGE: u32 = 8;
-const ENEMY_PEACE: f32 = 0.5;
-const ENEMY_WAR: f32 = 1.5;
-/// A site over the sea.
-const SEA_COST: f32 = 10.0;
 /// The most squares of sea and of one landmass a search goes through.
 const SEA_LIMIT: usize = 3000;
 const LAND_LIMIT: usize = 1500;
-/// Sites that need a crossing count this many at most when the wizard asks how many settlers it
-/// has work for: a few overseas, so that the home land is filled first.
-const CROSSING_SITES_COUNTED: usize = 2;
 
 /// How a settler of the wizard gets to a site.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -155,7 +117,7 @@ pub fn free_sites(list: &[Site], taken: &[Position], view: &PlayerView) -> usize
         .filter(free)
         .filter(|s| s.reach != Reach::Land)
         .count();
-    land + over.min(CROSSING_SITES_COUNTED)
+    land + over.min(view.content().rules.ai_sites.crossing_sites_counted)
 }
 
 /// Is there a place for a city on the explored map?
@@ -322,6 +284,7 @@ fn score(
     rivals: &[(Position, bool)],
     cities: &[Position],
 ) -> f32 {
+    let w = &view.content().rules.ai_sites;
     // The land: the squares the city works, those another city works too at a reduced value.
     let mut land = 0.0;
     for dy in -2i32..=2 {
@@ -332,33 +295,37 @@ fn score(
             let Some(p) = view.shift(at, dx, dy) else {
                 continue;
             };
-            let value = land_value(view.terrain_class(p));
+            let value = w.land_value(view.terrain_class(p));
             let shared = cities
                 .iter()
                 .any(|&c| view.distance(c, p).is_some_and(|d| d <= 2));
-            land += if shared { value * SHARED_SHARE } else { value };
+            land += if shared {
+                value * w.shared_share
+            } else {
+                value
+            };
         }
     }
     let special = view.site_specials(at);
     let mut score = land
-        + PRODUCTION_WEIGHT * special.terrain_production
-        + MANA_WEIGHT * special.mana
-        + GOLD_WEIGHT * special.gold
-        + FOOD_WEIGHT * special.food
-        + UNIT_COST_WEIGHT * special.unit_cost_percent
-        + RIVER_WEIGHT * special.rivers as f32;
+        + w.production * special.terrain_production
+        + w.mana * special.mana
+        + w.gold * special.gold
+        + w.food * special.food
+        + w.unit_cost * special.unit_cost_percent
+        + w.river * special.rivers as f32;
     if let Some(d) = own.iter().filter_map(|&c| view.distance(c, at)).min() {
-        score += (NEAR_OWN - d as f32 * NEAR_OWN_STEP).max(0.0);
+        score += (w.near_own - d as f32 * w.near_own_step).max(0.0);
     }
     for &(city, war) in rivals {
-        if let Some(d) = view.distance(city, at).filter(|&d| d < ENEMY_RANGE) {
-            score -= (ENEMY_RANGE - d) as f32 * if war { ENEMY_WAR } else { ENEMY_PEACE };
+        if let Some(d) = view.distance(city, at).filter(|&d| d < w.enemy_range) {
+            score -= (w.enemy_range - d) as f32 * if war { w.enemy_war } else { w.enemy_peace };
         }
     }
     score
         - match reach {
             Reach::Land => 0.0,
-            Reach::Sea => SEA_COST,
+            Reach::Sea => w.sea_cost,
         }
 }
 
@@ -428,7 +395,7 @@ pub fn assign(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
+    use crate::testworld::{at, game, game_with_rivers, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
     use f4x_def::half_int::HalfInt;
 
     /// The west island, explored by its wizard.
@@ -634,5 +601,103 @@ mod tests {
         crate::testworld::fill_west(&mut g);
         let list = scan(&PlayerView::new(&g, P0));
         assert!(list.is_empty(), "{list:?}");
+    }
+
+    /// The weights the tests read: the shipped ones.
+    fn weights(g: &f4x_core::game::Game) -> f4x_def::rules::ai_site::SiteRules {
+        g.content().rules.ai_sites.clone()
+    }
+
+    const SITE: (u32, u32) = (6, 6);
+
+    #[test]
+    fn a_river_on_the_squares_of_a_site_raises_it_by_the_river_weight() {
+        let plain = explored_island();
+        let mut wet = game_with_rivers(COAST_CITY, 8 /* high_men */, &[SITE]);
+        wet.explore(P0, at(7, 6), HalfInt::from_int(4));
+        let (a, b) = (PlayerView::new(&plain, P0), PlayerView::new(&wet, P0));
+        let here = at(SITE.0, SITE.1);
+        let gain = score(&b, here, Reach::Land, &[], &[], &[])
+            - score(&a, here, Reach::Land, &[], &[], &[]);
+        assert!((gain - weights(&plain).river).abs() < 1e-4, "{gain}");
+    }
+
+    #[test]
+    fn a_site_next_to_an_own_city_beats_one_further_out() {
+        let g = explored_island();
+        let (view, w) = (PlayerView::new(&g, P0), weights(&g));
+        let here = at(SITE.0, SITE.1);
+        let city = at(COAST_CITY.0, COAST_CITY.1);
+        let alone = score(&view, here, Reach::Land, &[], &[], &[]);
+        let near = score(&view, here, Reach::Land, &[city], &[], &[]);
+        let d = view.distance(city, here).expect("one plane") as f32;
+        assert!(near > alone, "{near} {alone}");
+        assert!((near - alone - (w.near_own - d * w.near_own_step).max(0.0)).abs() < 1e-4);
+        // One square further from the city gives a step less.
+        let farther = at(SITE.0 - 1, SITE.1);
+        let gain = |p: Position| {
+            score(&view, p, Reach::Land, &[city], &[], &[])
+                - score(&view, p, Reach::Land, &[], &[], &[])
+        };
+        assert!(gain(here) > gain(farther));
+    }
+
+    #[test]
+    fn squares_another_city_works_too_count_for_their_share() {
+        let g = explored_island();
+        let (view, w) = (PlayerView::new(&g, P0), weights(&g));
+        let here = at(SITE.0, SITE.1);
+        let city = at(COAST_CITY.0, COAST_CITY.1);
+        let free = score(&view, here, Reach::Land, &[], &[], &[]);
+        let shared = score(&view, here, Reach::Land, &[], &[], &[city]);
+        assert!(shared < free, "{shared} {free}");
+        // The squares within two of the city (here the one square the two areas have in common
+        // at most) lose the rest of their value: never more than the land's whole value.
+        assert!(free - shared <= free * (1.0 - w.shared_share) + 1e-4);
+    }
+
+    #[test]
+    fn a_site_over_the_sea_costs_the_sea_weight() {
+        let g = explored_island();
+        let (view, w) = (PlayerView::new(&g, P0), weights(&g));
+        let here = at(SITE.0, SITE.1);
+        let land = score(&view, here, Reach::Land, &[], &[], &[]);
+        let sea = score(&view, here, Reach::Sea, &[], &[], &[]);
+        assert!((land - sea - w.sea_cost).abs() < 1e-4, "{land} {sea}");
+    }
+
+    #[test]
+    fn a_rivals_city_lowers_a_site_and_one_at_war_lowers_it_more() {
+        let g = explored_island();
+        let (view, w) = (PlayerView::new(&g, P0), weights(&g));
+        let here = at(SITE.0, SITE.1);
+        let rival = at(SITE.0 + 2, SITE.1);
+        let none = score(&view, here, Reach::Land, &[], &[], &[]);
+        let peace = score(&view, here, Reach::Land, &[], &[(rival, false)], &[]);
+        let war = score(&view, here, Reach::Land, &[], &[(rival, true)], &[]);
+        let nearer = (w.enemy_range - 2) as f32;
+        assert!((none - peace - nearer * w.enemy_peace).abs() < 1e-4);
+        assert!((none - war - nearer * w.enemy_war).abs() < 1e-4);
+        assert!(war < peace);
+        // Out of range, nothing.
+        let far = at(SITE.0 + w.enemy_range, SITE.1);
+        assert_eq!(
+            score(&view, here, Reach::Land, &[], &[(far, true)], &[]),
+            none
+        );
+    }
+
+    #[test]
+    fn the_land_values_follow_the_terrain_of_the_rules() {
+        let g = explored_island();
+        let w = weights(&g);
+        for (class, value) in &w.land_values {
+            assert_eq!(w.land_value(Some(*class)), *value);
+        }
+        assert_eq!(w.land_value(None), 0.0);
+        // Grass beats desert: a city wants food.
+        assert!(
+            w.land_value(Some(TerrainClass::Grassland)) > w.land_value(Some(TerrainClass::Desert))
+        );
     }
 }

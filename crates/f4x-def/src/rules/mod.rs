@@ -3,6 +3,7 @@
 //!
 //! Tests: none, because it only declares modules.
 
+pub mod ai_site;
 pub mod defs;
 pub mod effects;
 pub mod ids;

@@ -80,6 +80,11 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         } else {
             crate::rules::lair::LairRules::default()
         },
+        ai_sites: if find(dir, "ai_sites.ron").is_some() {
+            parse::<crate::rules::ai_site::SiteRules>(dir, "ai_sites.ron")?
+        } else {
+            crate::rules::ai_site::SiteRules::default()
+        },
     };
     let problems = validate_rules(&rules);
     if problems.is_empty() {
@@ -265,6 +270,8 @@ fn check_items(r: &Rules, p: &mut Vec<String>) {
 pub fn validate_rules(r: &Rules) -> Vec<String> {
     let mut p = Vec::new();
     check_lairs(r, &mut p);
+    p.extend(r.ai_sites.problems());
+    p.extend(crate::hero::problems(r));
     check_ids("race", &r.races, &mut p);
     check_ids("unit", &r.units, &mut p);
     check_ids("ability", &r.abilities, &mut p);
@@ -841,6 +848,7 @@ mod tests {
             wizards: Registry::new(wizards),
             hero_templates,
             lairs: shipped("lairs.ron", edits),
+            ai_sites: shipped("ai_sites.ron", edits),
         }
     }
 
@@ -897,6 +905,42 @@ mod tests {
 
     fn has(problems: &[String], needle: &str) -> bool {
         problems.iter().any(|m| m.contains(needle))
+    }
+
+    #[test]
+    fn bad_hero_formulas_are_refused() {
+        assert!(has(
+            &problems(&[("abilities.ron", "denominator: 3", "denominator: 0")]),
+            "fraction"
+        ));
+        assert!(has(
+            &problems(&[(
+                "abilities.ron",
+                "per_level: Some((numerator: 9, denominator: 2, level_offset: 0)), ",
+                ""
+            )]),
+            "super_sage has no per_level"
+        ));
+    }
+
+    #[test]
+    fn the_shipped_site_weights_are_the_default_and_bad_ones_are_refused() {
+        assert_eq!(
+            rules_with(&[]).ai_sites,
+            crate::rules::ai_site::SiteRules::default()
+        );
+        assert!(has(
+            &problems(&[("ai_sites.ron", "river: 0.5", "river: -1.0")]),
+            "river"
+        ));
+        assert!(has(
+            &problems(&[("ai_sites.ron", "shared_share: 0.4", "shared_share: 1.5")]),
+            "shared_share"
+        ));
+        assert!(has(
+            &problems(&[("ai_sites.ron", "enemy_range: 8", "enemy_range: 0")]),
+            "enemy_range"
+        ));
     }
 
     #[test]

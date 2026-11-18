@@ -168,7 +168,6 @@ impl Ai {
         if turn.saturating_sub(clock.forgiven) >= FORGIVE_TURNS {
             clock.forgiven = turn;
             self.naval_bad.clear();
-            self.bad_sites.clear();
             self.bad_scout_targets.clear();
             if std::mem::take(&mut self.sea_gave_up) {
                 self.sea_done = false;
@@ -391,7 +390,6 @@ mod tests {
         assert_eq!(out.release, vec![s]);
         assert!(ai.roles.targets(crate::roles::Role::Settle).is_empty());
         assert_eq!(ai.roles.get(s).map(|a| a.stuck), Some(0));
-        assert!(ai.bad_sites.is_empty(), "a slow settler blacklists nothing");
         assert_eq!(ai.clock.dropped(PlanKind::Settler), 1);
         assert_eq!(fates(&ai), [("did not arrive in time", 1)]);
     }

@@ -227,6 +227,16 @@ impl Neutrals {
     }
 }
 
+thread_local! {
+    /// Whose turn this thread is playing: the seed, the turn and the player, for a panic's report.
+    static PLAYING: RefCell<String> = const { RefCell::new(String::new()) };
+}
+
+/// Where this thread is in a game, as `seed S turn T player P`; empty outside a turn.
+pub fn playing() -> String {
+    PLAYING.with(|p| p.borrow().clone())
+}
+
 /// A contestant at its seat: it plays when the master calls, and its events are kept apart
 /// from the master's (the soak reports each contestant's turn on its own).
 struct ContestantSeat<'a> {
@@ -238,6 +248,14 @@ struct ContestantSeat<'a> {
 impl Controller for ContestantSeat<'_> {
     fn play(&mut self, game: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
         let started = std::time::Instant::now();
+        PLAYING.with(|p| {
+            *p.borrow_mut() = format!(
+                "seed {} turn {} player {}",
+                game.seed(),
+                game.turn,
+                self.contestant.player().0
+            );
+        });
         let events = self.contestant.play_turn(game);
         self.times
             .borrow_mut()

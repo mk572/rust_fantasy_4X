@@ -141,7 +141,11 @@ impl<'a> UnitView<'a> {
                     .ok()?
                     .abilities
                     .legendary;
-                Some(crate::hero::legendary(tier, self.unit_level(h)))
+                Some(
+                    self.content
+                        .rules
+                        .hero_value("legendary", tier, self.unit_level(h)),
+                )
             })
             .sum();
         earned
@@ -190,7 +194,11 @@ impl<'a> UnitView<'a> {
             .into_iter()
             .filter_map(|h| {
                 let tier = self.world.get::<&crate::hero::Hero>(h).ok()?.abilities.sage;
-                Some(crate::hero::sage(tier, self.unit_level(h)))
+                Some(
+                    self.content
+                        .rules
+                        .hero_value("sage", tier, self.unit_level(h)),
+                )
             })
             .sum()
     }
@@ -344,8 +352,9 @@ impl<'a> UnitView<'a> {
         if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
             let magic = crate::battle::game::ranged_kind_of(&self.unit_abilities(unit))
                 == crate::battle::RangedKind::Magic;
-            let before = hero.abilities.modifiers(from, magic);
-            for m in hero.abilities.modifiers(to, magic) {
+            let formulas = &self.content.rules;
+            let before = hero.abilities.modifiers(formulas, from, magic);
+            for m in hero.abilities.modifiers(formulas, to, magic) {
                 let had = before
                     .iter()
                     .find(|b| b.stat == m.stat)
@@ -416,7 +425,7 @@ impl<'a> UnitView<'a> {
         if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
             let magic = crate::battle::game::ranged_kind_of(&self.unit_abilities(unit))
                 == crate::battle::RangedKind::Magic;
-            mods.extend(hero.abilities.modifiers(level, magic));
+            mods.extend(hero.abilities.modifiers(&self.content.rules, level, magic));
         }
         mods.extend(self.level_modifiers(unit, 0..level + 1));
         for (spell, _) in crate::spell::instance::Spells::new(self.world).unit_enchantments(unit) {

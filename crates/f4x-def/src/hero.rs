@@ -156,86 +156,93 @@ pub fn tiered_number(name: &str) -> u16 {
 /// only inside battle checks (`Combat_Effective_Resistance`), so the unit sheet never shows it.
 pub const CHARMED_RESISTANCE: i32 = 30;
 
-/// `x * n / d` for the plain tier, `x * sn / sd` for the doubled one, 0 without the ability
-/// (whole numbers, rounded down, as the original).
-fn by_tier(tier: Tier, x: i32, plain: (i32, i32), doubled: (i32, i32)) -> i32 {
-    match tier {
-        Tier::None => 0,
-        Tier::Normal => x * plain.0 / plain.1,
-        Tier::Super => x * doubled.0 / doubled.1,
+impl crate::rules::Rules {
+    /// What the ability `name` (one of the ten with a doubled form, by its plain name) gives a hero
+    /// of `level` (0 for the first) at `tier`: its `per_level` in `abilities.ron`. 0 without the
+    /// ability. Whole numbers, rounded down, as the original.
+    ///
+    /// `leadership`: the melee bonus of every normal unit on the battlefield (half of it, rounded
+    /// down, for their ranged attack), only the best hero's counts. `blademaster`: pluses to hit.
+    /// `constitution`: hit points. `might`: melee. `agility`: defence. `arcane_power`: magic
+    /// ranged attack (only for a hero that has one). `prayermaster`: resistance of every unit on
+    /// the battlefield (the best of this and Resistance to All). `armsmaster`: experience each
+    /// turn for the other units on the hero's square. `legendary`: fame. `sage`: research.
+    pub fn hero_value(&self, name: &str, tier: Tier, level: usize) -> i32 {
+        if !TIERED.contains(&name) {
+            return 0;
+        }
+        let number = match tier {
+            Tier::None => return 0,
+            Tier::Normal => tiered_number(name),
+            Tier::Super => tiered_number(name) + 1,
+        };
+        self.abilities
+            .by_num(number)
+            .and_then(|a| a.per_level)
+            .map_or(0, |f| f.at(level))
     }
 }
 
-/// `level` is the hero's 0-based experience level; the formulas of the table use `x = level + 1`.
-/// Leadership: the melee bonus of every normal unit on the battlefield (half of it, rounded down,
-/// for their ranged attack); only the best hero's counts.
-pub fn leadership(tier: Tier, level: usize) -> i32 {
-    by_tier(tier, level as i32 + 1, (1, 3), (1, 2))
-}
-
-/// Blademaster: pluses to hit.
-pub fn blademaster(tier: Tier, level: usize) -> i32 {
-    by_tier(tier, level as i32 + 1, (1, 2), (3, 4))
-}
-
-/// Constitution: hit points.
-pub fn constitution(tier: Tier, level: usize) -> i32 {
-    by_tier(tier, level as i32 + 1, (1, 1), (3, 2))
-}
-
-/// Might: melee attack.
-pub fn might(tier: Tier, level: usize) -> i32 {
-    by_tier(tier, level as i32 + 1, (1, 1), (3, 2))
-}
-
-/// Agility: defence.
-pub fn agility(tier: Tier, level: usize) -> i32 {
-    by_tier(tier, level as i32 + 1, (1, 1), (3, 2))
-}
-
-/// Arcane Power: magic ranged attack (only for a hero that has one).
-pub fn arcane_power(tier: Tier, level: usize) -> i32 {
-    by_tier(tier, level as i32 + 1, (1, 1), (3, 2))
-}
-
-/// Prayermaster: resistance of every unit on the battlefield; only the best of this and
-/// Resistance to All counts.
-pub fn prayermaster(tier: Tier, level: usize) -> i32 {
-    by_tier(tier, level as i32 + 1, (1, 1), (3, 2))
-}
-
-/// Armsmaster: experience points each turn for the other units on the hero's square.
-pub fn armsmaster(tier: Tier, level: usize) -> i32 {
-    by_tier(tier, level as i32 + 1, (2, 1), (3, 1))
-}
-
-/// Legendary: fame for the wizard.
-pub fn legendary(tier: Tier, level: usize) -> i32 {
-    by_tier(tier, level as i32 + 1, (3, 1), (9, 2))
-}
-
-/// Sage: research points for the wizard (here `level` itself, not one more).
-pub fn sage(tier: Tier, level: usize) -> i32 {
-    by_tier(tier, level as i32, (3, 1), (9, 2))
+/// The problems of the hero abilities' `per_level`: each of the ten tiered abilities, plain and
+/// doubled, has one with a denominator and no negative number; no other ability has one.
+pub fn problems(rules: &crate::rules::Rules) -> Vec<String> {
+    let mut p = Vec::new();
+    let tiered: Vec<u16> = TIERED
+        .iter()
+        .flat_map(|&n| [tiered_number(n), tiered_number(n) + 1])
+        .collect();
+    for a in rules.abilities.defs() {
+        match (tiered.contains(&a.num), a.per_level) {
+            (true, None) => p.push(format!("abilities.ron: {} has no per_level", a.id)),
+            (false, Some(_)) => p.push(format!(
+                "abilities.ron: {} is no hero ability but has a per_level",
+                a.id
+            )),
+            (true, Some(f))
+                if f.denominator < 1 || f.numerator < 0 || !(0..=1).contains(&f.level_offset) =>
+            {
+                p.push(format!(
+                    "abilities.ron: {} has the fraction {}/{} with offset {}",
+                    a.id, f.numerator, f.denominator, f.level_offset
+                ))
+            }
+            _ => {}
+        }
+    }
+    p
 }
 
 impl HeroAbilities {
     /// The changes to the hero's own stats: Might, Agility, Blademaster, Constitution and (with
     /// a magic ranged attack) Arcane Power. Charmed is +30 resistance; Lucky acts in battle.
-    pub fn modifiers(&self, level: usize, magic_ranged: bool) -> Vec<Modifier> {
+    pub fn modifiers(
+        &self,
+        f: &crate::rules::Rules,
+        level: usize,
+        magic_ranged: bool,
+    ) -> Vec<Modifier> {
         let add = |stat, value| Modifier::new(stat, ModOp::Add, value, Source::Hero);
         let mut out = vec![
             add(
                 Stat::Resistance,
                 if self.charmed { CHARMED_RESISTANCE } else { 0 },
             ),
-            add(Stat::Melee, might(self.might, level)),
-            add(Stat::Defense, agility(self.agility, level)),
-            add(Stat::ToHit, blademaster(self.blademaster, level)),
-            add(Stat::MaxHp, constitution(self.constitution, level)),
+            add(Stat::Melee, f.hero_value("might", self.might, level)),
+            add(Stat::Defense, f.hero_value("agility", self.agility, level)),
+            add(
+                Stat::ToHit,
+                f.hero_value("blademaster", self.blademaster, level),
+            ),
+            add(
+                Stat::MaxHp,
+                f.hero_value("constitution", self.constitution, level),
+            ),
         ];
         if magic_ranged {
-            out.push(add(Stat::Ranged, arcane_power(self.arcane_power, level)));
+            out.push(add(
+                Stat::Ranged,
+                f.hero_value("arcane_power", self.arcane_power, level),
+            ));
         }
         out.retain(|m| m.value != HalfInt::ZERO);
         out

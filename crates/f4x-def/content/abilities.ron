@@ -2,6 +2,14 @@
 // The original has no table of unit abilities (most are flag bits, the rest attack-type fields),
 // so `num` is our own. The numbers are frozen: the code, a saved game and the text tables
 // refer to an ability by its number. A new ability is appended with the next free number. `id` is the alias for human editing.
+//
+// `per_level` is what a hero ability gives per level (`docs/heroes-items-design.md` 2.3): a hero
+// at level L (0 for the first) has x = L + level_offset and the ability gives x * numerator /
+// denominator, whole numbers rounded down. The doubled ("super") ability is its own entry with its
+// own fraction. Sage counts the level itself (offset 0), the others one more. What the value is
+// (melee, hit points, fame, research ...) is the ability's business in the code. The values are
+// ours, checked against the help and the wiki (`docs/help-vs-implementation-conflicts.md` B52 to
+// B61), not copied from the original's code, which has bugs (Legendary's fame is commented out).
 [
     (num: 1, id: "armor_piercing", help: Some(1000), description: "Halves the target's defence.", effects: []),
     (num: 2, id: "asleep", help: Some(1001), description: "Cannot move, attack or fly; every blow against it does full damage.", effects: []),
@@ -77,26 +85,26 @@
     (num: 72, id: "weapon_immunity", help: Some(1071), description: "Normal weapons barely hurt it: its defence is at least 10 against them, and normal arrows and thrown weapons are cut to the same. Heroes, fantastic creatures, magical weapons and spells ignore it.", effects: []),
     (num: 73, id: "webbed", help: Some(1072), description: "Held where it stands, and no longer flies, until the web is dispelled.", effects: []),
     (num: 74, id: "wind_walking", help: Some(1073), description: "Carries a stack through the air.", effects: []),
-    (num: 75, id: "leadership", help: Some(1074), description: "Hero ability: Leadership.", effects: []),
-    (num: 76, id: "super_leadership", help: Some(1075), description: "Hero ability: Super Leadership.", effects: []),
-    (num: 77, id: "legendary", help: Some(1076), description: "Hero ability: Legendary.", effects: []),
-    (num: 78, id: "super_legendary", help: Some(1077), description: "Hero ability: Super Legendary.", effects: []),
-    (num: 79, id: "blademaster", help: Some(1078), description: "Hero ability: Blademaster.", effects: []),
-    (num: 80, id: "super_blademaster", help: Some(1079), description: "Hero ability: Super Blademaster.", effects: []),
-    (num: 81, id: "armsmaster", help: Some(1080), description: "Hero ability: Armsmaster.", effects: []),
-    (num: 82, id: "super_armsmaster", help: Some(1081), description: "Hero ability: Super Armsmaster.", effects: []),
-    (num: 83, id: "constitution", help: Some(1082), description: "Hero ability: Constitution.", effects: []),
-    (num: 84, id: "super_constitution", help: Some(1083), description: "Hero ability: Super Constitution.", effects: []),
-    (num: 85, id: "might", help: Some(1084), description: "Hero ability: Might.", effects: []),
-    (num: 86, id: "super_might", help: Some(1085), description: "Hero ability: Super Might.", effects: []),
-    (num: 87, id: "arcane_power", help: Some(1086), description: "Hero ability: Arcane Power.", effects: []),
-    (num: 88, id: "super_arcane_power", help: Some(1087), description: "Hero ability: Super Arcane Power.", effects: []),
-    (num: 89, id: "sage", help: Some(1088), description: "Hero ability: Sage.", effects: []),
-    (num: 90, id: "super_sage", help: Some(1089), description: "Hero ability: Super Sage.", effects: []),
-    (num: 91, id: "prayermaster", help: Some(1090), description: "Hero ability: Prayermaster.", effects: []),
-    (num: 92, id: "super_prayermaster", help: Some(1091), description: "Hero ability: Super Prayermaster.", effects: []),
-    (num: 93, id: "agility", help: Some(1092), description: "Hero ability: Agility.", effects: []),
-    (num: 94, id: "super_agility", help: Some(1093), description: "Hero ability: Super Agility.", effects: []),
+    (num: 75, id: "leadership", help: Some(1074), description: "Hero ability: Leadership.", per_level: Some((numerator: 1, denominator: 3, level_offset: 1)), effects: []),
+    (num: 76, id: "super_leadership", help: Some(1075), description: "Hero ability: Super Leadership.", per_level: Some((numerator: 1, denominator: 2, level_offset: 1)), effects: []),
+    (num: 77, id: "legendary", help: Some(1076), description: "Hero ability: Legendary.", per_level: Some((numerator: 3, denominator: 1, level_offset: 1)), effects: []),
+    (num: 78, id: "super_legendary", help: Some(1077), description: "Hero ability: Super Legendary.", per_level: Some((numerator: 9, denominator: 2, level_offset: 1)), effects: []),
+    (num: 79, id: "blademaster", help: Some(1078), description: "Hero ability: Blademaster.", per_level: Some((numerator: 1, denominator: 2, level_offset: 1)), effects: []),
+    (num: 80, id: "super_blademaster", help: Some(1079), description: "Hero ability: Super Blademaster.", per_level: Some((numerator: 3, denominator: 4, level_offset: 1)), effects: []),
+    (num: 81, id: "armsmaster", help: Some(1080), description: "Hero ability: Armsmaster.", per_level: Some((numerator: 2, denominator: 1, level_offset: 1)), effects: []),
+    (num: 82, id: "super_armsmaster", help: Some(1081), description: "Hero ability: Super Armsmaster.", per_level: Some((numerator: 3, denominator: 1, level_offset: 1)), effects: []),
+    (num: 83, id: "constitution", help: Some(1082), description: "Hero ability: Constitution.", per_level: Some((numerator: 1, denominator: 1, level_offset: 1)), effects: []),
+    (num: 84, id: "super_constitution", help: Some(1083), description: "Hero ability: Super Constitution.", per_level: Some((numerator: 3, denominator: 2, level_offset: 1)), effects: []),
+    (num: 85, id: "might", help: Some(1084), description: "Hero ability: Might.", per_level: Some((numerator: 1, denominator: 1, level_offset: 1)), effects: []),
+    (num: 86, id: "super_might", help: Some(1085), description: "Hero ability: Super Might.", per_level: Some((numerator: 3, denominator: 2, level_offset: 1)), effects: []),
+    (num: 87, id: "arcane_power", help: Some(1086), description: "Hero ability: Arcane Power.", per_level: Some((numerator: 1, denominator: 1, level_offset: 1)), effects: []),
+    (num: 88, id: "super_arcane_power", help: Some(1087), description: "Hero ability: Super Arcane Power.", per_level: Some((numerator: 3, denominator: 2, level_offset: 1)), effects: []),
+    (num: 89, id: "sage", help: Some(1088), description: "Hero ability: Sage.", per_level: Some((numerator: 3, denominator: 1, level_offset: 0)), effects: []),
+    (num: 90, id: "super_sage", help: Some(1089), description: "Hero ability: Super Sage.", per_level: Some((numerator: 9, denominator: 2, level_offset: 0)), effects: []),
+    (num: 91, id: "prayermaster", help: Some(1090), description: "Hero ability: Prayermaster.", per_level: Some((numerator: 1, denominator: 1, level_offset: 1)), effects: []),
+    (num: 92, id: "super_prayermaster", help: Some(1091), description: "Hero ability: Super Prayermaster.", per_level: Some((numerator: 3, denominator: 2, level_offset: 1)), effects: []),
+    (num: 93, id: "agility", help: Some(1092), description: "Hero ability: Agility.", per_level: Some((numerator: 1, denominator: 1, level_offset: 1)), effects: []),
+    (num: 94, id: "super_agility", help: Some(1093), description: "Hero ability: Super Agility.", per_level: Some((numerator: 3, denominator: 2, level_offset: 1)), effects: []),
     (num: 95, id: "charmed", help: Some(1094), description: "Hero ability: Charmed.", effects: []),
     (num: 96, id: "noble", help: Some(1095), description: "Hero ability: Noble.", effects: []),
     (num: 97, id: "female", help: Some(1096), description: "Hero ability: Female.", effects: []),

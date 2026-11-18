@@ -165,7 +165,16 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 ai.note_failure(
                     game,
                     format!("raid party at {pos:?}: no site to march to among {candidates:?}"),
-                    "Unreachable".to_string(),
+                    format!(
+                        "Unreachable{}{}",
+                        crate::DETAIL_SEPARATOR,
+                        candidates
+                            .iter()
+                            .take(3)
+                            .map(|&c| format!("{c:?}: {}", game.why_no_path(&units, c)))
+                            .collect::<Vec<_>>()
+                            .join("; ")
+                    ),
                 );
             }
             for &s in &party {
@@ -187,6 +196,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             // A party that cannot find its way home (cut off by guarded ground or the sea) gives
             // up the raid and is left to the army's rules.
             let reachable = PlayerView::new(game, me).can_reach(&units, home);
+            let why_not = game.why_no_path(&units, home);
             if !reachable
                 || !ai
                     .send(game, Command::GoTo { units, to: home }, events)
@@ -196,7 +206,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     ai.note_failure(
                         game,
                         format!("raid party at {pos:?}: no way home to {home:?}"),
-                        "Unreachable".to_string(),
+                        format!("Unreachable{}{why_not}", crate::DETAIL_SEPARATOR),
                     );
                 }
                 ai.roles.retain_role(crate::roles::Role::Raid, |s| {
@@ -337,7 +347,7 @@ pub(crate) fn gather(
                 // A tower on a plane where a rival has a city waits (the rivals come first).
                 let blocked_tower = ai.tower_blocked.contains(&site.plane)
                     && view.towers().iter().any(|&(t, _)| t == site);
-                if ai.bad_sites.contains(&site) || site.plane != city.plane || blocked_tower {
+                if site.plane != city.plane || blocked_tower {
                     continue;
                 }
                 if let Some(d) = distance(&view, city, site) {

@@ -139,6 +139,8 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 
 ### 2.3 The abilities (formulas, `L` = Level, `x` = L + 1)
 
+The factors of the ten tiered abilities are content: each hero ability of `crates/f4x-def/content/abilities.ron` (75 to 94) has a `per_level` (numerator, denominator, level offset), and `Rules::hero_value(name, tier, level)` reads it. The values are ours, as the table below says, not the original's code.
+
 | Ability | Normal | Super | Where it acts |
 |---|---|---|---|
 | Leadership | melee `x / 3` for all friendly normal units (ranged half) | `x / 2` | battlefield, best hero only (`Combat.c:13361`) |

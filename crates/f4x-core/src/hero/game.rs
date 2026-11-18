@@ -581,7 +581,7 @@ pub(crate) mod tests {
         assert!(level > 0);
         assert_eq!(
             g.units().sage_research(P0),
-            crate::hero::sage(Tier::Normal, level)
+            g.content().rules.hero_value("sage", Tier::Normal, level)
         );
         assert_eq!(g.units().sage_research(P1), 0);
         // A spell paid over turns gets the heroes' skill on top of the wizard's own.

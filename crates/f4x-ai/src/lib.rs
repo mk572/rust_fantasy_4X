@@ -81,14 +81,83 @@ pub struct Refusal {
     pub reason: String,
 }
 
+/// The refusal's reason and the facts of the failure, in one string: the soak's refused-order log
+/// splits it at [`DETAIL_SEPARATOR`] into the reason and detail columns.
+pub const DETAIL_SEPARATOR: &str = " | ";
+
+fn with_detail(reason: String, detail: Option<String>) -> String {
+    match detail {
+        Some(d) => format!("{reason}{DETAIL_SEPARATOR}{d}"),
+        None => reason,
+    }
+}
+
+thread_local! {
+    /// The last command any wizard of this thread sent, for the report of a panic.
+    static LAST_ORDER: RefCell<Option<Command>> = const { RefCell::new(None) };
+}
+
+/// The last command sent on this thread (`Debug` form), to say which order a panic came with.
+pub fn last_order() -> Option<String> {
+    LAST_ORDER.with(|l| l.borrow().as_ref().map(|c| format!("{c:?}")))
+}
+
+/// What stopped a standing order on its step: the square it could not enter and what is there.
+fn step_detail(game: &Game, event: &Event) -> Option<String> {
+    let Event::OrderFailed { units, to, .. } = event else {
+        return None;
+    };
+    let (x, y) = (to.x, to.y);
+    Some(match game.blocker_at(units, *to) {
+        Some(why) => format!("step ({x}, {y}): {why}"),
+        None => format!("step ({x}, {y}): free now"),
+    })
+}
+
+/// The facts of a refused order: why a go-to found no way, or what blocks the square of a refused
+/// move.
+fn rejection_detail(
+    game: &Game,
+    why: &f4x_core::game::Rejection,
+    target: Option<&(Vec<hecs::Entity>, Position)>,
+) -> Option<String> {
+    use f4x_core::game::Rejection;
+    use f4x_core::unit::movement::MoveError;
+    match why {
+        Rejection::NoPath(no_path) => {
+            let (units, to) = target?;
+            // The kinds of unit in the stack (their content numbers): one that cannot go where the
+            // others can is a common cause.
+            let kinds: Vec<String> = units
+                .iter()
+                .map(|&u| {
+                    game.units()
+                        .unit_def(u)
+                        .map_or("?".to_string(), |d| d.num.to_string())
+                })
+                .collect();
+            Some(format!(
+                "to ({}, {}): {no_path}; units {}",
+                to.x,
+                to.y,
+                kinds.join(",")
+            ))
+        }
+        Rejection::Move(MoveError::Impassable | MoveError::StackFull | MoveError::NoRoom) => {
+            let (units, to) = target?;
+            let why = game.blocker_at(units, *to)?;
+            Some(format!("to ({}, {}): {why}", to.x, to.y))
+        }
+        _ => None,
+    }
+}
+
 /// One computer-played wizard.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Ai {
     pub player: PlayerId,
     /// The enemy city the army is gathering to attack, once it has chosen one.
     campaign: Option<Position>,
-    /// Nodes and raid sites the AI gave up on (task 667 replaces it; settlers no longer use it).
-    bad_sites: Vec<Position>,
     /// The ranked places for the next cities (`city_site.rs`).
     #[serde(default)]
     sites: city_site::SiteBook,
@@ -234,7 +303,6 @@ impl Ai {
         Self {
             player,
             campaign: None,
-            bad_sites: Vec::new(),
             sites: city_site::SiteBook::default(),
             settler_fates: settler_fate::SettlerFates::default(),
             bad_scout_targets: Vec::new(),
@@ -423,9 +491,10 @@ impl Ai {
     }
 
     /// Whether `count` more units fit on the square (the limit of a square, `StackFull`): the check
-    /// to make before an order to walk there, so that a full square is not asked again and again.
+    /// to make before an order to walk there, so that a full square is not asked again and again. A
+    /// tower is one square on both planes: the units on its other side count too (`army_at`).
     pub(crate) fn room_at(game: &Game, to: Position, count: usize) -> bool {
-        game.units().units_at(to).len() + count <= game.max_tile()
+        game.economy().army_at(to).len() + count <= game.max_tile()
     }
 
     /// Send a command and keep its events.
@@ -473,6 +542,13 @@ impl Ai {
         }
         let at = std::panic::Location::caller();
         let kept = (self.record_refusals && keep_refusal).then(|| format!("{command:?}"));
+        LAST_ORDER.with(|l| *l.borrow_mut() = Some(command.clone()));
+        let target = match &command {
+            Command::GoTo { units, to } | Command::MoveStack { units, to } => {
+                Some((units.clone(), *to))
+            }
+            _ => None,
+        };
         let out = game.apply(command);
         // A refusal first; else an order that was taken and stopped on its first step.
         let refused = out
@@ -499,7 +575,10 @@ impl Ai {
                             player: self.player,
                             source: format!("{}:{}", at.file(), at.line()),
                             command: command.clone(),
-                            reason: format!("OrderFailed {why:?}"),
+                            reason: with_detail(
+                                format!("OrderFailed {why:?}"),
+                                step_detail(game, e),
+                            ),
                         });
                     }
                 }
@@ -509,7 +588,15 @@ impl Ai {
                         player: self.player,
                         source: format!("{}:{}", at.file(), at.line()),
                         command: command.clone(),
-                        reason: format!("{reason:?}"),
+                        reason: with_detail(
+                            match reason {
+                                f4x_core::game::Rejection::NoPath(n) => {
+                                    format!("NoPath({})", n.name())
+                                }
+                                other => format!("{other:?}"),
+                            },
+                            rejection_detail(game, reason, target.as_ref()),
+                        ),
                     });
                 }
             }
@@ -633,6 +720,53 @@ mod send_tests {
             &mut events,
         );
         assert_eq!(sent, Err(SendError::Stopped(MoveError::StackFull)));
+        Ok(())
+    }
+
+    #[test]
+    fn a_refused_order_logs_the_facts_of_the_failure() -> TestResult {
+        use crate::testworld::ENEMY_CITY;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let units = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 1);
+        let limit = g.max_tile();
+        spawn(&mut g, P0, at(5, 9), 113, limit);
+        let mut ai = Ai::new(P0);
+        ai.record_refusals(true);
+        let mut events = Vec::new();
+        // A full square on the way: the order is taken and stops at its step.
+        let _ = ai.send(
+            &mut g,
+            Command::GoTo {
+                units: units.clone(),
+                to: at(5, 9),
+            },
+            &mut events,
+        );
+        // The other island: no walk, and the log says where the walk stopped.
+        let _ = ai.send(
+            &mut g,
+            Command::GoTo {
+                units,
+                to: at(ENEMY_CITY.0, ENEMY_CITY.1),
+            },
+            &mut events,
+        );
+        let reasons: Vec<String> = ai.take_refusals().into_iter().map(|r| r.reason).collect();
+        assert!(
+            reasons.iter().any(|r| r.contains(&format!(
+                "OrderFailed StackFull{DETAIL_SEPARATOR}step (5, 9): full ({limit} of {limit})"
+            ))),
+            "{reasons:?}"
+        );
+        assert!(
+            reasons.iter().any(|r| r.contains("NoPath(CutOff")
+                && r.contains(&format!(
+                    "{DETAIL_SEPARATOR}to ({}, {}): cut off at",
+                    ENEMY_CITY.0, ENEMY_CITY.1
+                ))
+                && r.contains("is water")),
+            "{reasons:?}"
+        );
         Ok(())
     }
 

@@ -72,8 +72,6 @@ struct Roster {
     marching: usize,
     /// Ships with no plan (`TransportFree`).
     free_ships: usize,
-    /// Ships of any role that carry (not the scouting ones).
-    ships: usize,
     /// Units awaiting transport on a shore (not the settlers waiting in a port).
     waiting: usize,
     /// Units out scouting.
@@ -94,16 +92,11 @@ impl Roster {
                 is_fighter(view, u) && ai.roles.is(view.serial_of(u), Role::AwaitingOrders)
             })
             .count();
-        let ships = units
-            .iter()
-            .filter(|&&u| crate::view::is_ship(view, u) && !ai.roles.is_scouting(view.serial_of(u)))
-            .count();
         let waiting = ai.roles.waiting_for_ship().len();
         Roster {
             idle_fighters,
             marching: ai.roles.count(Role::March),
             free_ships: ai.roles.count(Role::TransportFree),
-            ships,
             waiting,
             scouts: ai.roles.scouting().len(),
         }
@@ -196,12 +189,17 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let planned = settlers_alive(&view) + in_production;
         (mine, planned)
     };
-    let free_sites = {
+    // The list of sites: its length is the room for more cities (`phase::width` leans wide with it).
+    let (free_sites, room) = {
         let view = PlayerView::new(game, me);
         let taken = ai.roles.targets(crate::roles::Role::Settle);
-        crate::city_site::free_sites(ai.sites.refreshed(&view), &taken, &view)
+        let list = ai.sites.refreshed(&view);
+        (
+            crate::city_site::free_sites(list, &taken, &view),
+            !list.is_empty(),
+        )
     };
-    let wide = crate::phase::width(&PlayerView::new(game, me));
+    let wide = crate::phase::width(&PlayerView::new(game, me), room);
     let war_force = ai.campaign.map(|target| {
         let view = PlayerView::new(game, me);
         let strength = crate::war_plan::strength_wanted(&view, &ai.city_memory, game.turn, target);
@@ -257,8 +255,8 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
                 continue;
             }
-            // Units awaiting transport and no ship at all: the nearest port builds one.
-            let rescue_port = (roster.waiting > 0 && roster.ships == 0)
+            // Units awaiting transport and no ship free to take them: the nearest port builds one.
+            let rescue_port = (roster.waiting > 0 && roster.free_ships == 0)
                 .then(|| rescue_port(ai, &view))
                 .flatten();
             let port = ai.naval.map(|p| p.port).or(ai.sea_port).or(rescue_port);
@@ -714,7 +712,7 @@ mod tests {
                     &ai.roles.targets(crate::roles::Role::Settle),
                     &view,
                 ),
-                wide: crate::phase::width(&view),
+                wide: crate::phase::width(&view, crate::city_site::has_sites(&view)),
             },
         ))
     }

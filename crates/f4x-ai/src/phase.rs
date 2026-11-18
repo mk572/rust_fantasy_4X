@@ -97,7 +97,7 @@ const TALL_RETORTS: &[&str] = &[
 /// (settlers, armies, ships, conquest). It follows the wizard's race, retorts and books, the
 /// phase of the game and the situation: room to settle, and neighbours stronger or weaker than
 /// the wizard.
-pub fn width(view: &PlayerView) -> f32 {
+pub fn width(view: &PlayerView, room_for_city: bool) -> f32 {
     let mut w: f32 = 0.5;
     if let Some(m) = view.wizard() {
         let rules = &view.content().rules;
@@ -143,11 +143,7 @@ pub fn width(view: &PlayerView) -> f32 {
         Phase::Win if mastery_under_way(view) => -0.2,
         Phase::Win => 0.1,
     };
-    w += if crate::expand::room_for_city(view) {
-        0.2
-    } else {
-        -0.2
-    };
+    w += if room_for_city { 0.2 } else { -0.2 };
     // Neighbours: more cities than the wizard hold it back, fewer invite it out.
     let mine = view.my_cities().len() as f32;
     let theirs: Vec<f32> = view
@@ -186,9 +182,17 @@ mod tests {
     #[test]
     fn a_new_wizard_with_room_to_settle_leans_wide() -> Result<(), Box<dyn std::error::Error>> {
         let g = fresh_game()?;
-        let w = width(&PlayerView::new(&g, P1));
+        let w = width(&PlayerView::new(&g, P1), true);
         assert!(w > 0.5, "build phase and room: {w}");
         assert!((0.0..=1.0).contains(&w));
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_with_no_site_left_leans_less_wide() -> Result<(), Box<dyn std::error::Error>> {
+        let g = fresh_game()?;
+        let view = PlayerView::new(&g, P1);
+        assert!(width(&view, false) < width(&view, true));
         Ok(())
     }
 
@@ -196,7 +200,7 @@ mod tests {
     fn a_wizard_about_to_win_with_the_spell_of_mastery_leans_tall(
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut g = fresh_game()?;
-        let before = width(&PlayerView::new(&g, P1));
+        let before = width(&PlayerView::new(&g, P1), true);
         let mastery = g
             .content()
             .rules
@@ -206,7 +210,7 @@ mod tests {
             .map(|(id, _)| id)
             .ok_or("a spell of mastery")?;
         g.cheat_learn_spell(P1, mastery);
-        assert!(width(&PlayerView::new(&g, P1)) < before);
+        assert!(width(&PlayerView::new(&g, P1), true) < before);
         Ok(())
     }
 

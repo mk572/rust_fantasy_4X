@@ -277,7 +277,25 @@ pub struct AbilityDef {
     /// The ability's topic in `help.ron` (an index).
     #[serde(default)]
     pub help: Option<u16>,
+    /// What a hero ability gives per level (`abilities.ron`); none for any other ability.
+    #[serde(default)]
+    pub per_level: Option<PerLevel>,
     pub effects: Vec<EffectRule>,
+}
+
+/// `x * numerator / denominator` with `x = level + level_offset`, rounded down: what a hero
+/// ability gives a hero of that level (0 for the first).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PerLevel {
+    pub numerator: i32,
+    pub denominator: i32,
+    pub level_offset: i32,
+}
+
+impl PerLevel {
+    pub fn at(self, level: usize) -> i32 {
+        (level as i32 + self.level_offset) * self.numerator / self.denominator.max(1)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -807,7 +825,7 @@ impl Def for SpellDef {
 }
 
 /// All rules definitions.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Rules {
     pub config: RulesConfig,
     pub races: Registry<RaceDef>,
@@ -825,6 +843,8 @@ pub struct Rules {
     pub hero_templates: Vec<HeroTemplate>,
     /// The guard and treasure rules of the sites (`lairs.ron`).
     pub lairs: super::lair::LairRules,
+    /// How the AI weighs a place for a city (`ai_sites.ron`, optional).
+    pub ai_sites: super::ai_site::SiteRules,
 }
 
 #[cfg(test)]

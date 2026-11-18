@@ -300,6 +300,7 @@ impl Game {
         if ranged_kind == RangedKind::Magic && mana > 0 {
             ammo = mana / super::SHOT_MANA;
         }
+        let formulas = &self.content().rules;
         Some(BattleUnit {
             id: 0,
             side,
@@ -342,10 +343,10 @@ impl Game {
             weapon_quality: quality,
             special_level: self.units().unit_stat(unit, Stat::SpecialLevel),
             leadership: hero.as_ref().map_or(0, |h| {
-                crate::hero::leadership(h.abilities.leadership, level)
+                formulas.hero_value("leadership", h.abilities.leadership, level)
             }),
             prayermaster: hero.as_ref().map_or(0, |h| {
-                crate::hero::prayermaster(h.abilities.prayermaster, level)
+                formulas.hero_value("prayermaster", h.abilities.prayermaster, level)
             }),
             // A unit held in Stasis cannot act: it is as if asleep.
             warp: None,

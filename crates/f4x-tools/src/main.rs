@@ -42,7 +42,8 @@ const USAGE: &str = "usage:
                                               AI wizards play whole games and report; --events adds
                                               a line on the random events, --casts the casts
                                               per spell and the map spells never cast; with
-                                              --refused-log, every refused command goes to FILE (TSV);
+                                              --refused-log, every refused command goes to FILE (TSV, with why in
+                                              the last column; scripts/refused_summary.py groups it);
                                               --snapshots-every N --out DIR saves the game every N turns
   f4x-tools queries --from SAVE [--player N] [--repeat N]
                                               time the game queries the client asks for in every frame

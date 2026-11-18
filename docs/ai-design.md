@@ -239,7 +239,9 @@ ships (step 8).
   food and growth, the production the land gives, mana, gold and food of special squares, cheaper
   soldiers, rivers), the squares another city already works count for less, and the score rises with
   nearness to the wizard's own cities and falls with nearness to a rival's (more at war) and with a
-  crossing: a site over the sea or on the other plane ranks below any site on the home land. Of two
+  crossing: a site over the sea or on the other plane ranks below any site on the home land. The weights
+  are content (`crates/f4x-def/content/ai_sites.ron`, `SiteRules`), and `phase::width` leans wide while the
+  list is not empty. Of two
   sites too close to be two cities only the better is kept. Settlers get their sites in rank order, the
   best site to the nearest settler (`assign`); a site is left out only for a reason the view shows (an
   enemy in sight on or next to it, a city founded, the ground no longer taking one), and there is no list
@@ -806,8 +808,13 @@ plans says only that a plan ended. Each place that ends one says why: never pick
 a ship and the clock ran out), did not arrive in time, site settled by someone else, site not fit for a city, way to the
 site blocked, and (per turn) no suitable site. The soak adds what the game took from the AI: settlers lost in battle,
 let go for lack of food, let go for lack of gold (`metrics.rs`, from the game's events). The refused-order log
-(`--refused-log`) has a last column, `stood`: for how many turns in a row the same wizard has sent the same command from the
-same line and had it refused (1 for the first time).
+(`--refused-log`) has the columns `seed turn player source reason command stood detail`. `stood` is for how many turns in a row
+the same wizard has sent the same command from the same line and had it refused (1 for the first time). `detail` holds the
+facts of the failure when the game knows them: why a go-to found no way (`NoPath`: the target is water, land for a ship,
+full, an enemy, or the walk stopped at a square with a blocker beyond it, `unit/pathing/failure.rs`) and which square stopped a
+standing order and what holds it. `python3 scripts/refused_summary.py FILE` groups the log by source, reason and kind of
+detail and marks an order asked again for ten turns as a loop. A panic in a soak names the seed, turn and player and the last
+order the AI sent.
 
 The escort role is built (`escort.rs`: a settler leaving a city takes a spare soldier along). The new roles perimeter, road and meld are tasks 625, 627 and 628.
 

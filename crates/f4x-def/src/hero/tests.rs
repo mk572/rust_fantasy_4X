@@ -1,47 +1,101 @@
 use super::*;
 use crate::rules::stats::{Modifier, Stat};
 use crate::rules::Ability;
+use crate::testdir::shipped;
 
 #[test]
 fn the_formulas_follow_the_table() {
+    let f = &shipped().rules;
     // Level 5 (the sixth): x = 6.
     let (n, s) = (Tier::Normal, Tier::Super);
-    assert_eq!((leadership(n, 5), leadership(s, 5)), (2, 3));
-    assert_eq!((blademaster(n, 5), blademaster(s, 5)), (3, 4));
-    assert_eq!((constitution(n, 5), constitution(s, 5)), (6, 9));
-    assert_eq!((might(n, 5), might(s, 5)), (6, 9));
-    assert_eq!((agility(n, 5), agility(s, 5)), (6, 9));
-    assert_eq!((arcane_power(n, 5), arcane_power(s, 5)), (6, 9));
-    assert_eq!((prayermaster(n, 5), prayermaster(s, 5)), (6, 9));
-    assert_eq!((legendary(n, 5), legendary(s, 5)), (18, 27));
-    assert_eq!((armsmaster(n, 5), armsmaster(s, 5)), (12, 18));
+    let both = |name: &str, level| (f.hero_value(name, n, level), f.hero_value(name, s, level));
+    assert_eq!(both("leadership", 5), (2, 3));
+    assert_eq!(both("blademaster", 5), (3, 4));
+    assert_eq!(both("constitution", 5), (6, 9));
+    assert_eq!(both("might", 5), (6, 9));
+    assert_eq!(both("agility", 5), (6, 9));
+    assert_eq!(both("arcane_power", 5), (6, 9));
+    assert_eq!(both("prayermaster", 5), (6, 9));
+    assert_eq!(both("legendary", 5), (18, 27));
+    assert_eq!(both("armsmaster", 5), (12, 18));
     // Sage goes by the level itself.
-    assert_eq!((sage(n, 5), sage(s, 5)), (15, 22));
-    assert_eq!(might(Tier::None, 5), 0);
+    assert_eq!(both("sage", 5), (15, 22));
+    assert_eq!(f.hero_value("might", Tier::None, 5), 0);
+    assert_eq!(f.hero_value("not_an_ability", n, 5), 0);
     // Rounded down: x = 2.
-    assert_eq!((blademaster(s, 1), might(s, 1), legendary(s, 1)), (1, 3, 9));
+    assert_eq!(
+        (
+            f.hero_value("blademaster", s, 1),
+            f.hero_value("might", s, 1),
+            f.hero_value("legendary", s, 1)
+        ),
+        (1, 3, 9)
+    );
+}
+
+#[test]
+fn a_changed_factor_in_the_content_changes_the_heros_stats() {
+    let mut rules = shipped().rules.clone();
+    let hero = HeroAbilities::from_ids(&[Ability::new(85) /* might */]);
+    let melee = |r: &crate::rules::Rules| {
+        hero.modifiers(r, 3, false)
+            .iter()
+            .find(|m| m.stat == Stat::Melee)
+            .map(|m| m.value)
+    };
+    assert_eq!(
+        melee(&rules),
+        Some(HalfInt::from_int(4)),
+        "x = 4 at the shipped factor 1/1"
+    );
+    rules
+        .abilities
+        .by_num_mut(85)
+        .and_then(|a| a.per_level.as_mut())
+        .expect("might has a per_level")
+        .numerator = 2;
+    assert_eq!(
+        melee(&rules),
+        Some(HalfInt::from_int(8)),
+        "the factor is read from the content"
+    );
+}
+
+#[test]
+fn every_hero_ability_has_its_fraction_and_a_doubled_one_is_never_worth_less() {
+    let f = &shipped().rules;
+    assert_eq!(problems(f), Vec::<String>::new());
+    for &name in TIERED {
+        for level in 0..5 {
+            assert!(
+                f.hero_value(name, Tier::Super, level) >= f.hero_value(name, Tier::Normal, level),
+                "{name} at {level}"
+            );
+        }
+    }
 }
 
 #[test]
 fn arcane_power_needs_a_magic_attack() {
+    let f = &shipped().rules;
     let a = HeroAbilities::from_ids(&[
         Ability::new(87), /* arcane_power */
         Ability::new(86), /* super_might */
     ]);
     let find = |mods: &[Modifier], stat| mods.iter().find(|m| m.stat == stat).map(|m| m.value);
-    assert_eq!(find(&a.modifiers(1, false), Stat::Ranged), None);
+    assert_eq!(find(&a.modifiers(f, 1, false), Stat::Ranged), None);
     assert_eq!(
-        find(&a.modifiers(1, true), Stat::Ranged),
+        find(&a.modifiers(f, 1, true), Stat::Ranged),
         Some(HalfInt::from_int(2))
     );
     assert_eq!(
-        find(&a.modifiers(1, true), Stat::Melee),
+        find(&a.modifiers(f, 1, true), Stat::Melee),
         Some(HalfInt::from_int(3))
     );
-    assert_eq!(find(&a.modifiers(1, true), Stat::Defense), None);
+    assert_eq!(find(&a.modifiers(f, 1, true), Stat::Defense), None);
     let charmed = HeroAbilities::from_ids(&[Ability::new(95) /* charmed */]);
     assert_eq!(
-        find(&charmed.modifiers(1, false), Stat::Resistance),
+        find(&charmed.modifiers(f, 1, false), Stat::Resistance),
         Some(HalfInt::from_int(30))
     );
 }

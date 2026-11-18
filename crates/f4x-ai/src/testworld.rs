@@ -64,24 +64,38 @@ pub fn game(city0: (u32, u32), race: u16) -> Game {
 
 /// [`game`] with the east wizard's city on Myrror: no rival on the plane of the west wizard.
 pub fn game_rival_across(city0: (u32, u32), race: u16) -> Game {
-    build_game(city0, race, 7, Plane::Myrror)
+    build_game(city0, race, 7, Plane::Myrror, &[])
 }
 
 /// [`game`] whose dice start from `seed`.
 pub fn game_seeded(city0: (u32, u32), race: u16, seed: u64) -> Game {
-    build_game(city0, race, seed, Plane::Arcanus)
+    build_game(city0, race, seed, Plane::Arcanus, &[])
 }
 
-fn build_game(city0: (u32, u32), race: u16, seed: u64, rival_plane: Plane) -> Game {
+/// [`game`] with a river on each of the squares (of Arcanus).
+pub fn game_with_rivers(city0: (u32, u32), race: u16, rivers: &[(u32, u32)]) -> Game {
+    build_game(city0, race, 7, Plane::Arcanus, rivers)
+}
+
+fn build_game(
+    city0: (u32, u32),
+    race: u16,
+    seed: u64,
+    rival_plane: Plane,
+    rivers: &[(u32, u32)],
+) -> Game {
     let content = content();
     let ocean = content.terrains.id_numbered(8).expect("ocean");
     let grass = content.terrains.id_numbered(4).expect("grassland");
-    let build = || {
+    let build = |rivers: &[(u32, u32)]| {
         let mut grid = Grid::new(WIDTH, HEIGHT, ocean);
         for y in ROWS {
             for x in WEST.chain(EAST) {
                 grid.set(x, y, grass);
             }
+        }
+        for &(x, y) in rivers {
+            grid.set_river(x, y, true);
         }
         grid
     };
@@ -92,7 +106,7 @@ fn build_game(city0: (u32, u32), race: u16, seed: u64, rival_plane: Plane) -> Ga
         .expect("the race exists");
     let mut game = Game::new(seed);
     game.set_content(content);
-    game.set_map(Map::new(build(), build()));
+    game.set_map(Map::new(build(rivers), build(&[])));
     game.add_player(P0, "West");
     game.add_player(P1, "East");
     for (owner, (x, y), name) in [(P0, city0, "Westport"), (P1, ENEMY_CITY, "Eastport")] {

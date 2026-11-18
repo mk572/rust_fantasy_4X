@@ -5,38 +5,9 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_def::rules::Ability;
 
-use crate::city_site::{Free, SPACING};
-use crate::view::{distance, nearest_unexplored};
+use crate::city_site::Free;
+use crate::view::nearest_unexplored;
 use crate::Ai;
-
-/// How far from a city of the wizard `room_for_city` looks for a place for another.
-const SEARCH_RADIUS: i32 = 9;
-
-/// Is there ground near one of the wizard's cities where a city could still be founded? There is
-/// no cost to growing in this game, so a wizard keeps settling until the land is full.
-pub(crate) fn room_for_city(view: &PlayerView) -> bool {
-    let cities: Vec<Position> = view
-        .my_cities()
-        .into_iter()
-        .map(|(_, p)| p)
-        .chain(view.known_cities().into_iter().map(|(_, _, p)| p))
-        .collect();
-    view.my_cities().into_iter().any(|(_, from)| {
-        (-SEARCH_RADIUS..=SEARCH_RADIUS).any(|dy| {
-            (-SEARCH_RADIUS..=SEARCH_RADIUS).any(|dx| {
-                view.shift(from, dx, dy).is_some_and(|p| {
-                    p.y >= 1
-                        && view.can_found_city(p)
-                        && !view.has_lair(p)
-                        && !view.in_node(p)
-                        && !cities
-                            .iter()
-                            .any(|&t| distance(view, t, p).is_some_and(|d| d < SPACING))
-                })
-            })
-        })
-    })
-}
 
 pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
@@ -232,7 +203,9 @@ fn city_name(view: &PlayerView, unit: hecs::Entity) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::city_site::SPACING;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0};
+    use crate::view::distance;
     use f4x_def::half_int::HalfInt;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -240,7 +213,7 @@ mod tests {
     #[test]
     fn a_wizard_on_a_roomy_island_has_room_for_another_city() {
         let (g, _) = island_with_settlers(0);
-        assert!(room_for_city(&PlayerView::new(&g, P0)));
+        assert!(crate::city_site::has_sites(&PlayerView::new(&g, P0)));
     }
 
     /// The west island, explored by its wizard, with `count` settlers standing in the capital.
@@ -338,7 +311,6 @@ mod tests {
             .ok_or("the settler is on the map")?;
         ai.roles.track(serial, here, false);
         settlers(&mut ai, &mut g, &mut Vec::new());
-        assert!(ai.bad_sites.is_empty(), "no blacklist: {:?}", ai.bad_sites);
         assert!(
             ai.settler_failures()
                 .contains(&("way to the site blocked", 1)),
@@ -453,7 +425,6 @@ mod tests {
             .ok_or("the settler has a site")?;
         assert!(site.x >= 28, "over the sea: {site:?}");
         assert_eq!(ai.roles.crossing_of(serial), Some(Crossing::Sea));
-        assert!(ai.bad_sites.is_empty());
         Ok(())
     }
 }

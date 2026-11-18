@@ -586,6 +586,8 @@ pub enum Rejection {
     Site(feature::lair::SiteError),
     FoundCity(city::FoundCityError),
     Move(unit::movement::MoveError),
+    /// A go-to order found no way, and why.
+    NoPath(unit::pathing::failure::NoPath),
     Production(city::production::ProductionError),
     Magic(wizard::magic::MagicError),
     Fortress(wizard::fortress::FortressError),
@@ -612,6 +614,7 @@ impl Rejection {
             Self::Site(e) => e.key(),
             Self::FoundCity(e) => e.key(),
             Self::Move(e) => e.key(),
+            Self::NoPath(e) => e.key(),
             Self::Production(e) => e.key(),
             Self::Magic(e) => e.key(),
             Self::Fortress(e) => e.key(),

@@ -53,6 +53,14 @@ pub fn walk(
             units.push(escort);
         }
     }
+    // A charge that can cross what its escort cannot (a swimming settler, a walking soldier) goes
+    // alone: a stack moves like its slowest member, and one that has no way is no escort.
+    if units.len() > 1 && !game.reaches_any(&units, &[to]) && game.reaches_any(&units[..1], &[to]) {
+        if let Some(escort) = ai.roles.escort_of(charge) {
+            ai.roles.release_many(&[escort], Role::Escort);
+        }
+        units.truncate(1);
+    }
     // With no escort at its side and an enemy near, the charge waits where it stands (the order
     // is asked again next turn, when a soldier may be spare).
     if units.len() == 1 && at.is_some_and(|at| enemy_near(&PlayerView::new(game, me), at)) {
@@ -210,7 +218,8 @@ pub fn guard(ai: &mut Ai, game: &mut Game, charge: hecs::Entity, events: &mut Ve
     match (unit, there) {
         (Some(_), Some(p)) if p == at => true,
         (Some(u), _) => {
-            if !PlayerView::new(game, me).unit_has_order(u) {
+            // A square with no room for it is not asked: the escort waits till one leaves.
+            if !PlayerView::new(game, me).unit_has_order(u) && Ai::room_at(game, at, 1) {
                 ai.order(
                     game,
                     Command::GoTo {
@@ -357,6 +366,29 @@ mod tests {
         run(&mut ai, &mut g, &mut Vec::new());
         let charge = PlayerView::new(&g, P0).serial_of(settler);
         assert_eq!(ai.roles.escort_of(charge), None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_swimming_settler_does_not_take_a_walking_escort_over_the_sea() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let city = at(COAST_CITY.0, COAST_CITY.1);
+        spawn(&mut g, P0, city, 113 /* high_men_paladins */, 2);
+        let settler = spawn(&mut g, P0, city, 125 /* lizardman_settlers */, 1)[0];
+        let mut ai = Ai::new(P0);
+        let charge = PlayerView::new(&g, P0).serial_of(settler);
+        // A square of the east island that the swimmer can walk to and the soldiers cannot.
+        let walker = g.units().units_at(city)[0];
+        let swims = g.reachable_squares(&[settler]);
+        let walks = g.reachable_squares(&[walker]);
+        let far = swims
+            .iter()
+            .copied()
+            .filter(|p| p.x >= 28 && !walks.contains(p))
+            .min_by_key(|p| (p.y, p.x))
+            .ok_or("the swimmer reaches the east island")?;
+        assert!(walk(&mut ai, &mut g, settler, far, &mut Vec::new()));
+        assert_eq!(ai.roles.escort_of(charge), None, "no walking escort");
         Ok(())
     }
 

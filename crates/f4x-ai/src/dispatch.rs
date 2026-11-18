@@ -125,8 +125,9 @@ fn resend(
                 .map_err(|why| {
                     matches!(
                         why,
-                        SendError::Rejected(Rejection::Move(MoveError::Impassable))
-                            | SendError::Stopped(MoveError::Impassable)
+                        SendError::Rejected(
+                            Rejection::Move(MoveError::Impassable) | Rejection::NoPath(_)
+                        ) | SendError::Stopped(MoveError::Impassable)
                     )
                 }),
         };

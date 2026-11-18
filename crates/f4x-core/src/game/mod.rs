@@ -585,8 +585,8 @@ impl Game {
                     }
                     self.follow_orders(&units)
                 }
-                None => vec![Event::Rejected(Rejection::Move(
-                    unit::movement::MoveError::Impassable,
+                None => vec![Event::Rejected(Rejection::NoPath(
+                    self.why_no_path(&units, to),
                 ))],
             },
             Command::ClearOrders { units } => {

@@ -3,8 +3,8 @@
 //! it (a guarded one is a site to clear first, `site.rs`). The spirit travels with an escort when
 //! the city it leaves has a soldier to spare (`escort::walk`).
 //!
-//! The spirit that melds is used up. One that cannot get to its node (the way is blocked for a
-//! few turns) gives that node up for a while and looks for another.
+//! The spirit that melds is used up. One that stands still on its way for a few turns drops the
+//! order, is logged with the cause, and takes another node; nothing is held against the node.
 
 use crate::roles::Role;
 use crate::Ai;
@@ -31,7 +31,6 @@ pub(crate) fn open_nodes(ai: &Ai, view: &PlayerView) -> Vec<Position> {
         .into_iter()
         .filter(|n| !n.warped && n.owner != Some(me) && !view.has_lair(n.pos))
         .map(|n| n.pos)
-        .filter(|p| !ai.bad_sites.contains(p))
         .collect();
     nodes.sort_by_key(|p| (p.plane as u8, p.y, p.x));
     nodes
@@ -105,35 +104,54 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             continue;
         }
         let target = ai.roles.target_of(serial, Role::Meld);
-        // A node somebody else took, or one the spirit cannot get to, is given up.
+        // A spirit that has stood still on its order for too long is not getting there: the order
+        // is dropped, the refused-order log gets the cause, and another node is chosen this turn.
+        // Nothing is remembered against the node (a node that is taken or guarded is not open).
         let stuck = ai.roles.track(serial, here, ordered);
+        let mut skip = None;
         if let (Some(t), true) = (target, stuck >= PATIENCE) {
-            ai.bad_sites.push(t);
+            ai.note_failure(
+                game,
+                format!("spirit at {here:?} stood still on its way to {t:?}"),
+                format!(
+                    "Stuck{}{}",
+                    crate::DETAIL_SEPARATOR,
+                    game.why_no_path(&[spirit], t)
+                ),
+            );
+            ai.order(
+                game,
+                Command::ClearOrders {
+                    units: vec![spirit],
+                },
+                events,
+            );
             ai.roles.clear_track(serial);
             ai.roles.release(serial, Role::Meld);
-            continue;
-        }
-        if ordered && target.is_some_and(|t| nodes.contains(&t)) {
+            skip = Some(t);
+        } else if ordered && target.is_some_and(|t| nodes.contains(&t)) {
             continue;
         }
         let taken = ai.roles.targets(Role::Meld);
-        let best = {
+        // The nodes it can walk to, nearest first; the first one the walk planner takes an order for.
+        let candidates: Vec<Position> = {
             let view = PlayerView::new(game, me);
-            nodes
+            let mut list: Vec<Position> = nodes
                 .iter()
                 .copied()
-                .filter(|p| p.plane == here.plane)
+                .filter(|p| p.plane == here.plane && skip != Some(*p))
                 .filter(|p| target == Some(*p) || !taken.contains(p))
                 .filter(|&p| view.can_reach(&[spirit], p))
-                .min_by_key(|&p| (view.distance(here, p).unwrap_or(u32::MAX), p.y, p.x))
+                .collect();
+            list.sort_by_key(|&p| (view.distance(here, p).unwrap_or(u32::MAX), p.y, p.x));
+            list
         };
-        match best {
+        let chosen = candidates
+            .into_iter()
+            .find(|&node| crate::escort::walk(ai, game, spirit, node, events));
+        match chosen {
             Some(node) => {
-                if crate::escort::walk(ai, game, spirit, node, events) {
-                    let _ = ai.roles.claim(serial, Role::Meld, turn, Some(node));
-                } else {
-                    ai.bad_sites.push(node);
-                }
+                let _ = ai.roles.claim(serial, Role::Meld, turn, Some(node));
             }
             None => {
                 ai.roles.release(serial, Role::Meld);
@@ -203,6 +221,38 @@ mod tests {
         let node = g.economy().node_at(at(6, 6)).ok_or("the node")?;
         assert_eq!(node.owner, Some(P0), "the node is the wizard's");
         assert!(!ai.roles.any(Role::Meld));
+        Ok(())
+    }
+
+    #[test]
+    fn a_spirit_that_stands_still_takes_another_node_and_holds_nothing_against_the_first(
+    ) -> TestResult {
+        let (mut g, spirit) = world()?;
+        node(&mut g, at(5, 6))?;
+        let mut ai = Ai::new(P0);
+        ai.record_refusals(true);
+        run(&mut ai, &mut g, &mut Vec::new());
+        let serial = PlayerView::new(&g, P0).serial_of(spirit);
+        let first = ai
+            .roles
+            .target_of(serial, Role::Meld)
+            .ok_or("it has a node")?;
+        // The turns pass and the spirit does not move.
+        for _ in 0..=PATIENCE {
+            run(&mut ai, &mut g, &mut Vec::new());
+        }
+        let now = ai
+            .roles
+            .target_of(serial, Role::Meld)
+            .ok_or("it has a node again")?;
+        assert_ne!(now, first, "another node");
+        let view = PlayerView::new(&g, P0);
+        assert!(
+            open_nodes(&ai, &view).contains(&first),
+            "the first stays open"
+        );
+        let said: Vec<String> = ai.take_refusals().into_iter().map(|r| r.reason).collect();
+        assert!(said.iter().any(|r| r.starts_with("Stuck")), "{said:?}");
         Ok(())
     }
 

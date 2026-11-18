@@ -38,7 +38,9 @@ impl UnitView<'_> {
         } else {
             return 0;
         };
-        f4x_def::hero::armsmaster(tier, self.unit_level(hero)) as u32
+        self.content
+            .rules
+            .hero_value("armsmaster", tier, self.unit_level(hero)) as u32
     }
 
     /// The experience a unit has after `amount` more: only a living normal unit or hero (not

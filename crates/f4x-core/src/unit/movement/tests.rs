@@ -1308,3 +1308,141 @@ fn a_path_takes_as_many_turns_as_the_moves_it_costs() -> TestResult {
     assert_eq!(g.path_turns(&[w], &straight[..1]), 1);
     Ok(())
 }
+
+mod no_path {
+    use super::*;
+    use crate::unit::pathing::failure::{Blocker, NoPath};
+
+    fn go_to(g: &mut Game, units: &[hecs::Entity], to: Position) -> Vec<Event> {
+        g.apply(Command::GoTo {
+            units: units.to_vec(),
+            to,
+        })
+    }
+
+    /// The world of the other tests with two walls of sea (columns 4 and 10), so that the squares
+    /// between them (columns 5 to 9) are cut off from the rest.
+    fn walled() -> Game {
+        let mut g = world();
+        let c = shipped();
+        let sea = c.terrains.id_numbered(8 /* ocean */).expect("ocean");
+        let mut map = g.map.take().expect("map");
+        for plane in [Plane::Arcanus, Plane::Myrror] {
+            for y in 0..6 {
+                for x in [4, 10] {
+                    map.plane_mut(plane).set(x, y, sea);
+                }
+            }
+        }
+        g.map = Some(map);
+        g
+    }
+
+    #[test]
+    fn a_target_in_the_sea_is_water() {
+        let mut g = world();
+        let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(6, 2));
+        assert_eq!(
+            go_to(&mut g, &[w], at(7, 2)),
+            vec![Event::Rejected(Rejection::NoPath(NoPath::Target(
+                Blocker::Water
+            )))]
+        );
+    }
+
+    #[test]
+    fn a_ship_cannot_go_to_dry_land() {
+        let mut g = world();
+        let s = unit(&mut g, P0, 35 /* trireme */, at(7, 2));
+        assert_eq!(
+            go_to(&mut g, &[s], at(5, 2)),
+            vec![Event::Rejected(Rejection::NoPath(NoPath::Target(
+                Blocker::Land
+            )))]
+        );
+    }
+
+    #[test]
+    fn a_full_square_says_how_full() {
+        let mut g = world();
+        let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 1));
+        assert_eq!(g.blocker_at(&[w], at(5, 4)), None, "room");
+        for _ in 0..g.max_tile() {
+            unit(&mut g, P0, 107 /* high_men_cavalry */, at(5, 4));
+        }
+        let limit = g.max_tile() as u32;
+        assert_eq!(
+            g.blocker_at(&[w], at(5, 4)),
+            Some(Blocker::Full {
+                present: limit,
+                limit
+            })
+        );
+        let enemy = unit(&mut g, P1, 107 /* high_men_cavalry */, at(1, 3));
+        assert_eq!(g.blocker_at(&[w], at(1, 3)), Some(Blocker::Hostile));
+        assert_eq!(g.blocker_at(&[enemy], at(1, 3)), None, "its own square");
+    }
+
+    #[test]
+    fn standing_on_the_target_is_said_so() {
+        let mut g = world();
+        let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 1));
+        assert_eq!(
+            go_to(&mut g, &[w], at(1, 1)),
+            vec![Event::Rejected(Rejection::NoPath(NoPath::AlreadyThere))]
+        );
+    }
+
+    #[test]
+    fn a_target_on_the_other_plane_is_said_so() {
+        let mut g = world();
+        let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 1));
+        let there = Position {
+            plane: Plane::Myrror,
+            ..at(1, 1)
+        };
+        assert_eq!(
+            go_to(&mut g, &[w], there),
+            vec![Event::Rejected(Rejection::NoPath(NoPath::OtherPlane))]
+        );
+    }
+
+    #[test]
+    fn a_walker_cut_off_by_the_sea_is_told_where_it_stopped_and_what_is_beyond() {
+        let mut g = walled();
+        let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(6, 3));
+        let events = go_to(&mut g, &[w], at(1, 3));
+        let [Event::Rejected(Rejection::NoPath(NoPath::CutOff {
+            stopped,
+            region,
+            beyond,
+        }))] = events.as_slice()
+        else {
+            panic!("expected a cut-off refusal, got {events:?}");
+        };
+        assert_eq!(
+            *region,
+            5 * 6 - 2,
+            "columns 5 to 9, six rows, less the two squares of sea"
+        );
+        assert!(
+            (5..=9).contains(&stopped.x),
+            "stopped inside the region: {stopped:?}"
+        );
+        assert!(
+            matches!(beyond, Some((_, Blocker::Water))),
+            "the wall is sea: {beyond:?}"
+        );
+    }
+
+    #[test]
+    fn a_path_that_exists_is_no_refusal() {
+        let mut g = walled();
+        let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(6, 3));
+        let events = go_to(&mut g, &[w], at(8, 3));
+        assert!(
+            !events.iter().any(|e| matches!(e, Event::Rejected(_))),
+            "{events:?}"
+        );
+    }
+}

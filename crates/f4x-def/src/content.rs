@@ -8,7 +8,7 @@ use crate::feature::Features;
 use crate::map::Terrains;
 
 /// All loaded game content.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Content {
     pub terrains: Terrains,
     pub features: Features,
