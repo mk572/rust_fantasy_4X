@@ -463,6 +463,12 @@ impl<'a> PlayerView<'a> {
             .is_ok()
     }
 
+    /// Whether a road can be built on the square (not on water): a way that crosses water (a ship's
+    /// square) is no way for a road.
+    pub fn road_possible(&self, at: Position) -> bool {
+        self.game.turns_to_build_road(at).is_some()
+    }
+
     /// Is there a road on an explored square?
     pub fn has_road(&self, at: Position) -> bool {
         self.explored(at)

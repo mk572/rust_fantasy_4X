@@ -33,8 +33,8 @@ pub enum RoadError {
     BadSelection,
     /// None of the units can build roads.
     NoBuilders,
-    /// A road cannot be built on this square (water).
-    CannotBuildHere,
+    /// A road cannot be built on this square: it is water (a way that crosses a ship's square).
+    OnWater(Position),
     /// The path is not a chain of neighbouring squares.
     BadPath,
 }
@@ -45,7 +45,7 @@ impl RoadError {
         match self {
             Self::BadSelection => "refuse_map.road_error_bad_selection",
             Self::NoBuilders => "refuse_map.road_error_no_builders",
-            Self::CannotBuildHere => "refuse_map.road_error_cannot_build_here",
+            Self::OnWater(_) => "refuse_map.road_error_on_water",
             Self::BadPath => "refuse_map.road_error_bad_path",
         }
     }
@@ -150,8 +150,11 @@ impl Game {
         {
             return Err(RoadError::BadPath);
         }
-        if path.iter().any(|&p| self.turns_to_build_road(p).is_none()) {
-            return Err(RoadError::CannotBuildHere);
+        if let Some(&water) = path
+            .iter()
+            .find(|&&p| self.turns_to_build_road(p).is_none())
+        {
+            return Err(RoadError::OnWater(water));
         }
         let points = self.construction_points(&builders);
         let left = self.turns_for(here, points);

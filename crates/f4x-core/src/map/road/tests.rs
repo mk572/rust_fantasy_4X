@@ -266,7 +266,7 @@ fn bad_orders_are_refused_and_moving_away_cancels() -> TestResult {
     set_terrain(&mut g, at(6, 5), TerrainClass::Ocean);
     assert_eq!(
         g.build_road(&[e], vec![at(5, 5), at(6, 5)]),
-        Err(RoadError::CannotBuildHere)
+        Err(RoadError::OnWater(at(6, 5)))
     );
     g.build_road(&[e], vec![]).map_err(|e| format!("{e:?}"))?;
     let _ = g.world.insert_one(e, at(5, 6));

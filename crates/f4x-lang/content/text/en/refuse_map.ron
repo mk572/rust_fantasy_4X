@@ -24,7 +24,7 @@
     "refuse_map.found_city_error_time_stopped": "Time is stopped: only the wizard who stopped it can found a city.",
     "refuse_map.road_error_bad_selection": "Those units are not one stack on one square.",
     "refuse_map.road_error_no_builders": "None of those units can build roads.",
-    "refuse_map.road_error_cannot_build_here": "A road cannot be built on that square.",
+    "refuse_map.road_error_on_water": "A road cannot be built on water.",
     "refuse_map.road_error_bad_path": "The squares of that road do not join up.",
     "refuse_map.purify_error_no_units": "No units were chosen.",
     "refuse_map.purify_error_cannot_purify": "None of those units can purify.",

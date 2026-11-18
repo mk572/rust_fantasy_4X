@@ -406,8 +406,13 @@ pub fn assign(
         }
         let walks = |f: &Free| f.at == site.at || f.reach.contains(&site.at);
         let cost = |f: &Free| (!walks(f), view.distance(f.at, site.at).unwrap_or(u32::MAX));
-        let Some(best) = (0..left.len()).min_by_key(|&i| cost(left[i])) else {
-            break;
+        // A settler that cannot walk to the site takes it only over the sea: a land site that this
+        // settler cannot walk to (it stands on land the site is cut off from) is for another settler.
+        let Some(best) = (0..left.len())
+            .filter(|&i| walks(left[i]) || site.reach == Reach::Sea)
+            .min_by_key(|&i| cost(left[i]))
+        else {
+            continue;
         };
         let settler = left.remove(best);
         used.push(site.at);
@@ -481,6 +486,33 @@ mod tests {
             over.iter().all(|s| s.score < best_home),
             "the home land comes first: {list:?}"
         );
+    }
+
+    /// A settler cut off from a land site (the walk finds no way) is not sent there: the site is
+    /// left for a settler that can walk, instead of an order that fails every turn.
+    #[test]
+    fn a_land_site_is_not_given_to_a_settler_that_cannot_walk_to_it() {
+        let mut g = explored_island();
+        let units = spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            111, /* high_men_settlers */
+            1,
+        );
+        let view = PlayerView::new(&g, P0);
+        let list = scan(&view);
+        assert!(list.iter().any(|s| s.reach == Reach::Land), "{list:?}");
+        let land: Vec<Site> = list
+            .into_iter()
+            .filter(|s| s.reach == Reach::Land)
+            .collect();
+        let cut_off = vec![Free {
+            unit: units[0],
+            at: at(COAST_CITY.0, COAST_CITY.1),
+            reach: f4x_core::fast::FastSet::default(),
+        }];
+        assert!(assign(&view, &land, &cut_off, &[], &[]).is_empty());
     }
 
     #[test]

@@ -77,7 +77,13 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let _ = ai.roles.claim(serial, Role::Road, turn, None);
             continue;
         }
-        if ai.roles.claim(serial, Role::Road, turn, None).is_err() {
+        // An engineer aboard a ship at sea has no road to build.
+        let afloat = {
+            let view = PlayerView::new(game, me);
+            view.unit_position(engineer)
+                .is_some_and(|p| !view.road_possible(p))
+        };
+        if afloat || ai.roles.claim(serial, Role::Road, turn, None).is_err() {
             continue;
         }
         match work(ai, game, engineer, events) {
@@ -136,6 +142,12 @@ fn work(
                 view.path(&[engineer], to)
             };
             let Some(path) = path else { continue };
+            if !path
+                .iter()
+                .all(|&p| PlayerView::new(game, me).road_possible(p))
+            {
+                continue;
+            }
             if path.iter().all(|&p| PlayerView::new(game, me).has_road(p)) {
                 continue;
             }
@@ -230,6 +242,9 @@ fn frontier_way(ai: &Ai, game: &Game, engineer: hecs::Entity) -> Option<(Vec<Pos
     ai.campaign.into_iter().chain(towers).find_map(|target| {
         let mut path = view.path(&[engineer], target)?;
         path.pop();
+        if !path.iter().all(|&p| view.road_possible(p)) {
+            return None;
+        }
         let first = path.iter().position(|&p| !view.has_road(p))?;
         Some((path, first))
     })
@@ -591,5 +606,18 @@ mod tests {
         assert_eq!(ai.roles.role_of(serial), Some(Role::Road));
         assert!(view.unit_builds_road(engineer) || view.unit_has_order(engineer));
         Ok(())
+    }
+
+    #[test]
+    fn a_way_over_water_is_no_way_for_a_road() {
+        let g = game(COAST_CITY, 8 /* high_men */);
+        let view = PlayerView::new(&g, P0);
+        let (width, height) = view.map_size().expect("a map");
+        let squares: Vec<Position> = (0..height)
+            .flat_map(|y| (0..width).map(move |x| at(x, y)))
+            .collect();
+        assert!(squares.iter().any(|&p| view.road_possible(p)), "land");
+        assert!(squares.iter().any(|&p| !view.road_possible(p)), "water");
+        assert!(view.road_possible(at(COAST_CITY.0, COAST_CITY.1)));
     }
 }
