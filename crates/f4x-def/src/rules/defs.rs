@@ -265,6 +265,13 @@ pub struct UnitDef {
     pub deck: Option<(u8, u8)>,
 }
 
+impl UnitDef {
+    /// The unit's base value of a stat as a number (0 for a stat it has none of).
+    pub fn stat(&self, stat: Stat) -> f32 {
+        self.stats.get(&stat).map_or(0.0, |v| v.as_f32())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AbilityDef {
     /// The ability's number, the id the game passes around: the original has no table of

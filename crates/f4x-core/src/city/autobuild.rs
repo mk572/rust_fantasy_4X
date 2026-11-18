@@ -327,16 +327,12 @@ pub struct CityFacts {
     pub cities: u32,
 }
 
-fn stat(d: &crate::rules::UnitDef, s: Stat) -> f32 {
-    d.stats.get(&s).map_or(0.0, |v| v.as_f32())
-}
-
 fn is_settler(d: &crate::rules::UnitDef) -> bool {
     d.abilities.contains(&Ability::new(12))
 }
 
 fn is_combat(d: &crate::rules::UnitDef) -> bool {
-    stat(d, Stat::Melee) > 0.0 || stat(d, Stat::Ranged) > 0.0
+    d.stat(Stat::Melee) > 0.0 || d.stat(Stat::Ranged) > 0.0
 }
 
 /// A unit that can hold a city: it fights, and is neither a settler nor an engineer (engineers
@@ -347,7 +343,7 @@ fn is_garrison(d: &crate::rules::UnitDef) -> bool {
 }
 
 fn is_engineer(d: &crate::rules::UnitDef) -> bool {
-    stat(d, Stat::Construction) > 0.0
+    d.stat(Stat::Construction) > 0.0
 }
 
 /// A ship or other unit with no attack that the exploration focus may like.
@@ -471,10 +467,10 @@ fn raw_profiles(d: &crate::rules::UnitDef) -> [f32; 3] {
     // A scout is chosen by how quickly it gets about (`unit::mobility`): the rate times what its
     // movement and abilities do for it.
     let exploration = crate::unit::mobility::def_mobility(d)
-        + (stat(d, Stat::Sight) * 2.0 - 1.0) * 0.25
+        + (d.stat(Stat::Sight) * 2.0 - 1.0) * 0.25
         + if sailing { 1.5 } else { 0.0 }
-        + stat(d, Stat::Transport) * 0.3
-        + stat(d, Stat::Construction) * 1.5
+        + d.stat(Stat::Transport) * 0.3
+        + d.stat(Stat::Construction) * 1.5
         + if is_settler(d) { 1.0 } else { 0.0 };
     [offense, defense, exploration]
 }

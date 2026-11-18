@@ -48,10 +48,6 @@ pub fn is_open(item: Option<ProductionItem>) -> bool {
     )
 }
 
-fn stat(d: &UnitDef, s: Stat) -> f32 {
-    d.stats.get(&s).map_or(0.0, |v| v.as_f32())
-}
-
 /// What the building adds to the stats: a flat value as it is, a percentage as a tenth of it (half
 /// as much again on a city's gold is worth about five points).
 fn effect_total(view: &PlayerView, b: BuildingId, wanted: &[Stat]) -> f32 {
@@ -141,8 +137,8 @@ fn is_soldier(d: &UnitDef) -> bool {
         && d.movement != MovementType::Sailing
         && !d.abilities.contains(&Ability::new(12))
         && !d.abilities.contains(&Ability::new(42 /* meld */))
-        && stat(d, Stat::Construction) <= 0.0
-        && stat(d, Stat::Melee).max(stat(d, Stat::Ranged)) > 0.0
+        && d.stat(Stat::Construction) <= 0.0
+        && d.stat(Stat::Melee).max(d.stat(Stat::Ranged)) > 0.0
 }
 
 fn soldiers(view: &PlayerView, city: hecs::Entity) -> Vec<UnitId> {
