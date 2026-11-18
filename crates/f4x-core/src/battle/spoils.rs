@@ -18,15 +18,6 @@ use super::{Battle, BattleUnit, Status};
 use crate::game::{Event, Game};
 use crate::rules::UnitKind;
 
-/// Experience per dead enemy unit.
-pub const XP_PER_KILL: u32 = 2;
-/// Experience that earns the winner a point of fame (four kills).
-pub const FAME_XP: u32 = 8;
-/// A fantastic unit that costs this much (its mana budget) is a very rare foe.
-pub const RARE_FOE_COST: u32 = 600;
-/// Units dead on one side that cost it a point of fame, and earn the other side one.
-pub const FAME_KILLS: usize = 4;
-
 /// The result of a battle, worked out before the units are written back.
 #[derive(Debug, Default)]
 pub struct Spoils {
@@ -40,11 +31,12 @@ pub struct Spoils {
 
 impl Game {
     /// A very rare unit: a fantastic one (summoned or built, not a hero or a normal unit) whose
-    /// cost, its mana budget, reaches [`RARE_FOE_COST`].
+    /// cost, its mana budget, reaches `renown.rare_foe_cost`.
     fn very_rare(&self, u: &BattleUnit) -> bool {
         u.unit_id.is_some_and(|id| {
             let d = self.content.rules.units.get(id);
-            matches!(d.kind, UnitKind::Fantastic | UnitKind::Summoned) && d.cost >= RARE_FOE_COST
+            matches!(d.kind, UnitKind::Fantastic | UnitKind::Summoned)
+                && d.cost >= self.content.rules.config.renown.rare_foe_cost
         })
     }
 
@@ -62,8 +54,8 @@ impl Game {
         // point for four or more of them and a point for a very rare one among them.
         let fallen = |u: &&BattleUnit| u.side != winner && u.status == Status::Dead;
         let killed = battle.units.iter().filter(fallen).count();
-        out.experience = killed as u32 * XP_PER_KILL;
-        let point = i32::from(killed >= FAME_KILLS)
+        out.experience = killed as u32 * self.content.rules.config.renown.xp_per_kill;
+        let point = i32::from(killed >= self.content.rules.config.renown.fame_kills)
             + i32::from(
                 battle
                     .units

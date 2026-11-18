@@ -1419,9 +1419,12 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
         0
     );
     // A city of 12 is size 3: the loser loses 3 fame (5 -> 2), the taker gains 1, and taking a
-    // wizard's fortress is worth 5 more.
+    // wizard's fortress is worth the fortress prize more.
     assert_eq!(g.wizard(loser).expect("the player is a wizard").fame(), 2);
-    assert_eq!(g.wizard(HUMAN).expect("the player is a wizard").fame(), 6);
+    assert_eq!(
+        g.wizard(HUMAN).expect("the player is a wizard").fame(),
+        1 + g.content().rules.config.renown.fortress_prize_fame
+    );
     // It is the taker's, with 50 percent as the most citizens lost and the rest alive.
     assert_eq!(g.economy().city_owner(city), Some(HUMAN));
     let now = g

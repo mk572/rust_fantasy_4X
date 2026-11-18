@@ -756,8 +756,45 @@ pub struct RulesConfig {
     pub abilities: AbilityRules,
     /// The numbers of the overland spells and curses.
     pub spell_effects: SpellEffectRules,
+    /// Experience, fame and the level Heroism gives.
+    pub renown: RenownRules,
     /// The rows of the content that a setting of the game changes.
     pub targets: SettingTargets,
+}
+
+/// What fighting earns: experience, fame and the levels.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RenownRules {
+    /// Experience a won battle gives each surviving unit of the winner for each dead enemy unit,
+    /// and the point every unit gains each turn.
+    pub xp_per_kill: u32,
+    pub xp_per_turn: u32,
+    /// Units dead on one side that cost it a point of fame and earn the other side one.
+    pub fame_kills: usize,
+    /// A fantastic unit that costs this much (its mana budget) is a very rare foe: another point.
+    pub rare_foe_cost: u32,
+    /// The fame Just Cause adds while it lasts, and the conqueror of a fortress city gains.
+    pub just_cause_fame: i32,
+    pub fortress_prize_fame: i32,
+    /// The level (from 0) Heroism lifts a unit to.
+    pub heroism_level: usize,
+    /// What Charmed adds to a hero's resistance: enough to pass every check.
+    pub charmed_resistance: i32,
+}
+
+impl Default for RenownRules {
+    fn default() -> Self {
+        Self {
+            xp_per_kill: 2,
+            xp_per_turn: 1,
+            fame_kills: 4,
+            rare_foe_cost: 600,
+            just_cause_fame: 10,
+            fortress_prize_fame: 5,
+            heroism_level: 3,
+            charmed_resistance: 30,
+        }
+    }
 }
 
 /// What the overland spells do: chances in percent of a hundred, strengths, penalties, and the
@@ -1282,6 +1319,7 @@ impl Default for RulesConfig {
             item: ItemRules::default(),
             abilities: AbilityRules::default(),
             spell_effects: SpellEffectRules::default(),
+            renown: RenownRules::default(),
             targets: SettingTargets::default(),
         }
     }

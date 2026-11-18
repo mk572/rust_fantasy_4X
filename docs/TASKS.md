@@ -129,7 +129,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 670 | Medium | AI | Refusals of spells, building, battle start and the like carry the unit, square or number that caused them, with text keys (*Needs:* nothing; follows task 668) |
 | 671 | Medium | AI | Pickup loops the refused-order log shows: land units asked every turn to board a ship that has no room, for 150 turns and more |
 | 675 | Medium | Rules | Battle rules numbers (strengths, costs, limits) move into content |
-| 676 | Medium | Rules | Experience, fame, spoils and hero constants move into content |
 
 ## Descriptions
 
@@ -432,5 +431,3 @@ For each of the eleven: give it an intent read from its effect, as `f4x-ai/src/i
 **671. Pickup loops the refused-order log shows.** Found on 18 November 2026 in the soak of task 668 (`islands-3p`, seeds 131 to 134). Two orders of the ship pickup (`pickup.rs`) are asked again every turn for 150 turns and more: land units sent to a boarding tile or a ship's sea square that never has room (`OrderFailed NoRoom` at a step that is free when looked at later, and a sea square full of ships and their cargo), so the ship waits for units that cannot come. Find out with `scripts/refused_summary.py` and `--min-stood 50` which squares and units, fix the plan (a ship leaves with what it has when the rest cannot board; units that cannot reach it are let off the plan) and test it on the test world.
 
 **675. Battle rules numbers (strengths, costs, limits) move into content.** Found by task 483, 18 November 2026; the list and the reason are in [`constants-review.md`](constants-review.md), group "Battle rules". Move the constants of the group into the row they belong to (or `rules.ron`), make the code read them, replace the tests that pin the numbers by tests that read them (or delete them), run `python3 scripts/ron_hashes.py --update` and check by changing a value that only the hash test fails.
-
-**676. Experience, fame, spoils and hero constants move into content.** Found by task 483, 18 November 2026; the list and the reason are in [`constants-review.md`](constants-review.md), group "Experience, fame and spoils". Move the constants of the group into the row they belong to (or `rules.ron`), make the code read them, replace the tests that pin the numbers by tests that read them (or delete them), run `python3 scripts/ron_hashes.py --update` and check by changing a value that only the hash test fails.

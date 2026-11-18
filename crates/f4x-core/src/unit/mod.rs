@@ -56,8 +56,6 @@ pub struct Experience(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct WeaponQuality(pub u8);
 
-/// The level Heroism lifts a unit to (the original's level 3: Elite, or a hero's Commander).
-pub(crate) const HEROISM_LEVEL: usize = 3;
 /// The hook of the spell that does it (`spells.ron`).
 pub(crate) const HEROISM: &str = "heroism";
 
@@ -154,7 +152,7 @@ impl<'a> UnitView<'a> {
                 player,
                 crate::spell::global_enchantment::GlobalEffect::JustCause,
             ) {
-                crate::spell::global_enchantment::JUST_CAUSE_FAME
+                self.content.rules.config.renown.just_cause_fame
             } else {
                 0
             }
@@ -315,8 +313,9 @@ impl<'a> UnitView<'a> {
             return 0;
         };
         let mut level = self.unit_xp_level(unit);
-        if level < HEROISM_LEVEL && heroism {
-            level = HEROISM_LEVEL;
+        let lifted = self.content.rules.config.renown.heroism_level;
+        if level < lifted && heroism {
+            level = lifted;
         }
         if let Some(owner) = self.unit_owner(unit) {
             if let Some(m) = self.wizard(owner) {

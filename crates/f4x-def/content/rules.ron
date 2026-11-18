@@ -50,6 +50,9 @@
         armsmaster: 81, super_armsmaster: 82,
         mutation: (mutated: 98, armor_marker: 104, wings_marker: 105, breath_marker: 106, wings_ability: 24, breath_ability: 20, thrown_ability: 69, thrown_most: 3, armor_defense: 3, wings_moves: 2, breath_strength: 2, breath_ammo: 1),
     ),
+    // Experience and fame: per dead enemy unit and per turn, the dead that cost a point of fame, the cost of a very rare
+    // foe, Just Cause and the fortress prize, the level Heroism gives (from 0) and the resistance Charmed adds.
+    renown: (xp_per_kill: 2, xp_per_turn: 1, fame_kills: 4, rare_foe_cost: 600, just_cause_fame: 10, fortress_prize_fame: 5, heroism_level: 3, charmed_resistance: 30),
     // The overland spells: chances in a hundred, strengths, penalties, and the buildings and realms they single out.
     spell_effects: (
         collapse_percent: 15, mineral_percent: 20, cool_percent: 2, armageddon_city_percent: 25,

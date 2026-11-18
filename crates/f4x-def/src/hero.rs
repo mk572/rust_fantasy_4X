@@ -152,10 +152,6 @@ pub fn tiered_number(name: &str) -> u16 {
     }
 }
 
-/// What Charmed adds to a hero's resistance: enough to pass every check. The original adds it
-/// only inside battle checks (`Combat_Effective_Resistance`), so the unit sheet never shows it.
-pub const CHARMED_RESISTANCE: i32 = 30;
-
 impl crate::rules::Rules {
     /// What the ability `name` (one of the ten with a doubled form, by its plain name) gives a hero
     /// of `level` (0 for the first) at `tier`: its `per_level` in `abilities.ron`. 0 without the
@@ -225,7 +221,11 @@ impl HeroAbilities {
         let mut out = vec![
             add(
                 Stat::Resistance,
-                if self.charmed { CHARMED_RESISTANCE } else { 0 },
+                if self.charmed {
+                    f.config.renown.charmed_resistance
+                } else {
+                    0
+                },
             ),
             add(Stat::Melee, f.hero_value("might", self.might, level)),
             add(Stat::Defense, f.hero_value("agility", self.agility, level)),

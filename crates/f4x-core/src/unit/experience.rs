@@ -21,7 +21,7 @@ use f4x_def::content::Content;
 
 use crate::game::Game;
 use crate::rules::UnitKind;
-use crate::unit::{Experience, UnitView, HEROISM, HEROISM_LEVEL};
+use crate::unit::{Experience, UnitView, HEROISM};
 use hecs::World;
 
 impl UnitView<'_> {
@@ -76,12 +76,18 @@ pub(crate) fn process(world: &mut World, content: &Content, only: Option<PlayerI
         units.retain(|&u| view.unit_owner(u) == Some(keeper));
     }
     for &unit in &units {
-        gain_xp(world, content, unit, 1);
+        gain_xp(
+            world,
+            content,
+            unit,
+            content.rules.config.renown.xp_per_turn,
+        );
     }
     for &unit in &units {
         let done = {
             let view = UnitView::new(world, content);
-            view.unit_has_heroism(unit) && view.unit_xp_level(unit) >= HEROISM_LEVEL
+            view.unit_has_heroism(unit)
+                && view.unit_xp_level(unit) >= content.rules.config.renown.heroism_level
         };
         if done {
             crate::spell::instance::remove_on(
@@ -206,6 +212,17 @@ mod tests {
         g.attach_enchantment(who, s, P0);
     }
 
+    /// The experience that gives `level` (from 0) on the unit's level path.
+    fn xp_of_level(g: &Game, unit: hecs::Entity, level: usize) -> u32 {
+        let path = g
+            .units()
+            .unit_def(unit)
+            .and_then(|d| d.level_path)
+            .map(|p| g.content.rules.level_paths.get(p))
+            .expect("a level path");
+        path.levels[level.min(path.levels.len() - 1)].xp
+    }
+
     fn xp(g: &Game, unit: hecs::Entity) -> u32 {
         g.world.get::<&Experience>(unit).map_or(0, |x| x.0)
     }
@@ -278,37 +295,45 @@ mod tests {
     #[test]
     fn heroism_makes_a_unit_elite_and_ends_when_it_gets_there_by_itself() -> TestResult {
         let mut g = world();
+        let lifted = g.content.rules.config.renown.heroism_level;
         let unit = spawn(&mut g, 107 /* high_men_cavalry */, at(3, 3));
-        let base = g.units().unit_stat(unit, Stat::Melee);
+        // A twin that has the experience of that level, to compare with.
+        let twin = spawn(&mut g, 107 /* high_men_cavalry */, at(4, 3));
+        let there = xp_of_level(&g, unit, lifted);
+        set_xp(&mut g, twin, there);
         enchant(
             &mut g,
             130, /* heroism */
             crate::rules::exec::Target::Unit(unit),
         );
         assert!(g.units().unit_has_heroism(unit));
-        assert_eq!(g.units().unit_level(unit), 3);
-        assert_eq!(g.units().unit_stat(unit, Stat::Melee), base + 2);
+        assert_eq!(g.units().unit_level(unit), lifted);
+        assert_eq!(
+            g.units().unit_stat(unit, Stat::Melee),
+            g.units().unit_stat(twin, Stat::Melee)
+        );
         // Warlord goes on top of the floor.
         g.wizard_mut(P0)
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
             .insert(Retort::new(1) /* warlord */);
-        assert_eq!(g.units().unit_level(unit), 4);
+        assert_eq!(g.units().unit_level(unit), lifted + 1);
         g.wizard_mut(P0)
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
             .clear();
-        // Enough experience for a veteran: the spell stays.
-        set_xp(&mut g, unit, 60);
+        // Not yet the experience of that level: the spell stays.
+        let below = xp_of_level(&g, unit, lifted - 1);
+        set_xp(&mut g, unit, below);
         g.process_experience_all();
         assert!(g.units().unit_has_heroism(unit));
-        // An elite by experience no longer needs it.
-        set_xp(&mut g, unit, 120);
+        // One that reached it by experience no longer needs the spell.
+        set_xp(&mut g, unit, there);
         g.process_experience_all();
         assert!(!g.units().unit_has_heroism(unit));
-        assert_eq!(g.units().unit_level(unit), 3);
+        assert_eq!(g.units().unit_level(unit), lifted);
         Ok(())
     }
 
@@ -339,17 +364,19 @@ mod tests {
             first,
             g.content.rules.hero_value("armsmaster", tier, level) as u32
         );
-        set_xp(&mut g, hero, 120);
+        let cap = xp_of_level(&g, hero, usize::MAX);
+        set_xp(&mut g, hero, cap);
         let top = g.units().armsmaster_xp(hero);
         assert!(top > first, "a higher level trains more");
-        // Each turn a unit also gains its own one xp.
+        // Each turn a unit also gains its own xp.
+        let turn = g.content.rules.config.renown.xp_per_turn;
         g.process_experience_all();
-        assert_eq!(xp(&g, near), 1 + top);
-        assert_eq!(xp(&g, far), 1);
+        assert_eq!(xp(&g, near), turn + top);
+        assert_eq!(xp(&g, far), turn);
         assert_eq!(
             xp(&g, hero),
-            120 + 1,
-            "the hero trains no one but itself, by the turn"
+            cap,
+            "the hero trains no one but itself, and has the most experience there is"
         );
         // Another hero on the same square: the best trainer counts, not the sum.
         let _other = hire(&mut g, 0 /* dwarf */, at(3, 3));
@@ -357,26 +384,45 @@ mod tests {
         g.process_experience_all();
         assert_eq!(
             xp(&g, near),
-            before + 1 + top.max(g.units().armsmaster_xp(_other))
+            before + turn + top.max(g.units().armsmaster_xp(_other))
         );
     }
 
     #[test]
-    fn living_normal_units_and_heroes_gain_one_xp_a_turn_up_to_their_cap() {
+    fn living_normal_units_and_heroes_gain_xp_each_turn_up_to_their_cap() {
         let mut g = world();
+        let turn = g.content.rules.config.renown.xp_per_turn;
         let normal = spawn(&mut g, 107 /* high_men_cavalry */, at(3, 3));
         let creature = spawn(&mut g, 154 /* magic_spirit */, at(4, 3));
         let undead = spawn(&mut g, 107 /* high_men_cavalry */, at(5, 3));
         g.make_undead(undead);
         let hero = hire(&mut g, 26 /* swordsman */, at(6, 3));
         g.process_experience_all();
-        assert_eq!(xp(&g, normal), 1);
-        assert_eq!(xp(&g, hero), 1);
+        assert_eq!(xp(&g, normal), turn);
+        assert_eq!(xp(&g, hero), turn);
         assert_eq!(xp(&g, creature), 0, "creatures gain none");
         assert_eq!(xp(&g, undead), 0, "nor the undead");
-        set_xp(&mut g, normal, 119);
+        let cap = g
+            .content
+            .rules
+            .level_paths
+            .get(
+                g.units()
+                    .unit_def(normal)
+                    .and_then(|d| d.level_path)
+                    .expect("a level path"),
+            )
+            .levels
+            .last()
+            .map(|l| l.xp)
+            .expect("levels");
+        set_xp(&mut g, normal, cap - 1);
         g.process_experience_all();
         g.process_experience_all();
-        assert_eq!(xp(&g, normal), 120, "elite is where experience stops");
+        assert_eq!(
+            xp(&g, normal),
+            cap,
+            "the top level is where experience stops"
+        );
     }
 }

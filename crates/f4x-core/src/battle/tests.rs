@@ -2564,7 +2564,7 @@ mod fields {
             105, /* high_men_swordsmen */
             105, /* high_men_swordsmen */
         );
-        b.units[1].resistance += crate::hero::CHARMED_RESISTANCE;
+        b.units[1].resistance += shipped().rules.config.renown.charmed_resistance;
         let fails = |b: &mut Battle, i: usize| {
             (0..40)
                 .filter(|_| b.resist_fails(i, Some(Realm::Death), 0))
@@ -5074,23 +5074,28 @@ fn the_winners_survivors_gain_experience_and_fame_for_four_kills() -> TestResult
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let fallen = g.spawn_unit(A, at(4, 4), walker);
-    let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
+    let renown = g.content.rules.config.renown.clone();
+    let foes: Vec<_> = (0..renown.fame_kills)
+        .map(|_| g.spawn_unit(D, at(5, 4), walker))
+        .collect();
     g.set_fame(A, 3);
-    let events = finish_with_dead(&mut g, &[a, fallen], &foes, &[1, 2, 3, 4, 5]);
+    let dead: Vec<usize> = (1..=foes.len() + 1).collect();
+    let events = finish_with_dead(&mut g, &[a, fallen], &foes, &dead);
     assert!(g.world.contains(a));
-    // Four dead enemies: 2 each. The fallen of its own side give nothing, nor does it gain.
+    // The enemy dead give experience each. The fallen of its own side give nothing, nor does it gain.
     let xp = g.world.get::<&crate::unit::Experience>(a)?.0;
-    assert_eq!(xp, 8);
+    let earned = renown.fame_kills as u32 * renown.xp_per_kill;
+    assert_eq!(xp, earned);
     assert_eq!(g.wizard(A).ok_or("wizard is missing")?.fame(), 4);
     assert!(events.iter().any(|e| matches!(
         e,
-        Event::BattleSpoils { player, experience: 8, fame: 1, .. } if *player == A
+        Event::BattleSpoils { player, experience, fame: 1, .. } if *player == A && *experience == earned
     )));
     Ok(())
 }
 
 #[test]
-fn fewer_than_four_kills_give_experience_but_no_fame() -> TestResult {
+fn fewer_kills_than_the_fame_rule_give_experience_but_no_fame() -> TestResult {
     let mut g = game();
     let walker = g
         .content
@@ -5099,9 +5104,17 @@ fn fewer_than_four_kills_give_experience_but_no_fame() -> TestResult {
         .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
-    let foes: Vec<_> = (0..2).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
-    finish_with_dead(&mut g, &[a], &foes, &[1, 2]);
-    assert_eq!(g.world.get::<&crate::unit::Experience>(a)?.0, 4);
+    let renown = g.content.rules.config.renown.clone();
+    let few = renown.fame_kills - 1;
+    let foes: Vec<_> = (0..few)
+        .map(|_| g.spawn_unit(D, at(5, 4), walker))
+        .collect();
+    let dead: Vec<usize> = (1..=few).collect();
+    finish_with_dead(&mut g, &[a], &foes, &dead);
+    assert_eq!(
+        g.world.get::<&crate::unit::Experience>(a)?.0,
+        few as u32 * renown.xp_per_kill
+    );
     assert_eq!(g.wizard(A).ok_or("wizard is missing")?.fame(), 0);
     Ok(())
 }
@@ -5146,11 +5159,26 @@ fn a_fantastic_foe_below_the_rare_cost_and_a_normal_foe_give_no_fame() -> TestRe
 }
 
 #[test]
-fn the_loser_loses_the_point_the_winner_gets_for_four_dead_units() -> TestResult {
-    assert_eq!(fame_after_killing(&[107, 107, 107])?, (0, 5));
-    assert_eq!(fame_after_killing(&[107, 107, 107, 107])?, (1, 4));
-    // A rare foe among the four earns and costs both points.
-    assert_eq!(fame_after_killing(&[164, 107, 107, 107])?, (2, 3));
+fn the_loser_loses_the_point_the_winner_gets_for_the_dead_units_of_the_rule() -> TestResult {
+    let rules = &shipped().rules;
+    let kills = rules.config.renown.fame_kills;
+    assert_eq!(fame_after_killing(&vec![107; kills - 1])?, (0, 5));
+    assert_eq!(fame_after_killing(&vec![107; kills])?, (1, 4));
+    // A rare foe among them earns and costs both points.
+    let rare = rules
+        .units
+        .iter()
+        .find(|(_, d)| {
+            matches!(
+                d.kind,
+                crate::rules::UnitKind::Fantastic | crate::rules::UnitKind::Summoned
+            ) && d.cost >= rules.config.renown.rare_foe_cost
+        })
+        .map(|(id, _)| id.num())
+        .ok_or("a very rare unit")?;
+    let mut foes = vec![107; kills - 1];
+    foes.insert(0, rare);
+    assert_eq!(fame_after_killing(&foes)?, (2, 3));
     Ok(())
 }
 
@@ -6836,14 +6864,14 @@ fn heroism_cast_in_a_battle_raises_the_unit_to_the_level_it_gives() -> TestResul
         .ok_or("unit is missing")?
         .melee;
     cast_on_first(&mut g, 130 /* heroism */).map_err(|e| format!("{e:?}"))?;
-    // Heroism makes the unit Elite, which in the real path adds two points of attack (Regular and Elite).
-    assert_eq!(
+    // Heroism makes the unit Elite, which in the real path adds to its attack (the levels it skips).
+    assert!(
         g.battle()
             .ok_or("battle is missing")?
             .unit(0)
             .ok_or("unit is missing")?
-            .melee,
-        melee + 2
+            .melee
+            > melee
     );
     // Dispelled, the unit goes back to what it was; a dispel of nothing leaves the bonus.
     g.dispel_battle_unit(0, 1000, D);

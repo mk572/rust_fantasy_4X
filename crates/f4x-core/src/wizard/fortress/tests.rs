@@ -272,7 +272,10 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
         g.player(P1).ok_or("player is missing")?.treasury().mana,
         w_mana + 50
     );
-    assert_eq!(g.wizard(P1).ok_or("wizard is missing")?.fame(), w_fame + 5);
+    assert_eq!(
+        g.wizard(P1).ok_or("wizard is missing")?.fame(),
+        w_fame + g.content.rules.config.renown.fortress_prize_fame
+    );
     // Casting the Spell of Return has begun, with no income of any kind meanwhile.
     let ret = spell(&g, 214 /* spell_of_return */);
     assert_eq!(
@@ -721,7 +724,6 @@ fn a_defeated_wizard_has_nothing_left_and_the_prize_is_fame_and_half_the_mana() 
     defeat_player(&mut w);
     assert!(!w.view().is_banished());
     assert_eq!(sites(&w), (None, None));
-    assert_eq!(FORTRESS_PRIZE_FAME, 5);
     assert_eq!(w.view().summon_point(), None);
     Ok(())
 }
@@ -994,7 +996,7 @@ fn the_last_city_taken_without_the_fortress_still_pays_the_prize() -> TestResult
     );
     assert_eq!(
         g.wizard(P1).ok_or("wizard is missing")?.fame(),
-        fame + FORTRESS_PRIZE_FAME
+        fame + g.content.rules.config.renown.fortress_prize_fame
     );
     assert_eq!(
         g.player(P1).ok_or("player is missing")?.treasury().mana,

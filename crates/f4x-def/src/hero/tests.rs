@@ -96,7 +96,7 @@ fn arcane_power_needs_a_magic_attack() {
     let charmed = HeroAbilities::from_ids(&[Ability::new(95) /* charmed */]);
     assert_eq!(
         find(&charmed.modifiers(f, 1, false), Stat::Resistance),
-        Some(HalfInt::from_int(30))
+        Some(HalfInt::from_int(f.config.renown.charmed_resistance))
     );
 }
 

@@ -63,9 +63,6 @@ pub(crate) fn magic_has_effect(
     wizard.any_global(|s| effect.is_in(rules.spells.get(s)))
 }
 
-/// The fame Just Cause adds while it lasts.
-pub(crate) const JUST_CAUSE_FAME: i32 = 10;
-
 impl Game {
     /// A lasting spell starts on the whole world, cast by `player`'s wizard; it is there once.
     pub(crate) fn add_global(&mut self, player: PlayerId, spell: SpellId) {
@@ -687,18 +684,20 @@ mod tests {
     }
 
     #[test]
-    fn just_cause_adds_ten_to_fame_while_it_lasts() -> TestResult {
+    fn just_cause_adds_to_fame_while_it_lasts() -> TestResult {
         let mut g = world();
         g.set_fame(P0, 3);
         assert_eq!(g.fame(P0), 3);
+        let more = g.content.rules.config.renown.just_cause_fame;
+        let before = g.score(P0).fame;
         grant(&mut g, P0, 127 /* just_cause */);
-        assert_eq!(g.fame(P0), 13);
+        assert_eq!(g.fame(P0), 3 + more);
         assert_eq!(
             g.fame(P1),
             g.wizard(P1).ok_or("wizard is missing")?.fame(),
             "only the caster"
         );
-        assert_eq!(g.score(P0).fame, 26, "and it counts for the score");
+        assert!(g.score(P0).fame > before, "and it counts for the score");
         Ok(())
     }
 

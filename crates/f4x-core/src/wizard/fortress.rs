@@ -164,9 +164,6 @@ pub(crate) enum Fall {
     Resigned,
 }
 
-/// The fame the conqueror of a fortress city gains (and the loser's half of the mana).
-pub(crate) const FORTRESS_PRIZE_FAME: i32 = 5;
-
 /// The wizard is banished by `by`; the game starts the Spell of Return.
 pub(crate) fn banish_player(wizard: &mut WizardMut, by: PlayerId) {
     wizard.put(Some(Banishment { by: Some(by) }));
@@ -359,7 +356,7 @@ impl Game {
     /// are only taken when the setting `defeat_loot` is on; off, they are lost with the wizard.
     fn take_spoils(&mut self, loser: PlayerId, winner: PlayerId, fall: Fall) -> Vec<Event> {
         if fall != Fall::Resigned {
-            self.add_fame(winner, FORTRESS_PRIZE_FAME);
+            self.add_fame(winner, self.content.rules.config.renown.fortress_prize_fame);
         }
         if self.settings.rules.defeat_loot {
             let (gold, mana) =
