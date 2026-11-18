@@ -457,6 +457,18 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.rules.lair_full_heal.into(),
             |s, v| s.rules.lair_full_heal = v != 0,
         ),
+        Row::Field(Field {
+            label: "custom.farmer_food",
+            kind: Kind::Half { min: 0, max: 20 },
+            get: |s| s.rules.farmer_food.raw(),
+            set: |s, v| s.rules.farmer_food = HalfInt::from_raw(v),
+        }),
+        Row::Field(Field {
+            label: "custom.worker_production",
+            kind: Kind::Half { min: 0, max: 20 },
+            get: |s| s.rules.worker_production.raw(),
+            set: |s, v| s.rules.worker_production = HalfInt::from_raw(v),
+        }),
         flag(
             "custom.roads_at_start",
             |s| s.rules.roads_at_start.into(),

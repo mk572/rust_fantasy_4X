@@ -147,12 +147,12 @@ impl Economy<'_> {
         let terrain_food = HalfInt::from_raw(land.terrain_food_x2 / 2);
         let (farmers, workers, rebels) = (eco.farmers, eco.workers, eco.rebels);
 
-        let per_worker = race.map_or(HalfInt::from_int(2), |r| r.worker_production);
+        let per_worker = self.worker_production(race);
         let mut lines: Vec<Line> = Vec::new();
         let mut upkeep = HalfInt::ZERO;
         match resource {
             Resource::Food => {
-                let rate = race.map_or(HalfInt::from_int(2), |r| r.farmer_food);
+                let rate = self.farmer_food(race);
                 put(&mut lines, Item::Farmers, rate * farmers as i32);
                 // What each farmer's food gains by the buildings, for all the farmers.
                 let mut rate_lines = Vec::new();

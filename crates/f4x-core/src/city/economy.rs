@@ -59,12 +59,11 @@ struct Land {
 /// feeds, plus the flat food and the wild food.
 fn food_with(
     mods: &[Modifier],
-    race: Option<&RaceDef>,
+    farmer_rate: HalfInt,
     terrain_food: HalfInt,
     wild_food: HalfInt,
     farmers: u32,
 ) -> (HalfInt, HalfInt) {
-    let farmer_rate = race.map_or(HalfInt::from_int(2), |r| r.farmer_food);
     let farmer_rate = compute_half(Stat::FarmerFood, farmer_rate, mods);
     let mut food = compute_half(Stat::CityFood, farmer_rate * farmers as i32, mods);
     if food > terrain_food {
@@ -212,6 +211,11 @@ pub struct Economy<'a> {
     pub(crate) max_battle_side: usize,
     /// A miners' guild adds half to iron and coal, not double (`RuleSettings::miners_guild_half_ore`).
     pub(crate) miners_half_ore: bool,
+    /// The food of a farmer of a race with no value of its own (`RuleSettings::farmer_food`).
+    pub(crate) base_farmer_food: HalfInt,
+    /// The production of a worker of a race with no value of its own
+    /// (`RuleSettings::worker_production`).
+    pub(crate) base_worker_production: HalfInt,
     /// For a path search: the squares where this player has a ship with a free place, worked
     /// out once, so the search need not look for ships at every sea square.
     pub(crate) ship_room: Option<(PlayerId, &'a crate::fast::FastSet<Position>)>,
@@ -237,6 +241,8 @@ impl<'a> Economy<'a> {
             max_tile: crate::unit::MAX_TILE_LIMIT,
             max_battle_side: crate::unit::MAX_STACK,
             miners_half_ore: false,
+            base_farmer_food: f4x_def::settings::DEFAULT_FARMER_FOOD,
+            base_worker_production: f4x_def::settings::DEFAULT_WORKER_PRODUCTION,
             ship_room: None,
             own_cities: None,
         }
@@ -252,6 +258,26 @@ impl<'a> Economy<'a> {
     pub fn with_max_battle_side(mut self, max: usize) -> Self {
         self.max_battle_side = max;
         self
+    }
+
+    /// The same view with the game's base food of a farmer and production of a worker.
+    pub fn with_base_yields(mut self, farmer_food: HalfInt, worker_production: HalfInt) -> Self {
+        self.base_farmer_food = farmer_food;
+        self.base_worker_production = worker_production;
+        self
+    }
+
+    /// The food each farmer of `race` grows (a city with no race: the base): the race's own
+    /// value, else the setting.
+    pub fn farmer_food(&self, race: Option<&RaceDef>) -> HalfInt {
+        race.and_then(|r| r.farmer_food)
+            .unwrap_or(self.base_farmer_food)
+    }
+
+    /// The production each worker of `race` makes (a city with no race: the base).
+    pub fn worker_production(&self, race: Option<&RaceDef>) -> HalfInt {
+        race.and_then(|r| r.worker_production)
+            .unwrap_or(self.base_worker_production)
     }
 
     /// The same view with the game's rule for a miners' guild on iron and coal.
@@ -1076,7 +1102,7 @@ impl<'a> Economy<'a> {
         let race = basis.race_id.map(|r| self.content.rules.races.get(r));
         let (food, _) = food_with(
             &basis.mods,
-            race,
+            self.farmer_food(race),
             basis.terrain_food,
             basis.wild_food,
             farmers,
@@ -1140,7 +1166,13 @@ impl<'a> Economy<'a> {
         let workers = figures - farmers - rebels;
 
         // Food.
-        let (food, flat) = food_with(&mods, race, terrain_food, wild_food, farmers);
+        let (food, flat) = food_with(
+            &mods,
+            self.farmer_food(race),
+            terrain_food,
+            wild_food,
+            farmers,
+        );
         // The city feeds as many as its land, farm work and buildings allow.
         let famine = self.city_has_effect(city, CityEffect::Famine);
         let pre_cap_adds = compute_half(Stat::CityFood, HalfInt::ZERO, &mods);
@@ -1152,7 +1184,7 @@ impl<'a> Economy<'a> {
         let max_size = max_size.min(rules.config.max_city_size);
 
         // Production.
-        let per_worker = race.map_or(HalfInt::from_int(2), |r| r.worker_production);
+        let per_worker = self.worker_production(race);
         // A farmer makes half a production point.
         let base_production = per_worker * workers as i32 + HalfInt::from_raw(farmers as i32);
         let mut production_mods = mods.clone();
@@ -1360,6 +1392,10 @@ impl Game {
             .with_max_tile(self.settings.rules.max_tile)
             .with_max_battle_side(self.settings.rules.max_battle_side)
             .with_miners_half_ore(self.settings.rules.miners_guild_half_ore)
+            .with_base_yields(
+                self.settings.rules.farmer_food,
+                self.settings.rules.worker_production,
+            )
     }
 
     /// Most units that may stand on one square in this game (the `max_tile` setting).
@@ -1521,6 +1557,93 @@ mod handle_tests {
             21,
             "a 5x5 area without its corners"
         );
+        Ok(())
+    }
+
+    /// A city of four on grassland, with nobody farming, of `race` (none: no race).
+    fn production_of(
+        race: Option<&str>,
+        base: (HalfInt, HalfInt),
+    ) -> Result<(HalfInt, HalfInt), Box<dyn std::error::Error>> {
+        let content = shipped();
+        let grass = content
+            .terrains
+            .id_numbered(4 /* grassland */)
+            .ok_or("grassland is not in the content")?;
+        let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
+        let at = Position {
+            plane: Plane::Arcanus,
+            x: 10,
+            y: 7,
+        };
+        let mut world = World::new();
+        let owner = world.spawn(crate::player::bundle(PlayerId(0)));
+        let city = world.spawn((
+            City {
+                name: "Town".into(),
+            },
+            crate::player::Owner(owner),
+            at,
+            Population {
+                figures: 4,
+                tens: 0,
+            },
+            Farmers(0),
+            Buildings::default(),
+        ));
+        if let Some(id) = race {
+            let race = content
+                .rules
+                .races
+                .iter()
+                .find(|(_, r)| r.id == id)
+                .map(|(race, _)| race)
+                .ok_or("the race is not in the content")?;
+            world.insert_one(city, CityRace(race))?;
+        }
+        let eco = Economy::new(&world, Some(&map), &content).with_base_yields(base.0, base.1);
+        let workers = eco.city_economy_with(city, 0).ok_or("no economy")?;
+        let farmers = eco.city_economy_with(city, 4).ok_or("no economy")?;
+        Ok((workers.production, farmers.food))
+    }
+
+    #[test]
+    fn the_base_of_a_farmer_and_a_worker_is_the_setting_and_a_races_own_value_wins() -> TestResult {
+        let two = (HalfInt::from_int(2), HalfInt::from_int(2));
+        let more = (HalfInt::from_int(3), HalfInt::from_int(4));
+        let content = shipped();
+        let rules = &content.rules;
+        let world = World::new();
+        let own = |id: &str| rules.races.iter().find(|(_, r)| r.id == id).map(|(_, r)| r);
+        let halfling = own("halfling").ok_or("no halfling")?;
+        let dwarf = own("dwarven").ok_or("no dwarf")?;
+        let human = own("high_men").ok_or("no high men")?;
+        assert!(halfling.farmer_food.is_some() && dwarf.worker_production.is_some());
+        assert!(human.farmer_food.is_none() && human.worker_production.is_none());
+
+        // A race with no value of its own, and a city with no race, follow the setting.
+        for race in [Some("high_men"), None] {
+            let (prod_two, food_two) = production_of(race, two)?;
+            let (prod_more, food_more) = production_of(race, more)?;
+            assert!(prod_more > prod_two, "{race:?}: workers make the base");
+            assert!(food_more > food_two, "{race:?}: farmers grow the base");
+        }
+        // A race with its own value keeps it, whatever the base.
+        let (dwarf_two, _) = production_of(Some("dwarven"), two)?;
+        let (dwarf_more, _) = production_of(Some("dwarven"), more)?;
+        assert_eq!(dwarf_two, dwarf_more, "dwarf workers keep their own");
+        let (_, halfling_two) = production_of(Some("halfling"), two)?;
+        let (_, halfling_more) = production_of(Some("halfling"), more)?;
+        assert_eq!(halfling_two, halfling_more, "halfling farmers keep theirs");
+        // And the base is what the unchanged accessor says.
+        let eco_rate = Economy::new(&world, None, &content).with_base_yields(more.0, more.1);
+        assert_eq!(eco_rate.farmer_food(Some(human)), more.0);
+        assert_eq!(eco_rate.worker_production(Some(human)), more.1);
+        assert_eq!(
+            eco_rate.farmer_food(Some(halfling)),
+            halfling.farmer_food.ok_or("none")?
+        );
+        assert_eq!(eco_rate.worker_production(None), more.1);
         Ok(())
     }
 

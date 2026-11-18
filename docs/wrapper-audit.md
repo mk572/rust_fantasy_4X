@@ -571,7 +571,7 @@ Callers is a text count and an upper bound.
 | task | f4x-def | `crates/f4x-def/src/hero.rs:213` | `legendary` | `by_tier` | 11 | Open | a table of numbers in code: see Findings 6 |
 | task | f4x-def | `crates/f4x-def/src/hero.rs:218` | `sage` | `by_tier` | 14 | Open | a table of numbers in code: see Findings 6 |
 | task | f4x-def | `crates/f4x-def/src/map.rs:135` | `Terrains::id_numbered` | `map` | 715 | Open | same pattern in two registries: see Findings 5 |
-| task | f4x-def | `crates/f4x-def/src/rules/defs.rs:80` | `two_food` | `from_int` | 0 | Keep | serde default function: the attribute names it |
+| task | f4x-def | `crates/f4x-def/src/rules/defs.rs:80` | `two_food` (gone, task 657) | `from_int` | 0 | Keep | serde default function: the attribute names it |
 | task | f4x-def | `crates/f4x-def/src/rules/stats.rs:176` | `Modifier::new` | `amount` | 5489 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-def | `crates/f4x-def/src/settings.rs:1092` | `SettingsDef::level` | `get` | 112 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-def | `crates/f4x-def/src/settings.rs:260` | `fb_max_books_total` | `fallback` | 0 | Keep | serde default function: the attribute names it |

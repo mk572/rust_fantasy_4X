@@ -376,6 +376,14 @@ pub struct RuleSettings {
     /// the wall sections give, not just the +1 of the original, against attackers outside.
     #[serde(default = "fb_walls_cover_city")]
     pub walls_cover_city: bool,
+    /// The food each farmer grows (the original: 2). A race that names its own `farmer_food` in
+    /// `races.ron` (halflings: 3) keeps it.
+    #[serde(default = "fb_farmer_food")]
+    pub farmer_food: HalfInt,
+    /// The production each worker makes (the original: 2). A race that names its own
+    /// `worker_production` in `races.ron` (dwarves and klackons: 3) keeps it.
+    #[serde(default = "fb_worker_production")]
+    pub worker_production: HalfInt,
     /// Patch 1.50 (note 251): a Miner's Guild adds half to the unit-cost saving of iron and coal,
     /// as it does to the gold and mana of the other minerals. Off (the original): it doubles the
     /// saving, iron 5 to 10 percent and coal 10 to 20.
@@ -571,6 +579,21 @@ fn fb_arcane_candidate_cap() -> u8 {
 
 fn fb_ban_life_and_death() -> bool {
     fallback(|g| g.rules.ban_life_and_death, true)
+}
+
+/// The base food of a farmer when nothing says otherwise (the original's).
+pub const DEFAULT_FARMER_FOOD: HalfInt = HalfInt::from_int(2);
+/// The base production of a worker when nothing says otherwise (the original's).
+pub const DEFAULT_WORKER_PRODUCTION: HalfInt = HalfInt::from_int(2);
+/// The most a farmer may grow or a worker make as a base value.
+pub const FARMER_WORKER_MOST: HalfInt = HalfInt::from_int(10);
+
+fn fb_farmer_food() -> HalfInt {
+    fallback(|g| g.rules.farmer_food, DEFAULT_FARMER_FOOD)
+}
+
+fn fb_worker_production() -> HalfInt {
+    fallback(|g| g.rules.worker_production, DEFAULT_WORKER_PRODUCTION)
 }
 
 fn fb_walls_cover_city() -> bool {
@@ -1354,6 +1377,15 @@ impl GameSettings {
             (HalfInt::ZERO..=HalfInt::from_int(10)).contains(&radius),
             format!("start reveal radius {radius} is not 0 to 10"),
         );
+        for (name, v) in [
+            ("base farmer food", self.rules.farmer_food),
+            ("base worker production", self.rules.worker_production),
+        ] {
+            check(
+                (HalfInt::ZERO..=FARMER_WORKER_MOST).contains(&v),
+                format!("{name} {v} is not 0 to {FARMER_WORKER_MOST}"),
+            );
+        }
         check(
             self.rules.arcane_candidate_cap <= 20,
             format!(
@@ -1446,6 +1478,14 @@ impl GameSettings {
             .start_reveal_radius
             .clamp(HalfInt::ZERO, HalfInt::from_int(10));
         self.rules.arcane_candidate_cap = self.rules.arcane_candidate_cap.min(20);
+        self.rules.farmer_food = self
+            .rules
+            .farmer_food
+            .clamp(HalfInt::ZERO, FARMER_WORKER_MOST);
+        self.rules.worker_production = self
+            .rules
+            .worker_production
+            .clamp(HalfInt::ZERO, FARMER_WORKER_MOST);
         self.world.monster_start_turn = self
             .world
             .monster_start_turn

@@ -48,12 +48,13 @@ pub struct RaceDef {
     /// Applied to every city of the race.
     #[serde(default)]
     pub effects: Vec<EffectRule>,
-    /// Food each farmer grows.
-    #[serde(default = "two_food")]
-    pub farmer_food: HalfInt,
-    /// Production per worker, as an amount (2 is two, 1.5 one and a half).
-    #[serde(default = "two_food")]
-    pub worker_production: HalfInt,
+    /// Food each farmer of the race grows; absent is the base of the settings (`farmer_food`).
+    #[serde(default)]
+    pub farmer_food: Option<HalfInt>,
+    /// Production per worker of the race, as an amount (2 is two, 1.5 one and a half); absent is
+    /// the base of the settings (`worker_production`).
+    #[serde(default)]
+    pub worker_production: Option<HalfInt>,
     /// Mana per citizen, as an amount (1 is one per citizen, 0.5 half).
     #[serde(default)]
     pub mana_per_citizen: HalfInt,
@@ -76,9 +77,6 @@ pub struct RaceDef {
 
 fn yes() -> bool {
     true
-}
-fn two_food() -> HalfInt {
-    HalfInt::from_int(2)
 }
 fn ten() -> u8 {
     10
