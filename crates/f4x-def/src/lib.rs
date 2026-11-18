@@ -20,6 +20,7 @@ pub mod names;
 pub mod original;
 pub mod rules;
 pub mod settings;
+pub mod table;
 #[cfg(any(test, feature = "testutil"))]
 pub mod testdir;
 pub mod text;

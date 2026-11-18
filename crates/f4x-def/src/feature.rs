@@ -73,43 +73,26 @@ pub struct FeatureDef {
 }
 
 /// The loaded feature table, sorted by number; a [`FeatureId`] is a definition's number.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Features {
-    defs: Vec<FeatureDef>,
+pub type Features = crate::table::Table<FeatureDef, FeatureId>;
+
+impl crate::table::Numbered for FeatureDef {
+    fn number(&self) -> u16 {
+        self.num
+    }
+}
+
+impl crate::table::TableId for FeatureId {
+    fn from_number(num: u16) -> Self {
+        Self(num)
+    }
+    fn number(self) -> u16 {
+        self.0
+    }
 }
 
 impl Features {
-    pub fn new(mut defs: Vec<FeatureDef>) -> Self {
-        defs.sort_by_key(|d| d.num);
-        Self { defs }
-    }
-
-    pub fn defs(&self) -> &[FeatureDef] {
-        &self.defs
-    }
-
-    /// The definitions, to put the names of a language on them. Their numbers stay as they are.
-    pub fn defs_mut(&mut self) -> &mut [FeatureDef] {
-        &mut self.defs
-    }
-
-    /// The feature with the number `num` (what a save and the name tables call it).
-    pub fn id_numbered(&self, num: u16) -> Option<FeatureId> {
-        self.get(FeatureId(num)).map(|_| FeatureId(num))
-    }
-
-    pub fn get(&self, id: FeatureId) -> Option<&FeatureDef> {
-        self.defs
-            .binary_search_by_key(&id.0, |d| d.num)
-            .ok()
-            .map(|i| &self.defs[i])
-    }
-
     pub fn first_of_kind(&self, kind: FeatureKind) -> Option<FeatureId> {
-        self.defs
-            .iter()
-            .find(|d| d.kind == kind)
-            .map(|d| FeatureId(d.num))
+        self.first_where(|d| d.kind == kind)
     }
 
     /// Features of `kind` that can spawn on `terrain` on `plane`, with summed weights.
@@ -119,7 +102,7 @@ impl Features {
         terrain: TerrainClass,
         plane: Plane,
     ) -> Vec<(FeatureId, u32)> {
-        self.defs
+        self.defs()
             .iter()
             .filter(|d| d.kind == kind)
             .filter_map(|d| {

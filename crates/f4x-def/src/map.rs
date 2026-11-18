@@ -111,49 +111,27 @@ pub struct TerrainDef {
 }
 
 /// The loaded terrain table, sorted by number; a [`TerrainId`] is a definition's number.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Terrains {
-    defs: Vec<TerrainDef>,
+pub type Terrains = crate::table::Table<TerrainDef, TerrainId>;
+
+impl crate::table::Numbered for TerrainDef {
+    fn number(&self) -> u16 {
+        self.num
+    }
+}
+
+impl crate::table::TableId for TerrainId {
+    fn from_number(num: u16) -> Self {
+        Self(num)
+    }
+    fn number(self) -> u16 {
+        self.0
+    }
 }
 
 impl Terrains {
-    pub fn new(mut defs: Vec<TerrainDef>) -> Self {
-        defs.sort_by_key(|d| d.num);
-        Self { defs }
-    }
-
-    pub fn defs(&self) -> &[TerrainDef] {
-        &self.defs
-    }
-
-    /// The definitions, to put the names of a language on them. Their numbers stay as they are.
-    pub fn defs_mut(&mut self) -> &mut [TerrainDef] {
-        &mut self.defs
-    }
-
-    /// The terrain with the number `num` (what a save and the name tables call it).
-    pub fn id_numbered(&self, num: u16) -> Option<TerrainId> {
-        self.get(TerrainId(num)).map(|_| TerrainId(num))
-    }
-
-    pub fn get(&self, id: TerrainId) -> Option<&TerrainDef> {
-        // The numbers run from 0 without gaps in the shipped content: the slot of the number is
-        // the definition; the search is for a table that has gaps.
-        if let Some(d) = self.defs.get(usize::from(id.0)).filter(|d| d.num == id.0) {
-            return Some(d);
-        }
-        self.defs
-            .binary_search_by_key(&id.0, |d| d.num)
-            .ok()
-            .map(|i| &self.defs[i])
-    }
-
     /// First definition of `class` that is available on `plane`.
     pub fn first_of_class(&self, class: TerrainClass, plane: Plane) -> Option<TerrainId> {
-        self.defs
-            .iter()
-            .find(|d| d.class == class && d.planes.contains(&plane))
-            .map(|d| TerrainId(d.num))
+        self.first_where(|d| d.class == class && d.planes.contains(&plane))
     }
 }
 
