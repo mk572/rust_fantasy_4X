@@ -376,11 +376,7 @@ pub fn assign(
         // A settler that cannot walk to the site takes it only over the sea: a land site that this
         // settler cannot walk to (it stands on land the site is cut off from) is for another settler.
         let Some(best) = (0..left.len())
-            // Only a walker waits for a ship; a swimmer or a flier (by nature, an item or a
-            // spell) crosses the water itself or cannot reach the site.
-            .filter(|&i| {
-                walks(left[i]) || (site.reach == Reach::Sea && view.is_walker(left[i].unit))
-            })
+            .filter(|&i| walks(left[i]) || site.reach == Reach::Sea)
             .min_by_key(|&i| cost(left[i]))
         else {
             continue;
@@ -390,7 +386,9 @@ pub fn assign(
         out.push((
             settler.unit,
             site.at,
-            site.reach == Reach::Sea && !walks(settler),
+            // Only a walker needs a ship: a swimmer or a flier (by nature, an item or a spell)
+            // gets the site like any settler and crosses the water itself.
+            site.reach == Reach::Sea && !walks(settler) && view.is_walker(settler.unit),
         ));
     }
     out
@@ -597,11 +595,10 @@ mod tests {
         assert!(list.iter().all(|s| s.at.plane == Plane::Arcanus));
     }
 
-    /// A site over the sea is for a settler that needs a ship (a walker) or one that crosses the
-    /// water itself; a settler that swims (a lizardman) or has flight from a spell does not wait
-    /// for a ship, and one that is cut off for another reason takes no such site.
+    /// A site over the sea goes to any settler, but only a walker is flagged as needing a ship:
+    /// a settler that swims (a lizardman) or has flight from a spell crosses the water itself.
     #[test]
-    fn only_a_walking_settler_is_given_a_site_over_the_sea_by_ship() {
+    fn only_a_walking_settler_is_flagged_as_needing_a_ship_for_a_site_over_the_sea() {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         g.explore(P0, at(COAST_CITY.0, COAST_CITY.1), HalfInt::from_int(12));
         for x in [16, 22, 26, 30] {
@@ -647,8 +644,14 @@ mod tests {
             Some((walker, true))
         );
         assert!(!view.is_walker(swimmer) && !view.is_walker(flier));
-        assert!(assign(&view, &list, &free(swimmer), &[], &[]).is_empty());
-        assert!(assign(&view, &list, &free(flier), &[], &[]).is_empty());
+        // They get a site too, without the flag: no ship is built or waited for.
+        for u in [swimmer, flier] {
+            let got = assign(&view, &list, &free(u), &[], &[]);
+            assert_eq!(
+                got.first().map(|&(who, _, ship)| (who, ship)),
+                Some((u, false))
+            );
+        }
     }
 
     #[test]
