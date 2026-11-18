@@ -71,7 +71,7 @@
     "custom.worker_production": "Production of a worker (races with their own keep it)",
     "custom.roads_at_start": "Roads between independent cities at the start",
     "custom.mix_neutral_races": "Independent cities of both planes' races on each plane",
-    "custom.extend_tiny_islands": "Build out tiny islands under start towns, towers and nodes",
+    "custom.extend_tiny_islands": "Build out tiny islands under start towns, neutral cities, towers and nodes",
     "custom.two_pick_myrran": "Myrran costs two picks and its fortress makes no extra mana",
     "custom.adamant_alchemy": "Alchemy costs two picks and works the ores without a guild",
     "custom.color_wheel_relations": "Starting relations by the colour wheel of the realms",

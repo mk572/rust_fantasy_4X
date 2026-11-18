@@ -325,6 +325,12 @@ pub fn generate_neutral_cities(game: &mut Game, plane: Plane) -> u32 {
     // Step 1: the squares. Step 2: a race rolled for each. Step 3: the races to the squares by
     // their favoured terrain. Step 4: the cities.
     let sites = choose_sites(game, plane, target);
+    // With the setting a city on a speck of land gets its island built out, as a start town does.
+    if game.settings().rules.extend_tiny_islands {
+        for &site in &sites {
+            crate::island::build_out(game, site);
+        }
+    }
     let weights = weighted_races(game, plane);
     let rolled: Vec<(RaceId, Vec<TerrainClass>)> = sites
         .iter()

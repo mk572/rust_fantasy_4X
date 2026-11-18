@@ -490,20 +490,7 @@ fn build_out_start_island(game: &mut Game, player: PlayerId) {
     let Some(at) = game.wizard(player).and_then(|w| w.fortress()) else {
         return;
     };
-    let Some(map) = game.map() else {
-        return;
-    };
-    let squares = crate::island::growth(map, game.content(), game.seed(), at, &|_, _| false);
-    let Some(grass) = game
-        .content()
-        .terrains
-        .first_of_class(f4x_core::map::terrain::TerrainClass::Grassland, at.plane)
-    else {
-        return;
-    };
-    for (x, y) in squares {
-        game.scenario_set_terrain(Position { x, y, ..at }, grass);
-    }
+    crate::island::build_out(game, at);
 }
 
 fn start_player(
@@ -823,6 +810,44 @@ mod tests {
                     mass.len() >= crate::island::MIN_LAND,
                     "seed {seed}, wizard {k}: {} squares",
                     mass.len()
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// With `extend_tiny_islands` on no city of the start, a neutral one either, stands on a speck
+    /// of land: its land mass has at least `island::MIN_LAND` squares and at least four squares to
+    /// work lie within two squares of it (a city's work radius).
+    #[test]
+    fn with_the_setting_no_city_at_the_start_is_cramped() -> TestResult {
+        for seed in 0..30 {
+            let mut spec = spec(seed, 3);
+            spec.settings.rules.extend_tiny_islands = true;
+            let g = new_game(shipped(), &spec)?;
+            let map = g.map().ok_or("no map")?;
+            let cities: Vec<Position> = g
+                .economy()
+                .cities()
+                .iter()
+                .map(|(_, _, c)| Position {
+                    plane: c.plane,
+                    x: c.x,
+                    y: c.y,
+                })
+                .collect();
+            assert!(cities.len() > 3, "seed {seed}: neutral cities were placed");
+            for at in cities {
+                let mass = crate::island::land_mass(map, g.content(), at, usize::MAX);
+                assert!(
+                    mass.len() >= crate::island::MIN_LAND,
+                    "seed {seed}, {at:?}: {} squares",
+                    mass.len()
+                );
+                let near = crate::island::land_near(map, g.content(), at);
+                assert!(
+                    near >= crate::island::MIN_NEAR,
+                    "seed {seed}, {at:?}: {near} squares to work"
                 );
             }
         }
