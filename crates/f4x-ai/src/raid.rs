@@ -79,11 +79,16 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             // passed over, and a party with none it can reach goes home.
             let mut candidates: Vec<Position> = kept.into_iter().collect();
             candidates.extend(sites.iter().copied().filter(|&t| Some(t) != kept).take(4));
+            // Home is the nearest own city on the party's plane. (`distance` is `None` across
+            // planes, which sorts before any number: a party on a plane without a city of its
+            // own used to be sent to one on the other plane and could never get there.)
             let home = view
                 .my_cities()
                 .into_iter()
                 .map(|(_, p)| p)
-                .min_by_key(|&p| (distance(&view, pos, p), p.y, p.x));
+                .filter_map(|p| distance(&view, pos, p).map(|d| (d, p)))
+                .min_by_key(|&(d, p)| (d, p.y, p.x))
+                .map(|(_, p)| p);
             (next_to, city_next, candidates, home)
         };
         let party: Vec<Serial> = {
@@ -214,9 +219,57 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     !serials.contains(s)
                 });
             }
+        } else {
+            stranded(ai, game, units, pos, events);
         }
     }
     form(ai, game, events);
+}
+
+/// A party on a plane where its wizard has no city, with no site left to take: it has no home to
+/// walk to. A cleared tower is the way to the other plane (a stack in one stands on both): a party
+/// in a tower shifts plane, one near a tower it can walk to walks there, and any other has no way
+/// off the plane and is left to the army's rules (Plane Shift is the war job's to cast). The raid
+/// is over in each case, and none of it is a refused order.
+fn stranded(
+    ai: &mut Ai,
+    game: &mut Game,
+    units: Vec<hecs::Entity>,
+    pos: Position,
+    events: &mut Vec<Event>,
+) {
+    let me = ai.player;
+    let (serials, in_tower, tower) = {
+        let view = PlayerView::new(game, me);
+        let towers: Vec<Position> = view
+            .towers()
+            .into_iter()
+            .filter(|&(t, intact)| !intact && t.plane == pos.plane)
+            .map(|(t, _)| t)
+            .collect();
+        let tower = towers
+            .iter()
+            .copied()
+            .filter(|&t| t != pos && view.can_reach(&units, t))
+            .min_by_key(|&t| (distance(&view, pos, t), t.y, t.x));
+        (
+            units
+                .iter()
+                .map(|&u| view.serial_of(u))
+                .collect::<Vec<Serial>>(),
+            towers.contains(&pos),
+            tower,
+        )
+    };
+    if in_tower {
+        ai.order(game, Command::ShiftPlane { units }, events);
+    } else if let Some(tower) = tower {
+        ai.order(game, Command::GoTo { units, to: tower }, events);
+    }
+    ai.roles.retain_role(crate::roles::Role::Raid, |s| {
+        let s = &s;
+        !serials.contains(s)
+    });
 }
 
 /// New raiding parties from the pool: the free soldiers on each square, the strongest nine of
@@ -639,6 +692,73 @@ mod tests {
             !ai.roles.any(crate::roles::Role::Raid),
             "the raid ended at the city: {:?}",
             ai.roles
+        );
+        Ok(())
+    }
+
+    fn myrror(x: u32, y: u32) -> Position {
+        Position {
+            plane: f4x_core::map::Plane::Myrror,
+            ..at(x, y)
+        }
+    }
+
+    /// A party of the Arcanus-only wizard on Myrror with no site to take there.
+    fn stranded_party(tower: Option<bool>) -> Result<(Game, Ai, Vec<hecs::Entity>), TestError> {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        if let Some(intact) = tower {
+            spawn_tower(&mut g, myrror(5, 8), intact)?;
+        }
+        g.reveal_map(P0);
+        let party = spawn(
+            &mut g,
+            P0,
+            myrror(5, 8),
+            113, /* high_men_paladins */
+            4,
+        );
+        let mut ai = Ai::new(P0);
+        ai.record_refusals(true);
+        let view = PlayerView::new(&g, P0);
+        ai.roles.assign(
+            crate::roles::Role::Raid,
+            party.iter().map(|&u| view.serial_of(u)),
+            1,
+        );
+        Ok((g, ai, party))
+    }
+
+    type TestError = Box<dyn std::error::Error>;
+
+    #[test]
+    fn a_party_on_a_plane_without_a_city_of_its_own_is_not_sent_home_across_the_planes(
+    ) -> TestResult {
+        let (mut g, mut ai, party) = stranded_party(None)?;
+        let mut events = Vec::new();
+        run(&mut ai, &mut g, &mut events);
+        assert!(
+            !ai.roles.any(crate::roles::Role::Raid),
+            "no way home and no tower: the raid is over"
+        );
+        assert!(ai.take_refusals().is_empty(), "and it is no refused order");
+        assert!(party
+            .iter()
+            .all(|&u| g.units().unit_position(u) == Some(myrror(5, 8))));
+        Ok(())
+    }
+
+    #[test]
+    fn a_party_standing_in_a_cleared_tower_takes_it_to_the_plane_with_its_city() -> TestResult {
+        let (mut g, mut ai, party) = stranded_party(Some(false))?;
+        let mut events = Vec::new();
+        run(&mut ai, &mut g, &mut events);
+        assert!(!ai.roles.any(crate::roles::Role::Raid));
+        assert!(ai.take_refusals().is_empty());
+        assert!(
+            party
+                .iter()
+                .all(|&u| g.units().unit_position(u) == Some(at(5, 8))),
+            "back on Arcanus"
         );
         Ok(())
     }
