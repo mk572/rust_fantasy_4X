@@ -738,7 +738,16 @@ fn a_sea_raid_lands_a_fighter_and_a_settler_with_their_ship_beside_them_all_free
             grid.chebyshev((sea.x, sea.y), (spot.x, spot.y)) == 1,
             "seed {seed}"
         );
-        assert_eq!(party.len(), 2, "one fighter and the settler");
+        // Step 1: 1d2 fighters, each of the race's two cheapest, and the settler.
+        assert!(
+            (2..=3).contains(&party.len()),
+            "seed {seed}: {}",
+            party.len()
+        );
+        let cheap = cheapest_fighters(&g, race, 2);
+        for &u in party.iter().filter(|&&u| !is_settler(&g, u)) {
+            assert!(cheap.contains(&def(u).cost), "seed {seed}");
+        }
         assert!(party
             .iter()
             .all(|&u| g.units().unit_position(u) == Some(spot)));
@@ -754,15 +763,10 @@ fn a_sea_raid_lands_a_fighter_and_a_settler_with_their_ship_beside_them_all_free
     }
 }
 
-#[test]
-fn a_sea_raid_grows_with_the_turn_to_four_of_the_races_dearest_fighters_in_a_galley() {
-    let mut g = island();
-    g.turn = 300;
-    let (party, ship, race, _) = landed(&mut g);
-    assert_eq!(g.units().unit_def(ship).map(|d| d.num), Some(36));
-    assert_eq!(party.len(), 5, "four fighters and the settler");
+/// The costs of the `n` cheapest fighters of a race (0: all).
+fn cheapest_fighters(g: &Game, race: crate::rules::RaceId, n: usize) -> Vec<u32> {
     let rules = &g.content.rules;
-    let dearest = rules
+    let mut costs: Vec<u32> = rules
         .races
         .get(race)
         .units
@@ -774,14 +778,53 @@ fn a_sea_raid_grows_with_the_turn_to_four_of_the_races_dearest_fighters_in_a_gal
                 && d.stat(Stat::Melee).max(d.stat(Stat::Ranged)) > 0.0
         })
         .map(|d| d.cost)
-        .max();
-    let top = party
-        .iter()
-        .filter_map(|&u| g.units().unit_def(u))
-        .map(|d| d.cost)
-        .filter(|&c| Some(c) == dearest)
-        .count();
-    assert_eq!(top, 4, "all four are the race's dearest");
+        .collect();
+    costs.sort_unstable();
+    costs.truncate(if n == 0 { costs.len() } else { n });
+    costs
+}
+
+fn is_settler(g: &Game, u: hecs::Entity) -> bool {
+    g.units()
+        .unit_has_ability(u, crate::rules::Ability::new(12))
+}
+
+#[test]
+fn a_sea_raid_grows_with_the_turn_in_the_steps_of_the_rules_and_never_rolls_a_settler() {
+    // (turn, fewest and most fighters, the pool of cheapest units, the ship's unit number)
+    for (turn, low, high, pool, ship_num) in
+        [(1, 1, 2, 2, 35), (150, 2, 3, 4, 36), (300, 3, 5, 0, 36)]
+    {
+        let mut seen = std::collections::BTreeSet::new();
+        for seed in 0..40 {
+            let mut g = island();
+            g.turn = turn;
+            g.rng = crate::game::rng::GameRng::new(seed);
+            let (party, ship, race, _) = landed(&mut g);
+            assert_eq!(g.units().unit_def(ship).map(|d| d.num), Some(ship_num));
+            let fighters: Vec<_> = party.iter().filter(|&&u| !is_settler(&g, u)).collect();
+            assert_eq!(party.len() - fighters.len(), 1, "one settler");
+            assert!(
+                (low..=high).contains(&fighters.len()),
+                "turn {turn}: {} fighters",
+                fighters.len()
+            );
+            let allowed = cheapest_fighters(&g, race, pool);
+            for &&u in &fighters {
+                let cost = g.units().unit_def(u).map(|d| d.cost).unwrap_or(0);
+                assert!(
+                    allowed.contains(&cost),
+                    "turn {turn}: cost {cost} of {allowed:?}"
+                );
+            }
+            seen.insert(fighters.len());
+        }
+        assert_eq!(
+            seen.len(),
+            high - low + 1,
+            "turn {turn}: every size comes up: {seen:?}"
+        );
+    }
 }
 
 #[test]

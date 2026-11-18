@@ -1,7 +1,7 @@
 //! The raid from the sea (setting `sea_raids`, `rules.ron` `threat.sea_raid`): in place of a
 //! raid out of a city, a party of a random race lands on a far coast. A ship (a trireme, a galley
-//! later), one to four fighters that grow in number and rank with the turn (the cheapest fighter
-//! of the race first, the dearest at the end; experience as the other raiders'), and a settler.
+//! later), fighters that grow in number and rank with the turn (1d2 of the two cheapest, then 1d2+1 of the
+//! four cheapest, then 1d3+2 of all of the race; experience as the other raiders'), and a settler.
 //! Four coast squares are rolled and the one furthest from any town is the landing. All of it is
 //! free of upkeep and belongs to the neutral player of the race (made when the race has none);
 //! what it does then is the neutral AI's (`f4x_ai::NeutralSeat`).
@@ -122,11 +122,11 @@ impl Game {
             .and_then(|&(_, num)| rules.units.id_numbered(num))
     }
 
-    /// The fighters of the party and its settler. The fighters of the race run from the cheapest
-    /// to the dearest, and how far up the turn takes the party sets their rank and their number.
-    fn sea_raid_troops(&self, race: RaceId) -> Option<(Vec<UnitId>, UnitId)> {
+    /// The fighters of the party and its settler. The race's fighters are sorted by cost; the step
+    /// the turn has reached (`threat.sea_raid.parties`) gives how many there are and how many of
+    /// the cheapest each is rolled from. Settlers and engineers are no fighters.
+    fn sea_raid_troops(&mut self, race: RaceId) -> Option<(Vec<UnitId>, UnitId)> {
         let rules = &self.content.rules;
-        let cfg = &rules.config.threat.sea_raid;
         let mut fighters: Vec<(u32, UnitId)> = Vec::new();
         let mut settler = None;
         for &u in &rules.races.get(race).units {
@@ -147,13 +147,24 @@ impl Game {
         if fighters.is_empty() {
             return None;
         }
-        let progress_of = |n: u32| {
-            u64::from(self.turn.min(cfg.full_strength_turn)) * u64::from(n)
-                / u64::from(cfg.full_strength_turn.max(1))
+        let (_, base, dice, pool) = rules
+            .config
+            .threat
+            .sea_raid
+            .parties
+            .iter()
+            .rfind(|&&(from, ..)| self.turn >= from)
+            .copied()?;
+        let pool = if pool == 0 {
+            fighters.len()
+        } else {
+            pool.min(fighters.len())
         };
-        let rank = progress_of(fighters.len() as u32 - 1) as usize;
-        let count = 1 + progress_of(cfg.most_fighters.saturating_sub(1)) as usize;
-        Some((vec![fighters[rank].1; count], settler))
+        let count = base + self.roll(dice);
+        let party = (0..count)
+            .map(|_| fighters[self.roll(pool as u32) as usize - 1].1)
+            .collect();
+        Some((party, settler))
     }
 
     /// Roll coast squares of the plane and take the one furthest from every town.

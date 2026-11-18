@@ -1342,11 +1342,11 @@ pub struct SeaRaidRules {
     /// The ship: `(from turn, unit number)`, in rising order of turn; the last one that has begun
     /// is sent.
     pub ships: Vec<(u32, u16)>,
-    /// The most fighters a party has, reached at `full_strength_turn`; it has one at the start.
-    pub most_fighters: u32,
-    /// The turn from which the party is as strong as it gets: the fighters of the race run from the
-    /// cheapest to the dearest as the turns run up to it.
-    pub full_strength_turn: u32,
+    /// The party's size by turn, in rising order of turn: each step is `(from turn, base, dice,
+    /// pool)`. The party has `base` plus one roll of a die of `dice` sides fighters, each rolled
+    /// among the `pool` cheapest military units of the race (0: all of them). The last step that
+    /// has begun counts.
+    pub parties: Vec<(u32, u32, u32, usize)>,
     /// How many coast squares are rolled; the one furthest from any town is the landing.
     pub coast_rolls: u32,
 }
@@ -1356,8 +1356,7 @@ impl Default for SeaRaidRules {
         Self {
             chance_percent: 25,
             ships: vec![(0, 35 /* trireme */), (120, 36 /* galley */)],
-            most_fighters: 4,
-            full_strength_turn: 300,
+            parties: vec![(0, 0, 2, 2), (121, 1, 2, 4), (251, 2, 3, 0)],
             coast_rolls: 4,
         }
     }
