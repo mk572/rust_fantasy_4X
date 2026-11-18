@@ -24,7 +24,7 @@ Options:
   --quick       one seed and 300 turns for every run: a smoke test of the matrix
   --dry-run     print the commands and stop
   --seed-offset N  add N to every seed of the runs: more games for the same settings (default 0)
-  --extra ARGS  more arguments for every `f4x-tools soak` (one quoted string, e.g. '--casts --events')
+  --extra ARGS  more arguments for every `f4x-tools soak` (one quoted string, e.g. '--events')
 
 Runs (name: wizards, map, land %, node strength, difficulty, seeds, turns):
   small-2p     2  45x30  20  1  2  101..104  500

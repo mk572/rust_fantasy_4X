@@ -25,7 +25,7 @@ use crate::contestant::{self, Contestant, Version};
 use crate::metrics::{casts_line, Metrics, Standing, Tally};
 use crate::report::{self, Played};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -39,7 +39,6 @@ pub struct Options {
     /// Print how the random events went in each game.
     pub events: bool,
     /// Print how often each spell was cast, and the map spells nobody cast.
-    pub casts: bool,
     pub grant_mastery: Option<u32>,
     pub battle_ai: Option<PathBuf>,
     pub refused_log: Option<PathBuf>,
@@ -90,7 +89,6 @@ impl Options {
             trace: 0,
             detail: false,
             events: false,
-            casts: false,
             grant_mastery: None,
             battle_ai: None,
             refused_log: None,
@@ -124,7 +122,6 @@ impl Options {
                 }
                 "--detail" => o.detail = true,
                 "--events" => o.events = true,
-                "--casts" => o.casts = true,
                 "--grant-mastery" => {
                     o.grant_mastery =
                         Some(value("--grant-mastery")?.parse().map_err(|_| "bad turn")?)
@@ -789,22 +786,20 @@ pub fn game(
     for line in neutral_lines(&game, &tally) {
         logln!(log, "{line}");
     }
-    if opts.casts {
-        logln!(log, "casts: {}", casts_line(tally.casts()));
-        logln!(log, "battle casts: {}", casts_line(tally.battle_casts()));
-        logln!(
-            log,
-            "battle mana by spell: {}",
-            casts_line(
-                &tally
-                    .battle_mana()
-                    .iter()
-                    .map(|(k, v)| (k.clone(), (*v).max(0) as u32))
-                    .collect()
-            )
-        );
-        logln!(log, "spells known (wizards): {}", casts_line(tally.known()));
-    }
+    logln!(log, "casts: {}", casts_line(tally.casts()));
+    logln!(log, "battle casts: {}", casts_line(tally.battle_casts()));
+    logln!(
+        log,
+        "battle mana by spell: {}",
+        casts_line(
+            &tally
+                .battle_mana()
+                .iter()
+                .map(|(k, v)| (k.clone(), (*v).max(0) as u32))
+                .collect()
+        )
+    );
+    logln!(log, "spells known (wizards): {}", casts_line(tally.known()));
     if opts.events {
         logln!(log, "{}", watch.summary(game.turn.saturating_sub(1)));
     }

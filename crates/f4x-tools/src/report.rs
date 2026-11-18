@@ -1,7 +1,7 @@
 //! The summary every kind of soak prints after its games (`soak` and `soak-versus` call the same
 //! routine, so their logs have the same lines): the games that ended with a winner, the counts
 //! of `metrics.rs` per wizard and game for each kind of seat, the standing of the wizards at
-//! the end, the casts of every game (`--casts`), and, when a seed was played in more than one
+//! the end, the casts of every game and of each kind of seat (always printed), and, when a seed was played in more than one
 //! variant, who won the mixed games and where the variants stop being the same game.
 //!
 //! A plain soak is the one-variant case: all its seats are the new AI, so it has one column.
@@ -161,9 +161,7 @@ pub fn print(opts: &Options, content: &Content, title: &str, played: &[Played]) 
     println!("{ended} of {} games ended with a winner", played.len());
     print_wins(played);
     print_tables(&seeds, played);
-    if opts.casts {
-        print_casts(content, played);
-    }
+    print_casts(content, played);
     print_divergence(opts, &seeds, played);
 }
 
@@ -248,19 +246,36 @@ fn print_tables(seeds: &[u64], played: &[Played]) {
     }
 }
 
-/// How often each spell was cast over all the games, and which map and battle spells never were.
+/// How often each spell was cast over all the games, and which map and battle spells never were:
+/// for the whole soak, and, when it has several variants (`soak-versus`), for each variant, so the
+/// new AI's casts can be read against the reference's.
 fn print_casts(content: &Content, played: &[Played]) {
+    let mut labels: Vec<&str> = Vec::new();
+    for g in played {
+        if !g.label.is_empty() && !labels.contains(&g.label) {
+            labels.push(g.label);
+        }
+    }
+    let everyone: Vec<&Played> = played.iter().collect();
+    print_casts_of(content, &everyone, "all games");
+    for label in labels {
+        let group: Vec<&Played> = played.iter().filter(|g| g.label == label).collect();
+        print_casts_of(content, &group, label);
+    }
+}
+
+fn print_casts_of(content: &Content, played: &[&Played], who: &str) {
     let all = add_casts(played.iter().map(|g| g.result.tally.casts()));
-    println!("all games, casts: {}", casts_line(&all));
+    println!("{who}, casts: {}", casts_line(&all));
     println!(
-        "all games, map spells never cast: {}",
+        "{who}, map spells never cast: {}",
         never_cast(&content.rules, &all).join(", ")
     );
     let fought = add_casts(played.iter().map(|g| g.result.tally.battle_casts()));
-    println!("all games, battle casts: {}", casts_line(&fought));
+    println!("{who}, battle casts: {}", casts_line(&fought));
     let known = add_casts(played.iter().map(|g| g.result.tally.known()));
     println!(
-        "all games, map spells known and never cast (wizards that knew them): {}",
+        "{who}, map spells known and never cast (wizards that knew them): {}",
         known_never_cast(
             &content.rules,
             &known,
@@ -268,7 +283,7 @@ fn print_casts(content: &Content, played: &[Played]) {
             f4x_def::rules::CastContext::Overland
         )
     );
-    println!("all games, spells known (wizards): {}", casts_line(&known));
+    println!("{who}, spells known (wizards): {}", casts_line(&known));
     let mana: std::collections::BTreeMap<String, u32> = played
         .iter()
         .flat_map(|g| g.result.tally.battle_mana().iter())
@@ -276,9 +291,9 @@ fn print_casts(content: &Content, played: &[Played]) {
             *m.entry(k.clone()).or_default() += (*v).max(0) as u32;
             m
         });
-    println!("all games, battle mana by spell: {}", casts_line(&mana));
+    println!("{who}, battle mana by spell: {}", casts_line(&mana));
     println!(
-        "all games, battle spells never cast: {}",
+        "{who}, battle spells never cast: {}",
         never_cast_in(&content.rules, &fought, f4x_def::rules::CastContext::Battle).join(", ")
     );
 }

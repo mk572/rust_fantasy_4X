@@ -451,7 +451,7 @@ soak. A soak option (`--grant-mastery TURN`) does the same in a whole game.
 `f4x-tools soak --seeds 1..8 --turns 400 --every 50 --detail` prints for each seed whether the
 game ended, how and when, the battles and cities taken, and (with `--detail`) each wizard's
 mana, spells, research, casting, power split and explored squares. The table below is filled in
-as steps land; "ended" is games with a winner out of 8. `--casts` adds, per game and over all games,
+as steps land; "ended" is games with a winner out of 8. Every soak prints, per game and over all games (and, in `soak-versus`, per kind of seat),
 how often each spell was cast and the map spells nobody cast, and the same for the battles (`battle casts:`, a wizard's or a unit's cast, counted from the battle events; `battle spells never cast:`).
 
 Every game also prints, at its start, a `profile pN:` line per wizard (the race of its capital, the
