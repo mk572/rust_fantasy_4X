@@ -1458,6 +1458,41 @@ mod tests {
         Ok(())
     }
 
+    /// A target far from the rally square: a march that has gone on past the usual time but not
+    /// past the usual time plus the walk is not called back on the way (task 436).
+    #[test]
+    fn a_march_to_a_target_far_from_the_cities_is_not_called_off_on_the_way() -> TestResult {
+        use crate::roles::Role;
+        let mut g = rival_with_a_seat((4, 4))?;
+        let capital = at(COAST_CITY.0, COAST_CITY.1);
+        let tile = g.max_tile();
+        spawn(&mut g, P0, capital, 113 /* high_men_paladins */, tile);
+        g.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        run(&mut ai, &mut g, &mut Vec::new());
+        assert!(ai.roles.any(Role::March), "the march left");
+        let target = ai.campaign.ok_or("a campaign")?;
+        let trip = distance(&PlayerView::new(&g, P0), capital, target).ok_or("a way")?;
+        assert!(trip > 3, "the target is far from the rally: {trip}");
+        // Past the usual time, within the walk on top of it.
+        ai.march_started = g.turn;
+        for _ in 0..=MARCH_TURNS {
+            g.apply(Command::EndTurn);
+        }
+        let mut events = Vec::new();
+        ai.march_started = g.turn - (MARCH_TURNS + 1);
+        let before = events.len();
+        run(&mut ai, &mut g, &mut events);
+        assert!(
+            !events[before..]
+                .iter()
+                .any(|e| matches!(e, Event::MarchCalledOff { .. })),
+            "{events:?}"
+        );
+        Ok(())
+    }
+
     #[test]
     fn a_march_to_a_far_target_gets_the_walk_on_top_of_the_usual_time() {
         // A near target: called off one turn past the usual time.
