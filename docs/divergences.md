@@ -797,6 +797,8 @@ immunity** protects against Terror. The other differences listed there are kept 
   original rerolls towards it). A city a raiding city conquers is its own, not a new independent city
   (task P33's design is not built as written: the race players play instead). Both are on at every level.
 
+The sea raid (task 683, setting `sea_raids`, off by default) has no counterpart in the original: a free party of a random race (a ship, one to four fighters and a settler) lands on the coast furthest from any city, instead of a raid out of a neutral city. Its fighters and the ship have no upkeep, as the other raiders' have not.
+
 ## 37. The three event switches the original never reads (tasks 269 to 271, 276 to 278)
 
 In the original `magic_set.city_spell_events`, `overland_spell_events` and `summoning_events` are set

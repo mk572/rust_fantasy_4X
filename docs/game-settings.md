@@ -130,6 +130,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | world | `mineral_percent_arcanus`, `_myrror` | 0..=30 | 6, 10 | `PlaneParams` |
 | world | `lairs_enabled`, `neutral_cities_enabled` | bool | on | always on |
 | world | `raiders_enabled`, `monsters_enabled` | bool | on (off in `flat`) | `threat.rs` (task 376) |
+| world | `sea_raids` | bool | off | `threat/sea_raid.rs` (task 683): a raid is a landing from the sea in `threat.sea_raid.chance_percent` (25) of the cases |
 | world | `myrror_enabled` | bool | on | always two planes (stage 4, 4.9) |
 | world | `heroes_enabled` | bool | on | heroes are not built yet (tasks 218, 219); read when they are |
 | world | `lair_guard_percent` | 0..=300 | from preset | `feature/lair.rs`: `budget * (d + 1) / 4` |
@@ -474,7 +475,7 @@ three is chosen, and the game-over text for a defeat by banishment names the rul
 | AI maintenance and Hard / Impossible unit upkeep cut | `ai.maintenance_percent`, `ai.unit_upkeep_percent` |
 | Lair guards, lair treasure | `lair_guard_percent`, `lair_treasure_percent` |
 | Neutral city size | `neutral_city_size_bonus` |
-| Raiders and roaming monsters | `raiders_enabled`, `monsters_enabled`, `raider_percent` (task 376) |
+| Raiders and roaming monsters | `raiders_enabled`, `monsters_enabled`, `raider_percent` (task 376), `sea_raids` (task 683) |
 | Random events on or off, frequency | section 4.5 |
 | Final score scale | `score_percent`, applied where the score is made (task 148) |
 | Fleeing (`Combat.c` 3863 and 4075) | `rules.safe_flee`, below |

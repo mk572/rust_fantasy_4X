@@ -548,6 +548,13 @@ pub enum Event {
         owner: player::PlayerId,
         count: u32,
     },
+    /// A party of a random race came from the sea and landed on a coast (`threat/sea_raid.rs`):
+    /// `count` fighters and a settler, with their ship beside them.
+    SeaRaidLanded {
+        owner: player::PlayerId,
+        at: map::Position,
+        count: u32,
+    },
     /// Monsters took over a stand: a stack made for the purpose settled in a lair and drove its
     /// guards out (`evicted` of them), or roaming monsters settled in an empty one.
     MonstersSettled {

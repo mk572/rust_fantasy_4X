@@ -398,6 +398,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.world.raiders_enabled.into(),
             |s, v| s.world.raiders_enabled = v != 0,
         ),
+        flag(
+            "custom.sea_raids",
+            |s| s.world.sea_raids.into(),
+            |s, v| s.world.sea_raids = v != 0,
+        ),
         num(
             "custom.raider_size",
             (0, 300, 5),

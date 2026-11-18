@@ -1329,6 +1329,38 @@ pub struct ThreatRules {
     pub big_events_from_turn: u32,
     /// Lairs guarded by creatures of these realms (realm numbers) do not send out monsters.
     pub spared_realms: Vec<u16>,
+    /// The alternative raid from the sea (`threat/sea_raid.rs`, setting `sea_raids`).
+    #[serde(default)]
+    pub sea_raid: SeaRaidRules,
+}
+
+/// The raid from the sea: a free party of a random race lands on a far coast.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SeaRaidRules {
+    /// The chance, in percent, that a raid is a sea raid when the setting is on.
+    pub chance_percent: u32,
+    /// The ship: `(from turn, unit number)`, in rising order of turn; the last one that has begun
+    /// is sent.
+    pub ships: Vec<(u32, u16)>,
+    /// The most fighters a party has, reached at `full_strength_turn`; it has one at the start.
+    pub most_fighters: u32,
+    /// The turn from which the party is as strong as it gets: the fighters of the race run from the
+    /// cheapest to the dearest as the turns run up to it.
+    pub full_strength_turn: u32,
+    /// How many coast squares are rolled; the one furthest from any town is the landing.
+    pub coast_rolls: u32,
+}
+
+impl Default for SeaRaidRules {
+    fn default() -> Self {
+        Self {
+            chance_percent: 25,
+            ships: vec![(0, 35 /* trireme */), (120, 36 /* galley */)],
+            most_fighters: 4,
+            full_strength_turn: 300,
+            coast_rolls: 4,
+        }
+    }
 }
 
 impl Default for ThreatRules {
@@ -1339,6 +1371,7 @@ impl Default for ThreatRules {
             cheapest_monster: 25,
             big_events_from_turn: 150,
             spared_realms: vec![3 /* life */],
+            sea_raid: SeaRaidRules::default(),
         }
     }
 }

@@ -11,6 +11,7 @@
 
 mod monster;
 mod raider;
+mod sea_raid;
 
 use serde::{Deserialize, Serialize};
 

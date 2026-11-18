@@ -455,6 +455,11 @@ pub fn event(game: &Game, e: &Event) -> String {
         Event::RaidersRaised { owner, count, .. } => {
             format!("{} raises {count} raiders", player(game, *owner))
         }
+        Event::SeaRaidLanded { owner, at, count } => format!(
+            "{} lands {count} raiders and a settler from the sea at {}",
+            player(game, *owner),
+            pos(*at)
+        ),
         Event::MonstersSettled {
             pos: at,
             site,

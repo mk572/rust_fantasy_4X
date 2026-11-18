@@ -768,6 +768,12 @@ impl App {
                         self.text_with("log.raiders", &args)
                     })
                 }
+                Event::SeaRaidLanded { at, count, .. } => {
+                    // News where the human has been.
+                    self.game
+                        .is_explored(HUMAN, at)
+                        .then(|| self.text_with("log.sea_raid", &Args::new().count("n", count)))
+                }
                 Event::MonstersSettled {
                     pos,
                     site,

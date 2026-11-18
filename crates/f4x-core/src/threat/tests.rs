@@ -656,3 +656,169 @@ fn settlers_do_not_make_a_party() -> TestResult {
     );
     Ok(())
 }
+
+/// An island of grassland (x 2..=9, y 2..=9) in a sea of 24 by 14, on both planes, with a town
+/// at its west end (3, 5). The sea raids are on and always come (the chance is 100).
+fn island() -> Game {
+    let mut g = world(4);
+    let sea = g
+        .content
+        .terrains
+        .id_numbered(8 /* ocean */)
+        .expect("ocean");
+    let grass = g
+        .content
+        .terrains
+        .id_numbered(4 /* grassland */)
+        .expect("grass");
+    let mut map = Map::new(Grid::new(24, 14, sea), Grid::new(24, 14, sea));
+    for plane in [Plane::Arcanus, Plane::Myrror] {
+        for y in 2..=9 {
+            for x in 2..=9 {
+                map.plane_mut(plane).set(x, y, grass);
+            }
+        }
+    }
+    g.map = Some(map);
+    g.settings.world.sea_raids = true;
+    g.content.rules.config.threat.sea_raid.chance_percent = 100;
+    // The two cities of `world` stand in the sea now; the island's own town takes the west.
+    for (e, ..) in g.economy().cities() {
+        let _ = g.world.despawn(e);
+    }
+    for u in g.units().player_units(TOWN) {
+        let _ = g.world.despawn(u);
+    }
+    g.spawn_city(P0, at(3, 5), "Capital".into(), None, 5);
+    g
+}
+
+/// The landing of the raid just made: its party, ship and the race.
+fn landed(
+    g: &mut Game,
+) -> (
+    Vec<hecs::Entity>,
+    hecs::Entity,
+    crate::rules::RaceId,
+    Position,
+) {
+    g.threat.raider_clock = one_short(g);
+    let events = g.process_threats();
+    let Some(Event::SeaRaidLanded {
+        owner, at: spot, ..
+    }) = events.first().cloned()
+    else {
+        panic!("a party landed: {events:?}");
+    };
+    let race = g
+        .race_of_player(owner)
+        .expect("a race player owns the party");
+    let units = g.units().player_units(owner);
+    let ship = *units
+        .iter()
+        .find(|&&u| g.units().unit_stat(u, Stat::Transport) > 0)
+        .expect("a ship");
+    let party = units.into_iter().filter(|&u| u != ship).collect();
+    (party, ship, race, spot)
+}
+
+#[test]
+fn a_sea_raid_lands_a_fighter_and_a_settler_with_their_ship_beside_them_all_free() {
+    for seed in 0..30 {
+        let mut g = island();
+        g.turn = 1;
+        g.rng = crate::game::rng::GameRng::new(seed);
+        let (party, ship, race, spot) = landed(&mut g);
+        let def = |u| g.units().unit_def(u).expect("a unit def");
+        assert_eq!(def(ship).num, 35, "a trireme at first (seed {seed})");
+        let sea = g.units().unit_position(ship).expect("the ship's square");
+        assert!(!g.units().units_at(sea).is_empty());
+        let grid = g.map().expect("map").plane(spot.plane);
+        assert!(
+            grid.chebyshev((sea.x, sea.y), (spot.x, spot.y)) == 1,
+            "seed {seed}"
+        );
+        assert_eq!(party.len(), 2, "one fighter and the settler");
+        assert!(party
+            .iter()
+            .all(|&u| g.units().unit_position(u) == Some(spot)));
+        assert!(party
+            .iter()
+            .chain([&ship])
+            .all(|&u| g.units().unit_is_unpaid(u)));
+        let races: Vec<_> = party
+            .iter()
+            .map(|&u| def(u).race.map(|r| r.num()))
+            .collect();
+        assert!(races.iter().all(|&r| r == Some(race.num())), "{races:?}");
+    }
+}
+
+#[test]
+fn a_sea_raid_grows_with_the_turn_to_four_of_the_races_dearest_fighters_in_a_galley() {
+    let mut g = island();
+    g.turn = 300;
+    let (party, ship, race, _) = landed(&mut g);
+    assert_eq!(g.units().unit_def(ship).map(|d| d.num), Some(36));
+    assert_eq!(party.len(), 5, "four fighters and the settler");
+    let rules = &g.content.rules;
+    let dearest = rules
+        .races
+        .get(race)
+        .units
+        .iter()
+        .map(|&u| rules.units.get(u))
+        .filter(|d| {
+            d.kind == crate::rules::UnitKind::Normal
+                && !d.abilities.contains(&crate::rules::Ability::new(12))
+                && d.stat(Stat::Melee).max(d.stat(Stat::Ranged)) > 0.0
+        })
+        .map(|d| d.cost)
+        .max();
+    let top = party
+        .iter()
+        .filter_map(|&u| g.units().unit_def(u))
+        .map(|d| d.cost)
+        .filter(|&c| Some(c) == dearest)
+        .count();
+    assert_eq!(top, 4, "all four are the race's dearest");
+}
+
+#[test]
+fn with_the_setting_off_a_raid_is_never_a_sea_raid() {
+    let mut g = island();
+    g.settings.world.sea_raids = false;
+    g.threat.raider_clock = one_short(&g);
+    let events = g.process_threats();
+    assert!(!events
+        .iter()
+        .any(|e| matches!(e, Event::SeaRaidLanded { .. })));
+}
+
+#[test]
+fn a_sea_raid_lands_where_the_nearest_town_is_furthest_of_the_four_squares_rolled() {
+    let g0 = island();
+    let coast: Vec<Position> = g0
+        .free_coast(Plane::Arcanus)
+        .iter()
+        .map(|l| l.land)
+        .collect();
+    let near = |p: Position| {
+        g0.map()
+            .expect("map")
+            .plane(p.plane)
+            .chebyshev((3, 5), (p.x, p.y))
+    };
+    let furthest = coast.iter().map(|&p| near(p)).max().expect("a coast");
+    for seed in 0..20 {
+        let mut g = island();
+        g.rng = crate::game::rng::GameRng::new(seed);
+        let Some(l) = g.sea_raid_landing(Plane::Arcanus) else {
+            panic!("a landing");
+        };
+        assert!(near(l.land) <= furthest);
+        assert!(coast.contains(&l.land));
+        // The landing is no worse than any of four squares: at least the town's distance 1.
+        assert!(near(l.land) >= 1);
+    }
+}

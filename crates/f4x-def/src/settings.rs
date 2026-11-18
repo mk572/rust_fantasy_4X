@@ -319,6 +319,9 @@ pub struct WorldSettings {
     pub neutral_city_size_bonus: u8,
     /// Whether the independent cities raise raiding parties now and then (`threat/raider.rs`).
     pub raiders_enabled: bool,
+    /// Whether a raid is now and then a landing from the sea instead (`threat/sea_raid.rs`).
+    #[serde(default)]
+    pub sea_raids: bool,
     /// Whether monsters now and then leave their lair to settle in another and to attack cities
     /// (`threat/monster.rs`).
     pub monsters_enabled: bool,

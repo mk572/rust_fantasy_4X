@@ -28,11 +28,13 @@ impl Game {
     /// Run the raider clock and, when it runs out, raise a party in a random neutral city.
     pub(super) fn make_raiders(&mut self) -> Vec<Event> {
         let d = u32::from(self.difficulty());
-        if !self
-            .economy()
-            .cities()
-            .iter()
-            .any(|(_, c, _)| self.is_raider_owner(c.owner))
+        // A sea raid needs no city of its own, so with the setting on the clock always runs.
+        if !self.settings.world.sea_raids
+            && !self
+                .economy()
+                .cities()
+                .iter()
+                .any(|(_, c, _)| self.is_raider_owner(c.owner))
         {
             return Vec::new();
         }
@@ -41,6 +43,11 @@ impl Game {
             return Vec::new();
         }
         self.threat.raider_clock = 0;
+        if self.sea_raid_comes() {
+            if let Some(events) = self.make_sea_raid() {
+                return events;
+            }
+        }
         let sources = self.raider_sources();
         if sources.is_empty() {
             // The original lets a failed raid feed the monsters' clock instead.
@@ -89,7 +96,7 @@ impl Game {
 
     /// The experience that makes the unit reach `level` (0-based; the highest it has when it
     /// has fewer), if it has levels.
-    fn level_xp(&self, unit: hecs::Entity, level: usize) -> Option<u32> {
+    pub(super) fn level_xp(&self, unit: hecs::Entity, level: usize) -> Option<u32> {
         let path = self.units().unit_level_path(unit)?;
         path.levels
             .get(level.min(path.levels.len().checked_sub(1)?))

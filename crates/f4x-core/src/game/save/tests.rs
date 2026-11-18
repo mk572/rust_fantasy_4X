@@ -537,6 +537,7 @@ fn every_setting_survives_a_save() -> TestResult {
     s.world.lair_treasure_percent = 92;
     s.world.neutral_city_size_bonus = 3;
     s.world.raiders_enabled = !s.world.raiders_enabled;
+    s.world.sea_raids = !s.world.sea_raids;
     s.world.monsters_enabled = !s.world.monsters_enabled;
     s.world.raider_percent = 93;
     s.world.start_reveal_radius = HalfInt::from_int(4);
