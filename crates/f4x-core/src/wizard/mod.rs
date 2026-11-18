@@ -96,6 +96,11 @@ pub fn retort_available(rules: &Rules, retort: Retort, books: &BTreeMap<RealmId,
 }
 
 impl WizardBuild {
+    /// The books in a realm (0 for a realm with none).
+    pub fn books_in(&self, realm: RealmId) -> u8 {
+        self.books.get(&realm).copied().unwrap_or(0)
+    }
+
     /// Take the books above `most` in a realm away. A build that lost some is no longer a
     /// ready-made wizard: its picks have to be spent again under the pick rules. Whether any
     /// were taken.
@@ -135,10 +140,7 @@ impl WizardBuild {
         realm: RealmId,
         rarity: Rarity,
     ) -> usize {
-        let row = SpellLibraryDef::row(
-            &library.chosen,
-            self.books.get(&realm).copied().unwrap_or(0),
-        );
+        let row = SpellLibraryDef::row(&library.chosen, self.books_in(realm));
         usize::from(match rarity {
             Rarity::Common => row.common,
             Rarity::Uncommon => row.uncommon,

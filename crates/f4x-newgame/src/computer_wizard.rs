@@ -41,10 +41,6 @@ const OPPOSED: &[(RealmId, RealmId)] = &[
     (SORCERY, NATURE),
 ];
 
-fn books(b: &WizardBuild, realm: RealmId) -> u8 {
-    b.books.get(&realm).copied().unwrap_or(0)
-}
-
 /// The most books a wizard may have in one realm in this game (`max_books_per_realm`).
 fn book_cap(game: &Game) -> u8 {
     game.settings().wizards.max_books_per_realm
@@ -99,7 +95,7 @@ pub(crate) fn balance_planes(
             }
             let mut r = game.roll(total);
             for &realm in REALMS {
-                let n = u32::from(books(&builds[k], realm));
+                let n = u32::from(builds[k].books_in(realm));
                 if r <= n {
                     if let Some(b) = builds[k].books.get_mut(&realm) {
                         *b -= 1;
@@ -182,7 +178,7 @@ pub(crate) fn make(
                 continue;
             }
             for &(first, second) in OPPOSED {
-                let (x, y) = (books(b, first), books(b, second));
+                let (x, y) = (b.books_in(first), b.books_in(second));
                 if x == 0 || y == 0 {
                     continue;
                 }
@@ -208,7 +204,7 @@ pub(crate) fn make(
                 let t = game.roll(6) as usize;
                 if t <= 5 {
                     let realm = REALMS[t - 1];
-                    if books(b, realm) > 1 {
+                    if b.books_in(realm) > 1 {
                         if let Some(n) = b.books.get_mut(&realm) {
                             *n -= 1;
                         }
@@ -295,10 +291,10 @@ fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8, ban: bool) {
 
 /// Add books to `realm` (up to the limit), unless the wizard has books in the realm opposed to it.
 fn add_books(b: &mut WizardBuild, realm: RealmId, value: u8, opposed: Option<RealmId>, cap: u8) {
-    if books(b, realm) >= cap || opposed.is_some_and(|o| books(b, o) > 0) {
+    if b.books_in(realm) >= cap || opposed.is_some_and(|o| b.books_in(o) > 0) {
         return;
     }
-    let n = (books(b, realm) + value).min(cap);
+    let n = (b.books_in(realm) + value).min(cap);
     b.books.insert(realm, n);
 }
 
@@ -355,7 +351,13 @@ fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
             ];
             let weights: Vec<u32> = shelf
                 .iter()
-                .map(|&(realm, _, held)| if held { 0 } else { u32::from(books(b, realm)) })
+                .map(|&(realm, _, held)| {
+                    if held {
+                        0
+                    } else {
+                        u32::from(b.books_in(realm))
+                    }
+                })
                 .collect();
             let total: u32 = weights.iter().sum();
             if total == 0 {

@@ -198,8 +198,8 @@ fn the_refill_spends_the_picks_without_breaking_a_rule() {
         assert_sound(&b, PICKS);
         assert!(!myrran(&b), "seed {seed}: the refill picked Myrran");
         assert!(
-            books(&b, RealmId::new(3 /* life */)) == 0
-                || books(&b, RealmId::new(4 /* death */)) == 0,
+            b.books_in(RealmId::new(3 /* life */)) == 0
+                || b.books_in(RealmId::new(4 /* death */)) == 0,
             "seed {seed}: opposed realms in {b:?}"
         );
         spent.insert(b.picks_spent(&rules()));
@@ -249,7 +249,8 @@ fn without_the_ban_the_refill_gives_life_and_death_to_one_wizard() {
             let mut g = new_game(seed);
             let mut b = build(&[], &[]);
             refill(&mut g, &mut b, PICKS, ban);
-            books(&b, RealmId::new(3 /* life */)) > 0 && books(&b, RealmId::new(4 /* death */)) > 0
+            b.books_in(RealmId::new(3 /* life */)) > 0
+                && b.books_in(RealmId::new(4 /* death */)) > 0
         })
     };
     assert!(!both(true), "the ban lets both realms through");
@@ -266,7 +267,7 @@ fn books_stop_at_the_limit_and_at_an_opposed_realm() {
         Some(RealmId::new(4 /* death */)),
         MAX_BOOKS,
     );
-    assert_eq!(books(&b, RealmId::new(3 /* life */)), MAX_BOOKS);
+    assert_eq!(b.books_in(RealmId::new(3 /* life */)), MAX_BOOKS);
     add_books(
         &mut b,
         RealmId::new(3 /* life */),
@@ -274,7 +275,7 @@ fn books_stop_at_the_limit_and_at_an_opposed_realm() {
         Some(RealmId::new(4 /* death */)),
         MAX_BOOKS,
     );
-    assert_eq!(books(&b, RealmId::new(3 /* life */)), MAX_BOOKS);
+    assert_eq!(b.books_in(RealmId::new(3 /* life */)), MAX_BOOKS);
 
     let mut b = build(&[(RealmId::new(3 /* life */), 2)], &[]);
     add_books(
@@ -284,9 +285,9 @@ fn books_stop_at_the_limit_and_at_an_opposed_realm() {
         Some(RealmId::new(3 /* life */)),
         MAX_BOOKS,
     );
-    assert_eq!(books(&b, RealmId::new(4 /* death */)), 0);
+    assert_eq!(b.books_in(RealmId::new(4 /* death */)), 0);
     add_books(&mut b, RealmId::new(0 /* nature */), 3, None, MAX_BOOKS);
-    assert_eq!(books(&b, RealmId::new(0 /* nature */)), 3);
+    assert_eq!(b.books_in(RealmId::new(0 /* nature */)), 3);
 }
 
 #[test]
@@ -370,8 +371,8 @@ fn without_ready_made_wizards_the_fallback_builds_them() {
     assert_eq!(builds.len(), 2);
     assert!(taken.is_empty());
     for b in &builds {
-        assert_eq!(books(b, RealmId::new(3 /* life */)), 3);
-        assert_eq!(books(b, RealmId::new(0 /* nature */)), 2);
+        assert_eq!(b.books_in(RealmId::new(3 /* life */)), 3);
+        assert_eq!(b.books_in(RealmId::new(0 /* nature */)), 2);
         assert!(b.preset, "they are marked as made by the same path");
     }
 }
@@ -473,12 +474,13 @@ fn the_erasure_dice_take_books_but_never_the_last_of_a_realm() {
         let builds = make(&mut g, &defs, &s, &mut Vec::new(), 1, false, &plain);
         let b = &builds[0];
         assert!(
-            books(b, RealmId::new(3 /* life */)) >= 1 && books(b, RealmId::new(3 /* life */)) <= 4,
+            b.books_in(RealmId::new(3 /* life */)) >= 1
+                && b.books_in(RealmId::new(3 /* life */)) <= 4,
             "seed {seed}: {b:?}"
         );
         assert!(
-            books(b, RealmId::new(0 /* nature */)) >= 1
-                && books(b, RealmId::new(0 /* nature */)) <= 4,
+            b.books_in(RealmId::new(0 /* nature */)) >= 1
+                && b.books_in(RealmId::new(0 /* nature */)) <= 4,
             "seed {seed}: {b:?}"
         );
         assert!(

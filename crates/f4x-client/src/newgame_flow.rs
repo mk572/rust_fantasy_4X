@@ -252,10 +252,8 @@ impl CreateState {
 
     /// The shelf and abilities of a build that is being made.
     pub(crate) fn ng_build_shelf(&mut self, app: &mut App, lay: &Layout) {
-        let books = self.build.books.clone();
-        self.ng_shelf(app, lay, SHELF_ORDER, &|r| {
-            books.get(&r).copied().unwrap_or(0)
-        });
+        let build = self.build.clone();
+        self.ng_shelf(app, lay, SHELF_ORDER, &|r| build.books_in(r));
         self.ng_abilities(app, lay);
     }
 
@@ -461,14 +459,13 @@ impl CreateState {
             app.ng_name(lay, &defs[shown].1);
             if !picture {
                 if let Some(build) = app.game.preset_build(defs[shown].0) {
-                    let books = build.books.clone();
                     // The first two realms with books, in the original's order.
                     let shelf: Vec<RealmId> = SHELF_ORDER
                         .iter()
                         .copied()
-                        .filter(|r| books.get(r).copied().unwrap_or(0) > 0)
+                        .filter(|&r| build.books_in(r) > 0)
                         .collect();
-                    self.ng_shelf(app, lay, &shelf, &|r| books.get(&r).copied().unwrap_or(0));
+                    self.ng_shelf(app, lay, &shelf, &|r| build.books_in(r));
                     let names: Vec<String> =
                         build.retorts.iter().map(|&r| app.retort_name(r)).collect();
                     if let Some(first) = names.first() {

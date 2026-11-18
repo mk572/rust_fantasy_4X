@@ -135,18 +135,14 @@ impl App {
     }
 }
 impl CreateState {
-    fn books_of(&self, realm: RealmId) -> u8 {
-        self.build.books.get(&realm).copied().unwrap_or(0)
-    }
-
     /// Set the number of books of a realm, within the picks left and the Life and Death rule.
     fn set_books(&mut self, app: &mut App, realm: RealmId, wanted: u8) {
-        let current = i32::from(self.books_of(realm));
+        let current = i32::from(self.build.books_in(realm));
         let left = i32::from(self.picks_left(app));
         let chosen = app.options.settings(&app.game.content().settings);
         let most = i32::from(chosen.wizards.max_books_per_realm);
         let n = i32::from(wanted).min(current + left).clamp(0, most) as u8;
-        if n == self.books_of(realm) {
+        if n == self.build.books_in(realm) {
             return;
         }
         let ban = chosen.rules.ban_life_and_death;
@@ -155,7 +151,7 @@ impl CreateState {
             4 /* death */ if ban => Some(RealmId::new(3) /* life */),
             _ => None,
         };
-        if n > 0 && rival.is_some_and(|r| self.books_of(r) > 0) {
+        if n > 0 && rival.is_some_and(|r| self.build.books_in(r) > 0) {
             self.warn = Some(app.text("picks.life_and_death"));
             return;
         }
@@ -265,7 +261,7 @@ impl CreateState {
             self.set_books(app, realm, n);
         }
         for (i, &realm) in REALM_ORDER.iter().enumerate() {
-            for k in 0..self.books_of(realm) {
+            for k in 0..self.build.books_in(realm) {
                 let var = self.rows[usize::from(k).min(10)];
                 let entry = 24 + book_base(realm) + usize::from(var);
                 app.draw_pic(
@@ -279,10 +275,8 @@ impl CreateState {
             }
         }
         // The shelf under the portrait: life, death, chaos, nature, sorcery.
-        let books = self.build.books.clone();
-        self.ng_shelf(app, lay, REALM_ORDER, &|r| {
-            books.get(&r).copied().unwrap_or(0)
-        });
+        let build = self.build.clone();
+        self.ng_shelf(app, lay, REALM_ORDER, &|r| build.books_in(r));
 
         // The retorts: three columns of six.
         let mut clicked = None;
@@ -425,10 +419,8 @@ impl CreateState {
             241.0,
             6.0,
         );
-        let books = self.build.books.clone();
-        self.ng_shelf(app, lay, REALM_ORDER, &|r| {
-            books.get(&r).copied().unwrap_or(0)
-        });
+        let build = self.build.clone();
+        self.ng_shelf(app, lay, REALM_ORDER, &|r| build.books_in(r));
         let live = self.ng_input();
         let pressed = input.mouse_pressed(MouseButton::Left) && live;
         let mut remaining = 0usize;
@@ -587,8 +579,12 @@ mod tests {
             let mut state = crate::create_screen::CreateState::empty();
             state.set_books(&mut app, life, 2);
             state.set_books(&mut app, death, 2);
-            assert_eq!(state.books_of(life), 2);
-            assert_eq!(state.books_of(death), if ban { 0 } else { 2 }, "ban {ban}");
+            assert_eq!(state.build.books_in(life), 2);
+            assert_eq!(
+                state.build.books_in(death),
+                if ban { 0 } else { 2 },
+                "ban {ban}"
+            );
             assert_eq!(state.warn.is_some(), ban, "ban {ban}");
         }
     }
