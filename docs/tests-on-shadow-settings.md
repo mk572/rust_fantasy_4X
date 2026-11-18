@@ -7,11 +7,11 @@ it"): a test reads the setting from the shipped rules and checks the game does w
 It is a text search for a test that reads the content and asserts a number, so most rows are a
 number used as the input of a scenario (no shadow setting); read each row's assert.
 
-**172 of 2513 tests.**
+**171 of 2505 tests.**
 
 | Crate | Tests |
 |---|---|
-| `f4x-core` | 107 |
+| `f4x-core` | 106 |
 | `f4x-ai` | 20 |
 | `f4x-newgame` | 19 |
 | `f4x-tools` | 10 |
@@ -134,10 +134,9 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 | `dispel_magic_takes_down_the_defenders_walls_of_fire_and_darkness` | 5600 | `assert!(downs >= 6, );` |
 | `spells_the_battle_reads_by_name_can_be_cast_and_stay_on_the_unit` | 6728 | `assert_eq!( cast_on_first(&mut g, 121 ), Err(BattleError::Spell(SpellError::AlreadyEnchanted)) );` |
 | `the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve` | 7058 | `assert_eq!(g.strategic_mana_default(A), Some(skill.clamp(1, 250)));` |
-| `the_dislike_a_battle_breeds_counts_every_unit_that_fell` | 7854 | `assert!(fallen >= 6, );` |
-| `the_three_combat_bolts_follow_the_wiki` | 7438 | `assert!(damage(104).2.ignores_defense, );` |
+| `the_dislike_a_battle_breeds_counts_every_unit_that_fell` | 7805 | `assert!(fallen >= 6, );` |
 | `the_twelve_units_with_a_casting_ability_cast_its_spell_once_for_no_mana` | 4046 | `assert_eq!(casters.len(), 12);` |
-| `wraith_form_is_no_shelter_from_flame_strike_death_spell_and_holy_word` | 7801 | `assert_eq!( (wraiths.len(), others.len()), (40, 32), );` |
+| `wraith_form_is_no_shelter_from_flame_strike_death_spell_and_holy_word` | 7752 | `assert_eq!( (wraiths.len(), others.len()), (40, 32), );` |
 
 ## `crates/f4x-core/src/city/autobuild/tests.rs`
 
@@ -424,8 +423,8 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `item_movement_is_in_whole_moves` | 426 | `assert!( (1..=4).contains(&value.floor()) && value.is_whole(), , item.id );` |
-| `shipped_terrain_file_is_valid` | 380 | `assert!(t.id_numbered(4 ).is_some());` |
+| `item_movement_is_in_whole_moves` | 369 | `assert!( (1..=4).contains(&value.floor()) && value.is_whole(), , item.id );` |
+| `shipped_terrain_file_is_valid` | 323 | `assert!(t.id_numbered(4 ).is_some());` |
 
 ## `crates/f4x-def/src/load/rules.rs`
 

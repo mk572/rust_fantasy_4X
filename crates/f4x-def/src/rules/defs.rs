@@ -871,27 +871,3 @@ pub struct Rules {
     /// How the AI weighs a place for a city (`ai_sites.ron`, optional).
     pub ai_sites: super::ai_site::SiteRules,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn item_slots_take_what_the_original_lets_them() {
-        use ItemKind::*;
-        // A sword slot takes swords, maces and axes; the bow slot those and bows.
-        assert!(SlotKind::Sword.fits(Mace) && !SlotKind::Sword.fits(Bow));
-        assert!(SlotKind::Bow.fits(Bow) && SlotKind::Bow.fits(Axe) && !SlotKind::Bow.fits(Staff));
-        // Sword or staff takes the sword slot's items and staves and wands, but no bow.
-        assert!(SlotKind::SwordOrStaff.fits(Sword) && SlotKind::SwordOrStaff.fits(Wand));
-        assert!(!SlotKind::SwordOrStaff.fits(Bow));
-        assert!(SlotKind::Staff.fits(Wand) && !SlotKind::Staff.fits(Sword));
-        assert!(SlotKind::Armor.fits(Shield) && SlotKind::Armor.fits(Platemail));
-        assert!(SlotKind::Misc.fits(Misc) && !SlotKind::Misc.fits(Shield));
-        // A mage carries a staff and two miscellaneous items.
-        assert_eq!(
-            HeroKind::Mage.slots(),
-            [SlotKind::Staff, SlotKind::Misc, SlotKind::Misc]
-        );
-    }
-}

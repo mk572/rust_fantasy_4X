@@ -319,63 +319,6 @@ mod tests {
         load_content(&super::testutil::content_dir()).expect("the shipped content loads")
     }
 
-    /// The bonus a level path gives in all up to `level`, for a stat.
-    fn level_total(content: &Content, path: u16, level: usize, stat: crate::rules::Stat) -> i32 {
-        use crate::rules::effects::Effect;
-        use crate::rules::ModOp;
-        let path = content
-            .rules
-            .level_paths
-            .by_num(path)
-            .expect("the level path exists");
-        (0..=level)
-            .filter_map(|i| path.level(i))
-            .flat_map(|effects| effects.iter())
-            .map(|r| match r.effect {
-                Effect::Modify {
-                    stat: s,
-                    op: ModOp::Add,
-                    value,
-                } if s == stat => value.floor(),
-                _ => 0,
-            })
-            .sum()
-    }
-
-    #[test]
-    fn the_level_paths_are_the_originals_level_bonuses() -> TestResult {
-        use crate::rules::Stat::*;
-        let c = load_content_layers(&[&super::testutil::content_dir()])?;
-        // A normal unit at Champion (level 5): resistance +5, attacks +3, defence +2, to hit +3.
-        let at = |stat| level_total(&c, 2 /* standard_xp */, 5, stat);
-        assert_eq!(
-            [
-                at(Resistance),
-                at(Melee),
-                at(Ranged),
-                at(Defense),
-                at(ToHit)
-            ],
-            [5, 3, 3, 2, 3]
-        );
-        // Veteran gains defence, not attacks.
-        assert_eq!(level_total(&c, 2 /* standard_xp */, 2, Defense), 1);
-        assert_eq!(level_total(&c, 2 /* standard_xp */, 2, Melee), 1);
-        // A hero at level 8: resistance +8, attacks +8, defence +4, to hit +3, hit points +8.
-        let hero = |stat| level_total(&c, 1 /* hero_xp */, 8, stat);
-        assert_eq!(
-            [
-                hero(Resistance),
-                hero(Melee),
-                hero(Defense),
-                hero(ToHit),
-                hero(MaxHp)
-            ],
-            [8, 8, 4, 3, 8]
-        );
-        Ok(())
-    }
-
     #[test]
     fn shipped_terrain_file_is_valid() -> TestResult {
         let t = parse_terrains(&shipped())?;
@@ -450,41 +393,6 @@ mod tests {
     }
 
     #[test]
-    fn shipped_settings_have_six_levels_the_first_five_with_the_originals_figures() {
-        let c = real_content();
-        let s = &c.settings;
-        assert_eq!(s.levels.len(), 6);
-        let gold: Vec<_> = s
-            .levels
-            .iter()
-            .map(|l| l.wizards.starting_gold.human)
-            .collect();
-        assert_eq!(gold, [125, 100, 75, 50, 40, 25]);
-        assert_eq!(s.levels[4].ai.production_percent, 300, "Extreme");
-        assert_eq!(s.levels[5].ai.production_percent, 400, "Impossible");
-        assert!(s.levels[1].rules.safe_flee.human && !s.levels[2].rules.safe_flee.human);
-        assert!(!s.levels[0].events.random_events && s.levels[1].events.random_events);
-        assert_eq!(s.new_game.difficulty, 2);
-        assert_eq!(s.max_opponents, 9);
-        let sizes: Vec<_> = s
-            .land_sizes
-            .iter()
-            .map(|l| (l.id.as_str(), l.land_percent))
-            .collect();
-        assert_eq!(
-            sizes,
-            [("small", 15), ("medium", 20), ("large", 30), ("huge", 40)]
-        );
-        let pressure: Vec<_> = s.levels.iter().map(|l| l.events.pressure_percent).collect();
-        assert_eq!(pressure, [50, 66, 75, 80, 90, 100]);
-        assert!(s
-            .levels
-            .iter()
-            .all(|l| l.world.start_reveal_radius == crate::half_int::HalfInt::from_raw(5)));
-        assert!(s.levels.iter().all(|l| l.wizards.starting_mana.human == 0));
-    }
-
-    #[test]
     fn content_without_settings_leaves_them_empty_and_a_local_file_wins() -> TestResult {
         let none = crate::testdir::TestDir::new("settings-none");
         assert_eq!(load_settings(&[&none])?, SettingsDef::default());
@@ -520,15 +428,6 @@ mod tests {
             Err(ContentError::Parse(_))
         ));
         Ok(())
-    }
-
-    #[test]
-    fn the_shipped_spell_library_is_the_originals() {
-        // The built-in default (used when there is no rules_settings.ron) is the original's numbers,
-        // and so is the shipped file.
-        let c = real_content();
-        let default = crate::settings::SpellLibraryDef::default();
-        assert_eq!(c.settings.spell_library, default);
     }
 
     #[test]

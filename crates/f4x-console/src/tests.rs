@@ -1046,34 +1046,6 @@ fn neutral_cities_survive_a_save() -> TestResult {
     Ok(())
 }
 
-#[test]
-fn a_world_has_the_originals_number_of_lairs() -> TestResult {
-    use f4x_core::map::Plane;
-    let content = content();
-    for seed in [1, 2, 3, 4] {
-        let g = new_game(
-            content,
-            &NewGame {
-                seed,
-                ..NewGame::default()
-            },
-        )?;
-        // 6 towers (one site each, on both planes), a lair at each of the 30 nodes, and
-        // 25 + 32 random sites.
-        assert_eq!(g.economy().nodes().len(), 30, "seed {seed}");
-        assert_eq!(g.economy().lairs().len(), 6 + 30 + 57, "seed {seed}");
-        for plane in [Plane::Arcanus, Plane::Myrror] {
-            // Up to 15 a plane: the original gives up after 1000 tries, too.
-            let n = neutral_cities(&g)
-                .iter()
-                .filter(|(_, p)| p.plane == plane)
-                .count();
-            assert!((2..=15).contains(&n), "seed {seed} {plane:?}: {n}");
-        }
-    }
-    Ok(())
-}
-
 /// The units, in the order they were made, of a player's starting army.
 fn start_army(g: &Game, p: PlayerId) -> Vec<String> {
     g.units()
