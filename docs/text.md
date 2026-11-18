@@ -14,6 +14,12 @@ gives the values; it holds no sentence. This is what makes a second language pos
 
 - `crates/f4x-client/content/client_settings.ron` names the language (`language: "en"`); `en` is the fallback for a key another
   language lacks.
+- The start menu's **Language** entry (below Settings) lists the folders of `text/` by the name each gives itself
+  (`language.name` in its `language.ron`, so a language names itself in its own words; the code when it
+  has none). A choice takes effect at once (messages, names, help and event sentences are loaded again)
+  and is kept in `settings/language.txt` (one line, the code; not in `saves/`, which holds the game
+  saves, and not in the shipped `client_settings.ron`), which wins over `client_settings.ron` at the next start
+  when that language is still installed (`language.rs`).
 - One file per screen or domain (`battle`, `spell`, `hero`, `create`, ...), at most about 100
   entries each. A key is `area.name` and lives in the file `area.ron`, once over all files.
 - A file is a RON map from key to entry.
@@ -38,6 +44,30 @@ gives the values; it holds no sentence. This is what makes a second language pos
   the same thing): `(pick: "salt", lines: ["Hello.", "Greetings."])`.
 - A form can be another choice, so a gendered form may hold a count.
 - A list argument (`Args::list`) is joined by the patterns of `list.ron` ("a, b and c").
+- A name of the numbered tables (unit, building, race) is a **term** (`text::Term`): a string, or a
+  record `(text: "...", gender: Masculine, dat_pl: "...")`. Code passes it with
+  `Args::term("unit", names.unit_term(num))`, never as a finished string; the message picks the form:
+  `{unit}` is the text, `{unit:dat_pl}` the form of that name (the form names are the language's own:
+  `dat`, `gen`, `dat_pl`, ...). A form the term lacks prints as the text, a unit the language lacks is
+  the English one. A `gender: "unit"` choice reads the term's gender. A unit's name is always the
+  whole name, race included ("Dwarven Swordsmen"); nothing glues a race to a unit in code.
+  A term may be tagged `plural: true` (a noun plural in form: "City Walls", "Spearmen", "Trade Goods");
+  a `number` choice picks the wording by it, so one key serves "the Library falls" and "the City Walls
+  fall": `(number: "building", singular: "the {building} falls", plural: "the {building} fall")`.
+  `{name:a}` prints the name with its indefinite article (`{name:A}` capitalised, for a sentence's
+  start): English "a Library", "an Armory" (the tag `an: true` on the term, `(text: "Armory", an: true)`),
+  nothing before a plural noun ("City Walls"). A language writes its own phrase as a form named `a`
+  (German `(text: "Zwerg", a: "ein Zwerg")`); with no rule and no form it prints the plain text. A
+  message that says "a {x}" by hand is wrong for every name that takes "an": write `{x:a}`.
+  A form name with a capital (`{x:Def}`) is the form `def` with its first letter capitalised, for a
+  sentence that starts with the name. German names carry the forms `def`, `def_acc`, `def_dat`,
+  `def_gen` (with the definite article: "die Bibliothek", "der Bibliothek") and `a`, `a_acc`, `a_dat`,
+  `a_gen` (indefinite: "eine Bibliothek"; a plural has none): units, buildings, retorts, terrain, map
+  features and the city sizes (`name/word.ron`). A sentence whose verb must agree with the name uses a
+  `number` choice (`Die Zwergischen Schwertkämpfer treffen ...` / `Der Weise trifft ...`). Spells and
+  fixed items are named after "der Zauber" / "der Gegenstand" in German, so they need no forms.
+  German, for "den elfischen Speerkämpfern wurden 3 Schadenspunkte zugefügt": the unit's entry in
+  `text/de/name/unit.ron` has `dat_pl`, the message says `Den {unit:dat_pl} wurden {n} ...`.
 
 ## In code
 
@@ -50,12 +80,21 @@ test lists what it finds; numbers, the space between wrapped words and screensho
 exempt there). Write a key as one string literal (`"spell.dispelled"`), also
 where the choice is made by an `if`, so the test sees it.
 
+The same test file fails when a name of the game (a unit, spell, item, building, race, realm, ...)
+goes into a message as a string (`.text("spell", names.spell(n))`, or a variable that holds
+that string): pass the term (`.term("spell", names.spell_term(n))`), because German needs the
+name's gender, cases and number, and a string has lost them.
+
 Debug output of the console and test messages are not player-facing and stay in code.
 
 ## What stays outside
 
+- **Common words** the sentences put in (a city's size, a resource, an ore) are in `name/word.ron`, a map
+  from a key (`city_size.town`, `resource.gold`, `ore.iron_ore`) to a term; code asks
+  `Names::word(key)` and passes it with `Args::term`. A word is not a message, so it is not a key of
+  `text/<lang>/*.ron`; put a word there only when a sentence needs its forms or tags (`{ore:a}`).
 - Names of the numbered rules tables are one file each in `crates/f4x-lang/content/text/<lang>/name/`: `unit.ron`,
-  `spell.ron`, `building.ron`, `race.ron` (name and plural), `realm.ron`, `ability.ron`,
+  `spell.ron`, `building.ron`, `race.ron` (name, plural and adjective: `4: ("Dwarf", "Dwarves", "Dwarven")`), `realm.ron`, `ability.ron`,
   `item.ron`, `item_power.ron`, `terrain.ron`, `feature.ron` (the map features). A file is a RON map from the definition's `num` to its name
   (`{ 95: "Spearmen" }`). The loader puts the name of the language in `crates/f4x-client/content/client_settings.ron` on each
   definition (`def.name`, so the screens need no change), a number the language leaves out is

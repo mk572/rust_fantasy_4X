@@ -505,7 +505,7 @@ impl App {
         let title = self.text_with(
             "city.title",
             &Args::new()
-                .text("size", self.city_size_name(city))
+                .term("size", self.city_size_term(city))
                 .text("city", &name),
         );
         let view = Self::view(lay);
@@ -761,11 +761,12 @@ impl App {
         for (row, &(spell, caster)) in list.iter().enumerate().skip(panel.spell_first).take(PAGE) {
             let i = (row - panel.spell_first) as f32;
             let def = self.game.content().rules.spells.get(spell).clone();
-            let mut name = self.names.spell(def.num).to_string();
+            let mut row_label = self.names.spell(def.num).to_string();
+            let name_term = self.names.spell_term(def.num);
             if f4x_core::spell::city::CityEffect::SpellWard.is_in(&def) {
-                name = self.text_with(
+                row_label = self.text_with(
                     "city.spell_ward",
-                    &Args::new().text("spell", &name).text(
+                    &Args::new().term("spell", name_term.clone()).text(
                         "wards",
                         self.game
                             .economy()
@@ -783,7 +784,7 @@ impl App {
                 &Style::inked(1, ink)
                     .effect(Effect::ShadowUp)
                     .edge(EDGE_ENCHANTMENT),
-                &name,
+                &row_label,
                 first_x + shift,
                 first_y + shift + i * 7.0,
             );
@@ -794,7 +795,7 @@ impl App {
                 panel.sell = Some(SellPrompt::TurnOff {
                     city,
                     spell,
-                    name: self.names.spell(def.num).to_string(),
+                    name: self.names.spell_term(def.num),
                 });
             }
         }
@@ -804,30 +805,35 @@ impl App {
     /// The title's size word: Outpost, Hamlet, Village, Town, City, or Capital for the
     /// wizard's fortress.
     pub(crate) fn city_size_name(&self, city: hecs::Entity) -> String {
+        self.city_size_term(city).text
+    }
+
+    /// The same as a term, for a message that needs a form of the word.
+    pub(crate) fn city_size_term(&self, city: hecs::Entity) -> f4x_lang::text::Term {
         let figures = self
             .game
             .economy()
             .city_economy(city)
             .map_or(0, |e| e.figures);
-        self.size_name(figures, self.game.economy().is_fortress_city(city))
+        self.size_term(figures, self.game.economy().is_fortress_city(city))
     }
 
     /// The name of a city's size: outpost, hamlet up to city, and capital for a fortress city.
-    pub(crate) fn size_name(&self, figures: u32, fortress: bool) -> String {
+    pub(crate) fn size_term(&self, figures: u32, fortress: bool) -> f4x_lang::text::Term {
         let key = if figures == 0 {
-            "city.size_outpost"
+            "city_size.outpost"
         } else if fortress {
-            "city.size_capital"
+            "city_size.capital"
         } else {
             [
-                "city.size_hamlet",
-                "city.size_village",
-                "city.size_town",
-                "city.size_city",
-                "city.size_capital",
+                "city_size.hamlet",
+                "city_size.village",
+                "city_size.town",
+                "city_size.city",
+                "city_size.capital",
             ][(figures.div_ceil(4).clamp(1, 5) - 1) as usize]
         };
-        self.text(key)
+        self.names.word(key)
     }
 
     /// What the cityscape draws a city from. The player's own city is read from the game. Of
@@ -1776,7 +1782,7 @@ impl App {
         ) {
             if let (Some(price), Some(item)) = (price, prod.item) {
                 page.panel.sell = Some(if price <= gold {
-                    let name = self.item_name(item);
+                    let name = self.item_term(item);
                     SellPrompt::Buy { city, name, price }
                 } else {
                     SellPrompt::Refused(self.text("sell.not_enough_gold"))

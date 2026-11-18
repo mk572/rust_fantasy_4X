@@ -94,9 +94,8 @@ impl App {
         if let Some(spell) = goods.spell {
             let name = self
                 .names
-                .spell(self.game.content().rules.spells.get(spell).num)
-                .to_string();
-            parts.push(self.text_with("diplomacy.goods_spell", &Args::new().text("name", &name)));
+                .spell_term(self.game.content().rules.spells.get(spell).num);
+            parts.push(self.text_with("diplomacy.goods_spell", &Args::new().term("name", name)));
         }
         if let Some(serial) = goods.item {
             let found = self
@@ -106,19 +105,18 @@ impl App {
                 .into_iter()
                 .find(|(e, _)| self.game.units().serial_of(*e) == serial);
             if let Some((_, item)) = found {
-                let name = self.names.item_name(&item, &self.texts);
-                parts
-                    .push(self.text_with("diplomacy.goods_item", &Args::new().text("name", &name)));
+                let name = self.names.item_term(&item, &self.texts);
+                parts.push(self.text_with("diplomacy.goods_item", &Args::new().term("name", name)));
             }
         }
         if let Some(serial) = goods.unit {
             if let Some(unit) = self.game.units().entity_of_serial(serial) {
                 if let Some(def) = self.game.units().unit_def(unit) {
-                    let name = self.names.unit(def.num).to_string();
+                    let name = self.names.unit_term(def.num);
                     let level = self.game.units().unit_level(unit) as i32;
                     parts.push(self.text_with(
                         "diplomacy.goods_unit",
-                        &Args::new().text("name", &name).count("level", level + 1),
+                        &Args::new().term("name", name).count("level", level + 1),
                     ));
                 }
             }
@@ -129,7 +127,7 @@ impl App {
                 let level = self.game.units().unit_level(hero) as i32;
                 parts.push(self.text_with(
                     "diplomacy.goods_hero",
-                    &Args::new().text("name", &name).count("level", level + 1),
+                    &Args::new().text("name", name).count("level", level + 1),
                 ));
             }
         }

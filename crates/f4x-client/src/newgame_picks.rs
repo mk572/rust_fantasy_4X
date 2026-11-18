@@ -57,10 +57,10 @@ pub(crate) fn prerequisite_text(
         .iter()
         .map(|need| match need {
             RetortNeed::Books(realm, n) => {
-                let name = names.realm(realm.num()).to_string();
+                let name = names.realm_term(realm.num());
                 texts.get(
                     "picks.in_realm",
-                    &Args::new().count("n", *n).text("realm", name),
+                    &Args::new().count("n", *n).term("realm", name),
                 )
             }
             RetortNeed::Realms(1, min) => texts.get(
@@ -171,7 +171,7 @@ impl CreateState {
             .collect();
         for r in lost {
             self.build.retorts.remove(&r);
-            let args = Args::new().text("retort", app.retort_name(r)).text(
+            let args = Args::new().term("retort", app.retort_term(r)).text(
                 "needs",
                 prerequisite_text(&app.names, app.game.content(), &app.texts, r),
             );
@@ -218,7 +218,7 @@ impl CreateState {
         } else if self.build.retorts.len() >= app.game.content().rules.config.wizard.max_retorts {
             Some(app.text("picks.too_many_retorts"))
         } else if !retort_available(&app.game.content().rules, retort, &self.build.books) {
-            let args = Args::new().text("retort", app.retort_name(retort)).text(
+            let args = Args::new().term("retort", app.retort_term(retort)).text(
                 "needs",
                 prerequisite_text(&app.names, app.game.content(), &app.texts, retort),
             );
@@ -399,15 +399,14 @@ impl CreateState {
             .rules
             .realms
             .id_numbered(realm.num())
-            .map_or_else(String::new, |r| {
+            .map_or_else(Default::default, |r| {
                 app.names
-                    .realm(app.game.content().rules.realms.get(r).num)
-                    .to_string()
+                    .realm_term(app.game.content().rules.realms.get(r).num)
             });
         let ink = realm_colour(realm);
         let title = app.text_with(
             "picks.select_spells",
-            &Args::new().text("realm", &realm_name),
+            &Args::new().term("realm", realm_name.clone()),
         );
         app.draw_styled(
             view,

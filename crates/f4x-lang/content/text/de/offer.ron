@@ -1,0 +1,13 @@
+// Texte der Angebote (Helden, Söldner, Händlergegenstände).
+// Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "offer.resale": "Ein rivalisierender Magier bietet {item:a_acc} zum Verkauf an.  Dein Preis beträgt {price} Goldstücke.",
+    "offer.merchant": "Ein Händler kommt und bietet {item:a_acc} zum Verkauf an.  Der Preis beträgt nur {price} Goldstücke.",
+    "offer.hero": "Held zu mieten: {price} Gold",
+    "offer.mercenaries": (count: "n",
+        one: "Söldner zu mieten: {price} Gold",
+        other: "{n} Söldner zu mieten: {price} Gold"),
+    "offer.prisoner": "Ein Gefangener bittet darum, sich deiner Armee anzuschließen",
+    "offer.name_hero": "Benenne deinen Helden",
+    "offer.not_enough_gold": "Nicht genug Gold",
+}

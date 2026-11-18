@@ -247,14 +247,14 @@ impl Modal for WizardPick {
         }
         let def = app.game.content().rules.spells.get(spell);
         let blast = f4x_core::spell::wizard::WizardEffect::SpellBlast.is_in(def);
-        let name = app.names.spell(def.num).to_string();
+        let name_term = app.names.spell_term(def.num);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         app.draw_target_panel(&lay, blast);
 
         let title = app.text_with(
             "spell.pick_wizard",
-            &crate::text::Args::new().text("spell", &name),
+            &crate::text::Args::new().term("spell", name_term.clone()),
         );
         for (n, line) in title_lines(&title).iter().enumerate() {
             app.draw_styled(

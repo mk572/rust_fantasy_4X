@@ -1,0 +1,7 @@
+// Die Namen der Verträge zwischen Magiern. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "treaty.none": "Kein Vertrag",
+    "treaty.pact": "Magierpakt",
+    "treaty.alliance": "Bündnis",
+    "treaty.war": "Krieg",
+}

@@ -1,0 +1,108 @@
+// Die Namen der Fähigkeiten nach Nummer (`num` in abilities.ron).
+{
+    1: "Panzerbrechend",  // armor_piercing
+    2: "Schlafend",  // asleep
+    3: "Bogen",  // bow
+    4: "Zauber Unheilsblitz",  // casts_doom_bolt
+    5: "Zauber Feuerball",  // casts_fireball
+    6: "Zauber Heilung",  // casts_healing
+    7: "Zauber Netz",  // casts_web
+    8: "Furcht verbreiten",  // cause_fear
+    9: "Kavallerie",  // cavalry
+    10: "Kälteimmunität",  // cold_immunity
+    11: "Verwirrt",  // confused
+    12: "Außenposten gründen",  // create_outpost
+    13: "Untote erschaffen",  // create_undead
+    14: "Todesblitz",  // death_bolt
+    15: "Todesblick",  // death_gaze
+    16: "Todesimmunität",  // death_immunity
+    17: "Böses bannen",  // dispel_evil
+    18: "Drowblitz",  // drow_bolt
+    19: "Unheimliche Waffe",  // eldritch_weapon
+    20: "Feueratem",  // fire_breath
+    21: "Feuerimmunität",  // fire_immunity
+    22: "Feuerball",  // fireball_attack
+    23: "Erstschlag",  // first_strike
+    24: "Flug",  // flying
+    25: "Förster",  // forester
+    26: "Eile",  // hasted
+    27: "Heiler",  // healer
+    28: "Heiliger Bonus",  // holy_bonus
+    29: "Eisblitz",  // ice_bolt
+    30: "Illusion",  // illusion_attack
+    31: "Illusionsimmunität",  // illusion_immunity
+    32: "Flammenaura",  // immolation
+    33: "Unsichtbarkeit",  // invisibility
+    34: "Großer Schild",  // large_shield
+    35: "Lebensraub",  // life_steal
+    36: "Blitzstrahl",  // lightning_bolt
+    37: "Blitzatem",  // lightning_breath
+    38: "Große Reichweite",  // long_range
+    39: "Glückspilz",  // lucky
+    40: "Magieimmunität",  // magic_immunity
+    41: "Magische Waffe",  // magical_weapon
+    42: "Verschmelzen",  // meld
+    43: "Verschmelzung",  // merging
+    44: "Geschossimmunität",  // missile_immunity
+    45: "Bergsteiger",  // mountaineer
+    46: "Mehrfachblick",  // multi_gaze
+    47: "Naturblitz",  // nature_bolt
+    48: "Erstschlag aufheben",  // negate_first_strike
+    49: "Unkörperlich",  // non_corporeal
+    50: "Pfadfinder",  // pathfinding
+    51: "Ebenenreise",  // planar_travel
+    52: "Giftimmunität",  // poison_immunity
+    53: "Giftberührung",  // poison_touch
+    54: "Reinigen",  // purify
+    55: "Regeneration",  // regeneration
+    56: "Allwiderstand",  // resist_all
+    57: "Steinewerfen",  // rock_throwing
+    58: "Schamanenblitz",  // shaman_bolt
+    59: "Schleuder",  // sling
+    60: "Zaubereiblitz",  // sorcery_bolt
+    61: "Zauberwirker",  // spellcaster
+    62: "Hoher Zauberwirker",  // spellcaster_major
+    63: "Feenblitz",  // sprite_bolt
+    64: "Versteinernder Blick",  // stoning_gaze
+    65: "Versteinerungsimmunität",  // stoning_immunity
+    66: "Versteinernde Berührung",  // stoning_touch
+    67: "Kreaturenbeschwörung",  // summon_demon
+    68: "Teleport",  // teleport
+    69: "Wurfwaffe",  // thrown
+    70: "Mauerbrecher",  // wall_crusher
+    71: "Wasserwandeln",  // water_walking
+    72: "Waffenimmunität",  // weapon_immunity
+    73: "Verstrickt",  // webbed
+    74: "Windwandeln",  // wind_walking
+    75: "Führung",  // leadership
+    76: "Überragende Führung",  // super_leadership
+    77: "Legendär",  // legendary
+    78: "Super-Legendär",  // super_legendary
+    79: "Klingenmeister",  // blademaster
+    80: "Super-Klingenmeister",  // super_blademaster
+    81: "Waffenmeister",  // armsmaster
+    82: "Super-Waffenmeister",  // super_armsmaster
+    83: "Konstitution",  // constitution
+    84: "Super-Konstitution",  // super_constitution
+    85: "Kraft",  // might
+    86: "Super-Kraft",  // super_might
+    87: "Arkane Macht",  // arcane_power
+    88: "Super-Arkane Macht",  // super_arcane_power
+    89: "Weiser",  // sage
+    90: "Super-Weiser",  // super_sage
+    91: "Gebetsmeister",  // prayermaster
+    92: "Super-Gebetsmeister",  // super_prayermaster
+    93: "Gewandtheit",  // agility
+    94: "Super-Gewandtheit",  // super_agility
+    95: "Bezaubert",  // charmed
+    96: "Edel",  // noble
+    97: "Weiblich",  // female
+    98: "Chaosgeladen",  // chaos_channeled
+    99: "Todesberührung",  // death_touch
+    100: "Zerstörung",  // destruction
+    101: "Unheilsschaden",  // doom_damage
+    103: "Kraftentzug",  // power_drain
+    104: "Dämonenhaut",  // mutation_armor
+    105: "Dämonenflügel",  // mutation_wings
+    106: "Dämonenatem",  // mutation_breath
+}

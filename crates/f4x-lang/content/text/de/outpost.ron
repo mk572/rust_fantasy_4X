@@ -1,0 +1,7 @@
+// Texte des Außenpostenbildschirms und der Benennung von Städten. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "outpost.founded": "Neuer Außenposten gegründet",
+    "outpost.of": "Außenposten {city}",
+    "outpost.name_prompt": "Neuer Außenposten",
+    "outpost.name_starting": "Startstadt benennen",
+}

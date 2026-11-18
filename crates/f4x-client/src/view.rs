@@ -302,6 +302,24 @@ impl App {
             .to_string()
     }
 
+    /// The same as a term, for a message that needs a form of the name.
+    pub(crate) fn retort_term(
+        &self,
+        retort: f4x_core::wizard::magic::Retort,
+    ) -> f4x_lang::text::Term {
+        self.names
+            .retort_term(self.game.content().rules.retorts.get(retort).num)
+    }
+
+    /// The name of the spell with this id (`suppress_magic`); the id itself if the rules lack it.
+    pub(crate) fn spell_term_of(&self, id: &str) -> f4x_lang::text::Term {
+        let spells = &self.game.content().rules.spells;
+        spells.defs().iter().find(|d| d.id == id).map_or_else(
+            || f4x_lang::text::Term::plain(id),
+            |d| self.names.spell_term(d.num),
+        )
+    }
+
     /// All the messages, for the code that picks among several.
     pub(crate) fn texts(&self) -> &crate::text::Texts {
         &self.texts
@@ -612,6 +630,7 @@ impl App {
                     let line = crate::event_message::compose(
                         &self.event_texts,
                         &self.texts,
+                        &self.names,
                         &notice,
                         &gift,
                     );
@@ -622,19 +641,19 @@ impl App {
                     self.note_finished(city, item);
                     let args = Args::new()
                         .text("city", self.city_name(city))
-                        .text("item", self.item_name(item));
+                        .term("item", self.item_term(item));
                     Some(self.text_with("log.production_complete", &args))
                 }
                 Event::ProductionBlocked { city, item } => {
                     let args = Args::new()
                         .text("city", self.city_name(city))
-                        .text("item", self.item_name(item));
+                        .term("item", self.item_term(item));
                     Some(self.text_with("log.production_blocked", &args))
                 }
                 Event::ProductionImpossible { city, item } => {
                     let args = Args::new()
                         .text("city", self.city_name(city))
-                        .text("item", self.item_name(item));
+                        .term("item", self.item_term(item));
                     Some(self.text_with("log.production_impossible", &args))
                 }
                 Event::ChaosRiftStrikes {
@@ -644,13 +663,12 @@ impl App {
                 } => {
                     let building = building.map(|b| {
                         self.names
-                            .building(self.game.content().rules.buildings.get(b).num)
-                            .to_string()
+                            .building_term(self.game.content().rules.buildings.get(b).num)
                     });
                     let args = Args::new()
                         .text("city", self.city_name(city))
                         .count("units", units_lost)
-                        .text("building", building.clone().unwrap_or_default());
+                        .term("building", building.clone().unwrap_or_default());
                     Some(self.text_with(
                         match (units_lost > 0, building.is_some()) {
                             (false, false) => "log.rift",
@@ -781,10 +799,10 @@ impl App {
                     evicted,
                 } => self.game.is_explored(HUMAN, pos).then(|| {
                     let name = self.game.content().features.get(site).map_or_else(
-                        || site.0.to_string(),
-                        |def| self.names.feature(def.num).to_string(),
+                        || f4x_lang::text::Term::plain(site.0.to_string()),
+                        |def| self.names.feature_term(def.num),
                     );
-                    let args = Args::new().text("site", name).count("n", count);
+                    let args = Args::new().term("site", name).count("n", count);
                     let key = if evicted > 0 {
                         "log.monsters_took_over"
                     } else {
@@ -874,14 +892,16 @@ impl App {
                     player,
                     counter,
                 } => {
-                    let key = match self.game.content().rules.spells.get(counter).id.as_str() {
-                        "life_force" => "spell.life_force",
-                        "tranquility" => "spell.tranquility",
-                        _ => "spell.suppress_magic",
-                    };
-                    self.announce_fizzle(player, by, spell, key);
+                    let counter_spell = self.spell_term_of(
+                        match self.game.content().rules.spells.get(counter).id.as_str() {
+                            "life_force" => "life_force",
+                            "tranquility" => "tranquility",
+                            _ => "suppress_magic",
+                        },
+                    );
+                    self.announce_fizzle(player, by, spell, counter_spell.clone());
                     let args = self.wizard_arg(self.spell_arg(Args::new(), spell), "wizard", by);
-                    let args = args.text("counter", self.text(key));
+                    let args = args.term("counter", counter_spell);
                     Some(self.text_with("log.suppressed", &args))
                 }
                 Event::SpellFailed {
@@ -915,8 +935,8 @@ impl App {
                 Event::UnitTransformed { from, to, .. } => {
                     let units = &self.game.content().rules.units;
                     let args = Args::new()
-                        .text("from", self.names.unit(units.get(from).num))
-                        .text("to", self.names.unit(units.get(to).num));
+                        .term("from", self.names.unit_term(units.get(from).num))
+                        .term("to", self.names.unit_term(units.get(to).num));
                     Some(self.text_with("log.unit_transformed", &args))
                 }
                 Event::EarthquakeStruck {
@@ -975,7 +995,7 @@ impl App {
                     mana,
                     player,
                 } => {
-                    self.announce_fizzle(victim, player, spell, "spell.spell_blast");
+                    self.announce_fizzle(victim, player, spell, self.spell_term_of("spell_blast"));
                     let args = self
                         .wizard_arg(self.spell_arg(Args::new(), spell), "wizard", victim)
                         .count("mana", mana);
@@ -986,7 +1006,7 @@ impl App {
                     spell,
                     player,
                 } => {
-                    self.announce_fizzle(victim, player, spell, "spell.disjunction");
+                    self.announce_fizzle(victim, player, spell, self.spell_term_of("disjunction"));
                     let args =
                         self.wizard_arg(self.spell_arg(Args::new(), spell), "wizard", victim);
                     Some(self.text_with("log.global_removed", &args))
@@ -1068,10 +1088,10 @@ impl App {
 
     /// `args` with the name of a spell.
     pub(crate) fn spell_arg(&self, args: Args, spell: f4x_def::rules::SpellId) -> Args {
-        args.text(
+        args.term(
             "spell",
             self.names
-                .spell(self.game.content().rules.spells.get(spell).num),
+                .spell_term(self.game.content().rules.spells.get(spell).num),
         )
     }
 
@@ -1095,8 +1115,8 @@ impl App {
             parts.push(self.text_with("log.loot_spell", &none));
         }
         for book in &loot.books {
-            let realm = self.realm_alias(*book);
-            parts.push(self.text_with("log.loot_book", &Args::new().text("realm", realm)));
+            let realm = self.names.realm_term(book.num());
+            parts.push(self.text_with("log.loot_book", &Args::new().term("realm", realm)));
         }
         for _ in &loot.retorts {
             parts.push(self.text_with("log.loot_retort", &none));
@@ -1129,13 +1149,24 @@ impl App {
     }
 
     pub(crate) fn item_name(&self, item: f4x_core::city::production::ProductionItem) -> String {
+        self.item_term(item).text
+    }
+
+    /// What a city produces, as a term for the messages that need a form of its name.
+    pub(crate) fn item_term(
+        &self,
+        item: f4x_core::city::production::ProductionItem,
+    ) -> f4x_lang::text::Term {
         use f4x_core::city::production::ProductionItem::*;
         let rules = &self.game.content().rules;
         match item {
-            Building(b) => self.names.building(rules.buildings.get(b).num).to_string(),
-            Unit(u) => self.names.unit(rules.units.get(u).num).to_string(),
-            TradeGoods => self.text("city.trade_goods"),
-            Housing => self.text("city.housing"),
+            Building(b) => self.names.building_term(rules.buildings.get(b).num),
+            Unit(u) => self.names.unit_term(rules.units.get(u).num),
+            TradeGoods => f4x_lang::text::Term {
+                plural: true,
+                ..f4x_lang::text::Term::plain(self.text("city.trade_goods"))
+            },
+            Housing => f4x_lang::text::Term::plain(self.text("city.housing")),
         }
     }
 
@@ -1885,11 +1916,13 @@ impl App {
             return None;
         }
         let lay = crate::frame::Layout::new();
-        let name = self
+        let name_term = self
             .names
-            .spell(self.game.content().rules.spells.get(spell).num)
-            .to_string();
-        let text = self.text_with("spell.no_target", &Args::new().text("spell", &name));
+            .spell_term(self.game.content().rules.spells.get(spell).num);
+        let text = self.text_with(
+            "spell.no_target",
+            &Args::new().term("spell", name_term.clone()),
+        );
         match self.confirmation_box(&lay, &text, input) {
             Some(true) => None,
             Some(false) => {
@@ -2904,7 +2937,7 @@ impl App {
             .and_then(|id| content.terrains.get(id))
         {
             let args = Args::new()
-                .text("terrain", self.names.terrain(def.num))
+                .term("terrain", self.names.terrain_term(def.num))
                 .count("cost", def.move_cost);
             lines.push((self.text_with("ui.terrain_move", &args), WHITE));
         }
@@ -2919,7 +2952,7 @@ impl App {
             for (id, n) in guards {
                 let u = content.rules.units.get(id);
                 let args = Args::new()
-                    .text("unit", self.names.unit(u.num))
+                    .term("unit", self.names.unit_term(u.num))
                     .count("n", n);
                 lines.push((self.text_with("ui.lair_guard", &args), RED));
             }
@@ -2938,7 +2971,7 @@ impl App {
             .filter(|&u| self.game.units().unit_owner(u) != Some(HUMAN));
         for u in foreign.take(4) {
             if let Some(def) = self.game.units().unit_def(u) {
-                let args = Args::new().text("unit", self.names.unit(def.num));
+                let args = Args::new().term("unit", self.names.unit_term(def.num));
                 lines.push((self.text_with("ui.foreign_unit", &args), RED));
             }
         }

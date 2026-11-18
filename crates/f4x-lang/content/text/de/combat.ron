@@ -1,0 +1,14 @@
+// Texte der Schlachtergebnis-Schriftrolle. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "combat.conquered": "{city} wurde erobert",
+    "combat.fame_lost": "Du hast {n} Ruhm verloren.",
+    "combat.fame_gained": "Du hast {n} Ruhm gewonnen.",
+    "combat.looted": "{n} Goldstücke wurden geplündert.",
+    "combat.razed": "Die Stadt wurde vollständig zerstört.",
+    "combat.killed": "{n} Tausend Einwohner getötet.",
+    "combat.destroyed_buildings": "Zerstörte Gebäude",
+    "combat.rampage": "Monster haben {city} verwüstet und sind weitergezogen.",
+    "combat.ruins": "{city} liegt in Trümmern.",
+    "combat.raiders": "{city} fiel an Plünderer.",
+    "combat.raze_question": "Willst du diese Stadt vollständig zerstören?",
+}

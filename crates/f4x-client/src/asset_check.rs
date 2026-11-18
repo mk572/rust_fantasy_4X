@@ -7,6 +7,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
+use f4x_def::content::Content;
 use f4x_def::rules::Rules;
 use f4x_extract::sound::{self, SoundTable};
 use f4x_extract::spell_art::{self, Role, SpellArt};
@@ -30,9 +31,10 @@ pub struct Tables {
 pub fn load_tables(
     dirs: &[&Path],
     lang_dirs: &[&Path],
-    rules: &Rules,
+    content: &Content,
     language: &str,
 ) -> Result<Tables, String> {
+    let rules = &content.rules;
     let spells = spell_art::load_spell_art(dirs)?;
     let units = unit_art::load_unit_art(dirs)?;
     let wizards = wizard_art::load_wizard_art(dirs)?;
@@ -44,7 +46,7 @@ pub fn load_tables(
     problems.extend(check_wizard_art(&wizards, rules));
     problems.extend(check_sound(&sounds, rules));
     problems.extend(check_icon_art(&icons, rules));
-    problems.extend(names.problems(rules));
+    problems.extend(names.problems(content));
     if problems.is_empty() {
         Ok(Tables {
             spells,
@@ -183,11 +185,12 @@ mod tests {
 
     #[test]
     fn the_shipped_tables_agree_with_the_shipped_rules() -> TestResult {
-        let rules = &shipped::content().rules;
+        let content = shipped::content();
+        let rules = &content.rules;
         let tables = load_tables(
             &[Path::new(crate::test_app::CLIENT_CONTENT)],
             &[Path::new(crate::test_app::LANG_CONTENT)],
-            rules,
+            content,
             "en",
         )?;
         assert_eq!(tables.icons.items.len(), rules.items.len());

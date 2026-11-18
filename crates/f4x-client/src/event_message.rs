@@ -5,6 +5,7 @@
 
 use std::path::Path;
 
+use crate::names::Names;
 use crate::text::{Args, Texts};
 use f4x_core::world_event::EventNotice;
 
@@ -29,34 +30,35 @@ pub fn load(dir: &Path) -> Result<Vec<EventText>, String> {
     ron::from_str(&text).map_err(|e| format!("event_texts.ron: {e}"))
 }
 
-/// The keys of the names of the city size classes, outpost to capital.
-const CITY_SIZE_KEYS: &[&str] = &[
-    "city.size_outpost",
-    "city.size_hamlet",
-    "city.size_village",
-    "city.size_town",
-    "city.size_city",
-    "city.size_capital",
+/// The words (`name/word.ron`) of the city size classes, outpost to capital.
+const CITY_SIZE_WORDS: &[&str] = &[
+    "city_size.outpost",
+    "city_size.hamlet",
+    "city_size.village",
+    "city_size.town",
+    "city_size.city",
+    "city_size.capital",
 ];
 
-/// The minerals an event can put on the map: the feature number and the key of the word for it,
-/// what follows the article in "a{ore} deposit".
-const ORE_KEYS: &[(u16, &str)] = &[
-    (11 /* iron_ore */, "event.ore_iron_ore"),
-    (5 /* coal */, "event.ore_coal"),
-    (19 /* silver_ore */, "event.ore_silver_ore"),
-    (10 /* gold_ore */, "event.ore_gold_ore"),
-    (9 /* gem */, "event.ore_gem"),
-    (12 /* mithril_ore */, "event.ore_mithril_ore"),
-    (2 /* adamantium_ore */, "event.ore_adamantium_ore"),
-    (17 /* quork_crystal */, "event.ore_quork_crystal"),
-    (6 /* crysx_crystal */, "event.ore_crysx_crystal"),
+/// The minerals an event can put on the map: the feature number and the word (`name/word.ron`)
+/// for it, as in "{ore:a} deposit".
+const ORE_WORDS: &[(u16, &str)] = &[
+    (11 /* iron_ore */, "ore.iron_ore"),
+    (5 /* coal */, "ore.coal"),
+    (19 /* silver_ore */, "ore.silver_ore"),
+    (10 /* gold_ore */, "ore.gold_ore"),
+    (9 /* gem */, "ore.gem"),
+    (12 /* mithril_ore */, "ore.mithril_ore"),
+    (2 /* adamantium_ore */, "ore.adamantium_ore"),
+    (17 /* quork_crystal */, "ore.quork_crystal"),
+    (6 /* crysx_crystal */, "ore.crysx_crystal"),
 ];
 
 /// The message of a notice, if the lines have one for it; `item` is the name of the gift.
 pub fn compose(
     lines: &[EventText],
     words: &Texts,
+    names: &Names,
     notice: &EventNotice,
     item: &str,
 ) -> Option<String> {
@@ -70,26 +72,27 @@ pub fn compose(
             words.get(key, &Args::new().count("n", n as i32))
         }
     };
+    let ore = notice
+        .ore
+        .and_then(|num| ORE_WORDS.iter().find(|&&(n, _)| n == num))
+        .map(|&(_, key)| names.word(key))
+        .unwrap_or_default();
+    let lang = words.language();
     let plural = |n: u32| words.get("event.plural_ending", &Args::new().count("n", n as i32));
     Some(
         line.text
             .replace("{city}", &notice.city_name)
             .replace(
                 "{size}",
-                &words.get(
-                    CITY_SIZE_KEYS[notice.city_size.min(5) as usize],
-                    &Args::new(),
-                ),
+                &names
+                    .word(CITY_SIZE_WORDS[notice.city_size.min(5) as usize])
+                    .text,
             )
             .replace("{player}", &notice.player_name)
             .replace("{number}", &notice.number.to_string())
-            .replace(
-                "{ore}",
-                &notice
-                    .ore
-                    .and_then(|num| ORE_KEYS.iter().find(|&&(n, _)| n == num))
-                    .map_or(String::new(), |&(_, key)| words.get(key, &Args::new())),
-            )
+            .replace("{ore:a}", &ore.render_form("a", lang))
+            .replace("{ore:A}", &ore.render_form("A", lang))
+            .replace("{ore}", &ore.text)
             .replace("{item}", item)
             .replace("{units}", &count(notice.lost_units, "event.number"))
             .replace("{people}", &count(notice.lost_population, "event.thousand"))
@@ -140,14 +143,40 @@ mod tests {
         n.lost_units = 1;
         n.lost_buildings = 0;
         assert_eq!(
-            compose(&texts, &words(), &n, "").ok_or("compose is missing")?,
+            compose(&texts, &words(), crate::test_app::shipped::names(), &n, "")
+                .ok_or("compose is missing")?,
             "Hit Rome killing 3 thousand townsfolk and 1 unit, destroying no buildings."
         );
         n.lost_units = 4;
         n.lost_buildings = 1;
         assert_eq!(
-            compose(&texts, &words(), &n, "").ok_or("compose is missing")?,
+            compose(&texts, &words(), crate::test_app::shipped::names(), &n, "")
+                .ok_or("compose is missing")?,
             "Hit Rome killing 3 thousand townsfolk and 4 units, destroying 1 building."
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn an_ore_takes_the_article_its_word_needs() -> TestResult {
+        let texts = [text(
+            11,
+            0,
+            "{ore:A} deposit, and {ore:a} mine, of the {size}.",
+        )];
+        let mut n = EventNotice::new(EventKind::NewMinerals, Voice::Started);
+        n.city_size = 3;
+        n.ore = Some(11 /* iron_ore */);
+        let names = crate::test_app::shipped::names();
+        let say = |n: &EventNotice| compose(&texts, &words(), names, n, "");
+        assert_eq!(
+            say(&n).ok_or("compose is missing")?,
+            "An iron deposit, and an iron mine, of the Town."
+        );
+        n.ore = Some(5 /* coal */);
+        assert_eq!(
+            say(&n).ok_or("compose is missing")?,
+            "A coal deposit, and a coal mine, of the Town."
         );
         Ok(())
     }
@@ -162,17 +191,22 @@ mod tests {
         let mut n = EventNotice::new(EventKind::Plague, Voice::Ended);
         n.city_name = "Oslo".into();
         assert_eq!(
-            compose(&texts, &words(), &n, "").ok_or("compose is missing")?,
+            compose(&texts, &words(), crate::test_app::shipped::names(), &n, "")
+                .ok_or("compose is missing")?,
             "over in Oslo"
         );
         n.voice = Voice::Elsewhere;
         n.player_name = "Rjak".into();
         assert_eq!(
-            compose(&texts, &words(), &n, "").ok_or("compose is missing")?,
+            compose(&texts, &words(), crate::test_app::shipped::names(), &n, "")
+                .ok_or("compose is missing")?,
             "Rjak's"
         );
         n.voice = Voice::Happened;
-        assert_eq!(compose(&texts, &words(), &n, ""), None);
+        assert_eq!(
+            compose(&texts, &words(), crate::test_app::shipped::names(), &n, ""),
+            None
+        );
         Ok(())
     }
 
@@ -189,6 +223,8 @@ mod tests {
             "player",
             "number",
             "ore",
+            "ore:a",
+            "ore:A",
             "item",
             "units",
             "people",

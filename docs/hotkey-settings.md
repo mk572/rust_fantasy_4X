@@ -9,7 +9,7 @@ reads it.
 - **Format:** a map from the action's name to a list of keys, each `"Key"`, `"Ctrl+Key"`,
   `"Shift+Key"` or `"Alt+Key"`. Ctrl is Control, or Cmd on a Mac, and must be held exactly when the
   key names it (so `M` and `Ctrl+M` are different keys). The file's header lists the key names.
-- **Changing a key:** copy the action's line into `saves/hotkeys.ron` (the player's own). The base
+- **Changing a key:** copy the action's line into `settings/hotkeys.ron` (the player's own). The base
   is the shipped file; the player's file replaces the keys of the actions it names. An empty list
   turns an action's key off.
   An unknown action or key name is reported on start-up and the shipped keys are used.

@@ -27,18 +27,18 @@ const CART_BANNERS: &[u8] = &[172, 216, 123, 201, 179, 50];
 const CART_EDGE: Color = rgb(0x08, 0x04, 0x04);
 
 const MONTHS: &[&str] = &[
-    "advisor.january",
-    "advisor.february",
-    "advisor.march",
-    "advisor.april",
-    "advisor.may",
-    "advisor.june",
-    "advisor.july",
-    "advisor.august",
-    "advisor.september",
-    "advisor.october",
-    "advisor.november",
-    "advisor.december",
+    "month.january",
+    "month.february",
+    "month.march",
+    "month.april",
+    "month.may",
+    "month.june",
+    "month.july",
+    "month.august",
+    "month.september",
+    "month.october",
+    "month.november",
+    "month.december",
 ];
 
 impl App {
@@ -91,7 +91,7 @@ impl Page for HistoryPage {
         let date = app.text_with(
             "advisor.date",
             &Args::new()
-                .text("month", app.text(MONTHS[turn % 12]))
+                .term("month", app.names.word(MONTHS[turn % 12]))
                 .count("year", 1400 + turn / 12),
         );
         app.draw_styled(

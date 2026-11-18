@@ -1,0 +1,69 @@
+// Die Namen der Gegenstandskräfte nach Nummer (`num` in item_powers.ron).
+{
+    0: "+1 Angriff",  // attack_1
+    1: "+2 Angriff",  // attack_2
+    2: "+3 Angriff",  // attack_3
+    3: "+4 Angriff",  // attack_4
+    4: "+5 Angriff",  // attack_5
+    5: "+6 Angriff",  // attack_6
+    6: "+1 Verteidigung",  // defense_1
+    7: "+2 Verteidigung",  // defense_2
+    8: "+3 Verteidigung",  // defense_3
+    9: "+4 Verteidigung",  // defense_4
+    10: "+5 Verteidigung",  // defense_5
+    11: "+6 Verteidigung",  // defense_6
+    12: "+1 Trefferchance",  // to_hit_1
+    13: "+2 Trefferchance",  // to_hit_2
+    14: "+3 Trefferchance",  // to_hit_3
+    15: "+1 Bewegung",  // movement_1
+    16: "+2 Bewegung",  // movement_2
+    17: "+3 Bewegung",  // movement_3
+    18: "+4 Bewegung",  // movement_4
+    19: "+1 Widerstand",  // resistance_1
+    20: "+2 Widerstand",  // resistance_2
+    21: "+3 Widerstand",  // resistance_3
+    22: "+4 Widerstand",  // resistance_4
+    23: "+5 Widerstand",  // resistance_5
+    24: "+6 Widerstand",  // resistance_6
+    25: "+5 Zauberfertigkeit",  // spell_skill_5
+    26: "+10 Zauberfertigkeit",  // spell_skill_10
+    27: "+15 Zauberfertigkeit",  // spell_skill_15
+    28: "+20 Zauberfertigkeit",  // spell_skill_20
+    29: "-1 Zauberrettung",  // spell_save_1
+    30: "-2 Zauberrettung",  // spell_save_2
+    31: "-3 Zauberrettung",  // spell_save_3
+    32: "-4 Zauberrettung",  // spell_save_4
+    33: (text: "Flammend", of: "der Flammen"),  // flaming
+    34: (text: "Blitz", of: "des Blitzes"),  // lightning
+    35: (text: "Chaos", of: "des Chaos"),  // chaos
+    36: (text: "Zerstörung", of: "der Zerstörung"),  // destruction
+    37: (text: "Vampirisch", of: "des Vampirismus"),  // vampiric
+    38: (text: "Tod", of: "des Todes"),  // death
+    39: (text: "Kraftentzug", of: "des Kraftentzugs"),  // power_drain
+    40: (text: "Heiliger Rächer", of: "des Heiligen Rächers"),  // holy_avenger
+    41: (text: "Wahres Sehen", of: "des Wahren Sehens"),  // true_sight
+    42: (text: "Elementen widerstehen", of: "des Elementenwiderstands"),  // resist_elements
+    43: (text: "Elementarrüstung", of: "der Elementarrüstung"),  // elemental_armor
+    44: (text: "Riesenstärke", of: "der Riesenstärke"),  // giant_strength
+    45: (text: "Versteinerung", of: "der Versteinerung"),  // stoning
+    46: (text: "Trugbild", of: "des Trugbilds"),  // phantasmal
+    47: (text: "Wächterwind", of: "des Wächterwinds"),  // guardian_wind
+    48: (text: "Eile", of: "der Eile"),  // haste
+    49: (text: "Magieresistenz", of: "der Magieresistenz"),  // resist_magic
+    50: (text: "Magieimmunität", of: "der Magieimmunität"),  // magic_immunity
+    51: (text: "Geistergestalt", of: "der Geistergestalt"),  // wraithform
+    52: (text: "Umhang der Furcht", of: "des Umhangs der Furcht"),  // cloak_of_fear
+    53: (text: "Segen", of: "des Segens"),  // bless
+    54: (text: "Rechtschaffenheit", of: "der Rechtschaffenheit"),  // righteousness
+    55: (text: "Unverwundbarkeit", of: "der Unverwundbarkeit"),  // invulnerability
+    56: (text: "Ausdauer", of: "der Ausdauer"),  // endurance
+    57: (text: "Ebenenreise", of: "der Ebenenreise"),  // planar_travel
+    58: (text: "Löwenherz", of: "des Löwenherzens"),  // lion_heart
+    59: (text: "Wasserwandeln", of: "des Wasserwandelns"),  // water_walking
+    60: (text: "Regeneration", of: "der Regeneration"),  // regeneration
+    61: (text: "Pfadfinden", of: "des Pfadfindens"),  // pathfinding
+    62: (text: "Verschmelzung", of: "der Verschmelzung"),  // merging
+    63: (text: "Flug", of: "des Fluges"),  // flight
+    64: (text: "Unsichtbarkeit", of: "der Unsichtbarkeit"),  // invisibility
+    65: (text: "Zauberladungen", of: "der Zauberladungen"),  // spell_charges
+}

@@ -101,20 +101,19 @@ impl App {
         self.screen = Screen::Map;
     }
 
-    /// "Race Name" for a race's unit, the unit's name otherwise.
+    /// The unit's name; a race's unit has its race in the name ("Dwarven Swordsmen").
+    pub(crate) fn army_unit_term(&self, unit: hecs::Entity) -> f4x_lang::text::Term {
+        self.game
+            .units()
+            .unit_def(unit)
+            .map_or_else(Default::default, |def| self.names.unit_term(def.num))
+    }
+
     pub(crate) fn army_unit_name(&self, unit: hecs::Entity) -> String {
-        let Some(def) = self.game.units().unit_def(unit) else {
-            return String::new();
-        };
-        let race = def.race.map(|r| {
-            self.names
-                .race(self.game.content().rules.races.get(r).num)
-                .to_string()
-        });
-        match race {
-            Some(r) => format!("{r} {}", self.names.unit(def.num)),
-            None => self.names.unit(def.num).to_string(),
-        }
+        self.game
+            .units()
+            .unit_def(unit)
+            .map_or_else(String::new, |def| self.names.unit(def.num).to_string())
     }
 
     /// One unit's square: its picture on its banner's colour, a damage bar under it.

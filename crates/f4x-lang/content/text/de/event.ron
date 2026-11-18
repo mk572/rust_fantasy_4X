@@ -1,0 +1,12 @@
+// Namen der Weltereignisse unter der Minikarte. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "event.conjunction": "Konjunktion",
+    "event.bad_moon": "Unheilvoller Mond",
+    "event.good_moon": "Segensreicher Mond",
+    "event.mana_short": "Manamangel",
+    // Die Wörter, mit denen die Sätze der Zufallsereignisse gefüllt werden.
+    "event.none": "keine",
+    "event.number": "{n}",
+    "event.thousand": "{n} Tausend",
+    "event.plural_ending": (count: "n", one: "", other: "en"),
+}

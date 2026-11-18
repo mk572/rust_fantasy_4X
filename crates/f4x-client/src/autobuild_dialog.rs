@@ -252,7 +252,7 @@ impl App {
         let labels = [
             (self.text("ui.ok"), true),
             (self.text("autobuild.button_off"), d.had_plan),
-            (self.text("autobuild.button_cancel"), true),
+            (self.text("ui.cancel"), true),
         ];
         let mut chosen: Option<usize> = None;
         for (k, (name, enabled)) in labels.iter().enumerate() {

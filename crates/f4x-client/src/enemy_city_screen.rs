@@ -89,7 +89,7 @@ impl Page for EnemyCityPage {
         let title = app.text_with(
             "city.title",
             &Args::new()
-                .text("size", app.size_name(report.figures, report.fortress))
+                .term("size", app.size_term(report.figures, report.fortress))
                 .text("city", app.city_name(city)),
         );
         app.draw_styled(view, &Style::sh_set(5, 5).center(), &title, X + 106.0, 3.0);

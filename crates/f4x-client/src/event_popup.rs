@@ -11,7 +11,7 @@
 use crate::event_message::compose;
 use crate::font::Style;
 use crate::input::Input;
-use crate::text::Args;
+use crate::text::{Args, Term};
 use f4x_core::game::DispelSite;
 use f4x_core::world_event::EventKind;
 use f4x_def::rules::RealmId;
@@ -165,7 +165,7 @@ impl App {
         input: &Input,
     ) -> Option<EventBox> {
         let gift = self.gift_name(&notice);
-        let text = compose(&self.event_texts, &self.texts, &notice, &gift)?;
+        let text = compose(&self.event_texts, &self.texts, &self.names, &notice, &gift)?;
         let lay = Layout::new();
         let number = notice.kind.number() as usize - 1;
         let closed = self.notify2_box(
@@ -229,17 +229,17 @@ impl App {
 
     /// The words of a spell that fizzled (`Fizzle_Notification`): the counter spell's caster
     /// and the one whose spell it was; one of them is the human wizard. `counter_spell` is the
-    /// key of the counter spell's name.
+    /// counter spell's name.
     pub(crate) fn fizzle_text(
         &self,
         caster: f4x_core::player::PlayerId,
         counter: f4x_core::player::PlayerId,
-        spell: &str,
-        counter_spell: &str,
+        spell: Term,
+        counter_spell: Term,
     ) -> String {
         let args = Args::new()
-            .text("spell", spell)
-            .text("counter_spell", self.text(counter_spell));
+            .term("spell", spell)
+            .term("counter_spell", counter_spell);
         if counter == HUMAN {
             let args = self.wizard_arg(args, "wizard", caster);
             self.text_with("spell.fizzled_by_you", &args)
@@ -345,19 +345,18 @@ impl App {
     fn conquest_notice(&self, spells: &[f4x_def::rules::SpellId]) -> SpellNotice {
         let name = |app: &Self, spell| {
             self.names
-                .spell(app.game.content().rules.spells.get(spell).num)
-                .to_string()
+                .spell_term(app.game.content().rules.spells.get(spell).num)
         };
         let text = match spells {
             [] => self.text("spell.conquest_none"),
             [one] => {
-                let args = Args::new().text("first", name(self, *one));
+                let args = Args::new().term("first", name(self, *one));
                 self.text_with("spell.conquest_one", &args)
             }
             [first, second, ..] => {
                 let args = Args::new()
-                    .text("first", name(self, *first))
-                    .text("second", name(self, *second));
+                    .term("first", name(self, *first))
+                    .term("second", name(self, *second));
                 self.text_with("spell.conquest_two", &args)
             }
         };
@@ -378,7 +377,7 @@ impl App {
         caster: f4x_core::player::PlayerId,
         counter: f4x_core::player::PlayerId,
         spell: f4x_def::rules::SpellId,
-        counter_spell: &str,
+        counter_spell: Term,
     ) {
         if let Some(notice) = self.fizzle_notice(caster, counter, spell, counter_spell) {
             self.modals.enqueue(notice);
@@ -392,16 +391,15 @@ impl App {
         caster: f4x_core::player::PlayerId,
         counter: f4x_core::player::PlayerId,
         spell: f4x_def::rules::SpellId,
-        counter_spell: &str,
+        counter_spell: Term,
     ) -> Option<SpellNotice> {
         if caster != HUMAN && counter != HUMAN {
             return None;
         }
         let name = self
             .names
-            .spell(self.game.content().rules.spells.get(spell).num)
-            .to_string();
-        let text = self.fizzle_text(caster, counter, &name, counter_spell);
+            .spell_term(self.game.content().rules.spells.get(spell).num);
+        let text = self.fizzle_text(caster, counter, name, counter_spell);
         Some(SpellNotice {
             text,
             strip: RED,
@@ -438,7 +436,12 @@ impl App {
             .into_iter()
             .find(|&id| id != HUMAN && self.game.is_wizard(id));
         if let Some(rival) = rival {
-            let text = self.fizzle_text(HUMAN, rival, "Fire Bolt", "spell.suppress_magic");
+            let text = self.fizzle_text(
+                HUMAN,
+                rival,
+                Term::plain("Fire Bolt"),
+                self.spell_term_of("suppress_magic"),
+            );
             self.modals.enqueue(SpellNotice {
                 text,
                 strip: RED,
@@ -606,15 +609,15 @@ mod tests {
             .ok_or("the game has no rival wizard")?;
         let second = f4x_core::player::MONSTERS;
         let by_you = app
-            .fizzle_notice(HUMAN, first, fire, "spell.suppress_magic")
+            .fizzle_notice(HUMAN, first, fire, app.spell_term_of("suppress_magic"))
             .ok_or("your spell fizzling is not told")?;
         assert!(by_you.fizzled());
         let yours = app
-            .fizzle_notice(first, HUMAN, fire, "spell.suppress_magic")
+            .fizzle_notice(first, HUMAN, fire, app.spell_term_of("suppress_magic"))
             .ok_or("your counter spell is not told")?;
         assert_ne!(by_you.text, yours.text);
         assert!(app
-            .fizzle_notice(first, second, fire, "spell.suppress_magic")
+            .fizzle_notice(first, second, fire, app.spell_term_of("suppress_magic"))
             .is_none());
         Ok(())
     }

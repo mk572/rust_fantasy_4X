@@ -821,4 +821,4 @@ Still open:
 
 ## Default game settings
 
-The start menu's Settings screen has a "Default Game Settings" button: the Custom screen's list for the settings every new game starts from (`settings::DefaultGame`, kept in `saves/default_game.ron`; without the file they are v1.31 at the content's figures). The options step starts from them, and a difficulty chosen there keeps what the defaults changed from their own level (`custom_screen::on_level`). A save that does not name a setting takes its value from them (`settings::with_fallback`, used by `App::load_from`), not from the built-in value.
+The start menu's Settings screen has a "Default Game Settings" button: the Custom screen's list for the settings every new game starts from (`settings::DefaultGame`, kept in `settings/default_game.ron`; without the file they are v1.31 at the content's figures). The options step starts from them, and a difficulty chosen there keeps what the defaults changed from their own level (`custom_screen::on_level`). A save that does not name a setting takes its value from them (`settings::with_fallback`, used by `App::load_from`), not from the built-in value.

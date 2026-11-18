@@ -34,7 +34,7 @@ impl Wood {
         match self {
             Wood::Buy => "ui.button_buy",
             Wood::Change => "ui.button_change",
-            Wood::Ok => "ui.button_ok",
+            Wood::Ok => "ui.ok",
         }
     }
 

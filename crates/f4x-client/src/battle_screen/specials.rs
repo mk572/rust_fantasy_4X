@@ -127,7 +127,7 @@ impl App {
                 u.id,
                 self.text_with(
                     "battle.surface_row",
-                    &Args::new().text("unit", self.battle_unit_name(u)),
+                    &Args::new().term("unit", self.battle_unit_term(u)),
                 ),
             ));
         }
@@ -138,10 +138,15 @@ impl App {
                 .names
                 .spell(self.game.content().rules.spells.get(s.spell).num)
                 .to_string();
+            let name_term = self
+                .names
+                .spell_term(self.game.content().rules.spells.get(s.spell).num);
             let label = if s.cost > 0 {
                 self.text_with(
                     "battle.spell_row",
-                    &Args::new().text("spell", &name).count("cost", s.cost),
+                    &Args::new()
+                        .term("spell", name_term.clone())
+                        .count("cost", s.cost),
                 )
             } else {
                 name

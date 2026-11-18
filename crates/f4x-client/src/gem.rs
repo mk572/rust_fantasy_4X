@@ -21,9 +21,8 @@ use std::sync::OnceLock;
 use f4x_extract::pack::Sheet;
 use macroquad::prelude::{Image, ImageFormat};
 
-/// The size of a gem.
-pub const WIDTH: usize = 41;
-pub const HEIGHT: usize = 43;
+// The size of a gem: 41 x 43 pixels. The frame sheet's diamonds have it; nothing in the client reads
+// it, the tests below check it.
 /// The size of a portrait.
 pub const FACE_WIDTH: usize = 33;
 pub const FACE_HEIGHT: usize = 35;
@@ -241,6 +240,10 @@ pub fn compose(frame: &Image, face: &Image, at: (usize, usize)) -> Image {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The size of a gem (see the note above the portrait size).
+    const WIDTH: usize = 41;
+    const HEIGHT: usize = 43;
 
     /// A portrait of one colour with the corners cut, like the original's.
     fn portrait(colour: [u8; 3]) -> Image {

@@ -95,7 +95,7 @@ cargo run -p f4x-tools -- validate content
 The client reads the rules from there and its own tables, texts and settings from
 `crates/f4x-client/content/`, and nothing overrides them (modding comes later). The only files read
 from outside the repository are the pictures and sounds (`assets-local/art`, `assets-local/audio`,
-`--assets` and `--audio`) and the player's own `saves/hotkeys.ron`. `f4x-tools` reads the rules from
+`--assets` and `--audio`) and the player's own `settings/hotkeys.ron`. `f4x-tools` reads the rules from
 `crates/f4x-def/content/` and takes `--dir` or `--content` for another folder.
 
 The data loader's tests read `crates/f4x-def/content/` alone; there is no separate test rule set, so a

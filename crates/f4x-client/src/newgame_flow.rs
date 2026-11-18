@@ -345,7 +345,7 @@ impl CreateState {
         app.draw_board(
             lay,
             Board::Small,
-            "create.back",
+            "ui.back",
             (left, 182.0),
             state.held(),
             1.0,

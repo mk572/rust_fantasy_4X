@@ -670,15 +670,14 @@ impl MagicUi {
             let r = app.draw_pic(lay, "magic", entry, 0, x, y);
             r.is_some_and(|r| ui::hit(r, true, input).clicked())
         };
-        let cancel =
-            app.alchemy_stone_button(lay, "magic.alchemy_cancel", (px + 13.0, py + 39.0), input);
+        let cancel = app.alchemy_stone_button(lay, "ui.cancel", (px + 13.0, py + 39.0), input);
         let turn = click(
             app,
             if ui.gold_to_mana { 56 } else { 55 },
             px + 66.0,
             py + 39.0,
         );
-        let ok = app.alchemy_stone_button(lay, "magic.alchemy_ok", (px + 96.0, py + 39.0), input);
+        let ok = app.alchemy_stone_button(lay, "ui.ok", (px + 96.0, py + 39.0), input);
         if turn || input.key_pressed(KeyCode::Space) {
             ui.gold_to_mana = !ui.gold_to_mana;
             ui.slider = 3;
@@ -772,11 +771,13 @@ impl Page for MagicUi {
             self.alchemy_popup(app, &lay, view, input);
         }
         if let Some(spell) = self.turn_off {
-            let name = app
+            let name_term = app
                 .names
-                .spell(app.game.content().rules.spells.get(spell).num)
-                .to_string();
-            let question = app.text_with("magic.cancel_spell", &Args::new().text("spell", &name));
+                .spell_term(app.game.content().rules.spells.get(spell).num);
+            let question = app.text_with(
+                "magic.cancel_spell",
+                &Args::new().term("spell", name_term.clone()),
+            );
             match app.confirm_box(&question, input) {
                 Some(true) => {
                     self.turn_off = None;

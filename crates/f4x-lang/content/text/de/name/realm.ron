@@ -1,0 +1,9 @@
+// Die Namen der Magiebereiche nach Nummer (`num` in realms.ron).
+{
+    0: (text: "Natur", gender: Feminine),  // nature
+    1: (text: "Zauberei", gender: Feminine),  // sorcery
+    2: (text: "Chaos", gender: Neuter),  // chaos
+    3: (text: "Leben", gender: Neuter),  // life
+    4: (text: "Tod", gender: Masculine),  // death
+    5: (text: "Arkan", gender: Neuter),  // arcane
+}

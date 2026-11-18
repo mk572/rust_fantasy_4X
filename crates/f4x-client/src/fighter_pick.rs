@@ -256,7 +256,7 @@ impl App {
         let ok_label = self.text("attack.pick_ok");
         let ok = count > 0 && self.red_button(&lay, &ok_label, LEFT + WIDTH - 60.0, by, input);
         let back = pick.attacking && {
-            let label = self.text("attack.cancel");
+            let label = self.text("ui.cancel");
             self.red_button(&lay, &label, LEFT + 10.0, by, input)
         };
         outcome(pick, ok, back, input)

@@ -268,8 +268,8 @@ impl App {
             let r = lay.rect((x, y, 312.0, 161.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.07, 0.04, 0.96));
         }
-        let name = self.names.item_name(item, &self.texts);
-        let text = self.text_with(key, &Args::new().text("item", &name).count("price", price));
+        let name = self.names.item_term(item, &self.texts);
+        let text = self.text_with(key, &Args::new().term("item", name).count("price", price));
         let mut at = y + 9.0;
         for line in self.bm_wrap(4, &text, 182.0) {
             self.draw_styled(
@@ -443,8 +443,10 @@ impl App {
             let name = rules
                 .spells
                 .try_get(*spell)
-                .map_or("", |d| self.names.spell(d.num));
-            let args = Args::new().text("spell", name).count("n", *count);
+                .map_or_else(f4x_lang::text::Term::default, |d| {
+                    self.names.spell_term(d.num)
+                });
+            let args = Args::new().term("spell", name).count("n", *count);
             lines.push(self.text_with("item.charges", &args));
         }
         for &id in &item.powers {

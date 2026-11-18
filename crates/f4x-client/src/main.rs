@@ -64,6 +64,7 @@ mod icon_art;
 mod input;
 mod intro_screen;
 mod item_screen;
+mod language;
 mod learn_spell;
 mod level_up;
 mod magic_screen;
@@ -85,6 +86,7 @@ mod page_turn;
 mod panel_button_art;
 mod plane_shift_anim;
 mod plank_button_art;
+mod player_files;
 mod pointer;
 mod preferences;
 mod production_screen;
@@ -682,6 +684,10 @@ fn enter_data_folder(data: Option<&Path>) -> Result<f4x_extract::paths::Roots, S
         .map_err(|e| format!("cannot make {}: {e}", roots.data.display()))?;
     std::env::set_current_dir(&roots.data)
         .map_err(|e| format!("cannot enter {}: {e}", roots.data.display()))?;
+    // Settings an earlier version kept in `saves/` move to `settings/`.
+    if let Err(e) = player_files::migrate(Path::new(".")) {
+        eprintln!("could not move the settings from saves/ to settings/: {e}");
+    }
     paths::set_game_dir(game.clone());
     let data = std::fs::canonicalize(&roots.data).unwrap_or(roots.data);
     Ok(f4x_extract::paths::Roots { game, data })
@@ -728,7 +734,12 @@ async fn main() {
         };
     let lang_content = shipped(f4x_lang::LANG_CONTENT);
     let lang_layers = [lang_content.as_path()];
-    let texts = match text::load_texts(&lang_layers, &settings.language) {
+    let language = language::initial(
+        &lang_layers,
+        language::saved(Path::new(language::FILE)),
+        &settings.language,
+    );
+    let texts = match text::load_texts(&lang_layers, &language) {
         Ok(t) => t,
         Err(e) => {
             eprintln!("could not load the messages: {e}");
@@ -745,16 +756,15 @@ async fn main() {
     if first_run::offer(&facts, &exe, f4x_extract::paths::Os::current(), &texts) {
         return;
     }
-    let help = f4x_def::load::load_help(&[lang_layers[0], layers[0]], &settings.language)
-        .unwrap_or_default();
-    let tables =
-        match asset_check::load_tables(&layers, &lang_layers, &content.rules, &settings.language) {
-            Ok(tables) => tables,
-            Err(e) => {
-                eprintln!("could not load the asset tables: {e}");
-                std::process::exit(1);
-            }
-        };
+    let help =
+        f4x_def::load::load_help(&[lang_layers[0], layers[0]], &language).unwrap_or_default();
+    let tables = match asset_check::load_tables(&layers, &lang_layers, &content, &language) {
+        Ok(tables) => tables,
+        Err(e) => {
+            eprintln!("could not load the asset tables: {e}");
+            std::process::exit(1);
+        }
+    };
     let mut app = match App::new(
         content,
         tables.names,
@@ -782,7 +792,7 @@ async fn main() {
         }
     };
     app.help = help;
-    match hotkeys::Hotkeys::load(&[Path::new("saves")]) {
+    match hotkeys::Hotkeys::load(&[Path::new(player_files::FOLDER)]) {
         Ok(keys) => app.hotkeys = keys,
         Err(e) => {
             eprintln!("{e}; the shipped keys are used");
@@ -801,8 +811,8 @@ async fn main() {
     }
     // The event sentences come from the shipped client content only,
     // in the player's language, or in English where a language lacks the file.
-    app.event_texts = event_message::load(&message_dir(&settings.language, "event_texts.ron"))
-        .unwrap_or_default();
+    app.event_texts =
+        event_message::load(&message_dir(&language, "event_texts.ron")).unwrap_or_default();
     match preferences::Preferences::from_defaults(&settings.preferences) {
         Ok(base) => app.prefs = base,
         Err(e) => {

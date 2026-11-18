@@ -960,7 +960,7 @@ impl Page for CustomPage {
             by + 166.0,
             Align::Center,
         );
-        let (ok_label, back_label) = (app.text("ui.button_ok"), app.text("options.back"));
+        let (ok_label, back_label) = (app.text("ui.ok"), app.text("ui.back"));
         let back =
             app.red_button_sized(&lay, &back_label, (bw - 60.0) / 2.0, button_y, 60.0, input);
         let ok = app.red_button_sized(

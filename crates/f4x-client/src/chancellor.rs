@@ -103,7 +103,7 @@ impl App {
                     cause,
                 } if *player == HUMAN => {
                     let args =
-                        Args::new().text("unit", self.names.unit(rules.units.get(*unit).num));
+                        Args::new().term("unit", self.names.unit_term(rules.units.get(*unit).num));
                     disbanded.push(say(
                         match cause {
                             LossCause::Food => "chancellor.lost_food",
@@ -115,20 +115,20 @@ impl App {
                     ));
                 }
                 Event::Shortage { player, what } if rival_name(player).is_some() => {
-                    let what = self.text(match what {
-                        f4x_core::game::Shortage::Mana => "chancellor.mana",
-                        f4x_core::game::Shortage::Gold => "chancellor.gold",
-                        f4x_core::game::Shortage::Food => "chancellor.food",
+                    let what = self.names.word(match what {
+                        f4x_core::game::Shortage::Mana => "resource.mana",
+                        f4x_core::game::Shortage::Gold => "resource.gold",
+                        f4x_core::game::Shortage::Food => "resource.food",
                     });
                     let args = self
                         .wizard_arg(Args::new(), "wizard", *player)
-                        .text("what", what);
+                        .term("what", what);
                     rivals.push(say("chancellor.rival_short", args));
                 }
                 Event::HeroLeft { player, hero } if rival_name(player).is_some() => {
                     let args = self
                         .wizard_arg(Args::new(), "wizard", *player)
-                        .text("hero", self.names.unit(rules.units.get(*hero).num));
+                        .term("hero", self.names.unit_term(rules.units.get(*hero).num));
                     rivals.push(say("chancellor.rival_hero_left", args));
                 }
                 Event::ShipLanded { player, units, at } if *player == HUMAN => ships.push(say(
@@ -166,9 +166,10 @@ impl App {
                     ..
                 } if mine(*city) => buildings.push(say(
                     "chancellor.lost_building",
-                    Args::new()
-                        .text("city", self.city_name(*city))
-                        .text("building", self.names.building(rules.buildings.get(*b).num)),
+                    Args::new().text("city", self.city_name(*city)).term(
+                        "building",
+                        self.names.building_term(rules.buildings.get(*b).num),
+                    ),
                 )),
                 Event::BuildingsCollapsed { city, count } if mine(*city) => buildings.push(say(
                     "chancellor.lost_buildings",

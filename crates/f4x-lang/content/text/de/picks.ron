@@ -1,0 +1,24 @@
+// Texte der Schritte „Wahlpunkte“ und „Zauber“ der Magiererschaffung.
+// Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "picks.in_realm": (count: "n", one: "{n} Wahlpunkt in {realm}", other: "{n} Wahlpunkte in {realm}"),
+    "picks.n_picks": (count: "n", one: "{n} Wahlpunkt", other: "{n} Wahlpunkte"),
+    "picks.in_any_realm": "{picks} in einem beliebigen Bereich der Magie",
+    "picks.in_any_realms": "{picks} in beliebigen {n} Bereichen der Magie",
+    "picks.to_select": "Um {retort:def_acc} zu wählen, brauchst du:   {needs}",
+    "picks.life_and_death": "Du kannst nicht sowohl Lebens- als auch Todesmagie wählen",
+    "picks.all_made": "Du hast bereits alle deine Wahlpunkte vergeben",
+    "picks.too_many_retorts": "Du darfst nicht mehr als 6 besondere Fähigkeiten wählen",
+    "picks.not_enough": "Du hast nicht genug Wahlpunkte übrig für diese Wahl. Du brauchst {cost} Wahlpunkte",
+    "picks.make_all": "Du musst alle deine Wahlpunkte vergeben, bevor du weitermachen kannst",
+    "picks.left": (count: "n", one: "{n} Wahlpunkt", other: "{n} Wahlpunkte"),
+    "picks.select_spells": "Zauber wählen: {realm}",
+    "picks.common": "Gewöhnlich",
+    "picks.uncommon": "Ungewöhnlich",
+    "picks.rare": "Selten",
+    "picks.very_rare": "Sehr selten",
+    "picks.rarity_row": "{rarity}: {n}",
+    "picks.spell_hint": "Zeige auf einen Zauber, um darüber zu lesen.",
+    "picks.no_spell_help": "Für diesen Zauber gibt es keinen Hilfetext.",
+    "picks.none_left_here": "Du hast in diesem Bereich keine Wahlpunkte mehr; zum Abwählen klicke auf einen gewählten Eintrag",
+}

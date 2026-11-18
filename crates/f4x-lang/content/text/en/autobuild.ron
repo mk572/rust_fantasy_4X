@@ -16,7 +16,6 @@
     "autobuild.no": "no",
     "autobuild.none": "none",
     "autobuild.button_off": "Switch off",
-    "autobuild.button_cancel": "Cancel",
     "autobuild.hint_both": "Spends equal production on units and buildings. Defenders come first.",
     "autobuild.hint_buildings": "Builds buildings only.",
     "autobuild.hint_units": "Builds units only. Defenders come first.",

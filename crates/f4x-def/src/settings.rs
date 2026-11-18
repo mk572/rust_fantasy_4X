@@ -802,7 +802,7 @@ pub struct GameSettings {
 }
 
 /// Where the player's default game settings are kept.
-pub const DEFAULT_GAME_FILE: &str = "saves/default_game.ron";
+pub const DEFAULT_GAME_FILE: &str = "settings/default_game.ron";
 
 /// The default game settings: the rule set and the settings every new game starts from, and the
 /// fallback for a setting a save file does not name (`with_fallback`). Without the file they are

@@ -1,0 +1,4 @@
+// Text des Eröffnungsfilms (`intro_screen.rs`). Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "intro.copyright": "Copyright  Simtex Software, 1995   V1.31",
+}

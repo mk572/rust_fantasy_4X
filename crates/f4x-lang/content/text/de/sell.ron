@@ -1,0 +1,10 @@
+// Texte der Kästen zum Verkaufen und Kaufen von Gebäuden und zum Ausschalten von Zaubern. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "sell.one_a_turn": "Du kannst pro Runde nur ein Gebäude zurückverkaufen.",
+    "sell.required": (number: "building", singular: "{building:Def} wird für {other:def_acc} benötigt und kann nicht zurückverkauft werden.", plural: "{building:Def} werden für {other:def_acc} benötigt und können nicht zurückverkauft werden."),
+    "sell.ask": "Willst du {building:def_acc} für {gold} Gold zurückverkaufen?",
+    "sell.stops": " Damit endet die Produktion {item:def_gen}.",
+    "sell.buy": "Willst du {building:def_acc} für {price} Gold kaufen?",
+    "sell.not_enough_gold": "Du hast nicht genug Gold.",
+    "sell.turn_off": "Willst du {spell:def_acc} ausschalten?",
+}

@@ -1,0 +1,5 @@
+// Texte des Bildschirms einer feindlichen Stadt. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "enemy_city.units": "Einheiten",
+    "enemy_city.no_report": "Kein Bericht",
+}

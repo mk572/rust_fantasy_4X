@@ -256,13 +256,13 @@ impl App {
             ui.spell_list = !ui.spell_list;
             ui.spell_unit = unit_caster.filter(|_| ui.spell_list);
         }
-        if self.battle_button(&lay, "battle.button_wait", (rx, row(0.0)), my_turn, input)
+        if self.battle_button(&lay, "ui.button_wait", (rx, row(0.0)), my_turn, input)
             || (my_turn && input.key_pressed(KeyCode::W))
         {
             self.select_next(ui, sel);
         }
         // Done ends the selected unit's turn; with no unit left that can act it ends the side's.
-        if self.battle_button(&lay, "battle.button_done", (rx, row(2.0)), my_turn, input) {
+        if self.battle_button(&lay, "ui.button_done", (rx, row(2.0)), my_turn, input) {
             let active = sel.filter(|&u| battle.unit(u).is_some_and(super::unfinished));
             order = Some(match active {
                 Some(unit) => BattleCommand::Done { unit },
@@ -335,7 +335,7 @@ impl App {
         if let Some(u) = ui.placing.and_then(|p| battle.unit(p)) {
             let hint = self.text_with(
                 "battle.surface_hint",
-                &Args::new().text("unit", self.battle_unit_name(u)),
+                &Args::new().term("unit", self.battle_unit_term(u)),
             );
             let y = 3.0 + line * 3.0;
             self.draw_styled(view, &Style::flat(1, LIGHTGRAY).shadow(), &hint, 4.0, y);

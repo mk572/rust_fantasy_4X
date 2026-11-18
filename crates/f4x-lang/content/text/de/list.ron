@@ -1,0 +1,9 @@
+// Wie die Listen in Meldungen verbunden werden (CLDR-Listenmuster): „a und b“, „a, b und c“.
+{
+    "list.two": "{a} und {b}",
+    "list.start": "{a}, {b}",
+    "list.middle": "{a}, {b}",
+    "list.end": "{a} und {b}",
+    "list.sep": ", ",
+    "list.sep_last": " und ",
+}

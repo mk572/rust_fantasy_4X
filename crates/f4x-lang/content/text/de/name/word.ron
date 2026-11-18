@@ -1,0 +1,37 @@
+// Allgemeine Wörter, die in Sätze eingesetzt werden, nach Schlüssel: Größe einer Stadt, Ressource, Erz.
+// Ein Wort ist ein einfacher Text oder ein Term mit Geschlecht und Formen (docs/text.md).
+{
+    "city_size.outpost": (text: "Außenposten", gender: Masculine, def: "der Außenposten", def_acc: "den Außenposten", def_dat: "dem Außenposten", def_gen: "des Außenpostens", a: "ein Außenposten", a_acc: "einen Außenposten", a_dat: "einem Außenposten", a_gen: "eines Außenpostens"),
+    "city_size.hamlet": (text: "Weiler", gender: Masculine, def: "der Weiler", def_acc: "den Weiler", def_dat: "dem Weiler", def_gen: "des Weilers", a: "ein Weiler", a_acc: "einen Weiler", a_dat: "einem Weiler", a_gen: "eines Weilers"),
+    "city_size.village": (text: "Dorf", gender: Neuter, def: "das Dorf", def_acc: "das Dorf", def_dat: "dem Dorf", def_gen: "des Dorfs", a: "ein Dorf", a_acc: "ein Dorf", a_dat: "einem Dorf", a_gen: "eines Dorfs"),
+    "city_size.town": (text: "Kleinstadt", gender: Feminine, def: "die Kleinstadt", def_acc: "die Kleinstadt", def_dat: "der Kleinstadt", def_gen: "der Kleinstadt", a: "eine Kleinstadt", a_acc: "eine Kleinstadt", a_dat: "einer Kleinstadt", a_gen: "einer Kleinstadt"),
+    "city_size.city": (text: "Stadt", gender: Feminine, def: "die Stadt", def_acc: "die Stadt", def_dat: "der Stadt", def_gen: "der Stadt", a: "eine Stadt", a_acc: "eine Stadt", a_dat: "einer Stadt", a_gen: "einer Stadt"),
+    "city_size.capital": (text: "Hauptstadt", gender: Feminine, def: "die Hauptstadt", def_acc: "die Hauptstadt", def_dat: "der Hauptstadt", def_gen: "der Hauptstadt", a: "eine Hauptstadt", a_acc: "eine Hauptstadt", a_dat: "einer Hauptstadt", a_gen: "einer Hauptstadt"),
+
+    "month.january": "Januar",
+    "month.february": "Februar",
+    "month.march": "März",
+    "month.april": "April",
+    "month.may": "Mai",
+    "month.june": "Juni",
+    "month.july": "Juli",
+    "month.august": "August",
+    "month.september": "September",
+    "month.october": "Oktober",
+    "month.november": "November",
+    "month.december": "Dezember",
+
+    "resource.mana": (text: "Mana", gender: Neuter),
+    "resource.gold": (text: "Gold", gender: Neuter),
+    "resource.food": (text: "Nahrung", gender: Feminine),
+
+    "ore.iron_ore": (text: "Eisen", gender: Neuter),
+    "ore.coal": (text: "Kohle", gender: Feminine),
+    "ore.silver_ore": (text: "Silber", gender: Neuter),
+    "ore.gold_ore": (text: "Gold", gender: Neuter),
+    "ore.gem": (text: "Edelstein", gender: Masculine),
+    "ore.mithril_ore": (text: "Mithril", gender: Neuter),
+    "ore.adamantium_ore": (text: "Adamantium", gender: Neuter),
+    "ore.quork_crystal": (text: "Quork", gender: Masculine),
+    "ore.crysx_crystal": (text: "Crysx", gender: Masculine),
+}

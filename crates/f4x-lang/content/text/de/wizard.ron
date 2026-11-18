@@ -1,0 +1,10 @@
+// Texte des Magierblatts. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "wizard.relations": "Beziehungen:",
+    "wizard.treaties": "Verträge:",
+    "wizard.personality": "Persönlichkeit:",
+    "wizard.objective": "Ziel:",
+    "wizard.row": "{label} {value}",
+    "wizard.fame": "Ruhm",
+    "wizard.heroes": "Helden",
+}

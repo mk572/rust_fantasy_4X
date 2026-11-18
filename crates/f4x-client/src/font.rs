@@ -415,4 +415,45 @@ mod tests {
         assert_eq!(Style::outlined(3).effect, Effect::Outline);
         assert_eq!(Style::flat(1, WHITE).ink, Ink::Flat(WHITE));
     }
+
+    /// German's letters past ASCII are one character each for the text engine: an umlaut is as wide
+    /// as its base letter (give or take its own side bearing), `ß` has a width, and text wraps on
+    /// spaces without cutting a letter in two.
+    #[test]
+    fn letters_past_ascii_measure_and_wrap_as_one_character() {
+        let app = crate::view::App::for_test();
+        for style in 0..=5 {
+            let width = |t: &str| app.art.text_width(style, t);
+            for (accented, base) in [
+                ("ä", "a"),
+                ("ö", "o"),
+                ("ü", "u"),
+                ("Ä", "A"),
+                ("Ö", "O"),
+                ("Ü", "U"),
+            ] {
+                let (a, b) = (width(accented), width(base));
+                assert!(a > 0.0, "style {style}: {accented} has no width");
+                assert!(
+                    (a - b).abs() <= 2.0,
+                    "style {style}: {accented} is {a} wide, {base} {b}"
+                );
+            }
+            assert!(width("ß") > 0.0, "style {style}: ß has no width");
+            let two = width("ä") + width("ö");
+            assert!(
+                (width("äö") - two).abs() <= 2.0,
+                "style {style}: two umlauts do not measure as the sum of each"
+            );
+            // A long word with umlauts stays in one piece, and a line break falls on the space.
+            let text = "Größe der zwergischen Schwertkämpfer";
+            let lines = app.bm_wrap(style, text, width("zwergischen Schwert"));
+            assert!(lines.len() > 1, "style {style}: {lines:?}");
+            assert_eq!(
+                lines.join(" "),
+                text,
+                "style {style}: a wrap lost or cut a letter"
+            );
+        }
+    }
 }

@@ -1,0 +1,8 @@
+// Die Beschriftungen und die Warnung des Produktionsbildschirms. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "production.cost": "Kosten",
+    "production.maintenance": "Unterhalt",
+    "production.allows": "Erlaubt",
+    "production.and": "und",
+    "production.garrison_full": "Die Garnison der Stadt ist voll; es passen keine Einheiten mehr hinein.",
+}

@@ -1,5 +1,5 @@
 //! The keys of the overland map, by what they do (`crates/f4x-client/content/hotkeys.ron`). The file lists the keys
-//! of each action; the player's own `saves/hotkeys.ron` and the `hotkeys.ron` of a mod's content
+//! of each action; the player's own `settings/hotkeys.ron` and the `hotkeys.ron` of a mod's content
 //! folder replace the keys of the actions they name. The screens' own keys (Enter and Escape in a
 //! question, the arrows in a list) stay as they are.
 

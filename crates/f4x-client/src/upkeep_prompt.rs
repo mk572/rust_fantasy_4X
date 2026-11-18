@@ -175,22 +175,31 @@ impl App {
     /// What an upkeep line of the mana shortfall says: "Haste on Spearmen", "Skeleton".
     fn upkeep_label(&self, line: &f4x_core::player::upkeep::UpkeepLine) -> String {
         let spell = |s: f4x_def::rules::SpellId| self.names.spell(s.num()).to_string();
+        let spell_term = |s: f4x_def::rules::SpellId| self.names.spell_term(s.num());
         let unit = |u: hecs::Entity| {
             self.game
                 .units()
                 .unit_def(u)
                 .map_or_else(String::new, |d| self.names.unit(d.num).to_string())
         };
-        let on = |s, target: &str| {
+        let unit_term = |u: hecs::Entity| {
+            self.game
+                .units()
+                .unit_def(u)
+                .map_or_else(Default::default, |d| self.names.unit_term(d.num))
+        };
+        let on = |s, target: f4x_lang::text::Term| {
             self.text_with(
                 "upkeep.spell_on",
-                &Args::new().text("spell", spell(s)).text("target", target),
+                &Args::new()
+                    .term("spell", spell_term(s))
+                    .term("target", target),
             )
         };
         match line.kind {
             UpkeepKind::Global(s) => spell(s),
-            UpkeepKind::City(c, s) => on(s, &self.city_name(c)),
-            UpkeepKind::UnitSpell(u, s) => on(s, &unit(u)),
+            UpkeepKind::City(c, s) => on(s, f4x_lang::text::Term::plain(self.city_name(c))),
+            UpkeepKind::UnitSpell(u, s) => on(s, unit_term(u)),
             UpkeepKind::Unit(u) => unit(u),
         }
     }

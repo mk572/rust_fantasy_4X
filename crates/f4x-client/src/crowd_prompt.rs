@@ -260,8 +260,8 @@ impl App {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
-        let name = self.army_unit_name(unit);
-        let line = self.text_with("crowd.where", &Args::new().text("name", name));
+        let name = self.army_unit_term(unit);
+        let line = self.text_with("crowd.where", &Args::new().term("name", name));
         self.draw_styled(
             view,
             &Style::nearest(1, light),
@@ -304,7 +304,7 @@ impl App {
                 }
             }
         }
-        let back_label = self.text("crowd.back");
+        let back_label = self.text("ui.back");
         if self.red_button(&lay, &back_label, LEFT + 10.0, BOTTOM - 20.0, input)
             || input.key_pressed(KeyCode::Escape)
         {

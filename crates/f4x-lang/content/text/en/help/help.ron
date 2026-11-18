@@ -23,7 +23,7 @@ Move the selected stack with {key:move_left}, {key:move_right}, {key:move_up} an
 {key:scroll_left}, {key:scroll_right}, {key:scroll_up} and {key:scroll_down} scroll the map when nothing is selected, or with Shift held. Zoom in with {key:zoom_in} and out with {key:zoom_out}. {key:other_plane} shows the other plane and {key:centre} centres the map on the stack.
 {key:magic} opens magic, {key:spellbook} your spells, {key:army_list} your armies, {key:advisors} the advisors and {key:game_menu} the game menu. The advisors have keys of their own: {key:surveyor} Surveyor, {key:cartographer} Cartographer, {key:apprentice} Apprentice, {key:history} Historian, {key:astrologer} Astrologer, {key:chancellor} Chancellor, {key:tax_collector} Tax Collector, {key:grand_vizier} Grand Vizier, {key:mirror} Mirror.
 {key:quick_save} saves, {key:quick_load} loads, {key:undo} takes back your last move, {key:balance_farmers} balances the farmers and {key:console} opens the console.
-To change a key, copy its line from hotkeys.ron into saves/hotkeys.ron."),
+To change a key, copy its line from hotkeys.ron into settings/hotkeys.ron."),
     (index: 214, title: "Page back", text: "Turns to the previous page of your spell book."),
     (index: 215, title: "Page forward", text: "Turns to the next page of your spell book."),
     (index: 0, title: "Close spell book", text: "Closes the spell book without casting anything."),

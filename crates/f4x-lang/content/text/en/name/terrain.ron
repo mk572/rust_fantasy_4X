@@ -4,10 +4,10 @@
     2: "Desert",  // desert
     3: "Forest",  // forest
     4: "Grassland",  // grassland
-    5: "Hills",  // hills
-    6: "Mountains",  // mountains
+    5: (text: "Hills", plural: true),  // hills
+    6: (text: "Mountains", plural: true),  // mountains
     7: "Nature Node",  // nature_node
-    8: "Ocean",  // ocean
+    8: (text: "Ocean", an: true),  // ocean
     9: "Sorcery Node",  // sorcery_node
     10: "Swamp",  // swamp
     11: "Tundra",  // tundra

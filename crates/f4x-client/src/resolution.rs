@@ -6,7 +6,7 @@
 //! A picture's size on the grid is therefore its pixel size divided by the art scale
 //! ([`logical_size`]); positions never change.
 //!
-//! The art scale is a preference (`art_scale` in `saves/preferences.txt`).
+//! The art scale is a preference (`art_scale` in `settings/preferences.txt`).
 
 use std::sync::atomic::{AtomicU8, Ordering};
 

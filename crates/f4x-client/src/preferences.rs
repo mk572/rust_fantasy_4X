@@ -2,7 +2,7 @@
 //! ours (Left Click Moves Units; off: a right click moves; Play Intro; Dim Behind Boxes; Edge Scrolling;
 //! Open Finished Cities).
 //! Twenty-one switches that change how the game is shown or asked about, not its rules. They live outside
-//! the saves, in `saves/preferences.txt`, one `name=0|1` line each, so every game shares them.
+//! the saves, in `settings/preferences.txt`, one `name=0|1` line each, so every game shares them.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -120,7 +120,7 @@ impl Pref {
 }
 
 /// Where the preferences are kept.
-pub(crate) const FILE: &str = "saves/preferences.txt";
+pub(crate) const FILE: &str = "settings/preferences.txt";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Preferences {

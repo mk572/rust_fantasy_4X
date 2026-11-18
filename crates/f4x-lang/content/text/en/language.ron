@@ -1,0 +1,4 @@
+// What the language calls itself, for the list on the start menu (shown in its own words).
+{
+    "language.name": "English",
+}

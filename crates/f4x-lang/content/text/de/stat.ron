@@ -1,0 +1,9 @@
+// Namen der Werte von Einheiten und Gegenständen. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "stat.attack": "Angriff",
+    "stat.to_hit": "Trefferchance",
+    "stat.defense": "Verteidigung",
+    "stat.movement": "Bewegung",
+    "stat.resistance": "Widerstand",
+    "stat.spell_skill": "Zauberfertigkeit",
+}

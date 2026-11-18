@@ -165,6 +165,7 @@ enum Entry {
     Load,
     New,
     Settings,
+    Language,
     Fame,
     Quit,
 }
@@ -221,7 +222,13 @@ impl Page for MainMenuPage {
             // Continue sits above Load, or takes its place.
             rows.insert(0, Entry::Continue);
         }
-        rows.extend([Entry::New, Entry::Settings, Entry::Fame, Entry::Quit]);
+        rows.extend([
+            Entry::New,
+            Entry::Settings,
+            Entry::Language,
+            Entry::Fame,
+            Entry::Quit,
+        ]);
 
         // The logo and the picture behind the entries.
         if app.draw_pic(&lay, "mainscrn", 0, 0, 0.0, 0.0).is_some() {
@@ -248,6 +255,7 @@ impl Page for MainMenuPage {
                 Entry::Load => ("menu.load_game", KeyCode::L),
                 Entry::New => ("menu.new_game", KeyCode::N),
                 Entry::Settings => ("menu.settings", KeyCode::S),
+                Entry::Language => ("menu.language", KeyCode::G),
                 Entry::Fame => ("menu.hall_of_fame", KeyCode::H),
                 Entry::Quit => ("menu.quit", KeyCode::Q),
             };
@@ -289,6 +297,7 @@ impl Page for MainMenuPage {
                 app.menu.settings_from_menu = true;
                 app.open_settings();
             }
+            Some(Entry::Language) => app.open_language_list(),
             Some(Entry::Fame) => app.open_hall_of_fame(),
             Some(Entry::Quit) => app.modals.open(QuitAsk("menu.quit_question")),
             None => {}
@@ -392,7 +401,7 @@ impl Page for SlotsPage {
 
         // Buttons along y = 171: Quit, Load, Save, Settings, OK (the original's positions).
         let quit_key = if app.menu.from_menu {
-            "menu.back"
+            "ui.back"
         } else {
             "menu.quit"
         };

@@ -288,7 +288,7 @@ on a 60x40 map, 420 KB at turn 400 of a 5-wizard game. The entities are written 
 what is inside a field on the same line, and numbers in a list on one line (`save.rs`, `to_text`); the explored
 flags are one short text for each player and plane, hex bytes and runs like `00*300` (`Bits`); a unit's fields at their default are left out. Older
 saves with the long form still load. `save_game` writes to `<file>.tmp` and renames it, so an interrupted save never
-damages an existing one. Saves live in `saves/` (gitignored).
+damages an existing one. Saves live in `saves/` (gitignored). What the player chose (preferences, default game settings, hotkeys, language) lives in `settings/` (gitignored), not in `saves/`; files an older version kept in `saves/` are moved over at the first start (`player_files.rs`).
 
 **Versions.** `SAVE_VERSION` is bumped when the layout changes incompatibly. Adding optional
 fields does not need a bump. Migrating older versions would be added as a conversion step

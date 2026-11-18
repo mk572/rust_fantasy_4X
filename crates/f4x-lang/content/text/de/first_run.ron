@@ -1,0 +1,11 @@
+// Texte des ersten Starts des Spiels (`crates/f4x-client/src/first_run.rs`, docs/installer-design.md 6.7).
+{
+    "first_run.title": "Fantasy 4X",
+    "first_run.ask": "Das Spiel hat noch keine Bilder, Klänge oder Musik. Sie werden von Fantasy 4X Setup aus deiner eigenen Kopie von Master of Magic erzeugt.\n\nJetzt einrichten? Das Spiel schließt sich und startet neu, wenn du es nach der Einrichtung öffnest.",
+    "first_run.setup": "Jetzt einrichten",
+    "first_run.later": "Nicht jetzt",
+    "first_run.never": "Nicht mehr fragen",
+    "first_run.hint": "Das Spiel hat noch keine Bilder oder Klänge. Starte f4x-setup, um sie aus deiner eigenen Kopie von Master of Magic zu erzeugen.",
+    "first_run.no_setup": "Das Einrichtungsprogramm wurde nicht gefunden. Ohne es läuft das Spiel in einfachen Farben und lautlos.",
+    "first_run.err_start": "Die Einrichtung konnte nicht gestartet werden: {why}",
+}

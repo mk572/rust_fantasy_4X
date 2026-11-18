@@ -68,7 +68,7 @@ pub(crate) struct BattleUi {
     confirm_flee: bool,
     /// Unit names by id, kept while the battle exists so the last events can be told after
     /// the game has dropped the battle.
-    names: Vec<String>,
+    names: Vec<f4x_lang::text::Term>,
     /// The battle as it was before the orders now being played; shown while they animate.
     shown: Option<Battle>,
     /// The battle as it was last drawn: the picture under the result scroll once the game has
@@ -179,14 +179,19 @@ pub(crate) fn cell_at(x: f32, y: f32) -> Option<Pos> {
 /// Tell what a battle event did, in one line.
 pub(crate) fn describe(
     texts: &Texts,
-    names: &[String],
-    spell: &dyn Fn(SpellId) -> String,
+    names: &[f4x_lang::text::Term],
+    spell: &dyn Fn(SpellId) -> f4x_lang::text::Term,
     event: &BattleEvent,
 ) -> Option<String> {
-    let name = |i: usize| names.get(i).map_or("?", String::as_str).to_string();
+    let name = |i: usize| {
+        names
+            .get(i)
+            .cloned()
+            .unwrap_or_else(|| f4x_lang::text::Term::plain("?"))
+    };
     let say = |key: &str, args: Args| Some(texts.get(key, &args));
-    let unit = |i: usize| Args::new().text("unit", name(i));
-    let spell_of = |s: SpellId| Args::new().text("spell", spell(s));
+    let unit = |i: usize| Args::new().term("unit", name(i));
+    let spell_of = |s: SpellId| Args::new().term("spell", spell(s));
     match event {
         BattleEvent::Moved { .. }
         | BattleEvent::ChaosCalled { .. }
@@ -205,8 +210,8 @@ pub(crate) fn describe(
                 String::new()
             };
             let args = Args::new()
-                .text("attacker", name(*attacker))
-                .text("defender", name(*defender))
+                .term("attacker", name(*attacker))
+                .term("defender", name(*defender))
                 .count("dealt", *dealt)
                 .text("kills", kills(texts, *dealt_kills))
                 .text("taken", taken);
@@ -219,8 +224,8 @@ pub(crate) fn describe(
             kills: k,
         } => {
             let args = Args::new()
-                .text("attacker", name(*attacker))
-                .text("defender", name(*defender))
+                .term("attacker", name(*attacker))
+                .term("defender", name(*defender))
                 .count("dealt", *dealt)
                 .text("kills", kills(texts, *k));
             say("battle.shoots", args)
@@ -240,7 +245,7 @@ pub(crate) fn describe(
         BattleEvent::UnitSpellCast {
             unit: u, spell: s, ..
         } => {
-            let args = unit(*u).text("spell", spell(*s));
+            let args = unit(*u).term("spell", spell(*s));
             say("battle.unit_casts", args)
         }
         BattleEvent::WallDestroyed { .. } => say("battle.wall_destroyed", Args::new()),
@@ -275,7 +280,7 @@ pub(crate) fn describe(
             say("battle.healed", unit(*u).count("healed", *healed))
         }
         BattleEvent::SpellEnchanted { unit: u, spell: s } => {
-            say("battle.enchanted", unit(*u).text("spell", spell(*s)))
+            say("battle.enchanted", unit(*u).term("spell", spell(*s)))
         }
         BattleEvent::SpellDispelled {
             unit: u, removed, ..
@@ -436,6 +441,15 @@ impl App {
             .map_or_else(String::new, |id| self.names.unit(id.num()).to_string())
     }
 
+    /// The same as a term, for a message that needs a form of the name.
+    pub(crate) fn battle_unit_term(
+        &self,
+        u: &f4x_core::battle::BattleUnit,
+    ) -> f4x_lang::text::Term {
+        u.unit_id
+            .map_or_else(Default::default, |id| self.names.unit_term(id.num()))
+    }
+
     /// Which side the human commands in the current battle, if any.
     fn human_side(battle: &Battle) -> Option<Side> {
         [Side::Attacker, Side::Defender]
@@ -492,7 +506,7 @@ impl App {
             ui.names = battle
                 .units
                 .iter()
-                .map(|u| self.battle_unit_name(u))
+                .map(|u| self.battle_unit_term(u))
                 .collect();
             ui.selected = battle
                 .active_units(battle.active)
@@ -844,7 +858,7 @@ impl App {
         // A summoned creature has a name too.
         if let Some(b) = self.game.battle() {
             if b.units.len() != ui.names.len() {
-                ui.names = b.units.iter().map(|u| self.battle_unit_name(u)).collect();
+                ui.names = b.units.iter().map(|u| self.battle_unit_term(u)).collect();
             }
         }
         ui.chaos = events
@@ -863,8 +877,7 @@ impl App {
                 Event::Battle(e) => {
                     let spell_name = |id: SpellId| {
                         self.names
-                            .spell(self.game.content().rules.spells.get(id).num)
-                            .to_string()
+                            .spell_term(self.game.content().rules.spells.get(id).num)
                     };
                     if let Some(line) = describe(&self.texts, &names, &spell_name, e) {
                         ui.log.push(line);
@@ -1248,7 +1261,7 @@ impl App {
             ui.names = battle
                 .units
                 .iter()
-                .map(|u| self.battle_unit_name(u))
+                .map(|u| self.battle_unit_term(u))
                 .collect();
         }
         // A unit's sheet over the fight: the field stays as it is and takes no clicks.
@@ -1781,16 +1794,18 @@ impl App {
                     .collect()
             })
             .unwrap_or_default();
-        let name = self
+        let name_term = self
             .names
-            .spell(self.game.content().rules.spells.get(spell).num)
-            .to_string();
+            .spell_term(self.game.content().rules.spells.get(spell).num);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let bw = self
             .art_picture("resource", 0, 0)
             .map_or(186.0, |t| crate::resolution::logical_w(&t));
-        let title = self.text_with("battle.raise_which", &Args::new().text("spell", &name));
+        let title = self.text_with(
+            "battle.raise_which",
+            &Args::new().term("spell", name_term.clone()),
+        );
         let title = self.bm_wrap(1, &title, bw - 20.0);
         let shown = fallen.len().min(FALLEN_SHOWN);
         let bh =
@@ -1820,7 +1835,7 @@ impl App {
                 _ => "battle.fate_slain",
             });
             let args = Args::new()
-                .text("unit", self.battle_unit_name(u))
+                .term("unit", self.battle_unit_term(u))
                 .count("figures", u.figures_start)
                 .text("how", how);
             let mut label = self.text_with("battle.fallen_row", &args);
@@ -1902,10 +1917,9 @@ impl App {
                 }
             }
         }
-        let name = self
+        let name_term = self
             .names
-            .spell(self.game.content().rules.spells.get(aim.spell).num)
-            .to_string();
+            .spell_term(self.game.content().rules.spells.get(aim.spell).num);
         let aimless = matches!(aim.target, SpellTarget::None | SpellTarget::Battlefield);
         let mut text = self.text_with(
             if aimless {
@@ -1913,7 +1927,7 @@ impl App {
             } else {
                 "battle.aim_click"
             },
-            &Args::new().text("spell", &name),
+            &Args::new().term("spell", name_term.clone()),
         );
         if aim.takes_extra_mana {
             let args = Args::new().count("mana", aim.mana).count("most", aim.most);
@@ -2192,11 +2206,13 @@ impl App {
             ui.confirm_cast = None;
             return;
         };
-        let name = self
+        let name_term = self
             .names
-            .spell(self.game.content().rules.spells.get(spell).num)
-            .to_string();
-        let text = self.text_with("spell.cast_anyway", &Args::new().text("spell", &name));
+            .spell_term(self.game.content().rules.spells.get(spell).num);
+        let text = self.text_with(
+            "spell.cast_anyway",
+            &Args::new().term("spell", name_term.clone()),
+        );
         match self.confirmation_box(&Layout::new(), &text, input) {
             Some(true) => {
                 ui.confirm_cast = None;
@@ -2688,8 +2704,11 @@ mod tests {
 
     #[test]
     fn events_are_told_with_unit_names() {
-        let names = vec!["Spearmen".to_string(), "Orc".to_string()];
-        let spell = |_: SpellId| "Fire Bolt".to_string();
+        let names = vec![
+            f4x_lang::text::Term::plain("Spearmen"),
+            f4x_lang::text::Term::plain("Orc"),
+        ];
+        let spell = |_: SpellId| f4x_lang::text::Term::plain("Fire Bolt");
         let texts = crate::test_app::shipped::texts();
         let line = describe(
             texts,

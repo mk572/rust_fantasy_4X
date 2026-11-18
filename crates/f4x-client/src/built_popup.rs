@@ -101,7 +101,7 @@ impl App {
             "log.production_complete",
             &Args::new()
                 .text("city", self.city_name(city))
-                .text("item", self.item_name(item)),
+                .term("item", self.item_term(item)),
         );
         let closed = self.notify2_box(
             &lay,
@@ -123,10 +123,7 @@ impl App {
         let lay = Layout::new();
         let def = self.game.content().rules.buildings.get(building);
         let walls = def.num == 35 /* city_walls */;
-        let mut name = self.names.building(def.num).to_string();
-        if walls {
-            name.pop();
-        }
+        let name = self.names.building_term(def.num);
         let entry = if walls {
             Some(WALL_PICTURE)
         } else {
@@ -135,9 +132,9 @@ impl App {
         let text = self.text_with(
             "city.built",
             &Args::new()
-                .text("size", self.city_size_name(city))
+                .term("size", self.city_size_term(city))
                 .text("city", self.city_name(city))
-                .text("building", name),
+                .term("building", name),
         );
         let closed = self.notify2_box(
             &lay,

@@ -19,8 +19,6 @@
     "magic.diplomacy": "Diplomacy",
     "magic.alchemy_gold_to_power": "Transmute Gold to Power",
     "magic.alchemy_power_to_gold": "Transmute Power to Gold",
-    "magic.alchemy_cancel": "Cancel",
-    "magic.alchemy_ok": "OK",
     "magic.cancel_spell": "Do you wish to cancel your {spell} spell?",
     "magic.more": "More...",
 }

@@ -78,8 +78,7 @@ impl App {
 
     fn temp_effect_line(&self, t: &TempEffect) -> String {
         let abilities = &self.game.content().rules.abilities;
-        let ability =
-            |id: f4x_def::rules::Ability| self.names.ability(abilities.get(id).num).to_string();
+        let ability = |id: f4x_def::rules::Ability| self.names.ability_term(abilities.get(id).num);
         let effect = match &t.kind {
             TempKind::Modifier { stat, op, value } => {
                 let name = self.text(stat_key(*stat));
@@ -97,10 +96,10 @@ impl App {
                 self.text_with(key, &Args::new().text("stat", name).text("value", shown))
             }
             TempKind::Grant(id) => {
-                self.text_with("temp.grant", &Args::new().text("ability", ability(*id)))
+                self.text_with("temp.grant", &Args::new().term("ability", ability(*id)))
             }
             TempKind::Remove(id) => {
-                self.text_with("temp.remove", &Args::new().text("ability", ability(*id)))
+                self.text_with("temp.remove", &Args::new().term("ability", ability(*id)))
             }
         };
         effect
@@ -154,9 +153,8 @@ mod tests {
             .expect("a mutation grants an ability");
         let name = app
             .names
-            .ability(app.game.content().rules.abilities.get(granted).num)
-            .to_string();
-        assert!(lines.contains(&app.text_with("temp.grant", &Args::new().text("ability", name))));
+            .ability_term(app.game.content().rules.abilities.get(granted).num);
+        assert!(lines.contains(&app.text_with("temp.grant", &Args::new().term("ability", name))));
     }
 
     #[test]

@@ -29,9 +29,6 @@
     "ui.menu_plane": "Plane",
     // The labels of the unit window's buttons: capitals, as the original's pictures are lettered.
     "ui.button_done": "DONE",
-    "ui.button_ok": "OK",
-    "ui.button_yes": "Yes",
-    "ui.button_no": "No",
     "ui.button_cancel": "CANCEL",
     "ui.button_patrol": "PATROL",
     "ui.button_wait": "WAIT",
@@ -41,7 +38,6 @@
     // The city screen's buttons.
     "ui.button_buy": "BUY",
     "ui.button_change": "CHANGE",
-    "ui.button_ok": "OK",
     "ui.button_ok_mixed": "Ok",
     "ui.button_items": "Items",
     "ui.gold": "Gold",
@@ -51,6 +47,7 @@
     "ui.time_stop_note": "Time stopped by {wizard}",
     "ui.yes": "Yes",
     "ui.no": "No",
+    "ui.back": "Back",
     "ui.cancel": "Cancel",
     "ui.gold_unit": "GP",
     "ui.mana_unit": "MP",

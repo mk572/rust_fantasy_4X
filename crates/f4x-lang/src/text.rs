@@ -5,7 +5,7 @@
 //!
 //! Tests: in text/tests.rs.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::path::Path;
 
@@ -21,9 +21,163 @@ pub enum Arg {
     Count(i64),
     /// A name with a gender (a hero or a wizard): prints as the name and selects `Gender` forms.
     Named(String, Gender),
+    /// A name of the game's own tables (a unit, a race) with its forms and gender: `{name}` prints
+    /// its text, `{name:dat}` the form of that name the language wrote, and a `gender` choice
+    /// selects by its gender.
+    Term(Term),
     /// Items joined by the language's list patterns (`list.two`, `list.start`, `list.middle`,
     /// `list.end`; each has `{a}` and `{b}`).
     List(Vec<String>),
+}
+
+/// A name that a language may spell differently by the place it stands in a sentence: its plain
+/// text, its grammatical gender, and the forms (by a name the language chooses: `dat`, `gen`,
+/// `dat_pl`, ...) a message asks for with `{name:form}`. A language that has no use for forms
+/// writes the text only; a form the term lacks prints as the text.
+///
+/// In a `name/*.ron` table a term is a plain string (`76: "Dwarven Swordsmen"`) or a record
+/// (`76: (text: "Zwergische Schwertkämpfer", gender: Masculine, dat: "Zwergischen Schwertkämpfern")`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Term {
+    pub text: String,
+    pub gender: Option<Gender>,
+    /// A noun that is plural in form ("City Walls", "Spearmen", "Trade Goods"): a `number` choice
+    /// takes its plural wording ("fall", "are") and a singular one ("falls", "is") for the rest.
+    pub plural: bool,
+    /// The name starts with a vowel sound, so English says "an Armory" (the default is "a").
+    pub an: bool,
+    pub forms: BTreeMap<String, String>,
+}
+
+impl Term {
+    pub fn plain(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            ..Self::default()
+        }
+    }
+
+    /// The name with its indefinite article (`{name:a}`; `{name:A}` capitalised for a sentence's
+    /// start). A form `a` the language wrote wins; else English says "a"/"an" (`an` tag) and
+    /// nothing before a plural noun; a language with no rule here prints the plain text.
+    pub fn indefinite(&self, lang: &str) -> String {
+        if let Some(form) = self.forms.get("a") {
+            return form.clone();
+        }
+        match (lang, self.plural, self.an) {
+            ("en", false, false) => format!("a {}", self.text),
+            ("en", false, true) => format!("an {}", self.text),
+            _ => self.text.clone(),
+        }
+    }
+
+    /// A form as a message asks for it (`{name:form}`): `a` and `A` are the indefinite article's
+    /// forms (`indefinite`), any other the language's own form or the plain text.
+    pub fn render_form(&self, form: &str, lang: &str) -> String {
+        match form {
+            "a" => self.indefinite(lang),
+            "A" => {
+                let a = self.indefinite(lang);
+                let mut chars = a.chars();
+                chars
+                    .next()
+                    .into_iter()
+                    .flat_map(char::to_uppercase)
+                    .chain(chars)
+                    .collect()
+            }
+            // A form name with a capital (`Def`) is the form (`def`) with its first letter capitalised,
+            // for a sentence that starts with the name: "Die Stadt Waldheim ...".
+            other if other.chars().next().is_some_and(char::is_uppercase) => {
+                let mut name = other.chars();
+                let lower: String = name
+                    .next()
+                    .into_iter()
+                    .flat_map(char::to_lowercase)
+                    .chain(name)
+                    .collect();
+                let form = self.form(&lower);
+                let mut chars = form.chars();
+                chars
+                    .next()
+                    .into_iter()
+                    .flat_map(char::to_uppercase)
+                    .chain(chars)
+                    .collect()
+            }
+            other => self.form(other).to_string(),
+        }
+    }
+
+    /// The named form, else the plain text.
+    pub fn form(&self, name: &str) -> &str {
+        self.forms
+            .get(name)
+            .map_or(self.text.as_str(), String::as_str)
+    }
+}
+
+/// A field name of a record term: RON reads it as an identifier.
+struct Field(String);
+
+impl<'de> Deserialize<'de> for Field {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct V;
+        impl Visitor<'_> for V {
+            type Value = Field;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("text, gender, plural, an or the name of a form")
+            }
+
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Field, E> {
+                Ok(Field(v.to_string()))
+            }
+        }
+        d.deserialize_identifier(V)
+    }
+}
+
+impl<'de> Deserialize<'de> for Term {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct V;
+        impl<'de> Visitor<'de> for V {
+            type Value = Term;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a text, or (text: .., gender: .., plural: .., an: .., form: ..)")
+            }
+
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Term, E> {
+                Ok(Term::plain(v))
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut m: A) -> Result<Term, A::Error> {
+                let mut term = Term::default();
+                let mut has_text = false;
+                while let Some(Field(key)) = m.next_key::<Field>()? {
+                    match key.as_str() {
+                        "text" => {
+                            term.text = m.next_value()?;
+                            has_text = true;
+                        }
+                        "gender" => term.gender = Some(m.next_value()?),
+                        "plural" => term.plural = m.next_value()?,
+                        "an" => term.an = m.next_value()?,
+                        _ => {
+                            term.forms.insert(key, m.next_value()?);
+                        }
+                    }
+                }
+                if has_text {
+                    Ok(term)
+                } else {
+                    Err(de::Error::missing_field("text"))
+                }
+            }
+        }
+        d.deserialize_any(V)
+    }
 }
 
 /// The values of one message, by the placeholder's name.
@@ -53,6 +207,12 @@ impl Args {
 
     pub fn named(mut self, name: &'static str, value: impl Into<String>, gender: Gender) -> Self {
         self.0.push((name, Arg::Named(value.into(), gender)));
+        self
+    }
+
+    /// A name with its forms (`Names::unit_term` and the like); see `Arg::Term`.
+    pub fn term(mut self, name: &'static str, value: Term) -> Self {
+        self.0.push((name, Arg::Term(value)));
         self
     }
 
@@ -128,6 +288,12 @@ pub enum Entry {
         by: String,
         lines: Vec<Entry>,
     },
+    /// Chosen by the number of the named term `by`: `plural` when it is tagged as a plural noun.
+    Number {
+        by: String,
+        singular: Box<Entry>,
+        plural: Box<Entry>,
+    },
     /// Chosen by the gender of the named argument `by`.
     Gender {
         by: String,
@@ -142,6 +308,7 @@ pub enum Entry {
 enum Key {
     Count,
     Gender,
+    Number,
     Pick,
     Lines,
     Zero,
@@ -152,6 +319,8 @@ enum Key {
     Masculine,
     Feminine,
     Neuter,
+    Singular,
+    Plural,
 }
 
 /// RON reads the names of a struct's fields as identifiers, which a derived enum would not.
@@ -169,6 +338,9 @@ impl<'de> Deserialize<'de> for Key {
                 Ok(match v {
                     "count" => Key::Count,
                     "gender" => Key::Gender,
+                    "number" => Key::Number,
+                    "singular" => Key::Singular,
+                    "plural" => Key::Plural,
                     "pick" => Key::Pick,
                     "lines" => Key::Lines,
                     "zero" => Key::Zero,
@@ -204,6 +376,7 @@ impl<'de> Deserialize<'de> for Entry {
             fn visit_map<A: MapAccess<'de>>(self, mut m: A) -> Result<Entry, A::Error> {
                 let mut count = None;
                 let mut gender = None;
+                let mut number = None;
                 let mut pick = None;
                 let mut lines = None;
                 let mut forms: HashMap<Key, Entry> = HashMap::new();
@@ -211,6 +384,7 @@ impl<'de> Deserialize<'de> for Entry {
                     match key {
                         Key::Count => count = Some(m.next_value::<String>()?),
                         Key::Gender => gender = Some(m.next_value::<String>()?),
+                        Key::Number => number = Some(m.next_value::<String>()?),
                         Key::Pick => pick = Some(m.next_value::<String>()?),
                         Key::Lines => lines = Some(m.next_value::<Vec<Entry>>()?),
                         form => {
@@ -219,14 +393,21 @@ impl<'de> Deserialize<'de> for Entry {
                     }
                 }
                 let mut take = |key: Key| forms.remove(&key).map(Box::new);
-                match (count, gender, pick) {
-                    (None, None, Some(by)) => {
+                match (count, gender, pick, number) {
+                    (None, None, None, Some(by)) => Ok(Entry::Number {
+                        by,
+                        singular: take(Key::Singular)
+                            .ok_or_else(|| de::Error::missing_field("singular"))?,
+                        plural: take(Key::Plural)
+                            .ok_or_else(|| de::Error::missing_field("plural"))?,
+                    }),
+                    (None, None, Some(by), None) => {
                         let lines = lines
                             .filter(|l| !l.is_empty())
                             .ok_or_else(|| de::Error::missing_field("lines"))?;
                         Ok(Entry::Pick { by, lines })
                     }
-                    (Some(by), None, None) => Ok(Entry::Count {
+                    (Some(by), None, None, None) => Ok(Entry::Count {
                         by,
                         zero: take(Key::Zero),
                         one: take(Key::One),
@@ -234,7 +415,7 @@ impl<'de> Deserialize<'de> for Entry {
                         many: take(Key::Many),
                         other: take(Key::Other).ok_or_else(|| de::Error::missing_field("other"))?,
                     }),
-                    (None, Some(by), None) => Ok(Entry::Gender {
+                    (None, Some(by), None, None) => Ok(Entry::Gender {
                         by,
                         masculine: take(Key::Masculine)
                             .ok_or_else(|| de::Error::missing_field("masculine"))?,
@@ -244,7 +425,7 @@ impl<'de> Deserialize<'de> for Entry {
                             .ok_or_else(|| de::Error::missing_field("neuter"))?,
                     }),
                     _ => Err(de::Error::custom(
-                        "an entry has exactly one of count, gender and pick",
+                        "an entry has exactly one of count, gender, number and pick",
                     )),
                 }
             }
@@ -254,9 +435,77 @@ impl<'de> Deserialize<'de> for Entry {
 }
 
 impl Entry {
+    /// The names of the arguments the entry uses: the placeholders of its texts (without a form,
+    /// `{unit:dat}` is `unit`) and the arguments its choices read. A translation must use the same
+    /// ones as the original (`german_messages_*` in tests).
+    #[cfg(test)]
+    pub(crate) fn arguments(&self) -> std::collections::BTreeSet<String> {
+        fn in_text(t: &str, out: &mut std::collections::BTreeSet<String>) {
+            let mut rest = t;
+            while let Some(open) = rest.find('{') {
+                if rest[open..].starts_with("{{") {
+                    rest = &rest[open + 2..];
+                    continue;
+                }
+                let Some(close) = rest[open..].find('}') else {
+                    return;
+                };
+                let name = &rest[open + 1..open + close];
+                out.insert(name.split(':').next().unwrap_or(name).to_string());
+                rest = &rest[open + close + 1..];
+            }
+        }
+        fn walk(e: &Entry, out: &mut std::collections::BTreeSet<String>) {
+            match e {
+                Entry::Text(t) => in_text(t, out),
+                Entry::Count {
+                    by,
+                    zero,
+                    one,
+                    few,
+                    many,
+                    other,
+                } => {
+                    out.insert(by.clone());
+                    for f in [zero, one, few, many].into_iter().flatten() {
+                        walk(f, out);
+                    }
+                    walk(other, out);
+                }
+                Entry::Pick { by, lines } => {
+                    out.insert(by.clone());
+                    lines.iter().for_each(|l| walk(l, out));
+                }
+                Entry::Number {
+                    by,
+                    singular,
+                    plural,
+                } => {
+                    out.insert(by.clone());
+                    walk(singular, out);
+                    walk(plural, out);
+                }
+                Entry::Gender {
+                    by,
+                    masculine,
+                    feminine,
+                    neuter,
+                } => {
+                    out.insert(by.clone());
+                    for f in [masculine, feminine, neuter] {
+                        walk(f, out);
+                    }
+                }
+            }
+        }
+        let mut out = std::collections::BTreeSet::new();
+        walk(self, &mut out);
+        out
+    }
+
     fn render(&self, lang: &str, args: &Args, out: &mut String) {
         match self {
-            Entry::Text(t) => substitute(t, args, out),
+            Entry::Text(t) => substitute(lang, t, args, out),
             Entry::Count {
                 by,
                 zero,
@@ -285,6 +534,15 @@ impl Entry {
                 };
                 lines[n % lines.len()].render(lang, args, out);
             }
+            Entry::Number {
+                by,
+                singular,
+                plural,
+            } => match args.get(by) {
+                Some(Arg::Term(t)) if t.plural => plural,
+                _ => singular,
+            }
+            .render(lang, args, out),
             Entry::Gender {
                 by,
                 masculine,
@@ -293,6 +551,7 @@ impl Entry {
             } => {
                 let gender = match args.get(by) {
                     Some(Arg::Named(_, g)) => *g,
+                    Some(Arg::Term(t)) => t.gender.unwrap_or_default(),
                     _ => Gender::Neuter,
                 };
                 match gender {
@@ -306,7 +565,7 @@ impl Entry {
     }
 }
 
-fn substitute(text: &str, args: &Args, out: &mut String) {
+fn substitute(lang: &str, text: &str, args: &Args, out: &mut String) {
     let mut chars = text.chars().peekable();
     while let Some(c) = chars.next() {
         match c {
@@ -320,7 +579,15 @@ fn substitute(text: &str, args: &Args, out: &mut String) {
             }
             '{' => {
                 let name: String = chars.by_ref().take_while(|c| *c != '}').collect();
+                let (name, form) = match name.split_once(':') {
+                    Some((n, f)) => (n.to_string(), Some(f.to_string())),
+                    None => (name, None),
+                };
                 match args.get(&name) {
+                    Some(Arg::Term(t)) => match form.as_deref() {
+                        Some(f) => out.push_str(&t.render_form(f, lang)),
+                        None => out.push_str(&t.text),
+                    },
                     Some(Arg::Text(t)) | Some(Arg::Named(t, _)) => out.push_str(t),
                     Some(Arg::Count(n)) => out.push_str(&n.to_string()),
                     Some(Arg::List(items)) => out.push_str(&items.join(", ")),
@@ -385,6 +652,17 @@ impl Texts {
                 pair("list.start", first, &tail)
             }
         }
+    }
+
+    /// The language's code (`en`), for what renders a term outside a message.
+    pub fn language(&self) -> &str {
+        &self.lang
+    }
+
+    /// Whether the language itself (not only the fallback) has a message for the key.
+    pub fn has_own(&self, key: &str) -> bool {
+        self.entries.contains_key(key)
+            || (self.lang == self.fallback_lang && self.fallback.contains_key(key))
     }
 
     /// Whether the language or the fallback has a message for the key.

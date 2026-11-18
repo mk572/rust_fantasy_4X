@@ -1,7 +1,7 @@
 // The names of the ability definitions, by the definition's number (`num` in abilities.ron). A language has the same file in its own folder.
 {
-    1: "Armour Piercing",  // armor_piercing
-    2: "Asleep",  // asleep
+    1: (text: "Armour Piercing", an: true),  // armor_piercing
+    2: (text: "Asleep", an: true),  // asleep
     3: "Bow",  // bow
     4: "Doom Bolt Spell",  // casts_doom_bolt
     5: "Fireball Spell",  // casts_fireball
@@ -18,7 +18,7 @@
     16: "Death Immunity",  // death_immunity
     17: "Dispel Evil",  // dispel_evil
     18: "Drow Bolt",  // drow_bolt
-    19: "Eldritch Weapon",  // eldritch_weapon
+    19: (text: "Eldritch Weapon", an: true),  // eldritch_weapon
     20: "Fire Breath",  // fire_breath
     21: "Fire Immunity",  // fire_immunity
     22: "Fireball",  // fireball_attack
@@ -28,11 +28,11 @@
     26: "Haste",  // hasted
     27: "Healer",  // healer
     28: "Holy Bonus",  // holy_bonus
-    29: "Ice Bolt",  // ice_bolt
-    30: "Illusion",  // illusion_attack
-    31: "Illusion Immunity",  // illusion_immunity
-    32: "Immolation",  // immolation
-    33: "Invisibility",  // invisibility
+    29: (text: "Ice Bolt", an: true),  // ice_bolt
+    30: (text: "Illusion", an: true),  // illusion_attack
+    31: (text: "Illusion Immunity", an: true),  // illusion_immunity
+    32: (text: "Immolation", an: true),  // immolation
+    33: (text: "Invisibility", an: true),  // invisibility
     34: "Large Shield",  // large_shield
     35: "Life Steal",  // life_steal
     36: "Lightning Bolt",  // lightning_bolt
@@ -80,19 +80,19 @@
     78: "Super Legendary",  // super_legendary
     79: "Blademaster",  // blademaster
     80: "Super Blademaster",  // super_blademaster
-    81: "Armsmaster",  // armsmaster
+    81: (text: "Armsmaster", an: true),  // armsmaster
     82: "Super Armsmaster",  // super_armsmaster
     83: "Constitution",  // constitution
     84: "Super Constitution",  // super_constitution
     85: "Might",  // might
     86: "Super Might",  // super_might
-    87: "Arcane Power",  // arcane_power
+    87: (text: "Arcane Power", an: true),  // arcane_power
     88: "Super Arcane Power",  // super_arcane_power
     89: "Sage",  // sage
     90: "Super Sage",  // super_sage
     91: "Prayermaster",  // prayermaster
     92: "Super Prayermaster",  // super_prayermaster
-    93: "Agility",  // agility
+    93: (text: "Agility", an: true),  // agility
     94: "Super Agility",  // super_agility
     95: "Charmed",  // charmed
     96: "Noble",  // noble

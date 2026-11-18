@@ -1,0 +1,14 @@
+// Texte der Straßenplanung. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "road.start": "Straße: Klicke dorthin, wo sie enden soll, dann OK (Enter)",
+    "road.no_way": "Kein Weg dorthin",
+    "road.cancelled": "Straße abgebrochen",
+    "road.summary": (count: "n", one: "Straße: 1 Runde", other: "Straße: {n} Runden"),
+    "road.summary_blocked": (count: "n", one: "Straße: 1 Runde (blockiert)", other: "Straße: {n} Runden (blockiert)"),
+    "road.title": "Straße",
+    "road.building": "Baut",
+    "road.blocked": "Blockiert.  Straßen können nicht über große Gewässer gebaut werden.",
+    "road.takes": (count: "n",
+        one: "Der Bau dieser Straße dauert 1 Runde.",
+        other: "Der Bau dieser Straße dauert {n} Runden."),
+}

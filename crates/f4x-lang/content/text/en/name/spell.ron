@@ -1,6 +1,6 @@
 // The names of the spell definitions, by the definition's number (`num` in spells.ron). A language has the same file in its own folder.
 {
-    1: "Earth to Mud",  // earth_to_mud
+    1: (text: "Earth to Mud", an: true),  // earth_to_mud
     2: "Resist Elements",  // resist_elements
     3: "Wall of Stone",  // wall_of_stone
     4: "Giant Strength",  // giant_strength
@@ -9,10 +9,10 @@
     7: "Stone Skin",  // stone_skin
     8: "Water Walking",  // water_walking
     9: "Sprites",  // sprites
-    10: "Earth Lore",  // earth_lore
+    10: (text: "Earth Lore", an: true),  // earth_lore
     11: "Cracks Call",  // cracks_call
     12: "Nature's Eye",  // natures_eye
-    13: "Ice Bolt",  // ice_bolt
+    13: (text: "Ice Bolt", an: true),  // ice_bolt
     14: "Giant Spiders",  // giant_spiders
     15: "Change Terrain",  // change_terrain
     16: "Path Finding",  // path_finding
@@ -20,23 +20,23 @@
     18: "Transmute",  // transmute
     19: "Nature's Cures",  // natures_cures
     20: "Basilisk",  // basilisk
-    21: "Elemental Armor",  // elemental_armor
+    21: (text: "Elemental Armor", an: true),  // elemental_armor
     22: "Petrify",  // petrify
     23: "Stone Giant",  // stone_giant
-    24: "Iron Skin",  // iron_skin
-    25: "Ice Storm",  // ice_storm
-    26: "Earthquake",  // earthquake
+    24: (text: "Iron Skin", an: true),  // iron_skin
+    25: (text: "Ice Storm", an: true),  // ice_storm
+    26: (text: "Earthquake", an: true),  // earthquake
     27: "Gorgons",  // gorgons
     28: "Move Fortress",  // move_fortress
     29: "Gaia's Blessing",  // gaias_blessing
-    30: "Earth Elemental",  // earth_elemental
+    30: (text: "Earth Elemental", an: true),  // earth_elemental
     31: "Regeneration",  // regeneration
     32: "Behemoth",  // behemoth
-    33: "Entangle",  // entangle
+    33: (text: "Entangle", an: true),  // entangle
     34: "Nature Awareness",  // nature_awareness
     35: "Call Lightning",  // call_lightning
     36: "Colossus",  // colossus
-    37: "Earth Gate",  // earth_gate
+    37: (text: "Earth Gate", an: true),  // earth_gate
     38: "Herb Mastery",  // herb_mastery
     39: "Great Wyrm",  // great_wyrm
     40: "Nature's Wrath",  // natures_wrath
@@ -54,18 +54,18 @@
     52: "Disenchant True",  // disenchant_true
     53: "Vertigo",  // vertigo
     54: "Spell Lock",  // spell_lock
-    55: "Enchant Road",  // enchant_road
+    55: (text: "Enchant Road", an: true),  // enchant_road
     56: "Flight",  // flight
     57: "Wind Mastery",  // wind_mastery
     58: "Spell Blast",  // spell_blast
-    59: "Aura of Majesty",  // aura_of_majesty
+    59: (text: "Aura of Majesty", an: true),  // aura_of_majesty
     60: "Phantom Beast",  // phantom_beast
     61: "Disjunction True",  // disjunction_true
-    62: "Invisibility",  // invisibility
+    62: (text: "Invisibility", an: true),  // invisibility
     63: "Wind Walking",  // wind_walking
     64: "Banish",  // banish
     65: "Storm Giant",  // storm_giant
-    66: "Air Elemental",  // air_elemental
+    66: (text: "Air Elemental", an: true),  // air_elemental
     67: "Mind Storm",  // mind_storm
     68: "Stasis",  // stasis
     69: "Magic Immunity",  // magic_immunity
@@ -85,7 +85,7 @@
     83: "Fire Bolt",  // fire_bolt
     84: "Hell Hounds",  // hell_hounds
     85: "Corruption",  // corruption
-    86: "Eldritch Weapon",  // eldritch_weapon
+    86: (text: "Eldritch Weapon", an: true),  // eldritch_weapon
     87: "Wall of Fire",  // wall_of_fire
     88: "Shatter",  // shatter
     89: "Warp Creature",  // warp_creature
@@ -98,14 +98,14 @@
     96: "Fireball",  // fireball
     97: "Doom Bat",  // doom_bat
     98: "Raise Volcano",  // raise_volcano
-    99: "Immolation",  // immolation
+    99: (text: "Immolation", an: true),  // immolation
     100: "Chimeras",  // chimeras
     101: "Warp Lightning",  // warp_lightning
     102: "Metal Fires",  // metal_fires
     103: "Chaos Spawn",  // chaos_spawn
     104: "Doom Bolt",  // doom_bolt
     105: "Magic Vortex",  // magic_vortex
-    106: "Efreet",  // efreet
+    106: (text: "Efreet", an: true),  // efreet
     107: "Fire Storm",  // fire_storm
     108: "Warp Reality",  // warp_reality
     109: "Flame Strike",  // flame_strike
@@ -119,10 +119,10 @@
     117: "Doom Mastery",  // doom_mastery
     118: "Great Drake",  // great_drake
     119: "Call the Void",  // call_the_void
-    120: "Armageddon",  // armageddon
+    120: (text: "Armageddon", an: true),  // armageddon
     121: "Bless",  // bless
     122: "Star Fires",  // star_fires
-    123: "Endurance",  // endurance
+    123: (text: "Endurance", an: true),  // endurance
     124: "Holy Weapon",  // holy_weapon
     125: "Healing",  // healing
     126: "Holy Armor",  // holy_armor
@@ -141,24 +141,24 @@
     139: "Heavenly Light",  // heavenly_light
     140: "Prayer",  // prayer
     141: "Lionheart",  // lionheart
-    142: "Incarnation",  // incarnation
-    143: "Invulnerability",  // invulnerability
+    142: (text: "Incarnation", an: true),  // incarnation
+    143: (text: "Invulnerability", an: true),  // invulnerability
     144: "Righteousness",  // righteousness
     145: "Prosperity",  // prosperity
-    146: "Altar of Battle",  // altar_of_battle
-    147: "Angel",  // angel
+    146: (text: "Altar of Battle", an: true),  // altar_of_battle
+    147: (text: "Angel", an: true),  // angel
     148: "Stream of Life",  // stream_of_life
     149: "Mass Healing",  // mass_healing
     150: "Holy Word",  // holy_word
     151: "High Prayer",  // high_prayer
-    152: "Inspirations",  // inspirations
-    153: "Astral Gate",  // astral_gate
+    152: (text: "Inspirations", an: true),  // inspirations
+    153: (text: "Astral Gate", an: true),  // astral_gate
     154: "Holy Arms",  // holy_arms
     155: "Consecration",  // consecration
     156: "Life Force",  // life_force
     157: "Tranquility",  // tranquility
     158: "Crusade",  // crusade
-    159: "Arch Angel",  // arch_angel
+    159: (text: "Arch Angel", an: true),  // arch_angel
     160: "Charm of Life",  // charm_of_life
     161: "Skeletons",  // skeletons
     162: "Weakness",  // weakness
@@ -182,7 +182,7 @@
     180: "Shadow Demons",  // shadow_demons
     181: "Wraith Form",  // wraith_form
     182: "Wrack",  // wrack
-    183: "Evil Presence",  // evil_presence
+    183: (text: "Evil Presence", an: true),  // evil_presence
     184: "Wraiths",  // wraiths
     185: "Cloud of Shadow",  // cloud_of_shadow
     186: "Warp Node",  // warp_node
@@ -194,10 +194,10 @@
     192: "Word of Death",  // word_of_death
     193: "Death Knights",  // death_knights
     194: "Death Spell",  // death_spell
-    195: "Animate Dead",  // animate_dead
+    195: (text: "Animate Dead", an: true),  // animate_dead
     196: "Pestilence",  // pestilence
-    197: "Eternal Night",  // eternal_night
-    198: "Evil Omens",  // evil_omens
+    197: (text: "Eternal Night", an: true),  // eternal_night
+    198: (text: "Evil Omens", an: true),  // evil_omens
     199: "Death Wish",  // death_wish
     200: "Demon Lord",  // demon_lord
     201: "Magic Spirit",  // magic_spirit
@@ -206,9 +206,9 @@
     204: "Disenchant Area",  // disenchant_area
     205: "Recall Hero",  // recall_hero
     206: "Detect Magic",  // detect_magic
-    207: "Enchant Item",  // enchant_item
+    207: (text: "Enchant Item", an: true),  // enchant_item
     208: "Summon Hero",  // summon_hero
-    209: "Awareness",  // awareness
+    209: (text: "Awareness", an: true),  // awareness
     210: "Disjunction",  // disjunction
     211: "Create Artifact",  // create_artifact
     212: "Summon Champion",  // summon_champion

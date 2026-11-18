@@ -36,7 +36,7 @@ sound is entry 106, a silent clip that cuts the one before; no sound for a unit 
 Still open: Plane Shift plays the spell's sound at three moments of its animation (ours once).
 
 Also wired: volume sliders for the music and the effects at the bottom of the Settings screen (saved in
-`saves/preferences.txt` as `music_volume` and `effects_volume`); the level-up box (`level_up.rs`) with the fanfare as an
+`settings/preferences.txt` as `music_volume` and `effects_volume`); the level-up box (`level_up.rs`) with the fanfare as an
 event piece; the scream (`SOUNDFX` 34 for a feminine wizard, 35 otherwise, by the wizard's gender in `wizards.ron`) when a
 wizard is defeated or banished; the vortex's round (`SOUNDFX` 7).
 

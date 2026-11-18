@@ -5,5 +5,5 @@
     2: "Chaos",  // chaos
     3: "Life",  // life
     4: "Death",  // death
-    5: "Arcane",  // arcane
+    5: (text: "Arcane", an: true),  // arcane
 }

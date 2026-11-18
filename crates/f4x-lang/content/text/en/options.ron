@@ -33,7 +33,6 @@
     "options.land_large": "Large",
     "options.land_huge": "Huge",
     "options.magic_power": "Magic power",
-    "options.back": "Back",
     "options.custom": " (custom)",
     "options.line_seed": "Map seed: {seed}",
 }

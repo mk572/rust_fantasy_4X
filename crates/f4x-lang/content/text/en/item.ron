@@ -17,6 +17,8 @@
     "item.name_bonus": "+{n} {type}",
     "item.name_of": "{item} of {suffix}",
     "item.name_charges": "{spell} x{n}",
+    // The same inside a made item's name: "Staff of Fire Bolt x2" (a language that declines the spell does it here).
+    "item.name_of_charges": "{spell} x{n}",
     "item.type_sword": "Sword",
     "item.type_mace": "Mace",
     "item.type_axe": "Axe",

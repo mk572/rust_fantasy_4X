@@ -1,0 +1,18 @@
+// Texte des Bildschirms zum Herstellen von Gegenständen. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "craft.cost": "Kosten:",
+    "craft.tab_sword": "Schwert",
+    "craft.tab_mace": "Streitkolben",
+    "craft.tab_axe": "Axt",
+    "craft.tab_bow": "Bogen",
+    "craft.tab_staff": "Stab",
+    "craft.tab_wand": "Zauberstab",
+    "craft.tab_misc": "Sonstiges",
+    "craft.tab_shield": "Schild",
+    "craft.tab_chain": "Kette",
+    "craft.tab_plate": "Platte",
+    "craft.too_many": "In einen Gegenstand dürfen nur vier Kräfte verzaubert werden.",
+    "craft.give_up": "Dieser Gegenstand hat keine Kraft. Herstellung aufgeben?",
+    "craft.choose_spell": "Wähle einen Zauber, der in diesen Gegenstand eingebettet wird",
+    "craft.charges": "Ladungen",
+}

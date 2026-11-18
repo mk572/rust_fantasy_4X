@@ -1,0 +1,14 @@
+// Die Namen der Geländearten nach Nummer (`num` in terrain.ron), mit Artikelformen.
+{
+    1: (text: "Chaosknoten", gender: Masculine, def: "der Chaosknoten", def_acc: "den Chaosknoten", def_dat: "dem Chaosknoten", def_gen: "des Chaosknotens", a: "ein Chaosknoten", a_acc: "einen Chaosknoten", a_dat: "einem Chaosknoten", a_gen: "eines Chaosknotens"),  // chaos_node
+    2: (text: "Wüste", gender: Feminine, def: "die Wüste", def_acc: "die Wüste", def_dat: "der Wüste", def_gen: "der Wüste", a: "eine Wüste", a_acc: "eine Wüste", a_dat: "einer Wüste", a_gen: "einer Wüste"),  // desert
+    3: (text: "Wald", gender: Masculine, def: "der Wald", def_acc: "den Wald", def_dat: "dem Wald", def_gen: "des Walds", a: "ein Wald", a_acc: "einen Wald", a_dat: "einem Wald", a_gen: "eines Walds"),  // forest
+    4: (text: "Grasland", gender: Neuter, def: "das Grasland", def_acc: "das Grasland", def_dat: "dem Grasland", def_gen: "des Graslands", a: "ein Grasland", a_acc: "ein Grasland", a_dat: "einem Grasland", a_gen: "eines Graslands"),  // grassland
+    5: (text: "Hügel", gender: Masculine, def: "der Hügel", def_acc: "den Hügel", def_dat: "dem Hügel", def_gen: "des Hügels", a: "ein Hügel", a_acc: "einen Hügel", a_dat: "einem Hügel", a_gen: "eines Hügels"),  // hills
+    6: (text: "Gebirge", gender: Neuter, def: "das Gebirge", def_acc: "das Gebirge", def_dat: "dem Gebirge", def_gen: "des Gebirges", a: "ein Gebirge", a_acc: "ein Gebirge", a_dat: "einem Gebirge", a_gen: "eines Gebirges"),  // mountains
+    7: (text: "Naturknoten", gender: Masculine, def: "der Naturknoten", def_acc: "den Naturknoten", def_dat: "dem Naturknoten", def_gen: "des Naturknotens", a: "ein Naturknoten", a_acc: "einen Naturknoten", a_dat: "einem Naturknoten", a_gen: "eines Naturknotens"),  // nature_node
+    8: (text: "Ozean", gender: Masculine, def: "der Ozean", def_acc: "den Ozean", def_dat: "dem Ozean", def_gen: "des Ozeans", a: "ein Ozean", a_acc: "einen Ozean", a_dat: "einem Ozean", a_gen: "eines Ozeans"),  // ocean
+    9: (text: "Zauberknoten", gender: Masculine, def: "der Zauberknoten", def_acc: "den Zauberknoten", def_dat: "dem Zauberknoten", def_gen: "des Zauberknotens", a: "ein Zauberknoten", a_acc: "einen Zauberknoten", a_dat: "einem Zauberknoten", a_gen: "eines Zauberknotens"),  // sorcery_node
+    10: (text: "Sumpf", gender: Masculine, def: "der Sumpf", def_acc: "den Sumpf", def_dat: "dem Sumpf", def_gen: "des Sumpfs", a: "ein Sumpf", a_acc: "einen Sumpf", a_dat: "einem Sumpf", a_gen: "eines Sumpfs"),  // swamp
+    11: (text: "Tundra", gender: Feminine, def: "die Tundra", def_acc: "die Tundra", def_dat: "der Tundra", def_gen: "der Tundra", a: "eine Tundra", a_acc: "eine Tundra", a_dat: "einer Tundra", a_gen: "einer Tundra"),  // tundra
+}

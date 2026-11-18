@@ -146,7 +146,7 @@ impl App {
         }
         let title = self.text_with(
             "levelup.title",
-            &Args::new().text("name", sheet.name.clone()),
+            &Args::new().term("name", sheet.term.clone()),
         );
         self.draw_styled(
             view,

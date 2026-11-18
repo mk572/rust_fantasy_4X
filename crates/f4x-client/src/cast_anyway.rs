@@ -13,7 +13,7 @@ use f4x_core::game::{Command, Event, Rejection};
 /// The spell cast on a target that has its effect: the command waits for the answer.
 pub(crate) struct CastAnyway {
     command: Command,
-    spell_name: String,
+    spell_name: f4x_lang::text::Term,
     /// The targeting to go back to when the answer is No.
     again: Option<Targeting>,
 }
@@ -25,7 +25,7 @@ impl Modal for CastAnyway {
     fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
         let text = app.text_with(
             "spell.cast_anyway",
-            &Args::new().text("spell", &self.spell_name),
+            &Args::new().term("spell", self.spell_name.clone()),
         );
         let answer = app.confirmation_box(&Layout::new(), &text, input);
         match answer {
@@ -60,8 +60,7 @@ impl App {
     ) {
         let spell_name = self
             .names
-            .spell(self.game.content().rules.spells.get(spell).num)
-            .to_string();
+            .spell_term(self.game.content().rules.spells.get(spell).num);
         self.modals.open(CastAnyway {
             command,
             spell_name,

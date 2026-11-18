@@ -1,0 +1,15 @@
+// Die Persönlichkeiten und Ziele der Computermagier, wie das Magierblatt sie nennt.
+// Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "personality.maniacal": "Wahnsinnig",
+    "personality.ruthless": "Skrupellos",
+    "personality.aggressive": "Aggressiv",
+    "personality.chaotic": "Chaotisch",
+    "personality.lawful": "Gesetzestreu",
+    "personality.peaceful": "Friedlich",
+    "personality.pragmatist": "Pragmatiker",
+    "personality.militarist": "Militarist",
+    "personality.theurgist": "Theurg",
+    "personality.perfectionist": "Perfektionist",
+    "personality.expansionist": "Expansionist",
+}

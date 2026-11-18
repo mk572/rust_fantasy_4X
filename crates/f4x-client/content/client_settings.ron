@@ -7,7 +7,7 @@
     // The language of the messages: a folder of `content/text/`.
     language: "en",
 
-    // The switches of the Settings screen (client preferences, kept in `saves/preferences.txt`
+    // The switches of the Settings screen (client preferences, kept in `settings/preferences.txt`
     // once the player changes them): the state of each before that.
     preferences: {
         "sound_effects": true,

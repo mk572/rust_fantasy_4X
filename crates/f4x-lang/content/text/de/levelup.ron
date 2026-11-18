@@ -1,0 +1,8 @@
+// Texte des Kastens, der die neue Stufe eines Helden verkündet. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "levelup.title": (number: "name", singular: "{name:Def} ist eine Stufe aufgestiegen.", plural: "{name:Def} sind eine Stufe aufgestiegen."),
+    "levelup.hit_points": "+1 Trefferpunkte",
+    "levelup.resistance": "+1 Widerstand",
+    "levelup.attack": "+1 Angriff",
+    "levelup.defense": "+{n} Verteidigung",
+}

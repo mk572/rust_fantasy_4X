@@ -1,0 +1,18 @@
+// Die Namen der Zeilen im Info-Fenster der Schlacht. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "battle_info.crusade": "Kreuzzug",
+    "battle_info.holy_arms": "Heilige Waffen",
+    "battle_info.charm_of_life": "Lebenszauber",
+    "battle_info.zombie_mastery": "Zombie-Meisterschaft",
+    "battle_info.dispels_non_sorcery": "Bannt alles außer Zauberei",
+    "battle_info.dispels_non_chaos": "Bannt alles außer Chaos",
+    "battle_info.dispels_non_nature": "Bannt alles außer Natur",
+    "battle_info.sorcery_node_aura": "Aura des Zauberknotens",
+    "battle_info.chaos_node_aura": "Aura des Chaosknotens",
+    "battle_info.nature_node_aura": "Aura des Naturknotens",
+    "battle_info.cloud_of_darkness": "Wolke der Finsternis",
+    "battle_info.holy_light": "Heiliges Licht",
+    "battle_info.chaos_surge": "Chaoswoge",
+    "battle_info.eternal_night": "Ewige Nacht",
+    "battle_info.evil_omens": "Böse Vorzeichen",
+}

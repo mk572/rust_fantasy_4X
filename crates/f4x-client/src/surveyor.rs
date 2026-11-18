@@ -116,9 +116,9 @@ impl App {
         let feature = self.game.economy().feature_at(pos);
         let city = self.game.economy().city_at(pos);
         if let Some(city) = city {
-            let size = self.city_size_name(city);
+            let size = self.city_size_term(city);
             text.special = vec![
-                self.text_with("surveyor.size_of", &Args::new().text("size", size)),
+                self.text_with("surveyor.size_of", &Args::new().term("size", size)),
                 self.city_name(city),
             ];
         } else if let Some(f) = feature {

@@ -299,7 +299,7 @@ impl Page for OptionsPage {
             app.draw_styled(view, &ng_ink(3, 201).center(), &text, 82.0, 156.0);
         }
         let custom = app.board_button_gold(&lay, "custom.button", CUSTOM_AT, input);
-        let ok = app.board_button(&lay, "ui.button_ok", (252.0, 179.0), input);
+        let ok = app.board_button(&lay, "ui.ok", (252.0, 179.0), input);
         let cancel = app.board_button(&lay, "ui.cancel", (171.0, 179.0), input);
         if custom {
             app.open_custom();
@@ -492,7 +492,7 @@ impl Page for GameSettingsPage {
                 Align::Left,
             );
         }
-        let back_label = app.text("options.back");
+        let back_label = app.text("ui.back");
         let back = app.red_button_sized(
             &lay,
             &back_label,

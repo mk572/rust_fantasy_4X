@@ -8,7 +8,7 @@
 use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
-use crate::text::{Args, Texts};
+use crate::text::{Args, Term, Texts};
 use f4x_core::feature::lair::Loot;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
@@ -114,7 +114,7 @@ impl Modal for SiteNotice {
 
 /// The question of the box: "You have found a mysterious cave." and, for a guarded site, what the
 /// scouts saw and "Do you wish to enter?".
-pub(crate) fn found_text(texts: &Texts, site: usize, guards: Option<(&str, u32)>) -> String {
+pub(crate) fn found_text(texts: &Texts, site: usize, guards: Option<(Term, u32)>) -> String {
     let (_, found, name) = SITES[site];
     let found = texts.get(found, &Args::new());
     let Some((unit, figures)) = guards else {
@@ -122,7 +122,7 @@ pub(crate) fn found_text(texts: &Texts, site: usize, guards: Option<(&str, u32)>
     };
     let args = Args::new()
         .text("found", found)
-        .text("unit", unit)
+        .term("unit", unit)
         .text("site", texts.get(name, &Args::new()))
         .count("figures", figures);
     texts.get("site.ask", &args)
@@ -151,9 +151,9 @@ fn kind_key(kind: f4x_def::rules::ItemKind) -> &'static str {
 pub(crate) fn treasure_text(
     texts: &Texts,
     loot: &Loot,
-    spell: Option<&str>,
-    books: &[String],
-    retorts: &[String],
+    spell: Option<Term>,
+    books: &[Term],
+    retorts: &[Term],
     item_kinds: &[f4x_def::rules::ItemKind],
 ) -> String {
     let none = Args::new();
@@ -168,9 +168,9 @@ pub(crate) fn treasure_text(
         parts.push(texts.get("site.prisoner", &none));
     }
     if let Some(spell) = spell {
-        parts.push(texts.get("site.spell", &Args::new().text("spell", spell)));
+        parts.push(texts.get("site.spell", &Args::new().term("spell", spell)));
     }
-    let mut realms: Vec<&String> = Vec::new();
+    let mut realms: Vec<&Term> = Vec::new();
     for realm in books {
         if !realms.contains(&realm) {
             realms.push(realm);
@@ -178,13 +178,11 @@ pub(crate) fn treasure_text(
     }
     for realm in realms {
         let n = books.iter().filter(|r| *r == realm).count();
-        let args = Args::new()
-            .count("n", n)
-            .text("realm", crate::bigbook::capitalise(realm));
+        let args = Args::new().count("n", n).term("realm", realm.clone());
         parts.push(texts.get("site.books", &args));
     }
     for retort in retorts {
-        parts.push(texts.get("site.retort", &Args::new().text("retort", retort)));
+        parts.push(texts.get("site.retort", &Args::new().term("retort", retort.clone())));
     }
     for &kind in item_kinds {
         parts.push(texts.get(kind_key(kind), &none));
@@ -214,16 +212,9 @@ impl App {
                 .stats
                 .get(&f4x_def::rules::Stat::Figures)
                 .map(|v| v.floor());
-            (
-                self.names.unit(unit.num).to_string(),
-                figures.unwrap_or(1) as u32,
-            )
+            (self.names.unit_term(unit.num), figures.unwrap_or(1) as u32)
         });
-        let text = found_text(
-            &self.texts,
-            site,
-            first.as_ref().map(|(name, f)| (name.as_str(), *f)),
-        );
+        let text = found_text(&self.texts, site, first.clone());
         self.modals.enqueue(SiteNotice::Ask {
             units,
             to,
@@ -248,20 +239,16 @@ impl App {
         }
         let spell = loot.spell.map(|s| {
             self.names
-                .spell(self.game.content().rules.spells.get(s).num)
-                .to_string()
+                .spell_term(self.game.content().rules.spells.get(s).num)
         });
-        let retorts: Vec<String> = loot.retorts.iter().map(|&r| self.retort_name(r)).collect();
-        let books: Vec<String> = loot.books.iter().map(|&r| self.realm_alias(r)).collect();
+        let retorts: Vec<Term> = loot.retorts.iter().map(|&r| self.retort_term(r)).collect();
+        let books: Vec<Term> = loot
+            .books
+            .iter()
+            .map(|&r| self.names.realm_term(r.num()))
+            .collect();
         let kinds: Vec<_> = loot.items.iter().map(|i| i.kind).collect();
-        let text = treasure_text(
-            &self.texts,
-            loot,
-            spell.as_deref(),
-            &books,
-            &retorts,
-            &kinds,
-        );
+        let text = treasure_text(&self.texts, loot, spell, &books, &retorts, &kinds);
         self.modals.enqueue(SiteNotice::Treasure { text });
         if !loot.items.is_empty() {
             self.item_pool_pending = true;
@@ -284,16 +271,11 @@ impl App {
                 let first = lair.guards.first().map(|&(id, _)| {
                     (
                         self.names
-                            .unit(self.game.content().rules.units.get(id).num)
-                            .to_string(),
+                            .unit_term(self.game.content().rules.units.get(id).num),
                         1,
                     )
                 });
-                let text = found_text(
-                    &self.texts,
-                    site,
-                    first.as_ref().map(|(n, f)| (n.as_str(), *f)),
-                );
+                let text = found_text(&self.texts, site, first.clone());
                 self.modals.enqueue(SiteNotice::Ask {
                     units: Vec::new(),
                     to,
@@ -547,11 +529,11 @@ mod tests {
     fn the_question_names_the_site_and_the_scouts_report() {
         let t = texts();
         assert_eq!(
-            found_text(t, site_type(14 /* mysterious_cave */), Some(("Efreet", 1))),
+            found_text(t, site_type(14 /* mysterious_cave */), Some((Term::plain("Efreet"), 1))),
             "You have found a mysterious cave.  Scouts have spotted a single Efreet within the mysterious cave.  Do you wish to enter?"
         );
         assert_eq!(
-            found_text(t, site_type(7 /* dungeon */), Some(("Skeletons", 6))),
+            found_text(t, site_type(7 /* dungeon */), Some((Term::plain("Skeletons"), 6))),
             "You have found a dungeon.  Scouts have spotted Skeletons within the dungeon.  Do you wish to enter?"
         );
         assert_eq!(
@@ -580,15 +562,15 @@ mod tests {
         l.mana = 30;
         l.prisoner = true;
         assert_eq!(
-            treasure_text(t, &l, Some("Earth Lore"), &[], &[], &[ItemKind::Sword]),
+            treasure_text(t, &l, Some(Term::plain("Earth Lore")), &[], &[], &[ItemKind::Sword]),
             "Inside you find 120 gold, 30 mana crystals, a prisoner, the spell Earth Lore and a Sword."
         );
         l.gold = 1;
         l.mana = 0;
         l.prisoner = false;
-        let books = ["nature".to_string(), "nature".to_string()];
+        let books = [Term::plain("Nature"), Term::plain("Nature")];
         assert_eq!(
-            treasure_text(t, &l, None, &books, &["Sage Master".to_string()], &[]),
+            treasure_text(t, &l, None, &books, &[Term::plain("Sage Master")], &[]),
             "Inside you find 2 Nature spell books and a retort of Sage Master."
         );
     }

@@ -572,10 +572,9 @@ impl BookUi {
                 }
             }
             BookAsk::Learn(spell) => {
-                let name = app
+                let name_term = app
                     .names
-                    .spell(app.game.content().rules.spells.get(spell).num)
-                    .to_string();
+                    .spell_term(app.game.content().rules.spells.get(spell).num);
                 let researching = app
                     .game
                     .wizard(HUMAN)
@@ -587,16 +586,17 @@ impl BookUi {
                     } else {
                         "spell.learn_next"
                     },
-                    &Args::new().text("spell", &name),
+                    &Args::new().term("spell", name_term.clone()),
                 );
                 match app.confirm_box(&text, input) {
                     Some(true) => {
                         self.ask = None;
                         if researching {
                             app.queued_research = Some(spell);
-                            app.log.push(
-                                app.text_with("spell.queued", &Args::new().text("spell", &name)),
-                            );
+                            app.log.push(app.text_with(
+                                "spell.queued",
+                                &Args::new().term("spell", name_term.clone()),
+                            ));
                         } else {
                             let events = app.game.apply(Command::SetResearch {
                                 player: HUMAN,
@@ -983,11 +983,10 @@ impl BookUi {
                 .and_then(|m| m.casting())
                 .map(|c| {
                     app.names
-                        .spell(app.game.content().rules.spells.get(c.spell).num)
-                        .to_string()
+                        .spell_term(app.game.content().rules.spells.get(c.spell).num)
                 })
                 .unwrap_or_default();
-            let question = app.text_with("spell.abort", &Args::new().text("spell", &casting));
+            let question = app.text_with("spell.abort", &Args::new().term("spell", casting));
             match app.confirm_box(&question, input) {
                 Some(true) => {
                     self.replace = None;

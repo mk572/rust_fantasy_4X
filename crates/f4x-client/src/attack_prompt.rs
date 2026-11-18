@@ -240,7 +240,7 @@ impl App {
             ask.amount < ask.reserve && self.red_button(&lay, &more_label, x + 118.0, row, input);
         let amount = crate::font::Style::outlined(5).center();
         self.draw_styled(view, &amount, &ask.amount.to_string(), x + 92.5, row - 1.0);
-        let (ok_label, back_label) = (self.text("attack.mana_ok"), self.text("attack.mana_back"));
+        let (ok_label, back_label) = (self.text("attack.mana_ok"), self.text("ui.back"));
         let at = below + 7.0;
         let ok = self.red_button(&lay, &ok_label, x + 100.0, at, input);
         let back = self.red_button(&lay, &back_label, x + 36.0, at, input);
@@ -404,7 +404,7 @@ impl App {
         let (fight_label, auto_label, cancel_label) = (
             self.text("attack.fight"),
             self.text("attack.auto"),
-            self.text("attack.cancel"),
+            self.text("ui.cancel"),
         );
         let fight = self.red_button(&lay, &fight_label, x + 121.0, at, input);
         let auto = self.red_button(&lay, &auto_label, x + 67.0, at, input);

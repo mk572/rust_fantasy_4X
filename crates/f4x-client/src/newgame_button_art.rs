@@ -130,7 +130,7 @@ impl App {
     ) {
         let held = ui::hit(lay.rect((at.0 - 1.0, at.1 - 1.0, 32.0, 16.0)), true, input).held();
         let fade = if enabled { 1.0 } else { 0.5 };
-        self.draw_board(lay, Board::Small, "ui.button_ok", at, held, fade);
+        self.draw_board(lay, Board::Small, "ui.ok", at, held, fade);
     }
 
     /// A wide wooden button with a gold label, to stand out; true when clicked.

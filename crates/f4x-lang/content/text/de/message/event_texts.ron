@@ -1,0 +1,81 @@
+// Die Sätze der Zufallsereignisse, nach Ereignisnummer und Stimme (siehe `event_message.rs`).
+// Ereignisse: 1 großer Meteor, 2 Geschenk, 3 Auflösung, 4 diplomatische Heirat, 5 Erdbeben,
+// 6 Piraterie, 7 Seuche, 8 Aufstand, 9 Spende, 10 Erschöpfung, 11 neue Mineralien, 12 Bevölkerungsboom,
+// 13 guter Mond, 14 böser Mond, 15 Konjunktion des Chaos, 16 der Natur, 17 der Zauberei, 18 Manamangel.
+// Stimmen: 0 es geschah dir, 1 es endete, 3 es begann für die ganze Welt, 4 es geschah einem Rivalen.
+// Platzhalter wie im Englischen; `{units_s}` ist die Endung für „Einheit“ (leer oder „en“), „Gebäude“ bleibt gleich.
+// Diese Datei liegt in `message/` und nicht in `text/de` selbst: Sie ist eine Liste, keine Tabelle von Schlüsseln.
+[
+    // 1 großer Meteor
+    (event: 1, voice: 0, text: "Ein Meteor schlägt in {size:def_acc} {city} ein, tötet {people} Menschen und {units} Einheit{units_s} und macht {buildings} Gebäude dem Erdboden gleich."),
+    (event: 1, voice: 4, text: "Ein Meteor hat {size:def_acc} {city} von {player} getroffen, {people} Menschen und {units} Einheit{units_s} getötet und {buildings} Gebäude dem Erdboden gleichgemacht."),
+
+    // 2 Geschenk
+    (event: 2, voice: 0, text: "Ein Geschenk des Himmels! Ein vergessener Gott kehrt zurück und legt dir {item:def_acc} zu Füßen."),
+    (event: 2, voice: 4, text: "Die Götter haben {player} mit {item:def_dat} bedacht."),
+
+    // 3 Auflösung
+    (event: 3, voice: 3, text: "Auflösung! Ein Beben geht durch das Gewebe der Magie, und jede Verzauberung der Welt wird aufgetrennt."),
+
+    // 4 diplomatische Heirat
+    (event: 4, voice: 0, text: "Eine diplomatische Heirat! {size:Def} {city}, bisher neutral, bittet aus freien Stücken darum, sich dir anzuschließen."),
+    (event: 4, voice: 4, text: "{size:Def} {city}, bisher neutral, hat sich {player} verschrieben."),
+
+    // 5 Erdbeben
+    (event: 5, voice: 0, text: "Erdbeben! Der Boden unter {city} bricht auf, tötet {people} Menschen und {units} Einheit{units_s} und bringt {buildings} Gebäude zum Einsturz."),
+    (event: 5, voice: 4, text: "Ein Erdbeben hat {size:def_acc} {city} von {player} erschüttert, {people} Menschen und {units} Einheit{units_s} getötet und {buildings} Gebäude zum Einsturz gebracht."),
+
+    // 6 Piraterie
+    (event: 6, voice: 0, text: "Piraten! Plünderer von der See sind in deine Schatzkammer eingebrochen und haben {number} Gold davongetragen."),
+    (event: 6, voice: 4, text: "Piraten sollen {player} um {number} Gold erleichtert haben."),
+
+    // 7 Seuche
+    (event: 7, voice: 0, text: "Seuche! Eine tödliche Krankheit breitet sich in {size:def_dat} {city} aus."),
+    (event: 7, voice: 1, text: "Die Krankheit in {city} ist abgeklungen."),
+    (event: 7, voice: 4, text: "Eine Seuche hat {size:def_acc} {city} von {player} getroffen."),
+
+    // 8 Aufstand
+    (event: 8, voice: 0, text: "Aufstand! Die Bewohner von {city} haben deine Herrschaft abgeschüttelt, und der Ort ist nun neutral."),
+    (event: 8, voice: 4, text: "{size:Def} {city} hat sich gegen {player} erhoben und sich für neutral erklärt."),
+
+    // 9 Spende
+    (event: 9, voice: 0, text: "Eine Spende! Ein reicher Gönner, von deiner Sache bewegt, schickt dir {number} Gold."),
+    (event: 9, voice: 4, text: "Ein reicher Gönner hat {player} {number} Gold geschickt."),
+
+    // 10 Erschöpfung
+    (event: 10, voice: 0, text: "Erschöpfung! Das {ore}-Bergwerk bei {city} ist versiegt und gibt nichts mehr her."),
+    (event: 10, voice: 4, text: "Das {ore}-Bergwerk bei {size:def_dat} {city} ist versiegt."),
+
+    // 11 neue Mineralien
+    (event: 11, voice: 0, text: "Ein neuer Fund! Prospektoren melden ein {ore}-Vorkommen nahe {size:def_dat} {city}."),
+    (event: 11, voice: 4, text: "Die Prospektoren von {player} haben ein {ore}-Vorkommen nahe {size:def_dat} {city} gefunden."),
+
+    // 12 Bevölkerungsboom
+    (event: 12, voice: 0, text: "Ein Bevölkerungsboom! Familien strömen in {size:def_acc} {city}, und der Ort wächst doppelt so schnell."),
+    (event: 12, voice: 1, text: "Der Ansturm auf {city} ist vorbei, und das Wachstum ist wieder normal."),
+    (event: 12, voice: 4, text: "{size:Def} {city} von {player} boomt und wächst doppelt so schnell."),
+
+    // 13 guter Mond
+    (event: 13, voice: 1, text: "Der helle Mond ist untergegangen; die Tempel des Guten haben wieder ihre gewohnte Kraft."),
+    (event: 13, voice: 3, text: "Der gute Mond! Ein heller Mond geht über der Welt auf, und die Tempel des Guten geben doppelte Kraft."),
+
+    // 14 böser Mond
+    (event: 14, voice: 1, text: "Der dunkle Mond ist untergegangen; die Tempel des Bösen haben wieder ihre gewohnte Kraft."),
+    (event: 14, voice: 3, text: "Der böse Mond! Ein dunkler Mond geht über der Welt auf, und die Tempel des Bösen geben doppelte Kraft."),
+
+    // 15 Konjunktion des Chaos
+    (event: 15, voice: 1, text: "Die roten Sterne sind auseinandergedriftet; die Chaosknoten geben wieder ihre gewohnte Kraft."),
+    (event: 15, voice: 3, text: "Eine Konjunktion des Chaos! Drei rote Sterne treffen sich am Himmel: Die Chaosknoten geben doppelte Kraft, alle anderen Knoten nur die Hälfte."),
+
+    // 16 Konjunktion der Natur
+    (event: 16, voice: 1, text: "Die grünen Sterne sind auseinandergedriftet; die Naturknoten geben wieder ihre gewohnte Kraft."),
+    (event: 16, voice: 3, text: "Eine Konjunktion der Natur! Drei grüne Sterne treffen sich am Himmel: Die Naturknoten geben doppelte Kraft, alle anderen Knoten nur die Hälfte."),
+
+    // 17 Konjunktion der Zauberei
+    (event: 17, voice: 1, text: "Die blauen Sterne sind auseinandergedriftet; die Zauberknoten geben wieder ihre gewohnte Kraft."),
+    (event: 17, voice: 3, text: "Eine Konjunktion der Zauberei! Drei blaue Sterne treffen sich am Himmel: Die Zauberknoten geben doppelte Kraft, alle anderen Knoten nur die Hälfte."),
+
+    // 18 Manamangel
+    (event: 18, voice: 1, text: "Der Mangel ist vorüber. Die Magie fließt wieder wie eh und je."),
+    (event: 18, voice: 3, text: "Manamangel! Jede Quelle der Magie in der Welt ist trüb geworden."),
+]

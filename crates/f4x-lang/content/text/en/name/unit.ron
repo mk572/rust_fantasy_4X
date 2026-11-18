@@ -6,7 +6,7 @@
     3: "Dervish",  // dervish
     4: "Beastmaster",  // beastmaster
     5: "Bard",  // bard
-    6: "Orc Warrior",  // orc_warrior
+    6: (text: "Orc Warrior", an: true),  // orc_warrior
     7: "Healer",  // healer
     8: "Huntress",  // huntress
     9: "Thief",  // thief
@@ -14,7 +14,7 @@
     11: "War Monk",  // war_monk
     12: "Warrior Mage",  // warrior_mage
     13: "Magician",  // magician
-    14: "Assassin",  // assassin
+    14: (text: "Assassin", an: true),  // assassin
     15: "Wind Mage",  // wind_mage
     16: "Ranger",  // ranger
     17: "Draconian",  // draconian
@@ -22,15 +22,15 @@
     19: "Golden One",  // golden_one
     20: "Ninja",  // ninja
     21: "Rogue",  // rogue
-    22: "Amazon",  // amazon
+    22: (text: "Amazon", an: true),  // amazon
     23: "Warlock",  // warlock
-    24: "Unknown",  // unknown
-    25: "Illusionist",  // illusionist
+    24: (text: "Unknown", an: true),  // unknown
+    25: (text: "Illusionist", an: true),  // illusionist
     26: "Swordsman",  // swordsman
     27: "Priestess",  // priestess
     28: "Paladin",  // paladin
     29: "Black Knight",  // black_knight
-    30: "Elven Archer",  // elven_archer
+    30: (text: "Elven Archer", an: true),  // elven_archer
     31: "Knight",  // knight
     32: "Necromancer",  // necromancer
     33: "Chaos Warrior",  // chaos_warrior
@@ -39,163 +39,163 @@
     36: "Galley",  // galley
     37: "Catapult",  // catapult
     38: "Warship",  // warship
-    39: "Spearmen",  // barbarian_spearmen
-    40: "Swordsmen",  // barbarian_swordsmen
-    41: "Bowmen",  // barbarian_bowmen
-    42: "Cavalry",  // barbarian_cavalry
-    43: "Shaman",  // barbarian_shaman
-    44: "Settlers",  // barbarian_settlers
-    45: "Berserkers",  // barbarian_berserkers
-    46: "Spearmen",  // beastmen_spearmen
-    47: "Swordsmen",  // beastmen_swordsmen
-    48: "Halberdiers",  // beastmen_halberdiers
-    49: "Bowmen",  // beastmen_bowmen
-    50: "Priests",  // beastmen_priests
-    51: "Magicians",  // beastmen_magicians
-    52: "Engineers",  // beastmen_engineers
-    53: "Settlers",  // beastmen_settlers
-    54: "Centaurs",  // beastmen_centaurs
-    55: "Manticores",  // beastmen_manticores
-    56: "Minotaurs",  // beastmen_minotaurs
-    57: "Spearmen",  // dark_elf_spearmen
-    58: "Swordsmen",  // dark_elf_swordsmen
-    59: "Halberdiers",  // dark_elf_halberdiers
-    60: "Cavalry",  // dark_elf_cavalry
-    61: "Priests",  // dark_elf_priests
-    62: "Settlers",  // dark_elf_settlers
-    63: "Nightblades",  // dark_elf_nightblades
-    64: "Warlocks",  // dark_elf_warlocks
-    65: "Nightmares",  // dark_elf_nightmares
-    66: "Spearmen",  // draconian_spearmen
-    67: "Swordsmen",  // draconian_swordsmen
-    68: "Halberdiers",  // draconian_halberdiers
-    69: "Bowmen",  // draconian_bowmen
-    70: "Shaman",  // draconian_shaman
-    71: "Magicians",  // draconian_magicians
-    72: "Engineers",  // draconian_engineers
-    73: "Settlers",  // draconian_settlers
-    74: "Doom Drakes",  // draconian_doom_drakes
-    75: "Air Ship",  // draconian_air_ship
-    76: "Swordsmen",  // dwarven_swordsmen
-    77: "Halberdiers",  // dwarven_halberdiers
-    78: "Engineers",  // dwarven_engineers
-    79: "Hammerhands",  // dwarven_hammerhands
-    80: "Steam Cannon",  // dwarven_steam_cannon
-    81: "Golem",  // dwarven_golem
-    82: "Settlers",  // dwarven_settlers
-    83: "Spearmen",  // gnoll_spearmen
-    84: "Swordsmen",  // gnoll_swordsmen
-    85: "Halberdiers",  // gnoll_halberdiers
-    86: "Bowmen",  // gnoll_bowmen
-    87: "Settlers",  // gnoll_settlers
-    88: "Wolf Riders",  // gnoll_wolf_riders
-    89: "Spearmen",  // halfling_spearmen
-    90: "Swordsmen",  // halfling_swordsmen
-    91: "Bowmen",  // halfling_bowmen
-    92: "Shaman",  // halfling_shaman
-    93: "Settlers",  // halfling_settlers
-    94: "Slingers",  // halfling_slingers
-    95: "Spearmen",  // high_elf_spearmen
-    96: "Swordsmen",  // high_elf_swordsmen
-    97: "Halberdiers",  // high_elf_halberdiers
-    98: "Cavalry",  // high_elf_cavalry
-    99: "Magicians",  // high_elf_magicians
-    100: "Settlers",  // high_elf_settlers
-    101: "Longbowmen",  // high_elf_longbowmen
-    102: "Elven Lords",  // high_elf_elven_lords
-    103: "Pegasai",  // high_elf_pegasai
-    104: "Spearmen",  // high_men_spearmen
-    105: "Swordsmen",  // high_men_swordsmen
-    106: "Bowmen",  // high_men_bowmen
-    107: "Cavalry",  // high_men_cavalry
-    108: "Priests",  // high_men_priests
-    109: "Magicians",  // high_men_magicians
-    110: "Engineers",  // high_men_engineers
-    111: "Settlers",  // high_men_settlers
-    112: "Pikemen",  // high_men_pikemen
-    113: "Paladins",  // high_men_paladins
-    114: "Spearmen",  // klackon_spearmen
-    115: "Swordsmen",  // klackon_swordsmen
-    116: "Halberdiers",  // klackon_halberdiers
-    117: "Engineers",  // klackon_engineers
-    118: "Settlers",  // klackon_settlers
-    119: "Stag Beetle",  // klackon_stag_beetle
-    120: "Spearmen",  // lizardman_spearmen
-    121: "Swordsmen",  // lizardman_swordsmen
-    122: "Halberdiers",  // lizardman_halberdiers
-    123: "Javelineers",  // lizardman_javelineers
-    124: "Shaman",  // lizardman_shaman
-    125: "Settlers",  // lizardman_settlers
-    126: "Dragon Turtle",  // lizardman_dragon_turtle
-    127: "Spearmen",  // nomad_spearmen
-    128: "Swordsmen",  // nomad_swordsmen
-    129: "Bowmen",  // nomad_bowmen
-    130: "Priests",  // nomad_priests
-    131: "Magicians",  // nomad_magicians
-    132: "Settlers",  // nomad_settlers
-    133: "Horsebowmen",  // nomad_horsebowmen
-    134: "Pikemen",  // nomad_pikemen
-    135: "Rangers",  // nomad_rangers
-    136: "Griffins",  // nomad_griffins
-    137: "Spearmen",  // orc_spearmen
-    138: "Swordsmen",  // orc_swordsmen
-    139: "Halberdiers",  // orc_halberdiers
-    140: "Bowmen",  // orc_bowmen
-    141: "Cavalry",  // orc_cavalry
-    142: "Shaman",  // orc_shaman
-    143: "Magicians",  // orc_magicians
-    144: "Engineers",  // orc_engineers
-    145: "Settlers",  // orc_settlers
-    146: "Wyvern Riders",  // orc_wyvern_riders
-    147: "Spearmen",  // troll_spearmen
-    148: "Swordsmen",  // troll_swordsmen
-    149: "Halberdiers",  // troll_halberdiers
-    150: "Shaman",  // troll_shaman
-    151: "Settlers",  // troll_settlers
-    152: "War Trolls",  // troll_war_trolls
-    153: "War Mammoths",  // troll_war_mammoths
+    39: (text: "Barbarian Spearmen", plural: true),  // barbarian_spearmen
+    40: (text: "Barbarian Swordsmen", plural: true),  // barbarian_swordsmen
+    41: (text: "Barbarian Bowmen", plural: true),  // barbarian_bowmen
+    42: (text: "Barbarian Cavalry", plural: true),  // barbarian_cavalry
+    43: "Barbarian Shaman",  // barbarian_shaman
+    44: (text: "Barbarian Settlers", plural: true),  // barbarian_settlers
+    45: (text: "Barbarian Berserkers", plural: true),  // barbarian_berserkers
+    46: (text: "Beastmen Spearmen", plural: true),  // beastmen_spearmen
+    47: (text: "Beastmen Swordsmen", plural: true),  // beastmen_swordsmen
+    48: (text: "Beastmen Halberdiers", plural: true),  // beastmen_halberdiers
+    49: (text: "Beastmen Bowmen", plural: true),  // beastmen_bowmen
+    50: (text: "Beastmen Priests", plural: true),  // beastmen_priests
+    51: (text: "Beastmen Magicians", plural: true),  // beastmen_magicians
+    52: (text: "Beastmen Engineers", plural: true),  // beastmen_engineers
+    53: (text: "Beastmen Settlers", plural: true),  // beastmen_settlers
+    54: (text: "Beastmen Centaurs", plural: true),  // beastmen_centaurs
+    55: (text: "Beastmen Manticores", plural: true),  // beastmen_manticores
+    56: (text: "Beastmen Minotaurs", plural: true),  // beastmen_minotaurs
+    57: (text: "Dark Elven Spearmen", plural: true),  // dark_elf_spearmen
+    58: (text: "Dark Elven Swordsmen", plural: true),  // dark_elf_swordsmen
+    59: (text: "Dark Elven Halberdiers", plural: true),  // dark_elf_halberdiers
+    60: (text: "Dark Elven Cavalry", plural: true),  // dark_elf_cavalry
+    61: (text: "Dark Elven Priests", plural: true),  // dark_elf_priests
+    62: (text: "Dark Elven Settlers", plural: true),  // dark_elf_settlers
+    63: (text: "Dark Elven Nightblades", plural: true),  // dark_elf_nightblades
+    64: (text: "Dark Elven Warlocks", plural: true),  // dark_elf_warlocks
+    65: (text: "Dark Elven Nightmares", plural: true),  // dark_elf_nightmares
+    66: (text: "Draconian Spearmen", plural: true),  // draconian_spearmen
+    67: (text: "Draconian Swordsmen", plural: true),  // draconian_swordsmen
+    68: (text: "Draconian Halberdiers", plural: true),  // draconian_halberdiers
+    69: (text: "Draconian Bowmen", plural: true),  // draconian_bowmen
+    70: "Draconian Shaman",  // draconian_shaman
+    71: (text: "Draconian Magicians", plural: true),  // draconian_magicians
+    72: (text: "Draconian Engineers", plural: true),  // draconian_engineers
+    73: (text: "Draconian Settlers", plural: true),  // draconian_settlers
+    74: (text: "Draconian Doom Drakes", plural: true),  // draconian_doom_drakes
+    75: "Draconian Air Ship",  // draconian_air_ship
+    76: (text: "Dwarven Swordsmen", plural: true),  // dwarven_swordsmen
+    77: (text: "Dwarven Halberdiers", plural: true),  // dwarven_halberdiers
+    78: (text: "Dwarven Engineers", plural: true),  // dwarven_engineers
+    79: (text: "Dwarven Hammerhands", plural: true),  // dwarven_hammerhands
+    80: "Dwarven Steam Cannon",  // dwarven_steam_cannon
+    81: "Dwarven Golem",  // dwarven_golem
+    82: (text: "Dwarven Settlers", plural: true),  // dwarven_settlers
+    83: (text: "Gnoll Spearmen", plural: true),  // gnoll_spearmen
+    84: (text: "Gnoll Swordsmen", plural: true),  // gnoll_swordsmen
+    85: (text: "Gnoll Halberdiers", plural: true),  // gnoll_halberdiers
+    86: (text: "Gnoll Bowmen", plural: true),  // gnoll_bowmen
+    87: (text: "Gnoll Settlers", plural: true),  // gnoll_settlers
+    88: (text: "Gnoll Wolf Riders", plural: true),  // gnoll_wolf_riders
+    89: (text: "Halfling Spearmen", plural: true),  // halfling_spearmen
+    90: (text: "Halfling Swordsmen", plural: true),  // halfling_swordsmen
+    91: (text: "Halfling Bowmen", plural: true),  // halfling_bowmen
+    92: "Halfling Shaman",  // halfling_shaman
+    93: (text: "Halfling Settlers", plural: true),  // halfling_settlers
+    94: (text: "Halfling Slingers", plural: true),  // halfling_slingers
+    95: (text: "High Elven Spearmen", plural: true),  // high_elf_spearmen
+    96: (text: "High Elven Swordsmen", plural: true),  // high_elf_swordsmen
+    97: (text: "High Elven Halberdiers", plural: true),  // high_elf_halberdiers
+    98: (text: "High Elven Cavalry", plural: true),  // high_elf_cavalry
+    99: (text: "High Elven Magicians", plural: true),  // high_elf_magicians
+    100: (text: "High Elven Settlers", plural: true),  // high_elf_settlers
+    101: (text: "High Elven Longbowmen", plural: true),  // high_elf_longbowmen
+    102: (text: "High Elven Lords", plural: true),  // high_elf_elven_lords
+    103: (text: "High Elven Pegasai", plural: true),  // high_elf_pegasai
+    104: (text: "High Men Spearmen", plural: true),  // high_men_spearmen
+    105: (text: "High Men Swordsmen", plural: true),  // high_men_swordsmen
+    106: (text: "High Men Bowmen", plural: true),  // high_men_bowmen
+    107: (text: "High Men Cavalry", plural: true),  // high_men_cavalry
+    108: (text: "High Men Priests", plural: true),  // high_men_priests
+    109: (text: "High Men Magicians", plural: true),  // high_men_magicians
+    110: (text: "High Men Engineers", plural: true),  // high_men_engineers
+    111: (text: "High Men Settlers", plural: true),  // high_men_settlers
+    112: (text: "High Men Pikemen", plural: true),  // high_men_pikemen
+    113: (text: "High Men Paladins", plural: true),  // high_men_paladins
+    114: (text: "Klackon Spearmen", plural: true),  // klackon_spearmen
+    115: (text: "Klackon Swordsmen", plural: true),  // klackon_swordsmen
+    116: (text: "Klackon Halberdiers", plural: true),  // klackon_halberdiers
+    117: (text: "Klackon Engineers", plural: true),  // klackon_engineers
+    118: (text: "Klackon Settlers", plural: true),  // klackon_settlers
+    119: "Klackon Stag Beetle",  // klackon_stag_beetle
+    120: (text: "Lizardman Spearmen", plural: true),  // lizardman_spearmen
+    121: (text: "Lizardman Swordsmen", plural: true),  // lizardman_swordsmen
+    122: (text: "Lizardman Halberdiers", plural: true),  // lizardman_halberdiers
+    123: (text: "Lizardman Javelineers", plural: true),  // lizardman_javelineers
+    124: "Lizardman Shaman",  // lizardman_shaman
+    125: (text: "Lizardman Settlers", plural: true),  // lizardman_settlers
+    126: "Lizardman Dragon Turtle",  // lizardman_dragon_turtle
+    127: (text: "Nomad Spearmen", plural: true),  // nomad_spearmen
+    128: (text: "Nomad Swordsmen", plural: true),  // nomad_swordsmen
+    129: (text: "Nomad Bowmen", plural: true),  // nomad_bowmen
+    130: (text: "Nomad Priests", plural: true),  // nomad_priests
+    131: (text: "Nomad Magicians", plural: true),  // nomad_magicians
+    132: (text: "Nomad Settlers", plural: true),  // nomad_settlers
+    133: (text: "Nomad Horsebowmen", plural: true),  // nomad_horsebowmen
+    134: (text: "Nomad Pikemen", plural: true),  // nomad_pikemen
+    135: (text: "Nomad Rangers", plural: true),  // nomad_rangers
+    136: (text: "Nomad Griffins", plural: true),  // nomad_griffins
+    137: (text: "Orcish Spearmen", plural: true),  // orc_spearmen
+    138: (text: "Orcish Swordsmen", plural: true),  // orc_swordsmen
+    139: (text: "Orcish Halberdiers", plural: true),  // orc_halberdiers
+    140: (text: "Orcish Bowmen", plural: true),  // orc_bowmen
+    141: (text: "Orcish Cavalry", plural: true),  // orc_cavalry
+    142: (text: "Orcish Shaman", an: true),  // orc_shaman
+    143: (text: "Orcish Magicians", plural: true),  // orc_magicians
+    144: (text: "Orcish Engineers", plural: true),  // orc_engineers
+    145: (text: "Orcish Settlers", plural: true),  // orc_settlers
+    146: (text: "Orcish Wyvern Riders", plural: true),  // orc_wyvern_riders
+    147: (text: "Troll Spearmen", plural: true),  // troll_spearmen
+    148: (text: "Troll Swordsmen", plural: true),  // troll_swordsmen
+    149: (text: "Troll Halberdiers", plural: true),  // troll_halberdiers
+    150: "Troll Shaman",  // troll_shaman
+    151: (text: "Troll Settlers", plural: true),  // troll_settlers
+    152: (text: "Troll War Trolls", plural: true),  // troll_war_trolls
+    153: (text: "Troll War Mammoths", plural: true),  // troll_war_mammoths
     154: "Magic Spirit",  // magic_spirit
-    155: "Hell Hounds",  // hell_hounds
-    156: "Gargoyles",  // gargoyles
+    155: (text: "Hell Hounds", plural: true),  // hell_hounds
+    156: (text: "Gargoyles", plural: true),  // gargoyles
     157: "Fire Giant",  // fire_giant
     158: "Fire Elemental",  // fire_elemental
     159: "Chaos Spawn",  // chaos_spawn
     160: "Chimera",  // chimera
     161: "Doom Bat",  // doom_bat
-    162: "Efreet",  // efreet
+    162: (text: "Efreet", an: true),  // efreet
     163: "Hydra",  // hydra
     164: "Great Drake",  // great_drake
-    165: "Skeletons",  // skeletons
-    166: "Ghouls",  // ghouls
+    165: (text: "Skeletons", plural: true),  // skeletons
+    166: (text: "Ghouls", plural: true),  // ghouls
     167: "Night Stalker",  // night_stalker
-    168: "Werewolves",  // werewolves
+    168: (text: "Werewolves", plural: true),  // werewolves
     169: "Demon",  // demon
-    170: "Wraiths",  // wraiths
-    171: "Shadow Demons",  // shadow_demons
-    172: "Death Knights",  // death_knights
+    170: (text: "Wraiths", plural: true),  // wraiths
+    171: (text: "Shadow Demons", plural: true),  // shadow_demons
+    172: (text: "Death Knights", plural: true),  // death_knights
     173: "Demon Lord",  // demon_lord
-    174: "Zombies",  // zombies
-    175: "Unicorns",  // unicorns
+    174: (text: "Zombies", plural: true),  // zombies
+    175: (text: "Unicorns", plural: true),  // unicorns
     176: "Guardian Spirit",  // guardian_spirit
-    177: "Angel",  // angel
-    178: "Arch Angel",  // arch_angel
-    179: "War Bears",  // war_bears
-    180: "Sprites",  // sprites
-    181: "Cockatrices",  // cockatrices
+    177: (text: "Angel", an: true),  // angel
+    178: (text: "Arch Angel", an: true),  // arch_angel
+    179: (text: "War Bears", plural: true),  // war_bears
+    180: (text: "Sprites", plural: true),  // sprites
+    181: (text: "Cockatrices", plural: true),  // cockatrices
     182: "Basilisk",  // basilisk
-    183: "Giant Spiders",  // giant_spiders
+    183: (text: "Giant Spiders", plural: true),  // giant_spiders
     184: "Stone Giant",  // stone_giant
     185: "Colossus",  // colossus
-    186: "Gorgons",  // gorgons
-    187: "Earth Elemental",  // earth_elemental
+    186: (text: "Gorgons", plural: true),  // gorgons
+    187: (text: "Earth Elemental", an: true),  // earth_elemental
     188: "Behemoth",  // behemoth
     189: "Great Wyrm",  // great_wyrm
     190: "Floating Island",  // floating_island
     191: "Phantom Beast",  // phantom_beast
-    192: "Phantom Warriors",  // phantom_warriors
+    192: (text: "Phantom Warriors", plural: true),  // phantom_warriors
     193: "Storm Giant",  // storm_giant
-    194: "Air Elemental",  // air_elemental
+    194: (text: "Air Elemental", an: true),  // air_elemental
     195: "Djinn",  // djinn
     196: "Sky Drake",  // sky_drake
-    197: "Nagas",  // nagas
+    197: (text: "Nagas", plural: true),  // nagas
 }

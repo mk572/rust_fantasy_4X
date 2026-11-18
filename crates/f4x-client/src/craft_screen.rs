@@ -522,10 +522,12 @@ impl Page for CraftUi {
                     let spell = rules
                         .spells
                         .try_get(spell)
-                        .map_or_else(String::new, |s| app.names.spell(s.num).to_string());
+                        .map_or_else(f4x_lang::text::Term::default, |s| {
+                            app.names.spell_term(s.num)
+                        });
                     let line = app.text_with(
                         "item.name_charges",
-                        &Args::new().text("spell", &spell).count("n", n as i32),
+                        &Args::new().term("spell", spell).count("n", n as i32),
                     );
                     app.draw_styled(view, &power_style(chosen), &line, x, y);
                 } else if col == 2 {

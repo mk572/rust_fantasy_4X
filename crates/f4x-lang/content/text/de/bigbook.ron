@@ -1,0 +1,15 @@
+// Texte des großen Zauberbuchs (Forschung) und der Meldung zum Zauber der Meisterschaft.
+// Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "bigbook.research": "Forschung",
+    "bigbook.spells": "Zauber",
+    "bigbook.choose_research": "Wähle einen neuen Zauber zum Erforschen",
+    "bigbook.research_cost": (count: "turns",
+        one: "Forschungskosten: {cost} (1 Runde)",
+        other: "Forschungskosten: {cost} ({turns} Runden)"),
+    "bigbook.casting_cost": (count: "turns",
+        one: "Zauberkosten: {cost} (1 Runde)",
+        other: "Zauberkosten: {cost} ({turns} Runden)"),
+    "bigbook.mastery_started": "{wizard} hat begonnen, zu wirken:",
+    "bigbook.mastery_name": "Zauber der Meisterschaft",
+}

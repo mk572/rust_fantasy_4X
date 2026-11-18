@@ -1,0 +1,5 @@
+// Texte des Armeenbildschirms. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "army.title": "Die Armeen von {owner}",
+    "army.upkeep": "Unterhalt",
+}

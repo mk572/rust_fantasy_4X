@@ -245,16 +245,18 @@ impl App {
         }
 
         self.draw_global_panel(&lay, rows_in_view);
-        let spell_name = self
+        let spell_name_term = self
             .names
-            .spell(self.game.content().rules.spells.get(pick.spell).num)
-            .to_string();
+            .spell_term(self.game.content().rules.spells.get(pick.spell).num);
         let key = if self.is_binding(pick.spell) {
             "spell.select_to_bind"
         } else {
             "spell.select_to_disjunct"
         };
-        let title = self.text_with(key, &crate::text::Args::new().text("spell", &spell_name));
+        let title = self.text_with(
+            key,
+            &crate::text::Args::new().term("spell", spell_name_term.clone()),
+        );
         self.draw_styled(
             view,
             &Style::nearest(1, WHITE).align(Align::Center),

@@ -8,12 +8,6 @@
     "city.heading_buildings": "Buildings",
     "city.heading_units": "Units",
     "city.heading_producing": "Producing",
-    "city.size_outpost": "Outpost",
-    "city.size_hamlet": "Hamlet",
-    "city.size_village": "Village",
-    "city.size_town": "Town",
-    "city.size_city": "City",
-    "city.size_capital": "Capital",
     "city.built": "The {size} of {city} has completed the construction of the {building}.",
     "city.name_prompt": "Name City",
     // Marks after the race on the title line.

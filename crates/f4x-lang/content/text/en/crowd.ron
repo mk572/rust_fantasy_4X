@@ -6,7 +6,6 @@
     "crowd.move": "Move",
     "crowd.disband": "Disband",
     "crowd.where": "Move {name} to which square?",
-    "crowd.back": "Back",
     "crowd.dir_nw": "NW",
     "crowd.dir_n": "N",
     "crowd.dir_ne": "NE",

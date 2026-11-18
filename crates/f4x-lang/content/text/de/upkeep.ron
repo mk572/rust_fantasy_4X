@@ -1,0 +1,24 @@
+// Texte des Kastens, der erscheint, wenn Mana, Gold oder Nahrung knapp werden oder die
+// Waffenkammer überläuft. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "upkeep.too_many_items": "Zu viele Gegenstände für die Waffenkammer: Markiere, was für Mana aufgelöst wird",
+    "upkeep.mana": "Mana",
+    "upkeep.spell_on": "{spell} auf {target:def_acc}",
+    "upkeep.gold_and_food": "Gold und Nahrung",
+    "upkeep.price_mana": "{n} Mana",
+    "upkeep.price_item": "+{n} Mana",
+    "upkeep.price_gold_food": "{gold} Gold  {food} Nahrung",
+    "upkeep.hero_note": " (Held: seine Gegenstände kommen heim)",
+    "upkeep.ship_note": " ({n} an Bord: segelt zum Ufer)",
+    "upkeep.enough_items": "Genug Gegenstände markiert.",
+    "upkeep.mark_more": "Markiere {n} weitere, sonst wählt das Spiel.",
+    "upkeep.short_mana": "{n} Mana",
+    "upkeep.short_food": "{n} Nahrung",
+    "upkeep.short_gold": "{n} Gold",
+    "upkeep.food_warning": "Manche Einheiten haben nicht genug Nahrung und sterben, wenn du in einer Stadt nicht mehr Bauern einteilst.  Willst du sie sterben lassen?",
+    "upkeep.enough": "Genug: Der Rest ist bezahlt.",
+    "upkeep.short_by": "Es fehlen {missing}: Der teuerste Unterhalt entfällt.",
+    "upkeep.reserves_short": "Die Reserven können nicht alles bezahlen.",
+    "upkeep.click_to_mark": "Klicke, um zu markieren, wer geht.",
+    "upkeep.more_below": "Mehr darunter",
+}

@@ -1,0 +1,38 @@
+// Common words the sentences put in, by key: a city's size, a resource, an ore. A word is a plain
+// string or a term with its tags and forms (docs/text.md). A language has the same file in its own folder.
+{
+    "city_size.outpost": (text: "Outpost", an: true),
+    "city_size.hamlet": "Hamlet",
+    "city_size.village": "Village",
+    "city_size.town": "Town",
+    "city_size.city": "City",
+    "city_size.capital": "Capital",
+
+    "month.january": "January",
+    "month.february": "February",
+    "month.march": "March",
+    "month.april": "April",
+    "month.may": "May",
+    "month.june": "June",
+    "month.july": "July",
+    "month.august": "August",
+    "month.september": "September",
+    "month.october": "October",
+    "month.november": "November",
+    "month.december": "December",
+
+    "resource.mana": "mana",
+    "resource.gold": "gold",
+    "resource.food": "food",
+
+    // What a mine or a deposit is of ("an iron deposit"), by the mineral's id.
+    "ore.iron_ore": (text: "iron", an: true),
+    "ore.coal": "coal",
+    "ore.silver_ore": "silver",
+    "ore.gold_ore": "gold",
+    "ore.gem": "gem",
+    "ore.mithril_ore": "mithril",
+    "ore.adamantium_ore": (text: "adamantium", an: true),
+    "ore.quork_crystal": "quork",
+    "ore.crysx_crystal": "crysx",
+}

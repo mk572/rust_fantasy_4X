@@ -32,7 +32,7 @@ impl App {
                 // The realm's art folder is named by its alias.
                 self.game.content().rules.realms.get(def.realm).id.clone(),
                 summons,
-                self.names.spell(def.num).to_string(),
+                self.names.spell_term(def.num),
                 f4x_core::battle::field::Field::of(def).is_some(),
             )
         };
@@ -53,14 +53,14 @@ impl App {
                 "battle.side_cast",
                 &Args::new()
                     .text("caster", self.player_label(before.player_of(side)))
-                    .text("spell", &name),
+                    .term("spell", name.clone()),
             ),
             Err(unit) => {
                 let u = before.unit(unit)?;
                 let args = Args::new()
-                    .text("unit", self.battle_unit_name(u))
+                    .term("unit", self.battle_unit_term(u))
                     .count("figures", u.figures_start)
-                    .text("spell", &name);
+                    .term("spell", name.clone());
                 self.text_with("battle.unit_cast", &args)
             }
         };

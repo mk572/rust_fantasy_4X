@@ -40,7 +40,7 @@ impl Action {
             Action::Build => "ui.button_build",
             Action::Meld => "ui.button_meld",
             Action::Purify => "ui.button_purify",
-            Action::Ok => "ui.button_ok",
+            Action::Ok => "ui.ok",
             Action::Cancel => "ui.button_cancel",
         }
     }

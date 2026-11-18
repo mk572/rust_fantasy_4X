@@ -1,0 +1,8 @@
+// Texte der Ruhmeshalle. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "hall.title": "Ruhmeshalle",
+    "hall.master": "Meister",
+    "hall.read_failed": "Die Ruhmeshalle konnte nicht gelesen werden: {why}",
+    "hall.rank": "{n})",
+    "hall.of_the": "{name} vom Volk der {race}",
+}

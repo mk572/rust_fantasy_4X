@@ -1,0 +1,27 @@
+// Texte des Fensters, das zeigt, woher die Ressource einer Stadt kommt (ein Klick auf ihre Zeile im
+// Stadtbildschirm). Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "breakdown.food": "Nahrung",
+    "breakdown.production": "Produktion",
+    "breakdown.gold": "Gold",
+    "breakdown.power": "Kraft",
+    "breakdown.research": "Forschung",
+    "breakdown.farmers": "Bauern",
+    "breakdown.workers": "Arbeiter",
+    "breakdown.taxes": "Steuern",
+    "breakdown.dwarves": "Zwergensteuern",
+    "breakdown.mines": "Minen",
+    "breakdown.trade": "Handel",
+    "breakdown.terrain": "Gelände",
+    "breakdown.wild_game": "Wild",
+    "breakdown.citizens": "Bürger",
+    "breakdown.trade_goods": "Handelsgüter",
+    "breakdown.beyond_land": "Über die Nahrung des Landes hinaus",
+    "breakdown.other": "Sonstiges",
+    "breakdown.adjustment": "Schwierigkeit und Grenzen",
+    "breakdown.total": "Gesamt",
+    "breakdown.eaten": "Von den Bürgern gegessen",
+    "breakdown.upkeep": "Unterhalt",
+    "breakdown.net": "Netto",
+    "breakdown.title": "{resource} von {city}",
+}

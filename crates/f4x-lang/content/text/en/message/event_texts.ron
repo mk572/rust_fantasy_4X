@@ -5,7 +5,7 @@
 // sorcery, 18 mana short.
 // Voices: 0 it happened to you, 1 it ended, 3 it began for the whole world, 4 it happened to a rival.
 // Placeholders: {city} {size} {player} {number} {ore} {item} {units} {people} {buildings}, and the
-// plural endings {units_s} and {buildings_s}. `a{ore}` gives "a coal" or "an iron" (use `A{ore}` at the start of a sentence).
+// plural endings {units_s} and {buildings_s}. `{ore:a}` gives "a coal" or "an iron" (use `{ore:A}` at the start of a sentence).
 // This file is in `message/` and not in `text/en` itself: it is a list, not a map of keys.
 [
     // 1 great meteor
@@ -45,12 +45,12 @@
     (event: 9, voice: 4, text: "A rich patron has sent {player} {number} gold."),
 
     // 10 depletion
-    (event: 10, voice: 0, text: "Depletion! A{ore} mine at {city} has run dry and gives nothing more."),
-    (event: 10, voice: 4, text: "A{ore} mine at the {size} of {city} has run dry."),
+    (event: 10, voice: 0, text: "Depletion! {ore:A} mine at {city} has run dry and gives nothing more."),
+    (event: 10, voice: 4, text: "{ore:A} mine at the {size} of {city} has run dry."),
 
     // 11 new minerals
-    (event: 11, voice: 0, text: "A new find! Prospectors report a{ore} deposit near the {size} of {city}."),
-    (event: 11, voice: 4, text: "The prospectors of {player} have found a{ore} deposit near the {size} of {city}."),
+    (event: 11, voice: 0, text: "A new find! Prospectors report {ore:a} deposit near the {size} of {city}."),
+    (event: 11, voice: 4, text: "The prospectors of {player} have found {ore:a} deposit near the {size} of {city}."),
 
     // 12 population boom
     (event: 12, voice: 0, text: "A population boom! Families flock to the {size} of {city}, and it grows twice as fast."),

@@ -117,7 +117,7 @@
     "diplomacy.goods_gold": "{gold} gold",
     "diplomacy.goods_spell": "the spell {name}",
     "diplomacy.goods_item": "the item {name}",
-    "diplomacy.goods_unit": "a {name} (level {level})",
+    "diplomacy.goods_unit": "{name:a} (level {level})",
     "diplomacy.goods_hero": "the hero {name} (level {level})",
     "diplomacy.goods_join": ", ",
     "diplomacy.goods_nothing": "nothing",

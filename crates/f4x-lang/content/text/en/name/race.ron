@@ -1,17 +1,17 @@
-// The names of the race definitions, by the definition's number (`num` in races.ron): the name and its plural. A language has the same file in its own folder.
+// The names of the race definitions, by the definition's number (`num` in races.ron): the name, its plural and its adjective ("Dwarf", "Dwarves", "Dwarven" for "Dwarven Spearmen"). A language has the same file in its own folder.
 {
-    0: ("Barbarian", "Barbarians"),  // barbarian
-    1: ("Beastmen", "Beastmen"),  // beastmen
-    2: ("Dark Elf", "Dark Elves"),  // dark_elf
-    3: ("Draconian", "Draconians"),  // draconian
-    4: ("Dwarven", "Dwarves"),  // dwarven
-    5: ("Gnoll", "Gnolls"),  // gnoll
-    6: ("Halfling", "Halflings"),  // halfling
-    7: ("High Elf", "High Elves"),  // high_elf
-    8: ("High Men", "High Men"),  // high_men
-    9: ("Klackon", "Klackons"),  // klackon
-    10: ("Lizardman", "Lizardmen"),  // lizardman
-    11: ("Nomad", "Nomads"),  // nomad
-    12: ("Orc", "Orcs"),  // orc
-    13: ("Troll", "Trolls"),  // troll
+    0: ("Barbarian", "Barbarians", "Barbarian"),  // barbarian
+    1: ("Beastmen", "Beastmen", "Beastmen"),  // beastmen
+    2: ("Dark Elf", "Dark Elves", "Dark Elven"),  // dark_elf
+    3: ("Draconian", "Draconians", "Draconian"),  // draconian
+    4: ("Dwarf", "Dwarves", "Dwarven"),  // dwarven
+    5: ("Gnoll", "Gnolls", "Gnoll"),  // gnoll
+    6: ("Halfling", "Halflings", "Halfling"),  // halfling
+    7: ("High Elf", "High Elves", "High Elven"),  // high_elf
+    8: ("High Men", "High Men", "High Men"),  // high_men
+    9: ("Klackon", "Klackons", "Klackon"),  // klackon
+    10: ("Lizardman", "Lizardmen", "Lizardman"),  // lizardman
+    11: ("Nomad", "Nomads", "Nomad"),  // nomad
+    12: ("Orc", "Orcs", "Orcish"),  // orc
+    13: ("Troll", "Trolls", "Troll"),  // troll
 }

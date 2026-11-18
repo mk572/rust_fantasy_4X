@@ -6,7 +6,7 @@
 //! `USW_Build_Effect_List`). The numbers in the tables below are picture indexes into the
 //! original's `special.lbx` (and `special2.lbx` from 111 on), not art.
 
-use crate::text::{Args, Texts};
+use crate::text::{Args, Term, Texts};
 use f4x_core::battle::{Battle, BattleUnit, RangedKind};
 use f4x_def::rules::Ability;
 use f4x_def::rules::SpellId;
@@ -94,8 +94,10 @@ pub(crate) struct SheetUpkeep {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Sheet {
     pub source: Source,
-    pub race: Option<String>,
+    /// The unit's whole name, its race included ("Dwarven Swordsmen"): a language words it as it likes.
     pub name: String,
+    /// The same name as a term, for the messages that need a form of it.
+    pub term: Term,
     /// The unit type number the figure pictures use, and the owner's banner.
     pub unit_type: Option<usize>,
     pub banner: u8,
@@ -783,8 +785,8 @@ impl App {
         let art = self.art.unit_entry(&def.id);
         Some(Sheet {
             source: Source::Overland(unit),
-            race: self.sheet_race(def),
             name: self.names.unit(def.num).to_string(),
+            term: self.names.unit_term(def.num),
             unit_type: art
                 .as_ref()
                 .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry)),
@@ -925,8 +927,8 @@ impl App {
         let ranged = stat(Stat::Ranged);
         Sheet {
             source: Source::Offer,
-            race: self.sheet_race(def),
             name: self.names.unit(def.num).to_string(),
+            term: self.names.unit_term(def.num),
             unit_type: self
                 .art
                 .unit_entry(&def.id)
@@ -972,17 +974,6 @@ impl App {
             portrait: self.art.hero_portrait(&def.id)?,
             name: name.to_string(),
         })
-    }
-
-    /// The race prefix of a race-specific unit's name ("High Elf" in "High Elf Magicians"):
-    /// units of a race show it, creatures and heroes do not.
-    fn sheet_race(&self, def: &f4x_def::rules::UnitDef) -> Option<String> {
-        let race = def.race?;
-        Some(
-            self.names
-                .race(self.game.content().rules.races.get(race).num)
-                .to_string(),
-        )
     }
 
     /// The sheet of a unit in the battle on screen.
@@ -1044,8 +1035,8 @@ impl App {
         let art = self.art.unit_entry(&def.id);
         Some(Sheet {
             source: Source::Battle(id),
-            race: self.sheet_race(def),
             name: self.names.unit(def.num).to_string(),
+            term: self.names.unit_term(def.num),
             unit_type: art
                 .as_ref()
                 .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry)),

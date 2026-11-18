@@ -1,0 +1,5 @@
+// Die Namen der Erfahrungsstufen nach der Nummer des Stufenpfads (`num` in level_paths.ron): die Stufen der Reihe nach, dann die Bonusstufen.
+{
+    1: ["Held", "Myrmidone", "Hauptmann", "Kommandant", "Champion", "Lord", "Großlord", "Superheld", "Halbgott"],
+    2: ["Rekrut", "Gefreiter", "Veteran", "Elite", "Ultra-Elite", "Champion"],
+}

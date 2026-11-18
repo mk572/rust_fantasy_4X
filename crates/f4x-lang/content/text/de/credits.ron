@@ -1,0 +1,19 @@
+// Texte des Abspanns. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "credits.title": "Fantasy 4X",
+    "credits.tagline": "Ein 4X-Spiel im Stil von Master of Magic, geschrieben in Rust",
+    "credits.inspired_head": "Inspiriert von",
+    "credits.inspired_game": "Master of Magic",
+    "credits.inspired_by": "von SimTex, 1994 von MicroProse veröffentlicht",
+    "credits.licence_head": "Lizenz",
+    "credits.licence_1": "Der Code und die Inhalte dieses Repositorys",
+    "credits.licence_2": "stehen unter CC0 1.0",
+    "credits.software_head": "Software",
+    "credits.software_engine": "macroquad und die Rust-Crates aus Cargo.lock",
+    "credits.software_mt32": "mt32-rs, LGPL-2.1-or-later",
+    "credits.art_head": "Grafik und Ton",
+    "credits.art_1": "Die Bilder, die Musik und die Klänge, die du siehst und hörst,",
+    "credits.art_2": "stammen aus deiner eigenen Kopie des Originalspiels",
+    "credits.art_3": "und sind nicht Teil dieses Repositorys",
+    "credits.leave": "Klicken oder Esc drücken zum Verlassen",
+}

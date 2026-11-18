@@ -85,7 +85,7 @@ enum PanelKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TurnOff {
     pub spell: f4x_def::rules::SpellId,
-    pub name: String,
+    pub name: f4x_lang::text::Term,
     /// Land units that drown when the spell goes (this one and perhaps others).
     pub drowned: usize,
 }
@@ -161,8 +161,7 @@ impl App {
                 spell,
                 name: self
                     .names
-                    .spell(self.game.content().rules.spells.get(spell).num)
-                    .to_string(),
+                    .spell_term(self.game.content().rules.spells.get(spell).num),
                 drowned: self.game.drowned_if_off(unit, spell),
             }),
             _ => None,
@@ -254,7 +253,7 @@ impl App {
         if let (Some(hero), false) = (&sheet.hero, production) {
             self.draw_pic(lay, "portrait", hero.portrait, 0, px + 9.0, py + 7.0);
             self.draw_pic(lay, "unitview", 33, 0, px + 8.0, py + 6.0);
-            let kind = self.text_with("unit.the", &Args::new().text("type", &sheet.name));
+            let kind = self.text_with("unit.the", &Args::new().term("type", sheet.term.clone()));
             if hero.name.is_empty() {
                 // A hero whose own name is not known here (a unit in a battle): its kind only.
                 self.draw_styled(view, &Style::unit_view(4), &kind, name_x, py + 11.0);
@@ -270,22 +269,7 @@ impl App {
             }
             self.draw_sheet_figures(lay, sheet, px + ox + 11.0, py - 3.0);
 
-            // Name: a race's unit shows the race first.
-            match &sheet.race {
-                Some(race) => {
-                    let w = self.draw_styled(view, &Style::unit_view(4), race, name_x, py + name_y);
-                    self.draw_styled(
-                        view,
-                        &Style::unit_view(4),
-                        &sheet.name,
-                        name_x + w + 5.0,
-                        py + name_y,
-                    );
-                }
-                None => {
-                    self.draw_styled(view, &Style::unit_view(4), &sheet.name, name_x, py + name_y);
-                }
-            }
+            self.draw_styled(view, &Style::unit_view(4), &sheet.name, name_x, py + name_y);
         }
 
         // The rank's picture in the top right corner, right-aligned, and its text under it.
@@ -404,7 +388,9 @@ impl App {
                     let drowned = self.game.drowned_if_off(unit, spell);
                     panel.turn_off = Some(TurnOff {
                         spell,
-                        name: special.name.clone(),
+                        name: self
+                            .names
+                            .spell_term(self.game.content().rules.spells.get(spell).num),
                         drowned,
                     });
                 }
@@ -614,7 +600,10 @@ impl SheetUi {
     fn dismiss_confirmation(&mut self, app: &mut App, lay: &Layout, sheet: &Sheet, input: &Input) {
         let text = match &sheet.hero {
             Some(hero) => app.text_with("unit.dismiss_hero", &Args::new().text("hero", &hero.name)),
-            None => app.text_with("unit.disband", &Args::new().text("unit", &sheet.name)),
+            None => app.text_with(
+                "unit.disband",
+                &Args::new().term("unit", sheet.term.clone()),
+            ),
         };
         match app.confirmation_box(lay, &text, input) {
             Some(true) => {
@@ -639,7 +628,10 @@ impl SheetUi {
             self.panel.turn_off = None;
             return;
         };
-        let mut text = app.text_with("sell.turn_off", &Args::new().text("spell", &ask.name));
+        let mut text = app.text_with(
+            "sell.turn_off",
+            &Args::new().term("spell", ask.name.clone()),
+        );
         match ask.drowned {
             0 => {}
             1 => text.push_str(&app.text("unit.dies_one")),

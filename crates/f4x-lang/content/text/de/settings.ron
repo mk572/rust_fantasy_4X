@@ -1,0 +1,12 @@
+// Texte des Einstellungsbildschirms. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "settings.sound": "Ton und Musik",
+    "settings.messages": "Meldungen",
+    "settings.combat": "Kampf",
+    "settings.display": "Anzeige",
+    "settings.game": "Spiel...",
+    "settings.default_game": "Standardeinstellungen für neue Spiele",
+    "settings.music_volume": "Musik",
+    "settings.effects_volume": "Effekte",
+    "settings.save_failed": "Die Einstellungen konnten nicht gespeichert werden: {why}",
+}

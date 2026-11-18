@@ -433,7 +433,7 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
   original's unused string; the original's code prints "UNITS KILLED" over that list, which reads
   as a slip. U, D, the arrows and the wheel scroll a long scroll; the original has the keys as an
   empty TODO. Colours and the speed of the unrolling are chosen by eye.
-- **The Settings page keeps its switches in `saves/preferences.txt`** (one `name=0|1` line each),
+- **The Settings page keeps its switches in `settings/preferences.txt`** (one `name=0|1` line each),
   not in a binary `MAGIC.SET` with the hall of fame and save names beside them. Escape saves them
   too; the original writes only on OK. A **Game...** button leads to the game's own settings
   (task 94), which the original keeps on the new-game screens. Random Events is a rules switch here

@@ -105,7 +105,7 @@ impl App {
         self.craft_blank(
             lay,
             (1, OK),
-            "craft.ok",
+            "ui.button_ok_mixed",
             (3, rgb(166, 134, 105)),
             at,
             4.0,

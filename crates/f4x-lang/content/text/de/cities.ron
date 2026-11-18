@@ -1,0 +1,13 @@
+// Texte der Städteliste. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "cities.title": "Die Städte von {owner}",
+    "cities.name": "Name",
+    "cities.race": "Volk",
+    "cities.pop": "Einw",
+    "cities.gold": "Gold",
+    "cities.prd": "Prd",
+    "cities.producing": "Produziert",
+    "cities.time": "Zeit",
+    "cities.reserve_gold": "{n}GM",
+    "cities.reserve_mana": "{n}MP",
+}

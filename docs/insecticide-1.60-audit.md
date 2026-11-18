@@ -433,7 +433,7 @@ All rows **present** or **n/a** but the Artificer treasure above: fleeing withou
 | Automatic Combat reverts to Strategic Combat Only | **present** (`Pref::StrategicCombatOnly`) |
 | Backup Saves help text | **client check** |
 | Revolting Raiders, Monsters Gone Wild are chosen before the game | **present**: world settings, fixed for the game |
-| Key binding editor | **left**: bindings are the file `hotkeys.ron` (player's `saves/hotkeys.ron`, mods); no in-game editor |
+| Key binding editor | **left**: bindings are the file `hotkeys.ron` (player's `settings/hotkeys.ron`, mods); no in-game editor |
 | Original hotkeys as dynamic bindings | **present** for the overland map (`hotkeys.ron`); the screens' own keys stay as they are |
 | Quick Load | **present** (Ctrl+L) |
 | Quit Without Saving | **new**: Ctrl+Q asks, then ends the program with no auto-save (`QuitAsk`) |

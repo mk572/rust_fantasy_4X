@@ -262,3 +262,156 @@ fn looks_like_text(lit: &str) -> bool {
         .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "_.:/-".contains(c));
     has_word && !id && !ART.contains(&lit)
 }
+
+/// The keys of `name/word.ron` (`Names::word`), and the part before the dot of each.
+fn words() -> Result<BTreeSet<String>, Box<dyn Error>> {
+    let path = root().join("crates/f4x-lang/content/text/en/name/word.ron");
+    let rows: std::collections::BTreeMap<String, ron::Value> =
+        ron::from_str(&std::fs::read_to_string(path)?)?;
+    Ok(rows.into_keys().collect())
+}
+
+#[test]
+fn every_word_the_code_names_is_written_and_every_word_is_used() -> TestResult {
+    let written = words()?;
+    let groups: Vec<String> = written
+        .iter()
+        .filter_map(|k| k.split_once('.').map(|(g, _)| g.to_string()))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let named = named_in_code(&groups)?;
+    let missing: Vec<_> = named.difference(&written).collect();
+    assert!(
+        missing.is_empty(),
+        "words the code names but word.ron lacks: {missing:?}"
+    );
+    let unused: Vec<_> = written.difference(&named).collect();
+    assert!(
+        unused.is_empty(),
+        "words in word.ron that no code names: {unused:?}"
+    );
+    Ok(())
+}
+
+/// The `Names` accessors that give a plain string although the name has a term (`unit_term`, ...):
+/// a message that takes the string cannot ask for a case, an article or a number.
+const FLAT_NAMES: &[&str] = &[
+    "unit",
+    "ability",
+    "building",
+    "realm",
+    "retort",
+    "spell",
+    "item",
+    "terrain",
+    "feature",
+    "race",
+    "race_adjective",
+    "race_plural",
+    "item_name",
+];
+
+/// The code before its tests, with the comments dropped.
+fn code_of(src: &str) -> String {
+    let body = src.split("\n#[cfg(test)]").next().unwrap_or(src);
+    body.lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Does `expr` call one of the flat accessors, as in `self.names.spell(..)`?
+fn calls_flat_name(expr: &str) -> bool {
+    FLAT_NAMES
+        .iter()
+        .any(|n| expr.contains(&format!("names.{n}(")) || expr.contains(&format!("names\n{n}(")))
+        || expr.split("names").skip(1).any(|rest| {
+            let rest = rest.trim_start();
+            FLAT_NAMES.iter().any(|n| {
+                rest.strip_prefix('.')
+                    .is_some_and(|r| r.trim_start().starts_with(&format!("{n}(")))
+            })
+        })
+}
+
+/// A name of the game (a unit, a spell, an item, ...) goes into a message as a term
+/// (`Args::term`, `Names::spell_term`), never as the string of `Names::spell`: German needs the
+/// gender, the cases and the number of the name, and a string has lost them. A variable or a closure
+/// that holds the flat string and then feeds `Args::text` is caught as well.
+#[test]
+fn a_name_goes_into_a_message_as_a_term() -> TestResult {
+    let mut files = Vec::new();
+    sources(&root().join("crates/f4x-client/src"), &mut files)?;
+    let mut found = Vec::new();
+    for file in files {
+        let name = file
+            .file_name()
+            .ok_or("a source file has no name")?
+            .to_string_lossy()
+            .into_owned();
+        let code = code_of(&std::fs::read_to_string(&file)?);
+        // `.text("key", <value>)`: the value as far as the closing parenthesis of the call.
+        let mut values: Vec<String> = Vec::new();
+        for part in code.split(".text(\"").skip(1) {
+            let Some((_, rest)) = part.split_once("\",") else {
+                continue;
+            };
+            let mut depth = 1;
+            let mut end = rest.len();
+            for (i, c) in rest.char_indices() {
+                match c {
+                    '(' => depth += 1,
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = i;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            values.push(rest[..end].to_string());
+        }
+        // Variables and closures bound to a flat name: `let spell = ...names.spell(..)...;`.
+        let mut bound: Vec<String> = Vec::new();
+        for stmt in code.split("let ").skip(1) {
+            let Some((head, tail)) = stmt.split_once('=') else {
+                continue;
+            };
+            let var = head.trim().trim_start_matches("mut ").trim();
+            let value = tail.split(';').next().unwrap_or("");
+            // A struct literal (`SquareText { .. }`) holds the names, it is not one.
+            let literal = value
+                .trim_start()
+                .chars()
+                .next()
+                .is_some_and(char::is_uppercase);
+            if !literal
+                && !var.is_empty()
+                && var.chars().all(|c| c.is_alphanumeric() || c == '_')
+                && calls_flat_name(value)
+            {
+                bound.push(var.to_string());
+            }
+        }
+        for value in &values {
+            let v = value.trim().trim_start_matches('&');
+            let ident: String = v
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            let held = !ident.is_empty() && bound.contains(&ident);
+            if calls_flat_name(value) || held {
+                found.push(format!("{name}: .text(.., {})", value.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "a name of the game passed as text; pass its term (`Args::term`, `Names::*_term`, docs/text.md):\n{}",
+        found.join("\n")
+    );
+    Ok(())
+}

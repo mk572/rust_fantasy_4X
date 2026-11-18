@@ -1,0 +1,28 @@
+// Texte der Berater (die Info-Liste und die Bildschirme dahinter).
+// Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "advisor.select": "Berater wählen",
+    "advisor.surveyor": "Landvermesser",
+    "advisor.cartographer": "Kartograf",
+    "advisor.apprentice": "Lehrling",
+    "advisor.history": "Geschichte",
+    "advisor.diplomat": "Diplomat",
+    "advisor.chancellor": "Kanzler",
+    "advisor.tax_collector": "Steuereintreiber",
+    "advisor.grand_vizier": "Großwesir",
+    "advisor.mirror": "Spiegel",
+    "advisor.starred": "{name}*",
+    "advisor.key": " (F{n})",
+    "advisor.tax_gold": "{gold} Gold,",
+    "advisor.tax_unrest": "{n}% Unruhe",
+    "advisor.tax_unrest_current": "{n}% Unruhe*",
+    "advisor.tax_title": " Steuer je Einwohner ",
+    "advisor.vizier_off": "Großwesir aus",
+    "advisor.vizier_on": "Großwesir an: Deine Städte wählen ihr nächstes Gebäude selbst",
+    "advisor.vizier_question": "Willst du dem Großwesir erlauben, zu wählen, welche Gebäude deine Städte bauen?",
+    "advisor.history_title": "Geschichte der Macht der Magier",
+    "advisor.date": "{month} {year}",
+    "advisor.arcanus_plane": "Ebene Arcanus",
+    "advisor.myrror_plane": "Ebene Myrror",
+    "advisor.neutral": "Neutral",
+}

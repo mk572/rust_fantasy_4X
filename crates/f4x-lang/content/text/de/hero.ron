@@ -1,0 +1,4 @@
+// Texte über Helden. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "hero.items_to_share": "Ein Held ist gefallen. Seine Gegenstände müssen neu verteilt werden.",
+}

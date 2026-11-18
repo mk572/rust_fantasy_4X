@@ -180,11 +180,11 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (x, y) = FRAME;
         self.draw_pic(&lay, "spellscr", 73, 0, x, y);
-        let size = self.city_size_name(scroll.city);
+        let size = self.city_size_term(scroll.city);
         let name = self.city_name(scroll.city);
         let title = self.text_with(
             "spell.city_scroll_title",
-            &Args::new().text("size", size).text("city", name),
+            &Args::new().term("size", size).text("city", name),
         );
         self.draw_styled(
             view,
@@ -196,13 +196,16 @@ impl App {
             160.0,
             44.0,
         );
-        let spell_name = self.names.spell(scroll.spell.num()).to_string();
+        let spell_name_term = self.names.spell_term(scroll.spell.num());
         let line = if scroll.player == HUMAN {
-            self.text_with("spell.you_cast", &Args::new().text("spell", spell_name))
+            self.text_with(
+                "spell.you_cast",
+                &Args::new().term("spell", spell_name_term.clone()),
+            )
         } else {
             let args = self
                 .wizard_arg(Args::new(), "wizard", scroll.player)
-                .text("spell", spell_name);
+                .term("spell", spell_name_term.clone());
             self.text_with("spell.rival_casts", &args)
         };
         self.draw_styled(view, &Style::outlined(4).center(), &line, 160.0, 164.0);

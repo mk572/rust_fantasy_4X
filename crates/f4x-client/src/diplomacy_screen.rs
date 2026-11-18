@@ -363,7 +363,7 @@ impl App {
         let num = self.game.content().rules.races.get(race).num;
         Some(self.text_with(
             "diplomacy.neutral_name",
-            &Args::new().text("race", self.names.race_plural(num)),
+            &Args::new().term("race", self.names.race_plural_term(num)),
         ))
     }
 
@@ -504,16 +504,15 @@ impl App {
                 ),
             ),
             D::SpellGiven { from, to, spell } if to == HUMAN && from != HUMAN => {
-                let name = self
+                let name_term = self
                     .names
-                    .spell(self.game.content().rules.spells.get(spell).num)
-                    .to_string();
+                    .spell_term(self.game.content().rules.spells.get(spell).num);
                 Some(
                     self.text_with(
                         "diplomacy.gives_spell",
                         &Args::new()
                             .text("wizard", self.diplo_name(from))
-                            .text("spell", name),
+                            .term("spell", name_term.clone()),
                     ),
                 )
             }

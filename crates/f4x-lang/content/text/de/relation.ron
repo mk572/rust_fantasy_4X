@@ -1,0 +1,14 @@
+// Die Wörter der Beziehungsskala zwischen Magiern. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "relation.hate": "Hass",
+    "relation.troubled": "Beunruhigt",
+    "relation.tense": "Angespannt",
+    "relation.restless": "Unruhig",
+    "relation.unease": "Unbehagen",
+    "relation.neutral": "Neutral",
+    "relation.relaxed": "Entspannt",
+    "relation.calm": "Ruhig",
+    "relation.peaceful": "Friedlich",
+    "relation.friendly": "Freundlich",
+    "relation.harmony": "Harmonie",
+}

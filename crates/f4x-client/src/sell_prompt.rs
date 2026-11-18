@@ -10,7 +10,7 @@
 
 use crate::font::Style;
 use crate::input::Input;
-use crate::text::Args;
+use crate::text::{Args, Term};
 use f4x_core::game::Command;
 use f4x_def::rules::BuildingId;
 use macroquad::prelude::*;
@@ -28,23 +28,23 @@ pub(crate) enum SellPrompt {
     Ask {
         city: hecs::Entity,
         building: BuildingId,
-        name: String,
+        name: Term,
         gold: u32,
-        stops: Option<String>,
+        stops: Option<Term>,
     },
     /// The sale is refused, with the reason.
     Refused(String),
     /// "Do you wish to spend N Gold by purchasing a ...?", for the city's production.
     Buy {
         city: hecs::Entity,
-        name: String,
+        name: Term,
         price: f4x_def::half_int::HalfInt,
     },
     /// "Do you wish to turn off the ... spell?", for a spell of the player's on the city.
     TurnOff {
         city: hecs::Entity,
         spell: f4x_def::rules::SpellId,
-        name: String,
+        name: f4x_lang::text::Term,
     },
 }
 
@@ -63,8 +63,8 @@ pub(crate) struct Buttons {
 
 /// Yes (right) and No (left): `resource.lbx` 3 and 4.
 const YES_NO: Buttons = Buttons {
-    right: (Slab::Yes, "ui.button_yes"),
-    left: (Slab::No, "ui.button_no"),
+    right: (Slab::Yes, "ui.yes"),
+    left: (Slab::No, "ui.no"),
     right_key: KeyCode::Y,
     left_key: KeyCode::N,
     elsewhere: true,
@@ -74,8 +74,8 @@ const YES_NO: Buttons = Buttons {
 /// `Raze_City_Prompt`: "Do you wish to completely destroy this city?" Yes (right, Y) razes it and
 /// No (left, N) spares it. Esc spares it; a click elsewhere does nothing.
 pub(crate) const RAZE_OR_SPARE: Buttons = Buttons {
-    right: (Slab::Yes, "ui.button_yes"),
-    left: (Slab::No, "ui.button_no"),
+    right: (Slab::Yes, "ui.yes"),
+    left: (Slab::No, "ui.no"),
     right_key: KeyCode::Y,
     left_key: KeyCode::N,
     elsewhere: false,
@@ -133,18 +133,17 @@ impl App {
         let Some(building) = rules.buildings.id_numbered(def.num) else {
             return;
         };
-        let name = self.names.building(def.num).to_string();
+        let name = self.names.building_term(def.num);
         let eco = self.game.economy();
         let prompt = match eco.first_dependant(city, building) {
             _ if eco.sold_this_turn(city) => SellPrompt::Refused(self.text("sell.one_a_turn")),
-            Some(other) => SellPrompt::Refused(
-                self.text_with(
-                    "sell.required",
-                    &Args::new()
-                        .text("building", &name)
-                        .text("other", self.names.building(rules.buildings.get(other).num)),
+            Some(other) => SellPrompt::Refused(self.text_with(
+                "sell.required",
+                &Args::new().term("building", name.clone()).term(
+                    "other",
+                    self.names.building_term(rules.buildings.get(other).num),
                 ),
-            ),
+            )),
             None => {
                 let Ok(gold) = eco.sale_price(city, building) else {
                     return;
@@ -153,7 +152,7 @@ impl App {
                     .production_needs(city, building)
                     .then(|| eco.city_production(city).item)
                     .flatten()
-                    .map(|item| self.item_name(item));
+                    .map(|item| self.item_term(item));
                 SellPrompt::Ask {
                     city,
                     building,
@@ -193,10 +192,12 @@ impl App {
             SellPrompt::Ask {
                 name, gold, stops, ..
             } => {
-                let args = Args::new().text("building", name).count("gold", *gold);
+                let args = Args::new()
+                    .term("building", name.clone())
+                    .count("gold", *gold);
                 let mut text = self.text_with("sell.ask", &args);
                 if let Some(item) = stops {
-                    let args = Args::new().text("item", item);
+                    let args = Args::new().term("item", item.clone());
                     text += &self.text_with("sell.stops", &args);
                 }
                 text
@@ -205,11 +206,11 @@ impl App {
             SellPrompt::Buy { name, price, .. } => {
                 let args = Args::new()
                     .text("price", self.texts.half_amount(*price))
-                    .text("building", name);
+                    .term("building", name.clone());
                 self.text_with("sell.buy", &args)
             }
             SellPrompt::TurnOff { name, .. } => {
-                self.text_with("sell.turn_off", &Args::new().text("spell", name))
+                self.text_with("sell.turn_off", &Args::new().term("spell", name.clone()))
             }
         };
         let answer = match &prompt {
@@ -438,7 +439,7 @@ mod tests {
     }
 
     fn ask(app: &App, city: hecs::Entity, building: BuildingId) -> SellPrompt {
-        let name = app.names.building(building.num()).to_string();
+        let name = app.names.building_term(building.num());
         SellPrompt::Ask {
             city,
             building,
@@ -538,7 +539,7 @@ mod tests {
             SellPrompt::Ask {
                 city,
                 building,
-                name: String::new(),
+                name: Term::default(),
                 gold,
                 stops: None,
             },

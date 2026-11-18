@@ -450,13 +450,6 @@ impl App {
     }
 }
 
-pub(crate) fn capitalise(s: &str) -> String {
-    let mut c = s.chars();
-    c.next()
-        .map(|f| f.to_uppercase().collect::<String>() + c.as_str())
-        .unwrap_or_default()
-}
-
 impl Page for BigBookUi {
     fn start_test_turn(&mut self, app: &mut App, forward: bool, seconds: f64) {
         Book::start_test_turn(self, app, forward, seconds);

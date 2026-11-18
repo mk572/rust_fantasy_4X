@@ -1,0 +1,6 @@
+// Texte der Liste der Einheiten auf einem Feld. Ein Schlüssel steht nur in einer Datei (docs/text.md).
+{
+    "unit_list.monsters": "Wütende Monster",
+    "unit_list.raiders": "Plünderer",
+    "unit_list.units_of": "Einheiten von {owner}",
+}

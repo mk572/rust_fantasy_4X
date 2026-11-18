@@ -5,7 +5,7 @@
 // Down, Kp0 to Kp9, KpAdd, KpSubtract, KpEnter, Equal, Minus, Comma, Period, Slash, Semicolon,
 // Apostrophe, LeftBracket, RightBracket, Backslash and GraveAccent.
 //
-// To change a key, copy the action into `saves/hotkeys.ron` (yours) or into the `hotkeys.ron` of
+// To change a key, copy the action into `settings/hotkeys.ron` (yours) or into the `hotkeys.ron` of
 // a content folder (a mod) with the keys you want; an action named there replaces the one here,
 // and the rest stay as they are. An empty list turns the action's key off. A key that two
 // actions share does both.

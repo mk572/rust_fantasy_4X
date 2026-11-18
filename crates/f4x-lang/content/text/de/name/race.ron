@@ -1,0 +1,17 @@
+// Die Namen der Völker nach Nummer (`num` in races.ron): Name, Mehrzahl und Eigenschaftswort ("zwergisch", für "zwergische Schwertkämpfer").
+{
+    0: ((text: "Barbar", gender: Masculine), "Barbaren", "barbarisch"),  // barbarian
+    1: ((text: "Tiermensch", gender: Masculine), "Tiermenschen", "tiermenschlich"),  // beastmen
+    2: ((text: "Dunkelelf", gender: Masculine), "Dunkelelfen", "dunkelelfisch"),  // dark_elf
+    3: ((text: "Drakonier", gender: Masculine), "Drakonier", "drakonisch"),  // draconian
+    4: ((text: "Zwerg", gender: Masculine), "Zwerge", "zwergisch"),  // dwarven
+    5: ((text: "Gnoll", gender: Masculine), "Gnolle", "gnollisch"),  // gnoll
+    6: ((text: "Halbling", gender: Masculine), "Halblinge", "halblingisch"),  // halfling
+    7: ((text: "Hochelf", gender: Masculine), "Hochelfen", "hochelfisch"),  // high_elf
+    8: ((text: "Königlicher", gender: Masculine), "Königliche", "königlich"),  // high_men
+    9: ((text: "Klackon", gender: Masculine), "Klackons", "klackonisch"),  // klackon
+    10: ((text: "Echsenmensch", gender: Masculine), "Echsenmenschen", "echsenmenschlich"),  // lizardman
+    11: ((text: "Nomade", gender: Masculine), "Nomaden", "nomadisch"),  // nomad
+    12: ((text: "Ork", gender: Masculine), "Orks", "orkisch"),  // orc
+    13: ((text: "Troll", gender: Masculine), "Trolle", "trollisch"),  // troll
+}
