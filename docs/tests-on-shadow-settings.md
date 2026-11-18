@@ -7,7 +7,7 @@ it"): a test reads the setting from the shipped rules and checks the game does w
 It is a text search for a test that reads the content and asserts a number, so most rows are a
 number used as the input of a scenario (no shadow setting); read each row's assert.
 
-**175 of 2524 tests.**
+**172 of 2513 tests.**
 
 | Crate | Tests |
 |---|---|
@@ -15,7 +15,7 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 | `f4x-ai` | 20 |
 | `f4x-newgame` | 19 |
 | `f4x-tools` | 10 |
-| `f4x-def` | 9 |
+| `f4x-def` | 6 |
 | `f4x-client` | 5 |
 | `f4x-learn` | 4 |
 | `f4x-lang` | 1 |
@@ -424,22 +424,14 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `item_movement_is_in_whole_moves` | 517 | `assert!( (1..=4).contains(&value.floor()) && value.is_whole(), , item.id );` |
-| `shipped_terrain_file_is_valid` | 456 | `assert!(t.id_numbered(4 ).is_some());` |
-| `the_hero_types_and_their_starting_records_are_the_originals` | 346 | `assert_eq!(heroes.len(), 35);` |
+| `item_movement_is_in_whole_moves` | 426 | `assert!( (1..=4).contains(&value.floor()) && value.is_whole(), , item.id );` |
+| `shipped_terrain_file_is_valid` | 380 | `assert!(t.id_numbered(4 ).is_some());` |
 
 ## `crates/f4x-def/src/load/rules.rs`
 
 | Test | Line | First assert with a number |
 |---|---|---|
 | `typed_ids_round_trip` | 1014 | `assert!(rules.units.by_num(9999).is_none());` |
-
-## `crates/f4x-def/src/original/tests.rs`
-
-| Test | Line | First assert with a number |
-|---|---|---|
-| `every_item_power_has_the_originals_types_cost_group_realm_and_books` | 158 | `assert_eq!( (def.cost, def.books), (1500, 6), );` |
-| `every_unit_has_the_abilities_the_originals_flags_give_it` | 485 | `assert!( compared > 100, );` |
 
 ## `crates/f4x-lang/src/names.rs`
 

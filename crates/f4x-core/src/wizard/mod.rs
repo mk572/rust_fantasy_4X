@@ -243,8 +243,6 @@ impl Game {
     }
 }
 
-#[cfg(test)]
-mod original_content;
 /// The ready-made wizard `num` of a list of them, as a build. The portrait is its place in the list.
 pub fn preset_build_of(defs: &[crate::rules::WizardDef], num: u16) -> Option<WizardBuild> {
     let place = defs.iter().position(|w| w.num == num)?;

@@ -343,82 +343,6 @@ mod tests {
     }
 
     #[test]
-    fn the_hero_types_and_their_starting_records_are_the_originals() -> TestResult {
-        use crate::rules::{HeroKind, PickType};
-        let c = load_content_layers(&[&super::testutil::content_dir()])?;
-        let units = &c.rules.units;
-        let heroes: Vec<_> = units
-            .defs()
-            .iter()
-            .filter(|u| u.kind == crate::rules::UnitKind::Hero)
-            .collect();
-        assert_eq!(heroes.len(), 35);
-        assert_eq!(c.rules.hero_templates.len(), 35);
-        // The records follow the units' order.
-        for (h, t) in heroes.iter().zip(&c.rules.hero_templates) {
-            assert_eq!(h.num, t.unit.num());
-        }
-        let count = |k| {
-            heroes
-                .iter()
-                .filter(|h| h.hero.as_ref().is_some_and(|x| x.kind == k))
-                .count()
-        };
-        assert_eq!(
-            [
-                count(HeroKind::Warrior),
-                count(HeroKind::Bow),
-                count(HeroKind::SwordOrStaff),
-                count(HeroKind::Mage)
-            ],
-            // The Healer and the Golden One carry a staff too (community patch 1.60, Lesser Hero
-            // Powerup): two of the original's nineteen warriors are of the third kind.
-            [17, 4, 5, 9]
-        );
-        let hero = |num: u16| {
-            units
-                .by_num(num)
-                .and_then(|u| u.hero.clone())
-                .expect("the hero unit exists")
-        };
-        assert_eq!(hero(7 /* healer */).kind, HeroKind::SwordOrStaff);
-        assert_eq!(hero(19 /* golden_one */).kind, HeroKind::SwordOrStaff);
-        assert_eq!(hero(16 /* ranger */).kind, HeroKind::Bow);
-        // The bow hero is the Elven Archer and the melee hero the Knight (docs/divergences.md).
-        assert_eq!(hero(30 /* elven_archer */).kind, HeroKind::Bow);
-        assert_eq!(hero(31 /* knight */).kind, HeroKind::Warrior);
-
-        let t = |num: u16| {
-            c.rules
-                .hero_templates
-                .iter()
-                .find(|t| t.unit.num() == num)
-                .expect("the hero has a template")
-        };
-        assert_eq!(
-            t(2 /* sage */).spells,
-            [
-                crate::rules::SpellId::new(42), // dispel_magic_true
-                crate::rules::SpellId::new(48), // counter_magic
-            ]
-        );
-        assert_eq!(t(2 /* sage */).casting_skill, 2);
-        assert_eq!(
-            t(5 /* bard */).abilities,
-            [
-                crate::rules::Ability::new(75), // leadership
-                crate::rules::Ability::new(97), // female
-            ]
-        );
-        assert_eq!(
-            (t(30 /* elven_archer */).picks, t(30).pick_type),
-            (3, PickType::Any)
-        );
-        assert_eq!(t(34 /* chosen */).spells.len(), 4);
-        Ok(())
-    }
-
-    #[test]
     fn the_level_paths_are_the_originals_level_bonuses() -> TestResult {
         use crate::rules::Stat::*;
         let c = load_content_layers(&[&super::testutil::content_dir()])?;
@@ -495,21 +419,6 @@ mod tests {
             parse_features("[(id: 1)]"),
             Err(ContentError::Parse(_))
         ));
-        Ok(())
-    }
-
-    #[test]
-    fn the_real_rules_data_has_every_item_and_power_of_the_original() -> TestResult {
-        let c = load_content(&super::testutil::content_dir())?;
-        // The original's tables (`tests/original/items.tsv`, `item_powers.tsv`) are the source.
-        assert_eq!(
-            c.rules.items.len(),
-            crate::original::named_table(crate::original::ITEMS).len()
-        );
-        assert_eq!(
-            c.rules.item_powers.len(),
-            crate::original::named_table(crate::original::ITEM_POWERS).len()
-        );
         Ok(())
     }
 

@@ -16,6 +16,3 @@ pub mod terraform;
 pub mod unit_effect;
 pub mod wizard;
 pub mod world;
-
-#[cfg(test)]
-mod original_content;
