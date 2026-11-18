@@ -54,7 +54,7 @@ The PNG's text chunk `f4x-sheet` holds the cell size and each picture's name and
 
 - the city screen's buildings, `screens/city_screen/cityscape/` (350 pictures), become `cityscape.sheet.png` and its further sheets; the citizens, farmer, worker and rebel of each race (`backgrnd` 45, 59 and 74 plus the race number, filed by `screens.tsv`), become `screens/city_screen/citizens/<race>.sheet.png`, one for each of the 14 races.
 
-Not packed: the other `screens/` (each picture is large already), `art/fonts/`, and `neutral/`, `palette-swap/`, `shots/`
+Not packed: the other `screens/` (each picture is large already), `art/fonts/`, and `neutral/`, `shots/`
 (working files of scripts and the author, never read by the client).
 
 ```
@@ -63,7 +63,7 @@ f4x-extract unpack [assets-local]          every sheet back to PNG files, for th
 ```
 
 Scripts that make or change pictures (`make_banner_colours.py`, `make_banner_flags.py`,
-`palette_swap.py`, `grey_neutral.py`) and `f4x-extract refile` work on loose files: `unpack`, run the script,
+`grey_neutral.py`) and `f4x-extract refile` work on loose files: `unpack`, run the script,
 `pack` again. Every sheet is read back and compared pixel for pixel before a loose file is deleted. Measured
 on 13 November 2026: `art/` went from 19,414 files (108 MB on disk) to 455 files (23 MB); the sheets hold
 21,723 pictures in 14 MB of PNG. `screens/` is still 3,815 loose files (35 MB).
