@@ -56,7 +56,10 @@ mod tests {
                 .ok_or_else(|| format!("{} has no help topic", r.id))?;
             let topic = help.topic(index).ok_or("the value is missing")?;
             for (_, b) in content.rules.buildings.iter() {
-                if !b.buildable_by(f4x_def::rules::RaceId::new(r.num)) {
+                if content
+                    .rules
+                    .building_refused_to_race_itself(b, f4x_def::rules::RaceId::new(r.num))
+                {
                     assert!(
                         topic
                             .text

@@ -732,6 +732,74 @@ mod tests {
         }
     }
 
+    /// Whether a city of `race` is refused `building` for its race.
+    fn refused_for_race(
+        rig: &mut Rig,
+        race: crate::rules::RaceId,
+        building: BuildingId,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        rig.world.insert_one(rig.city, CityRace(race))?;
+        Ok(rig
+            .eco()
+            .can_build(rig.city, ProductionItem::Building(building))
+            == Err(ProductionError::WrongRace))
+    }
+
+    #[test]
+    fn a_city_is_refused_a_building_for_its_race_exactly_when_the_buildings_list_leaves_it_out(
+    ) -> TestResult {
+        let mut rig = Rig::new();
+        let races: Vec<_> = rig.content.rules.races.iter().map(|(id, _)| id).collect();
+        let buildings: Vec<_> = rig
+            .content
+            .rules
+            .buildings
+            .iter()
+            .map(|(id, _)| id)
+            .collect();
+        for &race in &races {
+            for &building in &buildings {
+                let listed = rig
+                    .content
+                    .rules
+                    .buildings
+                    .get(building)
+                    .races
+                    .contains(&race);
+                assert_eq!(
+                    refused_for_race(&mut rig, race, building)?,
+                    !listed,
+                    "race {} building {}",
+                    race.num(),
+                    building.num()
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_building_with_no_race_in_its_list_is_refused_to_every_race() -> TestResult {
+        let mut rig = Rig::new();
+        let races: Vec<_> = rig.content.rules.races.iter().map(|(id, _)| id).collect();
+        let barracks = rig.building(3 /* barracks */);
+        rig.content
+            .rules
+            .buildings
+            .by_num_mut(barracks.num())
+            .ok_or("barracks")?
+            .races
+            .clear();
+        for race in races {
+            assert!(
+                refused_for_race(&mut rig, race, barracks)?,
+                "race {}",
+                race.num()
+            );
+        }
+        Ok(())
+    }
+
     #[test]
     fn what_a_city_may_build_follows_its_race_and_its_buildings() -> TestResult {
         let rig = Rig::new();

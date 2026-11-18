@@ -373,13 +373,8 @@ fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
                 wrong.push(format!("{} {what}: {ours}, original {theirs}", def.id));
             }
         }
-        // A building with no race list is open to every race.
-        let mut cannot: Vec<&str> = buildings
-            .iter()
-            .filter(|b| !b.buildable_by(crate::rules::RaceId::new(def.num)))
-            .map(|b| b.id.as_str())
-            .collect();
-        cannot.sort_unstable();
+        // The original lists the buildings the race is refused outright; a building that needs one
+        // of them is out of reach too, and the list of ours has it left out as well.
         let mut original: Vec<&str> = row["cant_build"]
             .split_whitespace()
             .map(|r| {
@@ -388,10 +383,31 @@ fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
                     .as_str()
             })
             .collect();
+        loop {
+            let before = original.len();
+            for b in buildings {
+                if !original.contains(&b.id.as_str())
+                    && b.requires
+                        .iter()
+                        .any(|&need| original.contains(&c.rules.buildings.get(need).id.as_str()))
+                {
+                    original.push(b.id.as_str());
+                }
+            }
+            if original.len() == before {
+                break;
+            }
+        }
         original.sort_unstable();
+        let mut cannot: Vec<&str> = buildings
+            .iter()
+            .filter(|b| !b.buildable_by(crate::rules::RaceId::new(def.num)))
+            .map(|b| b.id.as_str())
+            .collect();
+        cannot.sort_unstable();
         if cannot != original {
             wrong.push(format!(
-                "{} cannot build {cannot:?}, original {original:?}",
+                "{} cannot build {cannot:?}, original {original:?} and what needs them",
                 def.id
             ));
         }

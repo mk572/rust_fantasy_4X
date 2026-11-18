@@ -322,7 +322,8 @@ pub struct BuildingDef {
     /// and effects) but costs no upkeep.
     #[serde(default)]
     pub replaces: Option<BuildingId>,
-    /// Races that can build it; empty means every race.
+    /// Every race that can build it, complete: a race that cannot build one of the buildings it
+    /// `requires` is not listed. An empty list is a building no race builds.
     #[serde(default)]
     pub races: Vec<Id<RaceDef>>,
     #[serde(default)]
@@ -780,9 +781,28 @@ impl Def for AbilityDef {
 }
 
 impl BuildingDef {
-    /// Whether a city of `race` may build it (a building with no race list is for every race).
+    /// Whether a city of `race` may build it: the race is in the building's list. The list is
+    /// complete (it already accounts for the buildings this one needs), and an empty list is no
+    /// race.
     pub fn buildable_by(&self, race: super::RaceId) -> bool {
-        self.races.is_empty() || self.races.contains(&race)
+        self.races.contains(&race)
+    }
+}
+
+impl Rules {
+    /// Whether `race` is left out of the building's list for its own sake, not because it cannot
+    /// build what the building needs: what the original's help text names as a race's missing
+    /// buildings (`cant_build`).
+    pub fn building_refused_to_race_itself(
+        &self,
+        building: &BuildingDef,
+        race: super::RaceId,
+    ) -> bool {
+        !building.buildable_by(race)
+            && building
+                .requires
+                .iter()
+                .all(|&need| self.buildings.get(need).buildable_by(race))
     }
 }
 

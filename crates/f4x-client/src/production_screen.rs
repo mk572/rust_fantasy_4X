@@ -375,7 +375,7 @@ impl App {
             .filter(|(id, def)| {
                 def.requires.contains(&building)
                     && !built.contains(id)
-                    && (def.races.is_empty() || race.is_some_and(|r| def.buildable_by(r)))
+                    && race.is_some_and(|r| def.buildable_by(r))
             })
             .map(|(_, def)| self.names.building(def.num).to_string())
             .collect()

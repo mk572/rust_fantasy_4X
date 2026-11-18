@@ -174,6 +174,7 @@ Economy and movement
   - The auto-builder (`auto-builder.md`, the human's helper, never the computer wizards') is the exception: a city with a plan gets the plan's next item at once.
   - Not built yet: a queue of the next items (a later task); until then a city has one item in hand.
 - Buildings a newer building replaces keep their effects and requirement value but cost no upkeep.
+- **Which races can build a building is its `races` list in `buildings.ron`, complete.** A race not in the list cannot build it; an empty list is a building no race builds (one that only a spell or an event gives), not one every race builds. The list already accounts for what the building `requires`: a race that cannot build the armorers' guild is not in the war college's list. `requires` says only what must stand first, and the loader refuses a list with a race that cannot build one of the buildings it requires. A mod that changes who can build one building lists the races of the buildings that need it too. A unit is tied to its race by `UnitDef.race` and the race's unit list and to the building it needs, which the race must be able to build (also checked by the loader).
 - A unit with any movement left may always take a step.
 
 Saving

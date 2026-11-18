@@ -211,7 +211,7 @@ Reusable, named bundles of abilities and passive effects: flying, poison touch, 
 ### Building
 ```
 (id: "barracks", name: "Barracks", cost: 100, upkeep: 1, requires: ["city_hall"],
- races: [], effects: [ (when: Passive, target: City, do: Modify(UnitCostPercent, -10)) ])
+ races: ["barbarian", "orc"], effects: [ (when: Passive, target: City, do: Modify(UnitCostPercent, -10)) ])
 ```
 
 ### Realm (magic school)

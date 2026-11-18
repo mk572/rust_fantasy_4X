@@ -808,7 +808,7 @@ impl Game {
             .iter()
             .filter(|(id, d)| {
                 !built.contains(id)
-                    && (d.races.is_empty() || race.is_some_and(|r| d.buildable_by(r)))
+                    && race.is_some_and(|r| d.buildable_by(r))
                     && (!d.coastal || coastal)
             })
             .map(|(id, _)| id)

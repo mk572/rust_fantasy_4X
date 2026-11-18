@@ -478,7 +478,7 @@ fn check_units(r: &Rules, p: &mut Vec<String>) {
                 None => p.push(format!("{who} requires unknown building {}", b.num())),
                 Some(bd) => {
                     if let Some(race) = u.race {
-                        if !bd.races.is_empty() && !bd.races.contains(&race) {
+                        if !bd.races.contains(&race) {
                             p.push(format!(
                                 "{who} requires building {:?}, which its race cannot build",
                                 bd.id
@@ -561,6 +561,20 @@ fn check_buildings(r: &Rules, p: &mut Vec<String>) {
                     b.id,
                     race.num()
                 ));
+            }
+            // The list is complete: a race that cannot build what this needs cannot build this.
+            for &req in &b.requires {
+                if r.buildings
+                    .try_get(req)
+                    .is_some_and(|needed| !needed.races.contains(race))
+                {
+                    p.push(format!(
+                        "building {:?} lists race {}, which cannot build {} that it requires",
+                        b.id,
+                        race.num(),
+                        req.num()
+                    ));
+                }
             }
         }
         if let Some(old) = b.replaces {
@@ -920,6 +934,19 @@ mod tests {
                 ""
             )]),
             "super_sage has no per_level"
+        ));
+    }
+
+    #[test]
+    fn a_race_in_a_buildings_list_that_cannot_build_what_it_needs_is_refused() {
+        // Barbarians cannot build the university the war college needs.
+        assert!(has(
+            &problems(&[(
+                "buildings.ron",
+                "cost: 500, shape: 1, upkeep_gold: 5, requires: [20, 6], races: [1,",
+                "cost: 500, shape: 1, upkeep_gold: 5, requires: [20, 6], races: [0, 1,"
+            )]),
+            "cannot build 20 that it requires"
         ));
     }
 
@@ -1487,9 +1514,9 @@ mod tests {
             ),
             ("maritime_guild", &["barbarian", "high_men", "orc"]),
         ];
-        // The races that can build a building: its own list, and for each building it needs, theirs.
+        // The races that can build a building: its list, which is complete.
         fn builders(rules: &Rules, b: &BuildingDef) -> Vec<String> {
-            let mut races: Vec<String> = rules
+            let races: Vec<String> = rules
                 .races
                 .defs()
                 .iter()
@@ -1503,10 +1530,6 @@ mod tests {
                 })
                 .map(|r| r.id.clone())
                 .collect();
-            for need in &b.requires {
-                let needed = builders(rules, rules.buildings.get(*need));
-                races.retain(|r| needed.contains(r));
-            }
             races
         }
         for (id, expected) in wiki {
