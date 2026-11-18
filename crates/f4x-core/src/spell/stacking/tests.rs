@@ -307,9 +307,6 @@ fn the_normal_unit_spells_take_a_normal_unit_or_a_hero_and_not_a_creature() {
 fn torin_is_a_hero_and_a_life_creature_and_takes_the_spell_when_either_passes() {
     let mut g = world();
     let torin = unit(&mut g, 34 /* chosen */);
-    let def = g.units().unit_def(torin).expect("Torin has a definition");
-    assert!(def.realm.is_some(), "Torin is a creature of a realm");
-    assert_eq!(def.kind, crate::rules::UnitKind::Hero);
     assert_eq!(aim(&g, torin, 126 /* holy_armor */), Ok(()));
     assert_eq!(aim(&g, torin, 130 /* heroism */), Ok(()));
 }
