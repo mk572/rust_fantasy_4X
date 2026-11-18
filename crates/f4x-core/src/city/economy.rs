@@ -1749,35 +1749,32 @@ mod handle_tests {
         let world = World::new();
         let eco = Economy::new(&world, Some(&map), &content);
         let g = map.plane(Plane::Arcanus);
-        assert_eq!(
-            eco.square_food(g, 12, 12),
-            HalfInt::from_raw(3),
-            "grassland: one and a half"
-        );
-        assert_eq!(
-            eco.square_food(g, 5, 5),
-            HalfInt::from_raw(1),
-            "swamp: half a food"
-        );
+        // The terrain row's `food`; a river gives two food whatever it is laid on; water next to
+        // land gives half a food, open sea its own.
+        let food = |t| content.terrains.get(t).ok_or("no terrain").map(|d| d.food);
+        let two = HalfInt::from_int(2);
+        let half = HalfInt::from_raw(1);
+        assert_eq!(eco.square_food(g, 12, 12), food(grass)?, "grassland");
+        assert_eq!(eco.square_food(g, 5, 5), food(swamp)?, "swamp");
         assert_eq!(
             eco.square_food(g, 7, 7),
-            HalfInt::from_raw(4),
+            food(grass)?.max(two),
             "a river: two food"
         );
         assert_eq!(
             eco.square_food(g, 9, 9),
-            HalfInt::from_raw(4),
+            food(sorcery)?,
             "a node square has its own terrain and food"
         );
-        assert_eq!(eco.square_food(g, 2, 2), HalfInt::from_raw(0), "open sea");
+        assert_eq!(eco.square_food(g, 2, 2), food(ocean)?, "open sea");
         assert_eq!(
             eco.square_food(g, 2, 3),
-            HalfInt::from_raw(1),
+            food(ocean)?.max(half),
             "the shore (land one step south)"
         );
         assert_eq!(
             eco.square_food(g, 7, 3),
-            HalfInt::from_raw(1),
+            food(ocean)?.max(half),
             "the shore, diagonally"
         );
         Ok(())
@@ -1831,30 +1828,44 @@ mod handle_tests {
         let world = World::new();
         let eco = Economy::new(&world, Some(&map), &content);
         let g = map.plane(Plane::Arcanus);
+        let def = |t| content.terrains.get(t).ok_or("no terrain");
+        let (two, half) = (HalfInt::from_int(2), HalfInt::from_raw(1));
+        let sea = def(ocean)?.food;
         assert_eq!(
             eco.square_food(g, 5, 5),
-            HalfInt::from_raw(4),
+            sea.max(two),
             "a lake fed by a river"
         );
         assert_eq!(
             eco.square_food(g, 9, 5),
-            HalfInt::from_raw(1),
+            sea.max(half),
             "a lake alone is a shore"
         );
         assert_eq!(
             eco.square_food(g, 15, 1),
-            HalfInt::from_raw(4),
+            sea.max(two),
             "the sea where a river ends"
         );
         assert_eq!(
             eco.square_food(g, 14, 1),
-            HalfInt::from_raw(1),
+            sea.max(half),
             "the shore beside it"
         );
-        assert_eq!(eco.square_production(g, 12, 7, false), 3, "forest");
+        // The terrain row's `production_percent`; Gaia's Blessing doubles a forest and a nature
+        // node; a river square adds nothing.
+        let percent = |t| def(t).map(|d| d.production_percent);
+        assert!(
+            percent(forest)? > 0 && percent(chaos)? > 0,
+            "the test needs them"
+        );
+        assert_eq!(
+            eco.square_production(g, 12, 7, false),
+            percent(forest)?,
+            "forest"
+        );
         assert_eq!(
             eco.square_production(g, 12, 7, true),
-            6,
+            percent(forest)? * 2,
             "forest, Gaia's Blessing"
         );
         assert_eq!(
@@ -1862,18 +1873,26 @@ mod handle_tests {
             0,
             "a river is not the forest"
         );
-        assert_eq!(eco.square_production(g, 16, 7, false), 3, "nature node");
+        assert_eq!(
+            eco.square_production(g, 16, 7, false),
+            percent(nature)?,
+            "nature node"
+        );
         assert_eq!(
             eco.square_production(g, 16, 7, true),
-            6,
+            percent(nature)? * 2,
             "nature node, Gaia's Blessing"
         );
         assert_eq!(
             eco.square_production(g, 17, 7, true),
-            5,
+            percent(chaos)?,
             "chaos node, not doubled"
         );
-        assert_eq!(eco.square_production(g, 18, 7, true), 6, "forest");
+        assert_eq!(
+            eco.square_production(g, 18, 7, true),
+            percent(forest)? * 2,
+            "forest"
+        );
         Ok(())
     }
 }

@@ -473,10 +473,10 @@ fn presets_come_from_the_rules() -> TestResult {
         .preset_build(3 /* lo_pan */)
         .ok_or("preset_build is missing")?;
     assert!(b.preset);
+    // A ready-made wizard spends all the picks a wizard has (`picks.human`).
     assert_eq!(
         b.picks_spent(&game().content.rules),
-        11,
-        "nine books and the Channeler"
+        game().settings.wizards.picks.human,
     );
     g.create_wizard(P0, &b).map_err(|e| format!("{e:?}"))?;
     // His picture is his place in the list, as in the original.

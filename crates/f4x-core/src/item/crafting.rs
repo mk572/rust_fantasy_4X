@@ -684,6 +684,27 @@ mod tests {
         }
     }
 
+    /// What the sword with the plain power `power` is worth (its base and the power's `cost`).
+    fn sword_price(g: &Game, power: u16) -> u32 {
+        cost(&design(ItemKind::Sword, &[power]), &g.content.rules)
+    }
+
+    /// The bonus a plain power adds (its row's `bonus`).
+    fn bonus_of(g: &Game, power: u16) -> i32 {
+        let rules = &g.content.rules;
+        rules
+            .item_powers
+            .get(
+                rules
+                    .item_powers
+                    .id_numbered(power)
+                    .expect("the power exists"),
+            )
+            .bonus
+            .expect("a plain power")
+            .1
+    }
+
     fn check_in(g: &Game, craft: Craft, d: &ItemDesign) -> Result<(), CraftError> {
         check(
             d,
@@ -695,25 +716,36 @@ mod tests {
 
     #[test]
     fn the_cost_is_the_base_plus_each_power_and_a_plain_power_on_a_misc_item_costs_double() {
+        // The power rows' `cost` and `bonus` (a plain power has a bonus), the kinds they fit.
         let g = world(0);
         let rules = &g.content.rules;
-        assert_eq!(
-            cost(&design(ItemKind::Sword, &[1 /* attack_2 */]), rules),
-            200
-        );
-        assert_eq!(
-            cost(&design(ItemKind::Misc, &[1 /* attack_2 */]), rules),
-            250
-        );
-        // A special power is never doubled.
-        assert_eq!(
-            cost(&design(ItemKind::Misc, &[63 /* flight */]), rules),
-            250
-        );
+        let (mut doubled, mut single) = (0, 0);
+        for (id, power) in rules.item_powers.iter() {
+            for &kind in &power.kinds {
+                let d = ItemDesign {
+                    powers: vec![id],
+                    ..design(kind, &[])
+                };
+                let doubles = kind == ItemKind::Misc && power.bonus.is_some();
+                let want = base_cost(kind) + power.cost * if doubles { 2 } else { 1 };
+                assert_eq!(cost(&d, rules), want, "{} on {kind:?}", power.id);
+                doubled += usize::from(doubles);
+                single += usize::from(!doubles);
+            }
+        }
+        assert!(doubled > 0 && single > 0);
+        // An embedded spell: its mana cost times the charges times twenty.
+        let (spell, def) = rules
+            .spells
+            .iter()
+            .find(|(_, d)| d.cost > 0)
+            .expect("a spell with a cost");
         let mut staff = design(ItemKind::Staff, &[]);
-        staff.charges = Some((SpellId::new(4) /* giant_strength */, 3));
-        // 300 base, and the spell's 8 mana times 3 charges times 20.
-        assert_eq!(cost(&staff, rules), 300 + 8 * 3 * 20);
+        staff.charges = Some((spell, 3));
+        assert_eq!(
+            cost(&staff, rules),
+            base_cost(ItemKind::Staff) + def.cost * 3 * 20
+        );
     }
 
     #[test]
@@ -894,19 +926,28 @@ mod tests {
     fn building_an_item_gives_bonuses_armour_extras_and_a_default_name() {
         let g = world(0);
         let rules = &g.content.rules;
+        let power = |n: u16| {
+            rules
+                .item_powers
+                .get(rules.item_powers.id_numbered(n).expect("the power exists"))
+        };
+        let plain = |n: u16| power(n).bonus.expect("a plain power").1;
         let sword = build(
             &design(ItemKind::Sword, &[1 /* attack_2 */, 33 /* flaming */]),
             rules,
         );
-        assert_eq!(sword.bonus.attack, 2);
+        assert_eq!(sword.bonus.attack, plain(1));
         assert_eq!(sword.powers, [ItemPowerId::new(33) /* flaming */]);
-        assert_eq!(sword.cost, 100 + 100 + 300);
+        assert_eq!(
+            sword.cost,
+            base_cost(ItemKind::Sword) + power(1).cost + power(33).cost
+        );
         assert_eq!(sword.name, "");
         assert_eq!(
             sword.made,
             Some(MadeName {
                 kind: TypeName::Sword,
-                bonus: Some(2),
+                bonus: Some(plain(1)),
                 suffix: Some(Suffix::Special(ItemPowerId::new(33) /* flaming */)),
             })
         );
@@ -918,8 +959,8 @@ mod tests {
             ),
             rules,
         );
-        assert_eq!(mail.bonus.defense, 3);
-        assert_eq!(mail.bonus.moves, 2);
+        assert_eq!(mail.bonus.defense, plain(7) + 1);
+        assert_eq!(mail.bonus.moves, HalfInt::from_int(plain(16)));
         assert_eq!(
             mail.made,
             Some(MadeName {
@@ -999,10 +1040,14 @@ mod tests {
                 .ok_or("clone is missing")?
                 .bonus
                 .attack,
-            2
+            bonus_of(&g, 1)
         );
-        assert_eq!(g.tr(0).mana, 2000 - 200);
-        assert_eq!(g.wizard(P0).ok_or("wizard is missing")?.skill_left(), 800);
+        let price = sword_price(&g, 1) as i32;
+        assert_eq!(g.tr(0).mana, 2000 - price);
+        assert_eq!(
+            g.wizard(P0).ok_or("wizard is missing")?.skill_left(),
+            1000 - price
+        );
         assert!(g
             .wizard(P0)
             .ok_or("wizard is missing")?
@@ -1024,13 +1069,15 @@ mod tests {
             craft: Craft::EnchantItem,
             design: design(ItemKind::Sword, &[1 /* attack_2 */]),
         });
-        assert_eq!(g.tr(0).mana, 2000 - 100);
+        // Artificer takes half off the mana (`SpellCostPercent` of its row), not the value.
+        let price = sword_price(&g, 1) as i32;
+        assert_eq!(g.tr(0).mana, 2000 - price / 2);
         assert_eq!(
             g.items().armory(P0).vault[0]
                 .clone()
                 .ok_or("clone is missing")?
                 .cost,
-            200
+            price as u32
         );
         Ok(())
     }
@@ -1046,7 +1093,10 @@ mod tests {
         });
         assert!(events.is_empty(), "{events:?}");
         let m = g.wizard(P0).ok_or("wizard is missing")?;
-        assert_eq!(m.casting().ok_or("casting is missing")?.remaining, 200);
+        assert_eq!(
+            m.casting().ok_or("casting is missing")?.remaining,
+            sword_price(&g, 1) as i32
+        );
         assert!(m.crafting().is_some());
         // A second item cannot be started meanwhile.
         let again = g.apply(Command::CraftItem {
@@ -1073,7 +1123,7 @@ mod tests {
                 .ok_or("clone is missing")?
                 .bonus
                 .attack,
-            2
+            bonus_of(&g, 1)
         );
         assert!(g
             .wizard(P0)

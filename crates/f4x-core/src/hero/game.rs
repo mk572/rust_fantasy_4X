@@ -521,17 +521,25 @@ pub(crate) mod tests {
         let mut g = world();
         g.wiz_mut(0)
             .put(Some(crate::wizard::fortress::Fortress(at(3, 3))));
-        // The Sage has casting skill 2: at level 0, (2 + 1) * 1 * 5 / 2.
+        // The mana is `(casting skill + 1) * (level + 1) * 5 / 2`: the skill is the hero type's
+        // own (`heroes.ron`), at level 0 the level factor is 1.
         let sage = kind_of(&g, 2 /* sage */);
         let h = g
             .spawn_hero(P0, at(3, 3), sage)
             .map_err(|e| format!("{e:?}"))?;
-        assert_eq!(g.units().hero_mana(h), 7);
-        assert_eq!(g.hero_casting_skill(P0), 3);
-        // At the top level the fourth: (2 + 1) * 4 * 5 / 2.
+        let skill = i32::from(g.world.get::<&Hero>(h)?.casting_skill);
+        assert!(
+            skill > 0,
+            "the sage must cast for the test to show anything"
+        );
+        assert_eq!(g.units().hero_mana(h), (skill + 1) * 5 / 2);
+        // Half of it helps at the fortress.
+        assert_eq!(g.hero_casting_skill(P0), g.units().hero_mana(h) / 2);
+        // At a higher level the factor grows with it.
         let _ = g.world.insert_one(h, Experience(120));
         let level = g.units().unit_level(h) as i32 + 1;
-        assert_eq!(g.units().hero_mana(h), 3 * level * 5 / 2);
+        assert!(level > 1);
+        assert_eq!(g.units().hero_mana(h), (skill + 1) * level * 5 / 2);
         // An item's spell skill adds to it.
         let before = g.units().hero_mana(h);
         // A shipped staff with spell skill adds it to the hero's mana.
@@ -551,12 +559,12 @@ pub(crate) mod tests {
         assert_eq!(g.units().hero_mana(h), before + skill);
         // Away from the fortress the hero adds nothing; another wizard's hero never does.
         assert_eq!(g.hero_casting_skill(P0), (before + skill) / 2);
-        // The Beastmaster has casting skill 1: (1 + 1) * 1 * 5 / 2.
         let beast = kind_of(&g, 4 /* beastmaster */);
         let away = g
             .spawn_hero(P0, at(5, 5), beast)
             .map_err(|e| format!("{e:?}"))?;
-        assert_eq!(g.units().hero_mana(away), 5);
+        let own = i32::from(g.world.get::<&Hero>(away)?.casting_skill);
+        assert_eq!(g.units().hero_mana(away), (own + 1) * 5 / 2);
         assert_eq!(g.hero_casting_skill(P0), (before + skill) / 2);
         assert_eq!(g.hero_casting_skill(P1), 0);
         // A hero with no casting skill has no mana, whatever its items.
@@ -778,7 +786,16 @@ pub(crate) mod tests {
             .units()
             .hero_hire_price(P0, 0)
             .ok_or("hero_hire_price is missing")?;
-        assert_eq!(cost, 100);
+        // A hero not yet served costs the `hire_cost` of its unit row.
+        let rules = &g.content.rules;
+        let base = rules
+            .units
+            .get(crate::hero::kind::unit_of(rules, 0).ok_or("unit_of is missing")?)
+            .hero
+            .as_ref()
+            .ok_or("no hero row")?
+            .hire_cost as i32;
+        assert_eq!(cost, base);
         set_xp(&mut g, 0, 10_000);
         let level = crate::hero::kind::level_of(
             &g.content.rules,
@@ -787,7 +804,7 @@ pub(crate) mod tests {
         );
         assert_eq!(
             g.units().hero_hire_price(P0, 0),
-            Some(100 + level as i32 * 100 / 4)
+            Some(base + level as i32 * base / 4)
         );
         g.wizard_mut(crate::player::PlayerId(0))
             .ok_or("wizard_mut is missing")?
@@ -796,7 +813,7 @@ pub(crate) mod tests {
             .insert(crate::wizard::magic::Retort::new(16) /* charismatic */);
         assert_eq!(
             g.units().hero_hire_price(P0, 0),
-            Some((100 + level as i32 * 100 / 4) / 2)
+            Some((base + level as i32 * base / 4) / 2)
         );
         assert_eq!(g.units().hero_hire_price(P0, 99), None);
         Ok(())

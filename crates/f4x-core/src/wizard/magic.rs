@@ -397,18 +397,23 @@ mod tests {
 
     #[test]
     fn summoning_and_crafting_spells_are_told_by_their_data() {
+        // A summoning spell has a `Summon` effect; the crafting ones are Enchant Item and Create
+        // Artifact (the two spells with the craft hook).
         let c = shipped();
-        let def = |id: u16| {
-            c.rules
-                .spells
-                .get(c.rules.spells.id_numbered(id).expect("a shipped spell"))
-        };
-        assert!(is_summoning(def(6 /* war_bears */)));
-        assert!(!is_summoning(def(83 /* fire_bolt */)));
-        assert!(
-            is_crafting(def(207 /* enchant_item */)) && is_crafting(def(211 /* create_artifact */))
-        );
-        assert!(!is_crafting(def(6 /* war_bears */)));
+        let (mut summoning, mut crafting, mut other) = (0, 0, 0);
+        for (_, def) in c.rules.spells.iter() {
+            let summons = def
+                .effects
+                .iter()
+                .any(|r| matches!(r.effect, Effect::Summon { .. }));
+            assert_eq!(is_summoning(def), summons, "{}", def.id);
+            let crafts = def.hook_args(crate::item::crafting::CRAFT_ITEM).is_some();
+            assert_eq!(is_crafting(def), crafts, "{}", def.id);
+            summoning += usize::from(summons);
+            crafting += usize::from(crafts);
+            other += usize::from(!summons && !crafts);
+        }
+        assert!(summoning > 0 && crafting == 2 && other > 0);
     }
 
     #[test]

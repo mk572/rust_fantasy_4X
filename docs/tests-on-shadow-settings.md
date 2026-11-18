@@ -7,11 +7,11 @@ it"): a test reads the setting from the shipped rules and checks the game does w
 It is a text search for a test that reads the content and asserts a number, so most rows are a
 number used as the input of a scenario (no shadow setting); read each row's assert.
 
-**180 of 2525 tests.**
+**175 of 2525 tests.**
 
 | Crate | Tests |
 |---|---|
-| `f4x-core` | 112 |
+| `f4x-core` | 107 |
 | `f4x-ai` | 20 |
 | `f4x-newgame` | 19 |
 | `f4x-tools` | 10 |
@@ -143,15 +143,12 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `a_building_whose_upkeep_the_treasury_cannot_bear_is_skipped` | 223 | `assert_ne!( item, ProductionItem::Building(building(&c, 7 )), );` |
-| `an_elite_plan_leaves_out_the_cheap_fighters` | 565 | `assert!( costs.iter().all(/&k/ k * 100 > CHEAP_UNIT_PCT * dearest), );` |
-| `hunger_and_a_full_city_favour_food_buildings` | 280 | `assert!((building_score(&c, &p, &f, granary) - 2.0 * calm).abs() < 1e-6);` |
-| `low_gold_builds_a_gold_building_then_trade_goods` | 207 | `assert_eq!( choose(&c, &p, &f, &mut first), ProductionItem::Building(building(&c, 26 )) );` |
-| `rebels_call_for_a_building_that_lowers_unrest` | 195 | `assert_eq!( item, ProductionItem::Building(building(&c, 22 )) );` |
-| `settlers_need_room_space_and_a_wish` | 402 | `assert_eq!( choose(&c, &auto, &f, &mut first), ProductionItem::Unit(unit_id(&c, 100 )) );` |
+| `an_elite_plan_leaves_out_the_cheap_fighters` | 575 | `assert!( costs.iter().all(/&k/ k * 100 > CHEAP_UNIT_PCT * dearest), );` |
+| `hunger_and_a_full_city_favour_food_buildings` | 290 | `assert!((building_score(&c, &p, &f, granary) - 2.0 * calm).abs() < 1e-6);` |
+| `settlers_need_room_space_and_a_wish` | 412 | `assert_eq!( choose(&c, &auto, &f, &mut first), ProductionItem::Unit(unit_id(&c, 100 )) );` |
 | `the_garrison_minimum_rises_with_size_a_rival_and_the_defense_focus` | 145 | `assert_eq!( [0, 1, 2, 3, 5, 6, 8, 9, 20].map(garrison_minimum), [0, 1, 1, 2, 2, 3, 3, 4, 4] );` |
-| `the_unit_roll_prefers_the_best_but_varies` | 324 | `assert!(ids.len() >= 2 && ids.len() <= ranked.len());` |
-| `upkeep_and_abilities_count_in_a_units_worth` | 585 | `assert!(lifetime_cost(spear) > 10.0 * spear.cost as f32);` |
+| `the_unit_roll_prefers_the_best_but_varies` | 334 | `assert!(ids.len() >= 2 && ids.len() <= ranked.len());` |
+| `upkeep_and_abilities_count_in_a_units_worth` | 595 | `assert!(lifetime_cost(spear) > 10.0 * spear.cost as f32);` |
 
 ## `crates/f4x-core/src/city/economy.rs`
 
@@ -159,8 +156,8 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 |---|---|---|
 | `a_cities_yields_come_from_a_world_a_map_and_the_content_alone` | 1510 | `assert_eq!(now.figures, 4);` |
 | `a_computer_wizards_bonuses_multiply_its_cities_and_nobody_elses` | 1651 | `assert_eq!(after.food, HalfInt::from_raw(before.food.raw() * 2));` |
-| `a_squares_food_follows_the_original` | 1720 | `assert_eq!( eco.square_food(g, 12, 12), HalfInt::from_raw(3), );` |
-| `rivers_into_lakes_and_the_sea_give_two_food_and_nodes_set_production` | 1787 | `assert_eq!( eco.square_food(g, 5, 5), HalfInt::from_raw(4), );` |
+| `a_squares_food_follows_the_original` | 1720 | `assert_eq!(eco.square_food(g, 12, 12), food(grass)?, );` |
+| `rivers_into_lakes_and_the_sea_give_two_food_and_nodes_set_production` | 1784 | `assert_eq!( eco.square_food(g, 5, 5), sea.max(two), );` |
 
 ## `crates/f4x-core/src/diplomacy/tests.rs`
 
@@ -176,9 +173,7 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 | `a_site_type_decides_the_guards_realm` | 519 | `assert_eq!( guard_realm(&mut rng, SiteType::Node(realm(2 )), rules), Some(realm(2 )) );` |
 | `hoards_follow_the_original_rules` | 567 | `assert_eq!(l.gold % 10, 0);` |
 | `only_summoned_non_transport_units_of_the_realm_can_guard` | 437 | `assert!(super::super::candidates(&c, RealmId::new(99)).is_empty());` |
-| `the_patchs_treasure_has_no_random_budget_and_keeps_the_rest_beside_a_book` | 699 | `assert_eq!(l.gold % 10, 0);` |
-| `the_stronger_lairs_have_six_of_the_first_kind_and_the_patchs_costs` | 656 | `assert_eq!(costs, [25, 30, 80, 125, 200, 300, 325, 500, 600, 900]);` |
-| `the_stronger_lairs_have_the_patchs_budget_ranges` | 636 | `assert_eq!(span(&/r/ tower_budget(r, &c, STRONGER)), (700, 3050));` |
+| `the_patchs_treasure_has_no_random_budget_and_keeps_the_rest_beside_a_book` | 722 | `assert_eq!(l.gold % 10, 0);` |
 
 ## `crates/f4x-core/src/feature/lair/tests.rs`
 
@@ -215,17 +210,17 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `a_hero_has_mana_from_skill_level_and_items_and_half_of_it_helps_at_the_fortress` | 517 | `assert_eq!(g.units().hero_mana(h), 7);` |
-| `sage_heroes_add_research_and_fortress_heroes_add_to_the_skill_that_pays_over_turns` | 569 | `assert_eq!(1000 - left, nominal + hero_skill);` |
-| `the_price_follows_the_kept_level_and_the_retort` | 775 | `assert_eq!(cost, 100);` |
+| `a_hero_has_mana_from_skill_level_and_items_and_half_of_it_helps_at_the_fortress` | 517 | `assert_eq!(g.units().hero_mana(h), (skill + 1) * 5 / 2);` |
+| `sage_heroes_add_research_and_fortress_heroes_add_to_the_skill_that_pays_over_turns` | 577 | `assert_eq!(1000 - left, nominal + hero_skill);` |
+| `the_price_follows_the_kept_level_and_the_retort` | 783 | `assert_eq!( g.units().hero_hire_price(P0, 0), Some(base + level as i32 * base / 4) );` |
 
 ## `crates/f4x-core/src/item/crafting.rs`
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `building_an_item_gives_bonuses_armour_extras_and_a_default_name` | 894 | `assert_eq!(sword.bonus.attack, 2);` |
-| `charges_need_a_known_battle_spell_and_one_to_four_of_them` | 803 | `assert_eq!(with(4 , 4), Ok(()));` |
-| `the_cost_is_the_base_plus_each_power_and_a_plain_power_on_a_misc_item_costs_double` | 697 | `assert_eq!( cost(&design(ItemKind::Sword, &[1 ]), rules), 200 );` |
+| `building_an_item_gives_bonuses_armour_extras_and_a_default_name` | 926 | `assert_eq!(sword.powers, [ItemPowerId::new(33) ]);` |
+| `charges_need_a_known_battle_spell_and_one_to_four_of_them` | 835 | `assert_eq!(with(4 , 4), Ok(()));` |
+| `the_cost_is_the_base_plus_each_power_and_a_plain_power_on_a_misc_item_costs_double` | 718 | `assert_eq!( cost(&staff, rules), base_cost(ItemKind::Staff) + def.cost * 3 * 20 );` |
 
 ## `crates/f4x-core/src/item/make.rs`
 
@@ -363,7 +358,7 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 |---|---|---|
 | `spells_of_a_realm_and_rarity_come_in_file_order` | 324 | `assert!(spells.windows(2).all(/w/ at(&w[0]) < at(&w[1])));` |
 | `spells_picked_at_random_are_distinct_new_and_no_more_than_there_are` | 373 | `assert_eq!(picked.len(), 3);` |
-| `summoning_and_crafting_spells_are_told_by_their_data` | 399 | `assert!(is_summoning(def(6 )));` |
+| `summoning_and_crafting_spells_are_told_by_their_data` | 399 | `assert!(summoning > 0 && crafting == 2 && other > 0);` |
 | `the_default_spells_are_the_realms_list_of_that_rarity` | 344 | `assert!(default_spells(&c, RealmId::new(99), Rarity::Common).is_empty());` |
 
 ## `crates/f4x-core/src/wizard/magic_command/tests.rs`
@@ -400,7 +395,7 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 |---|---|---|
 | `a_ready_made_wizard_over_the_most_books_loses_the_surplus_and_the_picks_are_free` | 144 | `assert_eq!(ariel.books[&life], 10);` |
 | `eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare` | 509 | `assert_eq!( b.spell_choices_of(lib, realm_id(3 ), Rarity::Common), 0, );` |
-| `presets_come_from_the_rules` | 470 | `assert_eq!( b.picks_spent(&game().content.rules), 11, );` |
+| `presets_come_from_the_rules` | 470 | `assert!(g .wizard(P0) .ok_or( )? .has(Retort::new(8) ));` |
 | `starting_spells_are_chosen_then_defaulted` | 352 | `assert_eq!(life.len(), 3);` |
 | `ten_books_still_choose_nine_commons_and_nothing_else` | 580 | `assert_eq!( b.spell_choices_of(lib, realm_id(3 ), Rarity::Common), 9 );` |
 | `the_myrran_and_alchemy_options_change_what_the_retorts_cost_in_a_game` | 175 | `assert_ne!(myrran_cost, 2, );` |

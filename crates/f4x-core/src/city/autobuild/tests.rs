@@ -197,10 +197,11 @@ fn rebels_call_for_a_building_that_lowers_unrest() {
     let mut f = facts(&c);
     f.rebels = 2;
     let item = choose(&c, &plan(Mix::Buildings, Focus::Production), &f, &mut first);
-    assert_eq!(
-        item,
-        ProductionItem::Building(building(&c, 22 /* shrine */))
-    );
+    // What lowers unrest is read from the building's own effects.
+    let ProductionItem::Building(b) = item else {
+        panic!("rebels are met with a building, not {item:?}");
+    };
+    assert!(lowers_unrest(&c, b), "{}", c.rules.buildings.get(b).id);
 }
 
 #[test]
@@ -209,11 +210,12 @@ fn low_gold_builds_a_gold_building_then_trade_goods() {
     let mut f = facts(&c);
     f.net_gold = f4x_def::half_int::HalfInt::from_int(1);
     let p = plan(Mix::Buildings, Focus::Offense);
+    // A building that adds gold, the best the city may build.
+    let market = gold_building(&c, &f).expect("the city may build a gold building");
     assert_eq!(
         choose(&c, &p, &f, &mut first),
-        ProductionItem::Building(building(&c, 26 /* marketplace */))
+        ProductionItem::Building(market)
     );
-    let market = building(&c, 26 /* marketplace */);
     f.buildable.retain(|&b| b != market);
     f.possible.retain(|&b| b != market);
     assert_eq!(choose(&c, &p, &f, &mut first), ProductionItem::TradeGoods);
@@ -233,12 +235,20 @@ fn a_building_whose_upkeep_the_treasury_cannot_bear_is_skipped() {
     // The temple costs 2 and the library 1; both are borne at 3.
     assert!(matches!(item, ProductionItem::Building(_)));
     f.net_gold = f4x_def::half_int::HalfInt::from_int(3);
-    f.buildable = vec![building(&c, 7 /* war_college */)];
+    // A building whose gold upkeep is more than the treasury's net gold is skipped.
+    let (dear, def) = c
+        .rules
+        .buildings
+        .iter()
+        .find(|(_, d)| d.upkeep_gold > 3)
+        .expect("a building with an upkeep above three");
+    f.buildable = vec![dear];
     let item = choose(&c, &plan(Mix::Buildings, Focus::Offense), &f, &mut first);
     assert_ne!(
         item,
-        ProductionItem::Building(building(&c, 7 /* war_college */)),
-        "its upkeep is 5"
+        ProductionItem::Building(dear),
+        "its upkeep is {}",
+        def.upkeep_gold
     );
 }
 

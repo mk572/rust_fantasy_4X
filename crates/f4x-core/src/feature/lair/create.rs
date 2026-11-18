@@ -640,16 +640,38 @@ mod tests {
             let v: Vec<i32> = (0..6000).map(|_| f(&mut rng)).collect();
             (*v.iter().min().unwrap_or(&0), *v.iter().max().unwrap_or(&0))
         };
-        assert_eq!(span(&|r| tower_budget(r, &c, STRONGER)), (700, 3050));
+        // A roll is `base + step * (1 ..= rolls)`: the range of each, from `lairs.ron`.
+        let range = |roll: &Roll| (roll.base + roll.step, roll.base + roll.step * roll.rolls);
+        let rules = &c.rules.lairs;
+        let tower = &rules.patch_150.tower_budget;
+        assert_eq!(
+            span(&|r| tower_budget(r, &c, STRONGER)),
+            (
+                tower.base + tower.step,
+                tower.base + tower.step * tower.rolls
+            )
+        );
+        let plain = &rules.tower_budget;
         assert_eq!(
             span(&|r| tower_budget(r, &c, LairStyle::default())),
-            (700, 1200)
+            (
+                plain.base + plain.step,
+                plain.base + plain.step * plain.rolls
+            )
         );
         let site = |plane, strong| span(&|r| site_budget(r, &c, plane, strong, STRONGER));
-        assert_eq!(site(Plane::Arcanus, false), (30, 600));
-        assert_eq!(site(Plane::Myrror, false), (30, 900));
-        assert_eq!(site(Plane::Arcanus, true), (300, 4250));
-        assert_eq!(site(Plane::Myrror, true), (300, 4750));
+        for plane in [Plane::Arcanus, Plane::Myrror] {
+            assert_eq!(
+                site(plane, false),
+                range(&rules.patch_150.weak_budget[plane.index()]),
+                "weak, {plane:?}"
+            );
+            assert_eq!(
+                site(plane, true),
+                range(&rules.patch_150.strong_budget[plane.index()]),
+                "strong, {plane:?}"
+            );
+        }
     }
 
     #[test]
@@ -664,16 +686,17 @@ mod tests {
                 *cost = new;
             }
         }
-        let mut costs: Vec<i32> = list.iter().map(|c| c.1).collect();
-        costs.sort_unstable();
-        assert_eq!(costs, [25, 30, 80, 125, 200, 300, 325, 500, 600, 900]);
         for budget in [200, 700, 1500, 4000, 8000] {
             for _ in 0..80 {
                 let (guards, first, second) = pick_guards(&mut rng, rules, STRONGER, &list, budget);
                 assert!(first + second <= budget);
                 assert!(guards.iter().map(|g| g.1).sum::<u32>() <= rules.max_guards);
                 if let Some(g) = guards.first() {
-                    assert!(g.1 <= 6, "{} of the first kind", g.1);
+                    assert!(
+                        i64::from(g.1) <= i64::from(rules.patch_150.max_first_guards),
+                        "{} of the first kind",
+                        g.1
+                    );
                 }
             }
         }
