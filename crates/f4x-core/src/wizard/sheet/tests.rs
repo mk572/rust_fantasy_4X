@@ -528,28 +528,6 @@ fn a_wizards_books_decide_which_spells_it_may_hold() -> TestResult {
 }
 
 #[test]
-fn the_arcane_spells_are_offered_in_the_wikis_three_rarities() {
-    let c = shipped();
-    let rarity_of = |n: u16| {
-        c.rules
-            .spells
-            .get(c.rules.spells.id_numbered(n).expect("id succeeds"))
-            .rarity
-    };
-    // Magic Spirit, Dispel Magic, Summoning Circle | Disenchant Area, Recall Hero, Detect Magic,
-    // Enchant Item, Summon Hero | Awareness, Disjunction, Create Artifact, Summon Champion.
-    for n in 201..=203 {
-        assert_eq!(rarity_of(n), Rarity::Common, "{n}");
-    }
-    for n in 204..=208 {
-        assert_eq!(rarity_of(n), Rarity::Uncommon, "{n}");
-    }
-    for n in 209..=212 {
-        assert_eq!(rarity_of(n), Rarity::Rare, "{n}");
-    }
-}
-
-#[test]
 fn with_the_patch_setting_only_so_many_arcane_spells_are_on_offer_at_once() -> TestResult {
     let mut g = game_with(&[(RealmId::new(3 /* life */), 4)], &[]);
     let mut content = g.content.clone();

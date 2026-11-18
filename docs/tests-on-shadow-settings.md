@@ -7,7 +7,7 @@ it"): a test reads the setting from the shipped rules and checks the game does w
 It is a text search for a test that reads the content and asserts a number, so most rows are a
 number used as the input of a scenario (no shadow setting); read each row's assert.
 
-**175 of 2525 tests.**
+**175 of 2524 tests.**
 
 | Crate | Tests |
 |---|---|
@@ -387,7 +387,7 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 | `the_cost_of_a_spell_follows_the_books_the_retorts_and_where_it_is_cast` | 91 | `assert_eq!( bare.casting_cost(&g.content.rules, strength, false, false), base * 5, );` |
 | `the_power_is_split_by_the_percentages` | 127 | `assert_eq!( (split.mana.floor(), split.skill, split.research), (40, 30, 30 + 6) );` |
 | `the_spell_of_mastery_is_offered_last_and_costs_less_for_each_spell_known` | 167 | `assert!(learned < 500, );` |
-| `with_the_patch_setting_only_so_many_arcane_spells_are_on_offer_at_once` | 553 | `assert!(arcane_on_offer(&g) <= 4);` |
+| `with_the_patch_setting_only_so_many_arcane_spells_are_on_offer_at_once` | 531 | `assert!(arcane_on_offer(&g) <= 4);` |
 
 ## `crates/f4x-core/src/wizard/tests.rs`
 
