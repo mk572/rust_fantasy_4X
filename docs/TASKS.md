@@ -30,7 +30,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 291 | Low | Combat | Variant river pictures for the battlefield (low priority) |
 | 351 | Low | Text | Research the `MESSAGE.LBX` lines of task 348 that are not traced: 8, 10, 18, 19, 20, 45, 46, 61 |
 | 365 | Low | Client | Crossfade the music between tracks (ours; the original cuts) |
-| 367 | Low | AI | Overland spells the AI never casts: what is left is research by what the enemy casts |
+| 367 | Low | AI | Research by what the enemy casts (the rest of the old "overland spells never cast" list is settled or in task 641) |
 | 370 | Low | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
 | 373 | Low | Battle | Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
 | 411 | Medium | Core | Floating Island as a plain summoning, as in the original |
@@ -147,16 +147,7 @@ background), so the changes are less abrupt; short pieces fade the background ou
 `set_sound_volume`, so the fade is volume steps per frame on the two sounds, and the old sound is kept loaded until it is
 silent. A switch under Settings ("Fade Music") turns it off for those who want the original's cuts.
 
-**367. Overland spells the AI never casts.** The spell side of the AI's overland play, as a function of what the AI sees; each part gets a test and a soak line. Heroes and items were split off into task 474 on 2 November 2026.
-- **DONE** (tasks 228 and 434, status 31 October 2026): curses and attacks on enemy cities and stacks, Disenchant and Disjunction, world spells, Spell Blast, Stasis, Transmute.
-- **TODO:** research by what the enemy casts.
-- **To check** (named in the original task, not in the status line, so unknown whether they are done): protection and wards for the own cities against what an enemy casts, Spell of Return and the banished wizard's casts, Word of Recall and the other special spells.
-*Needs:* nothing.
-stacks, city protection and wards against what an enemy casts, Spell of Return and the banished wizard's
-casts, Enchant Item and Create Artifact, the special spells (Word of Recall, Spell Blast and the like),
-and research by what the enemy casts. Heroes: keep them out of lair fights they cannot win, spend
-their experience, raise them with Resurrection; items: trade and craft. Each as a function of what the
-AI sees; each gets a test and a soak line. *Needs:* nothing.
+**367. Research by what the enemy casts.** The one part left of the old "overland spells the AI never casts" task (cut down on 18 November 2026 after the soak of 17 November, `docs/soak-results-2026-11-17.md`). The AI picks its research without looking at what its enemies cast: a wizard under Death Magic attacks, or one that casts curses on its cities, changes nothing in what it learns next (the protection spells, Dispel Magic and the like). Choose research by what the enemies of the wizard cast, as a function of what the AI sees (`docs/design.md` section 8: the spells cast at its own cities and stacks, and in battles it fights, not the enemy's spellbook); a test on the shipped spells for each rule and a soak line. The rest of the old list is settled or lives elsewhere: curses, attacks, Disenchant, Disjunction, world spells, Spell Blast, Stasis and Transmute are built (tasks 228, 434); Spell of Return (known 677, cast 17: the game begins it when a wizard is banished), Enchant Item and Create Artifact (cast 160 and 759) are cast; the wards for the own cities (`spell_ward`, known 40, cast 0) are in task 641; Word of Recall is not in the soak report and is read from the per-spell output of the next soak (the casts per spell are printed by every soak since 18 November 2026). Heroes and items are task 474. *Needs:* nothing.
 
 **370. Battle AI: retreat, sally, weigh a lair.** The battle AI never flees, does not sally from a walled *Status 31 October 2026:* the retreat is done (see 232); the sally and the guess of a lair's guards are open.
 city, and `site.rs` attacks sites by a strength guess. Add a retreat when a fight is lost, a sally when the

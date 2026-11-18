@@ -762,11 +762,10 @@ of 42, within the noise of this sample.
    (and started at 0 instead of 3), so the baseline above is too slow on outposts; run the soak again
    (planned item 21 is now only an option). With `WANTED_CITIES` met, a wizard stops settling. Land is often
    left free. Housing does nothing in an outpost (it makes no production).
-3. **Overland magic is thin.** The AI casts summons, unit and city buffs, a few global buffs, Earth Lore,
-   Nature's Cures, Resurrection and the Spell of Mastery. It never casts a curse or an attack on a city
-   or stack, never uses city protection, Spell of Return (task 339 note), item crafting or the
-   enchanting spells, and does not choose research by what its enemies do. Mana sits unspent in
-   long games.
+3. **Overland magic is thin** (as of the first baseline; since then the AI casts curses and attacks on
+   cities and stacks, Spell of Return, item crafting and the enchanting spells, `docs/soak-results-2026-11-17.md`).
+   Still open: city protection (`spell_ward`, task 641) and research chosen by what its enemies cast
+   (task 367); the 17 November soak left 145 known spells never cast on the map (tasks 641 and 642).
 4. **Heroes and items are used little.** The AI hires the heroes it can pay for, but heroes march with
    the army as ordinary units, are not kept out of lair fights, and the AI never crafts items.
    Items (task 504, `offer.rs`): the merchant's item is bought when it is worth its price to the wizard
