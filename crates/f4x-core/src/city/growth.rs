@@ -95,7 +95,11 @@ impl Game {
             .get::<&Population>(city)
             .map(|p| *p)
             .unwrap_or_default();
-        let grown = grow_population(pop, delta_tens, self.content.rules.config.max_city_size);
+        let grown = grow_population(
+            pop,
+            delta_tens,
+            u32::from(self.settings.rules.max_city_size),
+        );
         self.put(city, grown);
         // A city that starved down cannot keep more farmers than it has people.
         let farmers = self.world.get::<&Farmers>(city).map_or(0, |f| f.0);

@@ -983,7 +983,7 @@ impl Game {
 /// How many places a new city could stand within reach of `at`: explored, free of lairs and
 /// nodes, at least the minimum distance from every city and from each other. At most five.
 pub fn open_sites(view: &crate::player::view::PlayerView, at: Position) -> u32 {
-    let spacing = view.content().rules.config.min_city_distance;
+    let spacing = view.min_city_distance();
     let mut picked: Vec<Position> = Vec::new();
     'search: for dy in -SETTLE_RADIUS..=SETTLE_RADIUS {
         for dx in -SETTLE_RADIUS..=SETTLE_RADIUS {

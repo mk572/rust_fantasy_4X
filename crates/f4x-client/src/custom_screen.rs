@@ -88,6 +88,11 @@ const FREQUENCY_WORDS: &[&str] = &[
     "custom.frequency_double",
 ];
 
+/// The smallest and largest value of a range and a step of one, for a number row.
+fn span(range: &std::ops::RangeInclusive<u8>) -> (i32, i32, i32) {
+    (i32::from(*range.start()), i32::from(*range.end()), 1)
+}
+
 fn num(
     label: &'static str,
     (min, max, step): (i32, i32, i32),
@@ -190,6 +195,48 @@ pub(crate) fn rows() -> Vec<Row> {
             "",
             |s| s.basic.neutral_city_count() as i32,
             |s, v| s.basic.neutral_cities = Some(v as u8),
+        ),
+        num(
+            "custom.nodes_arcanus",
+            span(&f4x_def::settings::NODES_RANGE),
+            "",
+            |s| s.node_count(0).into(),
+            |s, v| s.world.nodes_arcanus = Some(v as u8),
+        ),
+        num(
+            "custom.nodes_myrror",
+            span(&f4x_def::settings::NODES_RANGE),
+            "",
+            |s| s.node_count(1).into(),
+            |s, v| s.world.nodes_myrror = Some(v as u8),
+        ),
+        num(
+            "custom.mineral_arcanus",
+            span(&f4x_def::settings::MINERAL_PERCENT_RANGE),
+            "%",
+            |s| s.world.mineral_percent_arcanus.into(),
+            |s, v| s.world.mineral_percent_arcanus = v as u8,
+        ),
+        num(
+            "custom.mineral_myrror",
+            span(&f4x_def::settings::MINERAL_PERCENT_RANGE),
+            "%",
+            |s| s.world.mineral_percent_myrror.into(),
+            |s, v| s.world.mineral_percent_myrror = v as u8,
+        ),
+        num(
+            "custom.strong_sites",
+            span(&f4x_def::settings::SITES_RANGE),
+            "",
+            |s| s.strong_site_count() as i32,
+            |s, v| s.world.strong_sites = Some(v as u8),
+        ),
+        num(
+            "custom.weak_sites",
+            span(&f4x_def::settings::SITES_RANGE),
+            "",
+            |s| s.weak_site_count() as i32,
+            |s, v| s.world.weak_sites = Some(v as u8),
         ),
         choice(
             "custom.magic",
@@ -574,6 +621,20 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.max_tile = v as usize,
         ),
         num(
+            "custom.max_city_size",
+            span(&f4x_def::settings::MAX_CITY_SIZE_RANGE),
+            "",
+            |s| s.rules.max_city_size.into(),
+            |s, v| s.rules.max_city_size = v as u8,
+        ),
+        num(
+            "custom.min_city_distance",
+            span(&f4x_def::settings::MIN_CITY_DISTANCE_RANGE),
+            "",
+            |s| s.rules.min_city_distance.into(),
+            |s, v| s.rules.min_city_distance = v as u8,
+        ),
+        num(
             "custom.max_battle_side",
             (1, f4x_core::game::setting::MAX_STACK as i32, 1),
             "",
@@ -642,6 +703,13 @@ pub(crate) fn rows() -> Vec<Row> {
             "%",
             |s| s.events.pressure_percent.into(),
             |s, v| s.events.pressure_percent = v as u16,
+        ),
+        num(
+            "custom.event_start",
+            span(&f4x_def::settings::EVENT_START_TURN_RANGE),
+            "",
+            |s| s.events.start_turn.into(),
+            |s, v| s.events.start_turn = v as u8,
         ),
         Heading("custom.h_score"),
         num(

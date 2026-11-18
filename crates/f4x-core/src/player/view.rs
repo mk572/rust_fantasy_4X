@@ -740,6 +740,16 @@ impl<'a> PlayerView<'a> {
         self.game.map().map(|m| (m.width(), m.height()))
     }
 
+    /// The least distance between two cities in this game (the `min_city_distance` setting).
+    pub fn min_city_distance(&self) -> u32 {
+        u32::from(self.game.settings().rules.min_city_distance)
+    }
+
+    /// The size at which a city stops growing in this game (the `max_city_size` setting).
+    pub fn max_city_size(&self) -> u32 {
+        u32::from(self.game.settings().rules.max_city_size)
+    }
+
     /// Most units that may stand on one square in this game.
     pub fn max_tile(&self) -> usize {
         self.game.max_tile()

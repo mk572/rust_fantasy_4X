@@ -1588,7 +1588,7 @@ fn regenerating_units_mend_completely_each_turn() -> TestResult {
 fn wild_game_raises_an_outposts_growth_chance_by_its_food_and_its_bonus() -> TestResult {
     let mut g = world();
     // The test land feeds more than the usual largest city, which would hide the food.
-    g.content.rules.config.max_city_size = 100;
+    g.settings.rules.max_city_size = *f4x_def::settings::MAX_CITY_SIZE_RANGE.end();
     let outpost = found(&mut g, at(10, 6), 7 /* high_elf */, 0);
     let plain = g.economy().outpost_growth_chance(outpost);
     let game = g
@@ -1745,6 +1745,66 @@ fn balancing_farmers_feeds_the_army() -> TestResult {
     }
     g.balance_farmers(P0);
     assert_eq!(g.world.get::<&Farmers>(city)?.0, 6);
+    Ok(())
+}
+
+/// The size at which a city stops growing is a setting: the land of the test world feeds more
+/// than the lowest cap, so the city's largest size is the cap.
+#[test]
+fn the_largest_city_size_is_the_setting() -> TestResult {
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 3);
+    for cap in f4x_def::settings::MAX_CITY_SIZE_RANGE {
+        g.settings.rules.max_city_size = cap;
+        let max = g.economy().city_economy(city).ok_or("no economy")?.max_size;
+        assert!(max <= u32::from(cap), "cap {cap}: {max}");
+    }
+    g.settings.rules.max_city_size = *f4x_def::settings::MAX_CITY_SIZE_RANGE.start();
+    let low = g.economy().city_economy(city).ok_or("no economy")?.max_size;
+    g.settings.rules.max_city_size = *f4x_def::settings::MAX_CITY_SIZE_RANGE.end();
+    let high = g.economy().city_economy(city).ok_or("no economy")?.max_size;
+    assert_eq!(
+        low,
+        u32::from(*f4x_def::settings::MAX_CITY_SIZE_RANGE.start())
+    );
+    assert!(
+        high > low,
+        "a raised cap lets the city grow: {high} against {low}"
+    );
+    Ok(())
+}
+
+/// The least distance between two cities is a setting: a second outpost `gap` squares from the
+/// first is allowed from that distance on, and refused below it.
+#[test]
+fn the_least_distance_between_cities_is_the_setting() -> TestResult {
+    for least in f4x_def::settings::MIN_CITY_DISTANCE_RANGE {
+        let mut g = world();
+        g.settings.rules.min_city_distance = least;
+        let settler = g
+            .content
+            .rules
+            .units
+            .id_numbered(100)
+            .ok_or("high_elf_settlers is not in the content")?;
+        let first = g.spawn_unit(P0, at(5, 6), settler);
+        let events = g.apply(Command::SettleOutpost {
+            unit: first,
+            name: "First".into(),
+        });
+        assert!(
+            matches!(events[..], [Event::CityFounded { .. }]),
+            "{events:?}"
+        );
+        for gap in [u32::from(least) - 1, u32::from(least)] {
+            if gap == 0 {
+                continue;
+            }
+            let spot = at(5 + gap, 6);
+            let found = g.can_found_city(spot).is_ok();
+            assert_eq!(found, gap >= u32::from(least), "least {least}, gap {gap}");
+        }
+    }
     Ok(())
 }
 

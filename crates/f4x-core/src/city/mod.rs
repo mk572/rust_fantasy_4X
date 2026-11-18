@@ -107,16 +107,11 @@ fn check_site_spacing(
     pos: Position,
     existing: Vec<Position>,
 ) -> Result<(), FoundCityError> {
-    let (content, grid) = (
-        economy.content,
-        economy.map.ok_or(FoundCityError::NoMap)?.plane(pos.plane),
-    );
+    let grid = economy.map.ok_or(FoundCityError::NoMap)?.plane(pos.plane);
     for other in existing.into_iter().filter(|o| o.plane == pos.plane) {
         match grid.chebyshev((other.x, other.y), (pos.x, pos.y)) {
             0 => return Err(FoundCityError::CityAlreadyHere),
-            d if d < content.rules.config.min_city_distance => {
-                return Err(FoundCityError::TooCloseToCity)
-            }
+            d if d < economy.min_city_distance => return Err(FoundCityError::TooCloseToCity),
             _ => {}
         }
     }

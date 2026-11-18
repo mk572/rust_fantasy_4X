@@ -91,6 +91,7 @@ impl Game {
             self.turn,
             self.settings.events.pressure_percent,
             self.settings.events.frequency,
+            self.settings.events.start_turn,
         );
         if !fires(pressure, rng.roll(512)) {
             return None;

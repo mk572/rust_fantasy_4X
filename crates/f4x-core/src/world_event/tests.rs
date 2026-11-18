@@ -70,18 +70,39 @@ fn events_survive_a_save_and_unknown_ones_are_refused() {
     assert_eq!(Events::from_save(&bad, |_| Some(victim)), None);
 }
 
+const START: u8 = f4x_def::settings::DEFAULT_EVENT_START_TURN;
+
+#[test]
+fn the_start_turn_setting_sets_the_quiet_turns() {
+    for start in [1u8, 3, 20] {
+        let mut events = Events::default();
+        for turn in 1..u32::from(start) {
+            assert_eq!(
+                events.pressure(turn, 100, EventFrequency::Normal, start),
+                0,
+                "start {start}, turn {turn}"
+            );
+        }
+        assert!(
+            events.pressure(u32::from(start) + 40, 100, EventFrequency::Normal, start) > 0,
+            "start {start}: pressure on the start turn"
+        );
+    }
+}
+
 #[test]
 fn the_first_five_turns_have_no_events_then_the_pressure_is_the_turns_waited_by_level() {
     let mut events = Events::default();
     for turn in 1..=5 {
         assert_eq!(
-            events.pressure(turn, 75, EventFrequency::Normal),
+            events.pressure(turn, 75, EventFrequency::Normal, START),
             0,
             "turn {turn}"
         );
     }
-    let at =
-        |events: &mut Events, turn, percent| events.pressure(turn, percent, EventFrequency::Normal);
+    let at = |events: &mut Events, turn, percent| {
+        events.pressure(turn, percent, EventFrequency::Normal, START)
+    };
     assert_eq!(at(&mut events, 40, 100), 40);
     assert_eq!(at(&mut events, 40, 75), 30);
     assert_eq!(at(&mut events, 40, 50), 20);

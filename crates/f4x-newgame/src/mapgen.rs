@@ -63,8 +63,8 @@ impl Default for GenParams {
             height: 40,
             land_percent: 30,
             tower_count: 6,
-            strong_sites: 25,
-            weak_sites: 32,
+            strong_sites: f4x_def::settings::STRONG_SITES_PER_REFERENCE_AREA,
+            weak_sites: f4x_def::settings::WEAK_SITES_PER_REFERENCE_AREA,
             difficulty: 2,
             lair_guard_percent: 75,
             lair_treasure_percent: 133,
@@ -74,12 +74,12 @@ impl Default for GenParams {
             extend_tiny_islands: false,
             planes: [
                 PlaneParams {
-                    mineral_percent: 6,
-                    node_count: 16,
+                    mineral_percent: f4x_def::settings::DEFAULT_MINERAL_PERCENT[0],
+                    node_count: f4x_def::settings::NODES_PER_REFERENCE_AREA[0] as u8,
                 },
                 PlaneParams {
-                    mineral_percent: 10,
-                    node_count: 14,
+                    mineral_percent: f4x_def::settings::DEFAULT_MINERAL_PERCENT[1],
+                    node_count: f4x_def::settings::NODES_PER_REFERENCE_AREA[1] as u8,
                 },
             ],
         }

@@ -193,7 +193,7 @@ impl App {
             }
             Some(FoundCityError::TooCloseToCity) => Some(self.text_with(
                 "surveyor.blocked_close",
-                &Args::new().count("n", content.rules.config.min_city_distance),
+                &Args::new().count("n", u32::from(self.game.settings().rules.min_city_distance)),
             )),
             _ => None,
         };

@@ -222,10 +222,17 @@ impl Events {
         self.quiet = 0;
     }
 
-    /// The pressure for this turn's draw, and the count of quiet turns goes up.
-    pub(crate) fn pressure(&mut self, turn: u32, percent: u16, frequency: EventFrequency) -> u32 {
+    /// The pressure for this turn's draw, and the count of quiet turns goes up. The first
+    /// `start_turn - 1` draws are quiet (the original waits five turns: `start_turn` 6).
+    pub(crate) fn pressure(
+        &mut self,
+        turn: u32,
+        percent: u16,
+        frequency: EventFrequency,
+        start_turn: u8,
+    ) -> u32 {
         let waited = turn.saturating_sub(self.last_event);
-        if self.quiet < 5 {
+        if self.quiet < u32::from(start_turn.saturating_sub(1)) {
             self.quiet += 1;
             return 0;
         }

@@ -203,7 +203,6 @@ fn city_name(view: &PlayerView, unit: hecs::Entity) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::city_site::SPACING;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0};
     use crate::view::distance;
     use f4x_def::half_int::HalfInt;
@@ -290,7 +289,10 @@ mod tests {
         assert_eq!(sites.len(), 2, "each settler has a site");
         let view = PlayerView::new(&g, P0);
         let apart = distance(&view, sites[0], sites[1]).ok_or("the sites are on one plane")?;
-        assert!(apart >= SPACING, "{sites:?} are {apart} apart");
+        assert!(
+            apart >= view.min_city_distance(),
+            "{sites:?} are {apart} apart"
+        );
         Ok(())
     }
 

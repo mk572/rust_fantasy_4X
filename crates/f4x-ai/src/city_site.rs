@@ -23,8 +23,6 @@ use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::view::PlayerView;
 
-/// Sites keep this far apart from each other and from cities.
-pub(crate) const SPACING: u32 = 4;
 /// The list is rebuilt after this many turns, at once when the number of known cities changes, and
 /// when the wizard has explored this many squares more than at the last rebuild (a scout opens a
 /// new place for a city within a few turns early in the game).
@@ -103,9 +101,10 @@ impl SiteBook {
 /// settler has taken yet, with the ones that need a crossing counting for a few.
 pub fn free_sites(list: &[Site], taken: &[Position], view: &PlayerView) -> usize {
     let free = |s: &&Site| {
-        !taken
-            .iter()
-            .any(|&t| view.distance(t, s.at).is_some_and(|d| d < SPACING))
+        !taken.iter().any(|&t| {
+            view.distance(t, s.at)
+                .is_some_and(|d| d < view.min_city_distance())
+        })
     };
     let land = list
         .iter()
@@ -225,9 +224,10 @@ pub fn scan(view: &PlayerView) -> Vec<Site> {
                 if !view.can_found_city(at)
                     || view.has_lair(at)
                     || view.in_node(at)
-                    || cities
-                        .iter()
-                        .any(|&c| view.distance(c, at).is_some_and(|d| d < SPACING))
+                    || cities.iter().any(|&c| {
+                        view.distance(c, at)
+                            .is_some_and(|d| d < view.min_city_distance())
+                    })
                 {
                     continue;
                 }
@@ -265,10 +265,10 @@ pub fn scan(view: &PlayerView) -> Vec<Site> {
     });
     let mut kept: Vec<Site> = Vec::new();
     for site in found {
-        if kept
-            .iter()
-            .all(|k| view.distance(k.at, site.at).is_none_or(|d| d >= SPACING))
-        {
+        if kept.iter().all(|k| {
+            view.distance(k.at, site.at)
+                .is_none_or(|d| d >= view.min_city_distance())
+        }) {
             kept.push(site);
         }
     }
@@ -362,11 +362,10 @@ pub fn assign(
         if left.is_empty() {
             break;
         }
-        if used
-            .iter()
-            .chain(avoid)
-            .any(|&t| view.distance(t, site.at).is_some_and(|d| d < SPACING))
-            || !view.can_found_city(site.at)
+        if used.iter().chain(avoid).any(|&t| {
+            view.distance(t, site.at)
+                .is_some_and(|d| d < view.min_city_distance())
+        }) || !view.can_found_city(site.at)
             || enemy_near(view, site.at)
         {
             continue;
@@ -407,6 +406,40 @@ mod tests {
         g
     }
 
+    /// The AI keeps the game's least distance between cities, not a number of its own.
+    #[test]
+    fn the_sites_keep_the_distance_the_game_asks_for() {
+        use f4x_def::settings::MIN_CITY_DISTANCE_RANGE;
+        let mut counts = Vec::new();
+        for least in [
+            *MIN_CITY_DISTANCE_RANGE.start(),
+            *MIN_CITY_DISTANCE_RANGE.end(),
+        ] {
+            let mut g = explored_island();
+            g.scenario_change_settings(|s| s.rules.min_city_distance = least);
+            let view = PlayerView::new(&g, P0);
+            let list = scan(&view);
+            let capital = at(COAST_CITY.0, COAST_CITY.1);
+            for (i, a) in list.iter().enumerate() {
+                assert!(view
+                    .distance(capital, a.at)
+                    .is_some_and(|d| d >= u32::from(least)));
+                for b in &list[i + 1..] {
+                    assert!(
+                        view.distance(a.at, b.at)
+                            .is_none_or(|d| d >= u32::from(least)),
+                        "least {least}: {a:?} and {b:?}"
+                    );
+                }
+            }
+            counts.push(list.len());
+        }
+        assert!(
+            counts[0] > counts[1],
+            "a wider spacing leaves room for fewer cities: {counts:?}"
+        );
+    }
+
     #[test]
     fn the_list_is_ranked_and_keeps_every_site_apart_from_the_others_and_from_cities() {
         let g = explored_island();
@@ -419,10 +452,13 @@ mod tests {
         );
         let capital = at(COAST_CITY.0, COAST_CITY.1);
         for (i, a) in list.iter().enumerate() {
-            assert!(view.distance(capital, a.at).is_some_and(|d| d >= SPACING));
+            assert!(view
+                .distance(capital, a.at)
+                .is_some_and(|d| d >= view.min_city_distance()));
             for b in &list[i + 1..] {
                 assert!(
-                    view.distance(a.at, b.at).is_none_or(|d| d >= SPACING),
+                    view.distance(a.at, b.at)
+                        .is_none_or(|d| d >= view.min_city_distance()),
                     "{a:?} and {b:?} overlap"
                 );
             }
@@ -554,7 +590,7 @@ mod tests {
         assert_eq!(got.len(), 1);
         assert!(view
             .distance(got[0].1, list[0].at)
-            .is_some_and(|d| d >= SPACING));
+            .is_some_and(|d| d >= view.min_city_distance()));
     }
 
     #[test]

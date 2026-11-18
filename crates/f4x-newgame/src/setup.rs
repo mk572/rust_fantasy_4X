@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod original;
 
-use crate::mapgen::{generate, GenParams};
+use crate::mapgen::{generate, GenParams, PlaneParams};
 use f4x_core::game::setting::GameSettings;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
@@ -81,6 +81,43 @@ impl NewGame {
     }
 }
 
+/// What the map generator is asked for by a game's settings: the land, the lairs, and the counts of
+/// towers, nodes and encounter sites (which follow the map's area unless the settings name a
+/// number) and the share of minerals.
+pub fn gen_params(settings: &GameSettings) -> GenParams {
+    let params = GenParams {
+        land_percent: settings.basic.land_percent,
+        difficulty: settings.basic.difficulty,
+        magic_strength: settings.basic.magic_strength,
+        original_generator: settings.basic.original_map_generator,
+        extend_tiny_islands: settings.rules.extend_tiny_islands,
+        lair_guard_percent: settings.world.lair_guard_percent,
+        lair_treasure_percent: settings.world.lair_treasure_percent,
+        lair_style: f4x_core::rules::lair::LairStyle {
+            stronger: settings.rules.stronger_lairs,
+            treasure: settings.rules.treasure_patch_150,
+        },
+        ..GenParams::sized(
+            u32::from(settings.basic.map_width),
+            u32::from(settings.basic.map_height),
+        )
+    };
+    let plane = |k: usize, percent: u8| PlaneParams {
+        mineral_percent: percent,
+        node_count: settings.node_count(k),
+    };
+    GenParams {
+        tower_count: settings.basic.tower_count(),
+        strong_sites: settings.strong_site_count(),
+        weak_sites: settings.weak_site_count(),
+        planes: [
+            plane(0, settings.world.mineral_percent_arcanus),
+            plane(1, settings.world.mineral_percent_myrror),
+        ],
+        ..params
+    }
+}
+
 pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     let problems = spec.settings.validate();
     if !problems.is_empty() {
@@ -99,27 +136,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     }
     let settings = spec.settings;
     let wizards = settings.basic.opponents + 1;
-    let params = GenParams {
-        land_percent: settings.basic.land_percent,
-        difficulty: settings.basic.difficulty,
-        magic_strength: settings.basic.magic_strength,
-        original_generator: settings.basic.original_map_generator,
-        extend_tiny_islands: settings.rules.extend_tiny_islands,
-        lair_guard_percent: settings.world.lair_guard_percent,
-        lair_treasure_percent: settings.world.lair_treasure_percent,
-        lair_style: f4x_core::rules::lair::LairStyle {
-            stronger: settings.rules.stronger_lairs,
-            treasure: settings.rules.treasure_patch_150,
-        },
-        ..GenParams::sized(
-            u32::from(settings.basic.map_width),
-            u32::from(settings.basic.map_height),
-        )
-    };
-    let params = GenParams {
-        tower_count: settings.basic.tower_count(),
-        ..params
-    };
+    let params = gen_params(&settings);
     let map = generate(spec.seed, &params, content).map_err(|e| e.to_string())?;
     let mut game = Game::begin_world(
         spec.seed,

@@ -125,9 +125,9 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | ai | `unit_upkeep_percent` | 10..=100 | 100 | not built (original: 75 Hard, 50 Impossible) |
 | world | `map_width`, `map_height` | 8..=1024 (the generator's own limits) | 60, 40 | `GenParams` |
 | world | `tower_count` | 0..=20 | 6 | `GenParams` |
-| world | `strong_sites`, `weak_sites` | 0..=100 | 25, 32 | `GenParams` |
-| world | `nodes_arcanus`, `nodes_myrror` | 0..=40 | 16, 14 | `PlaneParams` |
-| world | `mineral_percent_arcanus`, `_myrror` | 0..=30 | 6, 10 | `PlaneParams` |
+| world | `strong_sites`, `weak_sites` | `Option<u8>`, 0..=100 | by area: 25 and 32 for a 60 by 40 map | built (18 November 2026): `GameSettings::strong_site_count`, `weak_site_count`, `f4x-newgame/src/setup.rs::gen_params` |
+| world | `nodes_arcanus`, `nodes_myrror` | `Option<u8>`, 0..=40 | by area: 16 and 14 for a 60 by 40 map | built (18 November 2026): `GameSettings::node_count`, `gen_params` |
+| world | `mineral_percent_arcanus`, `_myrror` | 0..=30 | 6, 10 | built (18 November 2026): `gen_params` |
 | world | `lairs_enabled`, `neutral_cities_enabled` | bool | on | always on |
 | world | `raiders_enabled`, `monsters_enabled` | bool | on (off in `flat`) | `threat.rs` (task 376) |
 | world | `sea_raids` | bool | off | `threat/sea_raid.rs` (task 683): a raid is a landing from the sea in `threat.sea_raid.chance_percent` (25) of the cases |
@@ -139,8 +139,8 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | world | `raider_percent` | 0..=300 | from preset | `threat/raider.rs` (task 376): the party is `troops * raider_percent / 100`, `troops * d / 6` in the original |
 | rules | `max_tile` | `usize`, `max_battle_side`..=20 | 12 in v1.31 (the original's is 9, see `divergences.md` 4), 20 in v1.6 and the MK mod | units on one square (`Game::max_tile()`, `Economy::max_tile`; task 34, done 30 October 2026); `unit::MAX_TILE_LIMIT` is only its ceiling and default. No screen yet. A unit the human gains on a full square (a summoning, a hire, a finished unit) is let in and the square is over the limit until the player moves or disbands a unit (`unit/crowding.rs`, `f4x-client/src/crowd_prompt.rs`; the turn cannot end before); the computer wizards keep below the limit instead (`f4x-ai/src/garrison.rs`) |
 | rules | `max_battle_side` | `usize`, 1..=9 | 9 in every rule set | units one side fights with in a battle (`Game::max_battle_side()`, `Battle::max_side`): the strongest of a larger stack fight, the rest are a reserve; summoning stops at it; the AI's parties, garrison sizes of neutral cities and lair guards follow it. `unit::MAX_STACK` is only its ceiling and default. On the Custom screen |
-| rules | `max_city_size` | 5..=40 | 25 | `rules.ron` |
-| rules | `min_city_distance` | 1..=8 | 4 | `rules.ron` |
+| rules | `max_city_size` | 5..=40 | 25 | built (18 November 2026): `RuleSettings`, read by `Economy::max_city_size` and `Game` growth; no longer in `rules.ron`; a cap above 25 still wants the check of task 590's text (art, growth tables, balance) |
+| rules | `min_city_distance` | 1..=8 | 4 | built (18 November 2026): `RuleSettings`, read by `can_found_city`, the neutral-city generator, the surveyor and the AI's site search (`city_site.rs`); no longer in `rules.ron` |
 | rules | `safe_flee` | `Split<bool>` | Intro, Easy: on | `battle/game.rs::overland_aftermath` (4.7) |
 | rules | `settlers_cost_citizen` | bool | on | `city/production.rs`: on (the original), a city needs two citizens to build Settlers (`ProductionError::TooSmall`) and loses one when they are done; off, Settlers cost production only. Renamed on 30 October 2026 from `settlers_free` (inverted: on now means the cost applies) |
 | rules | `walls_cover_city` | bool | off (on in v1.6) | `battle/mod.rs` `city_defense_bonus`: off (the original), a unit hit from outside the city area has +3 defence on a standing wall section and +1 elsewhere in a walled city; on (patch 1.40, IW082), +3 anywhere inside the walls |
@@ -166,7 +166,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | victory | `hardcore` | bool | off | `PLANNED.md` 8 |
 | events | `random_events` | on / off | on | task 68 |
 | events | `event_frequency` | `Half` / `Normal` / `Double` | `Normal` | task 68 |
-| events | `event_start_turn` | 1..=50 | 6 | the original's five-turn delay |
+| events | `event_start_turn` | 1..=50 | 6 | built (18 November 2026) as `events.start_turn`: `Events::pressure` waits `start_turn - 1` draws (and again after each event, as the original does) |
 | scoring | `score_percent` | 10..=500 | 100 | `endgame::scale_for_difficulty` |
 
 What is split and what is not: anything a wizard **owns or starts with** (picks, gold, mana,

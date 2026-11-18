@@ -227,6 +227,14 @@ impl Game {
         }
     }
 
+    /// Scenario setup: change the game's settings (a test world is made with the defaults).
+    pub fn scenario_change_settings(
+        &mut self,
+        change: impl FnOnce(&mut crate::game::setting::GameSettings),
+    ) {
+        change(&mut self.settings);
+    }
+
     /// Wound a unit by this many hit points (over all figures), as a scenario sets it up.
     pub fn scenario_set_hurt(&mut self, unit: hecs::Entity, hurt: u32) {
         self.put(unit, Hurt(hurt));

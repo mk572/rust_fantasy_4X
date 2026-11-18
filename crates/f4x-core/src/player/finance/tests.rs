@@ -258,7 +258,6 @@ fn the_kept_budget_follows_a_completed_item_as_the_budget_does() -> f4x_def::tes
 fn the_minimum_farmers_by_halving_are_those_of_the_linear_search() -> f4x_def::testdir::TestResult {
     use crate::city::economy::Population;
     use crate::game::testutil::fresh;
-    let content = crate::game::testutil::shipped();
     let mut checked = 0;
     for seed in [3, 7, 11] {
         let mut game = fresh(3, seed)?;
@@ -268,7 +267,7 @@ fn the_minimum_farmers_by_halving_are_those_of_the_linear_search() -> f4x_def::t
             .into_iter()
             .map(|(e, ..)| e)
             .collect();
-        let largest = content.rules.config.max_city_size;
+        let largest = u32::from(game.settings().rules.max_city_size);
         for city in cities {
             for figures in 0..=largest {
                 game.world

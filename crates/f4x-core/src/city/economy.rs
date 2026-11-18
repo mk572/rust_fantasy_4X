@@ -202,6 +202,10 @@ pub struct Economy<'a> {
     pub(crate) settlers_cost_citizen: bool,
     /// Most units on one square (`RuleSettings::max_tile`).
     pub(crate) max_tile: usize,
+    /// The size at which a city stops growing (`RuleSettings::max_city_size`).
+    pub(crate) max_city_size: u32,
+    /// The least distance between two cities (`RuleSettings::min_city_distance`).
+    pub(crate) min_city_distance: u32,
     /// Most units one side fights with in a battle (`RuleSettings::max_battle_side`).
     pub(crate) max_battle_side: usize,
     /// A miners' guild adds half to iron and coal, not double (`RuleSettings::miners_guild_half_ore`).
@@ -234,6 +238,8 @@ impl<'a> Economy<'a> {
             diagonal_extra: false,
             settlers_cost_citizen: true,
             max_tile: crate::unit::MAX_TILE_LIMIT,
+            max_city_size: u32::from(f4x_def::settings::DEFAULT_MAX_CITY_SIZE),
+            min_city_distance: u32::from(f4x_def::settings::DEFAULT_MIN_CITY_DISTANCE),
             max_battle_side: crate::unit::MAX_STACK,
             miners_half_ore: false,
             base_farmer_food: f4x_def::settings::DEFAULT_FARMER_FOOD,
@@ -247,6 +253,24 @@ impl<'a> Economy<'a> {
     pub fn with_max_tile(mut self, max: usize) -> Self {
         self.max_tile = max;
         self
+    }
+
+    /// The same view with the game's city limits: the size at which a city stops growing and the
+    /// least distance between two cities.
+    pub fn with_city_limits(mut self, max_size: u32, min_distance: u32) -> Self {
+        self.max_city_size = max_size;
+        self.min_city_distance = min_distance;
+        self
+    }
+
+    /// The size at which a city stops growing in this game.
+    pub fn max_city_size(&self) -> u32 {
+        self.max_city_size
+    }
+
+    /// The least distance between two cities in this game.
+    pub fn min_city_distance(&self) -> u32 {
+        self.min_city_distance
     }
 
     /// The same view with the game's limit of units on one side of a battle.
@@ -867,8 +891,7 @@ impl<'a> Economy<'a> {
             food_x2 += sq.food_x2;
             wild_food += sq.wild_food;
         }
-        ((HalfInt::from_raw(food_x2 / 2) + wild_food).floor().max(0) as u32)
-            .min(self.content.rules.config.max_city_size)
+        ((HalfInt::from_raw(food_x2 / 2) + wild_food).floor().max(0) as u32).min(self.max_city_size)
     }
 
     /// Citizens needed on farms so the city feeds itself (all of them if it cannot). The food of
@@ -1191,7 +1214,7 @@ impl<'a> Economy<'a> {
             max_size = HalfInt::from_raw(max_size.raw() / 2);
         }
         let max_size = (max_size + pre_cap_adds + flat + wild_food).floor().max(0) as u32;
-        let max_size = max_size.min(rules.config.max_city_size);
+        let max_size = max_size.min(self.max_city_size);
 
         // Production.
         let per_worker = self.worker_production(race);
@@ -1255,14 +1278,7 @@ impl<'a> Economy<'a> {
             }
             _ => 0,
         };
-        let growth_tens = growth_rate(
-            self.content.rules.config.max_city_size,
-            figures,
-            food,
-            max_size,
-            &mods,
-            housing,
-        );
+        let growth_tens = growth_rate(self.max_city_size, figures, food, max_size, &mods, housing);
 
         // A computer wizard's difficulty bonuses come last, on the finished figures, as in the
         // original's `Do_City_Calculations`.
@@ -1401,6 +1417,10 @@ impl Game {
             .with_settlers_cost_citizen(self.settings.rules.settlers_cost_citizen)
             .with_max_tile(self.settings.rules.max_tile)
             .with_max_battle_side(self.settings.rules.max_battle_side)
+            .with_city_limits(
+                self.settings.rules.max_city_size.into(),
+                self.settings.rules.min_city_distance.into(),
+            )
             .with_miners_half_ore(self.settings.rules.miners_guild_half_ore)
             .with_base_yields(
                 self.settings.rules.farmer_food,
@@ -1464,7 +1484,11 @@ mod growth_tests {
     use super::*;
 
     fn cap() -> u32 {
-        crate::game::testutil::shipped().rules.config.max_city_size
+        u32::from(
+            f4x_def::settings::GameSettings::default()
+                .rules
+                .max_city_size,
+        )
     }
 
     fn rate(figures: u32, food: i32, max_size: u32) -> i32 {

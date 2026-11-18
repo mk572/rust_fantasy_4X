@@ -95,7 +95,7 @@ fn neutral_site_ok(game: &Game, pos: Position, strict: bool, chosen: &[Position]
         return false;
     }
     let width = game.map().map_or(1, |m| m.width());
-    let min_distance = game.content().rules.config.min_city_distance;
+    let min_distance = u32::from(game.settings().rules.min_city_distance);
     if game.map().is_some_and(|m| {
         chosen.iter().any(|c| {
             c.plane == pos.plane

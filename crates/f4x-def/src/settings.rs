@@ -28,6 +28,27 @@ pub const TOWERS_PER_REFERENCE_AREA: u32 = 6;
 /// Neutral cities on a plane of [`REFERENCE_AREA`] squares.
 pub const NEUTRAL_CITIES_PER_PLANE: u32 = 15;
 
+/// The size at which a city stops growing, and the range of the `max_city_size` setting.
+pub const DEFAULT_MAX_CITY_SIZE: u8 = 25;
+pub const MAX_CITY_SIZE_RANGE: std::ops::RangeInclusive<u8> = 5..=40;
+/// The least distance between two cities (the larger of the two steps along a row and a column),
+/// and the range of the `min_city_distance` setting.
+pub const DEFAULT_MIN_CITY_DISTANCE: u8 = 4;
+pub const MIN_CITY_DISTANCE_RANGE: std::ops::RangeInclusive<u8> = 1..=8;
+/// The first turn on which a random event may happen: the original waits five turns.
+pub const DEFAULT_EVENT_START_TURN: u8 = 6;
+pub const EVENT_START_TURN_RANGE: std::ops::RangeInclusive<u8> = 1..=50;
+/// Magic nodes on a plane of [`REFERENCE_AREA`] squares: Arcanus, Myrror (the original's).
+pub const NODES_PER_REFERENCE_AREA: [u32; 2] = [16, 14];
+pub const NODES_RANGE: std::ops::RangeInclusive<u8> = 0..=40;
+/// The share of mineral-capable land that gets a mineral, in percent: Arcanus, Myrror.
+pub const DEFAULT_MINERAL_PERCENT: [u8; 2] = [6, 10];
+pub const MINERAL_PERCENT_RANGE: std::ops::RangeInclusive<u8> = 0..=30;
+/// Strong and weak encounter sites of a map of [`REFERENCE_AREA`] squares (both planes).
+pub const STRONG_SITES_PER_REFERENCE_AREA: u32 = 25;
+pub const WEAK_SITES_PER_REFERENCE_AREA: u32 = 32;
+pub const SITES_RANGE: std::ops::RangeInclusive<u8> = 0..=100;
+
 /// The most units a game may let stand on one tile: the ceiling of the `max_tile` setting and its
 /// default. Read the game's own limit with `Game::max_tile()`.
 pub const MAX_TILE_LIMIT: usize = 20;
@@ -322,6 +343,25 @@ pub struct WorldSettings {
     /// Whether a raid is now and then a landing from the sea instead (`threat/sea_raid.rs`).
     #[serde(default)]
     pub sea_raids: bool,
+    /// Magic nodes on Arcanus and on Myrror. `None` follows the area (16 and 14 for each 60 by
+    /// 40 squares, the original's); read the number with [`GameSettings::node_count`].
+    #[serde(default)]
+    pub nodes_arcanus: Option<u8>,
+    #[serde(default)]
+    pub nodes_myrror: Option<u8>,
+    /// The share of mineral-capable land that gets a mineral, in percent, on Arcanus and on
+    /// Myrror.
+    #[serde(default = "fb_mineral_arcanus")]
+    pub mineral_percent_arcanus: u8,
+    #[serde(default = "fb_mineral_myrror")]
+    pub mineral_percent_myrror: u8,
+    /// Strong and weak encounter sites of the map. `None` follows the area (25 and 32 for each
+    /// 60 by 40 squares, the original's); read the numbers with [`GameSettings::strong_site_count`]
+    /// and [`GameSettings::weak_site_count`].
+    #[serde(default)]
+    pub strong_sites: Option<u8>,
+    #[serde(default)]
+    pub weak_sites: Option<u8>,
     /// Whether monsters now and then leave their lair to settle in another and to attack cities
     /// (`threat/monster.rs`).
     pub monsters_enabled: bool,
@@ -353,6 +393,13 @@ pub struct RuleSettings {
     /// v1.6. Units above a battle side on a defended square are a reserve.
     #[serde(default = "default_max_tile")]
     pub max_tile: usize,
+    /// The size at which a city stops growing, 5 to 40 (25, the original's). A larger cap needs
+    /// the growth tables and the art to cope: see `docs/game-settings.md`.
+    #[serde(default = "fb_max_city_size")]
+    pub max_city_size: u8,
+    /// The least distance between two cities, 1 to 8 (4, the original's: three squares between).
+    #[serde(default = "fb_min_city_distance")]
+    pub min_city_distance: u8,
     /// Most units one side fights with in a battle, from 1 to `MAX_STACK` (nine in every rule
     /// set). A larger stack sends its strongest and keeps the rest back as a reserve; summoning
     /// stops at this number too.
@@ -651,6 +698,32 @@ fn fb_suppress_spares_return() -> bool {
     fallback(|g| g.rules.suppress_spares_return, false)
 }
 
+fn fb_max_city_size() -> u8 {
+    fallback(|g| g.rules.max_city_size, DEFAULT_MAX_CITY_SIZE)
+}
+
+fn fb_min_city_distance() -> u8 {
+    fallback(|g| g.rules.min_city_distance, DEFAULT_MIN_CITY_DISTANCE)
+}
+
+fn fb_event_start_turn() -> u8 {
+    fallback(|g| g.events.start_turn, DEFAULT_EVENT_START_TURN)
+}
+
+fn fb_mineral_arcanus() -> u8 {
+    fallback(
+        |g| g.world.mineral_percent_arcanus,
+        DEFAULT_MINERAL_PERCENT[0],
+    )
+}
+
+fn fb_mineral_myrror() -> u8 {
+    fallback(
+        |g| g.world.mineral_percent_myrror,
+        DEFAULT_MINERAL_PERCENT[1],
+    )
+}
+
 fn fb_frequency() -> EventFrequency {
     fallback(|g| g.events.frequency, EventFrequency::default())
 }
@@ -703,6 +776,11 @@ pub struct EventSettings {
     pub pressure_percent: u16,
     #[serde(default = "fb_frequency")]
     pub frequency: EventFrequency,
+    /// The first turn on which an event may happen, 1 to 50 (6: the original lets five turns
+    /// pass). The wait is counted in turns with events on, and starts again after each event, as
+    /// the original's counter does.
+    #[serde(default = "fb_event_start_turn")]
+    pub start_turn: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1186,6 +1264,44 @@ impl SettingsDef {
 }
 
 impl GameSettings {
+    /// The magic nodes of a plane (0 Arcanus, 1 Myrror): the setting, or the original's number
+    /// for a map of this area.
+    pub fn node_count(&self, plane: usize) -> u8 {
+        let (set, per) = match plane {
+            0 => (self.world.nodes_arcanus, NODES_PER_REFERENCE_AREA[0]),
+            _ => (self.world.nodes_myrror, NODES_PER_REFERENCE_AREA[1]),
+        };
+        set.unwrap_or_else(|| self.scaled_to_map(per))
+    }
+
+    /// The strong encounter sites of the map: the setting, or 25 for every 60 by 40 squares.
+    pub fn strong_site_count(&self) -> u32 {
+        self.world.strong_sites.map_or_else(
+            || self.scaled_to_map_u32(STRONG_SITES_PER_REFERENCE_AREA),
+            u32::from,
+        )
+    }
+
+    /// The weak encounter sites of the map: the setting, or 32 for every 60 by 40 squares.
+    pub fn weak_site_count(&self) -> u32 {
+        self.world.weak_sites.map_or_else(
+            || self.scaled_to_map_u32(WEAK_SITES_PER_REFERENCE_AREA),
+            u32::from,
+        )
+    }
+
+    fn scaled_to_map_u32(&self, base: u32) -> u32 {
+        scaled_count(
+            base,
+            self.basic.map_width.into(),
+            self.basic.map_height.into(),
+        )
+    }
+
+    fn scaled_to_map(&self, base: u32) -> u8 {
+        self.scaled_to_map_u32(base).min(255) as u8
+    }
+
     /// The settings of a difficulty level: the file's figures for it, with the other basic
     /// choices at their defaults. Without levels in the file it is the default game.
     pub fn for_difficulty(def: &SettingsDef, difficulty: u8) -> Self {
@@ -1284,6 +1400,51 @@ impl GameSettings {
                 self.rules.max_tile, self.rules.max_battle_side, MAX_TILE_LIMIT
             ),
         );
+        check(
+            MAX_CITY_SIZE_RANGE.contains(&self.rules.max_city_size),
+            format!(
+                "a city size cap of {} is not 5 to 40",
+                self.rules.max_city_size
+            ),
+        );
+        check(
+            MIN_CITY_DISTANCE_RANGE.contains(&self.rules.min_city_distance),
+            format!(
+                "a distance of {} between cities is not 1 to 8",
+                self.rules.min_city_distance
+            ),
+        );
+        check(
+            EVENT_START_TURN_RANGE.contains(&self.events.start_turn),
+            format!("events from turn {} is not 1 to 50", self.events.start_turn),
+        );
+        for (name, set) in [
+            ("nodes on Arcanus", self.world.nodes_arcanus),
+            ("nodes on Myrror", self.world.nodes_myrror),
+        ] {
+            check(
+                set.is_none_or(|n| NODES_RANGE.contains(&n)),
+                format!("{name}: more than 40"),
+            );
+        }
+        for (name, percent) in [
+            ("Arcanus", self.world.mineral_percent_arcanus),
+            ("Myrror", self.world.mineral_percent_myrror),
+        ] {
+            check(
+                MINERAL_PERCENT_RANGE.contains(&percent),
+                format!("minerals on {name}: {percent} percent is not 0 to 30"),
+            );
+        }
+        for (name, set) in [
+            ("strong", self.world.strong_sites),
+            ("weak", self.world.weak_sites),
+        ] {
+            check(
+                set.is_none_or(|n| SITES_RANGE.contains(&n)),
+                format!("{name} sites: more than 100"),
+            );
+        }
         let w = &self.wizards;
         for (who, gold) in [
             ("your", w.starting_gold.human),

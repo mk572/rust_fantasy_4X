@@ -59,7 +59,7 @@ impl Game {
             survey.production_percent += sq.production;
         }
         survey.max_size = ((HalfInt::from_raw(food_x2 / 2) + wild_food).floor().max(0) as u32)
-            .min(self.content.rules.config.max_city_size);
+            .min(self.economy().max_city_size());
         let coast = (-1i32..=1).any(|dy| {
             (-1i32..=1).any(|dx| {
                 (dx != 0 || dy != 0)

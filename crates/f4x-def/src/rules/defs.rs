@@ -714,10 +714,6 @@ pub struct RulesConfig {
     pub to_hit_percent: u8,
     /// Chance (percent) for each point of defense to block a hit.
     pub block_percent: u8,
-    /// Minimum Chebyshev distance between cities on one plane.
-    pub min_city_distance: u32,
-    /// Largest city, in citizens (thousands of people).
-    pub max_city_size: u32,
     /// Unrest percent caused by each tax rate; the rate is also half the gold per citizen.
     pub tax_unrest_percent: Vec<u8>,
     /// Unrest (in tens of percent) in a city of one race under a capital of another:
@@ -1404,8 +1400,6 @@ impl Default for RulesConfig {
         Self {
             to_hit_percent: 30,
             block_percent: 30,
-            min_city_distance: 4,
-            max_city_size: 25,
             tax_unrest_percent: vec![0, 10, 20, 30, 45, 60, 75],
             racial_unrest: Vec::new(),
             autobuild_order: Vec::new(),
