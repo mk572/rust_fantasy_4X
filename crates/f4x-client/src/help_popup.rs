@@ -18,16 +18,23 @@ use crate::preferences::Pref;
 use crate::view::{App, Screen};
 use f4x_core::world_event::EventKind;
 
-/// The box's text width and the margin round it, in the original's pixels.
+/// The scroll the help is drawn on (`Draw_Help_Entry`): its left edge, the text column and the
+/// title's indent from that edge, the height of its top and bottom roll, the height a title
+/// takes (the font's 9 and 2), the room after an entry, and the lines under the last.
+const SCROLL_LEFT: f32 = 50.0;
 const TEXT_WIDTH: f32 = 180.0;
-
-/// A text of more lines than this is set in a wider box.
-const LONG_TEXT: usize = 14;
-const WIDE_TEXT_WIDTH: f32 = 280.0;
-
-/// The tallest box, in the original's pixels.
-const MAX_HEIGHT: f32 = 192.0;
-const MARGIN: f32 = 10.0;
+const TEXT_LEFT: f32 = 20.0;
+const TITLE_LEFT: f32 = 18.0;
+const ROLL: f32 = 24.0;
+const TITLE_HEIGHT: f32 = 11.0;
+const ENTRY_GAP: f32 = 6.0;
+/// The room above the first title and below the last entry.
+const SPACE_ABOVE: f32 = 2.0;
+const SPACE_BELOW: f32 = 5.0;
+/// The scroll's paper, from `help.lbx` entry 0, is this wide.
+const PAPER_WIDTH: f32 = 217.0;
+/// The tallest the text on the scroll may be before it scrolls.
+const MAX_TEXT: f32 = 200.0 - 2.0 * ROLL - SPACE_ABOVE - TITLE_HEIGHT - ENTRY_GAP - SPACE_BELOW;
 
 /// Seconds the box takes to grow out of the area.
 const GROW_SECONDS: f64 = 0.25;
@@ -45,8 +52,6 @@ pub(crate) struct HelpRequest {
 pub(crate) struct HelpPopup {
     title: String,
     lines: Vec<String>,
-    /// The text's width in the original's pixels.
-    width: f32,
     /// The first line shown, for a text taller than the screen.
     scroll: usize,
     /// The area asked about, as left, top, width, height.
@@ -334,19 +339,12 @@ impl App {
             }
             lines
         };
-        // A long text gets a wider box so that it fits the screen.
-        let mut width = TEXT_WIDTH;
-        let mut lines = wrap(self, width);
-        if lines.len() > LONG_TEXT {
-            width = WIDE_TEXT_WIDTH;
-            lines = wrap(self, width);
-        }
+        let lines = wrap(self, TEXT_WIDTH);
         let frozen = Texture2D::from_image(&get_screen_data());
         frozen.set_filter(FilterMode::Nearest);
         self.modals.open(HelpPopup {
             title: parts[0].title.clone(),
             lines,
-            width,
             scroll: 0,
             from: request.from,
             opened: get_time(),
@@ -374,20 +372,23 @@ impl App {
                 ..Default::default()
             },
         );
-        // Where the box ends up: round the area, kept on the screen.
+        // The scroll's height follows the text, as the original grows it (`Draw_Help_Entry`):
+        // a title and its text for each entry, between the rolls, centred on the screen.
         let line = self.art.text_height(1) + 1.0;
-        let title = self.art.text_height(4) + 5.0;
-        // The box is at most as tall as the screen; a longer text scrolls.
-        let room = ((MAX_HEIGHT - MARGIN * 2.0 - title) / line)
-            .floor()
-            .max(1.0) as usize;
-        let shown = popup.lines.len().min(room);
-        let top_line = popup.scroll.min(popup.lines.len() - shown);
-        let height = MARGIN * 2.0 + title + line * shown as f32;
-        let width = popup.width + 2.0 * MARGIN;
+        let rows = row_heights(&popup.lines, line);
+        // A text taller than the scroll scrolls: the lines from the first one shown that fit.
+        let top_line = popup.scroll.min(popup.lines.len().saturating_sub(1));
+        let shown = lines_that_fit(&rows, top_line, MAX_TEXT);
+        let shown = shown.max(1);
+        let room = ((MAX_TEXT / line).floor() as usize).max(1);
+        let body_height: f32 = rows[top_line..(top_line + shown).min(rows.len())]
+            .iter()
+            .sum();
+        let text_height = SPACE_ABOVE + TITLE_HEIGHT + ENTRY_GAP + body_height + SPACE_BELOW;
+        let scroll_top = (100.0 - (text_height + 2.0 * ROLL) / 2.0).floor().max(0.0);
+        let (left, width) = (SCROLL_LEFT, PAPER_WIDTH);
+        let (top, height) = (scroll_top, text_height + 2.0 * ROLL);
         let (fx, fy, fw, fh) = popup.from;
-        let left = (fx + fw / 2.0 - width / 2.0).clamp(4.0, (316.0 - width).max(4.0));
-        let top = (fy + fh / 2.0 - height / 2.0).clamp(4.0, (196.0 - height).max(4.0));
 
         let grown = if self.prefs.get(Pref::ExpandingHelp) && self.help_ui.probe.is_none() {
             (((get_time() - popup.opened) / GROW_SECONDS) as f32).clamp(0.0, 1.0)
@@ -397,12 +398,29 @@ impl App {
         let ease = 1.0 - (1.0 - grown) * (1.0 - grown);
         let mix = |a: f32, b: f32| a + (b - a) * ease;
         let (x, y, w, h) = (mix(fx, left), mix(fy, top), mix(fw, width), mix(fh, height));
-        let r = lay.rect((x, y, w, h));
-        draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.86, 0.76, 0.55, 1.0));
-        draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::new(0.35, 0.22, 0.1, 1.0));
+        // The scroll: the paper cut to the text's height, its bottom roll under it. While it
+        // grows out of the area only that much of the paper shows. Without the picture a flat
+        // rectangle stands in.
+        let paper_height = ROLL + text_height;
+        let mut drawn = false;
+        let clip_h = (top + paper_height - y).min(h).max(0.0);
+        self.clipped((x, y, w, clip_h), |app| {
+            drawn = app.draw_pic(&lay, "help", 0, 0, left, top).is_some();
+        });
+        // The paper is cut where the text ends; the picture is taller than any text.
+        if drawn {
+            if grown >= 1.0 {
+                self.draw_pic(&lay, "help", 1, 0, left, top + paper_height);
+            }
+        } else {
+            let r = lay.rect((x, y, w, h));
+            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.86, 0.76, 0.55, 1.0));
+            draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::new(0.35, 0.22, 0.1, 1.0));
+        }
         if grown < 1.0 {
             // The growth lines: from each corner of the area to the same corner of the box.
             let from = lay.rect((fx, fy, fw, fh));
+            let r = lay.rect((x, y, w, h));
             let rim = Color::new(0.95, 0.85, 0.45, 1.0);
             for (a, b) in [
                 (vec2(from.x, from.y), vec2(r.x, r.y)),
@@ -417,57 +435,59 @@ impl App {
             }
         }
         if grown >= 1.0 {
-            let mut y = top + MARGIN;
             let heading = popup.title.clone();
             let body: Vec<String> = popup.lines[top_line..top_line + shown].to_vec();
             let more = top_line + shown < popup.lines.len();
-            // Small arrows at the corner show that the text goes on above or below.
+            // Small arrows at the right edge show that the text goes on above or below.
             let mark = Color::new(0.4, 0.05, 0.02, 1.0);
-            let (cx, s) = (left + width - 9.0, 3.0);
+            let (cx, s) = (left + width - 30.0, 3.0);
             if more {
+                let by = top + paper_height - 6.0;
                 let (a, b, c) = (
-                    lay.point(cx - s, top + height - 8.0),
-                    lay.point(cx + s, top + height - 8.0),
-                    lay.point(cx, top + height - 4.0),
+                    lay.point(cx - s, by),
+                    lay.point(cx + s, by),
+                    lay.point(cx, by + 4.0),
                 );
                 draw_triangle(a, b, c, mark);
             }
             if top_line > 0 {
+                let by = top + ROLL + 4.0;
                 let (a, b, c) = (
-                    lay.point(cx - s, top + 8.0),
-                    lay.point(cx + s, top + 8.0),
-                    lay.point(cx, top + 4.0),
+                    lay.point(cx - s, by + 4.0),
+                    lay.point(cx + s, by + 4.0),
+                    lay.point(cx, by),
                 );
                 draw_triangle(a, b, c, mark);
             }
+            // The title at its indent, then the text in its column of 180.
+            let mut y = top + ROLL + SPACE_ABOVE;
             self.draw_styled(
                 view,
                 &Style::inked(4, Ink::Set(font_ramp::flat(47))),
                 &heading,
-                left + MARGIN,
+                left + TITLE_LEFT,
                 y,
             );
-            y += title;
-            for text in body {
+            y += TITLE_HEIGHT;
+            for (i, text) in body.iter().enumerate() {
                 if let Some(heading) = text.strip_prefix('\u{1}') {
                     self.draw_styled(
                         view,
                         &Style::inked(4, Ink::Set(font_ramp::flat(47))),
                         heading,
-                        left + MARGIN,
+                        left + TITLE_LEFT,
                         y,
                     );
-                    y += title;
                 } else {
                     self.draw_styled(
                         view,
                         &Style::inked(1, Ink::Set(font_ramp::flat(55))),
-                        &text,
-                        left + MARGIN,
+                        text,
+                        left + TEXT_LEFT,
                         y,
                     );
-                    y += line;
                 }
+                y += rows[top_line + i];
             }
         }
         // The wheel and the arrow keys scroll a long text; any other key or a click closes it.
@@ -490,6 +510,35 @@ impl App {
     }
 }
 
+/// The height of each line of a help text: a heading takes a title's, the blank line before one
+/// the room between entries, and any other line `line`.
+fn row_heights(lines: &[String], line: f32) -> Vec<f32> {
+    lines
+        .iter()
+        .enumerate()
+        .map(|(i, l)| {
+            if l.starts_with('\u{1}') {
+                TITLE_HEIGHT
+            } else if l.is_empty() && lines.get(i + 1).is_some_and(|n| n.starts_with('\u{1}')) {
+                ENTRY_GAP
+            } else {
+                line
+            }
+        })
+        .collect()
+}
+
+/// How many of the lines from `first` fit in `room` pixels (at least one).
+fn lines_that_fit(rows: &[f32], first: usize, room: f32) -> usize {
+    let mut used = 0.0;
+    let mut n = 0;
+    while first + n < rows.len() && used + rows[first + n] <= room {
+        used += rows[first + n];
+        n += 1;
+    }
+    n.max(1)
+}
+
 /// The help topic of a random event (`HLP_PLAGUE` and the ones after it, 768 to 775).
 fn event_topic(kind: EventKind) -> u16 {
     match kind {
@@ -506,6 +555,21 @@ fn event_topic(kind: EventKind) -> u16 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_scroll_holds_what_fits_between_its_rolls() {
+        use super::*;
+        let lines: Vec<String> = ["a", "b", "", "\u{1}Head", "c"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let rows = row_heights(&lines, 8.0);
+        assert_eq!(rows, [8.0, 8.0, ENTRY_GAP, TITLE_HEIGHT, 8.0]);
+        assert_eq!(lines_that_fit(&rows, 0, 17.0), 2);
+        assert_eq!(lines_that_fit(&rows, 0, 1000.0), 5);
+        assert_eq!(lines_that_fit(&rows, 3, 5.0), 1, "one line at least");
+        assert_eq!(lines_that_fit(&rows, 4, 8.0), 1);
+    }
+
     #[test]
     fn every_event_has_a_topic_from_768_to_775() {
         use super::*;
