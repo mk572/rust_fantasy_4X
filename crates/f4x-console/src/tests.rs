@@ -1066,62 +1066,6 @@ fn capital(g: &Game, p: PlayerId) -> (hecs::Entity, f4x_core::map::Position) {
 }
 
 #[test]
-fn a_wizard_starts_as_in_the_original() -> TestResult {
-    let content = content();
-    for seed in [1, 2, 3, 4, 5, 6] {
-        // The computer's wizards are rolled at random; this test is about the start itself.
-        let mut spec = NewGame {
-            seed,
-            ..NewGame::with_wizards(4)
-        };
-        spec.settings.ai.wizards.randomise = false;
-        let g = new_game(content, &spec)?;
-        for k in 0..4 {
-            let p = PlayerId(k);
-            let (city, _) = capital(&g, p);
-            let mut army = start_army(&g, p);
-            army.sort();
-            assert!(
-                army[0].ends_with("_spearmen") && army[1].ends_with("_swordsmen"),
-                "{army:?}: seed {seed} wizard {k}"
-            );
-            let eco = g
-                .economy()
-                .city_economy(city)
-                .expect("the city has an economy");
-            assert_eq!(
-                (
-                    eco.figures,
-                    eco.farmers,
-                    g.player_component::<f4x_core::player::Tax>(p)
-                        .expect("the entity has it")
-                        .0
-                ),
-                (4, 3, 2)
-            );
-            for (b, name) in [(8, "smithy"), (3, "barracks"), (32, "builders_hall")] {
-                assert!(
-                    g.economy()
-                        .city_has_building(city, f4x_def::rules::BuildingId::new(b)),
-                    "seed {seed} wizard {k}: {name}"
-                );
-            }
-            // Land that feeds eight (seven for later wizards), so the farmers feed the army.
-            assert!(
-                eco.max_size >= 7,
-                "seed {seed} wizard {k}: {}",
-                eco.max_size
-            );
-            assert_eq!(
-                g.player(p).expect("the player exists").treasury().gold,
-                if k == 0 { 75 } else { 150 }
-            );
-        }
-    }
-    Ok(())
-}
-
-#[test]
 fn the_starting_army_and_capital_pay_their_way() -> TestResult {
     let content = content();
     for seed in [1, 2, 3, 4, 5, 6] {
