@@ -597,7 +597,6 @@ fn ten_books_still_choose_nine_commons_and_nothing_else() {
 
 #[test]
 fn eight_spells_are_on_offer_for_research_lowest_rarity_first() -> TestResult {
-    use crate::wizard::magic::RESEARCH_SLOTS;
     let mut g = game();
     g.create_wizard(
         P0,
@@ -611,7 +610,10 @@ fn eight_spells_are_on_offer_for_research_lowest_rarity_first() -> TestResult {
     )
     .map_err(|e| format!("{e:?}"))?;
     let magic = g.wizard(P0).ok_or("wizard is missing")?;
-    assert_eq!(magic.candidates().len(), RESEARCH_SLOTS);
+    assert_eq!(
+        magic.candidates().len(),
+        g.content.rules.config.wizard.research_slots
+    );
     assert!(magic.candidates().iter().all(|s| magic.can_research(*s)));
     // Lowest rarity first: a realm's uncommon spell is offered only once all its researchable
     // commons are on the offer.
@@ -655,7 +657,10 @@ fn eight_spells_are_on_offer_for_research_lowest_rarity_first() -> TestResult {
         .any(|e| matches!(e, crate::game::Event::SpellLearned { spell, .. } if *spell == pick)));
     let after = g.wizard(P0).ok_or("wizard is missing")?;
     assert!(after.knows(pick) && !after.candidates().contains(&pick));
-    assert_eq!(after.candidates().len(), RESEARCH_SLOTS);
+    assert_eq!(
+        after.candidates().len(),
+        g.content.rules.config.wizard.research_slots
+    );
     Ok(())
 }
 

@@ -247,22 +247,26 @@ mod tests {
         let (mut g, s) = world();
         step(&mut g, s, at(6, 5));
         step(&mut g, s, at(7, 5));
+        let start = g
+            .player_component::<crate::player::Tax>(P0)
+            .ok_or("value is missing")?
+            .0;
         g.apply(Command::SetTaxRate {
             player: P0,
-            rate: 3,
+            rate: start + 1,
         });
         assert_eq!(
             g.player_component::<crate::player::Tax>(P0)
                 .ok_or("value is missing")?
                 .0,
-            3
+            start + 1
         );
         g.undo().map_err(|e| format!("{e:?}"))?;
         assert_eq!(
             g.player_component::<crate::player::Tax>(P0)
                 .ok_or("value is missing")?
                 .0,
-            crate::player::START_TAX_RATE
+            start
         );
         g.undo().map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.units().unit_position(walker(&g, s)), Some(at(6, 5)));

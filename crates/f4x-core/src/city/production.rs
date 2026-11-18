@@ -690,7 +690,7 @@ mod tests {
                 .expect("id_of succeeds");
             let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
             let mut world = World::new();
-            let owner = world.spawn(crate::player::bundle(PlayerId(0)));
+            let owner = world.spawn(crate::player::test_bundle(PlayerId(0)));
             let at = Position {
                 plane: Plane::Arcanus,
                 x: 10,

@@ -220,28 +220,37 @@ fn retorts_and_extra_books_change_research_and_cost() -> TestResult {
     )
     .map_err(|e| format!("{e:?}"))?;
     let mend = spell(&g, 125 /* healing */);
-    // Sage master 25 plus two books over seven, 10 each.
-    assert_eq!(
-        g.wizard(P0)
+    let rule = g.content().rules.config.wizard.clone();
+    // Each book over `book_steps_from` adds a step to the research of its realm's spells and
+    // takes the same off their cost; the arcane spells get the retort's part only.
+    let steps = (9 - rule.book_steps_from).max(0);
+    let step = steps * rule.book_step_percent;
+    let bonus_of = |g: &Game, s: SpellId| -> Result<i32, Box<dyn std::error::Error>> {
+        Ok(g.wizard(P0)
             .ok_or("wizard is missing")?
-            .research_bonus(&g.content().rules, g.content().rules.spells.get(mend)),
-        45
-    );
-    // Two books over seven take a fifth off the cost (15 mana in battle).
-    assert_eq!(g.casting_cost(P0, mend, true), 12);
+            .research_bonus(&g.content().rules, g.content().rules.spells.get(s)))
+    };
     let runes = spell(&g, 201 /* magic_spirit */);
-    assert_eq!(
-        g.wizard(P0)
-            .ok_or("wizard is missing")?
-            .research_bonus(&g.content().rules, g.content().rules.spells.get(runes)),
-        25,
-        "arcane gets no book bonus"
-    );
-    assert_eq!(g.casting_cost(P0, runes, false), 30);
-    // A spell that can also be cast in battle costs five times as much overland.
+    let retort_part = bonus_of(&g, runes)?;
+    assert!(retort_part > 0, "the retort adds to arcane research");
+    assert_eq!(bonus_of(&g, mend)?, retort_part + step);
+    let cut = |cost: i32| cost - cost * step / 100;
+    let cost_of = |s: SpellId| g.content().rules.spells.get(s).cost as i32;
+    assert_eq!(g.casting_cost(P0, mend, true), cut(cost_of(mend)));
+    // The arcane spells get no book cut and cost more overland if they can also be cast in battle.
+    let overland = |s: SpellId| {
+        if g.content().rules.spells.get(s).overland_x5 {
+            cost_of(s) * rule.overland_cost_factor
+        } else {
+            cost_of(s)
+        }
+    };
+    assert_eq!(g.casting_cost(P0, runes, false), overland(runes));
+    // A spell that can also be cast in battle costs more overland (a nature spell: no nature
+    // books here).
     let strength = spell(&g, 4 /* giant_strength */);
-    assert_eq!(g.casting_cost(P0, strength, true), 8);
-    assert_eq!(g.casting_cost(P0, strength, false), 40);
+    assert_eq!(g.casting_cost(P0, strength, true), cost_of(strength));
+    assert_eq!(g.casting_cost(P0, strength, false), overland(strength));
     Ok(())
 }
 
@@ -570,13 +579,17 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() -> TestResult {
         .known
         .insert(strength);
     let melee = g.units().unit_stat(unit, Stat::Melee);
-    // 40 mana overland; the wizard's skill is 4, so it takes many turns.
-    assert_eq!(
-        g.wizard(P0)
-            .ok_or("wizard is missing")?
-            .casting_skill(&g.content.rules),
-        4
+    // The mana it costs overland is paid at the wizard's casting skill a turn, so it takes many turns.
+    let cost = g.casting_cost(P0, strength, false);
+    let skill = g
+        .wizard(P0)
+        .ok_or("wizard is missing")?
+        .casting_skill(&g.content.rules);
+    assert!(
+        skill > 0 && cost > 2 * skill,
+        "{cost} mana at {skill} a turn"
     );
+    let reserve = g.player(P0).ok_or("player is missing")?.treasury().mana;
     assert_eq!(g.start_cast(P0, strength, None), Ok(vec![]));
     assert_eq!(
         g.wizard(P0)
@@ -584,14 +597,14 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() -> TestResult {
             .casting()
             .ok_or("casting is missing")?
             .remaining,
-        40
+        cost
     );
     assert_eq!(
         g.start_cast(P0, strength, None),
         Err(MagicError::AlreadyCasting)
     );
     let mut ready_after = None;
-    for turn in 1..=20 {
+    for turn in 1..=40 {
         let events = g.apply(Command::EndTurn);
         if events.contains(&Event::SpellReady {
             player: P0,
@@ -601,13 +614,13 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() -> TestResult {
             break;
         }
     }
-    // Forty mana at four a turn is ten payments, but the last is borrowed from the next
-    // turn's skill, as in the original.
-    assert_eq!(ready_after, Some(9));
+    // The payments are as many as the skill goes into the cost, but the last is borrowed from the
+    // next turn's skill, as in the original.
+    assert_eq!(ready_after, Some((cost + skill - 1) / skill - 1));
     assert_eq!(
         g.player(P0).ok_or("player is missing")?.treasury().mana,
-        60,
-        "the 40 mana was paid"
+        reserve - f4x_def::half_int::HalfInt::from_int(cost),
+        "the mana was paid"
     );
     let events = g.apply(Command::ResolveCast {
         player: P0,

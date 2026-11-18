@@ -48,10 +48,6 @@ impl FortressError {
     }
 }
 
-/// A wizard whose casting skill (with heroes) is below this is defeated when banished rather
-/// than casting the Spell of Return.
-const RESIGN_BELOW_SKILL: i32 = 40;
-
 /// On a wizard: where its fortress stands (a city). Absent before it is placed and while the
 /// wizard is banished.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -433,7 +429,7 @@ impl Game {
         }
         // The game's rules may leave this wizard no Spell of Return (`RuleSettings::spell_of_return`).
         if self.economy().city_count(loser) == 0
-            || skill < RESIGN_BELOW_SKILL
+            || skill < self.content.rules.config.wizard.resign_below_skill
             || mana < 1
             || !self.return_open_to(loser)
         {

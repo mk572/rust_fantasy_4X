@@ -86,7 +86,7 @@ impl UnitView<'_> {
             .collect()
     }
 
-    /// A hero's mana in battle (`COMBINIT.c`): `(casting skill + 1) * (level + 1) * 5 / 2`, and
+    /// A hero's mana in battle (`COMBINIT.c`): `(casting skill + 1) * (level + 1) * hero_mana_percent / 100`, and
     /// the spell skill of its items when it has any mana. 0 for a hero with no casting skill
     /// and for a unit that is no hero.
     pub fn hero_mana(&self, unit: hecs::Entity) -> i32 {
@@ -97,7 +97,10 @@ impl UnitView<'_> {
             return 0;
         }
         let x = self.unit_level(unit) as i32 + 1;
-        let base = (i32::from(hero.casting_skill) + 1) * x * 5 / 2;
+        let base = (i32::from(hero.casting_skill) + 1)
+            * x
+            * self.content.rules.config.wizard.hero_mana_percent
+            / 100;
         let items: i32 = self
             .items()
             .carried(unit)
@@ -521,7 +524,7 @@ pub(crate) mod tests {
         let mut g = world();
         g.wiz_mut(0)
             .put(Some(crate::wizard::fortress::Fortress(at(3, 3))));
-        // The mana is `(casting skill + 1) * (level + 1) * 5 / 2`: the skill is the hero type's
+        // The mana is `(casting skill + 1) * (level + 1) * hero_mana_percent / 100`: the skill is the hero type's
         // own (`heroes.ron`), at level 0 the level factor is 1.
         let sage = kind_of(&g, 2 /* sage */);
         let h = g
@@ -532,14 +535,15 @@ pub(crate) mod tests {
             skill > 0,
             "the sage must cast for the test to show anything"
         );
-        assert_eq!(g.units().hero_mana(h), (skill + 1) * 5 / 2);
+        let percent = g.content.rules.config.wizard.hero_mana_percent;
+        assert_eq!(g.units().hero_mana(h), (skill + 1) * percent / 100);
         // Half of it helps at the fortress.
         assert_eq!(g.hero_casting_skill(P0), g.units().hero_mana(h) / 2);
         // At a higher level the factor grows with it.
         let _ = g.world.insert_one(h, Experience(120));
         let level = g.units().unit_level(h) as i32 + 1;
         assert!(level > 1);
-        assert_eq!(g.units().hero_mana(h), (skill + 1) * level * 5 / 2);
+        assert_eq!(g.units().hero_mana(h), (skill + 1) * level * percent / 100);
         // An item's spell skill adds to it.
         let before = g.units().hero_mana(h);
         // A shipped staff with spell skill adds it to the hero's mana.
@@ -564,7 +568,7 @@ pub(crate) mod tests {
             .spawn_hero(P0, at(5, 5), beast)
             .map_err(|e| format!("{e:?}"))?;
         let own = i32::from(g.world.get::<&Hero>(away)?.casting_skill);
-        assert_eq!(g.units().hero_mana(away), (own + 1) * 5 / 2);
+        assert_eq!(g.units().hero_mana(away), (own + 1) * percent / 100);
         assert_eq!(g.hero_casting_skill(P0), (before + skill) / 2);
         assert_eq!(g.hero_casting_skill(P1), 0);
         // A hero with no casting skill has no mana, whatever its items.

@@ -744,6 +744,58 @@ pub struct RulesConfig {
     pub limited_ai_races: Vec<u16>,
     /// The minerals (feature numbers) a world event can put on the map.
     pub event_ores: Vec<u16>,
+    /// The wizard: the start, the costs of spells, the limits.
+    pub wizard: WizardRules,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WizardRules {
+    /// The tax rate everyone starts with: a gold for each citizen.
+    pub start_tax_rate: u8,
+    /// Citizens in the capital at the start, how many of them farm, and its buildings.
+    pub capital_figures: u32,
+    pub capital_farmers: u32,
+    pub capital_buildings: Vec<Id<BuildingDef>>,
+    /// The most retorts a wizard has, and how many spells are offered for research at once.
+    pub max_retorts: usize,
+    pub research_slots: usize,
+    /// A wizard with less casting skill than this does not resign to the Spell of Return.
+    pub resign_below_skill: i32,
+    /// A spell cast overland that can also be cast in battle costs this many times the battle
+    /// price.
+    pub overland_cost_factor: i32,
+    /// Evil Omens: life and nature spells cost this many percent more.
+    pub evil_omens_percent: i32,
+    /// Each book beyond `book_steps_from` in the realm of a spell takes `book_step_percent` off
+    /// its cost and adds as much to its research.
+    pub book_steps_from: i32,
+    pub book_step_percent: i32,
+    /// Books of one realm that take `mastery_discount` research points off the Spell of Mastery.
+    pub mastery_discount_books: i32,
+    pub mastery_discount: i32,
+    /// A hero's mana in battle: `(casting skill + 1) * (level + 1) * hero_mana_percent / 100`.
+    pub hero_mana_percent: i32,
+}
+
+impl Default for WizardRules {
+    fn default() -> Self {
+        Self {
+            start_tax_rate: 2,
+            capital_figures: 4,
+            capital_farmers: 3,
+            capital_buildings: Vec::new(),
+            max_retorts: 6,
+            research_slots: 8,
+            resign_below_skill: 40,
+            overland_cost_factor: 5,
+            evil_omens_percent: 50,
+            book_steps_from: 7,
+            book_step_percent: 10,
+            mastery_discount_books: 11,
+            mastery_discount: 3000,
+            hero_mana_percent: 250,
+        }
+    }
 }
 
 /// What a good is worth to a wizard in a trade, in percent (`worth` = cost * percent / 100).
@@ -903,6 +955,7 @@ impl Default for RulesConfig {
             starting_buildings: Vec::new(),
             limited_ai_races: Vec::new(),
             event_ores: Vec::new(),
+            wizard: WizardRules::default(),
         }
     }
 }

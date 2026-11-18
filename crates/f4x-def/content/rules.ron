@@ -23,5 +23,9 @@
     limited_ai_races: [6, 7, 8, 9, 11],
     // iron ore, coal, silver ore, gold ore, gem, mithril ore, adamantium ore, quork crystal, crysx crystal
     event_ores: [11, 5, 19, 10, 9, 12, 2, 17, 6],
+    // The capital starts with 4 citizens (3 farm) and a smithy, barracks and builders hall; a spell cast
+    // overland costs 5 times its battle price; each book beyond the 7th takes 10 percent off a cost; Evil
+    // Omens adds half; a hero's battle mana is (skill + 1) * (level + 1) * 2.5.
+    wizard: (start_tax_rate: 2, capital_figures: 4, capital_farmers: 3, capital_buildings: [8, 3, 32], max_retorts: 6, research_slots: 8, resign_below_skill: 40, overland_cost_factor: 5, evil_omens_percent: 50, book_steps_from: 7, book_step_percent: 10, mastery_discount_books: 11, mastery_discount: 3000, hero_mana_percent: 250),
     autobuild_order: [29, 32, 26, 16, 23, 3, 8, 15, 22, 30, 17, 31, 34, 27, 35, 20, 4, 19, 9, 18, 24, 25, 28, 33, 14, 5, 21],
 )

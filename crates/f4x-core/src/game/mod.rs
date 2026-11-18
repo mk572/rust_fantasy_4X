@@ -321,7 +321,10 @@ impl Game {
             self.player_entity(id).is_none(),
             "player {id:?} is made twice"
         );
-        let e = self.world.spawn(player::bundle(id));
+        let e = self.world.spawn(player::bundle(
+            id,
+            self.content.rules.config.wizard.start_tax_rate,
+        ));
         let _ = self.world.insert_one(e, player::Control::Ai);
         let w = self.world.spawn(wizard::entity::bundle(id, name.into(), e));
         let _ = self.world.insert_one(e, player::WizardLink(w));
@@ -332,7 +335,10 @@ impl Game {
     /// Make the player of one independent city: it has a treasury and pays its way like a wizard,
     /// but is no wizard (no magic, no victory, no AI).
     pub fn add_neutral_player(&mut self, id: player::PlayerId) -> hecs::Entity {
-        let e = self.world.spawn(player::bundle(id));
+        let e = self.world.spawn(player::bundle(
+            id,
+            self.content.rules.config.wizard.start_tax_rate,
+        ));
         let _ = self.world.insert_one(e, player::Neutral);
         self.player_index.insert(id, e);
         e

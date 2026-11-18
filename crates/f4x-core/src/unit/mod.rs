@@ -771,7 +771,7 @@ mod tests {
     fn a_units_allowance_is_its_moves() -> TestResult {
         let content = shipped();
         let mut world = World::new();
-        let owner = world.spawn(crate::player::bundle(PlayerId(0)));
+        let owner = world.spawn(crate::player::test_bundle(PlayerId(0)));
         let mut max = |id: u16, n: u64| {
             let def = content.rules.units.id_numbered(id).expect("id_of succeeds");
             let e = spawn(&mut world, &content, Serial(n), owner, AT, def);
@@ -801,8 +801,8 @@ mod tests {
         let mut content = shipped();
         let mut world = World::new();
         let (a, b) = (
-            world.spawn(crate::player::bundle(PlayerId(0))),
-            world.spawn(crate::player::bundle(PlayerId(1))),
+            world.spawn(crate::player::test_bundle(PlayerId(0))),
+            world.spawn(crate::player::test_bundle(PlayerId(1))),
         );
         let id = |n: u16, c: &Content| c.rules.units.id_numbered(n).expect("id_of succeeds");
         let made: Vec<_> = [
@@ -862,7 +862,7 @@ mod tests {
             .id_numbered(95)
             .ok_or("high_elf_spearmen is not in the content")?;
         let mut world = World::new();
-        let owner = world.spawn(crate::player::bundle(PlayerId(0)));
+        let owner = world.spawn(crate::player::test_bundle(PlayerId(0)));
         let e = spawn(&mut world, &content, Serial(1), owner, AT, spear);
         let units = UnitView::new(&world, &content);
         assert_eq!(units.unit_owner(e), Some(PlayerId(0)));
@@ -887,7 +887,7 @@ mod tests {
             .id_numbered(95)
             .ok_or("high_elf_spearmen is not in the content")?;
         let mut world = World::new();
-        let owner = world.spawn(crate::player::bundle(PlayerId(0)));
+        let owner = world.spawn(crate::player::test_bundle(PlayerId(0)));
         let second = spawn(&mut world, &content, Serial(2), owner, AT, spear);
         let first = spawn(&mut world, &content, Serial(1), owner, AT, spear);
         let units = UnitView::new(&world, &content);

@@ -957,7 +957,7 @@ fn a_step_is_planned_from_a_hand_made_world_without_a_game() -> TestResult {
         .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let mut world = hecs::World::new();
-    let owner = world.spawn(crate::player::bundle(P0));
+    let owner = world.spawn(crate::player::test_bundle(P0));
     let unit = crate::unit::spawn(
         &mut world,
         &c,

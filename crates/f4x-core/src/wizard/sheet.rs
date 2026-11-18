@@ -19,7 +19,7 @@ use crate::spell::instance::{Owed, Spells};
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::{
     base_casting_skill, default_spells, pick_spells, skill_points_for, spells_of, CastStart,
-    Casting, MagicError, PowerShares, Retort, RESEARCH_SLOTS,
+    Casting, MagicError, PowerShares, Retort,
 };
 use crate::wizard::retort;
 use f4x_def::content::Content;
@@ -59,11 +59,8 @@ impl Default for PowerSplit {
     }
 }
 
-/// Books of one realm that take [`MASTERY_DISCOUNT`] off the Spell of Mastery's research cost.
-pub const MASTERY_DISCOUNT_BOOKS: i32 = 11;
-/// Research points off the Spell of Mastery for a wizard with [`MASTERY_DISCOUNT_BOOKS`] books
-/// of one realm.
-pub const MASTERY_DISCOUNT: i32 = 3000;
+// The books that take research points off the Spell of Mastery are `mastery_discount_books` and
+// `mastery_discount` of `wizard` in `rules.ron`.
 /// The original's figure for `WizardSettings::max_books_total`: a wizard with more books than
 /// this finds no more in treasure (`Book_Count > 12`), so the most is one above it.
 pub const BOOKS_BEFORE_LIMIT: i32 = f4x_def::settings::DEFAULT_MAX_BOOKS_TOTAL as i32;
@@ -265,23 +262,25 @@ impl<'a> Wizard<'a> {
 
     /// Percent off the cost of `def`: the books beyond seven in its realm, and the retorts.
     pub fn cost_reduction(&self, rules: &Rules, def: &SpellDef) -> i32 {
-        self.extra_books(def) * 10 + retort::cost_cut(rules, &self.retorts(), def)
+        self.extra_books(rules, def) * rules.config.wizard.book_step_percent
+            + retort::cost_cut(rules, &self.retorts(), def)
     }
 
     /// Books beyond the seventh in the realm of `def` (none for the arcane spells).
-    fn extra_books(&self, def: &SpellDef) -> i32 {
+    fn extra_books(&self, rules: &Rules, def: &SpellDef) -> i32 {
         if def.realm == RealmId::new(5)
         /* arcane */
         {
             0
         } else {
-            (self.books_in(def.realm) - 7).max(0)
+            (self.books_in(def.realm) - rules.config.wizard.book_steps_from).max(0)
         }
     }
 
     /// Percent added to research of `def`: the books beyond seven in its realm, and the retorts.
     pub fn research_bonus(&self, rules: &Rules, def: &SpellDef) -> i32 {
-        self.extra_books(def) * 10 + retort::research_bonus(rules, &self.retorts(), def)
+        self.extra_books(rules, def) * rules.config.wizard.book_step_percent
+            + retort::research_bonus(rules, &self.retorts(), def)
     }
 
     /// The power base split by the wizard's percentages. Rounding goes to research; if the
@@ -328,6 +327,7 @@ impl<'a> Wizard<'a> {
     /// spell costs its listed amount.
     pub fn research_cost(&self, content: &Content, spell: SpellId) -> i32 {
         let spells = &content.rules.spells;
+        let rule = &content.rules.config.wizard;
         let listed = spells.get(spell).research_cost as i32;
         if !spells
             .get(spell)
@@ -344,8 +344,8 @@ impl<'a> Wizard<'a> {
         let full_realm = crate::rules::BOOK_REALMS
             .iter()
             .copied()
-            .any(|r| self.books_in(r) >= MASTERY_DISCOUNT_BOOKS);
-        let discount = if full_realm { MASTERY_DISCOUNT } else { 0 };
+            .any(|r| self.books_in(r) >= rule.mastery_discount_books);
+        let discount = if full_realm { rule.mastery_discount } else { 0 };
         (listed - gained - discount).max(0)
     }
 
@@ -459,13 +459,13 @@ pub fn casting_cost(
 ) -> i32 {
     let mut cost = def.cost as i32;
     if !in_battle && def.overland_x5 {
-        cost *= 5;
+        cost *= rules.config.wizard.overland_cost_factor;
     }
     if let Some(w) = wizard {
         cost -= cost * w.cost_reduction(rules, def) / 100;
     }
     if matches!(Some(def.realm.num()), Some(3 /* life */ | 0 /* nature */)) && evil_omens {
-        cost += cost / 2;
+        cost += cost * rules.config.wizard.evil_omens_percent / 100;
     }
     cost
 }
@@ -702,6 +702,7 @@ impl<'a> WizardMut<'a> {
         income: i32,
         mastery_open: bool,
     ) {
+        let slots = content.rules.config.wizard.research_slots;
         let researchable = self.view().researchable();
         let mut candidates: Vec<SpellId> = self
             .view()
@@ -710,7 +711,7 @@ impl<'a> WizardMut<'a> {
             .filter(|s| researchable.contains(s))
             .collect();
         *self.get_mut::<Candidates>() = Candidates(candidates.clone());
-        while candidates.len() < RESEARCH_SLOTS {
+        while candidates.len() < slots {
             let pool = self.view().research_pool(content);
             if pool.is_empty() {
                 break;
@@ -721,7 +722,7 @@ impl<'a> WizardMut<'a> {
         }
         // With nothing left to offer, the Spell of Mastery is: the last thing to research (when
         // the game's rules open it to this wizard).
-        if mastery_open && candidates.len() < RESEARCH_SLOTS {
+        if mastery_open && candidates.len() < slots {
             if let Some(som) = content.rules.spells.id_numbered(213)
             /* spell_of_mastery */
             {

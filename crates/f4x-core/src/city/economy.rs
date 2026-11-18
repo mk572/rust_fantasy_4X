@@ -1520,7 +1520,7 @@ mod handle_tests {
             y: 7,
         };
         let mut world = World::new();
-        let owner = world.spawn(crate::player::bundle(PlayerId(0)));
+        let owner = world.spawn(crate::player::test_bundle(PlayerId(0)));
         let city = world.spawn((
             City {
                 name: "Town".into(),
@@ -1534,7 +1534,7 @@ mod handle_tests {
             Farmers(0),
             Buildings::default(),
         ));
-        world.spawn(crate::player::bundle(PlayerId(0)));
+        world.spawn(crate::player::test_bundle(PlayerId(0)));
         let eco = Economy::new(&world, Some(&map), &content);
 
         let now = eco.city_economy(city).ok_or("city_economy is missing")?;
@@ -1577,7 +1577,7 @@ mod handle_tests {
             y: 7,
         };
         let mut world = World::new();
-        let owner = world.spawn(crate::player::bundle(PlayerId(0)));
+        let owner = world.spawn(crate::player::test_bundle(PlayerId(0)));
         let city = world.spawn((
             City {
                 name: "Town".into(),
@@ -1661,7 +1661,7 @@ mod handle_tests {
             y: 7,
         };
         let mut world = World::new();
-        let owner = world.spawn(crate::player::bundle(PlayerId(0)));
+        let owner = world.spawn(crate::player::test_bundle(PlayerId(0)));
         let city = world.spawn((
             City {
                 name: "Town".into(),

@@ -231,7 +231,7 @@ pub(crate) fn award_special(
     };
     // Three times in four a book; the original turns to the other kind when the wizard is at
     // the limit of six retorts or more than twelve books.
-    let wants_retort = if wizard.view().retorts().len() >= crate::wizard::MAX_RETORTS {
+    let wants_retort = if wizard.view().retorts().len() >= rules.config.wizard.max_retorts {
         false
     } else if wizard.view().total_books() > books_limit {
         true

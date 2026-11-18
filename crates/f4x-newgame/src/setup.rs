@@ -16,7 +16,7 @@ use crate::mapgen::{generate, GenParams};
 use f4x_core::game::setting::GameSettings;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
-use f4x_core::rules::{BuildingId, RealmId};
+use f4x_core::rules::RealmId;
 use f4x_def::content::Content;
 
 use f4x_core::game::{Command, Game};
@@ -468,16 +468,7 @@ fn anchor(width: u32, height: u32, k: u8, n: u8) -> (u32, u32) {
     )
 }
 
-/// The buildings a wizard's capital starts with.
-const CAPITAL_BUILDINGS: &[BuildingId] = &[
-    BuildingId::new(8),  // smithy
-    BuildingId::new(3),  // barracks
-    BuildingId::new(32), // builders_hall
-];
-
-/// Citizens in the capital at the start, and how many of them farm.
-const CAPITAL_FIGURES: u32 = 4;
-const CAPITAL_FARMERS: u32 = 3;
+// The capital's buildings, citizens and farmers at the start are `wizard` in `rules.ron`.
 
 /// A wizard's first view of the world: only the land within `radius` of their fortress (what
 /// founding the capital and creating its army revealed is replaced).
@@ -530,7 +521,7 @@ fn start_player(
     let race_id = rules.races.id_numbered(race_def.num);
     let name = game.names().city(race_def.num, &race_def.id, 0);
     let army = race_def.start_army.clone();
-    let buildings: Vec<_> = CAPITAL_BUILDINGS.to_vec();
+    let buildings: Vec<_> = game.content().rules.config.wizard.capital_buildings.clone();
     let plane = if is_myrran(game, player) {
         Plane::Myrror
     } else {
@@ -598,7 +589,7 @@ fn start_player(
                 pos,
                 name: name.clone(),
                 race: race_id,
-                population: CAPITAL_FIGURES,
+                population: game.content().rules.config.wizard.capital_figures,
             });
             let Some(city) = events.iter().find_map(|e| match e {
                 f4x_core::game::Event::FortressPlaced { .. } => None,
@@ -609,7 +600,7 @@ fn start_player(
             };
             game.apply(Command::SetFarmers {
                 city,
-                farmers: CAPITAL_FARMERS,
+                farmers: game.content().rules.config.wizard.capital_farmers,
             });
             for building in buildings {
                 game.scenario_set_building(city, building, true);
@@ -889,10 +880,11 @@ mod tests {
                 .and_then(|w| w.fortress())
                 .ok_or("no fortress")?;
             let city = g.economy().city_at(fortress).ok_or("no capital")?;
-            assert_eq!(g.city_population(city).figures, CAPITAL_FIGURES);
-            assert_eq!(g.city_farmers(city), CAPITAL_FARMERS);
+            let start = &g.content().rules.config.wizard;
+            assert_eq!(g.city_population(city).figures, start.capital_figures);
+            assert_eq!(g.city_farmers(city), start.capital_farmers);
             let built = g.city_buildings(city);
-            for &b in CAPITAL_BUILDINGS {
+            for &b in &start.capital_buildings {
                 assert!(built.contains(&b), "wizard {k} lacks building {}", b.num());
             }
             let army = g.units().units_at(fortress);

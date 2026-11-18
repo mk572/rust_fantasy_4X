@@ -81,7 +81,7 @@ fn the_library_depends_on_the_seed_and_the_books_alone() -> TestResult {
     };
     let (a, b) = (library(5), library(5));
     assert_eq!(a, b);
-    assert!(a.2.len() <= RESEARCH_SLOTS);
+    assert!(a.2.len() <= shipped().rules.config.wizard.research_slots);
     assert!(a.2.iter().all(|s| a.1.contains(s)));
     assert!(a.0.is_disjoint(&a.1));
     Ok(())
@@ -96,6 +96,7 @@ fn the_cost_of_a_spell_follows_the_books_the_retorts_and_where_it_is_cast() -> T
         .spells
         .get(spell(&g, 4 /* giant_strength */));
     let base = strength.cost as i32;
+    let rule = &g.content.rules.config.wizard;
     let bare = g.wizard(P0).ok_or("wizard is missing")?;
     assert_eq!(
         bare.casting_cost(&g.content.rules, strength, true, false),
@@ -103,22 +104,27 @@ fn the_cost_of_a_spell_follows_the_books_the_retorts_and_where_it_is_cast() -> T
     );
     assert_eq!(
         bare.casting_cost(&g.content.rules, strength, false, false),
-        base * 5,
-        "five times as much away from a battle"
+        base * rule.overland_cost_factor,
+        "more away from a battle"
     );
-    // Nine books of its realm: two steps of ten percent; the mastery adds fifteen.
+    // Nine books of its realm: a step for each book over `book_steps_from`; the mastery adds fifteen.
     let g = game_with(
         &[(RealmId::new(0 /* nature */), 9)],
         &[Retort::new(3) /* nature_mastery */],
     );
     let deep = g.wizard(P0).ok_or("wizard is missing")?;
-    assert_eq!(deep.cost_reduction(&g.content.rules, strength), 20 + 15);
+    let steps = 9 - rule.book_steps_from;
+    assert_eq!(
+        deep.cost_reduction(&g.content.rules, strength),
+        steps * rule.book_step_percent + 15
+    );
     let cost = deep.casting_cost(&g.content.rules, strength, true, false);
-    assert_eq!(cost, base - base * 35 / 100);
-    // Evil Omens: half as much again for life and nature.
+    let cut = steps * rule.book_step_percent + 15;
+    assert_eq!(cost, base - base * cut / 100);
+    // Evil Omens: more for life and nature.
     assert_eq!(
         deep.casting_cost(&g.content.rules, strength, true, true),
-        cost + cost / 2
+        cost + cost * rule.evil_omens_percent / 100
     );
     Ok(())
 }
@@ -429,7 +435,7 @@ fn a_starting_spell_does_not_lower_the_cost_of_the_spell_of_mastery() -> TestRes
 }
 
 #[test]
-fn eleven_books_of_one_realm_take_3000_off_the_spell_of_mastery() -> TestResult {
+fn the_books_of_one_realm_that_the_setting_names_take_off_the_spell_of_mastery() -> TestResult {
     let mastery_of = |books: u8| -> Result<i32, Box<dyn std::error::Error>> {
         let g = game_with(&[(RealmId::new(3 /* life */), books)], &[]);
         let mastery = spell(&g, 213 /* spell_of_mastery */);
@@ -437,7 +443,13 @@ fn eleven_books_of_one_realm_take_3000_off_the_spell_of_mastery() -> TestResult 
             .ok_or("wizard is missing")?
             .research_cost(&g.content, mastery))
     };
-    assert_eq!(mastery_of(10)? - mastery_of(11)?, MASTERY_DISCOUNT);
+    let rule = &shipped().rules.config.wizard;
+    let from = rule.mastery_discount_books;
+    let below = u8::try_from(from - 1)?;
+    assert_eq!(
+        mastery_of(below)? - mastery_of(below + 1)?,
+        rule.mastery_discount
+    );
     Ok(())
 }
 

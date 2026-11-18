@@ -84,12 +84,6 @@ impl Default for Treasury {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Tax(pub u8);
 
-impl Default for Tax {
-    fn default() -> Self {
-        Self(START_TAX_RATE)
-    }
-}
-
 /// On a player: the wizard's power at each turn, for the History screen; the last 288
 /// turns.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -174,9 +168,6 @@ impl Bonus {
 /// The banner of the neutral player and of monsters.
 pub const NEUTRAL_BANNER: u8 = 10;
 
-/// The tax rate everyone starts with: a gold for each citizen.
-pub const START_TAX_RATE: u8 = 2;
-
 /// How many wizard pictures there are (`wizards.lbx`, `lilwiz.lbx` and `moodwiz.lbx`).
 pub const PORTRAITS: u8 = 14;
 
@@ -185,14 +176,29 @@ pub const BANNER_CHOICES: u8 = 10;
 
 /// A new player: the components every player starts with. A wizard's player gets its `Control`
 /// and `WizardLink` when the game adds it.
-pub fn bundle(id: PlayerId) -> (PlayerId, Treasury, Tax, Bonus, History, Offers) {
+///
+/// `tax` is the rate everyone starts with (`start_tax_rate` of `wizard` in `rules.ron`).
+pub fn bundle(id: PlayerId, tax: u8) -> (PlayerId, Treasury, Tax, Bonus, History, Offers) {
     (
         id,
         Treasury::default(),
-        Tax::default(),
+        Tax(tax),
         Bonus::default(),
         History::default(),
         Offers::default(),
+    )
+}
+
+/// A new player for a test world with no game: the start tax rate of the shipped rules.
+#[cfg(test)]
+pub fn test_bundle(id: PlayerId) -> (PlayerId, Treasury, Tax, Bonus, History, Offers) {
+    bundle(
+        id,
+        f4x_def::testdir::shipped()
+            .rules
+            .config
+            .wizard
+            .start_tax_rate,
     )
 }
 

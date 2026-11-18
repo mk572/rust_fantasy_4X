@@ -54,7 +54,7 @@ impl Rig {
             .iter()
             .find(|(_, p)| **p == id)
             .map(|(e, _)| e);
-        found.unwrap_or_else(|| self.world.spawn(crate::player::bundle(id)))
+        found.unwrap_or_else(|| self.world.spawn(crate::player::test_bundle(id)))
     }
 
     fn unit(&mut self, kind: u16, owner: PlayerId, pos: Position, hurt: u32) -> hecs::Entity {

@@ -15,9 +15,7 @@ use f4x_core::game::setting::GameSettings;
 use f4x_core::game::Game;
 use f4x_core::rules::{RealmId, Rules};
 use f4x_core::wizard::magic::Retort;
-use f4x_core::wizard::{
-    all_retorts, preset_build_of, retort_available, retort_cost, WizardBuild, MAX_RETORTS,
-};
+use f4x_core::wizard::{all_retorts, preset_build_of, retort_available, retort_cost, WizardBuild};
 
 const NATURE: RealmId = RealmId::new(0) /* nature */;
 const SORCERY: RealmId = RealmId::new(1) /* sorcery */;
@@ -302,7 +300,7 @@ fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
     let used = b.picks_spent(&game.content().rules);
     let all: Vec<Retort> = all_retorts(&game.content().rules).collect();
     let r = all[game.roll(all.len() as u32) as usize - 1];
-    if b.retorts.len() >= MAX_RETORTS || r == Retort::new(9)
+    if b.retorts.len() >= game.content().rules.config.wizard.max_retorts || r == Retort::new(9)
     /* myrran */
     {
         return;

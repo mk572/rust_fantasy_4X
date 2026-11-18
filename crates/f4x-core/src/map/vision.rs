@@ -563,7 +563,7 @@ mod tests {
             .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         let mut world = hecs::World::new();
-        let owner = world.spawn(crate::player::bundle(PlayerId(0)));
+        let owner = world.spawn(crate::player::test_bundle(PlayerId(0)));
         crate::unit::spawn(
             &mut world,
             &c,

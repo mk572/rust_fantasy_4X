@@ -47,7 +47,10 @@ fn assert_sound(b: &WizardBuild, picks: u8) {
         b.picks_spent(&rules()) <= picks,
         "{b:?} spends over {picks} picks"
     );
-    assert!(b.retorts.len() <= MAX_RETORTS, "{b:?} has too many retorts");
+    assert!(
+        b.retorts.len() <= rules().config.wizard.max_retorts,
+        "{b:?} has too many retorts"
+    );
     assert!(
         b.books.values().all(|&n| n <= MAX_BOOKS),
         "{b:?} has too many books in a realm"

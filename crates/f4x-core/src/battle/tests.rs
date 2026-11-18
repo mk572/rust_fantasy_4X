@@ -3526,12 +3526,13 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestRes
             .mana,
         0
     );
-    // Skill 2 at the first level: (2 + 1) * 1 * 5 / 2.
+    // Skill 2 at the first level: (2 + 1) * 1 * `hero_mana_percent` / 100.
+    let skilled = 3 * shipped().rules.config.wizard.hero_mana_percent / 100;
     g.world.get::<&mut Hero>(unit)?.casting_skill = 2;
     let bare = g
         .battle_unit_from(unit, Side::Attacker, 0)
         .ok_or("battle_unit_from is missing")?;
-    assert_eq!((bare.mana, bare.hero_caster), (7, true));
+    assert_eq!((bare.mana, bare.hero_caster), (skilled, true));
     // An item's spell skill adds to it.
     let staff = real_item(|d| d.kind == ItemKind::Staff && d.spell_skill > 0);
     let skill = staff.bonus.spell_skill;
@@ -3539,7 +3540,7 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestRes
     let mut armed = g
         .battle_unit_from(unit, Side::Attacker, 0)
         .ok_or("battle_unit_from is missing")?;
-    let mana = 7 + skill;
+    let mana = skilled + skill;
     assert_eq!(armed.mana, mana);
     // A magic shot costs the hero three mana, and its shots follow its mana.
     armed.ranged_kind = RangedKind::Magic;
@@ -3884,7 +3885,10 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() -> TestRes
         .unit(0)
         .ok_or("unit is missing")?
         .mana;
-    assert_eq!(before, 7);
+    assert_eq!(
+        before,
+        3 * g.content.rules.config.wizard.hero_mana_percent / 100
+    );
     // Both spells are on the list; the hero has the mana for the Fire Bolt (5) but not for
     // Healing (15).
     let list = g.battle_unit_spells(0);

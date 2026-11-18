@@ -28,8 +28,7 @@ use crate::rules::{Rarity, RealmId, Rules, SpellId};
 use crate::wizard::magic::{MagicError, Retort};
 
 pub use f4x_def::settings::PICKS;
-/// Most retorts a wizard may have.
-pub const MAX_RETORTS: usize = 6;
+// The most retorts a wizard may have is `max_retorts` of `wizard` in `rules.ron`.
 /// Most books in one realm in the original, and the setting's default
 /// (`WizardSettings::max_books_per_realm` is what a game uses).
 pub const MAX_BOOKS: u8 = f4x_def::settings::DEFAULT_MAX_BOOKS_PER_REALM;
@@ -170,7 +169,7 @@ impl Game {
         if build.preset {
             return Ok(());
         }
-        if build.retorts.len() > MAX_RETORTS {
+        if build.retorts.len() > self.content.rules.config.wizard.max_retorts {
             return Err(BuildError::TooManyRetorts);
         }
         for &r in &build.retorts {

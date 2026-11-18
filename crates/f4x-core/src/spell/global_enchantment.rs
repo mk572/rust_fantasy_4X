@@ -371,7 +371,11 @@ mod tests {
             g.casting_cost(P0, chaos, false),
         );
         grant(&mut g, P1, 198 /* evil_omens */);
-        assert_eq!(g.casting_cost(P0, life, false), before + before / 2);
+        let omens = g.content.rules.config.wizard.evil_omens_percent;
+        assert_eq!(
+            g.casting_cost(P0, life, false),
+            before + before * omens / 100
+        );
         assert_eq!(
             g.casting_cost(P0, chaos, false),
             before_chaos,
@@ -379,7 +383,7 @@ mod tests {
         );
         assert_eq!(
             g.casting_cost(P1, life, false),
-            before + before / 2,
+            before + before * omens / 100,
             "the caster pays too"
         );
     }

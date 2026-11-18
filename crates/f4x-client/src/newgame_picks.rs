@@ -10,7 +10,7 @@ use crate::input::Input;
 use crate::text::{Args, Texts};
 use crate::ui;
 use f4x_core::wizard::magic::Retort;
-use f4x_core::wizard::{all_retorts, retort_available, retort_cost, MAX_RETORTS};
+use f4x_core::wizard::{all_retorts, retort_available, retort_cost};
 use f4x_def::content::Content;
 use f4x_def::rules::{Rarity, RealmId};
 use macroquad::prelude::*;
@@ -215,7 +215,7 @@ impl CreateState {
         let cost = i32::from(self.retort_cost(app, retort));
         let message = if left <= 0 {
             Some(app.text("picks.all_made"))
-        } else if self.build.retorts.len() >= MAX_RETORTS {
+        } else if self.build.retorts.len() >= app.game.content().rules.config.wizard.max_retorts {
             Some(app.text("picks.too_many_retorts"))
         } else if !retort_available(&app.game.content().rules, retort, &self.build.books) {
             let args = Args::new().text("retort", app.retort_name(retort)).text(
@@ -289,7 +289,7 @@ impl CreateState {
             let rules = &app.game.content().rules;
             let open = retort_available(rules, retort, &self.build.books)
                 && left >= i16::from(self.retort_cost(app, retort))
-                && self.build.retorts.len() < MAX_RETORTS;
+                && self.build.retorts.len() < rules.config.wizard.max_retorts;
             // `COL_NewG_Ret_Known` 178, `COL_Available_3` 50, `COL_NEWG_NA2` 22, the shadow 16.
             let ink = if known {
                 178

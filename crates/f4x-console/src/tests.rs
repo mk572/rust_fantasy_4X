@@ -3086,12 +3086,13 @@ fn eligibility_two_and_three_spells_are_battle_spells_and_dear_on_the_map() {
             g.casting_cost(HUMAN, id, in_battle),
         )
     };
-    // Eligibility 2 (Flight) and 0 (Giant Strength): five times as much away from a battle.
+    // Eligibility 2 (Flight) and 0 (Giant Strength): more away from a battle.
+    let factor = g.content().rules.config.wizard.overland_cost_factor;
     for name in [56 /* flight */, 4 /* giant_strength */] {
         let (base, battle) = cost(name, true);
         let (_, map) = cost(name, false);
         assert!(
-            battle <= base && map == battle * 5,
+            battle <= base && map == battle * factor,
             "{name}: {base} {battle} {map}"
         );
     }

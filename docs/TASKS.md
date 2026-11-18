@@ -133,7 +133,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 677 | Medium | Rules | Spell effect numbers (city, dispel, terraform, wizard, world spells) move into content |
 | 678 | Medium | Rules | Abilities the code knows by number (mobility, armsmaster, mutation, undead, magic ranged) become flags on the ability rows |
 | 679 | Medium | Rules | Item constants (base cost, mail bonus, powers and charges limits, vault) move into content |
-| 680 | Medium | Rules | Wizard constants (hero mana, spell cost steps, book discount, starting figures, retort limits) move into content |
 
 ## Descriptions
 
@@ -444,5 +443,3 @@ For each of the eleven: give it an intent read from its effect, as `f4x-ai/src/i
 **678. Abilities the code knows by number (mobility, armsmaster, mutation, undead, magic ranged) become flags on the ability rows.** Found by task 483, 18 November 2026; the list and the reason are in [`constants-review.md`](constants-review.md), group "Abilities known by number". Move the constants of the group into the row they belong to (or `rules.ron`), make the code read them, replace the tests that pin the numbers by tests that read them (or delete them), run `python3 scripts/ron_hashes.py --update` and check by changing a value that only the hash test fails.
 
 **679. Item constants (base cost, mail bonus, powers and charges limits, vault) move into content.** Found by task 483, 18 November 2026; the list and the reason are in [`constants-review.md`](constants-review.md), group "Items". Move the constants of the group into the row they belong to (or `rules.ron`), make the code read them, replace the tests that pin the numbers by tests that read them (or delete them), run `python3 scripts/ron_hashes.py --update` and check by changing a value that only the hash test fails.
-
-**680. Wizard constants (hero mana, spell cost steps, book discount, starting figures, retort limits) move into content.** Found by task 483, 18 November 2026; the list and the reason are in [`constants-review.md`](constants-review.md), group "Wizard". Move the constants of the group into the row they belong to (or `rules.ron`), make the code read them, replace the tests that pin the numbers by tests that read them (or delete them), run `python3 scripts/ron_hashes.py --update` and check by changing a value that only the hash test fails.

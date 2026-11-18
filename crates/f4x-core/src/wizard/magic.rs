@@ -23,9 +23,6 @@ use f4x_def::content::Content;
 /// `retort.<id>`, and what a retort costs and needs is its row in the rules.
 pub type Retort = Id<RetortDef>;
 
-/// How many spells are offered for research at once.
-pub const RESEARCH_SLOTS: usize = 8;
-
 /// A spell the wizard is casting overland: the mana still to be paid (read from the cast in
 /// progress, a spell instance).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
