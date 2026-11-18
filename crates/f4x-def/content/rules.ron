@@ -50,6 +50,25 @@
         armsmaster: 81, super_armsmaster: 82,
         mutation: (mutated: 98, armor_marker: 104, wings_marker: 105, breath_marker: 106, wings_ability: 24, breath_ability: 20, thrown_ability: 69, thrown_most: 3, armor_defense: 3, wings_moves: 2, breath_strength: 2, breath_ammo: 1),
     ),
+    // The overland spells: chances in a hundred, strengths, penalties, and the buildings and realms they single out.
+    spell_effects: (
+        collapse_percent: 15, mineral_percent: 20, cool_percent: 2, armageddon_city_percent: 25,
+        corruption_fade_percent: 2, armageddon_unrest: 2, wasting_unrest: 1,
+        chaos_rift_bolts: 5, chaos_rift_strength: 8, chaos_rift_building_percent: 5,
+        meteor_strength: 4, meteor_building_percent: 1,
+        void_building_percent: 50, void_unit_damage: 10, void_corrupt_percent: 50, void_citizen_percent: 50,
+        wrath_unit_percent: 10, wrath_building_percent: 5,
+        safe_distance: 2, min_squares: 3, square_spread: 4, scatter_tries: 50, sea_percent: 20,
+        werewolves: 168 /* werewolves */,
+        black_wind_modifier: -1, unsummoning_modifier: -2, drain_rolls: 10, drain_die: 20,
+        earthquake_building_percent: 15, earthquake_unit_percent: 25,
+        spell_lock_difficulty: 150, suppress_magic_strength: 500,
+        consecration_realms: [4 /* death */, 2 /* chaos */],
+        religious_buildings: [22 /* shrine */, 23 /* temple */, 24 /* parthenon */, 25 /* cathedral */],
+        city_walls: 35,
+        nightshade_buildings: [22 /* shrine */, 10 /* animists_guild */, 23 /* temple */, 24 /* parthenon */, 25 /* cathedral */, 17 /* sages_guild */, 18 /* oracle */, 19 /* alchemists_guild */, 21 /* wizards_guild */],
+        nightshade_strength: 100,
+    ),
     // The retorts that cost two picks under the Adamant Alchemy and 2-Pick Myrran settings, and the
     // ships whose capacity the player sets.
     targets: (alchemy_retort: 0, myrran_retort: 9, trireme_unit: 35, galley_unit: 36),

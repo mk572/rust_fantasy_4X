@@ -99,8 +99,6 @@ const GLOBAL_RESERVE: i32 = 200;
 /// How many times the strength of a unit a werewolf must be for Lycanthropy to be worth it: only
 /// the obsolete (spearmen next to werewolves) are turned.
 const LYCANTHROPY_EDGE: f32 = 1.5;
-/// Werewolves, the unit Lycanthropy makes (content number).
-const WEREWOLVES: u16 = 168;
 
 fn has_hook(def: &SpellDef, name: &str) -> bool {
     def.effects
@@ -130,7 +128,11 @@ pub(crate) fn lycanthropy_target(
     view: &PlayerView,
     spell: SpellId,
 ) -> Option<(hecs::Entity, i32, f32)> {
-    let wolf = view.content().rules.units.id_numbered(WEREWOLVES)?;
+    let wolf = view
+        .content()
+        .rules
+        .units
+        .id_numbered(view.content().rules.config.spell_effects.werewolves)?;
     let wolf_power = f4x_core::battle::power::def_power(view.content().rules.units.get(wolf));
     let cast = view.casting_cost(spell).max(1) as f32;
     let mut units: Vec<hecs::Entity> = view
@@ -2385,7 +2387,7 @@ mod tests {
                 .filter(|&u| {
                     PlayerView::new(g, P1)
                         .unit_def(u)
-                        .is_some_and(|d| d.num == WEREWOLVES)
+                        .is_some_and(|d| d.num == g.content().rules.config.spell_effects.werewolves)
                 })
                 .count()
         };

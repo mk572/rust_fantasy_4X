@@ -262,9 +262,13 @@ fn specialty(view: &PlayerView, city: hecs::Entity, need: Need) -> Option<Buildi
     };
     let miners = startable(MINERS_GUILD).then_some(MINERS_GUILD);
     let nightshade = || {
-        f4x_core::city::nightshade::NIGHTSHADE_BUILDINGS
+        view.content()
+            .rules
+            .config
+            .spell_effects
+            .nightshade_buildings
             .iter()
-            .copied()
+            .map(|&n| BuildingId::new(n))
             .filter(|&b| startable(b))
             .min_by_key(|&b| (view.content().rules.buildings.get(b).cost, b))
     };

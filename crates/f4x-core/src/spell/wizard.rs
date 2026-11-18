@@ -50,26 +50,15 @@ crate::hook::effect_enum! {
     DeathWish = "death_wish",
 }
 
-/// The unit Lycanthropy turns a normal unit into.
-const WEREWOLVES: crate::rules::UnitId = crate::rules::UnitId::new(168) /* werewolves */;
-/// Black Wind's resistance check is at this penalty.
-const BLACK_WIND_MODIFIER: i32 = -1;
-
-/// Drain Power takes the sum of this many rolls of a twenty-sided die (`Apply_Drain_Power`).
-const DRAIN_ROLLS: u32 = 10;
-const DRAIN_DIE: u32 = 20;
-/// Great Unsummoning's penalty to the creatures' resistance (a roll against resistance minus 2).
-const UNSUMMONING_MODIFIER: i32 = -2;
-/// Earthquake: the chance in a hundred that a building falls, and that a unit that cannot fly or
-/// slip through the ground dies (the original's code rolls one in four for units).
-const EARTHQUAKE_BUILDING_PERCENT: u32 = 15;
-const EARTHQUAKE_UNIT_PERCENT: u32 = 25;
-
 impl Game {
     /// Drain Power: the victim loses 10 to 200 mana (not more than they have); returns what
     /// was taken.
     pub(crate) fn drain_power(&mut self, victim: PlayerId, rng: &mut GameRng) -> HalfInt {
-        let wanted = HalfInt::from_int((0..DRAIN_ROLLS).map(|_| rng.roll(DRAIN_DIE) as i32).sum());
+        let wanted = HalfInt::from_int(
+            (0..self.content.rules.config.spell_effects.drain_rolls)
+                .map(|_| rng.roll(self.content.rules.config.spell_effects.drain_die) as i32)
+                .sum(),
+        );
         let Some(t) = self.treasury_mut(victim) else {
             return HalfInt::ZERO;
         };
@@ -148,7 +137,13 @@ impl Game {
         let resistance = units.unit_resistance_against(unit, Some(Realm::Death));
         let (left, _) = units.unit_hits(unit);
         let failed = (0..figures)
-            .filter(|_| resistance_failure(resistance, BLACK_WIND_MODIFIER, rng) > 0)
+            .filter(|_| {
+                resistance_failure(
+                    resistance,
+                    self.content.rules.config.spell_effects.black_wind_modifier,
+                    rng,
+                ) > 0
+            })
             .count() as u32;
         let damage = failed * hits_each;
         if damage >= left {
@@ -203,7 +198,7 @@ impl Game {
             .content
             .rules
             .units
-            .id_numbered(WEREWOLVES.num())
+            .id_numbered(self.content.rules.config.spell_effects.werewolves)
             .is_none()
         {
             return Err(TargetError::WrongTarget);
@@ -220,7 +215,11 @@ impl Game {
         if self.check_become_werewolf(unit).is_err() {
             return None;
         }
-        let to = self.content.rules.units.id_numbered(WEREWOLVES.num())?;
+        let to = self
+            .content
+            .rules
+            .units
+            .id_numbered(self.content.rules.config.spell_effects.werewolves)?;
         let from = self.world.get::<&crate::unit::Unit>(unit).ok()?.0;
         self.put(unit, crate::unit::Unit(to));
         self.strip::<crate::unit::Experience>(unit);
@@ -245,9 +244,12 @@ impl Game {
     /// Great Unsummoning: every fantastic creature on both planes, the caster's too, must resist
     /// at -2 or be banished.
     pub(crate) fn great_unsummoning(&mut self, rng: &mut GameRng) -> u32 {
-        self.slay_units(Realm::Sorcery, UNSUMMONING_MODIFIER, rng, |g, u, _| {
-            g.units().unit_realm(u).is_some()
-        })
+        self.slay_units(
+            Realm::Sorcery,
+            self.content.rules.config.spell_effects.unsummoning_modifier,
+            rng,
+            |g, u, _| g.units().unit_realm(u).is_some(),
+        )
     }
 
     /// Death Wish: every normal unit of the other wizards must resist or die.
@@ -271,8 +273,16 @@ impl Game {
     ) -> Result<Event, ShakeError> {
         let (units_lost, buildings_lost) = self.shake_city(
             city,
-            EARTHQUAKE_UNIT_PERCENT,
-            EARTHQUAKE_BUILDING_PERCENT,
+            self.content
+                .rules
+                .config
+                .spell_effects
+                .earthquake_unit_percent,
+            self.content
+                .rules
+                .config
+                .spell_effects
+                .earthquake_building_percent,
             rng,
         )?;
         Ok(Event::EarthquakeStruck {

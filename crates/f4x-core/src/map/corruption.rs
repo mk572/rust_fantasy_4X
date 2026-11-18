@@ -12,9 +12,6 @@ use crate::player::PlayerId;
 use crate::rules::Ability;
 use crate::spell::target_error::TargetError;
 
-/// The chance in a hundred, each turn, that a corrupted square heals by itself.
-const FADE_PERCENT: u32 = 2;
-
 /// Turns a purifying unit works on one square.
 pub const PURIFY_TURNS: u8 = 3;
 
@@ -158,7 +155,14 @@ impl Game {
             let grid = map.plane_mut(plane);
             for y in 0..grid.height() {
                 for x in 0..grid.width() {
-                    if grid.is_corrupted(x as i32, y as i32) && rng.next_u32() % 100 < FADE_PERCENT
+                    if grid.is_corrupted(x as i32, y as i32)
+                        && rng.next_u32() % 100
+                            < self
+                                .content
+                                .rules
+                                .config
+                                .spell_effects
+                                .corruption_fade_percent
                     {
                         grid.set_corrupted(x, y, false);
                     }

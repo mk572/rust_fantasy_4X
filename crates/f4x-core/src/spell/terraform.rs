@@ -38,16 +38,6 @@ impl TerrainEffect {
     }
 }
 
-/// Each building in a city under a new volcano collapses with this chance (percent).
-const COLLAPSE_PERCENT: u32 = 15;
-/// A new volcano gets a mineral on its square with this chance (percent).
-const MINERAL_PERCENT: u32 = 20;
-/// A volcano cools into mountains with this chance each turn (the original's code rolls
-/// `Random(100) < 3`, which is two in a hundred; its comment says three).
-const COOL_PERCENT: u32 = 2;
-/// Armageddon's volcano under a city: the chance (percent) each building, unit and citizen is lost.
-const ARMAGEDDON_CITY_PERCENT: u32 = 25;
-
 impl Game {
     /// Volcanoes that add to `player`'s magic power, one each: the ones they own.
     pub fn volcano_count(&self, player: PlayerId) -> i32 {
@@ -165,29 +155,30 @@ impl Game {
             return Vec::new();
         };
         let mut events = Vec::new();
-        let mineral = if rng.next_u32() % 100 < MINERAL_PERCENT {
-            let weights = self.content.features.weighted(
-                FeatureKind::Mineral,
-                TerrainClass::Mountains,
-                at.plane,
-            );
-            let total: u32 = weights.iter().map(|&(_, w)| w).sum();
-            if total == 0 {
-                None
+        let mineral =
+            if rng.next_u32() % 100 < self.content.rules.config.spell_effects.mineral_percent {
+                let weights = self.content.features.weighted(
+                    FeatureKind::Mineral,
+                    TerrainClass::Mountains,
+                    at.plane,
+                );
+                let total: u32 = weights.iter().map(|&(_, w)| w).sum();
+                if total == 0 {
+                    None
+                } else {
+                    let mut roll = rng.next_u32() % total;
+                    weights.iter().find_map(|&(id, w)| {
+                        if roll < w {
+                            Some(id)
+                        } else {
+                            roll -= w;
+                            None
+                        }
+                    })
+                }
             } else {
-                let mut roll = rng.next_u32() % total;
-                weights.iter().find_map(|&(id, w)| {
-                    if roll < w {
-                        Some(id)
-                    } else {
-                        roll -= w;
-                        None
-                    }
-                })
-            }
-        } else {
-            None
-        };
+                None
+            };
         // A ship cannot sail on mountains: it goes down, and those aboard are left on the land.
         let ships: Vec<hecs::Entity> = self
             .units()
@@ -229,7 +220,9 @@ impl Game {
         let mut lost = 0;
         if let Ok(mut b) = self.world.get::<&mut Buildings>(city) {
             let before = b.0.len();
-            b.0.retain(|_| rng.next_u32() % 100 >= COLLAPSE_PERCENT);
+            b.0.retain(|_| {
+                rng.next_u32() % 100 >= self.content.rules.config.spell_effects.collapse_percent
+            });
             lost = before - b.0.len();
         }
         if lost > 0 {
@@ -261,12 +254,27 @@ impl Game {
         let mut buildings_lost = 0;
         if let Ok(mut b) = self.world.get::<&mut Buildings>(city) {
             let before = b.0.len();
-            b.0.retain(|_| rng.next_u32() % 100 >= ARMAGEDDON_CITY_PERCENT);
+            b.0.retain(|_| {
+                rng.next_u32() % 100
+                    >= self
+                        .content
+                        .rules
+                        .config
+                        .spell_effects
+                        .armageddon_city_percent
+            });
             buildings_lost = (before - b.0.len()) as u32;
         }
         let mut units_lost = 0;
         for unit in self.units().units_at(at) {
-            if rng.next_u32() % 100 < ARMAGEDDON_CITY_PERCENT {
+            if rng.next_u32() % 100
+                < self
+                    .content
+                    .rules
+                    .config
+                    .spell_effects
+                    .armageddon_city_percent
+            {
                 self.remove_unit(unit, crate::hero::Fate::Slain);
                 units_lost += 1;
             }
@@ -277,7 +285,15 @@ impl Game {
             .get::<&mut crate::city::economy::Population>(city)
         {
             let dead = (0..pop.figures.saturating_sub(1))
-                .filter(|_| rng.next_u32() % 100 < ARMAGEDDON_CITY_PERCENT)
+                .filter(|_| {
+                    rng.next_u32() % 100
+                        < self
+                            .content
+                            .rules
+                            .config
+                            .spell_effects
+                            .armageddon_city_percent
+                })
                 .count() as u32;
             pop.figures -= dead;
             population_lost = dead;
@@ -295,7 +311,7 @@ impl Game {
     /// Each turn every volcano has a small chance of cooling into plain mountains.
     pub(crate) fn cool_volcanoes(&mut self, rng: &mut dyn RngCore) {
         for (at, _) in self.economy().volcanoes() {
-            if rng.next_u32() % 100 < COOL_PERCENT {
+            if rng.next_u32() % 100 < self.content.rules.config.spell_effects.cool_percent {
                 self.remove_volcano(at);
             }
         }

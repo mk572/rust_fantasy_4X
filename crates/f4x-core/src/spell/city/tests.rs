@@ -598,7 +598,7 @@ fn evil_presence_is_refused_where_its_owner_can_use_death_magic() -> TestResult 
 }
 
 #[test]
-fn another_wizards_armageddon_adds_two_unrest_and_leaves_the_buildings_working() -> TestResult {
+fn another_wizards_armageddon_adds_unrest_and_leaves_the_buildings_working() -> TestResult {
     use crate::rules::stats::compute;
     use crate::rules::Stat;
     let mut g = world();
@@ -612,7 +612,8 @@ fn another_wizards_armageddon_adds_two_unrest_and_leaves_the_buildings_working()
     }
     let pacify = |g: &Game| -compute(Stat::CityUnrest, 0, &g.economy().city_modifiers(city));
     let calm = pacify(&g);
-    assert!(calm >= 3);
+    let fx = g.content.rules.config.spell_effects.clone();
+    assert!(calm >= fx.armageddon_unrest.max(fx.wasting_unrest));
     let a = g
         .content
         .rules
@@ -622,13 +623,13 @@ fn another_wizards_armageddon_adds_two_unrest_and_leaves_the_buildings_working()
     g.add_global(P1, a);
     assert_eq!(
         pacify(&g),
-        calm - 2,
-        "an enemy's Armageddon: two more unrest"
+        calm - fx.armageddon_unrest,
+        "an enemy's Armageddon: more unrest"
     );
     g.clear_globals(P1);
     g.add_global(P0, a);
     assert_eq!(pacify(&g), calm, "the owner's own changes nothing");
-    // Great Wasting does one, and Armageddon's two are not added to it.
+    // Great Wasting does its own, and Armageddon's is not added to it.
     g.clear_globals(P0);
     let wasting = g
         .content
@@ -637,9 +638,16 @@ fn another_wizards_armageddon_adds_two_unrest_and_leaves_the_buildings_working()
         .id_numbered(114)
         .ok_or("great_wasting is not in the content")?;
     g.add_global(P1, wasting);
-    assert_eq!(pacify(&g), calm - 1, "an enemy's Great Wasting: one more");
+    assert_eq!(
+        pacify(&g),
+        calm - fx.wasting_unrest,
+        "an enemy's Great Wasting: more unrest"
+    );
     g.add_global(P1, a);
-    assert_eq!(pacify(&g), calm - 2);
+    assert_eq!(
+        pacify(&g),
+        calm - fx.armageddon_unrest.max(fx.wasting_unrest)
+    );
     Ok(())
 }
 

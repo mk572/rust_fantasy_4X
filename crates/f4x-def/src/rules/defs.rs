@@ -754,8 +754,122 @@ pub struct RulesConfig {
     pub item: ItemRules,
     /// The abilities the rules treat as a group, by number.
     pub abilities: AbilityRules,
+    /// The numbers of the overland spells and curses.
+    pub spell_effects: SpellEffectRules,
     /// The rows of the content that a setting of the game changes.
     pub targets: SettingTargets,
+}
+
+/// What the overland spells do: chances in percent of a hundred, strengths, penalties, and the
+/// buildings and realms they single out (numbers of `buildings.ron`, `realms.ron`, `units.ron`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellEffectRules {
+    /// A volcano: each building of the city under it collapses, its square gets a mineral, and
+    /// it cools into mountains each turn; Armageddon's volcano under a city takes a building, a
+    /// unit and a citizen with this chance.
+    pub collapse_percent: u32,
+    pub mineral_percent: u32,
+    pub cool_percent: u32,
+    pub armageddon_city_percent: u32,
+    /// A corrupted square heals by itself each turn.
+    pub corruption_fade_percent: u32,
+    /// The unrest another wizard's Armageddon, and a Great Wasting, add to a city.
+    pub armageddon_unrest: i32,
+    pub wasting_unrest: i32,
+    /// Chaos Rift: bolts on each unit in the city every turn, their strength, and the chance a
+    /// building falls.
+    pub chaos_rift_bolts: u32,
+    pub chaos_rift_strength: i32,
+    pub chaos_rift_building_percent: u32,
+    /// Meteor Storm: the strength of the fire attack on each unit outside a city, and the chance a
+    /// building of another wizard's city falls.
+    pub meteor_strength: i32,
+    pub meteor_building_percent: u32,
+    /// Call the Void: the chance each building falls, the damage to each unit, the chance each
+    /// square near the city is corrupted and each citizen but the first dies.
+    pub void_building_percent: u32,
+    pub void_unit_damage: u32,
+    pub void_corrupt_percent: u32,
+    pub void_citizen_percent: u32,
+    /// Nature's Wrath: the chance a unit dies and a building falls.
+    pub wrath_unit_percent: u32,
+    pub wrath_building_percent: u32,
+    /// Great Wasting and Armageddon: `min_squares` plus up to `square_spread - 1` squares a turn,
+    /// none within `safe_distance` of the caster's cities, `scatter_tries` draws for them; a sea
+    /// square that was rolled is kept with `sea_percent`.
+    pub safe_distance: i32,
+    pub min_squares: u32,
+    pub square_spread: u32,
+    pub scatter_tries: u32,
+    pub sea_percent: u32,
+    /// The unit Lycanthropy makes of a normal unit.
+    pub werewolves: u16,
+    /// Black Wind's and Great Unsummoning's penalty to the resistance roll.
+    pub black_wind_modifier: i32,
+    pub unsummoning_modifier: i32,
+    /// Drain Power takes the sum of `drain_rolls` rolls of a die of `drain_die` sides.
+    pub drain_rolls: u32,
+    pub drain_die: u32,
+    /// Earthquake: the chance a building falls and a unit that cannot fly or slip through the
+    /// ground dies.
+    pub earthquake_building_percent: u32,
+    pub earthquake_unit_percent: u32,
+    /// How hard Spell Lock is to dispel, and the strength of Suppress Magic's standing dispel.
+    pub spell_lock_difficulty: u32,
+    pub suppress_magic_strength: u32,
+    /// The realms whose spells Consecration keeps off the city and the units in it.
+    pub consecration_realms: Vec<u16>,
+    /// The buildings whose magic power Evil Presence destroys.
+    pub religious_buildings: Vec<u16>,
+    /// The City Walls building.
+    pub city_walls: u16,
+    /// The buildings that allow the use of nightshade, and the dispel strength each plant adds.
+    pub nightshade_buildings: Vec<u16>,
+    pub nightshade_strength: u32,
+}
+
+impl Default for SpellEffectRules {
+    fn default() -> Self {
+        Self {
+            collapse_percent: 15,
+            mineral_percent: 20,
+            cool_percent: 2,
+            armageddon_city_percent: 25,
+            corruption_fade_percent: 2,
+            armageddon_unrest: 2,
+            wasting_unrest: 1,
+            chaos_rift_bolts: 5,
+            chaos_rift_strength: 8,
+            chaos_rift_building_percent: 5,
+            meteor_strength: 4,
+            meteor_building_percent: 1,
+            void_building_percent: 50,
+            void_unit_damage: 10,
+            void_corrupt_percent: 50,
+            void_citizen_percent: 50,
+            wrath_unit_percent: 10,
+            wrath_building_percent: 5,
+            safe_distance: 2,
+            min_squares: 3,
+            square_spread: 4,
+            scatter_tries: 50,
+            sea_percent: 20,
+            werewolves: 168,
+            black_wind_modifier: -1,
+            unsummoning_modifier: -2,
+            drain_rolls: 10,
+            drain_die: 20,
+            earthquake_building_percent: 15,
+            earthquake_unit_percent: 25,
+            spell_lock_difficulty: 150,
+            suppress_magic_strength: 500,
+            consecration_realms: vec![4, 2],
+            religious_buildings: vec![22, 23, 24, 25],
+            city_walls: 35,
+            nightshade_buildings: vec![22, 10, 23, 24, 25, 17, 18, 19, 21],
+            nightshade_strength: 100,
+        }
+    }
 }
 
 /// The rows a setting of the game changes: the retorts that cost two picks under Adamant Alchemy
@@ -1167,6 +1281,7 @@ impl Default for RulesConfig {
             wizard: WizardRules::default(),
             item: ItemRules::default(),
             abilities: AbilityRules::default(),
+            spell_effects: SpellEffectRules::default(),
             targets: SettingTargets::default(),
         }
     }

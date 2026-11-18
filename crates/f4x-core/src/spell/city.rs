@@ -44,20 +44,8 @@ crate::hook::effect_enum! {
     SpellWard = "spell_ward",
 }
 
-/// Chaos Rift's bolts on each unit in the city every turn, and their strength.
-const CHAOS_RIFT_BOLTS: u32 = 5;
-const CHAOS_RIFT_STRENGTH: i32 = 8;
-/// The chance in a hundred that a building falls each turn.
-const CHAOS_RIFT_BUILDING_PERCENT: u32 = 5;
-
 /// The realms a Spell Ward can be set against, in the original's order.
 pub const WARD_REALMS: &[RealmId] = crate::rules::BOOK_REALMS;
-
-/// The realms whose spells Consecration keeps off the city and the units in it.
-pub const CONSECRATION_REALMS: &[RealmId] = &[
-    RealmId::new(4), // death
-    RealmId::new(2), // chaos
-];
 
 /// The realms a city has Spell Wards against (the ward spell itself, with its caster and its
 /// upkeep, is in the city's enchantments; this says which realms it was set to). Read through
@@ -65,17 +53,14 @@ pub const CONSECRATION_REALMS: &[RealmId] = &[
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SpellWards(pub Vec<RealmId>);
 
-/// The buildings whose magic power Evil Presence destroys.
-pub(crate) const RELIGIOUS: &[&str] = &["shrine", "temple", "parthenon", "cathedral"];
-
-/// City Walls (building 35).
-const CITY_WALLS: crate::rules::BuildingId = crate::rules::BuildingId::new(35);
-
 impl Game {
     /// Whether the city may be given walls by Wall of Stone: it has none (a city with walls
     /// built or replaced is refused).
     pub fn check_raise_wall_of_stone(&self, city: hecs::Entity) -> Result<(), TargetError> {
-        if self.economy().city_has_building(city, CITY_WALLS) {
+        if self.economy().city_has_building(
+            city,
+            crate::rules::BuildingId::new(self.content.rules.config.spell_effects.city_walls),
+        ) {
             return Err(TargetError::Walled);
         }
         Ok(())
@@ -83,7 +68,8 @@ impl Game {
 
     /// Wall of Stone: the city gets City Walls.
     pub(crate) fn wall_of_stone(&mut self, city: hecs::Entity) -> Vec<Event> {
-        let walls = CITY_WALLS;
+        let walls =
+            crate::rules::BuildingId::new(self.content.rules.config.spell_effects.city_walls);
         if self.check_raise_wall_of_stone(city).is_err() {
             return Vec::new();
         }
@@ -134,10 +120,10 @@ impl Game {
             let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0xC4A0);
             let mut units_lost = 0;
             for unit in self.units().units_at(at) {
-                for _ in 0..CHAOS_RIFT_BOLTS {
+                for _ in 0..self.content.rules.config.spell_effects.chaos_rift_bolts {
                     if self.spell_hit_overland_unit(
                         unit,
-                        CHAOS_RIFT_STRENGTH,
+                        self.content.rules.config.spell_effects.chaos_rift_strength,
                         &traits,
                         nature,
                         &mut rng,
@@ -148,7 +134,14 @@ impl Game {
                 }
             }
             let mut building = None;
-            if self.roll(100) <= CHAOS_RIFT_BUILDING_PERCENT {
+            if self.roll(100)
+                <= self
+                    .content
+                    .rules
+                    .config
+                    .spell_effects
+                    .chaos_rift_building_percent
+            {
                 let candidates: Vec<crate::rules::BuildingId> = self
                     .world
                     .get::<&Buildings>(city)
@@ -339,7 +332,8 @@ impl Economy<'_> {
     pub fn city_shielded_realms(&self, city: hecs::Entity) -> Vec<RealmId> {
         let mut realms = self.city_wards(city);
         if self.city_has_effect(city, CityEffect::Consecration) {
-            for &realm in CONSECRATION_REALMS {
+            for &n in &self.content.rules.config.spell_effects.consecration_realms {
+                let realm = RealmId::new(n);
                 if !realms.contains(&realm) {
                     realms.push(realm);
                 }

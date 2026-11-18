@@ -15,29 +15,6 @@ use crate::game::{Event, Game};
 use crate::rules::effects::DamageTraits;
 use crate::unit::Hurt;
 
-/// Meteor Storm: a strength 4 fire attack on every unit outside a city, and the chance in a
-/// hundred that each building of another wizard's city falls.
-const METEOR_STRENGTH: i32 = 4;
-const METEOR_BUILDING_PERCENT: u32 = 1;
-/// Call the Void: the chance each building falls, the damage to each unit, the chance each
-/// square within two of the city is corrupted, and the chance each citizen but the first dies.
-const VOID_BUILDING_PERCENT: u32 = 50;
-const VOID_UNIT_DAMAGE: u32 = 10;
-const VOID_CORRUPT_PERCENT: u32 = 50;
-const VOID_CITIZEN_PERCENT: u32 = 50;
-/// Nature's Wrath: the chance in a hundred that a unit dies and that a building falls.
-const WRATH_UNIT_PERCENT: u32 = 10;
-const WRATH_BUILDING_PERCENT: u32 = 5;
-/// Great Wasting and Armageddon strike 3 to 6 squares a turn, none within this many squares of
-/// the caster's cities.
-const SAFE_DISTANCE: i32 = 2;
-const MIN_SQUARES: u32 = 3;
-const SQUARE_SPREAD: u32 = 4;
-const TRIES: u32 = 50;
-/// Armageddon's volcano at sea: the chance (percent) a sea square that was rolled is kept. The
-/// original never raises one at sea; here it can, but seldom.
-const SEA_PERCENT: u32 = 20;
-
 impl Game {
     /// One turn of the world-scale enchantments every wizard keeps going.
     pub(crate) fn process_world_enchantments(&mut self) -> Vec<Event> {
@@ -79,7 +56,8 @@ impl Game {
             .any(|(_, _, p)| {
                 let dx = (p.x as i32 - at.x as i32).abs();
                 let dx = dx.min(width - dx);
-                dx.max((p.y as i32 - at.y as i32).abs()) <= SAFE_DISTANCE
+                dx.max((p.y as i32 - at.y as i32).abs())
+                    <= self.content.rules.config.spell_effects.safe_distance
             })
     }
 
@@ -95,10 +73,12 @@ impl Game {
         let Some((w, h)) = self.map.as_ref().map(|m| (m.width(), m.height())) else {
             return Vec::new();
         };
-        let wanted = MIN_SQUARES + self.roll(SQUARE_SPREAD) - 1;
+        let wanted = self.content.rules.config.spell_effects.min_squares
+            + self.roll(self.content.rules.config.spell_effects.square_spread)
+            - 1;
         let mut found: Vec<Position> = Vec::new();
         for _ in 0..wanted {
-            for _ in 0..TRIES {
+            for _ in 0..self.content.rules.config.spell_effects.scatter_tries {
                 let at = Position {
                     plane: if self.roll(2) == 1 {
                         Plane::Arcanus
@@ -138,9 +118,12 @@ impl Game {
     /// Armageddon: volcanoes rise on any square, the caster's cities included and the sea too
     /// (seldom), owned by the caster, who gains a point of power from each.
     fn armageddon(&mut self, player: PlayerId) -> Vec<Event> {
-        let squares = self.pick_squares(player, false, SEA_PERCENT, |g, at| {
-            g.can_armageddon_volcano(at)
-        });
+        let squares = self.pick_squares(
+            player,
+            false,
+            self.content.rules.config.spell_effects.sea_percent,
+            |g, at| g.can_armageddon_volcano(at),
+        );
         let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0xA2E6);
         squares
             .into_iter()
@@ -175,7 +158,13 @@ impl Game {
             if self.economy().city_at(at).is_some() {
                 continue;
             }
-            if self.spell_hit_overland_unit(unit, METEOR_STRENGTH, &traits, nature, &mut rng) {
+            if self.spell_hit_overland_unit(
+                unit,
+                self.content.rules.config.spell_effects.meteor_strength,
+                &traits,
+                nature,
+                &mut rng,
+            ) {
                 units_lost += 1;
             }
         }
@@ -186,7 +175,13 @@ impl Game {
             }
             let built = self.buildings_of(city);
             for b in built {
-                if self.roll(100) <= METEOR_BUILDING_PERCENT
+                if self.roll(100)
+                    <= self
+                        .content
+                        .rules
+                        .config
+                        .spell_effects
+                        .meteor_building_percent
                     && self.destroy_building(city, b).is_ok()
                 {
                     buildings_lost += 1;
@@ -226,24 +221,37 @@ impl Game {
                     x: (at.x as i32 + dx).rem_euclid(width) as u32,
                     y: y as u32,
                 };
-                if rng.roll(100) <= VOID_CORRUPT_PERCENT {
+                if rng.roll(100) <= self.content.rules.config.spell_effects.void_corrupt_percent {
                     self.corrupt(sq);
                 }
             }
         }
         let mut units_lost = 0;
         for unit in self.units().units_at(at) {
-            if self.hurt_directly(unit, VOID_UNIT_DAMAGE) {
+            if self.hurt_directly(
+                unit,
+                self.content.rules.config.spell_effects.void_unit_damage,
+            ) {
                 units_lost += 1;
             }
         }
         let citizens = self.city_population(city).figures;
         let citizens_lost = (1..citizens)
-            .filter(|_| rng.roll(100) <= VOID_CITIZEN_PERCENT)
+            .filter(|_| {
+                rng.roll(100) <= self.content.rules.config.spell_effects.void_citizen_percent
+            })
             .count() as u32;
         let mut buildings_lost = 0;
         for b in self.buildings_of(city) {
-            if rng.roll(100) <= VOID_BUILDING_PERCENT && self.destroy_building(city, b).is_ok() {
+            if rng.roll(100)
+                <= self
+                    .content
+                    .rules
+                    .config
+                    .spell_effects
+                    .void_building_percent
+                && self.destroy_building(city, b).is_ok()
+            {
                 buildings_lost += 1;
             }
         }
@@ -316,9 +324,16 @@ impl Game {
         let (mut units_lost, mut buildings_lost) = (0, 0);
         for city in cities {
             // The cities come from the economy: one that cannot be shaken is skipped.
-            if let Ok((u, b)) =
-                self.shake_city(city, WRATH_UNIT_PERCENT, WRATH_BUILDING_PERCENT, &mut rng)
-            {
+            if let Ok((u, b)) = self.shake_city(
+                city,
+                self.content.rules.config.spell_effects.wrath_unit_percent,
+                self.content
+                    .rules
+                    .config
+                    .spell_effects
+                    .wrath_building_percent,
+                &mut rng,
+            ) {
                 units_lost += u;
                 buildings_lost += b;
             }

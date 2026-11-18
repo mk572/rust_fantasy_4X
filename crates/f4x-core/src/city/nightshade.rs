@@ -13,25 +13,6 @@ use crate::player::PlayerId;
 use crate::rules::BuildingId;
 use crate::rules::{SpellId, SpellTarget};
 
-/// Buildings that allow the use of nightshade. The original's code lists eight of them, with
-/// the Shrine checked twice where the Animist's Guild, which its help names, was evidently
-/// meant; we include the Animist's Guild. (The help names only four buildings and is
-/// extended in the imported help.)
-pub const NIGHTSHADE_BUILDINGS: &[BuildingId] = &[
-    BuildingId::new(22), // shrine
-    BuildingId::new(10), // animists_guild
-    BuildingId::new(23), // temple
-    BuildingId::new(24), // parthenon
-    BuildingId::new(25), // cathedral
-    BuildingId::new(17), // sages_guild
-    BuildingId::new(18), // oracle
-    BuildingId::new(19), // alchemists_guild
-    BuildingId::new(21), // wizards_guild
-];
-
-/// Dispel strength each plant adds.
-pub const STRENGTH_PER_PLANT: u32 = 100;
-
 impl Game {
     /// Nightshade plants the city can use: those in its area, if it has a building that allows
     /// them and is not an outpost.
@@ -48,9 +29,9 @@ impl Game {
         if self.world.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
             return 0;
         }
-        let allowed = NIGHTSHADE_BUILDINGS
+        let allowed = (self.content.rules.config.spell_effects.nightshade_buildings)
             .iter()
-            .any(|&b| self.economy().has_building(city, b));
+            .any(|&b| self.economy().has_building(city, BuildingId::new(b)));
         let Some(plant) = self.content.features.id_numbered(16)
         /* nightshade */
         else {
@@ -80,7 +61,8 @@ impl Game {
         if def.target != SpellTarget::EnemyCity || self.economy().city_owner(city) == Some(player) {
             return false;
         }
-        let strength = self.nightshade_count(city) * STRENGTH_PER_PLANT;
+        let strength = self.nightshade_count(city)
+            * self.content.rules.config.spell_effects.nightshade_strength;
         if strength == 0 {
             return false;
         }

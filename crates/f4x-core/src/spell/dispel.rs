@@ -29,12 +29,9 @@ use crate::wizard::magic::MagicError;
 /// Enchantments with the wizard who cast each.
 pub(crate) type Spells = Vec<(SpellId, PlayerId)>;
 
-/// How hard Spell Lock is to dispel, whatever its cost.
-pub const SPELL_LOCK_DIFFICULTY: u32 = 150;
-/// The strength of Suppress Magic's standing dispel.
-pub const SUPPRESS_MAGIC_STRENGTH: u32 = 500;
-/// What each enemy spell takes from a Counter Magic reserve.
+/// What each enemy spell takes from a Counter Magic reserve (battle rules: task 675).
 pub const COUNTER_MAGIC_DRAIN: u32 = 5;
+
 /// The hook of the spells that act against other spells. The first argument is what it does; a
 /// second, a number, is its strength.
 pub const COUNTER_EFFECT: &str = "counter_effect";
@@ -197,7 +194,12 @@ impl Game {
         let lock = self.content.rules.spells.id_numbered(54) /* spell_lock */;
         if guarded_by_lock {
             if let Some(&(_, caster)) = list.iter().find(|&&(s, c)| Some(s) == lock && c != by) {
-                let difficulty = SPELL_LOCK_DIFFICULTY
+                let difficulty = self
+                    .content
+                    .rules
+                    .config
+                    .spell_effects
+                    .spell_lock_difficulty
                     * self.dispel_multiplier(
                         Some(crate::rules::RealmId::new(1) /* sorcery */),
                         Some(caster),
@@ -475,8 +477,21 @@ impl Game {
             None => self.dispel_difficulty(spell, Some(caster)),
         };
         for (holder, guard) in holders {
-            let chance = 250 * u64::from(SUPPRESS_MAGIC_STRENGTH)
-                / u64::from(SUPPRESS_MAGIC_STRENGTH + difficulty);
+            let chance =
+                250 * u64::from(
+                    self.content
+                        .rules
+                        .config
+                        .spell_effects
+                        .suppress_magic_strength,
+                ) / u64::from(
+                    self.content
+                        .rules
+                        .config
+                        .spell_effects
+                        .suppress_magic_strength
+                        + difficulty,
+                );
             if u64::from(self.roll(250)) <= chance {
                 return Some((holder, guard));
             }

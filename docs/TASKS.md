@@ -130,7 +130,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 671 | Medium | AI | Pickup loops the refused-order log shows: land units asked every turn to board a ship that has no room, for 150 turns and more |
 | 675 | Medium | Rules | Battle rules numbers (strengths, costs, limits) move into content |
 | 676 | Medium | Rules | Experience, fame, spoils and hero constants move into content |
-| 677 | Medium | Rules | Spell effect numbers (city, dispel, terraform, wizard, world spells) move into content |
 
 ## Descriptions
 
@@ -435,5 +434,3 @@ For each of the eleven: give it an intent read from its effect, as `f4x-ai/src/i
 **675. Battle rules numbers (strengths, costs, limits) move into content.** Found by task 483, 18 November 2026; the list and the reason are in [`constants-review.md`](constants-review.md), group "Battle rules". Move the constants of the group into the row they belong to (or `rules.ron`), make the code read them, replace the tests that pin the numbers by tests that read them (or delete them), run `python3 scripts/ron_hashes.py --update` and check by changing a value that only the hash test fails.
 
 **676. Experience, fame, spoils and hero constants move into content.** Found by task 483, 18 November 2026; the list and the reason are in [`constants-review.md`](constants-review.md), group "Experience, fame and spoils". Move the constants of the group into the row they belong to (or `rules.ron`), make the code read them, replace the tests that pin the numbers by tests that read them (or delete them), run `python3 scripts/ron_hashes.py --update` and check by changing a value that only the hash test fails.
-
-**677. Spell effect numbers (city, dispel, terraform, wizard, world spells) move into content.** Found by task 483, 18 November 2026; the list and the reason are in [`constants-review.md`](constants-review.md), group "Spell effects". Move the constants of the group into the row they belong to (or `rules.ron`), make the code read them, replace the tests that pin the numbers by tests that read them (or delete them), run `python3 scripts/ron_hashes.py --update` and check by changing a value that only the hash test fails.

@@ -163,16 +163,25 @@ fn rolled_heroes_follow_init_heroes() -> TestResult {
 }
 
 #[test]
-fn the_buildings_that_allow_nightshade_exist() -> TestResult {
+fn the_buildings_realms_and_unit_the_spell_effects_name_exist() -> TestResult {
     // The real rules data, not the small test set.
     let c = load_content(&content_dir())?;
-    for &id in f4x_core::city::nightshade::NIGHTSHADE_BUILDINGS {
+    let fx = &c.rules.config.spell_effects;
+    let buildings = fx
+        .nightshade_buildings
+        .iter()
+        .chain(&fx.religious_buildings)
+        .chain(std::iter::once(&fx.city_walls));
+    for &n in buildings {
         assert!(
-            c.rules.buildings.id_numbered(id.num()).is_some(),
-            "no building {}",
-            id.num()
+            c.rules.buildings.id_numbered(n).is_some(),
+            "no building {n}"
         );
     }
+    for &n in &fx.consecration_realms {
+        assert!(c.rules.realms.id_numbered(n).is_some(), "no realm {n}");
+    }
+    assert!(c.rules.units.id_numbered(fx.werewolves).is_some());
     Ok(())
 }
 

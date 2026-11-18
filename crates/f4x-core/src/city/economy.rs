@@ -27,7 +27,6 @@ use f4x_def::content::Content;
 
 use crate::rules::stats::{compute, compute_half, passive_modifiers, Modifier, Source};
 use crate::rules::{RaceDef, RealmId, Stat};
-use crate::spell::city::RELIGIOUS;
 use crate::unit::UnitView;
 
 use crate::game::Game;
@@ -182,10 +181,6 @@ pub fn area_offsets() -> impl Iterator<Item = (i32, i32)> {
         .flat_map(|dy| (-2i32..=2).map(move |dx| (dx, dy)))
         .filter(|(dx, dy)| !(dx.abs() == 2 && dy.abs() == 2))
 }
-
-/// The unrest another wizard's Armageddon adds to a city (the original sets the pacifying of
-/// those cities to minus two; the community patch adds two unrest and leaves the buildings).
-const ARMAGEDDON_UNREST: i32 = 2;
 
 fn wrap_distance(width: u32, a: u32, b: u32) -> u32 {
     let d = a.abs_diff(b);
@@ -530,10 +525,21 @@ impl<'a> Economy<'a> {
                 let mut found = passive_modifiers(&def.effects, Source::Building(b));
                 // Evil Presence destroys the magic power of the religious buildings (the help;
                 // the original's code stops their pacifying instead, B22).
-                if evil && RELIGIOUS.contains(&def.id.as_str()) {
+                if evil
+                    && rules
+                        .config
+                        .spell_effects
+                        .religious_buildings
+                        .contains(&def.num)
+                {
                     found.retain(|m| m.stat != Stat::CityMana);
                 }
-                if RELIGIOUS.contains(&def.id.as_str()) {
+                if rules
+                    .config
+                    .spell_effects
+                    .religious_buildings
+                    .contains(&def.num)
+                {
                     for m in &found {
                         match m.stat {
                             Stat::CityMana => power += m.value.floor(),
@@ -550,7 +556,11 @@ impl<'a> Economy<'a> {
                 mods.push(Modifier::new(
                     Stat::CityUnrest,
                     crate::rules::ModOp::Add,
-                    if armageddon { ARMAGEDDON_UNREST } else { 1 },
+                    if armageddon {
+                        self.content.rules.config.spell_effects.armageddon_unrest
+                    } else {
+                        1
+                    },
                     Source::Other,
                 ));
             }
