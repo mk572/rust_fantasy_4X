@@ -711,6 +711,32 @@ pub struct RulesConfig {
     pub racial_unrest: Vec<Vec<i8>>,
     /// Building ids in the order the Grand Vizier picks them (our own list).
     pub autobuild_order: Vec<Id<BuildingDef>>,
+    /// What a spell cast in battle costs the further it is from the wizard's fortress.
+    pub casting_range: CastingRange,
+}
+
+/// The range multiplier of a spell cast in battle, in percent of its cost: `at_fortress` at the
+/// fortress itself, else `base` plus `step` for each of the `beyond` distances the battle is
+/// further than; a battle on another plane counts as `far` squares away.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CastingRange {
+    pub at_fortress: i32,
+    pub base: i32,
+    pub step: i32,
+    pub beyond: Vec<u32>,
+    pub far: u32,
+}
+
+impl Default for CastingRange {
+    fn default() -> Self {
+        Self {
+            at_fortress: 5,
+            base: 10,
+            step: 5,
+            beyond: vec![5, 10, 15, 20],
+            far: 30,
+        }
+    }
 }
 
 impl Default for RulesConfig {
@@ -723,6 +749,7 @@ impl Default for RulesConfig {
             tax_unrest_percent: vec![0, 10, 20, 30, 45, 60, 75],
             racial_unrest: Vec::new(),
             autobuild_order: Vec::new(),
+            casting_range: CastingRange::default(),
         }
     }
 }

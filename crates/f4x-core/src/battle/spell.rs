@@ -508,7 +508,8 @@ impl Game {
                     let map = self.map.as_ref()?;
                     Some(map.plane(f.plane).chebyshev((f.x, f.y), (site.x, site.y)))
                 });
-            let mut range = super::casting::range_percent(distance, |d| {
+            let setting = &self.content.rules.config.casting_range;
+            let mut range = super::casting::range_percent(setting, distance, |d| {
                 magic.stat(&self.content.rules, crate::rules::Stat::CastingDistance, d)
             });
             // On corrupted ground a wizard who keeps Great Wasting going pays no range penalty.
@@ -518,7 +519,7 @@ impl Game {
                     crate::spell::global_enchantment::GlobalEffect::GreatWasting,
                 )
             {
-                range = range.min(10);
+                range = range.min(setting.base);
             }
             battle.set_caster(
                 side,

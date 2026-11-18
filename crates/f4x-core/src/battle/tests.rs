@@ -1968,30 +1968,42 @@ mod casting {
 
     #[test]
     fn casting_costs_more_the_further_from_the_fortress() {
-        // At the fortress half; within five squares as is; then half as much again for each
-        // five more, up to three times; another plane is as far as it gets.
-        let table = [
-            (Some(0), 5),
-            (Some(1), 10),
-            (Some(5), 10),
-            (Some(6), 15),
-            (Some(10), 15),
-            (Some(11), 20),
-            (Some(16), 25),
-            (Some(21), 30),
-            (Some(40), 30),
-            (None, 30),
-        ];
-        for (distance, percent) in table {
-            assert_eq!(range_percent(distance, |d| d), percent, "{distance:?}");
-        }
-        // A channeler is two squares away wherever they are, except at the fortress.
+        // `casting_range` of `rules.ron`: the fortress, then the base for the first distances and
+        // a step more for each distance in `beyond` that the battle is further than.
         let rules = shipped().rules;
+        let range = &rules.config.casting_range;
+        assert_eq!(range_percent(range, Some(0), |d| d), range.at_fortress);
+        let mut last = 0;
+        let mut rises = 0;
+        for d in 1..=range.far + 10 {
+            let want =
+                range.base + range.step * range.beyond.iter().filter(|&&t| d > t).count() as i32;
+            let got = range_percent(range, Some(d), |d| d);
+            assert_eq!(got, want, "{d} squares");
+            assert!(got >= last, "dearer the further");
+            rises += i32::from(got > last);
+            last = got;
+        }
+        assert!(rises > 1, "the cost never rises with the distance");
+        // Another plane is as far as `far`.
+        assert_eq!(
+            range_percent(range, None, |d| d),
+            range_percent(range, Some(range.far), |d| d)
+        );
+        // A channeler is two squares away wherever they are, except at the fortress.
         let channeler = [crate::wizard::magic::Retort::new(8)].into_iter().collect();
         let counted = |d| crate::wizard::retort::stat(&rules, &channeler, Stat::CastingDistance, d);
-        assert_eq!(range_percent(Some(25), counted), 10);
-        assert_eq!(range_percent(None, counted), 10);
-        assert_eq!(range_percent(Some(0), counted), 5);
+        let near = u32::try_from(counted(i32::try_from(range.far).unwrap_or(0))).unwrap_or(0);
+        assert!(near < range.far, "a Channeler counts as nearer");
+        assert_eq!(
+            range_percent(range, Some(range.far), counted),
+            range_percent(range, Some(near), |d| d)
+        );
+        assert_eq!(
+            range_percent(range, None, counted),
+            range_percent(range, Some(near), |d| d)
+        );
+        assert_eq!(range_percent(range, Some(0), counted), range.at_fortress);
     }
 
     #[test]

@@ -180,13 +180,17 @@ impl BattleCaster {
 /// half; beyond five squares each five more add half the cost again, up to three times.
 /// `counted` turns the distance into the one the wizard's retorts make of it (a Channeler counts
 /// as two squares away anywhere but at the fortress: `Stat::CastingDistance`).
-pub fn range_percent(distance: Option<u32>, counted: impl FnOnce(i32) -> i32) -> i32 {
-    let distance = distance.unwrap_or(30);
+pub fn range_percent(
+    range: &f4x_def::rules::CastingRange,
+    distance: Option<u32>,
+    counted: impl FnOnce(i32) -> i32,
+) -> i32 {
+    let distance = distance.unwrap_or(range.far);
     if distance == 0 {
-        return 5;
+        return range.at_fortress;
     }
     let distance = u32::try_from(counted(i32::try_from(distance).unwrap_or(i32::MAX))).unwrap_or(0);
-    10 + 5 * [5, 10, 15, 20].iter().filter(|&&t| distance > t).count() as i32
+    range.base + range.step * range.beyond.iter().filter(|&&t| distance > t).count() as i32
 }
 
 /// What a spell is aimed at.

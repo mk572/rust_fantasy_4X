@@ -939,7 +939,9 @@ fn a_battle_on_corrupted_ground_costs_no_range_penalty_while_great_wasting_lasts
     };
     let mut g = world();
     let far = range(&mut g);
-    assert!(far > 10, "no fortress: the greatest penalty ({far})");
+    // The penalty falls to the base of `casting_range` while Great Wasting lasts.
+    let base = g.content.rules.config.casting_range.base;
+    assert!(far > base, "no fortress: the greatest penalty ({far})");
     g.map
         .as_mut()
         .ok_or("as_mut is missing")?
@@ -947,7 +949,7 @@ fn a_battle_on_corrupted_ground_costs_no_range_penalty_while_great_wasting_lasts
         .set_corrupted(9, 8, true);
     assert_eq!(range(&mut g), far, "corrupted ground alone does nothing");
     keep(&mut g, P0, 114 /* great_wasting */);
-    assert_eq!(range(&mut g), 10, "while the spell lasts");
+    assert_eq!(range(&mut g), base, "while the spell lasts");
     g.clear_globals(P0);
     assert_eq!(range(&mut g), far, "and not after");
     Ok(())

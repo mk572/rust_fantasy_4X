@@ -57,6 +57,14 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         return Err(ContentError::Invalid(problems));
     }
     let config = parse::<RulesConfig>(dir, "rules.ron")?;
+    let range = &config.casting_range;
+    if range.beyond.windows(2).any(|w| w[0] >= w[1])
+        || range.beyond.last().is_some_and(|&l| l >= range.far)
+    {
+        return Err(ContentError::Invalid(vec![
+            "rules.ron: casting_range.beyond must rise and end below `far`".to_string(),
+        ]));
+    }
     let abilities = Registry::new(abilities);
     let rules = Rules {
         config,
