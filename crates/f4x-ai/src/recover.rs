@@ -18,6 +18,9 @@ use crate::Ai;
 pub(crate) const REST_PCT: u32 = 60;
 /// How far a wounded unit walks to a stack with a Healer, in squares.
 const HEALER_RANGE: u32 = 4;
+/// How far a wounded unit walks to a city of its own, in squares. A city further away is no
+/// retreat: it heals in the field (5% a turn) and goes on with what it was doing.
+const CITY_RANGE: u32 = 8;
 /// The Healer ability of the unit table.
 const HEALER: Ability = Ability::new(27);
 
@@ -73,9 +76,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .min_by_key(|p| near(p))
                     .copied()
             };
-            // A square with a healer is the first choice when one is near.
+            // A city is a retreat only when the unit gets there by itself (`can_reach`: no ship,
+            // no plane to cross), and is near. A square with a healer is the first choice.
             let healer = nearest(&healers, HEALER_RANGE);
-            let to = healer.or_else(|| nearest(&cities, u32::MAX));
+            let to = healer.or_else(|| nearest(&cities, CITY_RANGE));
             if let Some(to) = to {
                 out.push((u, to));
             }
@@ -141,6 +145,23 @@ mod tests {
         assert!(
             PlayerView::new(&g, P0).unit_has_order(u),
             "it is on its way"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_wounded_unit_far_from_every_city_or_over_the_sea_mends_where_it_stands() -> TestResult {
+        use crate::testworld::ENEMY_CITY;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        // On the other island: a city of its own is over the sea and far.
+        let spot = at(ENEMY_CITY.0 + 1, ENEMY_CITY.1 + 2);
+        let u = spawn(&mut g, P0, spot, 113 /* high_men_paladins */, 1)[0];
+        let (_, max) = PlayerView::new(&g, P0).unit_hits(u);
+        g.scenario_set_hurt(u, max * 3 / 4);
+        run(&mut Ai::new(P0), &mut g, &mut Vec::new());
+        assert!(
+            !PlayerView::new(&g, P0).unit_has_order(u),
+            "no retreat that needs a ship or is further than {CITY_RANGE} squares"
         );
         Ok(())
     }

@@ -448,6 +448,9 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
             .into_iter()
             .filter_map(|u| {
                 let s = view.serial_of(u);
+                if !view.is_walker(u) {
+                    return None;
+                }
                 let to = ai
                     .roles
                     .waiting_for_ship()
@@ -980,6 +983,30 @@ mod tests {
             assert_eq!(view.unit_position(u), Some(port()), "{:?}", ai.roles);
         }
         assert!(!ai.roles.is(ship, Role::Scout), "no longer scouting");
+        Ok(())
+    }
+
+    /// A unit that flies (here by a spell) is no passenger: a ship is sent for the walkers of the
+    /// group and the flier is left to cross by itself.
+    #[test]
+    fn a_ship_fetches_the_walkers_and_not_a_unit_with_flight() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let land = shore(&g)?;
+        let soldiers = spawn(&mut g, P0, land, 104 /* spearmen */, 2);
+        let flier = spawn(&mut g, P0, land, 104 /* spearmen */, 1)[0];
+        g.scenario_enchant_unit(flier, f4x_def::rules::SpellId::new(56 /* flight */), P0);
+        spawn(&mut g, P0, port(), 36 /* galley */, 1);
+        g.balance_farmers(P0);
+        let mut ai = Ai::new(P0);
+        let mut all = soldiers.clone();
+        all.push(flier);
+        strand(&mut ai, &g, &all, port());
+        run_turns(&mut ai, &mut g, 6);
+        let view = PlayerView::new(&g, P0);
+        let boarded = |u| ai.roles.boarding_of(view.serial_of(u)).is_some();
+        assert!(soldiers.iter().any(|&u| boarded(u)), "{:?}", ai.roles);
+        assert!(!boarded(flier), "the flier is not a passenger");
         Ok(())
     }
 

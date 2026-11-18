@@ -36,6 +36,22 @@ impl Economy<'_> {
                 .is_some_and(|d| d.movement == MovementType::Sailing)
     }
 
+    /// Whether the unit is a walker: it walks by nature and nothing it carries (an item), nothing
+    /// cast on it (an enchantment) and no unit stacked with it lifts it off the ground: no
+    /// flight (24), no Wind Walking (74), no Water Walking (71), no Non-Corporeal (49). Only a
+    /// walker is fetched by a ship or counted on to walk the way a route plans; the abilities
+    /// are the unit's own, its enchantments' and its items' (`Units::unit_abilities`).
+    pub fn is_walker(&self, unit: hecs::Entity) -> bool {
+        let units = self.units();
+        units
+            .unit_def(unit)
+            .is_some_and(|d| d.movement == MovementType::Walking)
+            && !units
+                .unit_abilities(unit)
+                .iter()
+                .any(|a| [24, 49, 71, 74].iter().any(|&n| *a == Ability::new(n)))
+    }
+
     /// Whether the unit cannot cross the sea by itself: it walks and neither flies nor is
     /// carried through the air nor is non-corporeal nor walks on water.
     pub fn needs_ship(&self, unit: hecs::Entity, stack_flies: bool) -> bool {
@@ -818,6 +834,32 @@ mod tests {
         assert!(
             g.units().unit_position(flier).is_some() && g.units().unit_position(other).is_some()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn only_a_unit_that_neither_flies_nor_swims_nor_is_lifted_by_a_spell_is_a_walker() -> TestResult
+    {
+        let mut g = world();
+        let cavalry = unit(&mut g, 107 /* high_men_cavalry */, at(2, 2));
+        assert!(g.economy().is_walker(cavalry));
+        assert!(g.economy().needs_ship(cavalry, false));
+        // By nature: a ship and a flier are not.
+        let boat = unit(&mut g, 35 /* trireme */, at(6, 4));
+        assert!(!g.economy().is_walker(boat));
+        let drake = unit(&mut g, 66 /* draconian_spearmen, fliers */, at(2, 3));
+        assert!(!g.economy().is_walker(drake));
+        // By what is cast on it: Flight, Wind Walking and Water Walking each make the cavalry one
+        // no longer, as they do the unit's path over the sea.
+        for spell in [
+            56, /* flight */
+            63, /* wind_walking */
+            8,  /* water_walking */
+        ] {
+            let u = unit(&mut g, 107 /* high_men_cavalry */, at(3, 2));
+            g.scenario_enchant_unit(u, crate::rules::SpellId::new(spell), P0);
+            assert!(!g.economy().is_walker(u), "spell {spell}");
+        }
         Ok(())
     }
 

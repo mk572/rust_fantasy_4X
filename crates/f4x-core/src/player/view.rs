@@ -415,6 +415,12 @@ impl<'a> PlayerView<'a> {
         self.game.units().unit_hits(unit)
     }
 
+    /// Whether the unit is a walker, by nature and by what it carries or has cast on it
+    /// (`Economy::is_walker`): the only kind a ship fetches or a land route is planned for.
+    pub fn is_walker(&self, unit: hecs::Entity) -> bool {
+        self.game.economy().is_walker(unit)
+    }
+
     pub fn unit_has_ability(&self, unit: hecs::Entity, ability: Ability) -> bool {
         self.game.units().unit_has_ability(unit, ability)
     }

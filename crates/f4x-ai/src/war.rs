@@ -580,9 +580,16 @@ fn set_sail(
         ai.campaign = None;
         return;
     }
-    let serials: Vec<Serial> = {
+    let (serials, walkers): (Vec<Serial>, Vec<Serial>) = {
         let view = PlayerView::new(game, me);
-        units.iter().map(|&u| view.serial_of(u)).collect()
+        (
+            units.iter().map(|&u| view.serial_of(u)).collect(),
+            units
+                .iter()
+                .filter(|&&u| view.is_walker(u))
+                .map(|&u| view.serial_of(u))
+                .collect(),
+        )
     };
     events.push(Event::MarchLaunched {
         player: me,
@@ -597,7 +604,10 @@ fn set_sail(
         {
             ai.roles
                 .set_target(s, crate::roles::Role::March, Some(target));
-            ai.roles.set_crossing(s, Some(crate::roles::Crossing::Sea));
+            // Only walkers wait for the ships; the fliers and swimmers cross by themselves.
+            if walkers.contains(&s) {
+                ai.roles.set_crossing(s, Some(crate::roles::Crossing::Sea));
+            }
         }
     }
     ai.march_started = game.turn;

@@ -92,7 +92,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             sailors
                 .into_iter()
                 .filter(|&u| {
-                    crate::view::is_coastal(&view, city)
+                    view.is_walker(u)
+                        && crate::view::is_coastal(&view, city)
                         && view.unit_position(u).is_some_and(|p| p.plane == city.plane)
                 })
                 .collect()

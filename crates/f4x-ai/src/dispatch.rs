@@ -144,7 +144,11 @@ fn resend(
                 ai.roles
                     .set_crossing(serial, Some(crate::roles::Crossing::Plane));
             }
-            Some(_) if unreachable => {
+            // Only a walker waits for a ship; a flier or a swimmer crosses the water itself.
+            Some(_)
+                if unreachable
+                    && f4x_core::player::view::PlayerView::new(game, ai.player).is_walker(unit) =>
+            {
                 ai.roles
                     .set_crossing(serial, Some(crate::roles::Crossing::Sea));
             }
