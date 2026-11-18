@@ -297,6 +297,7 @@ impl App {
     /// `Warn0`: the red box (`resource.lbx` 38 and 39) with the text centred; any click or key
     /// closes it. Returns whether it was closed.
     pub(crate) fn warning_box(&mut self, lay: &Layout, text: &str, input: &Input) -> bool {
+        self.audio.note_warning();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let line = self.art.text_height(4) + 2.0;
         let lines = self.bm_wrap(4, text, 166.0);

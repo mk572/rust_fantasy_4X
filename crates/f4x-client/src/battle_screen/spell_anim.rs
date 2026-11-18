@@ -139,6 +139,22 @@ impl App {
         })
     }
 
+    /// One bolt of Call Lightning on the square of a unit, with the sound of Lightning Bolt.
+    pub(super) fn lightning_bolt(&self, cell: Pos) -> Vec<Anim> {
+        let cast = self.audio.table.spells.get("call_lightning").copied();
+        let sound = cast.and_then(crate::audio::spell_sound);
+        let mut out: Vec<Anim> = cast.map(|cast| Anim::Sound { cast }).into_iter().collect();
+        out.push(Anim::Spell {
+            fx: SpellFx::Lightning,
+            frames: 1,
+            cells: vec![(cell, 0)],
+            outcomes: Vec::new(),
+            line: String::new(),
+            sound,
+        });
+        out
+    }
+
     /// The point on the screen (in the grid's native pixels) of a square for the pictures of
     /// spells (`Combat_Grid_Screen_Coordinates` with an offset of 4 and 4).
     fn spell_point(pos: Pos) -> (f32, f32) {
@@ -298,6 +314,9 @@ impl App {
                 screen_height(),
                 Color::new(r, g, b, strength),
             );
+        }
+        if line.is_empty() {
+            return;
         }
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let width = self.art.text_width(1, &line);

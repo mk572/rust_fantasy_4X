@@ -203,6 +203,9 @@ pub(crate) struct Audio {
     /// 0 to 1 (the Settings screen's sliders).
     music_volume: f32,
     effects_volume: f32,
+    /// A warning box was drawn since the last frame's update, and was open at that update.
+    warning_drawn: bool,
+    warning_open: bool,
 }
 
 impl Audio {
@@ -219,7 +222,23 @@ impl Audio {
             event_music_on: false,
             music_volume: 0.7,
             effects_volume: 1.0,
+            warning_drawn: false,
+            warning_open: false,
         }
+    }
+
+    /// A warning box is on the screen this frame.
+    pub fn note_warning(&mut self) {
+        self.warning_drawn = true;
+    }
+
+    /// Once a frame: whether a warning box has opened since the last frame (it was not there
+    /// before), for the standard click of `Warn`.
+    pub fn warning_opened(&mut self) -> bool {
+        let opened = self.warning_drawn && !self.warning_open;
+        self.warning_open = self.warning_drawn;
+        self.warning_drawn = false;
+        opened
     }
 
     /// Find the files under `dir`: `<archive>/NNN_name.ogg` (or `.wav`). A missing folder gives
@@ -397,6 +416,9 @@ impl App {
         if input.mouse_pressed(MouseButton::Left) && self.click_lands_on_button(input) {
             self.audio.effect(Some(CLICK));
         }
+        if self.audio.warning_opened() {
+            self.audio.effect(Some(WARNING));
+        }
         let want = self.want_music();
         self.audio.music(want);
     }
@@ -559,6 +581,19 @@ mod tests {
             .all(|u| cannon_sound(u.num).is_none()));
         assert_eq!(WARNING, (Archive::SoundFx, 0));
         Ok(())
+    }
+
+    #[test]
+    fn a_warning_box_clicks_once_when_it_opens() {
+        let mut audio = Audio::silent();
+        assert!(!audio.warning_opened(), "no box, no click");
+        audio.note_warning();
+        assert!(audio.warning_opened(), "it opens");
+        audio.note_warning();
+        assert!(!audio.warning_opened(), "it stays open: no second click");
+        assert!(!audio.warning_opened(), "it closes");
+        audio.note_warning();
+        assert!(audio.warning_opened(), "another box opens");
     }
 
     #[test]

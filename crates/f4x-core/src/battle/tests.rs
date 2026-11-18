@@ -3210,6 +3210,19 @@ mod fields {
             .count();
         assert!(bolts <= 5, "{bolts}");
         assert_eq!(b.units[0].hit_points(), b.units[0].max_hit_points());
+        // Each bolt is an event of its own, on the unit it fell on, ahead of what it did.
+        let struck: Vec<usize> = events
+            .iter()
+            .filter_map(|e| match e {
+                BattleEvent::LightningStruck { unit } => Some(*unit),
+                _ => None,
+            })
+            .collect();
+        assert!(struck.iter().all(|&u| u == 1), "{struck:?}");
+        assert!(
+            (3..=10).contains(&struck.len()),
+            "two turns of 3 to 5: {struck:?}"
+        );
     }
 
     /// What Wrack did to spearmen (eight figures) with plenty of hit points over ten turns: the

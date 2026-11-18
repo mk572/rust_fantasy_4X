@@ -58,6 +58,8 @@ pub(crate) enum Kind {
 pub(crate) struct Scene {
     pub kind: Kind,
     pub started: Option<f64>,
+    /// The last stage whose stroke screamed, so that a stage screams once, not on every frame.
+    pub screamed: Option<u32>,
 }
 
 impl Scene {
@@ -65,6 +67,7 @@ impl Scene {
         Self {
             kind,
             started: None,
+            screamed: None,
         }
     }
 }
@@ -570,9 +573,18 @@ impl App {
     /// him (the lightning plays), and what is left of him dissolves.
     fn draw_zap(&mut self, lay: &Layout, loser: usize, winner: usize, feminine: bool, stage: u32) {
         let loser_at = (69.0, 75.0);
-        if stage == 11 {
-            self.audio
-                .effect(Some(crate::audio::scream_sound(feminine)));
+        // The wizard screams as he is seized and again at each stroke of the lightning (stages 11
+        // to 18, `Conquest_Animation_Draw`), once for each stage.
+        if (11..19).contains(&stage) {
+            let fresh = self.end_scenes.front_mut().is_some_and(|scene| {
+                let fresh = scene.screamed != Some(stage);
+                scene.screamed = Some(stage);
+                fresh
+            });
+            if fresh {
+                self.audio
+                    .effect(Some(crate::audio::scream_sound(feminine)));
+            }
         }
         let (loser_pics, winner_pics) = (self.wizard_pictures(loser), self.wizard_pictures(winner));
         if stage < 19 {

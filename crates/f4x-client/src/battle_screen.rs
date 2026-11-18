@@ -188,7 +188,9 @@ pub(crate) fn describe(
     let unit = |i: usize| Args::new().text("unit", name(i));
     let spell_of = |s: SpellId| Args::new().text("spell", spell(s));
     match event {
-        BattleEvent::Moved { .. } | BattleEvent::ChaosCalled { .. } => None,
+        BattleEvent::Moved { .. }
+        | BattleEvent::ChaosCalled { .. }
+        | BattleEvent::LightningStruck { .. } => None,
         BattleEvent::Attacked {
             attacker,
             defender,
@@ -992,6 +994,13 @@ impl App {
             }
             // The vortex's round sounds like a small flyer (`Vortex_Combat_Round`).
             BattleEvent::VortexMoved { .. } => out.push(Anim::Sound { cast: 7 }),
+            // Each bolt of Call Lightning is a stroke of its own with its own sound
+            // (`Apply_Call_Lightning` plays `Animate_Lightning_Bolt` for each).
+            BattleEvent::LightningStruck { unit } => {
+                if let Some(cell) = cell_of(*unit) {
+                    out.extend(self.lightning_bolt(cell));
+                }
+            }
             // A fizzled spell is announced with the standard click (`CMB_CounterMessage`).
             BattleEvent::SpellCountered { .. } => out.push(Anim::Warning),
             BattleEvent::SpellCast { side, spell, .. } => {

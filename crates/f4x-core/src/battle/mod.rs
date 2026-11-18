@@ -904,6 +904,10 @@ pub enum BattleEvent {
         unit: usize,
         act: Confusion,
     },
+    /// A bolt of Call Lightning fell on a unit; what it did to it follows.
+    LightningStruck {
+        unit: usize,
+    },
     /// Mana Leak drained a side's wizard (and spell shots).
     ManaLeaked {
         side: Side,

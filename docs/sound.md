@@ -24,12 +24,16 @@ What is wired:
 | Music, short pieces while their box is up: global spell (its own), Spell of Mastery started, random event (good or bad, with Event Music), building finished, site discovered, spell learned, spell fizzled, new outpost, game over (win, lose by conquest, lose by magic) | once; the background resumes when the box closes |
 | Switches | Sound Effects gates every effect, Background Music every track but the two event pieces, Event Music those two and the fanfare (task 266 to 268) |
 
-Battle sounds checked against ReMoM on 18 November 2026 (task 608, the battle part): every one of the 214 spell rows has
-its cast sound in `sound.ron`; a spell on several squares plays it again as each later square's picture starts (the
-original plays it for each target's animation: `Combat_Spell_Animation_Bolt`, `_Default`, `Animate_Cracks_Call`); a spell
-that fizzles plays the standard click (`SOUNDFX 0`, `CMB_CounterMessage`); the dwarven steam cannon shoots `SOUNDFX 16`
-(`rat_Cannon`), the catapult and the thrown rocks `SOUNDFX 15`. Still open: Call Lightning's bolts one by one (ours is one
-stroke), the sound of a unit crossing a Wall of Fire (not found in ReMoM), and the overland and interface sounds.
+Sounds checked against ReMoM on 18 November 2026 (task 608): every one of the 214 spell rows has its cast sound in
+`sound.ron`; a spell on several squares plays it again as each later square's picture starts (the original plays it for
+each target's animation: `Combat_Spell_Animation_Bolt`, `_Default`, `Animate_Cracks_Call`); each bolt of Call Lightning is
+its own event (`LightningStruck`), stroke and sound (`Apply_Call_Lightning`); a spell that fizzles plays the standard click
+(`SOUNDFX 0`, `CMB_CounterMessage`) and so does a warning box as it opens (`Warn`); the dwarven steam cannon shoots
+`SOUNDFX 16` (`rat_Cannon`), the catapult and the thrown rocks `SOUNDFX 15`; the defeated wizard of the conquest scene
+screams at the seizing and at each stroke of the lightning (stages 11 to 18), once a stage. The original plays nothing for
+the overland unit moves, the end of the turn, growth, hiring, items or damage. Checked and not missing: Earth Lore's last
+sound is entry 106, a silent clip that cuts the one before; no sound for a unit crossing a Wall of Fire was found.
+Still open: Plane Shift plays the spell's sound at three moments of its animation (ours once).
 
 Also wired: volume sliders for the music and the effects at the bottom of the Settings screen (saved in
 `saves/preferences.txt` as `music_volume` and `effects_volume`); the level-up box (`level_up.rs`) with the fanfare as an
@@ -37,8 +41,7 @@ event piece; the scream (`SOUNDFX` 34 for a feminine wizard, 35 otherwise, by th
 wizard is defeated or banished; the vortex's round (`SOUNDFX` 7).
 
 Not wired: crossfading (365, ours),
-the teleport and tunnel sounds (137), the scream inside the conquest scene (360; for now it plays when the notice
-arrives), the intro (85), and the warning click. The overland map has no unit-move sound in the original either.
+the intro (85). The overland map has no unit-move sound in the original either.
 
 ## 1. The files
 
