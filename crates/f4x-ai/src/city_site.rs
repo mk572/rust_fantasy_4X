@@ -346,7 +346,7 @@ pub struct Free {
 /// one that can walk there before one that needs a ship), then the next site to the nearest of those
 /// left, down the list. `taken` are the sites of settlers that already have one, `avoid` the sites to
 /// leave out for now. Each result says whether the settler needs a ship for the site (a site over the
-/// sea that it cannot walk to): the settler is then tagged `Crossing::Sea` and the general rule for
+/// sea that it cannot walk to, and only a walker needs a ship: `PlayerView::is_walker`): the settler is then tagged `Crossing::Sea` and the general rule for
 /// units waiting for a ship builds one (`economy.rs`, `pickup.rs`).
 pub fn assign(
     view: &PlayerView,
@@ -376,7 +376,11 @@ pub fn assign(
         // A settler that cannot walk to the site takes it only over the sea: a land site that this
         // settler cannot walk to (it stands on land the site is cut off from) is for another settler.
         let Some(best) = (0..left.len())
-            .filter(|&i| walks(left[i]) || site.reach == Reach::Sea)
+            // Only a walker waits for a ship; a swimmer or a flier (by nature, an item or a
+            // spell) crosses the water itself or cannot reach the site.
+            .filter(|&i| {
+                walks(left[i]) || (site.reach == Reach::Sea && view.is_walker(left[i].unit))
+            })
             .min_by_key(|&i| cost(left[i]))
         else {
             continue;
@@ -591,6 +595,60 @@ mod tests {
             "{list:?}"
         );
         assert!(list.iter().all(|s| s.at.plane == Plane::Arcanus));
+    }
+
+    /// A site over the sea is for a settler that needs a ship (a walker) or one that crosses the
+    /// water itself; a settler that swims (a lizardman) or has flight from a spell does not wait
+    /// for a ship, and one that is cut off for another reason takes no such site.
+    #[test]
+    fn only_a_walking_settler_is_given_a_site_over_the_sea_by_ship() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.explore(P0, at(COAST_CITY.0, COAST_CITY.1), HalfInt::from_int(12));
+        for x in [16, 22, 26, 30] {
+            g.explore(P0, at(x, 6), HalfInt::from_int(3));
+        }
+        g.explore(P0, at(ENEMY_CITY.0 + 4, ENEMY_CITY.1), HalfInt::from_int(3));
+        crate::testworld::fill_west(&mut g);
+        let walker = spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            111, /* high_men_settlers */
+            1,
+        )[0];
+        let swimmer = spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            125, /* lizardman_settlers */
+            1,
+        )[0];
+        let flier = spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            111, /* high_men_settlers */
+            1,
+        )[0];
+        g.scenario_enchant_unit(flier, f4x_def::rules::SpellId::new(56 /* flight */), P0);
+        let view = PlayerView::new(&g, P0);
+        let list = scan(&view);
+        assert!(list.iter().all(|s| s.reach == Reach::Sea), "{list:?}");
+        let free = |u| {
+            vec![Free {
+                unit: u,
+                at: at(COAST_CITY.0, COAST_CITY.1),
+                reach: f4x_core::fast::FastSet::default(),
+            }]
+        };
+        let got = assign(&view, &list, &free(walker), &[], &[]);
+        assert_eq!(
+            got.first().map(|&(u, _, ship)| (u, ship)),
+            Some((walker, true))
+        );
+        assert!(!view.is_walker(swimmer) && !view.is_walker(flier));
+        assert!(assign(&view, &list, &free(swimmer), &[], &[]).is_empty());
+        assert!(assign(&view, &list, &free(flier), &[], &[]).is_empty());
     }
 
     #[test]

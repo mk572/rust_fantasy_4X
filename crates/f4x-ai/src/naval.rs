@@ -173,9 +173,18 @@ fn choose_tower_plan(ai: &Ai, view: &PlayerView, coastal: &[Position]) -> Option
     for target in towers {
         // A tower a soldier can walk to is cleared on foot.
         let walkable = view.my_cities().into_iter().any(|(_, city)| {
-            view.garrison(city)
+            // The ship's passengers are walkers: test one of those when the garrison has one (a
+            // flier or a swimmer reaches the tower by itself and says nothing about the ships).
+            let fighters: Vec<_> = view
+                .garrison(city)
                 .into_iter()
-                .find(|&u| is_fighter(view, u))
+                .filter(|&u| is_fighter(view, u))
+                .collect();
+            fighters
+                .iter()
+                .copied()
+                .find(|&u| view.is_walker(u))
+                .or(fighters.first().copied())
                 .is_some_and(|u| {
                     crate::military::neighbours(view, target)
                         .into_iter()
