@@ -121,7 +121,7 @@ impl Game {
             .map(|(e, _)| e)
             .filter(|&e| self.units().unit_owner(e) == Some(player))
             .collect();
-        self.sort_by_serial(&mut workers);
+        self.units().sort_by_serial(&mut workers);
         let mut events = Vec::new();
         for u in workers {
             let Some(work) = self.world.get::<&PurifyWork>(u).ok().map(|w| *w) else {
@@ -179,7 +179,7 @@ impl Game {
             .map(|(e, ..)| e)
             .filter(|&e| self.economy().city_owner(e) == Some(player))
             .collect();
-        self.sort_by_serial(&mut cities);
+        self.units().sort_by_serial(&mut cities);
         for city in cities {
             let has = |effect| self.economy().city_has_effect(city, effect);
             let (blessed, consecrated) = (

@@ -104,7 +104,7 @@ impl App {
                 .items()
                 .held(|_| true)
                 .into_iter()
-                .find(|(e, _)| self.game.serial_of(*e) == serial);
+                .find(|(e, _)| self.game.units().serial_of(*e) == serial);
             if let Some((_, item)) = found {
                 let name = self.names.item_name(&item, &self.texts);
                 parts
@@ -176,14 +176,14 @@ impl App {
                         | f4x_core::item::entity::HeldBy::Award(p) if p == owner)
                 }) {
                     put(
-                        Goods::item(self.game.serial_of(entity)),
+                        Goods::item(self.game.units().serial_of(entity)),
                         self.names.item_name(&item, &self.texts),
                     );
                 }
             }
             Cat::Unit => {
                 for unit in self.game.units().player_units(owner) {
-                    let serial = self.game.serial_of(unit);
+                    let serial = self.game.units().serial_of(unit);
                     if trade::giveable_unit(&self.game, owner, serial).is_none() {
                         continue;
                     }
@@ -198,7 +198,7 @@ impl App {
             }
             Cat::Hero => {
                 for hero in self.game.units().hero_units(owner) {
-                    let serial = self.game.serial_of(hero);
+                    let serial = self.game.units().serial_of(hero);
                     if trade::giveable_hero(&self.game, owner, serial).is_none() {
                         continue;
                     }

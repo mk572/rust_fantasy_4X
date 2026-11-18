@@ -278,7 +278,12 @@ impl Game {
                     let gain = s.more? - s.food?;
                     (s.farmers < s.figures && gain > HalfInt::ZERO).then_some((gain, i))
                 })
-                .max_by_key(|&(gain, i)| (gain, std::cmp::Reverse(self.serial_of(slots[i].city))));
+                .max_by_key(|&(gain, i)| {
+                    (
+                        gain,
+                        std::cmp::Reverse(self.units().serial_of(slots[i].city)),
+                    )
+                });
             let Some((_, i)) = best else {
                 break;
             };

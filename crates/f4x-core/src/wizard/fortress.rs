@@ -239,7 +239,7 @@ impl Game {
             .max_by_key(|&(e, ..)| {
                 (
                     self.economy().citizens(e),
-                    std::cmp::Reverse(self.serial_of(e)),
+                    std::cmp::Reverse(self.units().serial_of(e)),
                 )
             })
             .and_then(|(e, ..)| self.world.get::<&Position>(e).ok().map(|p| *p))

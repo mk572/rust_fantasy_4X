@@ -155,7 +155,7 @@ impl App {
                 inside.then(|| (event_topic(kind), from))
             }
             Screen::City(city) => {
-                let serial = self.game.serial_of(city);
+                let serial = self.game.units().serial_of(city);
                 let from = (0.0, 19.0, 211.0, 8.0);
                 let inside =
                     x >= from.0 && x < from.0 + from.2 && y >= from.1 && y < from.1 + from.3;

@@ -120,7 +120,7 @@ impl Game {
     fn cheapest(&self, leavers: &[Leaver]) -> Option<(hecs::Entity, Position)> {
         let (unit, to) = leavers.iter().min_by_key(|(u, _)| {
             let cost = self.units().unit_def(*u).map_or(0, |d| d.cost);
-            (cost, std::cmp::Reverse(self.serial_of(*u)))
+            (cost, std::cmp::Reverse(self.units().serial_of(*u)))
         })?;
         Some((*unit, *to.first()?))
     }

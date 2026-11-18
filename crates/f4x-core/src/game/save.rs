@@ -697,7 +697,9 @@ impl Game {
                 serial: serial.0,
                 item: item.clone(),
                 held: match *by {
-                    HeldBy::Hero(unit, slot) => HeldSave::Hero(self.serial_of(unit).0, slot),
+                    HeldBy::Hero(unit, slot) => {
+                        HeldSave::Hero(self.units().serial_of(unit).0, slot)
+                    }
                     HeldBy::Vault(p, slot) => HeldSave::Vault(p.0, slot),
                     HeldBy::Award(p) => HeldSave::Award(p.0),
                     HeldBy::Crafting(p) => HeldSave::Crafting(p.0),
@@ -721,13 +723,15 @@ impl Game {
                     SpellTarget::Wizard(w) => SpellTargetSave::Wizard(
                         crate::wizard::entity::player_id_of(&self.world, w)?.0,
                     ),
-                    SpellTarget::City(e) => SpellTargetSave::City(self.serial_of(e).0),
-                    SpellTarget::Unit(e) => SpellTargetSave::Unit(self.serial_of(e).0),
-                    SpellTarget::Feature(e) => SpellTargetSave::Feature(self.serial_of(e).0),
+                    SpellTarget::City(e) => SpellTargetSave::City(self.units().serial_of(e).0),
+                    SpellTarget::Unit(e) => SpellTargetSave::Unit(self.units().serial_of(e).0),
+                    SpellTarget::Feature(e) => {
+                        SpellTargetSave::Feature(self.units().serial_of(e).0)
+                    }
                     SpellTarget::Battlefield => return None,
                 };
                 Some(SpellSave {
-                    serial: self.serial_of(i).0,
+                    serial: self.units().serial_of(i).0,
                     spell: spells.def(i)?.num(),
                     caster: spells.caster_player(i)?.0,
                     target,
@@ -925,7 +929,7 @@ impl Game {
             .into_iter()
             .filter_map(|u| {
                 Some(UnitSave {
-                    serial: self.serial_of(u).0,
+                    serial: self.units().serial_of(u).0,
                     unit: self.units().unit_def(u)?.num,
                     owner: self.units().unit_owner(u)?.0,
                     pos: self.units().unit_position(u)?,
@@ -972,7 +976,7 @@ impl Game {
             .into_iter()
             .map(|(e, ..)| e)
             .collect();
-        self.sort_by_serial(&mut city_entities);
+        self.units().sort_by_serial(&mut city_entities);
         let cities = city_entities
             .into_iter()
             .filter_map(|e| {
@@ -985,7 +989,7 @@ impl Game {
                     .unwrap_or_default();
                 let production = self.economy().city_production(e);
                 Some(CitySave {
-                    serial: self.serial_of(e).0,
+                    serial: self.units().serial_of(e).0,
                     name: city.name.clone(),
                     owner: self.economy().city_owner(e)?.0,
                     pos,
@@ -1055,7 +1059,7 @@ impl Game {
                 .into_iter()
                 .filter_map(|h| {
                     Some(HeroSave {
-                        serial: self.serial_of(h).0,
+                        serial: self.units().serial_of(h).0,
                         state: self.units().hero_state(h)?,
                         hero: (*self.world.get::<&crate::hero::Hero>(h).ok()?).clone(),
                         xp: self.units().hero_xp(h),
@@ -1448,7 +1452,7 @@ impl Snapshot {
                 .units()
                 .all_heroes()
                 .into_iter()
-                .find(|&h| game.serial_of(h).0 == u.serial);
+                .find(|&h| game.units().serial_of(h).0 == u.serial);
             let serial = match hero_entity {
                 Some(_) => Serial(u.serial),
                 None => take(u.serial, "a unit")?,

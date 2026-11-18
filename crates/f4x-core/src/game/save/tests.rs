@@ -656,7 +656,7 @@ fn creation_numbers_keep_counting_after_a_load() -> TestResult {
         .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let fresh = back.spawn_unit(P0, at(11, 6), walker);
-    assert_eq!(back.serial_of(fresh), Serial(next));
+    assert_eq!(back.units().serial_of(fresh), Serial(next));
     Ok(())
 }
 

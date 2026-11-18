@@ -229,12 +229,12 @@ impl<'a> UnitView<'a> {
     }
 
     /// An entity's creation number (entities without one sort first, by id).
-    pub(crate) fn serial_of(&self, entity: hecs::Entity) -> Serial {
+    pub fn serial_of(&self, entity: hecs::Entity) -> Serial {
         self.world.get::<&Serial>(entity).map_or(Serial(0), |s| *s)
     }
 
     /// Sort entities oldest first.
-    pub(crate) fn sort_by_serial(&self, entities: &mut [hecs::Entity]) {
+    pub fn sort_by_serial(&self, entities: &mut [hecs::Entity]) {
         entities.sort_by_cached_key(|&e| (self.serial_of(e), e.id()));
     }
 

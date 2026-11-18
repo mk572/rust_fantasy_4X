@@ -3978,7 +3978,7 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() -> TestResul
         (left[0].item, left[0].spell, left[0].charges),
         (wand_entity, zap, 1)
     );
-    assert_eq!(left[0].serial, g.serial_of(wand_entity));
+    assert_eq!(left[0].serial, g.units().serial_of(wand_entity));
     // The battle ends with the defender's flight; one charge is left on the item.
     g.battle_command(BattleCommand::EndTurn)
         .map_err(|e| format!("{e:?}"))?;
@@ -6852,7 +6852,7 @@ fn a_battle_is_saved_and_read_back_with_its_spells_and_items() -> TestResult {
         hecs::Entity::DANGLING,
         "the entity is not saved"
     );
-    back.bind_items(|s| (s == g.serial_of(wand_entity)).then_some(wand_entity))
+    back.bind_items(|s| (s == g.units().serial_of(wand_entity)).then_some(wand_entity))
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(back.units, battle.units);
     assert_eq!(back.units[0].casting.item_charges[0].charges, 1);
@@ -6916,7 +6916,7 @@ fn a_game_saved_in_a_battle_continues_exactly_like_the_unsaved_one() -> TestResu
     // The wand's charges are bound to the loaded world's own item entity.
     let loaded_hero = loaded
         .units()
-        .entity_of_serial(g.serial_of(hero))
+        .entity_of_serial(g.units().serial_of(hero))
         .ok_or("entity_of_serial is missing")?;
     let wand = loaded
         .items()

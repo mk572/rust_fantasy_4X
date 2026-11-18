@@ -308,7 +308,7 @@ fn units(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         Some("all") => ctx.game.units().all_units(),
         Some(p) => ctx.game.units().units_at(parse_pos(p, Plane::Arcanus)?),
     };
-    ctx.game.sort_by_serial(&mut list);
+    ctx.game.units().sort_by_serial(&mut list);
     let mut shown = 0;
     for u in list {
         let visible = ctx.game.units().unit_owner(u) == Some(me)
@@ -396,7 +396,7 @@ fn cities(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         if c.owner == me || (all && ctx.sees(p)) || ctx.overriding() && all {
             let pop = ctx.game.economy().citizens(e);
             rows.push((
-                ctx.game.serial_of(e),
+                ctx.game.units().serial_of(e),
                 format!(
                     "{} owner {} at {} size {pop}",
                     describe::city_name(ctx.game, e),
@@ -484,7 +484,7 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         None => ctx.say("producing nothing"),
     }
     let mut garrison = ctx.game.economy().garrison(at);
-    ctx.game.sort_by_serial(&mut garrison);
+    ctx.game.units().sort_by_serial(&mut garrison);
     for u in garrison {
         let line = unit_line(ctx, u);
         ctx.say(format!("  {line}"));
@@ -558,7 +558,7 @@ fn tile(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     }
     if ctx.sees(p) {
         let mut here = ctx.game.units().units_at(p);
-        ctx.game.sort_by_serial(&mut here);
+        ctx.game.units().sort_by_serial(&mut here);
         for u in here {
             if ctx.game.economy().unit_visible_to(u, ctx.session.player) || ctx.overriding() {
                 let line = unit_line(ctx, u);
@@ -1055,7 +1055,7 @@ fn items(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let mut lines = Vec::new();
     for hero in ctx.game.units().hero_units(me) {
         let name = ctx.game.units().hero_name(hero).unwrap_or_default();
-        let serial = ctx.game.serial_of(hero).0;
+        let serial = ctx.game.units().serial_of(hero).0;
         lines.push(format!("hero {serial} {name}"));
         let kinds = ctx
             .game

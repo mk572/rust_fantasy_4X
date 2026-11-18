@@ -1955,13 +1955,13 @@ fn a_trade_hands_over_gold_a_spell_an_item_and_a_unit() -> TestResult {
     city(&mut g, P0, at(20, 15));
     let spearmen = g.content.rules.units.id_numbered(95).ok_or("spearmen")?;
     let soldier = g.spawn_unit(P1, at(5, 5), spearmen);
-    let soldier_serial = g.serial_of(soldier);
+    let soldier_serial = g.units().serial_of(soldier);
     g.give_item(P1, sword());
     let blade = g
         .items()
         .held(|h| matches!(h, crate::item::entity::HeldBy::Vault(p, _) if p == P1))
         .first()
-        .map(|(e, _)| g.serial_of(*e))
+        .map(|(e, _)| g.units().serial_of(*e))
         .ok_or("an item serial")?;
     // The spell, the sword and the soldier of P1 for 400 gold of P0.
     let get = Goods {
@@ -2102,7 +2102,7 @@ fn a_trade_a_side_cannot_hand_over_is_refused() -> TestResult {
     let hero = g
         .spawn_hero(P1, at(5, 5), 0)
         .map_err(|e| format!("{e:?}"))?;
-    let serial = g.serial_of(hero);
+    let serial = g.units().serial_of(hero);
     assert_eq!(
         g.check_proposal(P0, P1, trade(Goods::gold(10), Goods::unit(serial))),
         Err(DiplomacyError::NotAllowed)
@@ -2152,7 +2152,7 @@ fn a_veteran_unit_and_a_hero_are_worth_more_for_level_and_experience() -> TestRe
     city(&mut g, P0, at(1, 1));
     let spearmen = g.content.rules.units.id_numbered(95).ok_or("spearmen")?;
     let soldier = g.spawn_unit(P0, at(1, 1), spearmen);
-    let serial = g.serial_of(soldier);
+    let serial = g.units().serial_of(soldier);
     let green = trade::worth(&g, P1, Goods::unit(serial));
     g.world.insert_one(soldier, crate::unit::Experience(25))?;
     let seasoned = trade::worth(&g, P1, Goods::unit(serial));
@@ -2164,7 +2164,7 @@ fn a_veteran_unit_and_a_hero_are_worth_more_for_level_and_experience() -> TestRe
     let hero = g
         .spawn_hero(P0, at(1, 1), 0)
         .map_err(|e| format!("{e:?}"))?;
-    let hero_serial = g.serial_of(hero);
+    let hero_serial = g.units().serial_of(hero);
     let bare = trade::worth(&g, P1, Goods::hero(hero_serial));
     assert!(bare > 0);
     g.world.insert_one(hero, crate::unit::Experience(60))?;
@@ -2187,7 +2187,7 @@ fn a_hero_is_traded_with_its_level_and_its_items() -> TestResult {
         .map_err(|e| format!("{e:?}"))?;
     g.world.insert_one(hero, crate::unit::Experience(60))?;
     let level = g.units().unit_level(hero);
-    let serial = g.serial_of(hero);
+    let serial = g.units().serial_of(hero);
     let kind = trade(Goods::gold(1500), Goods::hero(serial));
     assert_eq!(g.check_proposal(P0, P1, kind), Ok(()));
     command(

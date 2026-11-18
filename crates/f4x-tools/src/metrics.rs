@@ -670,7 +670,7 @@ impl Tally {
             })
             .filter_map(|u| {
                 Some((
-                    game.serial_of(u),
+                    game.units().serial_of(u),
                     game.units().unit_owner(u)?,
                     game.units().unit_position(u)?,
                 ))

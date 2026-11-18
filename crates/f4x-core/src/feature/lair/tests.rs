@@ -1207,8 +1207,8 @@ fn a_game_saved_in_a_lair_fight_goes_on_to_clear_the_site() -> TestResult {
             .battle
             .as_ref()
             .and_then(|a| a.lair)
-            .map(|l| loaded.serial_of(l)),
-        Some(g.serial_of(site)),
+            .map(|l| loaded.units().serial_of(l)),
+        Some(g.units().serial_of(site)),
         "the fight is still the assault on the same lair"
     );
     fight_to_the_end(&mut g);

@@ -103,7 +103,7 @@ fn eliminating_the_rival_wins_by_conquest() {
 fn undead_enchant_restore_and_kill_change_units() {
     let (mut g, mut c) = (game(), console());
     let unit = first_unit_of(&g, HUMAN);
-    let serial = g.serial_of(unit).0;
+    let serial = g.units().serial_of(unit).0;
     assert!(!c.execute(&mut g, &format!("undead {serial}")).ok);
     assert!(!g.units().unit_is_undead(unit));
     assert!(c.execute(&mut g, "mode override").ok);

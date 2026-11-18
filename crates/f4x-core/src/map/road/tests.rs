@@ -370,7 +370,7 @@ fn road_work_and_enchanted_roads_survive_a_save() -> TestResult {
     let back = g.snapshot().restore(content)?;
     let e2 = back
         .units()
-        .entity_of_serial(g.serial_of(e))
+        .entity_of_serial(g.units().serial_of(e))
         .ok_or("entity_of_serial is missing")?;
     let work = back.world.get::<&RoadWork>(e2)?;
     assert_eq!(

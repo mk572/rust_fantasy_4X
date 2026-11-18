@@ -154,7 +154,7 @@ fn holdings(game: &Game, owner: PlayerId, to: PlayerId) -> Vec<Goods> {
             | f4x_core::item::entity::HeldBy::Award(p) if p == owner)
         })
         .into_iter()
-        .map(|(e, _)| game.serial_of(e))
+        .map(|(e, _)| game.units().serial_of(e))
         .collect();
     serials.sort();
     out.extend(serials.into_iter().map(Goods::item));
@@ -162,8 +162,8 @@ fn holdings(game: &Game, owner: PlayerId, to: PlayerId) -> Vec<Goods> {
         .units()
         .player_units(owner)
         .into_iter()
-        .filter(|&u| core::giveable_unit(game, owner, game.serial_of(u)).is_some())
-        .map(|u| game.serial_of(u))
+        .filter(|&u| core::giveable_unit(game, owner, game.units().serial_of(u)).is_some())
+        .map(|u| game.units().serial_of(u))
         .collect();
     units.sort();
     out.extend(units.into_iter().map(Goods::unit));
@@ -171,8 +171,8 @@ fn holdings(game: &Game, owner: PlayerId, to: PlayerId) -> Vec<Goods> {
         .units()
         .hero_units(owner)
         .into_iter()
-        .filter(|&h| core::giveable_hero(game, owner, game.serial_of(h)).is_some())
-        .map(|h| game.serial_of(h))
+        .filter(|&h| core::giveable_hero(game, owner, game.units().serial_of(h)).is_some())
+        .map(|h| game.units().serial_of(h))
         .collect();
     heroes.sort();
     out.extend(heroes.into_iter().map(Goods::hero));
@@ -468,7 +468,7 @@ fn sell(game: &Game, me: PlayerId, other: PlayerId) -> Option<Offer> {
             | f4x_core::item::entity::HeldBy::Award(p) if p == me)
         })
         .into_iter()
-        .map(|(e, _)| game.serial_of(e));
+        .map(|(e, _)| game.units().serial_of(e));
     if armory.items().next().is_some() {
         things.extend(serials.map(Goods::item));
     }
@@ -508,7 +508,7 @@ fn surplus_unit(game: &Game, me: PlayerId) -> Option<f4x_core::game::serial::Ser
         if fighters.len() <= crate::view::garrison_wanted(&view, city) + 1 {
             return None;
         }
-        let serial = game.serial_of(*fighters.last()?);
+        let serial = game.units().serial_of(*fighters.last()?);
         core::giveable_unit(game, me, serial).map(|_| serial)
     })
 }

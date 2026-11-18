@@ -108,7 +108,7 @@ impl Game {
             .into_iter()
             .map(|(e, c, p)| (e, c.owner, p))
             .collect();
-        cities.sort_by_key(|&(e, ..)| (self.serial_of(e), e.id()));
+        cities.sort_by_key(|&(e, ..)| (self.units().serial_of(e), e.id()));
         let human = self.human();
         let mut out = Vec::new();
         for &(city, owner, pos) in &cities {

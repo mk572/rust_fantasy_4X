@@ -195,7 +195,7 @@ mod tests {
             false,
         );
         g.set_undo(true);
-        let serial = g.serial_of(u);
+        let serial = g.units().serial_of(u);
         (g, serial)
     }
 

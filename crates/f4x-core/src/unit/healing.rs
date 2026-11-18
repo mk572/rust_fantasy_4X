@@ -130,7 +130,7 @@ impl Game {
             .filter(|(_, (_, h))| h.0 > 0)
             .map(|(e, _)| e)
             .collect();
-        self.sort_by_serial(&mut hurt);
+        self.units().sort_by_serial(&mut hurt);
         let mut events = Vec::new();
         for unit in hurt {
             if self.units().unit_hits(unit).0 > 0 {

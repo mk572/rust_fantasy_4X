@@ -103,14 +103,22 @@ impl Game {
         let a = self.battle.as_ref()?;
         Some(ActiveBattleSave {
             battle: a.battle.clone(),
-            sources: a.sources.iter().map(|&e| self.serial_of(e)).collect(),
+            sources: a
+                .sources
+                .iter()
+                .map(|&e| self.units().serial_of(e))
+                .collect(),
             left_out: a
                 .left_out
                 .iter()
-                .map(|&(side, e)| (side, self.serial_of(e)))
+                .map(|&(side, e)| (side, self.units().serial_of(e)))
                 .collect(),
-            benched: a.benched.iter().map(|&e| self.serial_of(e)).collect(),
-            lair: a.lair.map(|e| self.serial_of(e)),
+            benched: a
+                .benched
+                .iter()
+                .map(|&e| self.units().serial_of(e))
+                .collect(),
+            lair: a.lair.map(|e| self.units().serial_of(e)),
         })
     }
 

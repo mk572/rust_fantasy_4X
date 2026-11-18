@@ -186,7 +186,7 @@ impl Game {
                 (owner != viewer && keep(pos)).then_some((unit, owner, pos))
             })
             .collect();
-        near.sort_by_key(|&(unit, ..)| self.serial_of(unit));
+        near.sort_by_key(|&(unit, ..)| self.units().serial_of(unit));
         for (unit, owner, pos) in near {
             if self.economy().unit_visible_to(unit, viewer) {
                 out.push(Sighting { owner, pos });

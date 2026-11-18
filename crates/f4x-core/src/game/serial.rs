@@ -21,14 +21,4 @@ impl Game {
         self.next_serial += 1;
         s
     }
-
-    /// An entity's creation number (entities without one sort first, by id).
-    pub fn serial_of(&self, entity: hecs::Entity) -> Serial {
-        self.world.get::<&Serial>(entity).map_or(Serial(0), |s| *s)
-    }
-
-    /// Sort entities oldest first.
-    pub fn sort_by_serial(&self, entities: &mut [hecs::Entity]) {
-        entities.sort_by_key(|&e| (self.serial_of(e), e.id()));
-    }
 }

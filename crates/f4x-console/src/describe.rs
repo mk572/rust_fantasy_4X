@@ -33,7 +33,7 @@ pub fn unit(game: &Game, u: hecs::Entity) -> String {
         .units()
         .unit_position(u)
         .map_or(String::new(), |p| format!(" at {}", pos(p)));
-    format!("unit {} {name}{at}", game.serial_of(u).0)
+    format!("unit {} {name}{at}", game.units().serial_of(u).0)
 }
 
 pub fn city_name(game: &Game, c: hecs::Entity) -> String {
@@ -43,7 +43,7 @@ pub fn city_name(game: &Game, c: hecs::Entity) -> String {
         .into_iter()
         .find(|(e, ..)| *e == c)
         .map_or("?".to_string(), |(_, c, _)| c.name);
-    format!("city {} {name}", game.serial_of(c).0)
+    format!("city {} {name}", game.units().serial_of(c).0)
 }
 
 pub fn item(game: &Game, item: ProductionItem) -> String {
@@ -62,7 +62,7 @@ pub fn spell(game: &Game, s: f4x_def::rules::SpellId) -> String {
 
 fn units(game: &Game, list: &[hecs::Entity]) -> String {
     list.iter()
-        .map(|&u| game.serial_of(u).0.to_string())
+        .map(|&u| game.units().serial_of(u).0.to_string())
         .collect::<Vec<_>>()
         .join(",")
 }

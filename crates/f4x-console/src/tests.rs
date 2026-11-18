@@ -139,7 +139,7 @@ fn legal_commands_check_ownership() {
         .units()
         .all_units()
         .into_iter()
-        .map(|u| g.serial_of(u).0)
+        .map(|u| g.units().serial_of(u).0)
         .max()
         .expect("the game has units");
     let r = c.execute(&mut g, &format!("stop {newest}"));
@@ -609,7 +609,7 @@ fn the_vizier_command_turns_the_vizier_on_and_off() {
 
 /// The number the console gives the first city (its creation number).
 fn first_city(g: &Game) -> u64 {
-    g.serial_of(g.economy().cities()[0].0).0
+    g.units().serial_of(g.economy().cities()[0].0).0
 }
 
 #[test]
@@ -3517,7 +3517,7 @@ fn items_are_listed_equipped_and_scrapped_by_place() -> TestResult {
         .ok_or("no hero can be offered")?;
     assert!(c.execute(&mut g, "accept 1 Rex").ok);
     let hero = g.units().hero_units(HUMAN)[0];
-    let serial = g.serial_of(hero).0;
+    let serial = g.units().serial_of(hero).0;
     g.give_item(HUMAN, a_ring());
     let listed = c.execute(&mut g, "items");
     assert!(

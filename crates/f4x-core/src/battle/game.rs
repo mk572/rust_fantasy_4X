@@ -230,7 +230,7 @@ impl Game {
                 if let (id, true) = (*spell, *charges > 0) {
                     casting.item_charges.push(super::ItemCharge {
                         item: entity,
-                        serial: self.serial_of(entity),
+                        serial: self.units().serial_of(entity),
                         spell: id,
                         charges: *charges,
                     });
@@ -412,7 +412,7 @@ impl Game {
     pub fn fighter_preset(&self, units: &[hecs::Entity]) -> Vec<hecs::Entity> {
         use crate::rules::{Stat, UnitKind};
         let mut sorted = units.to_vec();
-        self.sort_by_serial(&mut sorted);
+        self.units().sort_by_serial(&mut sorted);
         sorted.sort_by_key(|&u| {
             let hero = self
                 .units()
@@ -473,7 +473,7 @@ impl Game {
     fn bench_flees(&mut self, benched: &[hecs::Entity], victor: PlayerId) {
         use crate::rules::UnitKind;
         let mut benched = benched.to_vec();
-        self.sort_by_serial(&mut benched);
+        self.units().sort_by_serial(&mut benched);
         for unit in benched {
             let (Some(at), Some(owner)) = (
                 self.units().unit_position(unit),
@@ -1162,7 +1162,7 @@ impl Game {
             }
             return Vec::new();
         };
-        self.sort_by_serial(&mut dead);
+        self.units().sort_by_serial(&mut dead);
         // As in the original, the winner's units that stand count against the stack's nine.
         let side_room = battle
             .max_side
@@ -1249,7 +1249,7 @@ impl Game {
             if fled.is_empty() {
                 continue;
             }
-            fled.sort_by_key(|&(e, _)| (self.serial_of(e), e.id()));
+            fled.sort_by_key(|&(e, _)| (self.units().serial_of(e), e.id()));
             let human = battle.player_of(side) == self.human().unwrap_or(PlayerId(u8::MAX));
             let safe = side == Side::Attacker && self.settings.rules.safe_flee.of(human);
             let mut lost = 0;

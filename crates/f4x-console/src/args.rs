@@ -143,7 +143,7 @@ pub fn parse_units(game: &Game, text: &str) -> Result<Vec<hecs::Entity>, Console
     if let Some(at) = text.strip_prefix('@') {
         let pos = parse_pos(at, Plane::Arcanus)?;
         let mut units = game.units().units_at(pos);
-        game.sort_by_serial(&mut units);
+        game.units().sort_by_serial(&mut units);
         if units.is_empty() {
             return Err(ConsoleError::NoSuch(format!("units at {at}")));
         }

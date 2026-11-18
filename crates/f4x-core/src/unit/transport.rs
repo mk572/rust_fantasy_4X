@@ -272,7 +272,7 @@ impl Game {
             .map(|(e, _)| e)
             .filter(|&e| self.units().unit_owner(e) == Some(player))
             .collect();
-        self.sort_by_serial(&mut ships);
+        self.units().sort_by_serial(&mut ships);
         let mut events = Vec::new();
         for ship in ships {
             let passengers = self.economy().passengers_of(ship);
@@ -852,10 +852,10 @@ mod tests {
         let back = g.snapshot().restore(content)?;
         let (boat2, w2) = (
             back.units()
-                .entity_of_serial(g.serial_of(boat))
+                .entity_of_serial(g.units().serial_of(boat))
                 .ok_or("entity_of_serial is missing")?,
             back.units()
-                .entity_of_serial(g.serial_of(w))
+                .entity_of_serial(g.units().serial_of(w))
                 .ok_or("entity_of_serial is missing")?,
         );
         assert_eq!(back.economy().carrier_of(w2), Some(boat2));

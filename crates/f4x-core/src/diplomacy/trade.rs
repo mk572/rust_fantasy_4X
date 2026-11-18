@@ -138,7 +138,7 @@ pub fn armory_item(view: &Game, owner: PlayerId, serial: Serial) -> Option<(hecs
     view.items()
         .held(|h| matches!(h, HeldBy::Vault(p, _) | HeldBy::Award(p) if p == owner))
         .into_iter()
-        .find(|(e, _)| view.serial_of(*e) == serial)
+        .find(|(e, _)| view.units().serial_of(*e) == serial)
 }
 
 /// The unit with this creation number if it is one `owner` may give: its own, not a hero, in
@@ -271,7 +271,7 @@ fn armory_item_worth(view: &Game, holder: PlayerId, serial: Serial) -> i32 {
         .items()
         .held(|h| matches!(h, HeldBy::Vault(..) | HeldBy::Award(_)))
         .into_iter()
-        .find(|(e, _)| view.serial_of(*e) == serial);
+        .find(|(e, _)| view.units().serial_of(*e) == serial);
     found.map_or(0, |(_, item)| item_worth(view, holder, &item))
 }
 

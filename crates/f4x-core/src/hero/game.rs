@@ -869,7 +869,7 @@ pub(crate) mod tests {
                             (*g.world.get::<&Hero>(e).expect("value succeeds")).clone(),
                             g.units().hero_state(e),
                             g.units().hero_xp(e),
-                            g.serial_of(e),
+                            g.units().serial_of(e),
                             g.units().hero_units(P0).contains(&e),
                         )
                     })

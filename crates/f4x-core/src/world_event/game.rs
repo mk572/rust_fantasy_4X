@@ -163,7 +163,7 @@ impl Game {
             _ => None,
         };
         if let (Some(other_kind), Some(c)) = (other_kind, city) {
-            if self.events.on_city(other_kind, self.serial_of(c)) {
+            if self.events.on_city(other_kind, self.units().serial_of(c)) {
                 return None;
             }
         }
@@ -220,7 +220,7 @@ impl Game {
             })
             .map(|(e, ..)| e)
             .collect();
-        self.sort_by_serial(&mut cities);
+        self.units().sort_by_serial(&mut cities);
         cities
     }
 
@@ -560,7 +560,7 @@ impl Game {
             self.set_figures(city, figures - 1);
         }
         if fresh {
-            let serial = self.serial_of(city);
+            let serial = self.units().serial_of(city);
             self.events
                 .start(kind, self.player_entity(victim), Some(serial));
             return true;
@@ -591,7 +591,7 @@ impl Game {
     ) -> bool {
         let kind = EventKind::PopulationBoom;
         if fresh {
-            let serial = city.map(|c| self.serial_of(c));
+            let serial = city.map(|c| self.units().serial_of(c));
             self.events.start(kind, self.player_entity(victim), serial);
             return true;
         }

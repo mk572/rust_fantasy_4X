@@ -73,7 +73,7 @@ impl Game {
             .map(|(e, _)| e)
             .filter(|&e| self.units().unit_owner(e) == Some(player))
             .collect();
-        self.sort_by_serial(&mut with_orders);
+        self.units().sort_by_serial(&mut with_orders);
         events.extend(self.follow_orders(&with_orders));
         events
     }

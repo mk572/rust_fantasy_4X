@@ -37,7 +37,7 @@ fn world() -> (Game, Serial) {
         f4x_def::half_int::HalfInt::from_int(1000);
     let u = g.spawn_unit(P0, at(5, 5), walker);
     g.fog.explore(P0, at(10, 5), HalfInt::from_raw(25), false);
-    let serial = g.serial_of(u);
+    let serial = g.units().serial_of(u);
     (g, serial)
 }
 

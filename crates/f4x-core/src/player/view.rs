@@ -381,11 +381,11 @@ impl<'a> PlayerView<'a> {
     }
 
     pub fn serial_of(&self, entity: hecs::Entity) -> Serial {
-        self.game.serial_of(entity)
+        self.game.units().serial_of(entity)
     }
 
     pub fn sort_by_serial(&self, entities: &mut [hecs::Entity]) {
-        self.game.sort_by_serial(entities);
+        self.game.units().sort_by_serial(entities);
     }
 
     pub fn unit_def(&self, unit: hecs::Entity) -> Option<&'a UnitDef> {

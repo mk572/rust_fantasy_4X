@@ -285,8 +285,11 @@ fn a_plague_lets_a_city_of_one_off_by_raising_it_to_two() {
     let mut g = world();
     let town = city(&g, 10, 5);
     g.scenario_set_citizens(town, 1);
-    g.events
-        .start(K::Plague, g.player_entity(P0), Some(g.serial_of(town)));
+    g.events.start(
+        K::Plague,
+        g.player_entity(P0),
+        Some(g.units().serial_of(town)),
+    );
     let mut rng = GameRng::new(1);
     let mut out = Vec::new();
     g.twiddle_events(None, &mut rng, &mut out);
@@ -464,8 +467,10 @@ fn the_state_of_events_survives_a_save() -> TestResult {
     assert!(loaded.events().is_ongoing(K::GoodMoon));
     let town = loaded
         .units()
-        .entity_of_serial(g.serial_of(town))
+        .entity_of_serial(g.units().serial_of(town))
         .ok_or("entity_of_serial is missing")?;
-    assert!(loaded.events().on_city(K::Plague, loaded.serial_of(town)));
+    assert!(loaded
+        .events()
+        .on_city(K::Plague, loaded.units().serial_of(town)));
     Ok(())
 }

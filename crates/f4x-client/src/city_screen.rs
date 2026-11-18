@@ -515,7 +515,7 @@ impl App {
             page.naming = Some(name.clone());
         }
         let mut race_name = race_name;
-        let serial = self.game.serial_of(city);
+        let serial = self.game.units().serial_of(city);
         for (kind, mark) in [
             (f4x_core::world_event::EventKind::Plague, "city.plague"),
             (

@@ -1231,7 +1231,7 @@ impl App {
         let serials: Vec<_> = self
             .selection
             .iter()
-            .map(|&u| self.game.serial_of(u))
+            .map(|&u| self.game.units().serial_of(u))
             .collect();
         match self.game.undo() {
             Ok(label) => {
