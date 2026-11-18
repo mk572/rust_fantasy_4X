@@ -4,11 +4,11 @@
 //!
 //! Differences from the original are listed in `docs/lairs.md`.
 
-use rand::Rng;
 use rand_pcg::Pcg64Mcg;
 
 use super::Lair;
 use crate::feature::def::FeatureKind;
+use crate::game::rng::random;
 use crate::map::Plane;
 use crate::rules::lair::{HoardKind, LairRules, LairStyle, Roll};
 use crate::rules::{RealmId, UnitId};
@@ -32,11 +32,6 @@ pub fn site_type(def: &crate::feature::def::FeatureDef) -> SiteType {
         _ if def.holy => SiteType::Holy,
         _ => SiteType::Wild,
     }
-}
-
-/// `Random(n)` of the original: `1..=n`.
-pub(crate) fn random(rng: &mut Pcg64Mcg, n: i32) -> i32 {
-    rng.gen_range(1..=n.max(1))
 }
 
 /// The realm of a site's guards.

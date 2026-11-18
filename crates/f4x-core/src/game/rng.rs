@@ -6,9 +6,15 @@
 //! loaded game replays that many values from the seed to resume the stream
 //! ([`GameRng::resume`]).
 
-use rand::{Error, RngCore, SeedableRng};
+use rand::{Error, Rng, RngCore, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
+
+/// `Random(n)` of the original: a roll from 1 to `n`. A `n` below 1 is a roll of 1, so a table
+/// that is empty or a content value of 0 never panics.
+pub fn random(rng: &mut impl Rng, n: i32) -> i32 {
+    rng.gen_range(1..=n.max(1))
+}
 
 /// What is written of a generator: where it started and how far it has gone.
 #[derive(Serialize, Deserialize)]

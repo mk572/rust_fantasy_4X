@@ -21,6 +21,7 @@
 //! squares marked `0x80` in the road layer, with `0x81` where the island's picture hangs) to stand
 //! land units on.
 
+use crate::game::rng::random;
 use rand::Rng;
 
 pub const W: i32 = 21;
@@ -265,11 +266,6 @@ fn at(cgx: i32, cgy: i32) -> usize {
 
 fn inside(cgx: i32, cgy: i32) -> bool {
     (0..W).contains(&cgx) && (0..H).contains(&cgy)
-}
-
-/// The original's `Random(n)`: 1 to n.
-fn random(rng: &mut impl Rng, n: i32) -> i32 {
-    rng.gen_range(1..=n)
 }
 
 fn group_at(group: &[u8], cgx: i32, cgy: i32) -> u8 {

@@ -10,7 +10,8 @@
 // The loops follow the original's row and column indexes, which reads best as written.
 #![allow(clippy::needless_range_loop)]
 
-use rand::{Rng, SeedableRng};
+use f4x_core::game::rng::random;
+use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
 pub const ROWS: usize = 15;
@@ -67,11 +68,6 @@ pub struct CityInfo {
 }
 
 pub type Grid = [[i16; COLS]; ROWS];
-
-/// `Random(n)` in the original: one to n.
-fn random(rng: &mut Pcg64Mcg, n: i32) -> i32 {
-    rng.gen_range(1..=n.max(1))
-}
 
 /// Where footprints of one shape went, in the order placed.
 struct Spots {

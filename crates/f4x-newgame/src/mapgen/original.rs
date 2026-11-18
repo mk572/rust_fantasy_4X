@@ -13,11 +13,12 @@
 //!
 //! Tests: in mapgen/original/tests.rs.
 
-use rand::{Rng, SeedableRng};
+use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
 use crate::place::Placed;
 use f4x_core::feature::def::FeatureKind;
+use f4x_core::game::rng::random;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Map, Plane};
 use f4x_def::content::Content;
@@ -40,11 +41,6 @@ pub struct Terrain {
 /// South, west, north, east and none: the original's `TILE_Cardinal_XMod`/`YMod`.
 const DX: &[i32] = &[0, -1, 0, 1, 0];
 const DY: &[i32] = &[1, 0, -1, 0, 0];
-
-/// The original's `Random(n)`: 1 to n.
-fn random(rng: &mut Pcg64Mcg, n: u32) -> i32 {
-    rng.gen_range(1..=n.max(1)) as i32
-}
 
 /// Steps of one arm for the land size: the original's small (6 to 15), medium (11 to 20) and
 /// large (21 to 30), chosen by the land share its three sizes have (15, 20 and 30 percent).
@@ -74,8 +70,8 @@ fn create_lands(rng: &mut Pcg64Mcg, w: i32, h: i32, land_percent: u8) -> Vec<u8>
     while made <= wanted && blobs < 100_000 {
         blobs += 1;
         let (bx, by) = loop {
-            let bx = 6 + random(rng, (w - 14) as u32);
-            let by = 6 + random(rng, (h - 14) as u32);
+            let bx = 6 + random(rng, w - 14);
+            let by = 6 + random(rng, h - 14);
             if sections_left <= 0 {
                 break (bx, by);
             }
@@ -162,10 +158,7 @@ fn climate(rng: &mut Pcg64Mcg, grid: &mut Grid, t: &Terrain) {
         }
     }
     for _ in 0..scaled_count(8, w as u32, h as u32).max(1) {
-        let (bx, by) = (
-            2 + random(rng, (w - 6) as u32),
-            8 + random(rng, (h - 16) as u32),
-        );
+        let (bx, by) = (2 + random(rng, w - 6), 8 + random(rng, h - 16));
         if is(grid, bx, by, t.forest) {
             grid.set(bx as u32, by as u32, t.desert);
         }
@@ -182,10 +175,7 @@ fn climate(rng: &mut Pcg64Mcg, grid: &mut Grid, t: &Terrain) {
         }
     }
     for _ in 0..scaled_count(8, w as u32, h as u32).max(1) {
-        let (bx, by) = (
-            1 + random(rng, (w - 4) as u32),
-            10 + random(rng, (h - 20) as u32),
-        );
+        let (bx, by) = (1 + random(rng, w - 4), 10 + random(rng, h - 20));
         if is(grid, bx, by, t.forest) {
             grid.set(bx as u32, by as u32, t.swamp);
         }
