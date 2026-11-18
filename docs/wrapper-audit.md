@@ -20,7 +20,7 @@ only renames an item is better a re-export (`pub use path::item as name;`): no b
 all stay: they read a private representation, bind a default or a constant to a general function,
 or are the short form of a pair with more than two callers. What the reading found besides is in
 *Findings*: duplicated code and a table of numbers in code, which are not forwarders and are
-listed as *Open* for tasks of their own.
+listed as *Open* for tasks of their own, all done now (tasks 658 to 663).
 
 ## Already changed
 
@@ -43,22 +43,22 @@ listed as *Open* for tasks of their own.
 
 ## Counts
 
-| kind | Keep | Open | False hit |
-|---|---|---|---|
-| trivial | 55 | 0 | 4 |
-| std | 64 | 0 | 0 |
-| task | 420 | 24 | 4 |
+| kind | Keep | Open | Done | False hit |
+|---|---|---|---|---|
+| trivial | 55 | 0 | 0 | 4 |
+| std | 64 | 0 | 0 | 0 |
+| task | 420 | 0 | 24 | 4 |
 
 ## Findings
 
-Not wrappers, but found while reading them; none is changed.
+Not wrappers, but found while reading them. Each became a task of its own and is done (the task number is in front).
 
-1. **`fn stat(d: &UnitDef, s: Stat) -> f32`** is written twice, identically (`f4x-core` `city/autobuild.rs`, `f4x-ai` `builder.rs`): a method of `UnitDef` would serve both.
-2. **`fn random(rng, n)`** (`rng.gen_range(1..=n.max(1))`) is written three times (`f4x-client` `cityscape.rs`, `f4x-core` `battle/map/layout.rs` and `feature/lair/create.rs`; the layout one lacks the `.max(1)`).
-3. **`serial_of` and `sort_by_serial`** exist on `Game` (`game/serial.rs`) and on `UnitView` (`unit/mod.rs`) with the same bodies (one sorts with `sort_by_key`, the other with `sort_by_cached_key`).
-4. **Books of a realm**: `computer_wizard::books` (`f4x-newgame`) and `books_of` (`f4x-client` `newgame_picks.rs`) both read `build.books.get(&realm).copied().unwrap_or(0)`: a method of `WizardBuild`.
-5. **`id_numbered`** is the same function in two registries (`f4x-def` `feature.rs`, `map.rs`).
-6. **Hero ability tables in code**: `leadership`, `blademaster`, `constitution`, `might`, `agility`, `arcane_power`, `prayermaster`, `armsmaster`, `legendary` and `sage` in `f4x-def/src/hero.rs` each bind two pairs of numbers to `by_tier`. That is a table of game numbers written as code, not content (the same kind of finding as tasks 653 and 657).
+1. **(done, task 658)** **`fn stat(d: &UnitDef, s: Stat) -> f32`** is written twice, identically (`f4x-core` `city/autobuild.rs`, `f4x-ai` `builder.rs`): a method of `UnitDef` would serve both.
+2. **(done, task 659)** **`fn random(rng, n)`** (`rng.gen_range(1..=n.max(1))`) is written three times (`f4x-client` `cityscape.rs`, `f4x-core` `battle/map/layout.rs` and `feature/lair/create.rs`; the layout one lacks the `.max(1)`).
+3. **(done, task 660)** **`serial_of` and `sort_by_serial`** exist on `Game` (`game/serial.rs`) and on `UnitView` (`unit/mod.rs`) with the same bodies (one sorts with `sort_by_key`, the other with `sort_by_cached_key`).
+4. **(done, task 661)** **Books of a realm**: `computer_wizard::books` (`f4x-newgame`) and `books_of` (`f4x-client` `newgame_picks.rs`) both read `build.books.get(&realm).copied().unwrap_or(0)`: a method of `WizardBuild`.
+5. **(done, task 662)** **`id_numbered`** is the same function in two registries (`f4x-def` `feature.rs`, `map.rs`).
+6. **(done, task 663)** **Hero ability tables in code**: `leadership`, `blademaster`, `constitution`, `might`, `agility`, `arcane_power`, `prayermaster`, `armsmaster`, `legendary` and `sage` in `f4x-def/src/hero.rs` each bind two pairs of numbers to `by_tier`. That is a table of game numbers written as code, not content (the same kind of finding as tasks 653 and 657).
 
 ## Candidates
 
@@ -193,7 +193,7 @@ Callers is a text count and an upper bound.
 | task | f4x-ai | `crates/f4x-ai/src/battle/order.rs:150` | `worth` | `strength` | 105 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-ai | `crates/f4x-ai/src/battle/order.rs:208` | `field_worth` | `sum` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-ai | `crates/f4x-ai/src/battle/order.rs:301` | `retreat` | `then_some` | 5 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-ai | `crates/f4x-ai/src/builder.rs:45` | `stat` | `map_or` | 206 | Open | duplicate helper: see Findings 1 and 2 |
+| task | f4x-ai | `crates/f4x-ai/src/builder.rs:45` | `stat` | `map_or` | 206 | Done | changed by task 658 (`stat`) and 659 (`random`): duplicate helper: see Findings 1 and 2 |
 | task | f4x-ai | `crates/f4x-ai/src/controller.rs:54` | `NeutralSeat::take_attacks` | `take` | 10 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-ai | `crates/f4x-ai/src/controller.rs:67` | `NeutralSeat::take_refusals` | `collect` | 11 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-ai | `crates/f4x-ai/src/garrison.rs:15` | `circle` | `and_then` | 21 | Keep | reads a private representation (component, map, table) with a default or a conversion |
@@ -252,7 +252,7 @@ Callers is a text count and an upper bound.
 | task | f4x-client | `crates/f4x-client/src/city_screen.rs:165` | `App::open_city_screen` | `open_page` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-client | `crates/f4x-client/src/city_screen.rs:73` | `heading_style` | `edge` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-client | `crates/f4x-client/src/city_screen.rs:99` | `Layout::rect` | `new` | 207 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-client | `crates/f4x-client/src/cityscape.rs:72` | `random` | `gen_range` | 117 | Open | duplicate helper: see Findings 1 and 2 |
+| task | f4x-client | `crates/f4x-client/src/cityscape.rs:72` | `random` | `gen_range` | 117 | Done | changed by task 658 (`stat`) and 659 (`random`): duplicate helper: see Findings 1 and 2 |
 | task | f4x-client | `crates/f4x-client/src/craft_art.rs:104` | `App::craft_ok` | `craft_blank` | 1 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
 | task | f4x-client | `crates/f4x-client/src/craft_screen.rs:216` | `App::open_craft` | `open_page` | 2 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
 | task | f4x-client | `crates/f4x-client/src/create_screen.rs:51` | `App::book_realms` | `to_vec` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
@@ -311,7 +311,7 @@ Callers is a text count and an upper bound.
 | task | f4x-client | `crates/f4x-client/src/newgame_button_art.rs:69` | `App::draw_board` | `draw_board_inked` | 4 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
 | task | f4x-client | `crates/f4x-client/src/newgame_flow.rs:168` | `App::open_creation` | `open_creation_with` | 2 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
 | task | f4x-client | `crates/f4x-client/src/newgame_flow.rs:28` | `ng_ink` | `inked` | 36 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-client | `crates/f4x-client/src/newgame_picks.rs:138` | `CreateState::books_of` | `unwrap_or` | 6 | Open | duplicate of the newgame books: see Findings 4 |
+| task | f4x-client | `crates/f4x-client/src/newgame_picks.rs:138` | `CreateState::books_of` | `unwrap_or` | 6 | Done | changed by task 661: duplicate of the newgame books: see Findings 4 |
 | task | f4x-client | `crates/f4x-client/src/options_screen.rs:207` | `App::open_options` | `open_page` | 5 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-client | `crates/f4x-client/src/page_turn.rs:206` | `App::open_test_page_turn` | `with_page` | 1 | Keep | cheat or test hook |
 | task | f4x-client | `crates/f4x-client/src/panel_button_art.rs:101` | `sheen_label` | `sheen_text` | 1 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
@@ -360,12 +360,12 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/battle/map.rs:332` | `BattleMap::is_playable` | `is_some_and` | 15 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/battle/map.rs:344` | `BattleMap::get` | `then` | 1395 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/battle/map.rs:627` | `distance` | `max` | 173 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/battle/map/layout.rs:271` | `random` | `gen_range` | 117 | Open | duplicate helper: see Findings 1 and 2 |
+| task | f4x-core | `crates/f4x-core/src/battle/map/layout.rs:271` | `random` | `gen_range` | 117 | Done | changed by task 658 (`stat`) and 659 (`random`): duplicate helper: see Findings 1 and 2 |
 | task | f4x-core | `crates/f4x-core/src/battle/power.rs:86` | `def_power` | `unit_power` | 8 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/battle/spell.rs:212` | `BattleEffect::of` | `named` | 184 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/battle/vortex.rs:45` | `Battle::vortex_at` | `position` | 6 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/city/autobuild.rs:105` | `Focus::index` | `position` | 267 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-core | `crates/f4x-core/src/city/autobuild.rs:330` | `stat` | `map_or` | 206 | Open | duplicate helper: see Findings 1 and 2 |
+| task | f4x-core | `crates/f4x-core/src/city/autobuild.rs:330` | `stat` | `map_or` | 206 | Done | changed by task 658 (`stat`) and 659 (`random`): duplicate helper: see Findings 1 and 2 |
 | task | f4x-core | `crates/f4x-core/src/city/autobuild.rs:334` | `is_settler` | `contains` | 9 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/city/conquest.rs:148` | `Economy<'_>::citizens` | `map_or` | 44 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/city/conquest.rs:256` | `Game::destroy_building` | `destroy_building` | 14 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
@@ -391,7 +391,7 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:644` | `Diplomacy::treaty` | `map_or` | 159 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/feature/entity.rs:136` | `Economy<'a>::feature_at` | `get` | 7 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/feature/entity.rs:141` | `Economy<'a>::feature_kind_at` | `map` | 4 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-core | `crates/f4x-core/src/feature/lair/create.rs:38` | `random` | `gen_range` | 117 | Open | duplicate helper: see Findings 1 and 2 |
+| task | f4x-core | `crates/f4x-core/src/feature/lair/create.rs:38` | `random` | `gen_range` | 117 | Done | changed by task 658 (`stat`) and 659 (`random`): duplicate helper: see Findings 1 and 2 |
 | task | f4x-core | `crates/f4x-core/src/game/access.rs:215` | `Game::scenario_set_experience` | `put` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/game/access.rs:231` | `Game::scenario_set_hurt` | `put` | 14 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/game/access.rs:281` | `Game::scenario_start_event` | `start` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
@@ -404,8 +404,8 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/game/cheat.rs:200` | `Game::cheat_defeat_player` | `defeat` | 1 | Keep | cheat or test hook |
 | task | f4x-core | `crates/f4x-core/src/game/endgame.rs:219` | `Game::win_by_mastery` | `finish` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/game/replay.rs:88` | `deserialize` | `entity_of` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/game/serial.rs:26` | `Game::serial_of` | `map_or` | 323 | Open | duplicate in Game and UnitView: see Findings 3 |
-| task | f4x-core | `crates/f4x-core/src/game/serial.rs:31` | `Game::sort_by_serial` | `sort_by_key` | 41 | Open | duplicate in Game and UnitView: see Findings 3 |
+| task | f4x-core | `crates/f4x-core/src/game/serial.rs:26` | `Game::serial_of` | `map_or` | 323 | Done | changed by task 660: duplicate in Game and UnitView: see Findings 3 |
+| task | f4x-core | `crates/f4x-core/src/game/serial.rs:31` | `Game::sort_by_serial` | `sort_by_key` | 41 | Done | changed by task 660: duplicate in Game and UnitView: see Findings 3 |
 | task | f4x-core | `crates/f4x-core/src/game/undo.rs:64` | `Game::undo_label` | `map` | 1 | Keep | hides a private representation (component, map or cache) |
 | task | f4x-core | `crates/f4x-core/src/hero/game.rs:111` | `UnitView<'_>::hero_name` | `map` | 10 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/hero/game.rs:123` | `UnitView<'_>::hero_kind` | `map` | 9 | Keep | reads a private representation (component, map, table) with a default or a conversion |
@@ -497,8 +497,8 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/unit/mobility.rs:69` | `def_mobility` | `unit_mobility` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/unit/mod.rs:109` | `UnitView<'a>::wizard` | `find` | 772 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/unit/mod.rs:219` | `UnitView<'a>::planar_seal_active` | `any_global_effect` | 5 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/unit/mod.rs:224` | `UnitView<'a>::serial_of` | `map_or` | 323 | Open | duplicate in Game and UnitView: see Findings 3 |
-| task | f4x-core | `crates/f4x-core/src/unit/mod.rs:229` | `UnitView<'a>::sort_by_serial` | `sort_by_cached_key` | 41 | Open | duplicate in Game and UnitView: see Findings 3 |
+| task | f4x-core | `crates/f4x-core/src/unit/mod.rs:224` | `UnitView<'a>::serial_of` | `map_or` | 323 | Done | changed by task 660: duplicate in Game and UnitView: see Findings 3 |
+| task | f4x-core | `crates/f4x-core/src/unit/mod.rs:229` | `UnitView<'a>::sort_by_serial` | `sort_by_cached_key` | 41 | Done | changed by task 660: duplicate in Game and UnitView: see Findings 3 |
 | task | f4x-core | `crates/f4x-core/src/unit/mod.rs:234` | `UnitView<'a>::unit_kind_id` | `map` | 5 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/unit/mod.rs:244` | `UnitView<'a>::unit_weapon_quality` | `map_or` | 13 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/unit/mod.rs:248` | `UnitView<'a>::unit_owner` | `id_of` | 156 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
@@ -530,7 +530,7 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/wizard/objective.rs:92` | `Wizard<'_>::objective` | `map` | 35 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/wizard/retort.rs:52` | `stat_with` | `compute` | 6 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/wizard/retort.rs:63` | `stat_half` | `compute_half` | 1 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
-| task | f4x-core | `crates/f4x-core/src/wizard/retort.rs:91` | `stat` | `stat_with` | 206 | Open | duplicate helper: see Findings 1 and 2 |
+| task | f4x-core | `crates/f4x-core/src/wizard/retort.rs:91` | `stat` | `stat_with` | 206 | Done | changed by task 658 (`stat`) and 659 (`random`): duplicate helper: see Findings 1 and 2 |
 | task | f4x-core | `crates/f4x-core/src/wizard/sheet.rs:149` | `Wizard<'a>::skill_points` | `map_or` | 6 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/wizard/sheet.rs:154` | `Wizard<'a>::skill_left` | `map_or` | 17 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/wizard/sheet.rs:159` | `Wizard<'a>::casting_skill` | `base_casting_skill` | 34 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
@@ -550,7 +550,7 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/world_event/mod.rs:326` | `Events::mana_is_short` | `is_ongoing` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/world_event/mod.rs:54` | `EventKind::from_roll` | `nth` | 1 | Keep | converts, defaults or names a test; the name adds meaning |
 | task | f4x-core | `crates/f4x-core/src/world_event/mod.rs:87` | `EventKind::from_id` | `find` | 3 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-def | `crates/f4x-def/src/feature.rs:97` | `Features::id_numbered` | `map` | 715 | Open | same pattern in two registries: see Findings 5 |
+| task | f4x-def | `crates/f4x-def/src/feature.rs:97` | `Features::id_numbered` | `map` | 715 | Done | changed by task 662: same pattern in two registries: see Findings 5 |
 | task | f4x-def | `crates/f4x-def/src/half_int.rs:34` | `HalfInt::from_int` | `Self` | 544 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-def | `crates/f4x-def/src/half_int.rs:49` | `HalfInt::floor` | `div_euclid` | 254 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-def | `crates/f4x-def/src/half_int.rs:59` | `HalfInt::abs` | `Self` | 130 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
@@ -560,17 +560,17 @@ Callers is a text count and an upper bound.
 | task | f4x-def | `crates/f4x-def/src/help.rs:48` | `Help::topic_of` | `topic` | 10 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-def | `crates/f4x-def/src/help.rs:53` | `Help::screen` | `find` | 126 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-def | `crates/f4x-def/src/help.rs:60` | `Help::at` | `at_where` | 3021 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-def | `crates/f4x-def/src/hero.rs:172` | `leadership` | `by_tier` | 13 | Open | a table of numbers in code: see Findings 6 |
-| task | f4x-def | `crates/f4x-def/src/hero.rs:177` | `blademaster` | `by_tier` | 11 | Open | a table of numbers in code: see Findings 6 |
-| task | f4x-def | `crates/f4x-def/src/hero.rs:182` | `constitution` | `by_tier` | 10 | Open | a table of numbers in code: see Findings 6 |
-| task | f4x-def | `crates/f4x-def/src/hero.rs:187` | `might` | `by_tier` | 14 | Open | a table of numbers in code: see Findings 6 |
-| task | f4x-def | `crates/f4x-def/src/hero.rs:192` | `agility` | `by_tier` | 10 | Open | a table of numbers in code: see Findings 6 |
-| task | f4x-def | `crates/f4x-def/src/hero.rs:197` | `arcane_power` | `by_tier` | 12 | Open | a table of numbers in code: see Findings 6 |
-| task | f4x-def | `crates/f4x-def/src/hero.rs:203` | `prayermaster` | `by_tier` | 12 | Open | a table of numbers in code: see Findings 6 |
-| task | f4x-def | `crates/f4x-def/src/hero.rs:208` | `armsmaster` | `by_tier` | 10 | Open | a table of numbers in code: see Findings 6 |
-| task | f4x-def | `crates/f4x-def/src/hero.rs:213` | `legendary` | `by_tier` | 11 | Open | a table of numbers in code: see Findings 6 |
-| task | f4x-def | `crates/f4x-def/src/hero.rs:218` | `sage` | `by_tier` | 14 | Open | a table of numbers in code: see Findings 6 |
-| task | f4x-def | `crates/f4x-def/src/map.rs:135` | `Terrains::id_numbered` | `map` | 715 | Open | same pattern in two registries: see Findings 5 |
+| task | f4x-def | `crates/f4x-def/src/hero.rs:172` | `leadership` | `by_tier` | 13 | Done | changed by task 663: a table of numbers in code: see Findings 6 |
+| task | f4x-def | `crates/f4x-def/src/hero.rs:177` | `blademaster` | `by_tier` | 11 | Done | changed by task 663: a table of numbers in code: see Findings 6 |
+| task | f4x-def | `crates/f4x-def/src/hero.rs:182` | `constitution` | `by_tier` | 10 | Done | changed by task 663: a table of numbers in code: see Findings 6 |
+| task | f4x-def | `crates/f4x-def/src/hero.rs:187` | `might` | `by_tier` | 14 | Done | changed by task 663: a table of numbers in code: see Findings 6 |
+| task | f4x-def | `crates/f4x-def/src/hero.rs:192` | `agility` | `by_tier` | 10 | Done | changed by task 663: a table of numbers in code: see Findings 6 |
+| task | f4x-def | `crates/f4x-def/src/hero.rs:197` | `arcane_power` | `by_tier` | 12 | Done | changed by task 663: a table of numbers in code: see Findings 6 |
+| task | f4x-def | `crates/f4x-def/src/hero.rs:203` | `prayermaster` | `by_tier` | 12 | Done | changed by task 663: a table of numbers in code: see Findings 6 |
+| task | f4x-def | `crates/f4x-def/src/hero.rs:208` | `armsmaster` | `by_tier` | 10 | Done | changed by task 663: a table of numbers in code: see Findings 6 |
+| task | f4x-def | `crates/f4x-def/src/hero.rs:213` | `legendary` | `by_tier` | 11 | Done | changed by task 663: a table of numbers in code: see Findings 6 |
+| task | f4x-def | `crates/f4x-def/src/hero.rs:218` | `sage` | `by_tier` | 14 | Done | changed by task 663: a table of numbers in code: see Findings 6 |
+| task | f4x-def | `crates/f4x-def/src/map.rs:135` | `Terrains::id_numbered` | `map` | 715 | Done | changed by task 662: same pattern in two registries: see Findings 5 |
 | task | f4x-def | `crates/f4x-def/src/rules/defs.rs:80` | `two_food` (gone, task 657) | `from_int` | 0 | Keep | serde default function: the attribute names it |
 | task | f4x-def | `crates/f4x-def/src/rules/stats.rs:176` | `Modifier::new` | `amount` | 5489 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-def | `crates/f4x-def/src/settings.rs:1092` | `SettingsDef::level` | `get` | 112 | Keep | reads a private representation (component, map, table) with a default or a conversion |
@@ -630,7 +630,7 @@ Callers is a text count and an upper bound.
 | task | f4x-learn | `crates/f4x-learn/src/scenario.rs:71` | `BattleScenario::to_text` | `unwrap_or_default` | 76 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-learn | `crates/f4x-learn/src/train.rs:842` | `probabilities` | `softmax` | 1 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
 | task | f4x-master | `crates/f4x-master/src/lib.rs:132` | `State::from_text` | `map_err` | 62 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-newgame | `crates/f4x-newgame/src/computer_wizard.rs:44` | `books` | `unwrap_or` | 155 | Open | duplicate of the client's books_of: see Findings 4 |
+| task | f4x-newgame | `crates/f4x-newgame/src/computer_wizard.rs:44` | `books` | `unwrap_or` | 155 | Done | changed by task 661: duplicate of the client's books_of: see Findings 4 |
 | task | f4x-newgame | `crates/f4x-newgame/src/neutral.rs:22` | `neutral_city_count` | `scaled_count` | 11 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-setup | `crates/f4x-setup/src/flow.rs:59` | `target` | `join` | 408 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-setup | `crates/f4x-setup/src/original.rs:95` | `expected` | `filter` | 32 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
