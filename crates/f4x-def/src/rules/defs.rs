@@ -758,8 +758,80 @@ pub struct RulesConfig {
     pub spell_effects: SpellEffectRules,
     /// Experience, fame and the level Heroism gives.
     pub renown: RenownRules,
+    /// The numbers of the battle.
+    pub battle: BattleRules,
     /// The rows of the content that a setting of the game changes.
     pub targets: SettingTargets,
+}
+
+/// The numbers of the battle: strengths of the attacks the abilities and fields make, the
+/// defence they give, what a spell shot or a mana leak costs, the limits. A battle takes a copy
+/// when it starts and keeps it with its save.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BattleRules {
+    /// The strength of the fire attack Immolation adds to a melee attack.
+    pub immolation_strength: i32,
+    /// What a Large Shield adds to the defence against ranged attacks and spells.
+    pub large_shield: i32,
+    /// The blows Invulnerability stops on top of the defence roll.
+    pub invulnerability_block: i32,
+    /// The defence of a unit that is immune to an attack (nothing gets through it).
+    pub immune_defense: i32,
+    /// Mana a Mana Leak takes from a caster each turn.
+    pub mana_leak_drain: i32,
+    /// The strength of Call Lightning's bolt, and of a Wall of Fire's burn.
+    pub call_lightning_strength: i32,
+    pub wall_of_fire_strength: i32,
+    /// The strength of the dispel a magic node's realm sets against the spells of other realms
+    /// (percent chance by the dispel formula), and the bonus its aura gives its creatures.
+    pub node_counter_strength: u32,
+    pub node_aura_bonus: i32,
+    /// What each enemy spell takes from a Counter Magic reserve.
+    pub counter_magic_drain: u32,
+    /// The mana one spell shot costs a caster.
+    pub shot_mana: i32,
+    /// The hit points of the web that holds a unit.
+    pub web_hits: i32,
+    /// A battle is a draw after this many turns.
+    pub turn_limit: u32,
+    /// The least and the most mana a Power Drain takes.
+    pub power_drain_min: i32,
+    pub power_drain_max: i32,
+    /// The penalty to the resistance roll that frees a unit from Stasis.
+    pub freeing_modifier: i32,
+    /// Magic Vortex: random moves a turn, the damage it crushes a unit with, the strength of its
+    /// bolt, and the damage to the city it adds each turn inside it.
+    pub vortex_random_moves: usize,
+    pub vortex_crush_damage: i32,
+    pub vortex_bolt_strength: i32,
+    pub vortex_city_damage: u32,
+}
+
+impl Default for BattleRules {
+    fn default() -> Self {
+        Self {
+            immolation_strength: 4,
+            large_shield: 2,
+            invulnerability_block: 2,
+            immune_defense: 50,
+            mana_leak_drain: 5,
+            call_lightning_strength: 8,
+            wall_of_fire_strength: 5,
+            node_counter_strength: 50,
+            node_aura_bonus: 2,
+            counter_magic_drain: 5,
+            shot_mana: 3,
+            web_hits: 12,
+            turn_limit: 100,
+            power_drain_min: 2,
+            power_drain_max: 20,
+            freeing_modifier: -5,
+            vortex_random_moves: 3,
+            vortex_crush_damage: 5,
+            vortex_bolt_strength: 5,
+            vortex_city_damage: 5,
+        }
+    }
 }
 
 /// What fighting earns: experience, fame and the levels.
@@ -1320,6 +1392,7 @@ impl Default for RulesConfig {
             abilities: AbilityRules::default(),
             spell_effects: SpellEffectRules::default(),
             renown: RenownRules::default(),
+            battle: BattleRules::default(),
             targets: SettingTargets::default(),
         }
     }

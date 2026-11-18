@@ -22,6 +22,10 @@ const D: PlayerId = PlayerId(1);
 /// each a unit number of the content and the square it stands on. The game sets it up
 /// (`BeginBattle`), so the units have their real numbers, rules and owners; only the squares are
 /// chosen, on open ground, so that the squares a test names are free. The dice start from `seed`.
+fn rules() -> crate::rules::BattleRules {
+    crate::game::testutil::shipped().rules.config.battle
+}
+
 fn real_battle(ours: &[(u16, Pos)], theirs: &[(u16, Pos)], seed: u64) -> Battle {
     let mut g = game();
     let mut spawn = |owner: PlayerId, x: u32, list: &[(u16, Pos)]| -> Vec<hecs::Entity> {
@@ -467,7 +471,7 @@ fn a_stalemate_ends_at_the_turn_limit_in_the_defenders_favour() -> TestResult {
         1,
     );
     let mut last = Vec::new();
-    for _ in 0..(2 * TURN_LIMIT + 2) {
+    for _ in 0..(2 * rules().turn_limit + 2) {
         match b.apply(BattleCommand::EndTurn) {
             Ok(e) => last = e,
             Err(_) => break,
@@ -551,7 +555,11 @@ fn scripted_battles_always_finish() {
     for seed in 0..40 {
         let b = play_out(reseeded(&start, seed));
         assert!(b.winner.is_some(), "seed {seed}");
-        assert!(b.turn < TURN_LIMIT, "seed {seed}: took {} turns", b.turn);
+        assert!(
+            b.turn < rules().turn_limit,
+            "seed {seed}: took {} turns",
+            b.turn
+        );
     }
 }
 
@@ -1362,10 +1370,10 @@ fn a_nodes_aura_helps_its_realms_creatures_on_both_sides() {
     let theirs = (b.units[1].melee, b.units[1].defense);
     b.node_aura = Some(Realm::Chaos);
     b.refresh_fields();
-    assert_eq!(b.units[0].melee, melee + NODE_AURA_BONUS);
-    assert_eq!(b.units[0].ranged, ranged + NODE_AURA_BONUS);
-    assert_eq!(b.units[0].defense, defense + NODE_AURA_BONUS);
-    assert_eq!(b.units[0].resistance, resist + NODE_AURA_BONUS);
+    assert_eq!(b.units[0].melee, melee + rules().node_aura_bonus);
+    assert_eq!(b.units[0].ranged, ranged + rules().node_aura_bonus);
+    assert_eq!(b.units[0].defense, defense + rules().node_aura_bonus);
+    assert_eq!(b.units[0].resistance, resist + rules().node_aura_bonus);
     assert_eq!((b.units[1].melee, b.units[1].defense), theirs);
     // Gone with the aura.
     b.node_aura = None;
@@ -1397,7 +1405,7 @@ fn a_node_stops_spells_of_other_realms_but_not_its_own() {
 }
 
 #[test]
-fn counter_magic_resists_by_its_strength_and_loses_five_per_attempt() {
+fn counter_magic_resists_by_its_strength_and_loses_some_per_attempt() {
     let mut b = real_battle(
         &[(104 /* high_men_spearmen */, (3, 10))],
         &[(104 /* high_men_spearmen */, (17, 10))],
@@ -1416,17 +1424,19 @@ fn counter_magic_resists_by_its_strength_and_loses_five_per_attempt() {
         "the holder's own spells pass"
     );
     assert_eq!(b.counter_magic, [0, 100]);
-    // Against difficulty 100 the reserve of 100 stops about half, and every try costs five.
+    // Against difficulty 100 the reserve of 100 stops about half, and every try costs the drain.
+    let drain = rules().counter_magic_drain;
+    let tries = 10;
     let mut stopped = 0;
-    for _ in 0..10 {
+    for _ in 0..tries {
         if b.counter_magic_stops(Side::Attacker, 100) {
             stopped += 1;
         }
     }
-    assert_eq!(b.counter_magic, [0, 50], "ten attempts, five each");
-    assert!((1..=9).contains(&stopped), "stopped {stopped} of 10");
+    assert_eq!(b.counter_magic, [0, 100 - tries * drain], "the drain each");
+    assert!(stopped <= tries, "stopped {stopped} of {tries}");
     // A drained reserve stops nothing.
-    for _ in 0..10 {
+    for _ in 0..100 {
         b.counter_magic_stops(Side::Attacker, 1);
     }
     assert_eq!(b.counter_magic, [0, 0]);
@@ -2084,7 +2094,7 @@ mod casting {
             .map(|seed| {
                 let mut state = def.clone();
                 let mut rng = Pcg64Mcg::seed_from_u64(seed);
-                spell_attack(spell, volley, &mut state, &mut rng).points
+                spell_attack(&rules(), spell, volley, &mut state, &mut rng).points
             })
             .sum();
         total as f64 / trials as f64
@@ -2128,11 +2138,11 @@ mod casting {
         };
         let mut state = squad.clone();
         let mut rng = Pcg64Mcg::seed_from_u64(1);
-        let dmg = spell_attack(&ball, Volley::Area, &mut state, &mut rng);
+        let dmg = spell_attack(&rules(), &ball, Volley::Area, &mut state, &mut rng);
         // Five points a figure, capped at its two hit points: a whole squad of six dies.
         assert_eq!((dmg.points, dmg.kills, state.figures), (12, 6, 0));
         let mut state = squad;
-        let single = spell_attack(&ball, Volley::Bolt, &mut state, &mut rng);
+        let single = spell_attack(&rules(), &ball, Volley::Bolt, &mut state, &mut rng);
         assert_eq!(
             single.kills, 2,
             "a bolt of five kills two of them and no more"
@@ -2147,7 +2157,7 @@ mod casting {
         };
         let mut state = target(10, 5, 0);
         let mut rng = Pcg64Mcg::seed_from_u64(1);
-        let dmg = spell_attack(&chain, Volley::Chain, &mut state, &mut rng);
+        let dmg = spell_attack(&rules(), &chain, Volley::Chain, &mut state, &mut rng);
         assert_eq!(dmg.points, 4 + 3 + 2 + 1);
     }
 
@@ -2345,7 +2355,7 @@ mod casting {
 
 mod fields {
     use super::*;
-    use crate::battle::field::{Field, MANA_LEAK_DRAIN};
+    use crate::battle::field::Field;
     use crate::battle::immunity::Realm;
     use crate::rules::SpellId;
     use f4x_def::testdir::TestResult;
@@ -2919,7 +2929,7 @@ mod fields {
         let u = &b.units[1];
         assert!(!u.flies && u.moves_left == 0);
         assert!(u.attacked, "a webbed unit cannot attack");
-        assert_eq!(u.web_hits, WEB_HITS);
+        assert_eq!(u.web_hits, rules().web_hits);
         end_turns(&mut b, 1);
         assert_eq!(b.units[1].moves_left, 0);
         assert!(b.units[1].attacked);
@@ -2967,9 +2977,9 @@ mod fields {
     fn a_held_unit_spends_each_turn_tearing_at_the_web_until_it_is_free() {
         // Swordsmen, caught in the web, tear at it with their blows.
         let mut b = cast_on_foe(105 /* high_men_swordsmen */, 5 /* web */);
-        let strength = b.units[1].web_strength();
-        assert!(strength > 0 && strength < WEB_HITS);
-        let mut left = WEB_HITS;
+        let strength = b.units[1].web_strength(&rules());
+        assert!(strength > 0 && strength < rules().web_hits);
+        let mut left = rules().web_hits;
         let mut events = end_turns(&mut b, 1);
         loop {
             let dealt = strength.min(left);
@@ -3003,9 +3013,9 @@ mod fields {
     fn a_unit_that_cannot_hurt_the_web_stays_held() {
         // Settlers have no attack at all.
         let mut b = cast_on_foe(111 /* high_men_settlers */, 5 /* web */);
-        assert_eq!(b.units[1].web_strength(), 0);
+        assert_eq!(b.units[1].web_strength(&rules()), 0);
         end_turns(&mut b, 4);
-        assert_eq!(b.units[1].web_hits, WEB_HITS);
+        assert_eq!(b.units[1].web_hits, rules().web_hits);
         assert!(b.units[1].held_by_web());
     }
 
@@ -3020,7 +3030,7 @@ mod fields {
         let effects = crate::spell::unit_effect::UnitEffects::of(rules.spells.get(SpellId::new(5)));
         b.enchant_unit(1, SpellId::new(5), A, effects, &[], &[]);
         let u = &b.units[1];
-        assert_eq!(u.web_hits, WEB_HITS);
+        assert_eq!(u.web_hits, rules.config.battle.web_hits);
         assert!(u.attacked && u.moves_left == 0);
         assert_eq!(
             u.enchantments
@@ -3040,7 +3050,7 @@ mod fields {
             if let Some(ammo) = ammo {
                 u.ammo = ammo;
             }
-            (u.web_strength(), u.melee, u.ranged)
+            (u.web_strength(&rules()), u.melee, u.ranged)
         };
         let (w, melee, _) = web(105 /* high_men_swordsmen */, None);
         assert_eq!(w, melee, "melee alone");
@@ -3070,7 +3080,7 @@ mod fields {
         }
         // Immolation burns the web as well.
         let (w, melee, _) = web(161 /* doom_bat */, None);
-        assert_eq!(w, melee + attack::IMMOLATION_STRENGTH);
+        assert_eq!(w, melee + rules().immolation_strength);
     }
 
     #[test]
@@ -3304,7 +3314,7 @@ mod fields {
         end_turns(&mut b, 2);
         assert_eq!(
             b.caster(Side::Defender).ok_or("caster is missing")?.mana,
-            40 - MANA_LEAK_DRAIN
+            40 - rules().mana_leak_drain
         );
         assert_eq!(b.units[1].ammo, ammo - 1);
         Ok(())
@@ -3544,16 +3554,19 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestRes
     assert_eq!(armed.mana, mana);
     // A magic shot costs the hero three mana, and its shots follow its mana.
     armed.ranged_kind = RangedKind::Magic;
-    armed.ammo = armed.mana / SHOT_MANA;
-    assert_eq!(armed.ammo, mana / SHOT_MANA);
-    armed.spend_shot();
+    armed.ammo = armed.mana / rules().shot_mana;
+    assert_eq!(armed.ammo, mana / rules().shot_mana);
+    armed.spend_shot(rules().shot_mana);
     assert_eq!(
         (armed.mana, armed.ammo),
-        (mana - SHOT_MANA, (mana - SHOT_MANA) / SHOT_MANA)
+        (
+            mana - rules().shot_mana,
+            (mana - rules().shot_mana) / rules().shot_mana
+        )
     );
-    armed.leak_mana(5);
-    let left = (mana - SHOT_MANA - 5).max(0);
-    assert_eq!((armed.mana, armed.ammo), (left, left / SHOT_MANA));
+    armed.leak_mana(rules().mana_leak_drain, rules().shot_mana);
+    let left = (mana - rules().shot_mana - rules().mana_leak_drain).max(0);
+    assert_eq!((armed.mana, armed.ammo), (left, left / rules().shot_mana));
     Ok(())
 }
 
@@ -4885,13 +4898,19 @@ fn a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot() -> TestResul
     b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
         .map_err(|e| format!("{e:?}"))?;
     let u = b.unit(0).ok_or("unit is missing")?;
-    assert_eq!((u.mana, u.ammo), (mana - 3, ammo - 1), "three mana a shot");
-    // Mana leak takes five mana, which is another shot and a half.
-    b.units[0].leak_mana(5);
+    let (shot, leak) = (rules().shot_mana, rules().mana_leak_drain);
+    assert_eq!(
+        (u.mana, u.ammo),
+        (mana - shot, ammo - 1),
+        "a shot costs mana"
+    );
+    // Mana leak takes mana, and the shots follow it.
+    b.units[0].leak_mana(leak, shot);
     let u = b.unit(0).ok_or("unit is missing")?;
-    assert_eq!((u.mana, u.ammo), (mana - 8, ammo - 2));
+    assert_eq!(u.mana, mana - shot - leak);
+    assert_eq!(u.ammo, (ammo - 1).min((mana - shot - leak) / shot));
     // With no mana left it cannot shoot.
-    b.units[0].leak_mana(1000);
+    b.units[0].leak_mana(1000, shot);
     assert_eq!(
         (
             b.unit(0).ok_or("unit is missing")?.mana,
@@ -4903,10 +4922,10 @@ fn a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot() -> TestResul
     let mut plain = unit_numbered(51 /* beastmen_magicians */);
     let shots = plain.ammo;
     assert_eq!(plain.mana, 0);
-    plain.leak_mana(5);
+    plain.leak_mana(leak, shot);
     assert_eq!((plain.mana, plain.ammo), (0, shots - 1));
     plain.ranged_kind = RangedKind::Missile;
-    plain.leak_mana(5);
+    plain.leak_mana(leak, shot);
     assert_eq!(plain.ammo, shots - 1, "arrows are not spell shots");
     Ok(())
 }

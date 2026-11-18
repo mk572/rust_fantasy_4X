@@ -2,6 +2,10 @@ use super::*;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
+fn rules() -> crate::rules::BattleRules {
+    crate::game::testutil::shipped().rules.config.battle
+}
+
 fn rng(seed: u64) -> Pcg64Mcg {
     Pcg64Mcg::seed_from_u64(seed)
 }
@@ -50,8 +54,8 @@ fn defense_blocks_hits() {
     for _ in 0..2_000 {
         let mut a = def(100, 100, 0);
         let mut b = def(100, 100, 6);
-        open += process_attack(&combatant(5, 0), 4, &mut a, &mut r).points;
-        armoured += process_attack(&combatant(5, 0), 4, &mut b, &mut r).points;
+        open += process_attack(&rules(), &combatant(5, 0), 4, &mut a, &mut r).points;
+        armoured += process_attack(&rules(), &combatant(5, 0), 4, &mut b, &mut r).points;
     }
     assert!(open > armoured * 2, "{open} vs {armoured}");
     // Four figures with five dice at 30 percent hit six times each on average.
@@ -69,7 +73,7 @@ fn damage_goes_to_the_front_figure_and_overflows_to_the_next() {
         ..Combatant::default()
     };
     let mut d = def(3, 2, 9);
-    let dmg = process_attack(&doom, 1, &mut d, &mut r);
+    let dmg = process_attack(&rules(), &doom, 1, &mut d, &mut r);
     // Five damage on 2-hit figures: two figures dead, one point on the third.
     assert_eq!(
         dmg,
@@ -83,7 +87,7 @@ fn damage_goes_to_the_front_figure_and_overflows_to_the_next() {
     assert_eq!((d.figures, d.front_damage), (1, 1));
     assert_eq!(d.hit_points(), 1);
     // The wounded front figure needs only one more.
-    let dmg = process_attack(&doom, 1, &mut d, &mut r);
+    let dmg = process_attack(&rules(), &doom, 1, &mut d, &mut r);
     assert_eq!(
         dmg,
         Damage {
@@ -96,7 +100,10 @@ fn damage_goes_to_the_front_figure_and_overflows_to_the_next() {
     assert_eq!(d.figures, 0);
     assert_eq!(d.hit_points(), 0);
     // Nothing left to hit.
-    assert_eq!(process_attack(&doom, 3, &mut d, &mut r), Damage::default());
+    assert_eq!(
+        process_attack(&rules(), &doom, 3, &mut d, &mut r),
+        Damage::default()
+    );
 }
 
 #[test]
@@ -106,7 +113,7 @@ fn damage_never_exceeds_what_the_defender_has() {
         let mut r2 = rng(seed);
         let mut d = def(3, 4, 2);
         let before = d.hit_points();
-        let dmg = process_attack(&combatant(9, 3), 6, &mut d, &mut r2);
+        let dmg = process_attack(&rules(), &combatant(9, 3), 6, &mut d, &mut r2);
         assert_eq!(before - dmg.points, d.hit_points(), "seed {seed}");
         assert!(d.hit_points() >= 0);
         assert!(dmg.kills <= 3);
@@ -126,7 +133,7 @@ fn the_same_seed_gives_the_same_battle() {
             state: def(4, 3, 3),
         };
         let mut b = a.clone();
-        let ex = melee_exchange(&mut a, &mut b, &mut r);
+        let ex = melee_exchange(&rules(), &mut a, &mut b, &mut r);
         (ex, a.state, b.state)
     };
     assert_eq!(fight(9), fight(9));
@@ -159,7 +166,7 @@ fn the_defender_strikes_back_before_an_ordinary_attacker_swings() {
     // The defender's counter kills all three attackers first, so nobody swings back.
     let mut att = fighter(3, 1, doomed(1));
     let mut def_ = fighter(3, 1, doomed(1));
-    let ex = melee_exchange(&mut att, &mut def_, &mut r);
+    let ex = melee_exchange(&rules(), &mut att, &mut def_, &mut r);
     assert_eq!(att.state.figures, 0);
     assert_eq!(ex.taken.kills, 3);
     assert_eq!(
@@ -175,7 +182,7 @@ fn first_strike_lets_the_attacker_hit_before_the_reply() {
     let mut att = fighter(3, 1, doomed(1));
     att.first_strike = true;
     let mut def_ = fighter(3, 1, doomed(1));
-    let ex = melee_exchange(&mut att, &mut def_, &mut r);
+    let ex = melee_exchange(&rules(), &mut att, &mut def_, &mut r);
     assert_eq!(
         def_.state.figures, 0,
         "the defenders fell before they could strike"
@@ -188,7 +195,7 @@ fn first_strike_lets_the_attacker_hit_before_the_reply() {
     att.first_strike = true;
     let mut def_ = fighter(3, 1, doomed(1));
     def_.negate_first_strike = true;
-    melee_exchange(&mut att, &mut def_, &mut r);
+    melee_exchange(&rules(), &mut att, &mut def_, &mut r);
     assert_eq!(
         att.state.figures, 0,
         "ordinary order again: the defender hit first"
@@ -201,7 +208,7 @@ fn thrown_attacks_open_the_exchange() {
     let mut att = fighter(2, 1, doomed(0));
     att.thrown = Some(doomed(2));
     let mut def_ = fighter(4, 1, doomed(1));
-    let ex = melee_exchange(&mut att, &mut def_, &mut r);
+    let ex = melee_exchange(&rules(), &mut att, &mut def_, &mut r);
     // Two figures throw two points each: all four defenders fall before they can answer.
     assert_eq!(ex.dealt.kills, 4);
     assert_eq!(att.state.figures, 2);
@@ -212,7 +219,7 @@ fn thrown_attacks_open_the_exchange() {
 fn shooting_draws_no_reply_and_range_costs_accuracy() {
     let mut r = rng(8);
     let mut d = def(4, 2, 0);
-    let shot = ranged_attack(&doomed(3), 2, &mut d, &mut r);
+    let shot = ranged_attack(&rules(), &doomed(3), 2, &mut d, &mut r);
     assert_eq!(shot.points, 6);
     assert_eq!(range_penalty(0, false), 0);
     assert_eq!(range_penalty(2, false), 0);
@@ -247,9 +254,17 @@ fn a_defender_rolls_the_defense_its_immunities_give_it() {
     let (mut plain, mut stone, mut stone_vs_magic) = (0, 0, 0);
     let mut r = rng(11);
     for _ in 0..1_000 {
-        plain += process_attack(&sword, 4, &mut armoured(Immunities::default()), &mut r).points;
-        stone += process_attack(&sword, 4, &mut armoured(golem), &mut r).points;
-        stone_vs_magic += process_attack(&magic_sword, 4, &mut armoured(golem), &mut r).points;
+        plain += process_attack(
+            &rules(),
+            &sword,
+            4,
+            &mut armoured(Immunities::default()),
+            &mut r,
+        )
+        .points;
+        stone += process_attack(&rules(), &sword, 4, &mut armoured(golem), &mut r).points;
+        stone_vs_magic +=
+            process_attack(&rules(), &magic_sword, 4, &mut armoured(golem), &mut r).points;
     }
     assert!(stone * 4 < plain, "{stone} vs {plain}");
     assert!((f64::from(stone_vs_magic) / f64::from(plain) - 1.0).abs() < 0.1);
@@ -267,7 +282,7 @@ fn a_defender_rolls_the_defense_its_immunities_give_it() {
     };
     let mut through = 0;
     for _ in 0..1_000 {
-        through += process_attack(&arrows, 4, &mut armoured(archer_proof), &mut r).points;
+        through += process_attack(&rules(), &arrows, 4, &mut armoured(archer_proof), &mut r).points;
     }
     assert_eq!(through, 0);
     // Doom damage ignores even that.
@@ -276,7 +291,7 @@ fn a_defender_rolls_the_defense_its_immunities_give_it() {
         ..arrows
     };
     assert_eq!(
-        process_attack(&doom, 1, &mut armoured(archer_proof), &mut r).points,
+        process_attack(&rules(), &doom, 1, &mut armoured(archer_proof), &mut r).points,
         6
     );
 }
@@ -309,7 +324,7 @@ fn mean_kills(
     let mut r = rng(21);
     let n = 3_000;
     let total: u32 = (0..n)
-        .map(|_| process_attack(attacker, figures, &mut target(), &mut r).kills)
+        .map(|_| process_attack(&rules(), attacker, figures, &mut target(), &mut r).kills)
         .sum();
     f64::from(total) / f64::from(n)
 }
@@ -416,7 +431,16 @@ fn poison_makes_each_point_of_strength_resisted_or_hurt() {
     let mut r = rng(5);
     let n = 2_000;
     let hurt: i32 = (0..n)
-        .map(|_| process_attack(&spider, 1, &mut armoured(Immunities::default()), &mut r).points)
+        .map(|_| {
+            process_attack(
+                &rules(),
+                &spider,
+                1,
+                &mut armoured(Immunities::default()),
+                &mut r,
+            )
+            .points
+        })
         .sum();
     // Six checks at resistance 4: six in ten fail, so 3.6 points a time.
     let mean = f64::from(hurt) / f64::from(n);
@@ -426,7 +450,7 @@ fn poison_makes_each_point_of_strength_resisted_or_hurt() {
         ..Immunities::default()
     };
     let none: i32 = (0..200)
-        .map(|_| process_attack(&spider, 1, &mut armoured(proof), &mut r).points)
+        .map(|_| process_attack(&rules(), &spider, 1, &mut armoured(proof), &mut r).points)
         .sum();
     assert_eq!(none, 0);
     // Magic immunity does not stop poison.
@@ -435,7 +459,7 @@ fn poison_makes_each_point_of_strength_resisted_or_hurt() {
         ..Immunities::default()
     };
     let still: i32 = (0..200)
-        .map(|_| process_attack(&spider, 1, &mut armoured(warded), &mut r).points)
+        .map(|_| process_attack(&rules(), &spider, 1, &mut armoured(warded), &mut r).points)
         .sum();
     assert!(still > 400, "{still}");
 }
@@ -458,7 +482,7 @@ fn life_steal_hurts_past_armour_and_heals_the_thief() {
     let n = 3_000;
     let (mut dealt, mut healed) = (0, 0);
     for _ in 0..n {
-        let d = process_attack(&wraith, 1, &mut target(), &mut r);
+        let d = process_attack(&rules(), &wraith, 1, &mut target(), &mut r);
         dealt += d.points;
         healed += d.healed;
     }
@@ -474,7 +498,7 @@ fn life_steal_hurts_past_armour_and_heals_the_thief() {
         },
         ..target()
     };
-    let d = process_attack(&wraith, 1, &mut proof.clone(), &mut r);
+    let d = process_attack(&rules(), &wraith, 1, &mut proof.clone(), &mut r);
     assert_eq!((d.points, d.healed), (0, 0));
 }
 
@@ -494,7 +518,7 @@ fn damage_is_sorted_by_what_dealt_it_so_the_dead_know_how_they_fell() {
         },
         Mode::Melee,
     );
-    let d = process_attack(&wraith, 3, &mut target(), &mut r);
+    let d = process_attack(&rules(), &wraith, 3, &mut target(), &mut r);
     assert!(d.points > 0 && d.drained > 0 && d.drained <= d.points);
     let ghoul = Combatant {
         strength: 4,
@@ -507,7 +531,7 @@ fn damage_is_sorted_by_what_dealt_it_so_the_dead_know_how_they_fell() {
             Mode::Melee,
         )
     };
-    let d = process_attack(&ghoul, 4, &mut target(), &mut r);
+    let d = process_attack(&rules(), &ghoul, 4, &mut target(), &mut r);
     assert!(d.points > 0, "{d:?}");
     assert_eq!((d.drained, d.gone), (d.points, 0));
     // Magic immunity keeps the victim from being raised.
@@ -518,7 +542,7 @@ fn damage_is_sorted_by_what_dealt_it_so_the_dead_know_how_they_fell() {
         },
         ..target()
     };
-    let d = process_attack(&ghoul, 4, &mut warded.clone(), &mut r);
+    let d = process_attack(&rules(), &ghoul, 4, &mut warded.clone(), &mut r);
     assert_eq!(d.drained, 0);
     let destroyer = special(
         SpecialAttacks {
@@ -528,6 +552,7 @@ fn damage_is_sorted_by_what_dealt_it_so_the_dead_know_how_they_fell() {
         Mode::Melee,
     );
     let d = process_attack(
+        &rules(),
         &destroyer,
         4,
         &mut DefenderState {
@@ -568,7 +593,7 @@ fn a_melee_exchange_heals_a_life_stealer() {
     let mut healed_any = false;
     for seed in 0..40 {
         let (mut a, mut b) = (thief.clone(), victim.clone());
-        melee_exchange(&mut a, &mut b, &mut rng(seed));
+        melee_exchange(&rules(), &mut a, &mut b, &mut rng(seed));
         assert!(a.state.front_damage <= 3);
         healed_any |= a.state.front_damage < 3;
     }
@@ -644,8 +669,8 @@ fn invulnerability_blocks_two_more_points_of_each_hit() {
         let mut a = def(100, 100, 0);
         let mut b = def(100, 100, 0);
         b.put_enchantment(SpellId::new(143));
-        plain += process_attack(&combatant(5, 0), 4, &mut a, &mut r).points;
-        invulnerable += process_attack(&combatant(5, 0), 4, &mut b, &mut r).points;
+        plain += process_attack(&rules(), &combatant(5, 0), 4, &mut a, &mut r).points;
+        invulnerable += process_attack(&rules(), &combatant(5, 0), 4, &mut b, &mut r).points;
     }
     // Four figures hitting about 1.5 each: two off every volley leaves a seventh or so.
     assert!(plain > 5 * invulnerable.max(1), "{plain} vs {invulnerable}");
@@ -662,11 +687,11 @@ fn righteousness_and_bonuses_change_the_defense_a_bolt_meets() {
         ..combatant(5, 0)
     };
     let mut d = def(1, 10, 2);
-    assert_eq!(d.defense_versus(&bolt), 2);
+    assert_eq!(d.defense_versus(&bolt, &rules()), 2);
     d.put_enchantment(SpellId::new(21));
-    assert_eq!(d.defense_versus(&bolt), 12);
+    assert_eq!(d.defense_versus(&bolt, &rules()), 12);
     d.put_enchantment(SpellId::new(144));
-    assert_eq!(d.defense_versus(&bolt), 50);
+    assert_eq!(d.defense_versus(&bolt, &rules()), rules().immune_defense);
 }
 
 #[test]
@@ -676,7 +701,7 @@ fn a_sleeper_takes_every_blow_at_full_strength() {
     d.put_enchantment(SpellId::new(165));
     d.figures = 1;
     d.figures_max = 1;
-    let hit = process_attack(&combatant(5, 0), 1, &mut d, &mut r);
+    let hit = process_attack(&rules(), &combatant(5, 0), 1, &mut d, &mut r);
     assert_eq!(hit.points, 5);
 }
 
@@ -693,7 +718,7 @@ fn berserk_leaves_no_defense_whatever_the_bonuses() {
     let mut d = def(1, 10, 4);
     d.put_enchantment(SpellId::new(21));
     d.put_enchantment(SpellId::new(179));
-    assert_eq!(d.defense_versus(&bolt), 0);
+    assert_eq!(d.defense_versus(&bolt, &rules()), 0);
 }
 
 #[test]
@@ -709,8 +734,8 @@ fn eldritch_weapon_takes_a_plus_off_the_defenders_blocks() {
             eldritch: true,
             ..combatant(5, 0)
         };
-        plain += process_attack(&combatant(5, 0), 4, &mut a, &mut r).points;
-        eldritch += process_attack(&weapon, 4, &mut b, &mut r).points;
+        plain += process_attack(&rules(), &combatant(5, 0), 4, &mut a, &mut r).points;
+        eldritch += process_attack(&rules(), &weapon, 4, &mut b, &mut r).points;
     }
     assert!(eldritch > plain + plain / 5, "{eldritch} vs {plain}");
 }
@@ -723,15 +748,21 @@ fn immolation_burns_the_defender_on_top_of_the_blows() {
         ..combatant(0, 0)
     };
     let mut d = def(4, 10, 0);
-    let dealt = process_attack(&burning, 1, &mut d, &mut r);
+    let dealt = process_attack(&rules(), &burning, 1, &mut d, &mut r);
     // No melee dice, so every point comes from the strength-four fire.
     assert!(dealt.points > 0, "the fire hurt");
     let mut immune = def(4, 10, 0);
     immune.immunities.fire = true;
-    assert_eq!(process_attack(&burning, 1, &mut immune, &mut r).points, 0);
+    assert_eq!(
+        process_attack(&rules(), &burning, 1, &mut immune, &mut r).points,
+        0
+    );
     let mut warded = def(4, 10, 0);
     warded.immunities.magic = true;
-    assert_eq!(process_attack(&burning, 1, &mut warded, &mut r).points, 0);
+    assert_eq!(
+        process_attack(&rules(), &burning, 1, &mut warded, &mut r).points,
+        0
+    );
 }
 
 #[test]
@@ -750,9 +781,13 @@ fn fear_keeps_figures_from_striking_back() {
     let (mut calm, mut frightened) = (0, 0);
     for _ in 0..2_000 {
         let (mut a, mut b) = (fighter(false, 0), fighter(false, 4));
-        calm += melee_exchange(&mut a, &mut b, &mut r).taken.points;
+        calm += melee_exchange(&rules(), &mut a, &mut b, &mut r)
+            .taken
+            .points;
         let (mut a, mut b) = (fighter(true, 0), fighter(false, 4));
-        frightened += melee_exchange(&mut a, &mut b, &mut r).taken.points;
+        frightened += melee_exchange(&rules(), &mut a, &mut b, &mut r)
+            .taken
+            .points;
     }
     assert!(calm > 3 * frightened, "{calm} vs {frightened}");
     // A defender immune to death is not frightened.
@@ -764,7 +799,9 @@ fn fear_keeps_figures_from_striking_back() {
         .map(|_| {
             let mut s = steady.clone();
             let mut f = scary.clone();
-            melee_exchange(&mut f, &mut s, &mut r).taken.points
+            melee_exchange(&rules(), &mut f, &mut s, &mut r)
+                .taken
+                .points
         })
         .sum();
     assert!(total > 0);
@@ -786,9 +823,13 @@ fn a_fearsome_defender_frightens_the_attackers_figures_too() {
     let (mut calm, mut frightened) = (0, 0);
     for _ in 0..2_000 {
         let (mut a, mut b) = (fighter(false, 4), fighter(false, 0));
-        calm += melee_exchange(&mut a, &mut b, &mut r).dealt.points;
+        calm += melee_exchange(&rules(), &mut a, &mut b, &mut r)
+            .dealt
+            .points;
         let (mut a, mut b) = (fighter(false, 4), fighter(true, 0));
-        frightened += melee_exchange(&mut a, &mut b, &mut r).dealt.points;
+        frightened += melee_exchange(&rules(), &mut a, &mut b, &mut r)
+            .dealt
+            .points;
     }
     assert!(calm > 3 * frightened, "{calm} vs {frightened}");
 }
@@ -829,7 +870,7 @@ fn stoning_and_dispel_evil_leave_nothing_to_heal() {
         },
         Mode::Melee,
     );
-    let d = process_attack(&stoner, 6, &mut soft(40, 100, 1), &mut r);
+    let d = process_attack(&rules(), &stoner, 6, &mut soft(40, 100, 1), &mut r);
     assert!(d.kills > 0);
     assert_eq!(d.gone, d.kills as i32 * 100, "each stoned figure is gone");
     let death = special(
@@ -840,7 +881,7 @@ fn stoning_and_dispel_evil_leave_nothing_to_heal() {
         },
         Mode::Melee,
     );
-    let d = process_attack(&death, 6, &mut soft(40, 100, 1), &mut r);
+    let d = process_attack(&rules(), &death, 6, &mut soft(40, 100, 1), &mut r);
     assert!(d.kills > 0);
     assert_eq!(d.gone, 0, "death can be healed back");
 }

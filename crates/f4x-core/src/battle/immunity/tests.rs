@@ -13,6 +13,14 @@ fn fx(spells: &[SpellId]) -> UnitEffects {
     set
 }
 
+fn immune() -> i32 {
+    crate::game::testutil::shipped()
+        .rules
+        .config
+        .battle
+        .immune_defense
+}
+
 fn unit(names: &[u16]) -> Immunities {
     Immunities::of(&names.iter().map(|&n| Ability::new(n)).collect::<Vec<_>>())
 }
@@ -23,7 +31,17 @@ fn defense(base: i32, unit: &Immunities, names: &[u16], mode: Mode, magical: boo
         &names.iter().map(|&n| Ability::new(n)).collect::<Vec<_>>(),
         magical,
     );
-    effective_defense(base, unit, &attack, mode)
+    effective_defense(
+        base,
+        unit,
+        &attack,
+        mode,
+        crate::game::testutil::shipped()
+            .rules
+            .config
+            .battle
+            .immune_defense,
+    )
 }
 
 #[test]
@@ -69,11 +87,11 @@ fn missile_immunity_stops_arrows_but_not_boulders_or_melee() {
     let shielded = unit(&[44 /* missile_immunity */]);
     assert_eq!(
         defense(3, &shielded, &[3 /* bow */], Mode::Ranged, false),
-        50
+        immune()
     );
     assert_eq!(
         defense(3, &shielded, &[59 /* sling */], Mode::Ranged, true),
-        50
+        immune()
     );
     assert_eq!(
         defense(3, &shielded, &[57 /* rock_throwing */], Mode::Ranged, false),
@@ -101,7 +119,10 @@ fn a_unit_with_both_weapon_and_missile_immunity_gets_only_ten_against_arrows() {
     ]);
     assert_eq!(defense(3, &both, &[3 /* bow */], Mode::Ranged, false), 10);
     // A magical bow is stopped by missile immunity alone.
-    assert_eq!(defense(3, &both, &[3 /* bow */], Mode::Ranged, true), 50);
+    assert_eq!(
+        defense(3, &both, &[3 /* bow */], Mode::Ranged, true),
+        immune()
+    );
 }
 
 #[test]
@@ -115,7 +136,7 @@ fn fire_immunity_stops_fire_breath_only() {
             Mode::ThrownOrBreath,
             false
         ),
-        50
+        immune()
     );
     assert_eq!(
         defense(
@@ -161,7 +182,7 @@ fn magic_immunity_stops_every_ranged_magic_but_not_melee_or_arrows() {
         } else {
             Mode::Ranged
         };
-        assert_eq!(defense(3, &wise, names, mode, false), 50, "{names:?}");
+        assert_eq!(defense(3, &wise, names, mode, false), immune(), "{names:?}");
     }
     assert_eq!(defense(3, &wise, &[3 /* bow */], Mode::Ranged, false), 3);
     assert_eq!(
@@ -373,7 +394,7 @@ fn armor_piercing_halves_the_defense_before_immunities_set_their_floor() {
             Mode::Ranged,
             false
         ),
-        50
+        immune()
     );
 }
 

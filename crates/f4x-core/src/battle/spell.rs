@@ -1208,11 +1208,13 @@ impl Game {
             realm,
             armor_piercing: false,
         };
+        let rules = self.battle()?.rules;
         let (mut points, mut kills) = (0.0, 0);
         for seed in 0..TRIES {
             let mut copy = unit.clone();
             let mut rng = Pcg64Mcg::seed_from_u64(u64::from(seed) + 1);
             let dealt = super::casting::damage_unit_with_spell(
+                &rules,
                 &mut copy,
                 strength + extra,
                 &traits,

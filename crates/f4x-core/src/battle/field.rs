@@ -32,11 +32,6 @@ use crate::rules::{SpellDef, SpellId};
 pub const BATTLEFIELD: &str = "battlefield";
 pub const DISINTEGRATE: &str = "disintegrate";
 
-/// Mana Leak drains this much from each enemy wizard each turn.
-pub const MANA_LEAK_DRAIN: i32 = 5;
-/// Call Lightning's bolts: strength, and how many (three to five) strike each turn.
-pub const CALL_LIGHTNING_STRENGTH: i32 = 8;
-
 /// The battlefield enchantments.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, strum::EnumIter,
@@ -306,12 +301,12 @@ impl Battle {
         b.resistance += holy + resist_all;
         // A node's aura: its own realm's creatures fight harder, on either side.
         if u.realm.is_some() && u.realm == self.node_aura {
-            b.melee += super::NODE_AURA_BONUS;
+            b.melee += self.rules.node_aura_bonus;
             if u.ranged > 0 {
-                b.ranged += super::NODE_AURA_BONUS;
+                b.ranged += self.rules.node_aura_bonus;
             }
-            b.defense += super::NODE_AURA_BONUS;
-            b.resistance += super::NODE_AURA_BONUS;
+            b.defense += self.rules.node_aura_bonus;
+            b.resistance += self.rules.node_aura_bonus;
         }
         b.invisible = own(Field::MassInvisibility);
         b.blur = own(Field::Blur);
@@ -367,15 +362,16 @@ impl Battle {
 
     /// The side's wizard loses mana and its units with spell shots lose a shot.
     fn mana_leak(&mut self, victim: Side) -> Vec<BattleEvent> {
+        let (drain, shot_mana) = (self.rules.mana_leak_drain, self.rules.shot_mana);
         if let Some(c) = self.casters[victim.index()].as_mut() {
-            c.mana = (c.mana - MANA_LEAK_DRAIN).max(HalfInt::default());
+            c.mana = (c.mana - drain).max(HalfInt::default());
         }
         for u in self
             .units
             .iter_mut()
             .filter(|u| u.side == victim && u.is_active())
         {
-            u.leak_mana(MANA_LEAK_DRAIN);
+            u.leak_mana(drain, shot_mana);
         }
         vec![BattleEvent::ManaLeaked { side: victim }]
     }
@@ -405,7 +401,7 @@ impl Battle {
             if u.side == caster || !u.is_active() || self.rng.gen_range(1..=2) != 1 {
                 continue;
             }
-            let dmg = self.spell_damage(id, CALL_LIGHTNING_STRENGTH, &traits, nature);
+            let dmg = self.spell_damage(id, self.rules.call_lightning_strength, &traits, nature);
             events.extend(self.spell_events_for_damage(id, dmg));
             bolts -= 1;
             tries = 0;
@@ -452,6 +448,7 @@ impl Battle {
     pub(super) fn side_turn_effects(&mut self, side: Side) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         let terror = self.has_field(side.other(), Field::Terror);
+        let rules = self.rules;
         let entangle = self.has_field(side.other(), Field::Entangle);
         for id in 0..self.units.len() {
             if self.units[id].side != side || !self.units[id].is_active() {
@@ -478,7 +475,7 @@ impl Battle {
             // A unit in a web spends its whole turn striking at it.
             if self.units[id].held_by_web() {
                 let u = &mut self.units[id];
-                let dealt = u.web_strength().min(u.web_hits);
+                let dealt = u.web_strength(&rules).min(u.web_hits);
                 u.web_hits -= dealt;
                 u.moves_left = HalfInt::ZERO;
                 u.attacked = true;

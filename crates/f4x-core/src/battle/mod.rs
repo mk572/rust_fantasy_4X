@@ -30,6 +30,7 @@ use crate::game::rng::GameRng;
 use crate::game::serial::Serial;
 use crate::game::setting::MeleeVsFliers;
 use crate::rules::Ability;
+use crate::rules::BattleRules;
 use f4x_def::half_int::HalfInt;
 use rand::RngCore;
 
@@ -44,16 +45,6 @@ use map::{distance, in_city_area, BattleMap, Mover, Pos, OPEN_COST};
 use special::{Gaze, SpecialAttacks};
 
 pub use casting::{BaseStats, BattleCaster, Lasting, SpellAim, SpellError};
-
-/// A side never fights on past this turn: the defender holds.
-pub const TURN_LIMIT: u32 = 100;
-
-/// The strength of a Wall of Fire's attack.
-pub const WALL_OF_FIRE_STRENGTH: i32 = 5;
-/// The strength of the dispel a magic node puts against the spells of other realms.
-pub const NODE_COUNTER_STRENGTH: u32 = 50;
-/// What a node's aura adds to its realm's creatures: attack, defence and resistance.
-pub const NODE_AURA_BONUS: i32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Side {
@@ -117,9 +108,6 @@ pub enum Fate {
     Gone,
 }
 
-/// The mana a spell shot costs a caster unit.
-pub const SHOT_MANA: i32 = 3;
-
 /// What a confused unit does in a turn: one of four, chosen at random.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Confusion {
@@ -178,7 +166,7 @@ pub struct BattleUnit {
     #[serde(with = "f4x_def::half_int::raw")]
     pub moves_left: HalfInt,
     /// Shots left. A spell caster with a magical ranged attack shoots with its mana instead
-    /// (`SHOT_MANA` a shot): its shots are what its mana pays for.
+    /// (`rules.shot_mana` a shot): its shots are what its mana pays for.
     pub ammo: i32,
     /// The mana of a spell caster unit (20, or 40 for a major one) or of a hero with casting
     /// skill (`Game::hero_mana`).
@@ -267,14 +255,11 @@ pub struct BattleUnit {
     /// Creature Binding or Possession has put it on the other side for the rest of the battle:
     /// the side it really belongs to.
     pub bound_from: Option<Side>,
-    /// The hit points the web that holds the unit has left (`WEB_HITS` when it is cast); at 0 the
+    /// The hit points the web that holds the unit has left (`rules.web_hits` when it is cast); at 0 the
     /// unit is free to act again, though the web's curse (no flight) stays until it is dispelled.
     #[serde(default)]
     pub web_hits: i32,
 }
-
-/// The hit points of a web: the unit it holds spends its turn striking at them.
-pub const WEB_HITS: i32 = 12;
 
 /// What a unit casts with its own mana rather than the wizard's skill.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -322,7 +307,7 @@ impl BattleUnit {
             base.effects.union(effects);
         }
         if effects.contains(crate::spell::unit_effect::UnitEffect::Web) {
-            self.web_closes();
+            self.web_closes(rules.config.battle.web_hits);
         }
     }
 }
@@ -552,7 +537,7 @@ impl BattleUnit {
     ///   melee (boulders do not count, they are the same bodily strength as melee);
     /// - a thrown weapon, a breath or a gaze: its strength on top of melee;
     /// - Immolation: its fire on top.
-    pub fn web_strength(&self) -> i32 {
+    pub fn web_strength(&self, rules: &BattleRules) -> i32 {
         let mut strength = self.melee.max(0);
         let shoots = self.ammo > 0
             && (self.ranged_kind == RangedKind::Magic
@@ -564,7 +549,7 @@ impl BattleUnit {
             strength += self.ranged.max(0);
         }
         if self.has(Ability::new(32)) {
-            strength += attack::IMMOLATION_STRENGTH;
+            strength += rules.immolation_strength;
         }
         strength
     }
@@ -582,32 +567,32 @@ impl BattleUnit {
     }
 
     /// Use up one shot (and the mana it costs a caster).
-    fn spend_shot(&mut self) {
+    fn spend_shot(&mut self, shot_mana: i32) {
         self.ammo -= 1;
         if self.shoots_with_mana() {
-            self.mana = (self.mana - SHOT_MANA).max(0);
-            self.ammo = self.ammo.min(self.mana / SHOT_MANA);
+            self.mana = (self.mana - shot_mana).max(0);
+            self.ammo = self.ammo.min(self.mana / shot_mana);
         }
     }
 
     /// Power Drain: the unit loses up to `amount` mana (a spell shooter's shots follow its mana).
     /// Returns what it lost.
-    pub(super) fn drain_power(&mut self, amount: i32) -> i32 {
+    pub(super) fn drain_power(&mut self, amount: i32, shot_mana: i32) -> i32 {
         let lost = amount.min(self.mana).max(0);
         self.mana -= lost;
         if self.shoots_with_mana() {
-            self.ammo = self.ammo.min(self.mana / SHOT_MANA);
+            self.ammo = self.ammo.min(self.mana / shot_mana);
         }
         lost
     }
 
-    /// Mana Leak: a caster loses `field::MANA_LEAK_DRAIN` mana; any unit with spell shots loses
+    /// Mana Leak: a caster loses `drain` mana; any unit with spell shots loses
     /// one (a caster's shots follow its mana).
-    pub(super) fn leak_mana(&mut self, drain: i32) {
+    pub(super) fn leak_mana(&mut self, drain: i32, shot_mana: i32) {
         self.mana = (self.mana - drain).max(0);
         if self.ranged_kind == RangedKind::Magic {
             if self.shoots_with_mana() {
-                self.ammo = self.ammo.min(self.mana / SHOT_MANA);
+                self.ammo = self.ammo.min(self.mana / shot_mana);
             } else {
                 self.ammo = (self.ammo - 1).max(0);
             }
@@ -1049,6 +1034,9 @@ pub struct Battle {
     /// (`RuleSettings::max_battle_side`).
     #[serde(default = "default_side_limit")]
     pub max_side: usize,
+    /// The numbers of the battle (`rules.ron`), copied when it starts.
+    #[serde(default)]
+    pub rules: BattleRules,
     rng: GameRng,
 }
 
@@ -1060,16 +1048,17 @@ impl Battle {
 
     /// Whether `side`'s enemy's Counter Magic stops a spell of `difficulty` that `side` casts: a
     /// dispel of the reserve's strength must beat the spell. Every attempt drains the reserve
-    /// by [`crate::spell::dispel::COUNTER_MAGIC_DRAIN`], whether or not it stopped the spell.
+    /// by `rules.counter_magic_drain`, whether or not it stopped the spell.
     pub fn counter_magic_stops(&mut self, side: Side, difficulty: u32) -> bool {
+        let drain = self.rules.counter_magic_drain;
         let reserve = &mut self.counter_magic[side.other().index()];
         let strength = *reserve;
-        *reserve = reserve.saturating_sub(crate::spell::dispel::COUNTER_MAGIC_DRAIN);
+        *reserve = reserve.saturating_sub(drain);
         crate::spell::dispel::dispel_roll(strength, difficulty, &mut self.rng)
     }
 
     /// Whether the node under the battle stops a spell of `realm` and `difficulty`: a dispel of
-    /// strength [`NODE_COUNTER_STRENGTH`] must beat it, unless the spell is of the node's own
+    /// strength `rules.node_counter_strength` must beat it, unless the spell is of the node's own
     /// realm. (The caster's Node Mastery is checked by the caller.)
     pub fn node_stops(&mut self, realm: Option<Realm>, difficulty: u32) -> bool {
         let Some(node) = self.node_site else {
@@ -1078,7 +1067,11 @@ impl Battle {
         if realm == Some(node) {
             return false;
         }
-        crate::spell::dispel::dispel_roll(NODE_COUNTER_STRENGTH, difficulty, &mut self.rng)
+        crate::spell::dispel::dispel_roll(
+            self.rules.node_counter_strength,
+            difficulty,
+            &mut self.rng,
+        )
     }
 
     /// Start a battle. Unit ids are assigned in list order; the attacker moves first.
@@ -1116,6 +1109,7 @@ impl Battle {
             melee_vs_fliers: MeleeVsFliers::default(),
             walls_cover_city: false,
             max_side: default_side_limit(),
+            rules: BattleRules::default(),
             rng: GameRng::new(seed),
         };
         let _ = b.begin_side_turn();
@@ -1252,7 +1246,7 @@ impl Battle {
             Some(Side::Defender)
         } else if alive(Side::Defender) == 0 {
             Some(Side::Attacker)
-        } else if self.turn > TURN_LIMIT {
+        } else if self.turn > self.rules.turn_limit {
             exhausted = true;
             Some(Side::Defender)
         } else {
@@ -1330,11 +1324,12 @@ impl Battle {
         if destroyed {
             self.map.break_wall(cell);
         }
+        let shot_mana = self.rules.shot_mana;
         let u = &mut self.units[unit];
         u.attacked = true;
         u.revealed = true;
         if ranged {
-            u.spend_shot();
+            u.spend_shot(shot_mana);
         }
         u.moves_left = HalfInt::ZERO;
         vec![BattleEvent::WallAttacked {
@@ -1447,7 +1442,7 @@ impl Battle {
             realm: Some(Realm::Chaos),
             armor_piercing: false,
         };
-        let dmg = self.spell_damage(unit, WALL_OF_FIRE_STRENGTH, &traits, nature);
+        let dmg = self.spell_damage(unit, self.rules.wall_of_fire_strength, &traits, nature);
         self.spell_events_for_damage(unit, dmg)
     }
 
@@ -1695,7 +1690,8 @@ impl Battle {
 
     /// Take the mana of a Power Drain off the unit, with the event when it had any to lose.
     fn power_drained(&mut self, unit: usize, amount: i32) -> Option<BattleEvent> {
-        let lost = self.units[unit].drain_power(amount);
+        let shot_mana = self.rules.shot_mana;
+        let lost = self.units[unit].drain_power(amount, shot_mana);
         (lost > 0).then_some(BattleEvent::PowerDrained { unit, amount: lost })
     }
 
@@ -1714,7 +1710,7 @@ impl Battle {
             }
         }
         let rng: &mut dyn RngCore = &mut self.rng;
-        let out = attack::melee_exchange(&mut a, &mut d, rng);
+        let out = attack::melee_exchange(&self.rules, &mut a, &mut d, rng);
         let mut events = vec![BattleEvent::Attacked {
             attacker: att,
             defender: def,
@@ -1769,14 +1765,15 @@ impl Battle {
         let mut state = self.units[def].defender_state();
         state.defense += self.city_defense_bonus(def, att);
         let rng: &mut dyn RngCore = &mut self.rng;
-        let dmg = attack::ranged_attack(&shooter, figures, &mut state, rng);
+        let dmg = attack::ranged_attack(&self.rules, &shooter, figures, &mut state, rng);
         self.units[def].set_from(&state);
         self.units[def].record(dmg);
+        let shot_mana = self.rules.shot_mana;
         let a = &mut self.units[att];
         if dmg.healed > 0 {
             a.heal_points(dmg.healed, true);
         }
-        a.spend_shot();
+        a.spend_shot(shot_mana);
         a.used_attack();
         a.revealed = true;
         // A ranged attack uses up the rest of the movement, as blows do (1.50 note 747).

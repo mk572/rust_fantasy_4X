@@ -238,6 +238,7 @@ pub fn effective_defense(
     unit: &Immunities,
     attack: &AttackNature,
     mode: Mode,
+    immune_defense: i32,
 ) -> i32 {
     let mut stopped = attack.stopped_by;
     // Seeing through illusions takes the illusion out of the attack; what is left is an
@@ -266,7 +267,7 @@ pub fn effective_defense(
         immune = true;
     }
     if immune {
-        return IMMUNE_DEFENSE;
+        return immune_defense;
     }
     if at_least_ten {
         return defense.max(10);
@@ -340,9 +341,6 @@ pub fn righteous_ward(realm: Option<Realm>, mode: Mode, effects: UnitEffects) ->
         && mode != Mode::Melee
         && effects.contains(UnitEffect::Righteousness)
 }
-
-/// The defence an unbeatable ward or immunity gives.
-pub const IMMUNE_DEFENSE: i32 = 50;
 
 /// A resistance check: roll a ten-sided die against the resistance plus the spell's modifier
 /// (negative for a spell that is hard to resist). Returns by how much the roll beat the

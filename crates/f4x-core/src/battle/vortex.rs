@@ -20,14 +20,6 @@ use crate::rules::Ability;
 
 /// The most vortices on one battlefield.
 pub const MAX_VORTICES: usize = 10;
-/// Moves a vortex makes by itself at the start of a turn.
-const RANDOM_MOVES: usize = 3;
-/// Damage to the unit the vortex lands on, and the strength of the bolts at its neighbours.
-const CRUSH_DAMAGE: i32 = 5;
-const BOLT_STRENGTH: i32 = 5;
-/// City damage for each move over the city area.
-const CITY_DAMAGE: u32 = 5;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Vortex {
     pub cell: Pos,
@@ -64,7 +56,7 @@ impl Battle {
     pub(super) fn vortex_round(&mut self) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         for index in 0..self.vortices.len() {
-            for _ in 0..RANDOM_MOVES {
+            for _ in 0..self.rules.vortex_random_moves {
                 let from = self.vortices[index].cell;
                 let mut to = from;
                 for _ in 0..50 {
@@ -117,7 +109,7 @@ impl Battle {
         self.vortices[index].cell = to;
         let mut events = vec![BattleEvent::VortexMoved { index, to }];
         if self.map.is_city() && map::in_city_area(to) {
-            self.city_damage += CITY_DAMAGE;
+            self.city_damage += self.rules.vortex_city_damage;
         }
         let bolt = DamageTraits {
             armor_piercing: true,
@@ -131,6 +123,7 @@ impl Battle {
             realm: Some(Realm::Chaos),
             armor_piercing: false,
         };
+        let crush = self.rules.vortex_crush_damage;
         for id in 0..self.units.len() {
             if !self.units[id].is_active() {
                 continue;
@@ -144,7 +137,7 @@ impl Battle {
                         .contains(crate::spell::unit_effect::UnitEffect::Righteousness)
                 {
                     let mut state = u.defender_state();
-                    let lost = unblockable(&mut state, CRUSH_DAMAGE);
+                    let lost = unblockable(&mut state, crush);
                     if lost.points > 0 {
                         self.units[id].set_from(&state);
                         self.units[id].record(lost);
@@ -161,7 +154,8 @@ impl Battle {
                 }
             }
             if cell != to && map::distance(cell, to) == 1 && self.roll(3) == 1 {
-                let dmg = self.spell_damage(id, BOLT_STRENGTH, &bolt, bolt_nature);
+                let dmg =
+                    self.spell_damage(id, self.rules.vortex_bolt_strength, &bolt, bolt_nature);
                 events.extend(self.spell_events_for_damage(id, dmg));
             }
         }

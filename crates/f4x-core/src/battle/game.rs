@@ -298,7 +298,7 @@ impl Game {
         let level = self.units().unit_level(unit);
         let mut ammo = self.units().unit_stat(unit, Stat::Ammo);
         if ranged_kind == RangedKind::Magic && mana > 0 {
-            ammo = mana / super::SHOT_MANA;
+            ammo = mana / self.content().rules.config.battle.shot_mana;
         }
         let formulas = &self.content().rules;
         Some(BattleUnit {
@@ -396,7 +396,9 @@ impl Game {
         let Some(mut bu) = self.battle_unit_from(unit, Side::Defender, 0) else {
             return false;
         };
-        let _ = super::casting::damage_unit_with_spell(&mut bu, strength, traits, nature, rng);
+        let rules = self.content.rules.config.battle;
+        let _ =
+            super::casting::damage_unit_with_spell(&rules, &mut bu, strength, traits, nature, rng);
         if bu.figures == 0 {
             self.remove_unit(unit, crate::hero::Fate::Slain);
             return true;
@@ -674,6 +676,7 @@ impl Game {
         battle.melee_vs_fliers = self.settings.rules.melee_vs_fliers;
         battle.walls_cover_city = self.settings.rules.walls_cover_city;
         battle.max_side = self.settings.rules.max_battle_side;
+        battle.rules = self.content.rules.config.battle;
         (battle.node_aura, battle.node_site) = self.node_realms_at(site, city.is_none());
         battle.refresh_fields();
         battle.wall_of_fire = has_wall("fire");

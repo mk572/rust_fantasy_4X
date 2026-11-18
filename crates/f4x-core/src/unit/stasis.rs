@@ -9,9 +9,6 @@ use crate::battle::immunity::{resistance_failure, Realm};
 use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
 
-/// The resistance penalty of the roll that frees a unit.
-const FREEING_MODIFIER: i32 = -5;
-
 /// A unit held in stasis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Stasis {
@@ -66,7 +63,12 @@ impl Game {
                     let resistance = self
                         .units()
                         .unit_resistance_against(unit, Some(Realm::Sorcery));
-                    if resistance_failure(resistance, FREEING_MODIFIER, &mut rng) == 0 {
+                    if resistance_failure(
+                        resistance,
+                        self.content.rules.config.battle.freeing_modifier,
+                        &mut rng,
+                    ) == 0
+                    {
                         self.strip::<Stasis>(unit);
                         events.push(Event::StasisEnded { unit });
                     }

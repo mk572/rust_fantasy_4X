@@ -29,9 +29,6 @@ use crate::wizard::magic::MagicError;
 /// Enchantments with the wizard who cast each.
 pub(crate) type Spells = Vec<(SpellId, PlayerId)>;
 
-/// What each enemy spell takes from a Counter Magic reserve (battle rules: task 675).
-pub const COUNTER_MAGIC_DRAIN: u32 = 5;
-
 /// The hook of the spells that act against other spells. The first argument is what it does; a
 /// second, a number, is its strength.
 pub const COUNTER_EFFECT: &str = "counter_effect";

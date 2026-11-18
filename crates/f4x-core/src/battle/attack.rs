@@ -17,13 +17,14 @@
 //!
 //! Tests: in battle/attack/tests.rs.
 
+use crate::rules::BattleRules;
 use crate::rules::SpellId;
 use crate::spell::unit_effect::UnitEffect;
 use rand::{Rng, RngCore};
 
 use super::immunity::{
     defense_bonus, effective_defense, effective_resistance, resistance_failure, righteous_ward,
-    AttackNature, Immunities, Realm, IMMUNE_DEFENSE,
+    AttackNature, Immunities, Realm,
 };
 use super::special::{Gaze, SpecialAttacks};
 
@@ -60,14 +61,6 @@ pub struct Combatant {
     /// check cannot strike back.
     pub fear: bool,
 }
-
-/// The strength of the fire attack Immolation adds to a melee blow.
-pub(crate) const IMMOLATION_STRENGTH: i32 = 4;
-
-/// What a large shield adds to the defence against ranged, thrown and breath attacks.
-pub const LARGE_SHIELD: i32 = 2;
-/// What Invulnerability takes off every hit.
-const INVULNERABILITY_BLOCK: i32 = 2;
 
 /// What a defending unit contributes to the rolls, and the damage it has taken.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -116,10 +109,10 @@ impl DefenderState {
 
 impl DefenderState {
     /// The defence it rolls before immunities against an attack of this `mode`.
-    fn defense_against(&self, mode: Mode) -> i32 {
+    fn defense_against(&self, mode: Mode, rules: &BattleRules) -> i32 {
         self.defense
             + if self.large_shield && mode != Mode::Melee {
-                LARGE_SHIELD
+                rules.large_shield
             } else {
                 0
             }
@@ -133,27 +126,39 @@ impl DefenderState {
     /// The defence it rolls against one of `attacker`'s attacks: its own, the bonuses its
     /// lasting spells give against the attack's realm, then what its immunities make of it.
     /// Righteousness turns a ranged chaos or death attack away outright.
-    fn defense_versus(&self, attacker: &Combatant) -> i32 {
+    fn defense_versus(&self, attacker: &Combatant, rules: &BattleRules) -> i32 {
         let ids = self.effects;
         let (realm, mode) = (attacker.nature.realm, attacker.mode);
         if righteous_ward(realm, mode, ids) {
-            return IMMUNE_DEFENSE;
+            return rules.immune_defense;
         }
         // Berserk: no defence at all, whatever else the unit has (immunities still count).
         let defense = if ids.contains(UnitEffect::Berserk) {
             0
         } else {
-            self.defense_against(mode) + defense_bonus(realm, mode, ids)
+            self.defense_against(mode, rules) + defense_bonus(realm, mode, ids)
         };
-        effective_defense(defense, &self.immunities, &attacker.nature, mode)
+        effective_defense(
+            defense,
+            &self.immunities,
+            &attacker.nature,
+            mode,
+            rules.immune_defense,
+        )
     }
 
     /// The blows one roll of `defense` stops: Invulnerability stops two more.
-    fn blocks(&self, defense: i32, eldritch: bool, rng: &mut dyn RngCore) -> i32 {
+    fn blocks(
+        &self,
+        defense: i32,
+        eldritch: bool,
+        rules: &BattleRules,
+        rng: &mut dyn RngCore,
+    ) -> i32 {
         let invulnerable = self.effects.contains(UnitEffect::Invulnerability);
         roll_successes(defense, self.to_block - i32::from(eldritch), rng)
             + if invulnerable {
-                INVULNERABILITY_BLOCK
+                rules.invulnerability_block
             } else {
                 0
             }
@@ -244,11 +249,6 @@ pub fn kill_figure(def: &mut DefenderState) -> Damage {
     unblockable(def, def.hits)
 }
 
-/// A ten-sided die: one to ten.
-/// The least and the most mana a Power Drain takes.
-const POWER_DRAIN_MIN: i32 = 2;
-const POWER_DRAIN_MAX: i32 = 20;
-
 fn d10(rng: &mut dyn RngCore) -> i32 {
     rng.gen_range(1..=10)
 }
@@ -319,6 +319,7 @@ impl std::ops::AddAssign for Damage {
 /// each attacking figure the touches (dispel evil, stoning, death, life steal, destruction),
 /// the blows themselves, and the poison.
 pub fn process_attack(
+    rules: &BattleRules,
     attacker: &Combatant,
     figures: u32,
     def: &mut DefenderState,
@@ -329,7 +330,7 @@ pub fn process_attack(
     let touchable = !def.immunities.magic;
     if attacker.immolation && attacker.mode == Mode::Melee && touchable && def.figures > 0 {
         let fire = Combatant {
-            strength: IMMOLATION_STRENGTH,
+            strength: rules.immolation_strength,
             mode: Mode::Ranged,
             nature: AttackNature {
                 stopped_by: Immunities {
@@ -342,7 +343,7 @@ pub fn process_attack(
             },
             ..Combatant::default()
         };
-        total += spell_attack(&fire, Volley::Area, def, rng);
+        total += spell_attack(rules, &fire, Volley::Area, def, rng);
     }
     if attacker.mode == Mode::ThrownOrBreath && sp.gaze != Gaze::None && touchable {
         let gazed = def.figures;
@@ -364,7 +365,7 @@ pub fn process_attack(
     if attacker.strength <= 0 || def.figures == 0 {
         return total;
     }
-    let defense = def.defense_versus(attacker);
+    let defense = def.defense_versus(attacker, rules);
     for _ in 0..figures {
         if def.figures == 0 {
             break;
@@ -413,7 +414,7 @@ pub fn process_attack(
                 attacker.to_hit - i32::from(def.lucky),
                 rng,
             );
-            (hits - def.blocks(defense, attacker.eldritch, rng)).max(0)
+            (hits - def.blocks(defense, attacker.eldritch, rules, rng)).max(0)
         };
         while dmg > 0 && def.figures > 0 {
             let need = def.hits - def.front_damage;
@@ -425,7 +426,7 @@ pub fn process_attack(
                 dmg -= need;
                 // The overflow meets the next figure's defense.
                 if dmg > 0 && !attacker.ignores_defense && !def.asleep() {
-                    dmg = (dmg - def.blocks(defense, attacker.eldritch, rng)).max(0);
+                    dmg = (dmg - def.blocks(defense, attacker.eldritch, rules, rng)).max(0);
                 }
             } else {
                 def.front_damage += dmg;
@@ -447,7 +448,7 @@ pub fn process_attack(
         && total.points > 0
         && def.resistance_failure(Some(Realm::Death), 0, rng) > 0
     {
-        total.mana_lost = rng.gen_range(POWER_DRAIN_MIN..=POWER_DRAIN_MAX);
+        total.mana_lost = rng.gen_range(rules.power_drain_min..=rules.power_drain_max);
     }
     // What a creator of undead deals, apart from what the touches destroy, can raise the dead.
     if sp.create_undead && !def.immunities.magic {
@@ -472,6 +473,7 @@ pub enum Volley {
 /// A damage spell against `def`: unlike a blow it ignores the target's resistance and
 /// brings no special attacks. `attacker.strength` is the spell's strength.
 pub fn spell_attack(
+    rules: &BattleRules,
     attacker: &Combatant,
     volley: Volley,
     def: &mut DefenderState,
@@ -480,18 +482,19 @@ pub fn spell_attack(
     if attacker.strength <= 0 || def.figures == 0 {
         return Damage::default();
     }
-    let defense = def.defense_versus(attacker);
+    let defense = def.defense_versus(attacker, rules);
     let blow = |strength: i32, rng: &mut dyn RngCore| {
         // A sleeper takes the full strength of every blow.
         if attacker.ignores_defense || def.asleep() {
             strength
         } else {
             let hits = roll_successes(strength, attacker.to_hit - i32::from(def.lucky), rng);
-            (hits - def.blocks(defense, attacker.eldritch, rng)).max(0)
+            (hits - def.blocks(defense, attacker.eldritch, rules, rng)).max(0)
         }
     };
     match volley {
         Volley::Bolt => process_attack(
+            rules,
             &Combatant {
                 special: SpecialAttacks::default(),
                 ..attacker.clone()
@@ -545,18 +548,23 @@ pub struct Exchange {
 
 /// A melee attack and the defender's reply, in the original's order. Both fighters' states
 /// are updated. Life stolen heals the thief at once.
-pub fn melee_exchange(att: &mut Fighter, def: &mut Fighter, rng: &mut dyn RngCore) -> Exchange {
+pub fn melee_exchange(
+    rules: &BattleRules,
+    att: &mut Fighter,
+    def: &mut Fighter,
+    rng: &mut dyn RngCore,
+) -> Exchange {
     let mut out = Exchange::default();
     // Thrown weapons and breath go first, with every figure the attacker has.
     if let Some(thrown) = &att.thrown {
-        let d = process_attack(thrown, att.state.figures, &mut def.state, rng);
+        let d = process_attack(rules, thrown, att.state.figures, &mut def.state, rng);
         att.state.heal_overflow(d.healed);
         out.dealt += d;
     }
     // A defender with a gaze gazes back before the blows, with the figures it has left.
     if let Some(gaze) = def.thrown.as_ref().filter(|t| t.special.gaze != Gaze::None) {
         if def.state.figures > 0 && att.state.figures > 0 {
-            let d = process_attack(gaze, def.state.figures, &mut att.state, rng);
+            let d = process_attack(rules, gaze, def.state.figures, &mut att.state, rng);
             def.state.heal_overflow(d.healed);
             out.taken += d;
         }
@@ -567,7 +575,7 @@ pub fn melee_exchange(att: &mut Fighter, def: &mut Fighter, rng: &mut dyn RngCor
             .state
             .figures
             .saturating_sub(feared_figures(&def.melee, &att.state, rng));
-        let d = process_attack(&att.melee, figures, &mut def.state, rng);
+        let d = process_attack(rules, &att.melee, figures, &mut def.state, rng);
         att.state.heal_overflow(d.healed);
         out.dealt += d;
     }
@@ -577,7 +585,7 @@ pub fn melee_exchange(att: &mut Fighter, def: &mut Fighter, rng: &mut dyn RngCor
             .state
             .figures
             .saturating_sub(feared_figures(&att.melee, &def.state, rng));
-        let d = process_attack(&def.melee, figures, &mut att.state, rng);
+        let d = process_attack(rules, &def.melee, figures, &mut att.state, rng);
         def.state.heal_overflow(d.healed);
         out.taken += d;
     }
@@ -587,7 +595,7 @@ pub fn melee_exchange(att: &mut Fighter, def: &mut Fighter, rng: &mut dyn RngCor
             .state
             .figures
             .saturating_sub(feared_figures(&def.melee, &att.state, rng));
-        let d = process_attack(&att.melee, figures, &mut def.state, rng);
+        let d = process_attack(rules, &att.melee, figures, &mut def.state, rng);
         att.state.heal_overflow(d.healed);
         out.dealt += d;
     }
@@ -608,12 +616,13 @@ fn feared_figures(attacker: &Combatant, def: &DefenderState, rng: &mut dyn RngCo
 
 /// A ranged attack: the target fires nothing back.
 pub fn ranged_attack(
+    rules: &BattleRules,
     attacker: &Combatant,
     figures: u32,
     def: &mut DefenderState,
     rng: &mut dyn RngCore,
 ) -> Damage {
-    process_attack(attacker, figures, def, rng)
+    process_attack(rules, attacker, figures, def, rng)
 }
 
 /// Penalty to hit with arrows and boulders at a distance: one per three squares, at most one

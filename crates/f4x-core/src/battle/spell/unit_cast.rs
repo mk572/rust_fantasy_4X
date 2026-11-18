@@ -330,6 +330,7 @@ impl Game {
         let player = battle.player_of(side);
 
         // Pay: the unit's mana, a charge or the ability, and its turn.
+        let shot_mana = battle.rules.shot_mana;
         let u = &mut battle.units[unit];
         u.moves_left = HalfInt::ZERO;
         u.attacked = true;
@@ -339,7 +340,7 @@ impl Game {
             SpellSource::Mana => {
                 u.mana -= paid;
                 if u.shoots_with_mana() {
-                    u.ammo = u.ammo.min(u.mana / super::super::SHOT_MANA);
+                    u.ammo = u.ammo.min(u.mana / shot_mana);
                 }
             }
             SpellSource::Item(item) => {

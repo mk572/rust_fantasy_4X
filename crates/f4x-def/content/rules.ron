@@ -50,6 +50,15 @@
         armsmaster: 81, super_armsmaster: 82,
         mutation: (mutated: 98, armor_marker: 104, wings_marker: 105, breath_marker: 106, wings_ability: 24, breath_ability: 20, thrown_ability: 69, thrown_most: 3, armor_defense: 3, wings_moves: 2, breath_strength: 2, breath_ammo: 1),
     ),
+    // The battle: attack strengths and defence of the abilities and fields, mana of a shot and of a leak, the web, the
+    // turn limit, the node, Counter Magic, Power Drain, Stasis and the Magic Vortex.
+    battle: (
+        immolation_strength: 4, large_shield: 2, invulnerability_block: 2, immune_defense: 50,
+        mana_leak_drain: 5, call_lightning_strength: 8, wall_of_fire_strength: 5,
+        node_counter_strength: 50, node_aura_bonus: 2, counter_magic_drain: 5,
+        shot_mana: 3, web_hits: 12, turn_limit: 100, power_drain_min: 2, power_drain_max: 20, freeing_modifier: -5,
+        vortex_random_moves: 3, vortex_crush_damage: 5, vortex_bolt_strength: 5, vortex_city_damage: 5,
+    ),
     // Experience and fame: per dead enemy unit and per turn, the dead that cost a point of fame, the cost of a very rare
     // foe, Just Cause and the fortress prize, the level Heroism gives (from 0) and the resistance Charmed adds.
     renown: (xp_per_kill: 2, xp_per_turn: 1, fame_kills: 4, rare_foe_cost: 600, just_cause_fame: 10, fortress_prize_fame: 5, heroism_level: 3, charmed_resistance: 30),

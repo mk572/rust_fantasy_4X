@@ -1901,7 +1901,7 @@ fn counter_magic_stops_a_spell_that_still_costs_its_mana() {
     );
     assert_eq!(
         g.battle().expect("a battle is on").counter_magic[Side::Defender.index()],
-        100_000 - f4x_core::spell::dispel::COUNTER_MAGIC_DRAIN,
+        100_000 - g.content().rules.config.battle.counter_magic_drain,
         "every attempt drains the reserve"
     );
 }
@@ -2289,7 +2289,7 @@ fn mana_leak_drains_the_rivals_reserve_in_the_game_too() {
             .expect("the player exists")
             .treasury()
             .mana,
-        95
+        100 - g.content().rules.config.battle.mana_leak_drain,
     );
     assert_eq!(
         g.battle()
@@ -2297,7 +2297,7 @@ fn mana_leak_drains_the_rivals_reserve_in_the_game_too() {
             .caster(Side::Defender)
             .expect("the side has a caster")
             .mana,
-        95
+        100 - g.content().rules.config.battle.mana_leak_drain
     );
 }
 

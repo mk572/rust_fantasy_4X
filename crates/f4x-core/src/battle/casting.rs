@@ -20,11 +20,12 @@ use super::{Battle, BattleEvent, BattleUnit, RangedKind, Side, Status};
 use crate::player::PlayerId;
 use crate::rules::effects::DamageTraits;
 use crate::rules::stats::{compute, Modifier, Stat};
-use crate::rules::SpellId;
+use crate::rules::{BattleRules, SpellId};
 
 /// A damage spell of `strength` on one unit (see [`Battle::spell_damage`]); the unit is changed
 /// in place. Overland spells that hurt units (`Game::process_chaos_rifts`) use it too.
 pub(crate) fn damage_unit_with_spell(
+    rules: &BattleRules,
     unit: &mut BattleUnit,
     strength: i32,
     traits: &DamageTraits,
@@ -56,7 +57,7 @@ pub(crate) fn damage_unit_with_spell(
         special: Default::default(),
         ..Combatant::default()
     };
-    let dmg = spell_attack(&spell, volley, &mut state, rng);
+    let dmg = spell_attack(rules, &spell, volley, &mut state, rng);
     unit.set_from(&state);
     unit.record(dmg);
     Some(dmg)
@@ -375,8 +376,16 @@ impl Battle {
         traits: &DamageTraits,
         nature: AttackNature,
     ) -> Option<Damage> {
+        let rules = self.rules;
         let rng: &mut dyn RngCore = &mut self.rng;
-        damage_unit_with_spell(&mut self.units[target], strength, traits, nature, rng)
+        damage_unit_with_spell(
+            &rules,
+            &mut self.units[target],
+            strength,
+            traits,
+            nature,
+            rng,
+        )
     }
 
     /// A die of `sides` sides, from the battle's own generator: one to `sides`.
@@ -510,11 +519,12 @@ impl Battle {
         mods: &[Modifier],
         grants: &[Ability],
     ) {
+        let web_hits = self.rules.web_hits;
         let unit = &mut self.units[target];
         let webbing = effects.contains(UnitEffect::Web);
         // A web cast again on a unit that has it (its web broken) only closes round it anew.
         if webbing && unit.enchantments.contains(&spell) {
-            unit.web_closes();
+            unit.web_closes(web_hits);
             return;
         }
         unit.keep_base();
@@ -531,7 +541,7 @@ impl Battle {
         });
         unit.recompute();
         if webbing {
-            unit.web_closes();
+            unit.web_closes(web_hits);
         }
     }
 
@@ -574,8 +584,8 @@ impl Battle {
 
 impl BattleUnit {
     /// A web closes round the unit: whole again, and the unit loses what it had left of its turn.
-    pub(super) fn web_closes(&mut self) {
-        self.web_hits = super::WEB_HITS;
+    pub(super) fn web_closes(&mut self, web_hits: i32) {
+        self.web_hits = web_hits;
         self.moves_left = HalfInt::ZERO;
         self.attacked = true;
         self.extra_attack = false;
