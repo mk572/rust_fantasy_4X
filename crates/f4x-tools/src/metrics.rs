@@ -630,7 +630,13 @@ impl Tally {
                         .has_hook(f4x_core::spell::special::SPELL_OF_MASTERY)
                 })
             });
+            // No research is no fault of the wizard's split when it is defeated, when the Mana Short
+            // event dries up every source of power, or while it casts the Spell of Return.
+            let blameless = game.player(p).is_some_and(|q| q.is_defeated())
+                || game.events().mana_is_short()
+                || game.casting_return(p);
             if !mastery
+                && !blameless
                 && game.wizard(p).is_some_and(|w| w.researching().is_some())
                 && income.research <= 0
             {
