@@ -1353,6 +1353,57 @@ mod tests {
         Ok(())
     }
 
+    /// Units that travel between the planes themselves need no tower and no spell: when the
+    /// campaign is on the other plane (set by a means the plan knows), they get across with no
+    /// order of the war job's own and no spell cast for them.
+    #[test]
+    fn shadow_demons_shift_to_the_plane_of_the_campaign_by_themselves(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        use f4x_core::map::Plane;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let far_city = Position {
+            plane: Plane::Myrror,
+            ..at(28, 7)
+        };
+        g.apply(Command::FoundCity {
+            owner: P1,
+            pos: far_city,
+            name: "Farport".into(),
+            race: None,
+            population: 3,
+        });
+        g.explore(P0, far_city, HalfInt::from_raw(3));
+        // The campaign is set by a means the plan knows (Plane Shift); the demons need none of it.
+        g.cheat_learn_spell(P0, f4x_def::rules::SpellId::new(132 /* plane_shift */));
+        g.treasury_mut(P0).ok_or("a treasury")?.mana = HalfInt::from_int(5_000);
+        g.wizard_mut(P0)
+            .ok_or("a wizard")?
+            .get_mut::<f4x_core::wizard::sheet::Skill>()
+            .left = 500;
+        let demons = spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            171, /* shadow_demons */
+            12,
+        );
+        let mut ai = Ai::new(P0);
+        let mut events = Vec::new();
+        run(&mut ai, &mut g, &mut events);
+        let shifted = demons
+            .iter()
+            .filter(|&&u| g.units().unit_position(u).map(|p| p.plane) == Some(Plane::Myrror))
+            .count();
+        assert!(shifted > 0, "{events:?} {:?}", ai.campaign);
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, f4x_core::game::Event::PlaneShifted { .. })),
+            "no spell was cast: {events:?}"
+        );
+        Ok(())
+    }
+
     #[test]
     fn a_wizard_with_plane_shift_carries_the_army_to_a_city_on_the_other_plane(
     ) -> Result<(), Box<dyn std::error::Error>> {
