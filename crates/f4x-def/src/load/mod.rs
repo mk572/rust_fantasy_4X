@@ -501,10 +501,15 @@ mod tests {
     #[test]
     fn the_real_rules_data_has_every_item_and_power_of_the_original() -> TestResult {
         let c = load_content(&super::testutil::content_dir())?;
-        assert_eq!(c.rules.items.len(), 250);
-        assert_eq!(c.rules.item_powers.len(), 66);
-        assert!(c.rules.items.id_numbered(56).is_some());
-        assert!(c.rules.items.id_numbered(13).is_some());
+        // The original's tables (`tests/original/items.tsv`, `item_powers.tsv`) are the source.
+        assert_eq!(
+            c.rules.items.len(),
+            crate::original::named_table(crate::original::ITEMS).len()
+        );
+        assert_eq!(
+            c.rules.item_powers.len(),
+            crate::original::named_table(crate::original::ITEM_POWERS).len()
+        );
         Ok(())
     }
 

@@ -683,22 +683,36 @@ mod tests {
     }
 
     #[test]
-    fn every_race_has_ten_in_all_and_each_plane_seventy() -> TestResult {
-        let g = world(1)?;
-        let races = g.content().rules.races.defs();
-        for r in races {
-            assert_eq!(
-                r.neutral_weight.arcanus + r.neutral_weight.myrror,
-                10,
-                "{}",
-                r.id
-            );
-        }
-        let plane = |f: fn(&f4x_def::rules::PlaneWeight) -> u32| {
-            races.iter().map(|r| f(&r.neutral_weight)).sum::<u32>()
+    fn the_races_rolled_from_are_those_with_a_weight_on_the_plane_and_only_with_the_mix_setting(
+    ) -> TestResult {
+        // `neutral_weight` of each row of `races.ron`.
+        let game = |mix: bool| -> Result<Game, String> {
+            let mut spec = NewGame {
+                seed: 1,
+                all_ai: true,
+                ..Default::default()
+            };
+            spec.settings.rules.mix_neutral_races = mix;
+            new_game(shipped(), &spec)
         };
-        assert_eq!(plane(|w| w.arcanus), 70);
-        assert_eq!(plane(|w| w.myrror), 70);
+        let (off, g) = (game(false)?, game(true)?);
+        for plane in [Plane::Arcanus, Plane::Myrror] {
+            assert_eq!(weighted_races(&off, plane), None);
+            let rules = &g.content().rules;
+            let want: Vec<(RaceId, u32)> = rules
+                .races
+                .iter()
+                .filter_map(|(id, r)| {
+                    let w = match plane {
+                        Plane::Arcanus => r.neutral_weight.arcanus,
+                        Plane::Myrror => r.neutral_weight.myrror,
+                    };
+                    (w > 0).then_some((id, w))
+                })
+                .collect();
+            assert!(!want.is_empty(), "no race has a weight on {plane:?}");
+            assert_eq!(weighted_races(&g, plane), Some(want), "{plane:?}");
+        }
         Ok(())
     }
 

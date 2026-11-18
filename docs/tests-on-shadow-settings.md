@@ -7,16 +7,16 @@ it"): a test reads the setting from the shipped rules and checks the game does w
 It is a text search for a test that reads the content and asserts a number, so most rows are a
 number used as the input of a scenario (no shadow setting); read each row's assert.
 
-**186 of 2525 tests.**
+**180 of 2525 tests.**
 
 | Crate | Tests |
 |---|---|
 | `f4x-core` | 112 |
-| `f4x-newgame` | 21 |
 | `f4x-ai` | 20 |
-| `f4x-def` | 10 |
+| `f4x-newgame` | 19 |
 | `f4x-tools` | 10 |
-| `f4x-client` | 8 |
+| `f4x-def` | 9 |
+| `f4x-client` | 5 |
 | `f4x-learn` | 4 |
 | `f4x-lang` | 1 |
 
@@ -85,17 +85,11 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 |---|---|---|
 | `rounds_with_two_ais_advance_the_round_counter_once_each` | 9 | `assert_eq!(g.turn, start + 8);` |
 
-## `crates/f4x-client/src/asset_check.rs`
-
-| Test | Line | First assert with a number |
-|---|---|---|
-| `the_shipped_tables_agree_with_the_shipped_rules` | 185 | `assert_eq!(tables.icons.battle_info.len(), 14);` |
-
 ## `crates/f4x-client/src/city_scroll.rs`
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `a_curse_on_an_enemy_city_gets_the_bad_tune_of_its_realm` | 226 | `assert_eq!(good.music, Track::piece(4));` |
+| `a_curse_on_an_enemy_city_gets_the_bad_tune_of_its_realm` | 226 | `assert!( scroll(7 ).is_none(), );` |
 
 ## `crates/f4x-client/src/crowd_prompt.rs`
 
@@ -109,12 +103,6 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 |---|---|---|
 | `what_a_wizard_can_give_is_what_the_other_lacks_the_dearest_first` | 1340 | `assert!(offered .windows(2) .all(/w/ spells.get(w[0]).research_cost >= spells.get(w[1]).research_cos` |
 
-## `crates/f4x-client/src/help_check.rs`
-
-| Test | Line | First assert with a number |
-|---|---|---|
-| `each_townsfolk_topic_names_the_buildings_its_race_cannot_build` | 49 | `assert_eq!(content.rules.races.iter().count(), 14);` |
-
 ## `crates/f4x-client/src/neutral_art.rs`
 
 | Test | Line | First assert with a number |
@@ -125,8 +113,7 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `the_shipped_creatures_get_the_palette_of_their_realm` | 395 | `assert_eq!(palette_of(6 ), 62);` |
-| `the_shipped_spells_that_summon_are_the_ones_the_scene_knows` | 358 | `assert_eq!( summons(6 ), Some(Summoned::Creature(UnitId::new(179))) );` |
+| `the_shipped_creatures_get_the_palette_of_their_realm` | 417 | `assert!(summons .iter() .all(/(_, p)/ (PALETTE_GREY..=PALETTE_NATURE + 4).contains(p)));` |
 
 ## `crates/f4x-core/src/battle/power.rs`
 
@@ -442,10 +429,9 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `item_movement_is_in_whole_moves` | 512 | `assert!( (1..=4).contains(&value.floor()) && value.is_whole(), , item.id );` |
+| `item_movement_is_in_whole_moves` | 517 | `assert!( (1..=4).contains(&value.floor()) && value.is_whole(), , item.id );` |
 | `shipped_terrain_file_is_valid` | 456 | `assert!(t.id_numbered(4 ).is_some());` |
 | `the_hero_types_and_their_starting_records_are_the_originals` | 346 | `assert_eq!(heroes.len(), 35);` |
-| `the_real_rules_data_has_every_item_and_power_of_the_original` | 502 | `assert_eq!(c.rules.items.len(), 250);` |
 
 ## `crates/f4x-def/src/load/rules.rs`
 
@@ -519,7 +505,6 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 | Test | Line | First assert with a number |
 |---|---|---|
 | `a_race_with_a_terrain_of_its_own_is_found_among_it_more_than_chance_would_have_it` | 649 | `assert!( among > chance * 1.25, );` |
-| `every_race_has_ten_in_all_and_each_plane_seventy` | 686 | `assert_eq!( r.neutral_weight.arcanus + r.neutral_weight.myrror, 10, , r.id );` |
 
 ## `crates/f4x-newgame/src/place.rs`
 
@@ -531,20 +516,19 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `a_myrran_wizard_starts_on_myrror_and_the_others_on_arcanus` | 915 | `assert_eq!(plane(2), Some(Plane::Arcanus));` |
-| `a_retort_is_found_by_name_whatever_the_case_and_punctuation` | 720 | `assert_eq!( parse_retort(rules, ), Some(Retort::new(7) ) );` |
+| `a_myrran_wizard_starts_on_myrror_and_the_others_on_arcanus` | 910 | `assert_eq!(plane(2), Some(Plane::Arcanus));` |
 | `above_normal_arcanus_computer_wizards_are_limited_to_five_races_unless_the_switch_is_off` | 679 | `assert!(arcanus_races(3, false)? .iter() .any(/n/ !f4x_def::settings::LIMITED_AI_RACES.contains(n)))` |
-| `every_wizard_starts_with_a_capital_an_army_and_a_small_view` | 884 | `assert!(!army.is_empty() && army.len() <= 2, , army.len());` |
-| `the_same_seed_makes_the_same_world_and_another_seed_another` | 933 | `assert_eq!(text(4)?, text(4)?);` |
+| `every_wizard_starts_with_a_capital_an_army_and_a_small_view` | 879 | `assert!(!army.is_empty() && army.len() <= 2, , army.len());` |
+| `the_same_seed_makes_the_same_world_and_another_seed_another` | 928 | `assert_eq!(text(4)?, text(4)?);` |
 
 ## `crates/f4x-newgame/tests/it/shipped_game.rs`
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `a_myrran_wizard_of_nine_books_needs_the_two_pick_option_to_be_made` | 146 | `assert_eq!( f4x_core::wizard::retort_cost(&g.content().rules, Retort::new(9)), 2 );` |
-| `a_ready_made_human_wizard_over_the_most_books_is_asked_to_spend_the_picks` | 223 | `assert!(make(11).is_ok());` |
-| `no_wizard_starts_with_more_books_in_a_realm_than_the_setting_allows` | 172 | `assert_eq!( wizards.len(), 6, );` |
-| `wizards_with_twelve_or_thirteen_books_in_a_realm_play_on` | 240 | `assert!( most_seen > 11, );` |
+| `a_myrran_wizard_of_nine_books_needs_the_two_pick_option_to_be_made` | 146 | `assert!( 9 + f4x_core::wizard::retort_cost(rules, Retort::new(9 )) > picks, );` |
+| `a_ready_made_human_wizard_over_the_most_books_is_asked_to_spend_the_picks` | 229 | `assert!(make(11).is_ok());` |
+| `no_wizard_starts_with_more_books_in_a_realm_than_the_setting_allows` | 178 | `assert_eq!( wizards.len(), 6, );` |
+| `wizards_with_twelve_or_thirteen_books_in_a_realm_play_on` | 246 | `assert!( most_seen > 11, );` |
 
 ## `crates/f4x-tools/src/metrics.rs`
 

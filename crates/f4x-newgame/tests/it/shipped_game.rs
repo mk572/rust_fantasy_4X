@@ -156,10 +156,16 @@ fn a_myrran_wizard_of_nine_books_needs_the_two_pick_option_to_be_made() -> TestR
         spec.settings.rules.two_pick_myrran = two_pick;
         new_game(shipped(), &spec)
     };
+    // The books and the retort at the row's cost must overspend the picks, or the test shows
+    // nothing; two picks is what the option is named for.
+    let rules = &f4x_def::testdir::shipped().rules;
+    let picks = NewGame::default().settings.wizards.picks.human;
     assert!(
-        make(false).is_err(),
-        "nine books and Myrran are twelve picks"
+        9 + f4x_core::wizard::retort_cost(rules, Retort::new(9 /* myrran */)) > picks,
+        "nine books and Myrran must be more than the {picks} picks"
     );
+    assert!(9 + 2 <= picks, "nine books and a two-pick Myrran fit");
+    assert!(make(false).is_err(), "nine books and Myrran overspend");
     let g = make(true)?;
     assert_eq!(
         f4x_core::wizard::retort_cost(&g.content().rules, Retort::new(9)),

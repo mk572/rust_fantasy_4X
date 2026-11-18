@@ -355,22 +355,44 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_shipped_spells_that_summon_are_the_ones_the_scene_knows() {
+    fn a_spell_gets_the_scene_of_what_its_effects_summon() {
+        // The `Summon` effect names the creature, the `summon_hero` hook the hero or the champion
+        // (Torin and a resurrection have no scene), the `craft_item` hook the sword.
         let app = App::for_test();
         let rules = &app.game.content().rules;
-        let summons = |id: u16| {
-            let spell = rules.spells.by_num(id).expect("spell");
-            summoned_by(spell)
-        };
-        assert_eq!(
-            summons(6 /* war_bears */),
-            Some(Summoned::Creature(UnitId::new(179))) // war_bears
-        );
-        assert_eq!(summons(208 /* summon_hero */), Some(Summoned::Hero));
-        assert_eq!(summons(212 /* summon_champion */), Some(Summoned::Champion));
-        assert_eq!(summons(207 /* enchant_item */), Some(Summoned::Item));
-        assert_eq!(summons(211 /* create_artifact */), Some(Summoned::Item));
-        assert_eq!(summons(7 /* stone_skin */), None);
+        let (mut creatures, mut heroes, mut champions, mut items, mut none) = (0, 0, 0, 0, 0);
+        for (_, def) in rules.spells.iter() {
+            let summon = def.effects.iter().find_map(|e| match &e.effect {
+                Effect::Summon { unit, .. } => Some(*unit),
+                _ => None,
+            });
+            let hero = def.hook_args(SUMMON_HERO).and_then(|a| a.first().cloned());
+            let want = match (summon, hero.as_deref()) {
+                (Some(unit), _) => Some(Summoned::Creature(unit)),
+                (None, Some("hero")) => Some(Summoned::Hero),
+                (None, Some("champion")) => Some(Summoned::Champion),
+                (None, Some(_)) => None,
+                (None, None) if def.hook_args(CRAFT_ITEM).is_some() => Some(Summoned::Item),
+                (None, None) => None,
+            };
+            assert_eq!(summoned_by(def), want, "{}", def.id);
+            match want {
+                Some(Summoned::Creature(_)) => creatures += 1,
+                Some(Summoned::Hero) => heroes += 1,
+                Some(Summoned::Champion) => champions += 1,
+                Some(Summoned::Item) => items += 1,
+                None => none += 1,
+            }
+        }
+        for (what, n) in [
+            ("creature", creatures),
+            ("hero", heroes),
+            ("champion", champions),
+            ("item", items),
+            ("no scene", none),
+        ] {
+            assert!(n > 0, "the content has no spell with {what}");
+        }
     }
 
     #[test]
@@ -395,33 +417,30 @@ mod tests {
     fn the_shipped_creatures_get_the_palette_of_their_realm() {
         let app = App::for_test();
         let rules = &app.game.content().rules;
-        let palette_of = |spell: u16| {
-            let def = rules.spells.by_num(spell).expect("spell");
-            let Some(Summoned::Creature(unit)) = summoned_by(def) else {
-                panic!("spell {spell} summons no creature");
-            };
-            palette_entry(
-                rules
-                    .units
-                    .get(unit)
-                    .realm
-                    .map(|realm| rules.realms.get(realm).num),
-            )
-        };
-        assert_eq!(palette_of(6 /* war_bears */), 62);
-        // Every creature summon lands on one of the six palettes, and the book realms differ.
-        let palettes: std::collections::BTreeSet<usize> = rules
+        // Each creature summon, with the realm number of its unit and the palette it gets.
+        let summons: Vec<(Option<u16>, usize)> = rules
             .spells
             .iter()
             .filter_map(|(_, def)| match summoned_by(def) {
-                Some(Summoned::Creature(unit)) => Some(palette_entry(
-                    rules.units.get(unit).realm.map(|r| rules.realms.get(r).num),
-                )),
+                Some(Summoned::Creature(unit)) => {
+                    let realm = rules.units.get(unit).realm.map(|r| rules.realms.get(r).num);
+                    Some((realm, palette_entry(realm)))
+                }
                 _ => None,
             })
             .collect();
-        assert!(palettes.iter().all(|p| (61..=66).contains(p)));
-        assert!(palettes.len() >= 5, "{palettes:?}");
+        assert!(!summons.is_empty(), "the content summons no creature");
+        // Every creature summon lands on one of the six palettes.
+        assert!(summons
+            .iter()
+            .all(|(_, p)| (PALETTE_GREY..=PALETTE_NATURE + 4).contains(p)));
+        // Creatures of two book realms get two palettes.
+        let book_realm = |(realm, _): &&(Option<u16>, usize)| matches!(realm, Some(0..=4));
+        let books: Vec<_> = summons.iter().filter(book_realm).collect();
+        let first = books.first().expect("a creature of a book realm");
+        let other = books.iter().find(|(realm, _)| *realm != first.0);
+        let other = other.expect("creatures of two book realms");
+        assert_ne!(first.1, other.1);
     }
 
     #[test]

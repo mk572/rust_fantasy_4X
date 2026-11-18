@@ -719,22 +719,17 @@ mod tests {
     #[test]
     fn a_retort_is_found_by_name_whatever_the_case_and_punctuation() {
         let rules = &shipped().rules;
-        assert_eq!(
-            parse_retort(rules, "alchemy"),
-            Some(Retort::new(0) /* alchemy */)
-        );
-        assert_eq!(
-            parse_retort(rules, "Sage_Master"),
-            Some(Retort::new(7) /* sage_master */)
-        );
-        assert_eq!(
-            parse_retort(rules, "sage master"),
-            Some(Retort::new(7) /* sage_master */)
-        );
-        assert_eq!(
-            parse_retort(rules, "MANA-FOCUSING"),
-            Some(Retort::new(11) /* mana_focusing */)
-        );
+        // Each retort's alias in the case and with the separators a player may type.
+        for (id, def) in rules.retorts.iter() {
+            for typed in [
+                def.id.to_uppercase(),
+                def.id.replace('_', " "),
+                def.id.replace('_', "-"),
+                def.id.replace('_', " ").to_uppercase(),
+            ] {
+                assert_eq!(parse_retort(rules, &typed), Some(id), "{typed}");
+            }
+        }
         assert_eq!(parse_retort(rules, "no such retort"), None);
         assert_eq!(parse_retort(rules, ""), None);
         for (id, def) in rules.retorts.iter() {

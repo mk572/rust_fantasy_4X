@@ -237,7 +237,12 @@ mod tests {
             app.city_scroll_for(HUMAN, spells.id_numbered(id).expect("spell"), city, None)
         };
         let good = scroll(12 /* natures_eye */).expect("a city spell");
-        assert_eq!(good.music, Track::piece(4));
+        // The realm's good tune: its slot in the table of tunes.
+        let realm = spells.get(spells.id_numbered(12).expect("spell")).realm;
+        assert_eq!(
+            good.music,
+            Track::piece(GOOD_MUSIC[realm_slot(Some(realm))])
+        );
         assert!(
             scroll(7 /* stone_skin */).is_none(),
             "a unit spell has no scroll"

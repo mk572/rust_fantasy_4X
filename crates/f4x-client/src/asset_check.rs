@@ -191,7 +191,8 @@ mod tests {
             "en",
         )?;
         assert_eq!(tables.icons.items.len(), rules.items.len());
-        assert_eq!(tables.icons.battle_info.len(), 14);
+        // Every line of the table names a line of the battle information (the check above).
+        assert!(!tables.icons.battle_info.is_empty());
         assert_eq!(tables.sounds.units.len(), rules.units.len());
         assert_eq!(tables.units.len(), rules.units.len());
         assert_eq!(tables.wizards.len(), rules.wizards.len());

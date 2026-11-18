@@ -49,7 +49,7 @@ mod tests {
     fn each_townsfolk_topic_names_the_buildings_its_race_cannot_build() -> TestResult {
         let help = shipped::help();
         let content = shipped::content();
-        assert_eq!(content.rules.races.iter().count(), 14);
+        assert!(content.rules.races.iter().next().is_some());
         for (_, r) in content.rules.races.iter() {
             let index = r
                 .help
