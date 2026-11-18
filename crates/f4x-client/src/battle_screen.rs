@@ -992,6 +992,8 @@ impl App {
             }
             // The vortex's round sounds like a small flyer (`Vortex_Combat_Round`).
             BattleEvent::VortexMoved { .. } => out.push(Anim::Sound { cast: 7 }),
+            // A fizzled spell is announced with the standard click (`CMB_CounterMessage`).
+            BattleEvent::SpellCountered { .. } => out.push(Anim::Warning),
             BattleEvent::SpellCast { side, spell, .. } => {
                 out.extend(self.spell_cast_sound(*spell));
                 out.extend(self.spell_animation(ui, before, *spell, Ok(*side)));
@@ -1008,9 +1010,22 @@ impl App {
     fn advance_animation(&mut self, ui: &mut BattleUi, dt: f32) {
         let mut started = None;
         let mut stepped = None;
+        let mut again = None;
         if let Some((anim, t)) = ui.playing.as_mut() {
             let before = *t;
             *t += dt;
+            // A spell on several squares sounds as each square's picture starts.
+            if let Anim::Spell {
+                fx: crate::spell_fx::SpellFx::Cell { .. } | crate::spell_fx::SpellFx::Chaos,
+                cells,
+                sound,
+                ..
+            } = anim
+            {
+                if battle_anim::a_square_starts(cells, before, *t) {
+                    again = *sound;
+                }
+            }
             if let Anim::Move { unit, .. } = anim {
                 // A sound for each square after the first, which sounded as the walk began.
                 if (*t / battle_anim::STEP_TIME) as usize
@@ -1035,6 +1050,9 @@ impl App {
         }
         if let Some(unit) = stepped {
             self.hear_step(ui, unit);
+        }
+        if again.is_some() {
+            self.audio.effect(again);
         }
     }
 
@@ -1062,9 +1080,15 @@ impl App {
             Anim::Attack { attacker, .. } => self
                 .unit_sound(ui, *attacker)
                 .and_then(|s| crate::audio::melee_sound(s.melee)),
-            Anim::Shot { attacker, .. } => self
-                .shown_unit(ui, *attacker)
-                .and_then(|u| crate::audio::shot_sound(missile_type(u))),
+            Anim::Shot { attacker, .. } => self.shown_unit(ui, *attacker).and_then(|u| {
+                let number = u
+                    .unit_id
+                    .map(|id| self.game.content().rules.units.get(id).num);
+                number
+                    .and_then(crate::audio::cannon_sound)
+                    .or_else(|| crate::audio::shot_sound(missile_type(u)))
+            }),
+            Anim::Warning => Some(crate::audio::WARNING),
             Anim::Sound { cast } => crate::audio::spell_sound(*cast),
             _ => None,
         };

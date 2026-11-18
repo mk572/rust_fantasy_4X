@@ -69,6 +69,8 @@ pub enum Anim {
     Death {
         unit: usize,
     },
+    /// The standard click of the counter message (`Play_Standard_Click`).
+    Warning,
     /// A spell's cast sound (the spell row's number), played as its picture starts; it takes no time.
     Sound {
         cast: i16,
@@ -90,6 +92,9 @@ pub enum Anim {
         /// For Call Chaos, the outcome of each of the squares (see `BattleEvent::ChaosCalled`).
         outcomes: Vec<u8>,
         line: String,
+        /// The spell's cast sound, which plays again as each later square starts (the original
+        /// plays it for every target's animation, `Combat_Spell_Animation`).
+        sound: Option<crate::audio::Key>,
     },
 }
 
@@ -103,7 +108,7 @@ impl Anim {
             Anim::Attack { .. } => ATTACK_TIME,
             Anim::Shot { .. } => SHOT_TIME,
             Anim::Death { .. } => DEATH_TIME,
-            Anim::Sound { .. } => 0.0,
+            Anim::Sound { .. } | Anim::Warning => 0.0,
             Anim::WallRise { frames, .. } => *frames as f32 * SPELL_FRAME,
             Anim::Spell {
                 fx, frames, cells, ..
@@ -117,6 +122,15 @@ pub const SPELL_FRAME: f32 = 0.1;
 /// The frames a Wall of Stone takes to rise.
 pub const STONE_RISE_FRAMES: usize = 10;
 pub const BOLT_FRAME: f32 = 0.06;
+
+/// Whether the picture of one of the later squares of a spell starts between `before` and `now`
+/// seconds: the cast sound plays again for it, as the original plays it for each target.
+pub fn a_square_starts(cells: &[(Pos, usize)], before: f32, now: f32) -> bool {
+    cells.iter().any(|&(_, delay)| {
+        let start = delay as f32 * SPELL_FRAME;
+        delay > 0 && start > before && start <= now
+    })
+}
 
 /// How long a spell's animation plays: its frames one after the other (the later squares start
 /// a few frames after the first), the bolts' flight and landing, the tint's rise and fall.
@@ -579,6 +593,22 @@ mod tests {
             visual_in(&anim, DEATH_TIME, 2, (3, 3), 2).expect("the unit has a place on screen");
         assert_eq!(start.alpha, 1.0);
         assert_eq!(end.alpha, 0.0);
+    }
+
+    #[test]
+    fn a_spell_on_several_squares_sounds_as_each_later_square_starts() {
+        let cell = |d: usize| ((0, 0), d);
+        let cells = [cell(0), cell(2), cell(4)];
+        // The first square sounds with the cast itself; the others as their pictures start.
+        assert!(!a_square_starts(&cells, 0.0, 0.1));
+        assert!(a_square_starts(&cells, 0.1, 2.5 * SPELL_FRAME));
+        assert!(a_square_starts(
+            &cells,
+            3.0 * SPELL_FRAME,
+            4.0 * SPELL_FRAME
+        ));
+        assert!(!a_square_starts(&cells, 4.0 * SPELL_FRAME, 9.0));
+        assert!(!a_square_starts(&[cell(0)], 0.0, 9.0));
     }
 
     #[test]

@@ -108,6 +108,16 @@ pub(crate) fn scream_sound(feminine: bool) -> Key {
 /// The button click (`Play_Left_Click`; `Play_Standard_Click`, entry 0, is only for warnings).
 pub(crate) const CLICK: Key = (Archive::SoundFx, 2);
 
+/// The standard click, for a warning: the counter message of a spell that fizzles
+/// (`Play_Standard_Click`, `CMB_CounterMessage`).
+pub(crate) const WARNING: Key = (Archive::SoundFx, 0);
+
+/// The sound of a shot by a unit of the battle: by the missile it throws, but the dwarven steam
+/// cannon (unit 80) fires a cannon, `SOUNDFX 16` (`Ranged_Animation`: `rat_Cannon`).
+pub(crate) fn cannon_sound(unit_number: u16) -> Option<Key> {
+    (unit_number == 80/* dwarven_steam_cannon */).then_some(fx(16))
+}
+
 /// A track of `MUSIC.LBX` and whether it is background music or one of the two event pieces.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Track {
@@ -531,6 +541,24 @@ mod tests {
         assert_eq!(shot_sound(8), None);
         assert_eq!(scream_sound(true), (Archive::SoundFx, 34));
         assert_eq!(scream_sound(false), (Archive::SoundFx, 35));
+    }
+
+    #[test]
+    fn the_steam_cannon_fires_a_cannon_and_nothing_else_does() -> Result<(), String> {
+        let units = &crate::test_app::shipped::content().rules.units;
+        let cannon = units
+            .iter()
+            .map(|(_, u)| u)
+            .find(|u| u.id == "dwarven_steam_cannon")
+            .ok_or("the steam cannon is missing")?;
+        assert_eq!(cannon_sound(cannon.num), Some((Archive::SoundFx, 16)));
+        assert!(units
+            .iter()
+            .map(|(_, u)| u)
+            .filter(|u| u.id != "dwarven_steam_cannon")
+            .all(|u| cannon_sound(u.num).is_none()));
+        assert_eq!(WARNING, (Archive::SoundFx, 0));
+        Ok(())
     }
 
     #[test]

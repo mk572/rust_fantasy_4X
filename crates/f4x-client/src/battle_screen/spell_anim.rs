@@ -130,6 +130,12 @@ impl App {
             cells: if plays { cells } else { Vec::new() },
             outcomes: chaos.iter().map(|&(_, o)| o).collect(),
             line,
+            sound: self
+                .audio
+                .table
+                .spells
+                .get(&id)
+                .and_then(|&cast| crate::audio::spell_sound(cast)),
         })
     }
 
