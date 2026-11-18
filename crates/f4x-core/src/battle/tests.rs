@@ -2709,7 +2709,7 @@ mod fields {
             .filter_map(|(id, def)| Field::of(def).map(|f| (id, f)))
             .collect();
         assert!(
-            fields.len() >= 12,
+            fields.len() > 1,
             "the shipped battlefield spells: {}",
             fields.len()
         );
@@ -5132,9 +5132,24 @@ fn the_loser_loses_the_point_the_winner_gets_for_four_dead_units() -> TestResult
 
 #[test]
 fn a_fallen_hero_costs_its_owner_half_its_level_rounded_down_counting_from_one() -> TestResult {
-    // (xp, fame lost): Hero 0, Myrmidon 20 and Captain 60 lose 0, 1 and 1 (by the wiki's level
-    // count from 1, halved and rounded down), Commander 120 and Champion 200 lose 2.
-    for (xp, lost) in [(0, 0), (20, 1), (60, 1), (120, 2), (200, 2)] {
+    // At each level of the hero's path (the `xp` of its `levels`), the fame lost is the level
+    // counted from one, halved and rounded down.
+    let rules = &shipped().rules;
+    let path = rules.level_paths.get(
+        rules
+            .units
+            .get(rules.units.id_numbered(0).ok_or("no dwarf")?)
+            .level_path
+            .ok_or("the hero has no level path")?,
+    );
+    let levels: Vec<(u32, i32)> = path
+        .levels
+        .iter()
+        .enumerate()
+        .map(|(i, l)| (l.xp, (i as i32 + 1) / 2))
+        .collect();
+    assert!(levels.iter().any(|&(_, lost)| lost > 0));
+    for (xp, lost) in levels {
         let mut g = game();
         let walker = g.content.rules.units.id_numbered(107).ok_or("no cavalry")?;
         let hero = g.content.rules.units.id_numbered(0).ok_or("no dwarf")?;

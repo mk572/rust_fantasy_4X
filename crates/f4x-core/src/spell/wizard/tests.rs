@@ -160,7 +160,8 @@ fn cruel_unminding_takes_a_tenth_at_most_and_at_least_one_point() -> TestResult 
         .wizard(P1)
         .ok_or("wizard is missing")?
         .casting_skill(&g.content.rules);
-    assert!((54..=59).contains(&after), "{after}");
+    // A tenth at most, one point at least.
+    assert!((before - before / 10..before).contains(&after), "{after}");
     // A tiny skill still loses a point.
     g.wizard_mut(P2)
         .ok_or("wizard_mut is missing")?

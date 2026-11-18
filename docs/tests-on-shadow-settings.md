@@ -125,16 +125,16 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `a_battle_is_saved_and_read_back_with_its_spells_and_items` | 6822 | `assert_eq!( save.check_spells(rules).err(), Some(save::BattleLoadError::UnknownSpell(9999)) );` |
+| `a_battle_is_saved_and_read_back_with_its_spells_and_items` | 6837 | `assert_eq!( save.check_spells(rules).err(), Some(save::BattleLoadError::UnknownSpell(9999)) );` |
 | `a_fallen_hero_costs_its_owner_half_its_level_rounded_down_counting_from_one` | 5134 | `assert_eq!( g.wizard(D).ok_or( )?.fame(), 5 - lost, );` |
-| `a_field_and_a_lasting_spell_are_independent_in_any_order_for_every_field` | 2704 | `assert!( fields.len() >= 12, , fields.len() );` |
+| `a_field_and_a_lasting_spell_are_independent_in_any_order_for_every_field` | 2704 | `assert!( changed >= 20, );` |
 | `a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle` | 3433 | `assert_eq!( armed.melee, plain.melee + sword_bonus.attack + 3, );` |
 | `a_web_cast_again_on_a_unit_that_broke_free_closes_round_it_anew` | 3001 | `assert_eq!( u.enchantments .iter() .filter(/&&e/ e == SpellId::new(5)) .count(), 1 );` |
 | `casting_costs_more_the_further_from_the_fortress` | 1970 | `assert_eq!(range_percent(Some(25), counted), 10);` |
-| `dispel_magic_takes_down_the_defenders_walls_of_fire_and_darkness` | 5600 | `assert!(downs >= 6, );` |
-| `spells_the_battle_reads_by_name_can_be_cast_and_stay_on_the_unit` | 6728 | `assert_eq!( cast_on_first(&mut g, 121 ), Err(BattleError::Spell(SpellError::AlreadyEnchanted)) );` |
-| `the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve` | 7058 | `assert_eq!(g.strategic_mana_default(A), Some(skill.clamp(1, 250)));` |
-| `the_dislike_a_battle_breeds_counts_every_unit_that_fell` | 7804 | `assert!( fallen >= 2, );` |
+| `dispel_magic_takes_down_the_defenders_walls_of_fire_and_darkness` | 5615 | `assert!(downs >= 6, );` |
+| `spells_the_battle_reads_by_name_can_be_cast_and_stay_on_the_unit` | 6743 | `assert_eq!( cast_on_first(&mut g, 121 ), Err(BattleError::Spell(SpellError::AlreadyEnchanted)) );` |
+| `the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve` | 7073 | `assert_eq!(g.strategic_mana_default(A), Some(skill.clamp(1, 250)));` |
+| `the_dislike_a_battle_breeds_counts_every_unit_that_fell` | 7819 | `assert!( fallen >= 2, );` |
 | `the_units_with_a_casting_ability_cast_its_spell_once_for_no_mana` | 4046 | `assert!(!cast.aims.is_empty(), ), (_, None) => return Err(format!( ).into()), } let aim = SpellAim::` |
 
 ## `crates/f4x-core/src/city/autobuild/tests.rs`
@@ -300,9 +300,9 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 
 | Test | Line | First assert with a number |
 |---|---|---|
-| `an_archmages_ten_points_are_safe` | 186 | `assert_eq!( g.wizard(P1) .ok_or( )? .casting_skill(&g.content.rules), 40 );` |
+| `an_archmages_ten_points_are_safe` | 187 | `assert_eq!( g.wizard(P1) .ok_or( )? .casting_skill(&g.content.rules), 40 );` |
 | `cruel_unminding_takes_a_tenth_at_most_and_at_least_one_point` | 142 | `assert_eq!(before, 60);` |
-| `lycanthropy_takes_settlers_and_the_stack_keeps_its_place` | 1404 | `assert_eq!(g.units().units_at(at(3, 3)).len(), 2);` |
+| `lycanthropy_takes_settlers_and_the_stack_keeps_its_place` | 1405 | `assert_eq!(g.units().units_at(at(3, 3)).len(), 2);` |
 
 ## `crates/f4x-core/src/threat/monster.rs`
 
