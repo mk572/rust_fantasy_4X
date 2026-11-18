@@ -195,7 +195,9 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             Offer::Hero { price, .. } => ai_accepts_hero(*price, gold),
             // A summoned hero is already paid for in mana.
             Offer::Summoned { .. } => true,
-            Offer::Mercenaries { price, .. } => ai_accepts_mercenaries(turn, *price, gold),
+            Offer::Mercenaries { price, .. } => {
+                ai_accepts_mercenaries(&game.content().rules.config.offer, turn, *price, gold)
+            }
             Offer::Item { item, price } | Offer::Resale { item, price, .. } => {
                 item_wanted(game, ai.player, item, *price, gold)
             }
@@ -281,7 +283,7 @@ pub fn answer_resales(game: &mut Game) -> Vec<Event> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::player::offer::{OfferKind, AI_FIRST_MERCENARY_TURN};
+    use f4x_core::player::offer::OfferKind;
     use f4x_core::player::PlayerId;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -338,7 +340,8 @@ mod tests {
         let mut g = game()?;
         let ai = Ai::new(P1);
         set_gold(&mut g, P1, 100_000)?;
-        g.turn = AI_FIRST_MERCENARY_TURN - 10;
+        let first = g.content().rules.config.offer.ai_first_turn;
+        g.turn = first - 10;
         let mut got = 0;
         for _ in 0..50 {
             if g.cheat_offer(P1, OfferKind::Mercenaries).is_some() {
@@ -355,7 +358,7 @@ mod tests {
             .iter()
             .any(|e| matches!(e, Event::MercenariesHired { .. })));
         assert!(g.offers(P1).is_empty());
-        g.turn = AI_FIRST_MERCENARY_TURN;
+        g.turn = first;
         g.cheat_offer(P1, OfferKind::Mercenaries);
         let mut events = Vec::new();
         answer(&ai, &mut g, &mut events);

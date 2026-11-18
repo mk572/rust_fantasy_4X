@@ -881,7 +881,8 @@ impl DiploUi {
                         .text("get", app.goods_text(get)),
                 );
                 let open = give.is_empty() || get.is_empty();
-                let can_counter = p.round + 1 < f4x_core::diplomacy::MAX_ROUNDS;
+                let can_counter =
+                    p.round + 1 < app.game.content().rules.config.diplomacy.max_rounds;
                 let rows = vec![
                     row(
                         app.text("diplomacy.counter_accept"),

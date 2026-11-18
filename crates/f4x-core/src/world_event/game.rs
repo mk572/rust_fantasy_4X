@@ -14,14 +14,13 @@ use crate::game::rng::GameRng;
 use crate::item::make::{make_item, Grade};
 use crate::map::{FeatureId, Position};
 use crate::player::PlayerId;
-use crate::world_event::BIG_EVENTS_FROM_TURN;
 use f4x_def::half_int::HalfInt;
 
 use crate::game::{Event, Game};
 use crate::rules::UnitKind;
 use crate::world_event::{
     donation, fires, flat_end, pick_victim, pirates_take, victim_weights, world_end, EventKind,
-    EventNotice, Voice, ORES,
+    EventNotice, Voice,
 };
 
 /// A mineral square an event works on: the city whose area holds it, the square and the mineral.
@@ -64,11 +63,11 @@ impl Game {
     }
 
     /// Make an event happen to a wizard now (an override, for tests and the console). The vetoes
-    /// apply, except the wait for `BIG_EVENTS_FROM_TURN`. Returns what the player is told, or why the event
+    /// apply, except the wait for `big_events_from_turn`. Returns what the player is told, or why the event
     /// cannot happen.
     pub fn cheat_event(&mut self, kind: EventKind, victim: PlayerId) -> Result<Vec<Event>, String> {
         let turn = self.turn;
-        self.turn = turn.max(BIG_EVENTS_FROM_TURN);
+        self.turn = turn.max(self.content.rules.config.threat.big_events_from_turn);
         let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());
         let armed = self.try_event(kind, victim, &mut rng);
         self.turn = turn;
@@ -136,7 +135,7 @@ impl Game {
             }
         }
         if matches!(kind, EventKind::Marriage | EventKind::GreatMeteor)
-            && self.turn < BIG_EVENTS_FROM_TURN
+            && self.turn < self.content.rules.config.threat.big_events_from_turn
         {
             return None;
         }
@@ -252,7 +251,10 @@ impl Game {
     fn find_deposit(&self, owner: PlayerId, new: bool, rng: &mut GameRng) -> Option<Deposit> {
         let map = self.map.as_ref()?;
         let rules = &self.content;
-        let ores: Vec<_> = ORES
+        let ores: Vec<_> = rules
+            .rules
+            .config
+            .event_ores
             .iter()
             .filter_map(|&num| rules.features.id_numbered(num))
             .collect();
@@ -430,7 +432,13 @@ impl Game {
                     map.plane_mut(d.at.plane)
                         .set_mineral(d.at.x, d.at.y, feature);
                 }
-                notice.ore = ORES.contains(&d.ore.0).then_some(d.ore.0);
+                notice.ore = self
+                    .content
+                    .rules
+                    .config
+                    .event_ores
+                    .contains(&d.ore.0)
+                    .then_some(d.ore.0);
                 notice.city = Some(d.city);
             }
             EventKind::PopulationBoom => {

@@ -62,17 +62,14 @@ pub(crate) enum OutpostTurn {
     Lost,
 }
 
-/// Tens of people a new outpost starts with (`Outpost.c`).
-pub(crate) const OUTPOST_START_TENS: u32 = 3;
-
-/// Tens of people at which an outpost becomes a city of one (`NEXTTURN.c`). They are kept: the
-/// original does not reset them, so a new hamlet starts with a head start.
-pub(crate) const OUTPOST_CITY_TENS: u32 = 10;
+// The tens of people a new outpost starts with and at which it becomes a city of one are `outpost` of
+// `rules.ron`.
 
 /// One turn of an outpost: by chance it gains up to three tens of people, and by another chance
-/// it loses up to two; at [`OUTPOST_CITY_TENS`] it becomes a city of one. The draws are in this
+/// it loses up to two; at `outpost.city_tens` it becomes a city of one. The draws are in this
 /// order. An outpost left with no people is not changed here: see [`Game::grow_outpost`].
 pub(crate) fn outpost_step(
+    rules: &f4x_def::rules::OutpostRules,
     mut pop: Population,
     grow: i32,
     shrink: i32,
@@ -84,7 +81,7 @@ pub(crate) fn outpost_step(
     if rng.roll(100) as i32 <= shrink {
         pop.tens = pop.tens.saturating_sub(rng.roll(2));
     }
-    if pop.tens >= OUTPOST_CITY_TENS {
+    if pop.tens >= rules.city_tens {
         pop.figures = 1;
     }
     pop
@@ -120,7 +117,13 @@ impl Game {
             .get::<&Population>(city)
             .map(|p| *p)
             .unwrap_or_default();
-        let pop = outpost_step(pop, grow, shrink, &mut self.rng);
+        let pop = outpost_step(
+            &self.content.rules.config.outpost,
+            pop,
+            grow,
+            shrink,
+            &mut self.rng,
+        );
         self.put(city, pop);
         if pop.figures > 0 {
             OutpostTurn::BecameCity
@@ -148,7 +151,11 @@ impl Game {
             pos,
             Population {
                 figures,
-                tens: if figures == 0 { OUTPOST_START_TENS } else { 0 },
+                tens: if figures == 0 {
+                    self.content.rules.config.outpost.start_tens
+                } else {
+                    0
+                },
             },
             Farmers(0),
             Buildings::default(),

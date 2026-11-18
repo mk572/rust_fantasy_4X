@@ -31,17 +31,7 @@ use crate::player::view::PlayerView;
 use crate::player::PlayerId;
 use crate::rules::SpellId;
 
-/// What one more book in the realm of a spell adds to its worth to a wizard, in percent, and
-/// the books that count.
-pub const SPELL_BOOK_PCT: i32 = 5;
-pub const SPELL_BOOK_CAP: i32 = 8;
-/// What an item is worth to a holder with a hero that has a free slot for it, with a hero whose
-/// slot for it is taken and with no hero that could use it, in percent of its value.
-pub const ITEM_FREE_SLOT_PCT: i32 = 150;
-pub const ITEM_TAKEN_SLOT_PCT: i32 = 100;
-pub const ITEM_NO_USER_PCT: i32 = 50;
-/// What a unit is worth to a wizard at war, in percent of its cost.
-pub const UNIT_AT_WAR_PCT: i32 = 125;
+// What the goods are worth in percent (books, slots, war) is `trade` of `rules.ron`.
 
 /// One side's part of a trade. Every part is optional; the bundle of a trade is never empty.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -257,11 +247,12 @@ pub fn worth(view: &Game, holder: PlayerId, goods: Goods) -> i32 {
 /// A spell: its research cost, more with the books of its realm.
 pub fn spell_worth(view: &Game, holder: PlayerId, spell: SpellId) -> i32 {
     let def = view.content().rules.spells.get(spell);
+    let rules = &view.content().rules.config.trade;
     let books = view
         .wizard(holder)
         .map_or(0, |m| m.books_in(def.realm))
-        .min(SPELL_BOOK_CAP);
-    def.research_cost as i32 * (100 + SPELL_BOOK_PCT * books) / 100
+        .min(rules.spell_book_cap);
+    def.research_cost as i32 * (100 + rules.spell_book_pct * books) / 100
 }
 
 /// An item of anybody's armory (the giver's, so it is looked up in all of them) as `holder`
@@ -279,7 +270,8 @@ fn armory_item_worth(view: &Game, holder: PlayerId, serial: Serial) -> i32 {
 pub fn item_worth(view: &Game, holder: PlayerId, item: &Item) -> i32 {
     use crate::item::armory::ItemWorld;
     let items = view.items();
-    let mut pct = ITEM_NO_USER_PCT;
+    let rules = &view.content().rules.config.trade;
+    let mut pct = rules.item_no_user_pct;
     for hero in view.units().hero_units(holder) {
         let Some(slots) = items.hero_slots(holder, hero) else {
             continue;
@@ -291,9 +283,9 @@ pub fn item_worth(view: &Game, holder: PlayerId, item: &Item) -> i32 {
             }
             let free = !used.contains(&(i as u8));
             pct = pct.max(if free {
-                ITEM_FREE_SLOT_PCT
+                rules.item_free_slot_pct
             } else {
-                ITEM_TAKEN_SLOT_PCT
+                rules.item_taken_slot_pct
             });
         }
     }
@@ -353,7 +345,7 @@ pub fn unit_cost_worth(view: &Game, holder: PlayerId, cost: i32) -> i32 {
         .into_iter()
         .any(|p| p != holder && view.treaty(holder, p) == crate::diplomacy::Treaty::War);
     if at_war {
-        cost * UNIT_AT_WAR_PCT / 100
+        cost * view.content().rules.config.trade.unit_at_war_pct / 100
     } else {
         cost
     }

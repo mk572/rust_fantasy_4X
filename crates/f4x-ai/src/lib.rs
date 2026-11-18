@@ -641,10 +641,10 @@ pub fn answer_proposals(game: &mut Game, player: PlayerId) -> Vec<Event> {
 }
 
 /// Two AI wizards answer each other's proposals and counters until nothing is pending between
-/// them (a negotiation has at most `MAX_ROUNDS` messages). `from` made the proposal to `to`.
+/// them (a negotiation has at most `max_rounds` messages). `from` made the proposal to `to`.
 pub fn settle(game: &mut Game, from: PlayerId, to: PlayerId) -> Vec<Event> {
     let mut events = Vec::new();
-    for _ in 0..=f4x_core::diplomacy::MAX_ROUNDS {
+    for _ in 0..=game.content().rules.config.diplomacy.max_rounds {
         let mut answered = false;
         for who in [to, from] {
             let waiting = game.human() != Some(who)

@@ -1905,19 +1905,19 @@ fn goods_are_worth_the_baseline_and_a_modifier() -> TestResult {
     let mut g = world();
     let (dear, _) = two_spells(&g)?;
     let cost = g.content.rules.spells.get(dear).research_cost as i32;
-    // Gold is gold; a spell is its research cost, a twentieth more for each book of its realm
-    // (two books here).
+    // Gold is gold; a spell is its research cost, more for each book of its realm (two books here).
+    let rule = g.content.rules.config.trade.clone();
     assert_eq!(trade::worth(&g, P0, Goods::gold(120)), 120);
     assert_eq!(
         trade::worth(&g, P0, Goods::spell(dear)),
-        cost * (100 + 2 * trade::SPELL_BOOK_PCT) / 100
+        cost * (100 + 2 * rule.spell_book_pct) / 100
     );
     // An item is worth half to a wizard with no hero to carry it, more with a hero that has a
     // free slot for it.
     let blade = sword();
     assert_eq!(
         trade::item_worth(&g, P0, &blade),
-        blade.cost as i32 * trade::ITEM_NO_USER_PCT / 100
+        blade.cost as i32 * rule.item_no_user_pct / 100
     );
     fortress(&mut g, P0, at(1, 1))?;
     g.add_hero(0).ok_or("a hero")?;
@@ -1925,7 +1925,7 @@ fn goods_are_worth_the_baseline_and_a_modifier() -> TestResult {
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         trade::item_worth(&g, P0, &blade),
-        blade.cost as i32 * trade::ITEM_FREE_SLOT_PCT / 100
+        blade.cost as i32 * rule.item_free_slot_pct / 100
     );
     // A unit costs its production; more to a wizard at war.
     assert_eq!(trade::unit_cost_worth(&g, P0, 100), 100);
@@ -1933,7 +1933,7 @@ fn goods_are_worth_the_baseline_and_a_modifier() -> TestResult {
     command(&mut g, DiplomacyCommand::DeclareWar { player: P0, on: P1 });
     assert_eq!(
         trade::unit_cost_worth(&g, P0, 100),
-        100 * trade::UNIT_AT_WAR_PCT / 100
+        100 * rule.unit_at_war_pct / 100
     );
     Ok(())
 }
@@ -2248,7 +2248,8 @@ fn a_trade_is_countered_up_to_the_round_limit_and_an_open_one_is_not_a_deal() ->
     assert!(rejected(&events).is_some());
     assert_eq!(g.diplomacy.proposals().len(), 1);
     // P1 names a price: a counter, a round on.
-    let price = trade(Goods::spell(dear), Goods::gold(300));
+    let max = g.content.rules.config.diplomacy.max_rounds;
+    let price = trade(Goods::spell(dear), Goods::gold(250));
     let counter = |g: &mut Game, player, from, kind| {
         command(g, DiplomacyCommand::Counter { player, from, kind })
     };
@@ -2259,19 +2260,31 @@ fn a_trade_is_countered_up_to_the_round_limit_and_an_open_one_is_not_a_deal() ->
         (pending.len(), pending[0].from, pending[0].round),
         (1, P1, 1)
     );
-    // P0 asks for a lower price, P1 comes down, and the third counter is the last the limit
-    // allows; a fourth is refused.
-    counter(&mut g, P0, P1, trade(Goods::gold(200), Goods::spell(dear)));
-    counter(&mut g, P1, P0, trade(Goods::spell(dear), Goods::gold(250)));
-    assert_eq!(g.diplomacy.proposals()[0].round, 3);
-    let events = counter(&mut g, P0, P1, trade(Goods::gold(220), Goods::spell(dear)));
+    // The two go on naming the same price, each counter a round on, up to the last round the
+    // limit allows (the proposal of an even round is P0's, an odd one P1's); one more is refused.
+    for round in 1..max - 1 {
+        let (player, from, kind) = if round % 2 == 1 {
+            (P0, P1, trade(Goods::gold(250), Goods::spell(dear)))
+        } else {
+            (P1, P0, trade(Goods::spell(dear), Goods::gold(250)))
+        };
+        counter(&mut g, player, from, kind);
+    }
+    let last = g.diplomacy.proposals()[0];
+    assert_eq!(last.round, max - 1);
+    let events = counter(
+        &mut g,
+        last.to,
+        last.from,
+        trade(Goods::gold(220), Goods::spell(dear)),
+    );
     assert!(rejected(&events).is_some());
     // The last offer can still be accepted: 250 gold for the spell.
     let events = command(
         &mut g,
         DiplomacyCommand::Answer {
-            player: P0,
-            from: P1,
+            player: last.to,
+            from: last.from,
             accept: true,
         },
     );

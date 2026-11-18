@@ -12,7 +12,7 @@
 //!
 //! Tests: in `f4x_newgame::neutral`, which places the cities of a new world.
 
-use crate::rules::{Ability, BuildingId};
+use crate::rules::Ability;
 use f4x_def::half_int::HalfInt;
 use std::collections::VecDeque;
 
@@ -24,20 +24,7 @@ use crate::map::{Plane, Position};
 use crate::game::Game;
 use crate::rules::{RaceId, UnitKind};
 
-/// What a city's population gives it, in the order the original hands them out: the building
-/// comes with `population - 2` at or above the number.
-const STARTING_BUILDINGS: &[(u32, BuildingId)] = &[
-    (0, BuildingId::new(3)),   // barracks
-    (1, BuildingId::new(8)),   // smithy
-    (2, BuildingId::new(32)),  // builders_hall
-    (3, BuildingId::new(4)),   // armory
-    (5, BuildingId::new(29)),  // granary
-    (6, BuildingId::new(9)),   // stables
-    (8, BuildingId::new(35)),  // city_walls
-    (10, BuildingId::new(5)),  // fighters_guild
-    (11, BuildingId::new(6)),  // armorers_guild
-    (12, BuildingId::new(22)), // shrine
-];
+// What a city's population gives it is `starting_buildings` of `rules.ron`.
 
 impl Game {
     /// The landmass a square is on (0 for sea); two squares are on the same land when the
@@ -136,7 +123,9 @@ impl Game {
 
         let rules = &self.content.rules;
         let level = population.saturating_sub(2);
-        let mut built: Vec<crate::rules::BuildingId> = STARTING_BUILDINGS
+        let mut built: Vec<crate::rules::BuildingId> = rules
+            .config
+            .starting_buildings
             .iter()
             .filter(|&&(from, _)| level >= from)
             .map(|&(_, id)| id)

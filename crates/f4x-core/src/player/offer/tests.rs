@@ -56,22 +56,29 @@ fn roll_until(g: &mut Game, wanted: impl Fn(&Offer) -> bool) -> usize {
 
 #[test]
 fn the_chances_follow_fame_the_retort_and_the_computer_bonus() {
-    // 2 + fame/25, doubled for a Famous wizard, at most 10.
-    assert_eq!(item_chance(0, 100), 2);
-    assert_eq!(item_chance(50, 100), 4);
-    assert_eq!(item_chance(50, 200), 8);
-    assert_eq!(item_chance(500, 200), 10);
-    // 1 + fame/20; the computer wizards get ten more on top of the cap.
-    assert_eq!(mercenary_chance(40, 100, false), 3);
-    assert_eq!(mercenary_chance(400, 200, false), 10);
-    assert_eq!(mercenary_chance(400, 200, true), 20);
-    // 3 + fame/25, plus ten for the computer, divided by (heroes + 1) / 2 + 1.
-    assert_eq!(hero_chance(0, 100, false, 0), 3);
-    assert_eq!(hero_chance(0, 100, true, 0), 13);
-    assert_eq!(hero_chance(500, 200, true, 0), 20);
-    assert_eq!(hero_chance(500, 200, true, 1), 10);
-    assert_eq!(hero_chance(500, 200, true, 4), 20 / 3);
-    assert_eq!(hero_chance(500, 200, true, 5), 5);
+    let rule = &f4x_def::testdir::shipped().rules.config.offer;
+    // Fame raises the chance, a Famous wizard doubles it, and no chance is above the cap.
+    assert!(item_chance(rule, 100, 100) > item_chance(rule, 0, 100));
+    assert!(item_chance(rule, 0, 200) > item_chance(rule, 0, 100));
+    assert_eq!(item_chance(rule, 100_000, 200), rule.max_chance);
+    assert_eq!(mercenary_chance(rule, 100_000, 200, false), rule.max_chance);
+    // The computer wizards get their bonus on top of the cap.
+    assert_eq!(
+        mercenary_chance(rule, 100_000, 200, true),
+        rule.max_chance + rule.ai_bonus
+    );
+    assert_eq!(
+        hero_chance(rule, 0, 100, true, 0),
+        hero_chance(rule, 0, 100, false, 0) + rule.ai_bonus
+    );
+    // The more heroes the wizard has, the lower the chance of another.
+    let mut last = hero_chance(rule, 100_000, 200, true, 0);
+    for heroes in 1..6 {
+        let now = hero_chance(rule, 100_000, 200, true, heroes);
+        assert!(now <= last, "{heroes} heroes");
+        last = now;
+    }
+    assert!(last < hero_chance(rule, 100_000, 200, true, 0));
 }
 
 #[test]
@@ -107,21 +114,17 @@ fn the_computer_wizards_answer_by_gold_and_turn() {
         110,
         f4x_def::half_int::HalfInt::from_int(100)
     ));
-    assert!(ai_accepts_mercenaries(
-        50,
-        50,
-        f4x_def::half_int::HalfInt::from_int(100)
-    ));
+    let rule = &f4x_def::testdir::shipped().rules.config.offer;
+    let gold = f4x_def::half_int::HalfInt::from_int(100);
+    // From its first turn, if the price is at most half its gold.
+    assert!(ai_accepts_mercenaries(rule, rule.ai_first_turn, 50, gold));
     assert!(!ai_accepts_mercenaries(
-        49,
+        rule,
+        rule.ai_first_turn - 1,
         50,
-        f4x_def::half_int::HalfInt::from_int(100)
+        gold
     ));
-    assert!(!ai_accepts_mercenaries(
-        60,
-        51,
-        f4x_def::half_int::HalfInt::from_int(100)
-    ));
+    assert!(!ai_accepts_mercenaries(rule, rule.ai_first_turn, 51, gold));
 }
 
 #[test]
@@ -177,19 +180,20 @@ fn only_wizards_with_a_standing_fortress_are_offered_anything() {
 fn mercenaries_come_from_the_first_mercenary_turn_to_a_wizard_who_can_pay_and_arrive_with_their_experience(
 ) -> TestResult {
     let mut g = world();
-    g.turn = FIRST_MERCENARY_TURN - 1;
+    g.turn = g.content.rules.config.offer.first_turn - 1;
     for _ in 0..400 {
         g.determine_offers_all();
         assert!(offers_of(&g, P0, |o| matches!(o, Offer::Mercenaries { .. })).is_empty());
     }
-    g.turn = 40;
+    g.turn = g.content.rules.config.offer.first_turn + 10;
     let i = roll_until(&mut g, |o| matches!(o, Offer::Mercenaries { .. }));
+    let hired = g.offers(P0)[i].clone();
     let Offer::Mercenaries {
         unit,
         count,
         level,
         price,
-    } = g.offers(P0)[i].clone()
+    } = hired.clone()
     else {
         unreachable!()
     };
@@ -219,7 +223,7 @@ fn mercenaries_come_from_the_first_mercenary_turn_to_a_wizard_who_can_pay_and_ar
         usize::from(level)
     );
     // The offer is used up.
-    assert_eq!(g.accept_offer(P0, i, None), Err(OfferError::NoOffer));
+    assert!(!g.offers(P0).contains(&hired));
     Ok(())
 }
 

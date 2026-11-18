@@ -311,7 +311,7 @@ pub fn next_item(
     let pool = soldiers(view, city, need);
 
     // 1. The garrison.
-    let mut minimum = garrison_minimum(eco.figures).min(need.garrison_cap);
+    let mut minimum = garrison_minimum(&view.content().rules, eco.figures).min(need.garrison_cap);
     if minimum > 0 {
         minimum += u32::from(need.rival_near);
         match (plan.primary, plan.secondary) {

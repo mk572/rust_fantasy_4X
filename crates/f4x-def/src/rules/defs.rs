@@ -723,6 +723,140 @@ pub struct RulesConfig {
     pub autobuild_order: Vec<Id<BuildingDef>>,
     /// What a spell cast in battle costs the further it is from the wizard's fortress.
     pub casting_range: CastingRange,
+    /// What wizards ask for goods in a trade.
+    pub trade: TradeRules,
+    /// Relations, treaties and negotiations.
+    pub diplomacy: DiplomacyRules,
+    /// The offers of mercenaries and heroes.
+    pub offer: OfferRules,
+    /// The growth of an outpost.
+    pub outpost: OutpostRules,
+    /// Raiders, monsters and the big events of the world.
+    pub threat: ThreatRules,
+    /// The fewest defenders a city wants: `(from figures, defenders)` pairs in rising order of
+    /// figures; a city below the first has none.
+    pub garrison_minimum: Vec<(u32, u32)>,
+    /// What a neutral city's population gives it: the building comes with `population - 2` at
+    /// or above the number (a building its race cannot build is left out).
+    pub starting_buildings: Vec<(u32, Id<BuildingDef>)>,
+    /// The Arcanus races (race numbers) a computer wizard may have above Normal difficulty when
+    /// `RuleSettings::limit_ai_races` is on.
+    pub limited_ai_races: Vec<u16>,
+    /// The minerals (feature numbers) a world event can put on the map.
+    pub event_ores: Vec<u16>,
+}
+
+/// What a good is worth to a wizard in a trade, in percent (`worth` = cost * percent / 100).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TradeRules {
+    /// What one more book in the realm of a spell adds to its worth, and the books that count.
+    pub spell_book_pct: i32,
+    pub spell_book_cap: i32,
+    /// An item to a holder with a hero that has a free slot for it, with one whose slot for it is
+    /// taken, and with no hero that could use it.
+    pub item_free_slot_pct: i32,
+    pub item_taken_slot_pct: i32,
+    pub item_no_user_pct: i32,
+    /// A unit to a wizard at war.
+    pub unit_at_war_pct: i32,
+}
+
+impl Default for TradeRules {
+    fn default() -> Self {
+        Self {
+            spell_book_pct: 5,
+            spell_book_cap: 8,
+            item_free_slot_pct: 150,
+            item_taken_slot_pct: 100,
+            item_no_user_pct: 50,
+            unit_at_war_pct: 125,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiplomacyRules {
+    /// What Subversion takes off every other wizard's relation to its target.
+    pub subversion_penalty: i32,
+    /// The most messages a negotiation takes: the offer and the counters that follow it.
+    pub max_rounds: u8,
+    /// A pact needs a relation above `pact_relation`, an alliance above `alliance_relation`.
+    pub pact_relation: i32,
+    pub alliance_relation: i32,
+}
+
+impl Default for DiplomacyRules {
+    fn default() -> Self {
+        Self {
+            subversion_penalty: 25,
+            max_rounds: 4,
+            pact_relation: 10,
+            alliance_relation: 50,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OfferRules {
+    /// No mercenaries are offered before this turn; the computer wizards do not hire before
+    /// `ai_first_turn`.
+    pub first_turn: u32,
+    pub ai_first_turn: u32,
+    /// The most any offer's chance can be (percent) before the computer wizards' bonus, and that
+    /// bonus.
+    pub max_chance: i32,
+    pub ai_bonus: i32,
+}
+
+impl Default for OfferRules {
+    fn default() -> Self {
+        Self {
+            first_turn: 30,
+            ai_first_turn: 50,
+            max_chance: 10,
+            ai_bonus: 10,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OutpostRules {
+    /// Tens of people a new outpost starts with, and at which it becomes a city of one (kept: a
+    /// new hamlet starts with a head start).
+    pub start_tens: u32,
+    pub city_tens: u32,
+}
+
+impl Default for OutpostRules {
+    fn default() -> Self {
+        Self {
+            start_tens: 3,
+            city_tens: 10,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ThreatRules {
+    /// The raider clock's limit.
+    pub raider_limit: u32,
+    /// Extra damage the fighting toll counts when monsters win a city.
+    pub rampage_damage: u32,
+    /// The cheapest monster a budget still buys.
+    pub cheapest_monster: i32,
+    /// Marriage and the Great Meteor wait for this turn.
+    pub big_events_from_turn: u32,
+}
+
+impl Default for ThreatRules {
+    fn default() -> Self {
+        Self {
+            raider_limit: 30,
+            rampage_damage: 40,
+            cheapest_monster: 25,
+            big_events_from_turn: 150,
+        }
+    }
 }
 
 /// The range multiplier of a spell cast in battle, in percent of its cost: `at_fortress` at the
@@ -760,6 +894,15 @@ impl Default for RulesConfig {
             racial_unrest: Vec::new(),
             autobuild_order: Vec::new(),
             casting_range: CastingRange::default(),
+            trade: TradeRules::default(),
+            diplomacy: DiplomacyRules::default(),
+            offer: OfferRules::default(),
+            outpost: OutpostRules::default(),
+            threat: ThreatRules::default(),
+            garrison_minimum: Vec::new(),
+            starting_buildings: Vec::new(),
+            limited_ai_races: Vec::new(),
+            event_ores: Vec::new(),
         }
     }
 }

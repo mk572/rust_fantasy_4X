@@ -22,9 +22,7 @@
 //! target, the leader is still left to the others). Every number is in [`Knobs`] and can be set
 //! from the environment for a soak (`AIK_DIPLO_<NAME>`, see `crate::knob`).
 
-use f4x_core::diplomacy::{
-    army_strength, DiplomacyCommand, ProposalKind, Remark, Treaty, ALLIANCE_RELATION, PACT_RELATION,
-};
+use f4x_core::diplomacy::{army_strength, DiplomacyCommand, ProposalKind, Remark, Treaty};
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
@@ -570,7 +568,7 @@ fn appease(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, k: &Knobs, sce
         }
         let relation = game.relation(me, r);
         if treaty == Treaty::None
-            && relation > PACT_RELATION
+            && relation > game.content().rules.config.diplomacy.pact_relation
             && game.roll(k.appease_pact_one_in) == 1
             && propose(ai, game, events, r, ProposalKind::Pact)
         {
@@ -645,8 +643,8 @@ fn coalition(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, k: &Knobs, s
         };
         let relation = game.relation(me, w);
         let floor = match kind {
-            ProposalKind::Alliance => ALLIANCE_RELATION,
-            _ => PACT_RELATION,
+            ProposalKind::Alliance => game.content().rules.config.diplomacy.alliance_relation,
+            _ => game.content().rules.config.diplomacy.pact_relation,
         };
         if relation > floor {
             if propose(ai, game, events, w, kind) {

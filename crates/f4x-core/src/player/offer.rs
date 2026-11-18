@@ -27,14 +27,10 @@ use crate::player::{Offers, PlayerId};
 use crate::rules::{MovementType, Rules, Stat, UnitDef, UnitId, UnitKind};
 use crate::unit::Experience;
 
-/// No mercenaries are offered before this turn (`Generate_Mercenaries`).
-pub const FIRST_MERCENARY_TURN: u32 = 30;
-/// The computer wizards do not hire mercenaries before this turn (`AI_Accept_Mercenaries`).
-pub const AI_FIRST_MERCENARY_TURN: u32 = 50;
-/// The most any offer's chance can be, in percent, before the computer wizards' bonus.
-const MAX_CHANCE: i32 = 10;
-/// The computer wizards' extra chance of a mercenary or hero offer, in percent.
-const AI_BONUS: i32 = 10;
+use f4x_def::rules::OfferRules;
+
+// The first turns of the offers, the most a chance can be and the computer wizards' bonus are
+// `offer` of `rules.ron`.
 
 /// What is offered.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,26 +105,33 @@ impl OfferError {
 }
 
 /// The chance in percent of an offer: `base + fame / per`, changed by the wizard's `percent` (200
-/// for a Famous wizard, 100 normally; `OfferChancePercent`), at most 10.
-pub fn offer_chance(base: i32, per: i32, fame: i32, percent: i32) -> i32 {
+/// for a Famous wizard, 100 normally; `OfferChancePercent`), at most `max_chance`.
+pub fn offer_chance(rules: &OfferRules, base: i32, per: i32, fame: i32, percent: i32) -> i32 {
     let chance = (base + fame / per) * percent / 100;
-    chance.min(MAX_CHANCE)
+    chance.min(rules.max_chance)
 }
 
 /// The merchant's chance.
-pub fn item_chance(fame: i32, percent: i32) -> i32 {
-    offer_chance(2, 25, fame, percent)
+pub fn item_chance(rules: &OfferRules, fame: i32, percent: i32) -> i32 {
+    offer_chance(rules, 2, 25, fame, percent)
 }
 
-/// The mercenaries' chance; the computer wizards get ten more.
-pub fn mercenary_chance(fame: i32, percent: i32, computer: bool) -> i32 {
-    offer_chance(1, 20, fame, percent) + if computer { AI_BONUS } else { 0 }
+/// The mercenaries' chance; the computer wizards get `ai_bonus` more.
+pub fn mercenary_chance(rules: &OfferRules, fame: i32, percent: i32, computer: bool) -> i32 {
+    offer_chance(rules, 1, 20, fame, percent) + if computer { rules.ai_bonus } else { 0 }
 }
 
 /// The hero's chance: the computer wizards get ten more, and the chance is divided by
 /// `(heroes + 1) / 2 + 1`, so it falls the more heroes the wizard already has.
-pub fn hero_chance(fame: i32, percent: i32, computer: bool, heroes: usize) -> i32 {
-    let chance = offer_chance(3, 25, fame, percent) + if computer { AI_BONUS } else { 0 };
+pub fn hero_chance(
+    rules: &OfferRules,
+    fame: i32,
+    percent: i32,
+    computer: bool,
+    heroes: usize,
+) -> i32 {
+    let chance =
+        offer_chance(rules, 3, 25, fame, percent) + if computer { rules.ai_bonus } else { 0 };
     chance / ((heroes as i32 + 1) / 2 + 1)
 }
 
@@ -179,9 +182,9 @@ pub fn ai_accepts_item(price: i32, gold: HalfInt, heroes: usize) -> bool {
     heroes > 0 && HalfInt::from_int(price) * 2 <= gold
 }
 
-/// The computer wizard hires mercenaries from turn 50 if the price is at most half its gold.
-pub fn ai_accepts_mercenaries(turn: u32, price: i32, gold: HalfInt) -> bool {
-    turn >= AI_FIRST_MERCENARY_TURN && HalfInt::from_int(price) * 2 <= gold
+/// The computer wizard hires mercenaries from its `ai_first_turn` if the price is at most half its gold.
+pub fn ai_accepts_mercenaries(rules: &OfferRules, turn: u32, price: i32, gold: HalfInt) -> bool {
+    turn >= rules.ai_first_turn && HalfInt::from_int(price) * 2 <= gold
 }
 
 /// Which units a company can be drawn from: ordinary race units, not settlers or boats and not
@@ -314,14 +317,25 @@ impl Game {
         let fame = self.fame(player);
         let computer = self.human() != Some(player);
 
-        if self.rng.roll(100) as i32 <= item_chance(fame, percent) {
+        if self.rng.roll(100) as i32 <= item_chance(&self.content.rules.config.offer, fame, percent)
+        {
             offers.extend(self.item_offer(player));
         }
-        if self.rng.roll(100) as i32 <= mercenary_chance(fame, percent, computer) {
+        if self.rng.roll(100) as i32
+            <= mercenary_chance(&self.content.rules.config.offer, fame, percent, computer)
+        {
             offers.extend(self.mercenary_offer(player));
         }
         let heroes = self.units().hero_units(player).len();
-        if self.rng.roll(100) as i32 <= hero_chance(fame, percent, computer, heroes) {
+        if self.rng.roll(100) as i32
+            <= hero_chance(
+                &self.content.rules.config.offer,
+                fame,
+                percent,
+                computer,
+                heroes,
+            )
+        {
             offers.extend(self.hero_offer(player));
         }
         offers
@@ -384,7 +398,7 @@ impl Game {
         let gold = self
             .player(player)
             .map_or(HalfInt::ZERO, |p| p.treasury().gold);
-        if self.turn < FIRST_MERCENARY_TURN {
+        if self.turn < self.content.rules.config.offer.first_turn {
             return None;
         }
         let (arcanus, myrror) = self.planes_of(player);

@@ -27,9 +27,6 @@ pub struct Threat {
     pub monster_clock: u32,
 }
 
-/// The raider clock's limit.
-pub(crate) const RAIDER_LIMIT: u32 = 30;
-
 impl Game {
     /// Once a turn, at the turn change.
     pub(crate) fn process_threats(&mut self) -> Vec<Event> {

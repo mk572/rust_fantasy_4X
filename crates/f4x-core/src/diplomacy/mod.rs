@@ -63,9 +63,6 @@ pub enum Stage {
     Established,
 }
 
-/// What Subversion takes off every other wizard's relation to its target.
-const SUBVERSION_PENALTY: i32 = 25;
-
 /// What moved a relation (the original's reaction types).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Action {
@@ -191,9 +188,6 @@ pub struct Proposal {
     /// How many times a trade has been countered on the way here (0: the first offer).
     pub round: u8,
 }
-
-/// The most messages a negotiation takes: the offer and the counters that follow it.
-pub const MAX_ROUNDS: u8 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiplomacyError {
@@ -420,9 +414,6 @@ pub fn relation_key(relation: i32) -> &'static str {
     RELATION_KEYS[relation_level(relation)]
 }
 
-/// A pact needs a relation above this, an alliance above `ALLIANCE_RELATION`.
-pub const PACT_RELATION: i32 = 10;
-pub const ALLIANCE_RELATION: i32 = 50;
 /// The squares of a plane of the original's medium map, which the city allowance below is
 /// counted for.
 const ORIGINAL_PLANE_SQUARES: i32 = 60 * 40;
@@ -1091,7 +1082,7 @@ impl Diplomacy {
         Ok(())
     }
 
-    /// The receiver of a trade answers with a trade of its own (a negotiation, `MAX_ROUNDS`).
+    /// The receiver of a trade answers with a trade of its own (a negotiation, `max_rounds` of `rules.ron`).
     fn counter(
         &mut self,
         ctx: &mut DiplomacyCtx<'_>,
@@ -1107,7 +1098,7 @@ impl Diplomacy {
         let old = self.proposals[at];
         let both_trades = matches!(old.kind, ProposalKind::Trade { .. })
             && matches!(kind, ProposalKind::Trade { .. });
-        if !both_trades || old.round + 1 >= MAX_ROUNDS {
+        if !both_trades || old.round + 1 >= ctx.view.content().rules.config.diplomacy.max_rounds {
             return Err(DiplomacyError::NotAllowed);
         }
         self.check_proposal(ctx.view, player, from, kind)?;
@@ -1467,7 +1458,7 @@ impl Diplomacy {
     }
 
     /// Subversion (`Apply_Subversion`): the relation of every other wizard that has met `target`
-    /// falls by [`SUBVERSION_PENALTY`], and the peace between them is over. The original's code
+    /// falls by `subversion_penalty` (`rules.ron`), and the peace between them is over. The original's code
     /// then overwrites the new relation with the old one, which leaves only the peace ended; the
     /// help's rule is followed here (`docs/help-vs-implementation-conflicts.md`, B33).
     pub(crate) fn subvert(&mut self, ctx: &mut DiplomacyCtx<'_>, target: PlayerId) {
@@ -1482,7 +1473,9 @@ impl Diplomacy {
             .collect();
         for w in others {
             let pair = self.pair_mut(ctx.view, w, target);
-            pair.visible = (pair.visible - SUBVERSION_PENALTY).max(-100);
+            pair.visible = (pair.visible
+                - ctx.view.content().rules.config.diplomacy.subversion_penalty)
+                .max(-100);
             self.stance_mut(w, target).peace_duration = 0;
             self.stance_mut(target, w).peace_duration = 0;
         }

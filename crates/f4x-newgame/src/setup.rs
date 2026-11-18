@@ -332,7 +332,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                     .filter(|n| {
                         !limited
                             || game.human() == Some(PlayerId(k as u8))
-                            || f4x_def::settings::LIMITED_AI_RACES.contains(n)
+                            || game.content().rules.config.limited_ai_races.contains(n)
                     })
                     .collect();
                 let free: Vec<u16> = all.iter().copied().filter(|r| !races.contains(r)).collect();
@@ -704,15 +704,19 @@ mod tests {
         assert!(
             limited
                 .iter()
-                .all(|n| f4x_def::settings::LIMITED_AI_RACES.contains(n)),
+                .all(|n| content.rules.config.limited_ai_races.contains(n)),
             "{limited:?}"
         );
-        assert!(arcanus_races(3, false)?
-            .iter()
-            .any(|n| !f4x_def::settings::LIMITED_AI_RACES.contains(n)));
-        assert!(arcanus_races(2, true)?
-            .iter()
-            .any(|n| !f4x_def::settings::LIMITED_AI_RACES.contains(n)));
+        assert!(arcanus_races(3, false)?.iter().any(|n| !content
+            .rules
+            .config
+            .limited_ai_races
+            .contains(n)));
+        assert!(arcanus_races(2, true)?.iter().any(|n| !content
+            .rules
+            .config
+            .limited_ai_races
+            .contains(n)));
         Ok(())
     }
 

@@ -11,6 +11,11 @@ use f4x_def::testdir::TestResult;
 const P0: PlayerId = PlayerId(0);
 const TOWN: PlayerId = PlayerId(100);
 
+/// A raider clock one tick below its limit (`threat.raider_limit` of `rules.ron`).
+fn one_short(g: &Game) -> u32 {
+    g.content.rules.config.threat.raider_limit - 1
+}
+
 fn at(x: u32, y: u32) -> Position {
     Position {
         plane: Plane::Arcanus,
@@ -70,9 +75,9 @@ fn lair(guards: Vec<(u16, u32)>) -> Lair {
 }
 
 #[test]
-fn the_raider_clock_runs_to_thirty_and_a_city_raises_free_troops_and_goes_to_war() {
+fn the_raider_clock_runs_to_its_limit_and_a_city_raises_free_troops_and_goes_to_war() {
     let mut g = world(4);
-    g.threat.raider_clock = 29;
+    g.threat.raider_clock = one_short(&g);
     let events = g.process_threats();
     assert_eq!(g.threat.raider_clock, 0, "the clock starts again");
     let Some(Event::RaidersRaised { city, owner, count }) = events.first().cloned() else {
@@ -92,7 +97,7 @@ fn the_raider_clock_runs_to_thirty_and_a_city_raises_free_troops_and_goes_to_war
 }
 
 #[test]
-fn below_thirty_nothing_happens() {
+fn below_the_limit_nothing_happens() {
     let mut g = world(4);
     g.threat.raider_clock = 0;
     assert!(g.process_threats().is_empty());
@@ -117,7 +122,7 @@ fn a_neutral_city_alone_on_its_landmass_raises_nobody_and_feeds_the_monsters_clo
                 .set(x, y, sea);
         }
     }
-    g.threat.raider_clock = 29;
+    g.threat.raider_clock = one_short(&g);
     let before = g.threat.monster_clock;
     assert!(g.process_threats().is_empty());
     assert_eq!(g.threat.monster_clock, before + 15);
@@ -136,7 +141,7 @@ fn a_full_city_has_no_room_for_a_party() {
     for _ in 0..g.max_tile() {
         g.spawn_unit(TOWN, at(4, 4), spear);
     }
-    g.threat.raider_clock = 29;
+    g.threat.raider_clock = one_short(&g);
     let events = g.process_threats();
     assert!(!events
         .iter()
@@ -148,12 +153,12 @@ fn with_the_setting_off_the_clock_does_not_move() {
     let mut g = world(4);
     g.settings.world.raiders_enabled = false;
     g.settings.world.monsters_enabled = false;
-    g.threat.raider_clock = 29;
+    g.threat.raider_clock = one_short(&g);
     assert!(g.process_threats().is_empty());
     assert_eq!(
         g.threat,
         Threat {
-            raider_clock: 29,
+            raider_clock: one_short(&g),
             monster_clock: 0
         }
     );
@@ -503,7 +508,7 @@ fn monsters_that_beat_the_defenders_in_a_battle_rampage_through_the_city() -> Te
 #[test]
 fn the_clocks_and_the_free_troops_survive_a_save() -> TestResult {
     let mut g = world(4);
-    g.threat.raider_clock = 29;
+    g.threat.raider_clock = one_short(&g);
     g.process_threats();
     g.threat.monster_clock = 7;
     let text = g.snapshot();
@@ -523,7 +528,7 @@ fn the_clocks_and_the_free_troops_survive_a_save() -> TestResult {
 fn the_free_troops_cost_their_city_nothing() {
     let mut g = world(4);
     let before = g.budget(TOWN).unit_upkeep;
-    g.threat.raider_clock = 29;
+    g.threat.raider_clock = one_short(&g);
     g.process_threats();
     assert_eq!(g.budget(TOWN).unit_upkeep, before);
     let _ = Stat::Melee;
@@ -531,7 +536,7 @@ fn the_free_troops_cost_their_city_nothing() {
 
 /// The party that `world(troops)` raises at the independent city, counted.
 fn party(g: &mut Game) -> usize {
-    g.threat.raider_clock = 29;
+    g.threat.raider_clock = one_short(g);
     match g.process_threats().first() {
         Some(Event::RaidersRaised { count, .. }) => *count as usize,
         _ => 0,
@@ -615,7 +620,7 @@ fn settlers_do_not_make_a_party() -> TestResult {
     for _ in 0..4 {
         g.spawn_unit(TOWN, at(4, 4), settlers);
     }
-    g.threat.raider_clock = 29;
+    g.threat.raider_clock = one_short(&g);
     let monsters_before = g.threat.monster_clock;
     assert!(g.process_threats().is_empty());
     assert_eq!(

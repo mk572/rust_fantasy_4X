@@ -224,7 +224,10 @@ fn subversion_sours_the_others_on_the_target_and_ends_their_peace() {
         !events.iter().any(|e| matches!(e, Event::Rejected(_))),
         "{events:?}"
     );
-    assert_eq!(g.relation(P2, P1), (before - 25).max(-100));
+    assert_eq!(
+        g.relation(P2, P1),
+        (before - g.content.rules.config.diplomacy.subversion_penalty).max(-100)
+    );
     // Someone who never met the target feels nothing.
     let mut g = world();
     let before = g.relation(P2, P1);

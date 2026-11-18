@@ -13,8 +13,6 @@ use crate::rules::Ability;
 use crate::rules::{Stat, UnitId, UnitKind};
 use crate::unit::{Experience, Unit, Unpaid};
 
-use super::RAIDER_LIMIT;
-
 /// A neutral city that can raise a party: where it stands, who owns it and the kinds of troops
 /// it has (one entry for each unit, so a common kind is drawn more often).
 struct Source {
@@ -39,7 +37,7 @@ impl Game {
             return Vec::new();
         }
         self.threat.raider_clock += self.roll(d + 1);
-        if self.threat.raider_clock < RAIDER_LIMIT {
+        if self.threat.raider_clock < self.content.rules.config.threat.raider_limit {
             return Vec::new();
         }
         self.threat.raider_clock = 0;

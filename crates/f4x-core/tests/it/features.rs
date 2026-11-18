@@ -1,6 +1,5 @@
 //! What the shipped feature rows say about the sites and minerals the code names by number.
 
-use f4x_core::world_event::ORES;
 use f4x_def::feature::FeatureKind;
 
 use crate::shipped::content;
@@ -10,7 +9,7 @@ use crate::shipped::content;
 #[test]
 fn the_ores_and_the_transmute_pairs_are_minerals() {
     let c = content();
-    for &num in ORES {
+    for &num in &c.rules.config.event_ores {
         let id = c.features.id_numbered(num).expect("an ore is a feature");
         assert_eq!(
             c.features.get(id).map(|d| d.kind),

@@ -34,7 +34,7 @@ fn facts(c: &Content) -> CityFacts {
         max_size: 12,
         food: HalfInt::from_int(4),
         net_gold: f4x_def::half_int::HalfInt::from_int(20),
-        defenders: 2,
+        defenders: garrison_minimum(&c.rules, 4),
         buildable: possible.iter().copied().filter(|&b| free(b)).collect(),
         built,
         possible,
@@ -114,14 +114,16 @@ fn every_affinity_row_names_a_known_focus_count_and_is_small() {
 fn a_city_below_its_garrison_minimum_builds_the_sturdiest_defender() {
     let c = shipped();
     let mut f = facts(&c);
-    f.defenders = 1;
+    let min = garrison_minimum(&c.rules, f.figures);
+    assert!(min > 0, "a city of {} figures wants defenders", f.figures);
+    f.defenders = min - 1;
     let item = choose(&c, &plan(Mix::Both, Focus::Gold), &f, &mut first);
     assert!(is_defender(&c, &f, item), "{item:?}");
     // Buildings only never builds units.
     let item = choose(&c, &plan(Mix::Buildings, Focus::Gold), &f, &mut first);
     assert!(matches!(item, ProductionItem::Building(_)), "{item:?}");
     // At the minimum, the rule is satisfied.
-    f.defenders = 2;
+    f.defenders = min;
     let item = choose(&c, &plan(Mix::Both, Focus::Gold), &f, &mut first);
     assert!(matches!(item, ProductionItem::Building(_)), "{item:?}");
 }
@@ -143,13 +145,21 @@ fn a_city_that_can_build_only_engineers_does_not_use_them_as_its_garrison() {
 
 #[test]
 fn the_garrison_minimum_rises_with_size_a_rival_and_the_defense_focus() {
-    assert_eq!(
-        [0, 1, 2, 3, 5, 6, 8, 9, 20].map(garrison_minimum),
-        [0, 1, 1, 2, 2, 3, 3, 4, 4]
-    );
     let c = shipped();
+    // The setting: nobody below the first row, never fewer with more figures.
+    assert_eq!(garrison_minimum(&c.rules, 0), 0);
+    let mut last = 0;
+    for figures in 1..30 {
+        let m = garrison_minimum(&c.rules, figures);
+        assert!(m >= last, "{figures} figures");
+        last = m;
+    }
+    for &(from, defenders) in &c.rules.config.garrison_minimum {
+        assert_eq!(garrison_minimum(&c.rules, from), defenders);
+    }
     let mut f = facts(&c);
-    f.defenders = 2;
+    let min = garrison_minimum(&c.rules, f.figures);
+    f.defenders = min;
     let p = plan(Mix::Both, Focus::Gold);
     assert!(matches!(
         choose(&c, &p, &f, &mut first),
@@ -162,12 +172,12 @@ fn the_garrison_minimum_rises_with_size_a_rival_and_the_defense_focus() {
     ));
     f.rival_near = false;
     let defense = plan(Mix::Both, Focus::Defense);
-    f.defenders = 3;
+    f.defenders = min + 1;
     assert!(matches!(
         choose(&c, &defense, &f, &mut first),
         ProductionItem::Unit(_)
     ));
-    f.defenders = 4;
+    f.defenders = min + 2;
     assert!(!matches!(
         choose(&c, &defense, &f, &mut first),
         ProductionItem::Unit(_)
@@ -177,7 +187,7 @@ fn the_garrison_minimum_rises_with_size_a_rival_and_the_defense_focus() {
         secondary: Some(Focus::Defense),
         ..plan(Mix::Both, Focus::Gold).plan
     });
-    f.defenders = 2;
+    f.defenders = min;
     assert!(matches!(
         choose(&c, &second, &f, &mut first),
         ProductionItem::Unit(_)

@@ -22,12 +22,7 @@ use f4x_def::settings::MONSTER_START_TURN;
 /// The realm that keeps its monsters at home.
 const LIFE: RealmId = RealmId::new(3) /* life */;
 
-/// Extra damage the fighting toll counts when monsters win a city: it makes the share of
-/// citizens killed 50 percent and the chance of a building falling 50 more than the battle's.
-const RAMPAGE_DAMAGE: u32 = 40;
-
-/// The cheapest monster a budget still buys.
-const CHEAPEST: i32 = 25;
+// The extra damage a rampage counts and the cheapest monster a budget buys are `threat` of `rules.ron`.
 
 impl Game {
     /// The realm of the creatures that guard a site, `None` for a site without guards.
@@ -135,7 +130,9 @@ impl Game {
             return list;
         }
         for _ in 0..2000 {
-            if left < CHEAPEST || list.len() >= self.max_battle_side() {
+            if left < self.content.rules.config.threat.cheapest_monster
+                || list.len() >= self.max_battle_side()
+            {
                 break;
             }
             let (id, cost) = &pool[self.roll(pool.len() as u32) as usize - 1];
@@ -263,7 +260,7 @@ impl Game {
         // A rampage is hard on a city: the original adds 50 percent to the losses of both kinds.
         let toll = crate::city::conquest::fighting_toll(
             citizens,
-            city_damage + RAMPAGE_DAMAGE,
+            city_damage + self.content.rules.config.threat.rampage_damage,
             &built,
             &mut self.rng,
             |b| {

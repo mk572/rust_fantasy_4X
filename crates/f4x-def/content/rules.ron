@@ -9,5 +9,19 @@
     // The cost multiplier (percent) of a spell cast in battle: 5 at the fortress, else 10 plus 5 for
     // each of the distances in `beyond` the battle is further than; another plane counts as `far`.
     casting_range: (at_fortress: 5, base: 10, step: 5, beyond: [5, 10, 15, 20], far: 30),
+    trade: (spell_book_pct: 5, spell_book_cap: 8, item_free_slot_pct: 150, item_taken_slot_pct: 100, item_no_user_pct: 50, unit_at_war_pct: 125),
+    diplomacy: (subversion_penalty: 25, max_rounds: 4, pact_relation: 10, alliance_relation: 50),
+    offer: (first_turn: 30, ai_first_turn: 50, max_chance: 10, ai_bonus: 10),
+    outpost: (start_tens: 3, city_tens: 10),
+    threat: (raider_limit: 30, rampage_damage: 40, cheapest_monster: 25, big_events_from_turn: 150),
+    // (from this many figures, at least this many defenders)
+    garrison_minimum: [(1, 1), (3, 2), (6, 3), (9, 4)],
+    // (population - 2 at or above, building): barracks, smithy, builders hall, armory, granary, stables,
+    // city walls, fighters guild, armorers guild, shrine
+    starting_buildings: [(0, 3), (1, 8), (2, 32), (3, 4), (5, 29), (6, 9), (8, 35), (10, 5), (11, 6), (12, 22)],
+    // Halfling, High Elf, High Men, Klackon, Nomad
+    limited_ai_races: [6, 7, 8, 9, 11],
+    // iron ore, coal, silver ore, gold ore, gem, mithril ore, adamantium ore, quork crystal, crysx crystal
+    event_ores: [11, 5, 19, 10, 9, 12, 2, 17, 6],
     autobuild_order: [29, 32, 26, 16, 23, 3, 8, 15, 22, 30, 17, 31, 34, 27, 35, 20, 4, 19, 9, 18, 24, 25, 28, 33, 14, 5, 21],
 )

@@ -518,9 +518,8 @@ fn fb_limit_ai_races() -> bool {
     fallback(|g| g.rules.limit_ai_races, false)
 }
 
-/// The Arcanus races (`races.ron` numbers) a computer wizard may have above Normal difficulty
-/// when `RuleSettings::limit_ai_races` is on: Halfling, High Elf, High Men, Klackon, Nomad.
-pub const LIMITED_AI_RACES: [u16; 5] = [6, 7, 8, 9, 11];
+// The Arcanus races a computer wizard may have above Normal difficulty when
+// `RuleSettings::limit_ai_races` is on are `limited_ai_races` of `rules.ron`.
 
 /// The original's Trireme capacity, and the unit number of the Trireme.
 pub const TRIREME_CAPACITY: u8 = 2;

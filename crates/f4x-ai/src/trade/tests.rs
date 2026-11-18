@@ -8,8 +8,7 @@ use f4x_def::half_int::HalfInt;
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// Two wizards with five books of life that have met. P0 knows the dearest life spell that a
-/// treasury of 1000 gold can buy and P1 no
-/// life spell at all; P1 has 1000 gold.
+/// treasury of 1000 gold can buy and P1 no life spell at all; P1 has 1000 gold.
 fn world() -> Result<(Game, SpellId), Box<dyn std::error::Error>> {
     let mut g = game(COAST_CITY, 8 /* high_men */);
     let life = RealmId::new(3 /* life */);
@@ -174,7 +173,7 @@ fn an_open_ask_is_answered_with_a_price_the_asker_would_take() -> TestResult {
     assert_eq!(give, Goods::spell(dear));
     let worth = f4x_core::diplomacy::trade::worth(&g, P0, give);
     assert!(
-        get.gold * 100 >= worth * margin(&g, P0, P1),
+        get.gold >= worth * margin(&g, P0, P1) / 100,
         "{get:?} for a spell worth {worth}"
     );
     assert_eq!(verdict(&g, P1, P0, give, get), Verdict::Accepted);
@@ -197,7 +196,7 @@ fn a_short_offer_is_countered_with_more_and_the_last_round_only_accepts_or_refus
         P0,
         Goods::gold(worth * 80 / 100),
         Goods::spell(dear),
-        MAX_ROUNDS - 1,
+        g.content().rules.config.diplomacy.max_rounds - 1,
     );
     assert_eq!(respond(&g, P0, last), Reply::Reject);
     let fair = proposal(
@@ -205,7 +204,7 @@ fn a_short_offer_is_countered_with_more_and_the_last_round_only_accepts_or_refus
         P0,
         Goods::gold(worth * 110 / 100),
         Goods::spell(dear),
-        MAX_ROUNDS - 1,
+        g.content().rules.config.diplomacy.max_rounds - 1,
     );
     assert_eq!(respond(&g, P0, fair), Reply::Accept);
     Ok(())

@@ -13,7 +13,7 @@
 //! each by the price the other would accept ([`price`]), picking the offer that gains it most.
 
 use f4x_core::diplomacy::trade as core;
-use f4x_core::diplomacy::{Goods, Proposal, ProposalKind, Treaty, MAX_ROUNDS};
+use f4x_core::diplomacy::{Goods, Proposal, ProposalKind, Treaty};
 use f4x_core::game::Game;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
@@ -188,7 +188,7 @@ pub(crate) enum Reply {
     Counter(ProposalKind),
 }
 
-/// The reply of `judge` to a trade proposal made to it (the negotiation, `MAX_ROUNDS`):
+/// The reply of `judge` to a trade proposal made to it (the negotiation, `max_rounds`):
 /// - a full offer that clears its margin is accepted;
 /// - a short one is countered by asking for one more thing from the asker, or by asking less of
 ///   itself, whichever it can do and the asker would take;
@@ -206,7 +206,7 @@ pub(crate) fn respond(game: &Game, judge: PlayerId, proposal: Proposal) -> Reply
     {
         return Reply::Accept;
     }
-    if proposal.round + 1 >= MAX_ROUNDS
+    if proposal.round + 1 >= game.content().rules.config.diplomacy.max_rounds
         || !Knobs::current().on
         || arms(game, judge, asker, get)
         || !will_give(game, judge, get)

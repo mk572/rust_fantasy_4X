@@ -473,21 +473,8 @@ impl EventNotice {
     }
 }
 
-/// Marriage and the Great Meteor wait for this turn.
-pub const BIG_EVENTS_FROM_TURN: u32 = 150;
-
-/// The minerals an event can put on the map, by feature number.
-pub const ORES: &[u16] = &[
-    11, // iron_ore
-    5,  // coal
-    19, // silver_ore
-    10, // gold_ore
-    9,  // gem
-    12, // mithril_ore
-    2,  // adamantium_ore
-    17, // quork_crystal
-    6,  // crysx_crystal
-];
+// The turn the big events wait for and the minerals an event can put on the map are `threat` and
+// `event_ores` of `rules.ron`.
 
 #[cfg(test)]
 mod tests;

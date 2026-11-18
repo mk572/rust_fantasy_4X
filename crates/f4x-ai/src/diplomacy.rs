@@ -1,9 +1,7 @@
 //! The AI's side of the talk: how it rates and answers proposals, and when it declares war, offers
 //! or demands. The original's logic is in `docs/diplomacy.md` sections 4 and 8.
 
-use f4x_core::diplomacy::{
-    army_strength, DiplomacyCommand, ProposalKind, Treaty, ALLIANCE_RELATION, PACT_RELATION,
-};
+use f4x_core::diplomacy::{army_strength, DiplomacyCommand, ProposalKind, Treaty};
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
@@ -96,10 +94,15 @@ pub(crate) fn rate(
 ) -> Verdict {
     let relation = game.relation(asker, judge);
     let (type_modifier, early) = match kind {
-        ProposalKind::Pact => (75, (relation <= PACT_RELATION).then_some(Verdict::Refused)),
+        ProposalKind::Pact => (
+            75,
+            (relation <= game.content().rules.config.diplomacy.pact_relation)
+                .then_some(Verdict::Refused),
+        ),
         ProposalKind::Alliance => (
             125,
-            (relation <= ALLIANCE_RELATION).then_some(Verdict::Refused),
+            (relation <= game.content().rules.config.diplomacy.alliance_relation)
+                .then_some(Verdict::Refused),
         ),
         // A peace is not given while the war is young and the AI is far ahead (`statecraft`).
         ProposalKind::Peace => (
@@ -381,8 +384,16 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
                 }
             }
             let better = match treaty {
-                Treaty::None if relation > PACT_RELATION + 10 => Some(ProposalKind::Pact),
-                Treaty::Pact if relation > ALLIANCE_RELATION + 10 => Some(ProposalKind::Alliance),
+                Treaty::None
+                    if relation > game.content().rules.config.diplomacy.pact_relation + 10 =>
+                {
+                    Some(ProposalKind::Pact)
+                }
+                Treaty::Pact
+                    if relation > game.content().rules.config.diplomacy.alliance_relation + 10 =>
+                {
+                    Some(ProposalKind::Alliance)
+                }
                 _ => None,
             };
             if let Some(kind) = better {
@@ -699,11 +710,22 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             Treaty::War => (stance.peace_patience + game.roll(100) as i32 > 100
                 && crate::statecraft::peace_ok(game, me, other))
             .then_some(ProposalKind::Peace),
-            Treaty::None if score > 150 && relation > ALLIANCE_RELATION => {
+            Treaty::None
+                if score > 150
+                    && relation > game.content().rules.config.diplomacy.alliance_relation =>
+            {
                 Some(ProposalKind::Alliance)
             }
-            Treaty::None if score > 110 && relation > PACT_RELATION => Some(ProposalKind::Pact),
-            Treaty::Pact if score > 150 && relation > ALLIANCE_RELATION => {
+            Treaty::None
+                if score > 110
+                    && relation > game.content().rules.config.diplomacy.pact_relation =>
+            {
+                Some(ProposalKind::Pact)
+            }
+            Treaty::Pact
+                if score > 150
+                    && relation > game.content().rules.config.diplomacy.alliance_relation =>
+            {
                 Some(ProposalKind::Alliance)
             }
             _ => None,
@@ -1064,7 +1086,7 @@ mod tests {
     fn a_friendly_wizard_offers_the_human_a_pact_in_time() -> TestResult {
         let mut g = game();
         feeling(&mut g, 30);
-        assert!(g.relation(HUMAN, AI) > PACT_RELATION + 10);
+        assert!(g.relation(HUMAN, AI) > g.content().rules.config.diplomacy.pact_relation + 10);
         let ai = Ai::new(AI);
         let mut offered = None;
         for _ in 0..300 {
@@ -1194,7 +1216,7 @@ mod tests {
         for _ in 0..40 {
             g.change_relations(30, P0, P1, Action::Friendship, None);
         }
-        assert!(g.relation(P0, P1) > ALLIANCE_RELATION);
+        assert!(g.relation(P0, P1) > g.content().rules.config.diplomacy.alliance_relation);
         let ai = Ai::new(P0);
         for _ in 0..600 {
             negotiate(&ai, &mut g, &mut Vec::new());

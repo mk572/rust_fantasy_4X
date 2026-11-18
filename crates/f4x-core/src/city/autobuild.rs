@@ -284,14 +284,15 @@ fn affinity(id: &str) -> [u8; 7] {
 }
 
 /// The fewest defenders a city of this size wants (docs section 4).
-pub fn garrison_minimum(figures: u32) -> u32 {
-    match figures {
-        0 => 0,
-        1..=2 => 1,
-        3..=5 => 2,
-        6..=8 => 3,
-        _ => 4,
-    }
+/// (`garrison_minimum` of `rules.ron`: the last row whose figures the city has.)
+pub fn garrison_minimum(rules: &crate::rules::Rules, figures: u32) -> u32 {
+    rules
+        .config
+        .garrison_minimum
+        .iter()
+        .rev()
+        .find(|&&(from, _)| figures >= from)
+        .map_or(0, |&(_, defenders)| defenders)
 }
 
 // ---- what the choice needs to know of the city ---------------------------------------------
@@ -667,7 +668,7 @@ pub fn choose(
     let buildings_ok = plan.mix != Mix::Units;
 
     // 1. Garrison first.
-    let mut minimum = garrison_minimum(f.figures);
+    let mut minimum = garrison_minimum(&content.rules, f.figures);
     if minimum > 0 {
         minimum += u32::from(f.rival_near);
         if plan.primary == Focus::Defense {
