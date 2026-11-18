@@ -572,7 +572,7 @@ fn step_ashore(
 /// put them ashore.
 fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event>) {
     let me = ai.player;
-    let (ship, ship_pos, aboard, total, on_land, drop, idle) = {
+    let (ship, ship_pos, aboard, total, on_land, drop, idle, free) = {
         let view = PlayerView::new(game, me);
         let Some(ship) = view
             .my_units()
@@ -605,6 +605,7 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
             on_land,
             drop_for(&view, ship, pickup.dest),
             !view.unit_has_order(ship),
+            game.economy().ship_room(ship) as usize,
         )
     };
     let Some(ship_pos) = ship_pos else {
@@ -654,7 +655,20 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
             .max_tile()
             .saturating_sub(game.economy().army_at(pickup.sea).len());
         let mut on_land = on_land;
-        on_land.truncate(room);
+        // The ship is full: a unit sent to it is refused ("target is water") every turn, so the
+        // ship sails with what it has and the units left behind are let off the plan, which is
+        // made again for them with another ship.
+        if free == 0 && !aboard.is_empty() {
+            let left: Vec<Serial> = {
+                let view = PlayerView::new(game, me);
+                on_land.iter().map(|&u| view.serial_of(u)).collect()
+            };
+            for s in left {
+                ai.roles.unboard(s);
+            }
+            return;
+        }
+        on_land.truncate(room.min(free));
         if !on_land.is_empty() {
             let _ = ai.send(
                 game,
@@ -836,6 +850,59 @@ mod tests {
                 assert!(chosen <= other, "{tile:?} {chosen} vs {p:?} {other}");
             }
         }
+        Ok(())
+    }
+
+    /// A group larger than the ship holds: the ship takes what fits and sails, and the unit left
+    /// on the shore is let off the plan (it was asked for 14 turns and more to step onto a full
+    /// ship: "target is water") and is fetched by a later voyage.
+    #[test]
+    fn a_ship_that_is_full_sails_and_the_unit_left_behind_is_let_off_the_plan() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let land = shore(&g)?;
+        let ship = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];
+        let room = g.economy().ship_room(ship) as usize;
+        let soldiers = spawn(&mut g, P0, land, 104 /* spearmen */, room + 1);
+        g.balance_farmers(P0);
+        let mut ai = Ai::new(P0);
+        strand(&mut ai, &g, &soldiers, port());
+        // The plan holds more units than the ship has room for.
+        assign_ships(&mut ai, &mut g);
+        let (ship_serial, tile) = {
+            let view = PlayerView::new(&g, P0);
+            let first = view.serial_of(soldiers[0]);
+            (
+                ai.roles.with_of(first).ok_or("a ship was sent")?,
+                ai.roles.boarding_of(first).ok_or("a tile was chosen")?,
+            )
+        };
+        {
+            let view = PlayerView::new(&g, P0);
+            for &u in &soldiers {
+                ai.roles.board_at(view.serial_of(u), ship_serial, tile);
+            }
+        }
+        for _ in 0..30 {
+            run_turns(&mut ai, &mut g, 1);
+        }
+        let view = PlayerView::new(&g, P0);
+        // The ship took what it holds to the port.
+        let landed = soldiers
+            .iter()
+            .filter(|&&u| view.unit_position(u) == Some(port()))
+            .count();
+        assert_eq!(landed, room, "{:?}", ai.roles);
+        // The one left on the shore is let off the plan, not asked to board a full ship.
+        let left = soldiers
+            .iter()
+            .copied()
+            .find(|&u| view.unit_position(u) != Some(port()))
+            .ok_or("a unit stayed on the shore")?;
+        let s = view.serial_of(left);
+        assert_eq!(ai.roles.boarding_of(s), None);
+        assert_eq!(ai.roles.with_of(s), None);
+        assert_eq!(ai.roles.crossing_of(s), Some(Crossing::Sea));
         Ok(())
     }
 
