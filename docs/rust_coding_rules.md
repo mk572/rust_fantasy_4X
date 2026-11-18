@@ -177,6 +177,14 @@ wrong reason.
 
 ### Test the behaviour against the setting, not a copy of it
 
+**The content is guarded by its hashes, not by tests.** Each crate with `.ron` files (`f4x-def`,
+`f4x-lang`, `f4x-client`) has a `content.sha256` with the SHA-256 of each file, and a test that
+holds the files against it (`f4x_def::content_hash`). A setting changed by hand or by a script that
+should not have touched it fails that test; a change made on purpose is recorded with
+`python3 scripts/ron_hashes.py --update`, and the record goes in the same commit, so the history
+shows it was meant. This is why no other test needs to write down what the content says: such a
+test is deleted, or rewritten to read the setting as below.
+
 **A test never writes down what a setting says.** An expected value typed into a test (a cost, a stat,
 a list of races, the spell that has an effect, the number of units a building gives) is a *shadow
 setting*: a second copy of the content that has to be edited together with it, that fails when the

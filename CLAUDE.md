@@ -41,6 +41,11 @@ Refer to `docs/ecs-structure.md`
   changing code and tests. A test never carries a game rule of its own (a limit, a count, a price): it reads
   it from the game (`g.max_tile()`, the shipped content); `scripts/imaginary_tests.py` flags the offenders.
 
+- **The `.ron` content is hash-guarded**: each crate with `.ron` files has a `content.sha256` and a test
+  that fails when a file differs. After a change of content made on purpose, run
+  `python3 scripts/ron_hashes.py --update` and commit the record with it. Never update the record to
+  silence the test without knowing who changed the file.
+
 - **Names are singular** for modules, files and types of an entity or a concept (`unit`, `lair`,
   `item`, `UnitView`), also in the other crates. Plural stays for `Vec` fields, registries and `.ron`
   files (`Rules.units`, `units.ron`).

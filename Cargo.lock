@@ -2719,6 +2719,7 @@ dependencies = [
  "f4x-def",
  "ron",
  "serde",
+ "sha2 0.11.1",
  "strum",
 ]
 
