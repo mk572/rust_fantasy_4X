@@ -16,21 +16,12 @@ use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::SlotKind;
 
-/// The vault slots the item screen shows at a time. The vault itself has no limit (the original's
-/// four are a screen size here): the screen scrolls through the rest.
-pub const VAULT_SLOTS: usize = 4;
-/// The most items that wait on the award list. Nothing is put there since the vault has room for
-/// all; the list remains for the item screen's "held" item of a reward.
-pub const MAX_AWARDS: usize = 6;
-/// What moving an item to a hero somewhere else costs, in mana (the original asks first).
-pub const TRANSFER_MANA: i32 = 20;
-
 /// The wizard's items that are not on a hero, as one value (`ItemView::armory`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Armory {
     /// The slots up to the last one with an item in it.
     pub vault: Vec<Option<Item>>,
-    /// Items won or made that wait for a place (up to [`MAX_AWARDS`]).
+    /// Items won or made that wait for a place.
     pub awards: Vec<Item>,
 }
 
@@ -78,7 +69,7 @@ pub enum ItemError {
     Empty,
     /// The item does not fit the slot, or the one it would swap out does not fit the old one.
     WrongSlot,
-    /// The hero is somewhere else: moving the item costs [`TRANSFER_MANA`]; ask again with
+    /// The hero is somewhere else: moving the item costs `ItemRules::transfer_mana`; ask again with
     /// `pay` set to agree to it.
     Transfer,
     /// Not enough mana for the transfer.
@@ -112,6 +103,8 @@ pub trait ItemWorld {
     fn hero_position(&self, unit: hecs::Entity) -> Option<Position>;
     /// Where the wizard's fortress is.
     fn fortress(&self, player: PlayerId) -> Option<Position>;
+    /// What moving an item to a hero somewhere else costs, in mana.
+    fn transfer_mana(&self) -> i32;
 }
 
 /// A move the rules have allowed, ready to be applied.
@@ -183,7 +176,7 @@ fn move_is_free(world: &dyn ItemWorld, player: PlayerId, from: ItemSpot, to: Ite
 /// The item screen's rules for moving the item at `from` to `to`, swapping with what is there if
 /// it can go back (`Item_Screen`'s pick up and put down, in one step). A hero's slot takes what
 /// [`SlotKind::fits`] says; the award list takes nothing; an item that would be swapped back must
-/// fit the slot it comes from. Moving to a hero somewhere else costs [`TRANSFER_MANA`], which
+/// fit the slot it comes from. Moving to a hero somewhere else costs `ItemRules::transfer_mana`, which
 /// `pay` agrees to and `mana` (the wizard's) must cover. Nothing is changed: the caller applies
 /// the plan, and checks what the plan cannot see (a hero left to drown at sea).
 pub fn plan_move(
@@ -213,10 +206,11 @@ pub fn plan_move(
         if !pay {
             return Err(ItemError::Transfer);
         }
-        if mana < TRANSFER_MANA {
+        let price = world.transfer_mana();
+        if mana < price {
             return Err(ItemError::NoMana);
         }
-        TRANSFER_MANA
+        price
     };
     Ok(MovePlan {
         moving,
@@ -244,6 +238,10 @@ impl ItemWorld for ItemView<'_> {
 
     fn fortress(&self, player: PlayerId) -> Option<Position> {
         crate::wizard::entity::find(self.world, player)?.fortress()
+    }
+
+    fn transfer_mana(&self) -> i32 {
+        self.content.rules.config.item.transfer_mana
     }
 }
 
@@ -667,23 +665,25 @@ mod tests {
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), false),
             Err(ItemError::Transfer)
         );
-        g.tr_mut(0).mana = f4x_def::half_int::HalfInt::from_int(19);
+        let price = g.content.rules.config.item.transfer_mana;
+        g.tr_mut(0).mana = f4x_def::half_int::HalfInt::from_int(price - 1);
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), true),
             Err(ItemError::NoMana)
         );
-        g.tr_mut(0).mana = f4x_def::half_int::HalfInt::from_int(100);
+        let purse = price * 5;
+        g.tr_mut(0).mana = f4x_def::half_int::HalfInt::from_int(purse);
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), true),
             Ok(())
         );
-        assert_eq!(g.tr(0).mana, 80);
+        assert_eq!(g.tr(0).mana, purse - price);
         // Back into the vault is free, wherever the hero is.
         assert_eq!(
             g.move_item(P0, ItemSpot::Hero(far, 0), ItemSpot::Vault(0), false),
             Ok(())
         );
-        assert_eq!(g.tr(0).mana, 80);
+        assert_eq!(g.tr(0).mana, purse - price);
     }
 
     #[test]
@@ -752,7 +752,9 @@ mod tests {
         g.give_item(P0, item("Ring", ItemKind::Misc));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(w, 0), false)
             .map_err(|e| format!("{e:?}"))?;
-        for _ in 0..VAULT_SLOTS + 1 {
+        // More items than the item screen shows at a time (the vault has no limit).
+        let filler = 5;
+        for _ in 0..filler {
             g.give_item(P0, item("Filler", ItemKind::Misc));
         }
         g.spawn_item(
@@ -769,7 +771,7 @@ mod tests {
                 .len(),
             1
         );
-        assert!(back.items().armory(P0).vault.len() > VAULT_SLOTS);
+        assert!(back.items().armory(P0).vault.len() >= filler);
         let carried = back.units().all_units();
         let hero = carried
             .iter()
@@ -790,6 +792,7 @@ mod tests {
     struct Fake {
         hero: [FakeHero; 2],
         fortress: Position,
+        transfer_mana: i32,
     }
 
     impl ItemWorld for Fake {
@@ -811,6 +814,10 @@ mod tests {
         fn fortress(&self, _: PlayerId) -> Option<Position> {
             Some(self.fortress)
         }
+
+        fn transfer_mana(&self) -> i32 {
+            self.transfer_mana
+        }
     }
 
     fn fake() -> (Fake, hecs::Entity, hecs::Entity) {
@@ -829,6 +836,7 @@ mod tests {
                 hero(b, [Some(item("Old", ItemKind::Sword)), None, None]),
             ],
             fortress: at(1, 1),
+            transfer_mana: shipped().rules.config.item.transfer_mana,
         };
         (fake, a, b)
     }
@@ -940,8 +948,9 @@ mod tests {
             )
         };
         assert_eq!(go(100, false), Err(ItemError::Transfer));
-        assert_eq!(go(19, true), Err(ItemError::NoMana));
-        assert_eq!(go(20, true).map(|p| p.cost), Ok(TRANSFER_MANA));
+        let price = w.transfer_mana;
+        assert_eq!(go(price - 1, true), Err(ItemError::NoMana));
+        assert_eq!(go(price, true).map(|p| p.cost), Ok(price));
         // Back into the vault is always free.
         let back = plan_move(
             &w,

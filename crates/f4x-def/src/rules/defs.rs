@@ -746,6 +746,95 @@ pub struct RulesConfig {
     pub event_ores: Vec<u16>,
     /// The wizard: the start, the costs of spells, the limits.
     pub wizard: WizardRules,
+    /// Making, holding and moving magic items.
+    pub item: ItemRules,
+}
+
+/// What it costs to make an item and how many a wizard may hold and carry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ItemRules {
+    /// What the plain item of each kind costs before its powers (a kind not listed costs nothing).
+    pub base_cost: Vec<(ItemKind, u32)>,
+    /// The defence a kind adds of its own (the mail), on top of its powers.
+    pub kind_defense: Vec<(ItemKind, i32)>,
+    /// Most powers on one item, and most charges of an embedded spell.
+    pub max_powers: usize,
+    pub max_charges: u32,
+    /// The group of powers that are free to combine (the special powers); the others allow one
+    /// power each.
+    pub free_group: u8,
+    /// The most a single power may cost on an item of Enchant Item.
+    pub enchant_max_power_cost: u32,
+    /// What moving an item to a hero somewhere else costs, in mana.
+    pub transfer_mana: i32,
+    /// A random item asked for no value is worth `random_value_base`, plus a hundred-step of
+    /// `random_value_step` up to `random_value_steps` times; its powers cost at most
+    /// `random_max_power_cost` (Enchant Item: the cap above) and it has at most `random_max_powers`
+    /// of them (`enchant_random_powers` from Enchant Item, `other_random_powers` on a kind that is
+    /// not in `many_power_kinds`).
+    pub random_value_base: u32,
+    pub random_value_step: u32,
+    pub random_value_steps: u32,
+    pub random_max_power_cost: u32,
+    pub enchant_random_powers: usize,
+    pub many_random_powers: usize,
+    pub other_random_powers: usize,
+    pub many_power_kinds: Vec<ItemKind>,
+    /// How many draws the search for a prefab item and for a random item's powers gets.
+    pub search_tries: u32,
+}
+
+impl Default for ItemRules {
+    fn default() -> Self {
+        use ItemKind::*;
+        Self {
+            base_cost: vec![
+                (Sword, 100),
+                (Mace, 100),
+                (Axe, 100),
+                (Bow, 100),
+                (Staff, 300),
+                (Wand, 200),
+                (Misc, 50),
+                (Shield, 100),
+                (Chainmail, 100),
+                (Platemail, 300),
+            ],
+            kind_defense: vec![(Chainmail, 1), (Platemail, 2)],
+            max_powers: 4,
+            max_charges: 4,
+            free_group: 9,
+            enchant_max_power_cost: 200,
+            transfer_mana: 20,
+            random_value_base: 700,
+            random_value_step: 100,
+            random_value_steps: 10,
+            random_max_power_cost: 20_000,
+            enchant_random_powers: 2,
+            many_random_powers: 4,
+            other_random_powers: 3,
+            many_power_kinds: vec![Sword, Mace, Axe, Staff, Wand],
+            search_tries: 50,
+        }
+    }
+}
+
+impl ItemRules {
+    /// What the plain item of a kind costs before its powers.
+    pub fn base_cost(&self, kind: ItemKind) -> u32 {
+        self.base_cost
+            .iter()
+            .find(|(k, _)| *k == kind)
+            .map_or(0, |&(_, c)| c)
+    }
+
+    /// The defence the kind adds of its own.
+    pub fn kind_defense(&self, kind: ItemKind) -> i32 {
+        self.kind_defense
+            .iter()
+            .find(|(k, _)| *k == kind)
+            .map_or(0, |&(_, d)| d)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -956,6 +1045,7 @@ impl Default for RulesConfig {
             limited_ai_races: Vec::new(),
             event_ores: Vec::new(),
             wizard: WizardRules::default(),
+            item: ItemRules::default(),
         }
     }
 }

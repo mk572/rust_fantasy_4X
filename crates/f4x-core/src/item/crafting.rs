@@ -14,10 +14,6 @@ use serde::{Deserialize, Serialize};
 use crate::item::{Item, ItemBonus};
 use crate::rules::{ItemKind, ItemPowerDef, PowerBonus, Rules};
 
-/// Most powers on one item.
-pub const MAX_POWERS: usize = 4;
-/// Most charges of an embedded spell.
-pub const MAX_CHARGES: u32 = 4;
 /// The id of the power that puts a spell in the item; a design names the spell and the number of
 /// charges in [`ItemDesign::charges`] instead of listing the power.
 pub const SPELL_CHARGES: ItemPowerId = ItemPowerId::new(65); /* spell_charges */
@@ -48,9 +44,9 @@ impl Craft {
     }
 
     /// The most a single power may cost.
-    pub fn max_power_cost(self) -> u32 {
+    pub fn max_power_cost(self, rules: &Rules) -> u32 {
         match self {
-            Craft::EnchantItem => 200,
+            Craft::EnchantItem => rules.config.item.enchant_max_power_cost,
             Craft::CreateArtifact => u32::MAX,
         }
     }
@@ -125,21 +121,6 @@ impl CraftError {
     }
 }
 
-/// The group of powers that are free to combine (the special powers): the others allow one
-/// power each.
-const FREE_GROUP: u8 = 9;
-
-/// What the plain item of a kind costs before its powers (`m_item_type_base_cost`).
-pub fn base_cost(kind: ItemKind) -> u32 {
-    match kind {
-        ItemKind::Sword | ItemKind::Mace | ItemKind::Axe | ItemKind::Bow => 100,
-        ItemKind::Staff | ItemKind::Platemail => 300,
-        ItemKind::Wand => 200,
-        ItemKind::Misc => 50,
-        ItemKind::Shield | ItemKind::Chainmail => 100,
-    }
-}
-
 fn is_plain(power: &ItemPowerDef) -> bool {
     power.bonus.is_some()
 }
@@ -149,7 +130,7 @@ fn is_plain(power: &ItemPowerDef) -> bool {
 /// what the anvil and the merchants go by; casting it costs this less the wizard's reduction
 /// (`Wizard::cost_reduction`, where Artificer takes half off).
 pub fn cost(design: &ItemDesign, rules: &Rules) -> u32 {
-    let mut total = base_cost(design.kind);
+    let mut total = rules.config.item.base_cost(design.kind);
     for &id in &design.powers {
         let Some(power) = rules.item_powers.try_get(id) else {
             continue;
@@ -181,7 +162,7 @@ pub fn check(
     if count == 0 {
         return Err(CraftError::NoPowers);
     }
-    if count > MAX_POWERS {
+    if count > rules.config.item.max_powers {
         return Err(CraftError::TooManyPowers);
     }
     let mut groups = Vec::new();
@@ -194,8 +175,8 @@ pub fn check(
         if design.powers[..i].contains(&id) {
             return Err(CraftError::Repeated);
         }
-        check_power(power, design.kind, craft, magic)?;
-        if power.group != FREE_GROUP {
+        check_power(power, design.kind, craft, magic, rules)?;
+        if power.group != rules.config.item.free_group {
             if groups.contains(&power.group) {
                 return Err(CraftError::SameGroup);
             }
@@ -207,8 +188,8 @@ pub fn check(
             .item_powers
             .try_get(SPELL_CHARGES)
             .ok_or(CraftError::UnknownPower)?;
-        check_power(power, design.kind, craft, magic)?;
-        if !(1..=MAX_CHARGES).contains(charges) {
+        check_power(power, design.kind, craft, magic, rules)?;
+        if !(1..=rules.config.item.max_charges).contains(charges) {
             return Err(CraftError::BadCharges);
         }
         let id = *spell;
@@ -225,11 +206,12 @@ fn check_power(
     kind: ItemKind,
     craft: Craft,
     magic: &crate::wizard::entity::Wizard<'_>,
+    rules: &Rules,
 ) -> Result<(), CraftError> {
     if !power.kinds.contains(&kind) {
         return Err(CraftError::WrongKind);
     }
-    if power.cost > craft.max_power_cost() {
+    if power.cost > craft.max_power_cost(rules) {
         return Err(CraftError::TooCostly);
     }
     if let Some(realm) = power.realm {
@@ -253,7 +235,7 @@ pub fn available_powers<'a>(
         .item_powers
         .defs()
         .iter()
-        .filter(|p| check_power(p, kind, craft, magic).is_ok())
+        .filter(|p| check_power(p, kind, craft, magic, rules).is_ok())
         .collect()
 }
 
@@ -278,11 +260,7 @@ pub fn build(design: &ItemDesign, rules: &Rules) -> Item {
             None => powers.push(id),
         }
     }
-    match design.kind {
-        ItemKind::Chainmail => bonus.defense += 1,
-        ItemKind::Platemail => bonus.defense += 2,
-        _ => {}
-    }
+    bonus.defense += rules.config.item.kind_defense(design.kind);
     let (name, made) = if design.name.trim().is_empty() {
         (String::new(), Some(made_name(design, rules)))
     } else {
@@ -714,6 +692,22 @@ mod tests {
         )
     }
 
+    /// A sword power that Create Artifact takes and Enchant Item refuses for its cost.
+    fn costly_sword_power(g: &Game) -> u16 {
+        g.content
+            .rules
+            .item_powers
+            .defs()
+            .iter()
+            .map(|p| p.num)
+            .find(|&n| {
+                let d = design(ItemKind::Sword, &[n]);
+                check_in(g, Craft::EnchantItem, &d) == Err(CraftError::TooCostly)
+                    && check_in(g, Craft::CreateArtifact, &d) == Ok(())
+            })
+            .expect("a power that only an artifact takes")
+    }
+
     #[test]
     fn the_cost_is_the_base_plus_each_power_and_a_plain_power_on_a_misc_item_costs_double() {
         // The power rows' `cost` and `bonus` (a plain power has a bonus), the kinds they fit.
@@ -727,7 +721,8 @@ mod tests {
                     ..design(kind, &[])
                 };
                 let doubles = kind == ItemKind::Misc && power.bonus.is_some();
-                let want = base_cost(kind) + power.cost * if doubles { 2 } else { 1 };
+                let want =
+                    rules.config.item.base_cost(kind) + power.cost * if doubles { 2 } else { 1 };
                 assert_eq!(cost(&d, rules), want, "{} on {kind:?}", power.id);
                 doubled += usize::from(doubles);
                 single += usize::from(!doubles);
@@ -744,7 +739,7 @@ mod tests {
         staff.charges = Some((spell, 3));
         assert_eq!(
             cost(&staff, rules),
-            base_cost(ItemKind::Staff) + def.cost * 3 * 20
+            rules.config.item.base_cost(ItemKind::Staff) + def.cost * 3 * 20
         );
     }
 
@@ -778,17 +773,10 @@ mod tests {
             ok(ItemKind::Shield, &[0 /* attack_1 */]),
             Err(CraftError::WrongKind)
         );
+        // One power more than the most: the count is looked at before the powers.
+        let too_many = vec![0 /* attack_1 */; g.content.rules.config.item.max_powers + 1];
         assert_eq!(
-            ok(
-                ItemKind::Misc,
-                &[
-                    0,    /* attack_1 */
-                    7,    /* defense_2 */
-                    16,   /* movement_2 */
-                    63,   /* flight */
-                    9999  /* no such power */
-                ]
-            ),
+            ok(ItemKind::Misc, &too_many),
             Err(CraftError::TooManyPowers)
         );
         // Two books in chaos are enough for Flaming, and one is not.
@@ -811,9 +799,9 @@ mod tests {
     }
 
     #[test]
-    fn enchant_item_takes_only_powers_costing_200_or_less() {
+    fn enchant_item_takes_only_powers_costing_the_cap_or_less() {
         let g = world(0);
-        let flaming = design(ItemKind::Sword, &[33 /* flaming */]);
+        let flaming = design(ItemKind::Sword, &[costly_sword_power(&g)]);
         assert_eq!(
             check_in(&g, Craft::EnchantItem, &flaming),
             Err(CraftError::TooCostly)
@@ -832,8 +820,9 @@ mod tests {
     }
 
     #[test]
-    fn charges_need_a_known_battle_spell_and_one_to_four_of_them() {
+    fn charges_need_a_known_battle_spell_and_one_to_the_most_of_them() {
         let g = world(0);
+        let most = g.content.rules.config.item.max_charges;
         let mut staff = design(ItemKind::Staff, &[]);
         let mut with = |spell: u16, n: u32| {
             staff.charges = Some((
@@ -846,9 +835,12 @@ mod tests {
             ));
             check_in(&g, Craft::CreateArtifact, &staff)
         };
-        assert_eq!(with(4 /* giant_strength */, 4), Ok(()));
+        assert_eq!(with(4 /* giant_strength */, most), Ok(()));
         assert_eq!(with(4 /* giant_strength */, 0), Err(CraftError::BadCharges));
-        assert_eq!(with(4 /* giant_strength */, 5), Err(CraftError::BadCharges));
+        assert_eq!(
+            with(4 /* giant_strength */, most + 1),
+            Err(CraftError::BadCharges)
+        );
         assert_eq!(with(9999 /* no such spell */, 1), Err(CraftError::BadSpell));
         assert_eq!(
             with(201 /* magic_spirit */, 1),
@@ -885,9 +877,16 @@ mod tests {
             assert!(enchant.iter().any(|p| p == id), "{id}: {enchant:?}");
         }
         assert!(enchant.iter().all(|p| artifact.contains(p)));
-        // Flaming costs 300: only an artifact takes it, and two books in chaos are enough for it.
-        assert!(!enchant.iter().any(|p| p == "flaming"));
-        assert!(artifact.iter().any(|p| p == "flaming"));
+        // A power over the cap: only an artifact takes it, and two books in chaos are enough for it.
+        let costly = g
+            .content
+            .rules
+            .item_powers
+            .try_get(ItemPowerId::new(costly_sword_power(&g)))
+            .map(|p| p.id.clone())
+            .ok_or("the costly power is missing")?;
+        assert!(!enchant.contains(&costly));
+        assert!(artifact.contains(&costly));
         // Lightning needs five books in chaos, and the charges are not a power one picks.
         for list in [&enchant, &artifact] {
             assert!(!list
@@ -940,7 +939,7 @@ mod tests {
         assert_eq!(sword.powers, [ItemPowerId::new(33) /* flaming */]);
         assert_eq!(
             sword.cost,
-            base_cost(ItemKind::Sword) + power(1).cost + power(33).cost
+            rules.config.item.base_cost(ItemKind::Sword) + power(1).cost + power(33).cost
         );
         assert_eq!(sword.name, "");
         assert_eq!(
@@ -959,7 +958,10 @@ mod tests {
             ),
             rules,
         );
-        assert_eq!(mail.bonus.defense, plain(7) + 1);
+        assert_eq!(
+            mail.bonus.defense,
+            plain(7) + rules.config.item.kind_defense(ItemKind::Chainmail)
+        );
         assert_eq!(mail.bonus.moves, HalfInt::from_int(plain(16)));
         assert_eq!(
             mail.made,
@@ -1161,7 +1163,7 @@ mod tests {
         let events = g.apply(Command::CraftItem {
             player: P0,
             craft: Craft::EnchantItem,
-            design: design(ItemKind::Sword, &[33 /* flaming */]),
+            design: design(ItemKind::Sword, &[costly_sword_power(&g)]),
         });
         assert!(matches!(
             events[0],

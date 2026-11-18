@@ -16,7 +16,7 @@ use crate::panel_button_art::Panel;
 use crate::text::Args;
 use crate::ui;
 use f4x_core::game::Command;
-use f4x_core::item::armory::{ItemError, ItemSpot, Spot, TRANSFER_MANA, VAULT_SLOTS};
+use f4x_core::item::armory::{ItemError, ItemSpot, Spot};
 use f4x_core::item::Item;
 use f4x_def::rules::SlotKind;
 use macroquad::prelude::*;
@@ -47,6 +47,10 @@ pub(crate) struct ItemUi {
     /// The first hero shown, always a multiple of [`HEROES`].
     pub hero_offset: usize,
 }
+
+/// The vault slots the screen draws at a time (the art has room for four); the vault itself has
+/// no limit and the screen scrolls through the rest.
+const VAULT_SLOTS: usize = 4;
 
 /// Pages of heroes for `count` heroes.
 pub(crate) fn hero_pages_for(count: usize) -> usize {
@@ -278,7 +282,7 @@ impl ItemUi {
             app.draw_pic(lay, "newgame", 45, 0, 67.0, 152.0);
             let text = app.text_with(
                 "item.transfer_ask",
-                &Args::new().count("mana", TRANSFER_MANA),
+                &Args::new().count("mana", app.game.content().rules.config.item.transfer_mana),
             );
             let lines = app.bm_wrap(1, &text, 160.0);
             for (i, line) in lines.iter().enumerate() {

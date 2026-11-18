@@ -14,12 +14,11 @@ use crate::text::Args;
 use crate::ui;
 use f4x_core::game::{Command, Event};
 use f4x_core::item::crafting::{
-    available_powers, check, cost, made_name, Craft, ItemDesign, MAX_CHARGES, MAX_POWERS,
-    SPELL_CHARGES,
+    available_powers, check, cost, made_name, Craft, ItemDesign, SPELL_CHARGES,
 };
 use f4x_def::rules::ItemPowerId;
 use f4x_def::rules::SpellId;
-use f4x_def::rules::{CastContext, ItemKind, ItemPowerDef};
+use f4x_def::rules::{CastContext, ItemKind, ItemPowerDef, ItemRules};
 use macroquad::prelude::*;
 
 use crate::craft_art::TAB_KEYS;
@@ -183,6 +182,7 @@ pub(crate) fn toggle_power(
     design: &mut ItemDesign,
     power: &ItemPowerDef,
     groups: &dyn Fn(ItemPowerId) -> Option<u8>,
+    rules: &ItemRules,
 ) -> Result<(), &'static str> {
     if let Some(at) = design
         .powers
@@ -193,7 +193,7 @@ pub(crate) fn toggle_power(
         return Ok(());
     }
     // A power of the same group (but the special powers) goes out for this one.
-    let same = (power.group != 9)
+    let same = (power.group != rules.free_group)
         .then(|| {
             design
                 .powers
@@ -204,7 +204,7 @@ pub(crate) fn toggle_power(
     if let Some(at) = same {
         design.powers.remove(at);
     }
-    if design.powers.len() + usize::from(design.charges.is_some()) >= MAX_POWERS {
+    if design.powers.len() + usize::from(design.charges.is_some()) >= rules.max_powers {
         return Err("craft.too_many");
     }
     design.powers.push(ItemPowerId::new(power.num));
@@ -395,7 +395,7 @@ impl App {
                 bx + 204.0 - 140.0 * col as f32,
                 by + row * 10.0 + 1.0,
             );
-            for n in 0..MAX_CHARGES {
+            for n in 0..self.game.content().rules.config.item.max_charges {
                 let (x, y) = (
                     bx + 158.0 + 23.0 * n as f32 - 140.0 * col as f32,
                     by + 11.0 + row * 10.0 + 10.0 * col as f32,
@@ -540,12 +540,14 @@ impl Page for CraftUi {
                     if charges {
                         if ui.design.charges.is_some() {
                             ui.design.charges = None;
-                        } else if ui.used() >= MAX_POWERS {
+                        } else if ui.used() >= rules.config.item.max_powers {
                             ui.message = Some(app.text("craft.too_many"));
                         } else {
                             ui.spells = Some(SpellPick::default());
                         }
-                    } else if let Err(key) = toggle_power(&mut ui.design, power, &group_of) {
+                    } else if let Err(key) =
+                        toggle_power(&mut ui.design, power, &group_of, &rules.config.item)
+                    {
                         ui.message = Some(app.text(key));
                     }
                 }
@@ -613,6 +615,10 @@ mod tests {
             .ok_or(format!("no item power {id}"))
     }
 
+    fn item_rules() -> ItemRules {
+        shipped::content().rules.config.item.clone()
+    }
+
     fn group_of(id: ItemPowerId) -> Option<u8> {
         shipped::content()
             .rules
@@ -624,9 +630,24 @@ mod tests {
     #[test]
     fn a_plain_power_replaces_the_one_of_its_group() -> TestResult {
         let mut ui = CraftUi::new(Craft::EnchantItem);
-        toggle_power(&mut ui.design, power(0 /* attack_1 */)?, &group_of)?;
-        toggle_power(&mut ui.design, power(6 /* defense_1 */)?, &group_of)?;
-        toggle_power(&mut ui.design, power(1 /* attack_2 */)?, &group_of)?;
+        toggle_power(
+            &mut ui.design,
+            power(0 /* attack_1 */)?,
+            &group_of,
+            &item_rules(),
+        )?;
+        toggle_power(
+            &mut ui.design,
+            power(6 /* defense_1 */)?,
+            &group_of,
+            &item_rules(),
+        )?;
+        toggle_power(
+            &mut ui.design,
+            power(1 /* attack_2 */)?,
+            &group_of,
+            &item_rules(),
+        )?;
         assert_eq!(
             ui.design.powers,
             [
@@ -634,25 +655,43 @@ mod tests {
                 ItemPowerId::new(1)  /* attack_2 */
             ]
         );
-        toggle_power(&mut ui.design, power(1 /* attack_2 */)?, &group_of)?;
+        toggle_power(
+            &mut ui.design,
+            power(1 /* attack_2 */)?,
+            &group_of,
+            &item_rules(),
+        )?;
         assert_eq!(ui.design.powers, [ItemPowerId::new(6) /* defense_1 */]);
         Ok(())
     }
 
     #[test]
-    fn four_places_are_all_there_are_and_the_charges_take_one() -> TestResult {
+    fn the_places_are_all_there_are_and_the_charges_take_one() -> TestResult {
+        let rules = item_rules();
         let mut ui = CraftUi::new(Craft::CreateArtifact);
         ui.design.charges = Some((SpellId::new(83) /* fire_bolt */, 2));
-        for id in [
-            33, /* flaming */
-            34, /* lightning */
-            35, /* chaos */
-        ] {
-            toggle_power(&mut ui.design, power(id)?, &group_of)?;
+        // The special powers combine freely, so only the places limit them.
+        let special: Vec<u16> = shipped::content()
+            .rules
+            .item_powers
+            .defs()
+            .iter()
+            .filter(|p| p.group == rules.free_group && p.bonus.is_none())
+            .map(|p| p.num)
+            .filter(|&n| ItemPowerId::new(n) != SPELL_CHARGES)
+            .collect();
+        assert!(special.len() > rules.max_powers);
+        for &id in &special[..rules.max_powers - 1] {
+            toggle_power(&mut ui.design, power(id)?, &group_of, &rules)?;
         }
-        assert_eq!(ui.used(), 4);
+        assert_eq!(ui.used(), rules.max_powers);
         assert_eq!(
-            toggle_power(&mut ui.design, power(36 /* destruction */)?, &group_of),
+            toggle_power(
+                &mut ui.design,
+                power(special[rules.max_powers - 1])?,
+                &group_of,
+                &rules
+            ),
             Err("craft.too_many")
         );
         Ok(())

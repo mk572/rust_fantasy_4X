@@ -16,9 +16,6 @@ use crate::rules::ItemId;
 use crate::rules::ItemPowerId;
 use crate::rules::{ItemKind, Rules};
 
-/// How many tries the prefab search and the random item's power search get.
-const TRIES: u32 = 50;
-
 /// The grade of item asked for (the original's `Power` argument).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Grade {
@@ -57,7 +54,7 @@ pub fn make_item(
     taken: &mut Vec<ItemId>,
 ) -> Item {
     let defs = rules.items.defs();
-    for _ in 0..TRIES {
+    for _ in 0..rules.config.item.search_tries {
         if defs.is_empty() {
             break;
         }
@@ -82,23 +79,25 @@ pub fn make_item(
 /// the plain ones that kind may carry, one of each group, until the power count is reached, the
 /// value is passed (the power that passes it stays) or fifty draws are spent.
 pub fn random_item(rng: &mut GameRng, rules: &Rules, grade: Grade, value: u32) -> Item {
+    let item_rules = &rules.config.item;
     let value = if value == 0 {
-        700 + (rng.roll(10) - 1) * 100
+        item_rules.random_value_base
+            + (rng.roll(item_rules.random_value_steps) - 1) * item_rules.random_value_step
     } else {
         value
     };
     let kind = KINDS[rng.roll(10) as usize - 1];
     let (max_cost, max_powers) = match grade {
-        Grade::Enchant => (crafting::Craft::EnchantItem.max_power_cost(), 2),
+        Grade::Enchant => (
+            crafting::Craft::EnchantItem.max_power_cost(rules),
+            item_rules.enchant_random_powers,
+        ),
         _ => (
-            20_000,
-            match kind {
-                ItemKind::Sword
-                | ItemKind::Mace
-                | ItemKind::Axe
-                | ItemKind::Staff
-                | ItemKind::Wand => 4,
-                _ => 3,
+            item_rules.random_max_power_cost,
+            if item_rules.many_power_kinds.contains(&kind) {
+                item_rules.many_random_powers
+            } else {
+                item_rules.other_random_powers
             },
         ),
     };
@@ -130,12 +129,12 @@ pub fn random_item(rng: &mut GameRng, rules: &Rules, grade: Grade, value: u32) -
         if !design.powers.is_empty()
             && (design.powers.len() == max_powers
                 || crafting::cost(&design, rules) > value
-                || tries > TRIES)
+                || tries > item_rules.search_tries)
         {
             break;
         }
         // No plain power fits the kind: give up rather than draw for ever.
-        if tries > 20 * TRIES {
+        if tries > 20 * item_rules.search_tries {
             break;
         }
     }

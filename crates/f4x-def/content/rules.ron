@@ -27,5 +27,16 @@
     // overland costs 5 times its battle price; each book beyond the 7th takes 10 percent off a cost; Evil
     // Omens adds half; a hero's battle mana is (skill + 1) * (level + 1) * 2.5.
     wizard: (start_tax_rate: 2, capital_figures: 4, capital_farmers: 3, capital_buildings: [8, 3, 32], max_retorts: 6, research_slots: 8, resign_below_skill: 40, overland_cost_factor: 5, evil_omens_percent: 50, book_steps_from: 7, book_step_percent: 10, mastery_discount_books: 11, mastery_discount: 3000, hero_mana_percent: 250),
+    // Items: the plain item's cost by kind, the mail's own defence, the limits of a design, the mana to move an item to a hero far away, and the random item.
+    item: (
+        base_cost: [(Sword, 100), (Mace, 100), (Axe, 100), (Bow, 100), (Staff, 300), (Wand, 200), (Misc, 50), (Shield, 100), (Chainmail, 100), (Platemail, 300)],
+        kind_defense: [(Chainmail, 1), (Platemail, 2)],
+        max_powers: 4, max_charges: 4, free_group: 9, enchant_max_power_cost: 200,
+        transfer_mana: 20,
+        random_value_base: 700, random_value_step: 100, random_value_steps: 10, random_max_power_cost: 20000,
+        enchant_random_powers: 2, many_random_powers: 4, other_random_powers: 3,
+        many_power_kinds: [Sword, Mace, Axe, Staff, Wand],
+        search_tries: 50,
+    ),
     autobuild_order: [29, 32, 26, 16, 23, 3, 8, 15, 22, 30, 17, 31, 34, 27, 35, 20, 4, 19, 9, 18, 24, 25, 28, 33, 14, 5, 21],
 )

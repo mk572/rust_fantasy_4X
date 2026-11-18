@@ -240,12 +240,13 @@ fn random_items_stay_within_their_grade() {
     let rules = &c.rules;
     for seed in 0..300 {
         let mut rng = f4x_core::game::rng::GameRng::new(seed);
-        // An Enchant Item grade item has at most two plain powers, each of 200 or less.
+        // An Enchant Item grade item has plain powers only, few and cheap: a base cost and, for
+        // each power, at most the cap (twice that on a miscellaneous item).
         let item = random_item(&mut rng, rules, Grade::Enchant, 0);
-        assert!(
-            item.powers.is_empty() && item.cost < 300 + 2 * 400 + 100,
-            "{item:?}"
-        );
+        let setting = &rules.config.item;
+        let base = setting.base_cost.iter().map(|&(_, c)| c).max().unwrap_or(0);
+        let most = base + setting.enchant_random_powers as u32 * 2 * setting.enchant_max_power_cost;
+        assert!(item.powers.is_empty() && item.cost <= most, "{item:?}");
         let item = random_item(&mut rng, rules, Grade::Artifact, 0);
         assert!(
             item.powers.is_empty() && (!item.name.is_empty() || item.made.is_some()),
