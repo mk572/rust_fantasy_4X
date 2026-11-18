@@ -141,6 +141,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 665 | Medium | AI | Assign settlers to the candidate sites by rank: the best site goes to the nearest free settler, then down the list; a site is unusable only by a condition that can be checked (enemy on it, already settled), not by a blacklist (*Needs:* 664) |
 | 666 | Medium | AI | Settler count follows the candidate list: no more settlers than unassigned candidates, more when many stand unassigned (*Needs:* 664) |
 | 667 | Medium | AI | Remove `Ai::bad_sites`: each of its four uses (settler, settler timeout, melding spirit, raid site) gets a failure condition that is checked in the view, and the cause of each failure is found and fixed |
+| 668 | Medium | AI | Soak and refused-order logs say why: every refusal names the square, the unit and the cause (water, enemy unit, full square, no path and where it stops), so the log shows the fault without a debug build |
 
 ## Descriptions
 
@@ -484,3 +485,12 @@ A settler that has walked for much longer than the walk it was given (the 100-tu
 * **Tests:** `expand.rs` (the first site is on the list after the way is blocked) and `plan_clock.rs` (a stale settler plan puts its site on the list) change to the new conditions; a test per failure condition (enemy seen then gone, city founded nearby, full square).
 * **Soak check:** the settler failure counts ("did not arrive in time", `WayBlocked`, `TooSlow`) and the refused orders of `expand.rs`, `meld.rs`, `raid.rs` and `escort.rs` do not rise, and a settler that walks for 100 turns is traced to its cause.
 *Needs:* 664 and 665 (settlers first; meld and raid can follow alone). **Progress 18 November 2026:** the settler uses are gone (`expand.rs`, `plan_clock.rs`, `dispatch.rs`); `bad_sites` is now only the meld and raid list, still cleared every 300 turns. **Left:** the meld and raid uses.
+
+**668. Refused orders and soak errors say why.** Asked on 18 November 2026. The refused-order log (`--refused-log`, `<name>-refused.tsv`) lists the source line, a reason such as `Move(Impassable)`, `Unreachable` or `OrderFailed StackFull`, and the command, but not the cause. Finding the cause of the roads over water (fixed: `RoadError::OnWater(Position)` now names the square) and of the settlers sent to land they could not walk to took a debug build and a replay of one game, because `Impassable` does not say whether the target is water, an enemy unit, a full square or simply cut off. The reasons are to carry the facts of the failure:
+* **Movement and paths:** `Move(Impassable)` and `Unreachable` say where the search stopped (the nearest square it reached), the blocking square when there is one and what blocks it (water, enemy unit or city, lair, full square, unexplored). The same for `OrderFailed StackFull` and `NoRoom`: the square and how many units stand on it against the limit.
+* **Other refusals** (`BattleStart`, `Rejection`, the road, spell and build errors): the same rule, the error type carries the square, the unit or the number that caused it, with its text key and a sentence in `content/text`.
+* **The log:** the `tsv` gets a column for the detail, and the soak summary groups by reason and detail so that "the same unit asks the same thing every turn" shows (a count of the units and turns on one order).
+* **Soak errors in general:** a panic, a failed invariant or a refusal in `f4x-tools soak` names the seed, turn, player and unit; a repeated order is flagged as a loop.
+* **Tests:** a test for each error type that carries a new fact; the summaries in `scripts/` (`docs/scripts.md`) read the new column.
+
+Still open when this was written: `escort.rs:61` `Move(Impassable)` (about 440 in four `islands-3p` games), `war.rs:343` and `escort.rs:214` `StackFull`, `raid.rs` `Unreachable`.
