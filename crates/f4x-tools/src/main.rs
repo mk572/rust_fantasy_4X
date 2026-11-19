@@ -7,6 +7,7 @@
 mod cache;
 mod console_cmd;
 mod contestant;
+mod duel;
 mod game_methods;
 mod metrics;
 mod queries;
@@ -51,6 +52,9 @@ const USAGE: &str = "usage:
   f4x-tools soak-versus [--seeds A..B] [--turns N] [--players 2..5] [--snapshots-every N] [--out DIR]
                                               the AI under work against the frozen reference (scripts/fork_ai.py):
                                               four games a seed (ref only, new in each half of the seats, new only)
+  f4x-tools duel pairs|teams [--units N,..] [--seeds N] [--battles N] [--csv FILE]
+                                              real battles between shipped units, played by the battle AI, with the
+                                              rules' invariants checked and the win rate of each unit (task 655)
   f4x-tools soak-diff SNAPSHOT_A SNAPSHOT_B   show how two saved games differ
   f4x-tools game-methods                      methods on Game per file of f4x-core, and the files over the guideline
                                               (a report, not a test)";
@@ -67,6 +71,7 @@ fn main() -> ExitCode {
         Some("soak") => soak::run(&args[1..]),
         Some("queries") => queries::run(&args[1..]),
         Some("soak-versus") => versus::run(&args[1..]),
+        Some("duel") => duel::run(&args[1..]),
         Some("soak-diff") => versus::diff(&args[1..]),
         _ => Err(USAGE.to_string()),
     };
