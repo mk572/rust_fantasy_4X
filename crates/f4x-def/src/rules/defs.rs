@@ -381,6 +381,18 @@ impl UnitDef {
     pub fn is_settler(&self) -> bool {
         self.abilities.contains(&Id::new(12 /* create_outpost */))
     }
+
+    /// Whether the unit fights on land: it has an attack and is neither a settler, an engineer
+    /// (it walks off to build roads), a ship nor a melder (a spirit that goes to a node; it fights only when a wizard is desperate for the little extra power to clear one early, which the node logic decides). The one
+    /// definition of a soldier; what kind it is (normal, hero, fantastic) does not matter here,
+    /// where it may stand is another question (only normal units and heroes keep a city quiet).
+    pub fn is_fighter(&self) -> bool {
+        self.stat(Stat::Melee).max(self.stat(Stat::Ranged)) > 0.0
+            && !self.is_settler()
+            && self.stat(Stat::Construction) <= 0.0
+            && self.movement != MovementType::Sailing
+            && !self.abilities.contains(&Id::new(42 /* meld */))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

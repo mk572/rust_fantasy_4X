@@ -575,7 +575,7 @@ fn ranking(c: &Content, f: &CityFacts, elite: bool) -> Vec<(UnitId, f32)> {
 
 fn is_land_fighter(c: &Content, u: UnitId) -> bool {
     let d = c.rules.units.get(u);
-    is_combat(d) && !d.is_settler() && d.movement != MovementType::Sailing
+    d.is_fighter()
 }
 
 // An elite plan is meant to make the army of the dear units a city can build. The check fails if

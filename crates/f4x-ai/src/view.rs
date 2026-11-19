@@ -4,7 +4,6 @@
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_def::rules::Ability;
 use f4x_def::rules::{MovementType, Stat};
 
 /// The answers of `can_reach` for one stretch of the AI's turn in which nothing moves: stacks that
@@ -104,16 +103,10 @@ pub fn is_coastal(view: &PlayerView, at: Position) -> bool {
     })
 }
 
-/// A unit that can fight on land (settlers, engineers, ships and the like are not counted).
+/// A unit that can fight on land (settlers, engineers, ships and the like are not counted):
+/// `UnitDef::is_fighter` of its definition.
 pub fn is_fighter(view: &PlayerView, unit: hecs::Entity) -> bool {
-    !view.unit_is_settler(unit)
-        && !is_ship(view, unit)
-        && view.unit_stat(unit, Stat::Construction) <= 0
-        && !view.unit_has_ability(unit, Ability::new(42 /* meld */))
-        && view
-            .unit_stat(unit, Stat::Melee)
-            .max(view.unit_stat(unit, Stat::Ranged))
-            > 0
+    view.unit_def(unit).is_some_and(|d| d.is_fighter())
 }
 
 /// King-move distance with the horizontal wrap; `None` across planes.

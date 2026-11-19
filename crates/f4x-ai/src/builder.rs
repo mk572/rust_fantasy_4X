@@ -15,16 +15,13 @@ use f4x_core::city::production::ProductionItem;
 use f4x_core::player::view::PlayerView;
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::effects::Effect;
-use f4x_def::rules::{Ability, BuildingId, ModOp, MovementType, Stat, UnitDef, UnitId, UnitKind};
+use f4x_def::rules::{BuildingId, ModOp, Stat, UnitDef, UnitId};
 
 /// Net gold per turn below which a city builds toward gold first.
 const GOLD_FLOOR: i32 = 3;
 /// Gold buildings are the first of the basics only below this net; above it production and food
 /// come first.
 const RICH_ENOUGH: i32 = 8;
-/// Weight of the unit's price in its score: the square root of the cost over its life.
-const UPKEEP_HORIZON: f32 = 100.0;
-
 /// What the city needs to know besides its plan.
 #[derive(Clone, Copy)]
 pub struct Need {
@@ -137,23 +134,6 @@ fn best_adding(
     best(opening)
 }
 
-fn lifetime_cost(d: &UnitDef) -> f32 {
-    let upkeep = d.upkeep.gold.as_f32() + 0.5 * d.upkeep.food.as_f32() + d.upkeep.mana as f32;
-    (d.cost.max(1) as f32 + UPKEEP_HORIZON * upkeep).max(1.0)
-}
-
-/// A unit the city may garrison with or raise an army from: it fights, walks and is neither a
-/// settler nor an engineer nor a ship.
-fn is_soldier(d: &UnitDef) -> bool {
-    d.kind == UnitKind::Normal
-        && d.cost > 0
-        && d.movement != MovementType::Sailing
-        && !d.is_settler()
-        && !d.abilities.contains(&Ability::new(42 /* meld */))
-        && d.stat(Stat::Construction) <= 0.0
-        && d.stat(Stat::Melee).max(d.stat(Stat::Ranged)) > 0.0
-}
-
 /// Whether the empire has the food to keep a unit of this kind (`Need::spare_food`).
 fn fed(d: &UnitDef, need: Need) -> bool {
     d.upkeep.food <= need.spare_food
@@ -164,7 +144,7 @@ fn soldiers(view: &PlayerView, city: hecs::Entity, need: Need) -> Vec<UnitId> {
         .rules
         .units
         .iter()
-        .filter(|&(_, d)| is_soldier(d) && fed(d, need))
+        .filter(|&(_, d)| d.is_fighter() && fed(d, need))
         .map(|(u, _)| u)
         .filter(|&u| view.can_build(city, ProductionItem::Unit(u)).is_ok())
         .collect()
@@ -187,7 +167,7 @@ fn best_soldier(view: &PlayerView, pool: &[UnitId], elite: bool, walks: bool) ->
             } else {
                 1.0
             };
-            let cost = lifetime_cost(d);
+            let cost = f4x_core::city::autobuild::lifetime_cost(d);
             let price = if elite { cost.powf(0.1) } else { cost.sqrt() };
             (u, power * reach / price)
         })

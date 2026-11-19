@@ -331,13 +331,6 @@ fn is_combat(d: &crate::rules::UnitDef) -> bool {
     d.stat(Stat::Melee) > 0.0 || d.stat(Stat::Ranged) > 0.0
 }
 
-/// A unit that can hold a city: it fights, and is neither a settler nor an engineer (engineers
-/// have a melee value but walk off to build roads, and a city that counted them would build one
-/// after another to fill its garrison).
-fn is_garrison(d: &crate::rules::UnitDef) -> bool {
-    is_combat(d) && !d.is_settler() && !is_engineer(d)
-}
-
 fn is_engineer(d: &crate::rules::UnitDef) -> bool {
     d.stat(Stat::Construction) > 0.0
 }
@@ -446,10 +439,11 @@ fn ranked_buildings(content: &Content, plan: &BuildPlan, f: &CityFacts) -> Vec<(
 
 // ---- scoring units -------------------------------------------------------------------------
 
-/// What a unit costs over its life: the price plus its upkeep (gold, half a point a food, mana)
-/// for [`UPKEEP_HORIZON`] turns.
-fn lifetime_cost(d: &crate::rules::UnitDef) -> f32 {
-    let upkeep = d.upkeep.gold.as_f32() + 0.5 * d.upkeep.food.as_f32() + d.upkeep.mana as f32;
+/// What a unit costs over its life: the price plus its upkeep for [`UPKEEP_HORIZON`] turns. Gold,
+/// food and mana count one to one (a city does not make food at twice the rate of gold). The one
+/// definition of the cost of a unit, also used by the AI's builder.
+pub fn lifetime_cost(d: &crate::rules::UnitDef) -> f32 {
+    let upkeep = d.upkeep.gold.as_f32() + d.upkeep.food.as_f32() + d.upkeep.mana as f32;
     (d.cost.max(1) as f32 + UPKEEP_HORIZON * upkeep).max(1.0)
 }
 
@@ -493,7 +487,7 @@ fn best_defender(content: &Content, f: &CityFacts) -> Option<UnitId> {
         .copied()
         .filter(|&u| {
             let d = content.rules.units.get(u);
-            is_garrison(d) && d.movement != MovementType::Sailing
+            d.is_fighter()
         })
         .collect();
     let best = max_profiles(content, &pool);
@@ -548,20 +542,17 @@ fn ranked_units(
     // to berserkers) is not in the roll at all, and a city that can build nothing better keeps
     // its cheap ones. The garrison minimum is chosen apart from this and stays cheap.
     let pool = if plan.elite_units {
-        let fighter = |d: &crate::rules::UnitDef| {
-            is_combat(d) && !d.is_settler() && d.movement != MovementType::Sailing
-        };
         let dearest = pool
             .iter()
             .map(|&u| content.rules.units.get(u))
-            .filter(|d| fighter(d))
+            .filter(|d| d.is_fighter())
             .map(|d| d.cost)
             .max()
             .unwrap_or(0);
         pool.into_iter()
             .filter(|&u| {
                 let d = content.rules.units.get(u);
-                !(fighter(d) && d.cost * 100 <= CHEAP_UNIT_PCT * dearest)
+                !(d.is_fighter() && d.cost * 100 <= CHEAP_UNIT_PCT * dearest)
             })
             .collect()
     } else {
@@ -835,7 +826,7 @@ impl Game {
             .filter(|&u| {
                 self.units()
                     .unit_def(u)
-                    .is_some_and(|d| d.kind == UnitKind::Normal && is_garrison(d))
+                    .is_some_and(|d| d.kind == UnitKind::Normal && d.is_fighter())
             })
             .count() as u32;
         let rival_near = view.known_cities().into_iter().any(|(_, o, p)| {

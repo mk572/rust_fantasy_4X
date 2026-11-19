@@ -5,7 +5,7 @@
 
 use f4x_core::city::production::{ProductionError, ProductionItem};
 use f4x_core::player::view::PlayerView;
-use f4x_def::rules::{BuildingId, MovementType, Stat, UnitId, UnitKind};
+use f4x_def::rules::{BuildingId, UnitId, UnitKind};
 
 use crate::phase::{phase, Phase};
 
@@ -70,23 +70,6 @@ pub(crate) fn chain(view: &PlayerView, unit: UnitId) -> Vec<BuildingId> {
     found
 }
 
-/// A unit that fights on land and is neither a settler nor a ship.
-fn is_land_fighter(view: &PlayerView, unit: UnitId) -> bool {
-    let d = view.content().rules.units.get(unit);
-    d.kind == UnitKind::Normal
-        && d.movement != MovementType::Sailing
-        && d.cost > 0
-        && d.stats
-            .get(&Stat::Melee)
-            .into_iter()
-            .chain(d.stats.get(&Stat::Ranged))
-            .any(|v| v.as_f32() > 0.0)
-        && d.stats
-            .get(&Stat::Construction)
-            .is_none_or(|v| v.as_f32() <= 0.0)
-        && !d.is_settler()
-}
-
 /// The dearest land fighter of the city's race whose buildings the city can still get (a coastal
 /// building is no use to an inland city).
 pub(crate) fn top_unit(view: &PlayerView, city: hecs::Entity) -> Option<UnitId> {
@@ -95,7 +78,7 @@ pub(crate) fn top_unit(view: &PlayerView, city: hecs::Entity) -> Option<UnitId> 
     race.units
         .iter()
         .copied()
-        .filter(|&u| is_land_fighter(view, u))
+        .filter(|&u| view.content().rules.units.get(u).is_fighter())
         .filter(|&u| {
             chain(view, u).into_iter().all(|b| {
                 !matches!(
@@ -127,7 +110,7 @@ pub(crate) fn low_tier(view: &PlayerView, unit: hecs::Entity) -> bool {
             .units
             .iter()
             .copied()
-            .filter(|&u| is_land_fighter(view, u))
+            .filter(|&u| view.content().rules.units.get(u).is_fighter())
             .map(|u| rules.units.get(u).cost)
             .max()
             .is_some_and(|top| def.cost * 100 <= LOW_TIER_PCT * top)
@@ -188,7 +171,7 @@ mod tests {
             .units
             .iter()
             .copied()
-            .filter(|&u| is_land_fighter(&view, u))
+            .filter(|&u| view.content().rules.units.get(u).is_fighter())
             .map(|u| rules.units.get(u).cost)
             .min()
             .ok_or("no unit")?;

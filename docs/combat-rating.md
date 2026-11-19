@@ -71,6 +71,15 @@ retyped formulas) comes first, so that the swap is one place.
 
 ### Step 1: the unit measure (task 720, needs 718)
 
+**The rating is combat only.** It says nothing about mobility (speed, flying, pathfinding, the sea, how
+long a unit takes to reach a fight) or about price and upkeep. Every user combines it with what it needs
+and does not read it as the value of a unit: the builder already does (`raw_profiles`: offence is the
+power with a bonus for speed, defence the power alone, both over the square root of the lifetime cost);
+a raid weighs the speed of the party; a garrison never weighs speed (its job is to not move) but does weigh upkeep and
+policing (`unit_efficiency.ron` is the rating over the cost, still blind to speed); a trade offer prices
+a unit by the gold it costs to make as well as by the rating. Replacing the measure (task 720) changes
+the combat factor in these combinations and leaves the others where they are.
+
 - `unit_power(unit)` = `combat_rating(def, level)` of the unit's experience level, times the share
   of its hit points left when it is hurt (the battle AI's `worth`, `order.rs`, counts the hit points
   left; the rating is for a whole unit), times a **modifier for what it carries**: the ratio of the old
@@ -107,7 +116,7 @@ retyped formulas) comes first, so that the swap is one place.
 |---|---|---|
 | Raid composition: `raid.rs`, `threat/raider.rs` | how strong a raid or a monster party is against a target, the paladin and drake yardsticks | yardsticks read ratings; party strength is the group sum |
 | Attack plans: `war_plan.rs` `strength_wanted`, `military.rs` `expected_defence`, `attack_ratio`, `sortie_ratio`, `reinforce.rs` | the force wanted for a target and whether to march | thresholds rescaled (step 1), the defence of a walled city with the wall factor (step 2) |
-| Garrisons: `military.rs`, `crowd.rs`, `escort.rs` (the weak hero), `assault.rs` `guard_parts`, `city/neutral.rs` | who stays, who marches, the neutral and lair garrisons | ranking by rating; `neutral.rs` keeps the original's melee and ranged slots and chooses within them by rating; **a garrison also has to calm the city: only normal units and heroes count as police (half a rebel each, up to one battle side, and only while the buildings and spells leave rebels), fantastic units never do, so the garrison logic keeps enough policing units in a city with unrest and picks the rest by efficiency (`unit_efficiency.ron`), where the fantastic units may fill the remaining slots** |
+| Garrisons: `military.rs`, `crowd.rs`, `escort.rs` (the weak hero), `assault.rs` `guard_parts`, `city/neutral.rs` | who stays, who marches, the neutral and lair garrisons | ranking by rating; `neutral.rs` keeps the original's melee and ranged slots and chooses within them by rating; **a garrison also has to calm the city (a strong preference, not a ban; raids and conquest take any fighter): only normal units and heroes count as police (half a rebel each, up to one battle side, and only while the buildings and spells leave rebels), fantastic units never do, so the garrison logic keeps enough policing units in a city with unrest and picks the rest by efficiency (`unit_efficiency.ron`), where the fantastic units may fill the remaining slots** |
 | Production: `city/autobuild.rs` (`best_defender`, `raw_profiles`), `ai/builder.rs` `best_soldier` | the best soldier a city can build for its gold | rating over the square root of the lifetime cost as now, the mobility bonus kept; the ratings expose the cost-inefficient units |
 | Diplomacy: `diplomacy/trade.rs` `unit_worth`, `hero_worth`; `ai/statecraft.rs` `Power { army }`, `leader_of`, `is_straggler` | what a unit is worth in a trade offer, how strong a rival's army is | a unit's price is its rating times a price per spearman read off the cost curve, at least its cost-based price; the army strength is the sum of ratings, the thresholds rescaled (task 722) |
 | Battle AI: `ai/battle/order.rs` `worth`, `cast.rs` (the worth of a summon) | which enemy to attack first, whether a spell is worth casting | `worth` = rating with the figures and hit points left; a summon is its rating |
