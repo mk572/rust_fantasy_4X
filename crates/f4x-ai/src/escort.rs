@@ -109,7 +109,7 @@ fn guarded(ai: &Ai, view: &PlayerView, charge: Serial) -> bool {
 }
 
 /// Ability of the Healer.
-const HEALER: f4x_def::rules::Ability = f4x_def::rules::Ability::new(27);
+const HEALER: f4x_def::rules::Ability = f4x_def::rules::Ability::new(27 /* healer */);
 
 /// A hero this much weaker than the average fighter needs a guard in the field.
 const WEAK_HERO: f32 = 0.5;

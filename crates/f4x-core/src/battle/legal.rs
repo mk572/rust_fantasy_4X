@@ -41,7 +41,7 @@ impl Battle {
                         out.push(BattleCommand::Shoot { unit, target: t.id });
                     }
                 }
-                if side == Side::Attacker && u.has(Ability::new(70)) {
+                if side == Side::Attacker && u.has(Ability::new(70 /* wall_crusher */)) {
                     for y in 0..GRID_H {
                         for x in 0..GRID_W {
                             let cell = (x, y);

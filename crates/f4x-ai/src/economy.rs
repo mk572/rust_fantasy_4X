@@ -121,7 +121,7 @@ fn scout_item(
         .iter()
         .filter(|(_, d)| {
             d.kind == f4x_def::rules::UnitKind::Normal
-                && !d.abilities.contains(&Ability::new(12))
+                && !d.abilities.contains(&Ability::new(12 /* create_outpost */))
                 && d.stats
                     .get(&f4x_def::rules::Stat::Melee)
                     .is_some_and(|m| m.floor() > 0)
@@ -673,7 +673,7 @@ fn spend_gold(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 fn settlers_alive(view: &PlayerView) -> usize {
     view.my_units()
         .into_iter()
-        .filter(|&u| view.unit_has_ability(u, Ability::new(12)))
+        .filter(|&u| view.unit_has_ability(u, Ability::new(12 /* create_outpost */)))
         .count()
 }
 
@@ -683,7 +683,7 @@ fn is_settler_def(view: &PlayerView, unit: f4x_def::rules::UnitId) -> bool {
         .units
         .get(unit)
         .abilities
-        .contains(&f4x_def::rules::Ability::new(12)) // create_outpost
+        .contains(&f4x_def::rules::Ability::new(12 /* create_outpost */)) // create_outpost
 }
 
 fn settler_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem> {
@@ -691,9 +691,10 @@ fn settler_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem>
     rules
         .units
         .iter()
-        .filter(
-            |(_, d)| d.abilities.contains(&f4x_def::rules::Ability::new(12)), /* create_outpost */
-        )
+        .filter(|(_, d)| {
+            d.abilities
+                .contains(&f4x_def::rules::Ability::new(12 /* create_outpost */))
+        } /* create_outpost */)
         .map(|(id, _)| ProductionItem::Unit(id))
         .find(|&i| view.can_build(city, i).is_ok())
 }

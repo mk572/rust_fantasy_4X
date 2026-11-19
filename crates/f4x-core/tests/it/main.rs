@@ -1,3 +1,4 @@
+mod ability_number;
 mod autobuild;
 mod city_gate;
 mod features;

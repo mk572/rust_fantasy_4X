@@ -457,7 +457,7 @@ impl Battle {
     /// raise it as undead. `None` if the unit is immune: a death creature, or immune to death.
     pub fn drain_life(&mut self, target: usize, modifier: i32) -> Option<Damage> {
         let unit = &self.units[target];
-        if unit.realm == Some(Realm::Death) || unit.has(Ability::new(16)) {
+        if unit.realm == Some(Realm::Death) || unit.has(Ability::new(16 /* death_immunity */)) {
             return None;
         }
         let mut state = unit.defender_state();
@@ -617,7 +617,7 @@ impl BattleUnit {
         };
         let (ceiling, hit_points) = (self.hit_point_ceiling(), self.hit_points());
         let moves_before = self.moves;
-        let hasted_before = self.has(Ability::new(26));
+        let hasted_before = self.has(Ability::new(26 /* hasted */));
         self.melee = base.melee;
         self.ranged = base.ranged;
         self.defense = base.defense;
@@ -653,7 +653,7 @@ impl BattleUnit {
         }
         // Haste: a unit that has not attacked yet may attack twice the turn it gets it; without
         // it, never.
-        if !self.has(Ability::new(26)) {
+        if !self.has(Ability::new(26 /* hasted */)) {
             self.extra_attack = false;
         } else if !hasted_before && !self.attacked {
             self.extra_attack = true;
@@ -720,13 +720,13 @@ impl BattleUnit {
 
     /// The flags the battle reads, brought in line with the abilities.
     fn sync_abilities(&mut self) {
-        self.first_strike |= self.has(Ability::new(23));
-        self.negate_first_strike |= self.has(Ability::new(48));
-        self.long_range |= self.has(Ability::new(38));
-        self.magical_weapon |= self.has(Ability::new(41));
-        self.flies |= self.has(Ability::new(24));
+        self.first_strike |= self.has(Ability::new(23 /* first_strike */));
+        self.negate_first_strike |= self.has(Ability::new(48 /* negate_first_strike */));
+        self.long_range |= self.has(Ability::new(38 /* long_range */));
+        self.magical_weapon |= self.has(Ability::new(41 /* magical_weapon */));
+        self.flies |= self.has(Ability::new(24 /* flying */));
         // A web or sleep grounds a flyer.
-        if self.has(Ability::new(73)) || self.has(Ability::new(2)) {
+        if self.has(Ability::new(73 /* webbed */)) || self.has(Ability::new(2 /* asleep */)) {
             self.flies = false;
         }
     }

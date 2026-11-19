@@ -467,7 +467,7 @@ fn recruit(ai: &Ai, game: &Game, reach: Option<Position>) -> Option<hecs::Entity
         }
         let key = (
             view.unit_stat(u, Stat::Moves) * 2
-                + i32::from(view.unit_has_ability(u, Ability::new(24))) * 2,
+                + i32::from(view.unit_has_ability(u, Ability::new(24 /* flying */))) * 2,
             std::cmp::Reverse(view.serial_of(u)),
             u,
         );

@@ -383,7 +383,9 @@ fn engineer_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem
             d.stats
                 .get(&Stat::Construction)
                 .is_some_and(|v| v.as_f32() > 0.0)
-                && !d.abilities.contains(&f4x_def::rules::Ability::new(12))
+                && !d
+                    .abilities
+                    .contains(&f4x_def::rules::Ability::new(12 /* create_outpost */))
         })
         .min_by_key(|&u| rules.units.get(u).cost)?;
     if view.can_build(city, ProductionItem::Unit(unit)).is_ok() {

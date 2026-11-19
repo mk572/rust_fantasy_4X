@@ -115,7 +115,7 @@ fn summons_melder(view: &PlayerView, def: &SpellDef) -> bool {
             .units
             .get(*unit)
             .abilities
-            .contains(&f4x_def::rules::Ability::new(42)),
+            .contains(&f4x_def::rules::Ability::new(42 /* meld */)),
         _ => false,
     })
 }

@@ -237,7 +237,10 @@ impl Game {
                 }
             }
         }
-        if abilities.iter().any(|a| *a == Ability::new(67)) {
+        if abilities
+            .iter()
+            .any(|a| *a == Ability::new(67 /* summon_demon */))
+        {
             casting.demons = 3;
         }
         for ability in abilities {
@@ -272,13 +275,16 @@ impl Game {
         let alive = ((current + hits - 1) / hits) as u32;
         let abilities = self.units().unit_abilities(unit);
         let flies = def.movement == MovementType::Flying
-            || abilities.iter().any(|a| *a == Ability::new(24));
+            || abilities
+                .iter()
+                .any(|a| *a == Ability::new(24 /* flying */));
         let has = |a: Ability| abilities.contains(&a);
         // Mithril adds one and adamantium two to the attacks and the defence.
         let quality = self.units().unit_weapon_quality(unit);
         let extra = i32::from(quality.max(1)) - 1;
         let ranged_kind = ranged_kind_of(&abilities);
-        let physical_shot = ranged_kind == RangedKind::Missile || has(Ability::new(69));
+        let physical_shot =
+            ranged_kind == RangedKind::Missile || has(Ability::new(69 /* thrown */));
         let melee = self.units().unit_stat(unit, Stat::Melee);
         let ranged = self.units().unit_stat(unit, Stat::Ranged);
         // A spell caster has mana (20, or 40 for a major one), and shoots its spells with it.
@@ -286,14 +292,14 @@ impl Game {
         let hero_mana = self.units().hero_mana(unit);
         let mana = if hero_mana > 0 {
             hero_mana
-        } else if has(Ability::new(62)) {
+        } else if has(Ability::new(62 /* spellcaster_major */)) {
             40
-        } else if has(Ability::new(61)) {
+        } else if has(Ability::new(61 /* spellcaster */)) {
             20
         } else {
             0
         };
-        let lucky = i32::from(has(Ability::new(39)));
+        let lucky = i32::from(has(Ability::new(39 /* lucky */)));
         let hero = self.world.get::<&crate::hero::Hero>(unit).ok();
         let level = self.units().unit_level(unit);
         let mut ammo = self.units().unit_stat(unit, Stat::Ammo);
@@ -336,9 +342,9 @@ impl Game {
             flies,
             sails: def.movement == MovementType::Sailing,
             swims: def.movement == MovementType::Swimming,
-            first_strike: has(Ability::new(23)),
-            negate_first_strike: has(Ability::new(48)),
-            long_range: has(Ability::new(38)),
+            first_strike: has(Ability::new(23 /* first_strike */)),
+            negate_first_strike: has(Ability::new(48 /* negate_first_strike */)),
+            long_range: has(Ability::new(38 /* long_range */)),
             magical_weapon: self.units().unit_has_magical_weapon(unit),
             weapon_quality: quality,
             special_level: self.units().unit_stat(unit, Stat::SpecialLevel),
@@ -569,9 +575,10 @@ impl Game {
         for (side, group) in [(Side::Attacker, attackers), (Side::Defender, defenders)] {
             let ship_decks = decks.of(side);
             let carried = ocean
-                && group
-                    .iter()
-                    .any(|&u| self.units().unit_has_ability(u, Ability::new(74)));
+                && group.iter().any(|&u| {
+                    self.units()
+                        .unit_has_ability(u, Ability::new(74 /* wind_walking */))
+                });
             let fighters: Vec<hecs::Entity> = group
                 .iter()
                 .copied()
@@ -767,8 +774,12 @@ impl Game {
         self.units()
             .unit_def(unit)
             .is_some_and(|d| d.movement == MovementType::Sailing)
-            && !self.units().unit_has_ability(unit, Ability::new(24))
-            && !self.units().unit_has_ability(unit, Ability::new(49))
+            && !self
+                .units()
+                .unit_has_ability(unit, Ability::new(24 /* flying */))
+            && !self
+                .units()
+                .unit_has_ability(unit, Ability::new(49 /* non_corporeal */))
     }
 
     /// Whether a unit may fight on the sea: a ship (it carries others or sails), a flier or a
@@ -780,7 +791,9 @@ impl Game {
                 d.movement,
                 MovementType::Flying | MovementType::Sailing | MovementType::Swimming
             )
-        }) || abilities.iter().any(|a| *a == Ability::new(24))
+        }) || abilities
+            .iter()
+            .any(|a| *a == Ability::new(24 /* flying */))
             || self.units().unit_stat(unit, Stat::Transport) > 0
     }
 
@@ -926,7 +939,7 @@ impl Game {
                     .and_then(|i| sources.get(i).copied())
                     .and_then(|e| self.units().unit_def(e))
                     .is_some_and(|d| d.kind == crate::rules::UnitKind::Hero);
-                (hero, u.has(Ability::new(12)))
+                (hero, u.has(Ability::new(12 /* create_outpost */)))
             })
             .collect();
         let mut value = 0;

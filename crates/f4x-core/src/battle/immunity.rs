@@ -89,15 +89,15 @@ impl Immunities {
     pub fn of(abilities: &[Ability]) -> Immunities {
         let has = |name: Ability| abilities.contains(&name);
         Immunities {
-            weapon: has(Ability::new(72)),
-            magic: has(Ability::new(40)),
-            missiles: has(Ability::new(44)),
-            fire: has(Ability::new(21)),
-            cold: has(Ability::new(10)),
-            poison: has(Ability::new(52)),
-            stoning: has(Ability::new(65)),
-            death: has(Ability::new(16)),
-            illusion: has(Ability::new(31)),
+            weapon: has(Ability::new(72 /* weapon_immunity */)),
+            magic: has(Ability::new(40 /* magic_immunity */)),
+            missiles: has(Ability::new(44 /* missile_immunity */)),
+            fire: has(Ability::new(21 /* fire_immunity */)),
+            cold: has(Ability::new(10 /* cold_immunity */)),
+            poison: has(Ability::new(52 /* poison_immunity */)),
+            stoning: has(Ability::new(65 /* stoning_immunity */)),
+            death: has(Ability::new(16 /* death_immunity */)),
+            illusion: has(Ability::new(31 /* illusion_immunity */)),
         }
     }
 
@@ -136,11 +136,11 @@ impl AttackNature {
     pub fn of_unit_attack(mode: Mode, abilities: &[Ability], magical_weapon: bool) -> AttackNature {
         let has = |name: Ability| abilities.contains(&name);
         let mut stopped_by = Immunities {
-            illusion: has(Ability::new(30)),
+            illusion: has(Ability::new(30 /* illusion_attack */)),
             ..Immunities::default()
         };
         let mut realm = None;
-        let mut armor_piercing = has(Ability::new(1));
+        let mut armor_piercing = has(Ability::new(1 /* armor_piercing */));
         if mode == Mode::Melee {
             stopped_by.weapon = !magical_weapon;
             return AttackNature {
@@ -193,34 +193,34 @@ enum Flavour {
 
 fn ranged_flavour(abilities: &[Ability]) -> Flavour {
     let has = |name: Ability| abilities.contains(&name);
-    if has(Ability::new(3)) || has(Ability::new(59)) {
+    if has(Ability::new(3 /* bow */)) || has(Ability::new(59 /* sling */)) {
         Flavour::Arrows
-    } else if has(Ability::new(57)) {
+    } else if has(Ability::new(57 /* rock_throwing */)) {
         Flavour::Boulders
-    } else if has(Ability::new(69)) {
+    } else if has(Ability::new(69 /* thrown */)) {
         Flavour::Thrown
-    } else if has(Ability::new(20)) {
+    } else if has(Ability::new(20 /* fire_breath */)) {
         Flavour::FireBreath
-    } else if has(Ability::new(37)) {
+    } else if has(Ability::new(37 /* lightning_breath */)) {
         Flavour::LightningBreath
-    } else if has(Ability::new(46)) {
+    } else if has(Ability::new(46 /* multi_gaze */)) {
         Flavour::Gaze(Realm::Chaos)
-    } else if has(Ability::new(64)) {
+    } else if has(Ability::new(64 /* stoning_gaze */)) {
         Flavour::Gaze(Realm::Nature)
-    } else if has(Ability::new(15)) {
+    } else if has(Ability::new(15 /* death_gaze */)) {
         Flavour::Gaze(Realm::Death)
-    } else if has(Ability::new(22))
-        || has(Ability::new(36))
-        || has(Ability::new(18))
-        || has(Ability::new(14))
+    } else if has(Ability::new(22 /* fireball_attack */))
+        || has(Ability::new(36 /* lightning_bolt */))
+        || has(Ability::new(18 /* drow_bolt */))
+        || has(Ability::new(14 /* death_bolt */))
     {
         Flavour::Bolt(Realm::Chaos)
-    } else if has(Ability::new(60)) {
+    } else if has(Ability::new(60 /* sorcery_bolt */)) {
         Flavour::Bolt(Realm::Sorcery)
-    } else if has(Ability::new(29))
-        || has(Ability::new(47))
-        || has(Ability::new(63))
-        || has(Ability::new(58))
+    } else if has(Ability::new(29 /* ice_bolt */))
+        || has(Ability::new(47 /* nature_bolt */))
+        || has(Ability::new(63 /* sprite_bolt */))
+        || has(Ability::new(58 /* shaman_bolt */))
     {
         Flavour::Bolt(Realm::Nature)
     } else {

@@ -16,7 +16,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let mut mine: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
-            .filter(|&u| view.unit_has_ability(u, Ability::new(12)))
+            .filter(|&u| view.unit_has_ability(u, Ability::new(12 /* create_outpost */)))
             .collect();
         view.sort_by_serial(&mut mine);
         // Forget the targets of settlers that are gone.

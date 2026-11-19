@@ -55,7 +55,10 @@ fn route(battle: &Battle, unit: &BattleUnit, to: Pos) -> Vec<Pos> {
 /// section nearest the enemy it can get to, struck from next to it. `None` if it should fight as
 /// usual (no wall, a breach already, or an enemy within reach).
 fn wall_order(battle: &Battle, unit: &BattleUnit, enemy: &BattleUnit) -> Option<BattleCommand> {
-    if unit.side != Side::Attacker || !unit.has(Ability::new(70)) || unit.attacked {
+    if unit.side != Side::Attacker
+        || !unit.has(Ability::new(70 /* wall_crusher */))
+        || unit.attacked
+    {
         return None;
     }
     let walls = battle.map.standing_walls();

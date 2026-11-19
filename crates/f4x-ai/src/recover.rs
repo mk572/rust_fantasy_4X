@@ -22,7 +22,7 @@ const HEALER_RANGE: u32 = 4;
 /// retreat: it heals in the field (5% a turn) and goes on with what it was doing.
 const CITY_RANGE: u32 = 8;
 /// The Healer ability of the unit table.
-const HEALER: Ability = Ability::new(27);
+const HEALER: Ability = Ability::new(27 /* healer */);
 
 /// Is the unit hurt enough to rest?
 pub(crate) fn needs_rest(view: &PlayerView, unit: hecs::Entity) -> bool {

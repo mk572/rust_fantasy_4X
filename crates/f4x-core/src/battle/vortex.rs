@@ -131,7 +131,7 @@ impl Battle {
             let cell = self.units[id].cell;
             if cell == to {
                 let u = &self.units[id];
-                if !u.has(Ability::new(40))
+                if !u.has(Ability::new(40 /* magic_immunity */))
                     && !u
                         .effects
                         .contains(crate::spell::unit_effect::UnitEffect::Righteousness)

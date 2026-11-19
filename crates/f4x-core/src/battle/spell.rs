@@ -899,7 +899,8 @@ impl Game {
                     }
                 }
                 if matches!(kind, Kind::LifeDrain)
-                    && (u.realm == Some(Realm::Death) || u.has(Ability::new(16)))
+                    && (u.realm == Some(Realm::Death)
+                        || u.has(Ability::new(16 /* death_immunity */)))
                 {
                     return Err(SpellError::Target(TargetError::Deathly));
                 }
@@ -909,8 +910,10 @@ impl Game {
                 if let Some(save) = &def.save {
                     let realm = Realm::of(def.realm);
                     let immune = save.immune.iter().any(|&a| u.has(a))
-                        || (realm == Some(Realm::Sorcery) && u.has(Ability::new(31)))
-                        || (realm == Some(Realm::Death) && u.has(Ability::new(16)));
+                        || (realm == Some(Realm::Sorcery)
+                            && u.has(Ability::new(31 /* illusion_immunity */)))
+                        || (realm == Some(Realm::Death)
+                            && u.has(Ability::new(16 /* death_immunity */)));
                     if immune {
                         return Err(SpellError::Target(TargetError::NotAffected));
                     }
@@ -934,7 +937,7 @@ impl Game {
                     }
                     self.check_stacking_in_battle(battle.player_of(side), spell, def, u)?;
                 }
-                if UnitEffect::Web.is_in(def) && u.has(Ability::new(49)) {
+                if UnitEffect::Web.is_in(def) && u.has(Ability::new(49 /* non_corporeal */)) {
                     return Err(SpellError::Target(TargetError::NonCorporeal));
                 }
                 // Warp Wood needs a missile unit, whatever its kind, and a unit is warped once.
@@ -1378,7 +1381,11 @@ impl Game {
                 // stand clear.
                 let over = battle
                     .unit_at(cell)
-                    .filter(|u| !u.flies && !u.has(Ability::new(49)) && !u.has(Ability::new(43)))
+                    .filter(|u| {
+                        !u.flies
+                            && !u.has(Ability::new(49 /* non_corporeal */))
+                            && !u.has(Ability::new(43 /* merging */))
+                    })
                     .map(|u| u.id);
                 if let Some(id) = over {
                     if battle.roll(4) == 1 {

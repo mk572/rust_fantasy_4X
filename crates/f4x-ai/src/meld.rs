@@ -13,14 +13,12 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_def::rules::Ability;
 
-/// The ability to meld with a node.
-const MELD: u16 = 42;
 /// Turns a spirit may stand still on its way before the node is given up.
 const PATIENCE: u32 = 4;
 
 /// Whether the unit is a spirit that can meld.
 pub fn is_melder(view: &PlayerView, unit: hecs::Entity) -> bool {
-    view.unit_has_ability(unit, Ability::new(MELD))
+    view.unit_has_ability(unit, Ability::new(42 /* meld */))
 }
 
 /// The squares of nodes a spirit can meld with.

@@ -397,7 +397,9 @@ impl Scene<'_> {
         let Some(battle) = self.game.battle() else {
             return 0.0;
         };
-        let walks = |u: &BattleUnit| !u.flies && !u.has(f4x_core::rules::Ability::new(49));
+        let walks = |u: &BattleUnit| {
+            !u.flies && !u.has(f4x_core::rules::Ability::new(49 /* non_corporeal */))
+        };
         let near = |u: &&BattleUnit, reach: u32| map::distance(u.cell, cell) <= reach;
         let ours = |reach: u32| Self::sum(self.friends, |u| walks(u) && near(&u, reach));
         let theirs = |reach: u32| Self::sum(self.enemies, |u| walks(u) && near(&u, reach));
@@ -418,7 +420,9 @@ impl Scene<'_> {
             BattleEffect::CracksCall => {
                 let over = |units: &[&BattleUnit]| {
                     Self::sum(units, |u| {
-                        u.cell == cell && walks(u) && !u.has(f4x_core::rules::Ability::new(43))
+                        u.cell == cell
+                            && walks(u)
+                            && !u.has(f4x_core::rules::Ability::new(43 /* merging */))
                     })
                 };
                 (FISSURE_ODDS * (over(self.enemies) - over(self.friends)) + breach).max(0.0)
