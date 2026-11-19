@@ -330,7 +330,7 @@ impl Game {
         let player = battle.player_of(side);
 
         // Pay: the unit's mana, a charge or the ability, and its turn.
-        let shot_mana = battle.rules.shot_mana;
+        let shot_mana = battle.rules().shot_mana;
         let u = &mut battle.units[unit];
         u.moves_left = HalfInt::ZERO;
         u.attacked = true;

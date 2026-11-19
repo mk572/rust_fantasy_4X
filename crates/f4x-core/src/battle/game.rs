@@ -676,7 +676,6 @@ impl Game {
         battle.melee_vs_fliers = self.settings.rules.melee_vs_fliers;
         battle.walls_cover_city = self.settings.rules.walls_cover_city;
         battle.max_side = self.settings.rules.max_battle_side;
-        battle.rules = self.content.rules.config.battle;
         (battle.node_aura, battle.node_site) = self.node_realms_at(site, city.is_none());
         battle.refresh_fields();
         battle.wall_of_fire = has_wall("fire");

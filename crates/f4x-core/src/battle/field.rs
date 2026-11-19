@@ -301,12 +301,12 @@ impl Battle {
         b.resistance += holy + resist_all;
         // A node's aura: its own realm's creatures fight harder, on either side.
         if u.realm.is_some() && u.realm == self.node_aura {
-            b.melee += self.rules.node_aura_bonus;
+            b.melee += self.rules().node_aura_bonus;
             if u.ranged > 0 {
-                b.ranged += self.rules.node_aura_bonus;
+                b.ranged += self.rules().node_aura_bonus;
             }
-            b.defense += self.rules.node_aura_bonus;
-            b.resistance += self.rules.node_aura_bonus;
+            b.defense += self.rules().node_aura_bonus;
+            b.resistance += self.rules().node_aura_bonus;
         }
         b.invisible = own(Field::MassInvisibility);
         b.blur = own(Field::Blur);
@@ -362,7 +362,7 @@ impl Battle {
 
     /// The side's wizard loses mana and its units with spell shots lose a shot.
     fn mana_leak(&mut self, victim: Side) -> Vec<BattleEvent> {
-        let (drain, shot_mana) = (self.rules.mana_leak_drain, self.rules.shot_mana);
+        let (drain, shot_mana) = (self.rules().mana_leak_drain, self.rules().shot_mana);
         if let Some(c) = self.casters[victim.index()].as_mut() {
             c.mana = (c.mana - drain).max(HalfInt::default());
         }
@@ -401,7 +401,7 @@ impl Battle {
             if u.side == caster || !u.is_active() || self.rng.gen_range(1..=2) != 1 {
                 continue;
             }
-            let dmg = self.spell_damage(id, self.rules.call_lightning_strength, &traits, nature);
+            let dmg = self.spell_damage(id, self.rules().call_lightning_strength, &traits, nature);
             events.push(BattleEvent::LightningStruck { unit: id });
             events.extend(self.spell_events_for_damage(id, dmg));
             bolts -= 1;
@@ -449,7 +449,7 @@ impl Battle {
     pub(super) fn side_turn_effects(&mut self, side: Side) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         let terror = self.has_field(side.other(), Field::Terror);
-        let rules = self.rules;
+        let rules = *self.rules();
         let entangle = self.has_field(side.other(), Field::Entangle);
         for id in 0..self.units.len() {
             if self.units[id].side != side || !self.units[id].is_active() {

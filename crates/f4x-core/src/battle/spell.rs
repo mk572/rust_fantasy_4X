@@ -1208,7 +1208,7 @@ impl Game {
             realm,
             armor_piercing: false,
         };
-        let rules = self.battle()?.rules;
+        let rules = *self.battle()?.rules();
         let (mut points, mut kills) = (0.0, 0);
         for seed in 0..TRIES {
             let mut copy = unit.clone();

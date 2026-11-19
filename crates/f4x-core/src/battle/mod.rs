@@ -1039,9 +1039,6 @@ pub struct Battle {
     /// (`RuleSettings::max_battle_side`).
     #[serde(default = "default_side_limit")]
     pub max_side: usize,
-    /// The numbers of the battle (`rules.ron`), copied when it starts.
-    #[serde(default)]
-    pub rules: BattleRules,
     /// The definitions of the game, shared with it: not saved, the game that loads the battle
     /// attaches its own.
     #[serde(skip)]
@@ -1059,7 +1056,7 @@ impl Battle {
     /// dispel of the reserve's strength must beat the spell. Every attempt drains the reserve
     /// by `rules.counter_magic_drain`, whether or not it stopped the spell.
     pub fn counter_magic_stops(&mut self, side: Side, difficulty: u32) -> bool {
-        let drain = self.rules.counter_magic_drain;
+        let drain = self.rules().counter_magic_drain;
         let reserve = &mut self.counter_magic[side.other().index()];
         let strength = *reserve;
         *reserve = reserve.saturating_sub(drain);
@@ -1077,10 +1074,15 @@ impl Battle {
             return false;
         }
         crate::spell::dispel::dispel_roll(
-            self.rules.node_counter_strength,
+            self.rules().node_counter_strength,
             difficulty,
             &mut self.rng,
         )
+    }
+
+    /// The numbers of the battle (`rules.ron`).
+    pub fn rules(&self) -> &BattleRules {
+        &self.content.rules.config.battle
     }
 
     /// Start a battle. Unit ids are assigned in list order; the attacker moves first.
@@ -1119,7 +1121,6 @@ impl Battle {
             melee_vs_fliers: MeleeVsFliers::default(),
             walls_cover_city: false,
             max_side: default_side_limit(),
-            rules: BattleRules::default(),
             content: content_ref::ContentRef::new(content),
             rng: GameRng::new(seed),
         };
@@ -1257,7 +1258,7 @@ impl Battle {
             Some(Side::Defender)
         } else if alive(Side::Defender) == 0 {
             Some(Side::Attacker)
-        } else if self.turn > self.rules.turn_limit {
+        } else if self.turn > self.rules().turn_limit {
             exhausted = true;
             Some(Side::Defender)
         } else {
@@ -1335,7 +1336,7 @@ impl Battle {
         if destroyed {
             self.map.break_wall(cell);
         }
-        let shot_mana = self.rules.shot_mana;
+        let shot_mana = self.rules().shot_mana;
         let u = &mut self.units[unit];
         u.attacked = true;
         u.revealed = true;
@@ -1453,7 +1454,7 @@ impl Battle {
             realm: Some(Realm::Chaos),
             armor_piercing: false,
         };
-        let dmg = self.spell_damage(unit, self.rules.wall_of_fire_strength, &traits, nature);
+        let dmg = self.spell_damage(unit, self.rules().wall_of_fire_strength, &traits, nature);
         self.spell_events_for_damage(unit, dmg)
     }
 
@@ -1701,7 +1702,7 @@ impl Battle {
 
     /// Take the mana of a Power Drain off the unit, with the event when it had any to lose.
     fn power_drained(&mut self, unit: usize, amount: i32) -> Option<BattleEvent> {
-        let shot_mana = self.rules.shot_mana;
+        let shot_mana = self.rules().shot_mana;
         let lost = self.units[unit].drain_power(amount, shot_mana);
         (lost > 0).then_some(BattleEvent::PowerDrained { unit, amount: lost })
     }
@@ -1721,7 +1722,7 @@ impl Battle {
             }
         }
         let rng: &mut dyn RngCore = &mut self.rng;
-        let out = attack::melee_exchange(&self.rules, &mut a, &mut d, rng);
+        let out = attack::melee_exchange(&self.content.rules.config.battle, &mut a, &mut d, rng);
         let mut events = vec![BattleEvent::Attacked {
             attacker: att,
             defender: def,
@@ -1776,10 +1777,16 @@ impl Battle {
         let mut state = self.units[def].defender_state();
         state.defense += self.city_defense_bonus(def, att);
         let rng: &mut dyn RngCore = &mut self.rng;
-        let dmg = attack::ranged_attack(&self.rules, &shooter, figures, &mut state, rng);
+        let dmg = attack::ranged_attack(
+            &self.content.rules.config.battle,
+            &shooter,
+            figures,
+            &mut state,
+            rng,
+        );
         self.units[def].set_from(&state);
         self.units[def].record(dmg);
-        let shot_mana = self.rules.shot_mana;
+        let shot_mana = self.rules().shot_mana;
         let a = &mut self.units[att];
         if dmg.healed > 0 {
             a.heal_points(dmg.healed, true);

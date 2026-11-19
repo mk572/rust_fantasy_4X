@@ -376,7 +376,7 @@ impl Battle {
         traits: &DamageTraits,
         nature: AttackNature,
     ) -> Option<Damage> {
-        let rules = self.rules;
+        let rules = *self.rules();
         let rng: &mut dyn RngCore = &mut self.rng;
         damage_unit_with_spell(
             &rules,
@@ -519,7 +519,7 @@ impl Battle {
         mods: &[Modifier],
         grants: &[Ability],
     ) {
-        let web_hits = self.rules.web_hits;
+        let web_hits = self.rules().web_hits;
         let unit = &mut self.units[target];
         let webbing = effects.contains(UnitEffect::Web);
         // A web cast again on a unit that has it (its web broken) only closes round it anew.

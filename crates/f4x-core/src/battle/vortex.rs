@@ -56,7 +56,7 @@ impl Battle {
     pub(super) fn vortex_round(&mut self) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         for index in 0..self.vortices.len() {
-            for _ in 0..self.rules.vortex_random_moves {
+            for _ in 0..self.rules().vortex_random_moves {
                 let from = self.vortices[index].cell;
                 let mut to = from;
                 for _ in 0..50 {
@@ -109,7 +109,7 @@ impl Battle {
         self.vortices[index].cell = to;
         let mut events = vec![BattleEvent::VortexMoved { index, to }];
         if self.map.is_city() && map::in_city_area(to) {
-            self.city_damage += self.rules.vortex_city_damage;
+            self.city_damage += self.rules().vortex_city_damage;
         }
         let bolt = DamageTraits {
             armor_piercing: true,
@@ -123,7 +123,7 @@ impl Battle {
             realm: Some(Realm::Chaos),
             armor_piercing: false,
         };
-        let crush = self.rules.vortex_crush_damage;
+        let crush = self.rules().vortex_crush_damage;
         for id in 0..self.units.len() {
             if !self.units[id].is_active() {
                 continue;
@@ -155,7 +155,7 @@ impl Battle {
             }
             if cell != to && map::distance(cell, to) == 1 && self.roll(3) == 1 {
                 let dmg =
-                    self.spell_damage(id, self.rules.vortex_bolt_strength, &bolt, bolt_nature);
+                    self.spell_damage(id, self.rules().vortex_bolt_strength, &bolt, bolt_nature);
                 events.extend(self.spell_events_for_damage(id, dmg));
             }
         }
