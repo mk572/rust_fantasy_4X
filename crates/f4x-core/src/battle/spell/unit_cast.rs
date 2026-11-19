@@ -99,7 +99,7 @@ impl Game {
             .into_iter()
             .filter_map(|(spell, source)| {
                 let def = self.content.rules.spells.get(spell);
-                let kind = self.battle_kind(spell, def)?;
+                let kind = Kind::of(spell, def)?;
                 let cost = if source == SpellSource::Mana {
                     self.unit_cast_cost(def)
                 } else {
@@ -158,9 +158,7 @@ impl Game {
             .find(|(s, _)| *s == spell)
             .ok_or(err(SpellError::NotKnown))?;
         let def = self.content.rules.spells.get(spell).clone();
-        let kind = self
-            .battle_kind(spell, &def)
-            .ok_or(err(SpellError::Unsupported))?;
+        let kind = Kind::of(spell, &def).ok_or(err(SpellError::Unsupported))?;
         let least = self.unit_cast_cost(&def);
         let (paid, pool) = match source {
             SpellSource::Mana if kind.takes_extra_mana() => {

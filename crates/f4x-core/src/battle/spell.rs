@@ -143,123 +143,8 @@ enum Kind {
 }
 
 impl Kind {
-    /// Whether extra mana makes the spell stronger.
-    fn takes_extra_mana(&self) -> bool {
-        match self {
-            Kind::Damage { traits, .. } => traits.mana_per_point > 0,
-            Kind::Slay { mana_per_step, .. } => *mana_per_step > 0,
-            Kind::Dispel(_) | Kind::CounterMagic | Kind::LifeDrain => true,
-            _ => false,
-        }
-    }
-}
-
-/// A spell the wizard could cast in the battle, for a menu.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BattleSpell {
-    pub spell: SpellId,
-    /// Casting skill it costs at least.
-    pub cost: i32,
-    /// More mana can be put in to make it stronger.
-    pub takes_extra_mana: bool,
-    /// What it must be aimed at.
-    pub target: SpellTarget,
-    /// Whether the wizard can cast it now (skill, reserve, and the one spell a turn).
-    pub castable: bool,
-}
-
-/// What a damage spell would do to a unit (see `Game::preview_spell_damage`).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct DamageOdds {
-    /// Hit points taken on average.
-    pub mean: f32,
-    /// The share of tries in which the unit is destroyed.
-    pub kill_chance: f32,
-}
-
-/// A spell the wizard may cast now, with where it may be aimed and how much mana may go in.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalCast {
-    pub spell: SpellId,
-    /// Every aim the spell accepts: `None` for a spell with no target, a unit, or a square.
-    pub aims: Vec<SpellAim>,
-    /// The mana the spell takes at least (its cost) and at most (what the wizard can afford).
-    /// They are equal for a spell that takes no extra mana. Any amount between is legal; `0`
-    /// asks for the least.
-    pub least_mana: u32,
-    pub most_mana: u32,
-}
-
-/// The hook of the battle spells that act in a way of their own.
-pub const BATTLE_EFFECT: &str = "battle_effect";
-
-crate::hook::effect_enum! {
-    /// What a spell with the `battle_effect` hook does in a battle: the argument of the hook
-    /// (`Custom(name: "battle_effect", args: ["earth_to_mud"])`).
-    pub enum BattleEffect in BATTLE_EFFECT;
-    CallChaos = "call_chaos",
-    Animate = "animate",
-    Raise = "raise",
-    WarpWood = "warp_wood",
-    EarthToMud = "earth_to_mud",
-    CracksCall = "cracks_call",
-    Vortex = "vortex",
-    Disrupt = "disrupt",
-    LifeDrain = "life_drain",
-}
-
-impl BattleEffect {
-    /// The effect a spell's definition gives, if it has the hook.
-    pub fn of(def: &SpellDef) -> Option<BattleEffect> {
-        BattleEffect::named(def.hook_args(BATTLE_EFFECT)?.first()?)
-    }
-
-    fn kind(self) -> Kind {
-        match self {
-            BattleEffect::CallChaos => Kind::CallChaos,
-            BattleEffect::Animate => Kind::Animate,
-            BattleEffect::Raise => Kind::Raise,
-            BattleEffect::WarpWood => Kind::WarpWood,
-            BattleEffect::EarthToMud => Kind::EarthToMud,
-            BattleEffect::CracksCall => Kind::CracksCall,
-            BattleEffect::Vortex => Kind::Vortex,
-            BattleEffect::Disrupt => Kind::Disrupt,
-            BattleEffect::LifeDrain => Kind::LifeDrain,
-        }
-    }
-}
-
-/// Creatures a spell may only be thrown at, by realm: Star Fires burns chaos and death
-/// creatures and nothing else.
-fn only_against(spell: SpellId) -> Option<&'static [Realm]> {
-    match spell.num() {
-        122 /* star_fires */ => Some(&[Realm::Chaos, Realm::Death]),
-        _ => None,
-    }
-}
-
-/// How much harder the undead find it to resist a spell, on top of its own modifier: Dispel
-/// Evil and Holy Word (the help's "much more difficult time"; the original's Holy Word code
-/// has it the wrong way round).
-fn undead_penalty(spell: SpellId) -> i32 {
-    match spell.num() {
-        134 /* dispel_evil */ | 150 /* holy_word */ => 5,
-        _ => 0,
-    }
-}
-
-/// Whether a slaying spell of this kind can destroy the unit.
-pub fn slay_allows(only: SlayOnly, unit: &super::BattleUnit) -> bool {
-    match only {
-        SlayOnly::Any => true,
-        SlayOnly::Fantastic => unit.is_fantastic(),
-        SlayOnly::ChaosOrDeath => matches!(unit.realm, Some(Realm::Chaos | Realm::Death)),
-    }
-}
-
-impl Game {
     /// What the spell does in a battle, or `None` if it cannot be cast there (yet).
-    fn battle_kind(&self, spell: SpellId, def: &SpellDef) -> Option<Kind> {
+    pub(super) fn of(spell: SpellId, def: &SpellDef) -> Option<Kind> {
         if !def.contexts.contains(&CastContext::Battle) {
             return None;
         }
@@ -408,6 +293,121 @@ impl Game {
         }
     }
 
+    /// Whether extra mana makes the spell stronger.
+    fn takes_extra_mana(&self) -> bool {
+        match self {
+            Kind::Damage { traits, .. } => traits.mana_per_point > 0,
+            Kind::Slay { mana_per_step, .. } => *mana_per_step > 0,
+            Kind::Dispel(_) | Kind::CounterMagic | Kind::LifeDrain => true,
+            _ => false,
+        }
+    }
+}
+
+/// A spell the wizard could cast in the battle, for a menu.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattleSpell {
+    pub spell: SpellId,
+    /// Casting skill it costs at least.
+    pub cost: i32,
+    /// More mana can be put in to make it stronger.
+    pub takes_extra_mana: bool,
+    /// What it must be aimed at.
+    pub target: SpellTarget,
+    /// Whether the wizard can cast it now (skill, reserve, and the one spell a turn).
+    pub castable: bool,
+}
+
+/// What a damage spell would do to a unit (see `Game::preview_spell_damage`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DamageOdds {
+    /// Hit points taken on average.
+    pub mean: f32,
+    /// The share of tries in which the unit is destroyed.
+    pub kill_chance: f32,
+}
+
+/// A spell the wizard may cast now, with where it may be aimed and how much mana may go in.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegalCast {
+    pub spell: SpellId,
+    /// Every aim the spell accepts: `None` for a spell with no target, a unit, or a square.
+    pub aims: Vec<SpellAim>,
+    /// The mana the spell takes at least (its cost) and at most (what the wizard can afford).
+    /// They are equal for a spell that takes no extra mana. Any amount between is legal; `0`
+    /// asks for the least.
+    pub least_mana: u32,
+    pub most_mana: u32,
+}
+
+/// The hook of the battle spells that act in a way of their own.
+pub const BATTLE_EFFECT: &str = "battle_effect";
+
+crate::hook::effect_enum! {
+    /// What a spell with the `battle_effect` hook does in a battle: the argument of the hook
+    /// (`Custom(name: "battle_effect", args: ["earth_to_mud"])`).
+    pub enum BattleEffect in BATTLE_EFFECT;
+    CallChaos = "call_chaos",
+    Animate = "animate",
+    Raise = "raise",
+    WarpWood = "warp_wood",
+    EarthToMud = "earth_to_mud",
+    CracksCall = "cracks_call",
+    Vortex = "vortex",
+    Disrupt = "disrupt",
+    LifeDrain = "life_drain",
+}
+
+impl BattleEffect {
+    /// The effect a spell's definition gives, if it has the hook.
+    pub fn of(def: &SpellDef) -> Option<BattleEffect> {
+        BattleEffect::named(def.hook_args(BATTLE_EFFECT)?.first()?)
+    }
+
+    fn kind(self) -> Kind {
+        match self {
+            BattleEffect::CallChaos => Kind::CallChaos,
+            BattleEffect::Animate => Kind::Animate,
+            BattleEffect::Raise => Kind::Raise,
+            BattleEffect::WarpWood => Kind::WarpWood,
+            BattleEffect::EarthToMud => Kind::EarthToMud,
+            BattleEffect::CracksCall => Kind::CracksCall,
+            BattleEffect::Vortex => Kind::Vortex,
+            BattleEffect::Disrupt => Kind::Disrupt,
+            BattleEffect::LifeDrain => Kind::LifeDrain,
+        }
+    }
+}
+
+/// Creatures a spell may only be thrown at, by realm: Star Fires burns chaos and death
+/// creatures and nothing else.
+fn only_against(spell: SpellId) -> Option<&'static [Realm]> {
+    match spell.num() {
+        122 /* star_fires */ => Some(&[Realm::Chaos, Realm::Death]),
+        _ => None,
+    }
+}
+
+/// How much harder the undead find it to resist a spell, on top of its own modifier: Dispel
+/// Evil and Holy Word (the help's "much more difficult time"; the original's Holy Word code
+/// has it the wrong way round).
+fn undead_penalty(spell: SpellId) -> i32 {
+    match spell.num() {
+        134 /* dispel_evil */ | 150 /* holy_word */ => 5,
+        _ => 0,
+    }
+}
+
+/// Whether a slaying spell of this kind can destroy the unit.
+pub fn slay_allows(only: SlayOnly, unit: &super::BattleUnit) -> bool {
+    match only {
+        SlayOnly::Any => true,
+        SlayOnly::Fantastic => unit.is_fantastic(),
+        SlayOnly::ChaosOrDeath => matches!(unit.realm, Some(Realm::Chaos | Realm::Death)),
+    }
+}
+
+impl Game {
     /// The wizard of `player` in the battle, if one is on.
     fn battle_caster_of(&self, player: PlayerId) -> Option<BattleCaster> {
         let b = self.battle()?;
@@ -426,7 +426,7 @@ impl Game {
             .iter()
             .filter_map(|&spell| {
                 let def = self.content.rules.spells.get(spell);
-                let kind = self.battle_kind(spell, def)?;
+                let kind = Kind::of(spell, def)?;
                 let cost = self.casting_cost(player, spell, true);
                 Some(BattleSpell {
                     spell,
@@ -453,9 +453,7 @@ impl Game {
         mana: u32,
     ) -> Result<(i32, i32), SpellError> {
         let def = self.content.rules.spells.get(spell);
-        let kind = self
-            .battle_kind(spell, def)
-            .ok_or(SpellError::Unsupported)?;
+        let kind = Kind::of(spell, def).ok_or(SpellError::Unsupported)?;
         let least = self.casting_cost(player, spell, true);
         if !kind.takes_extra_mana() {
             return Ok((least, def.cost as i32));
@@ -593,9 +591,7 @@ impl Game {
         if !def.contexts.contains(&CastContext::Battle) {
             return Err(err(SpellError::NotForBattle));
         }
-        let kind = self
-            .battle_kind(spell, &def)
-            .ok_or(err(SpellError::Unsupported))?;
+        let kind = Kind::of(spell, &def).ok_or(err(SpellError::Unsupported))?;
         let (skill, pool) = self.battle_spell_price(player, spell, mana).map_err(err)?;
         if skill > caster.affordable() {
             return Err(err(SpellError::TooExpensive));
@@ -1176,86 +1172,15 @@ impl Game {
         })
     }
 
-    /// The damage a spell does, by its id: strength, its types and traits.
-    fn damage_of(&self, spell: SpellId) -> Option<(i32, DamageTypes, DamageTraits)> {
-        match self.battle_kind(spell, self.content.rules.spells.get(spell))? {
-            Kind::Damage {
-                strength,
-                types,
-                traits,
-                ..
-            } => Some((strength, types, traits)),
-            _ => None,
-        }
-    }
-
-    /// What a damage spell would do to one unit of the battle, tried on copies of the unit with
-    /// the game's own damage code (defence, immunities, realm, area or chain): the average hit
-    /// points taken and the share of the tries that destroy the unit. `extra_mana` is mana beyond
-    /// the cost, for a spell that turns it into strength. `None` if the spell does not damage, or
-    /// the unit is immune to it.
+    /// What a damage spell would do to a unit of the running battle (`Battle::preview_spell_damage`).
     pub fn preview_spell_damage(
         &self,
         spell: SpellId,
         target: usize,
         extra_mana: u32,
     ) -> Option<DamageOdds> {
-        const TRIES: u32 = 24;
-        let (strength, types, traits) = self.damage_of(spell)?;
-        let unit = self.battle()?.unit(target)?;
-        if Immunities::of(&unit.abilities, &unit.enchantments, &self.content.rules).stops(types) {
-            return None;
-        }
-        let extra = extra_mana
-            .checked_div(traits.mana_per_point)
-            .map_or(0, |points| points as i32);
-        let nature = AttackNature {
-            types,
-            armor_piercing: false,
-        };
-        let (mut points, mut kills) = (0.0, 0);
-        for seed in 0..TRIES {
-            let mut copy = unit.clone();
-            let mut rng = Pcg64Mcg::seed_from_u64(u64::from(seed) + 1);
-            let dealt = super::casting::damage_unit_with_spell(
-                &self.content.rules,
-                &mut copy,
-                strength + extra,
-                &traits,
-                nature,
-                &mut rng,
-            )?;
-            points += dealt.points as f32;
-            kills += u32::from(copy.figures == 0);
-        }
-        Some(DamageOdds {
-            mean: points / TRIES as f32,
-            kill_chance: kills as f32 / TRIES as f32,
-        })
-    }
-
-    /// Hit units with a damage spell; each gets its own events.
-    fn strike(
-        &mut self,
-        targets: &[usize],
-        strength: i32,
-        types: DamageTypes,
-        traits: &DamageTraits,
-    ) -> Vec<BattleEvent> {
-        let nature = AttackNature {
-            types,
-            armor_piercing: false,
-        };
-        let Some(active) = self.battle.as_mut() else {
-            return Vec::new();
-        };
-        let battle = &mut active.battle;
-        let mut events = Vec::new();
-        for &t in targets {
-            let dmg = battle.spell_damage(t, strength, traits, nature);
-            events.extend(battle.spell_events_for_damage(t, dmg, nature.types));
-        }
-        events
+        self.battle()?
+            .preview_spell_damage(spell, target, extra_mana)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1289,7 +1214,9 @@ impl Game {
                     (false, SpellAim::Unit(t)) => vec![t],
                     _ => return Vec::new(),
                 };
-                self.strike(&targets, strength + extra, types, &traits)
+                self.battle.as_mut().map_or_else(Vec::new, |a| {
+                    a.battle.strike(&targets, strength + extra, types, &traits)
+                })
             }
             (
                 Kind::Heal {
@@ -1725,8 +1652,11 @@ impl Game {
                         6 => (SpellId::new(101) /* warp_lightning */, None),
                         _ => (SpellId::new(104) /* doom_bolt */, None),
                     };
-                    if let Some((base, types, traits)) = self.damage_of(id) {
-                        events.extend(self.strike(&[t], strength.unwrap_or(base), types, &traits));
+                    if let Some(active) = self.battle.as_mut() {
+                        let b = &mut active.battle;
+                        if let Some((base, types, traits)) = b.damage_of(id) {
+                            events.extend(b.strike(&[t], strength.unwrap_or(base), types, &traits));
+                        }
                     }
                 }
                 8 => {
@@ -1942,7 +1872,7 @@ impl Game {
             .iter()
             .filter_map(|&(spell, caster)| {
                 let def = self.content.rules.spells.get(spell);
-                let (mods, grants) = match self.battle_kind(spell, def)? {
+                let (mods, grants) = match Kind::of(spell, def)? {
                     Kind::Enchant { mods, grants, .. } => (mods, grants),
                     Kind::Turn { bind: true, .. } => (Vec::new(), Vec::new()),
                     // The warp it got is kept among the unit's enchantment ids.
@@ -2005,6 +1935,84 @@ impl Game {
 }
 
 impl Battle {
+    /// The damage a spell does, by its id: strength, its types and traits.
+    pub(super) fn damage_of(&self, spell: SpellId) -> Option<(i32, DamageTypes, DamageTraits)> {
+        match Kind::of(spell, self.content.rules.spells.get(spell))? {
+            Kind::Damage {
+                strength,
+                types,
+                traits,
+                ..
+            } => Some((strength, types, traits)),
+            _ => None,
+        }
+    }
+
+    /// What a damage spell would do to one unit of the battle, tried on copies of the unit with
+    /// the game's own damage code (defence, immunities, realm, area or chain): the average hit
+    /// points taken and the share of the tries that destroy the unit. `extra_mana` is mana beyond
+    /// the cost, for a spell that turns it into strength. `None` if the spell does not damage, or
+    /// the unit is immune to it.
+    pub fn preview_spell_damage(
+        &self,
+        spell: SpellId,
+        target: usize,
+        extra_mana: u32,
+    ) -> Option<DamageOdds> {
+        const TRIES: u32 = 24;
+        let (strength, types, traits) = self.damage_of(spell)?;
+        let unit = self.unit(target)?;
+        if Immunities::of(&unit.abilities, &unit.enchantments, &self.content.rules).stops(types) {
+            return None;
+        }
+        let extra = extra_mana
+            .checked_div(traits.mana_per_point)
+            .map_or(0, |points| points as i32);
+        let nature = AttackNature {
+            types,
+            armor_piercing: false,
+        };
+        let (mut points, mut kills) = (0.0, 0);
+        for seed in 0..TRIES {
+            let mut copy = unit.clone();
+            let mut rng = Pcg64Mcg::seed_from_u64(u64::from(seed) + 1);
+            let dealt = super::casting::damage_unit_with_spell(
+                &self.content.rules,
+                &mut copy,
+                strength + extra,
+                &traits,
+                nature,
+                &mut rng,
+            )?;
+            points += dealt.points as f32;
+            kills += u32::from(copy.figures == 0);
+        }
+        Some(DamageOdds {
+            mean: points / TRIES as f32,
+            kill_chance: kills as f32 / TRIES as f32,
+        })
+    }
+
+    /// Hit units with a damage spell; each gets its own events.
+    pub(super) fn strike(
+        &mut self,
+        targets: &[usize],
+        strength: i32,
+        types: DamageTypes,
+        traits: &DamageTraits,
+    ) -> Vec<BattleEvent> {
+        let nature = AttackNature {
+            types,
+            armor_piercing: false,
+        };
+        let mut events = Vec::new();
+        for &t in targets {
+            let dmg = self.spell_damage(t, strength, traits, nature);
+            events.extend(self.spell_events_for_damage(t, dmg, nature.types));
+        }
+        events
+    }
+
     /// The side `player` fights on.
     pub fn side_of(&self, player: PlayerId) -> Option<Side> {
         [Side::Attacker, Side::Defender]
