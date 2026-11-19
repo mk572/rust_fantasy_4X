@@ -179,6 +179,42 @@ def all_text() -> str:
     return "\n".join(parts)
 
 
+def print_chains(rows) -> int:
+    """Chains of wrappers: each wrapper points at the wrappers named like its target. A name that
+    is shared by an ordinary function and a wrapper is a guess, so the list is a place to look, not a verdict.
+    `std` wrappers are left out (the name adds the meaning)."""
+    wrappers = [r for r in rows if r[0] != "std"]
+    by_name: dict[str, list] = {}
+    for r in wrappers:
+        by_name.setdefault(r[4].split("::")[-1], []).append(r)
+    memo: dict[tuple, list] = {}
+
+    def longest(r, seen=()):
+        key = (r[2], r[3])
+        if key in memo:
+            return memo[key]
+        best = [r]
+        for nxt in by_name.get(r[5], []):
+            if (nxt[2], nxt[3]) in seen or nxt is r:
+                continue
+            c = [r] + longest(nxt, seen + (key,))
+            if len(c) > len(best):
+                best = c
+        memo[key] = best
+        return best
+
+    chains = [longest(r) for r in wrappers]
+    called = {(n[2], n[3]) for c in chains for n in c[1:]}
+    chains = [c for c in chains if len(c) >= 2 and (c[0][2], c[0][3]) not in called]
+    chains.sort(key=lambda c: -len(c))
+    print("| layers | chain (each wrapper calls the next, the last calls the target) |\n|---|---|")
+    for c in chains:
+        path = " -> ".join(f"`{r[4]}` ({r[2].split('/src/')[-1]}:{r[3]})" for r in c)
+        print(f"| {len(c) + 1} | {path} -> `{c[-1][5]}` |")
+    print(f"\n{len(chains)} chains", file=sys.stderr)
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], epilog=__doc__.split("\n\n", 1)[1],
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -186,6 +222,8 @@ def main() -> int:
     ap.add_argument("--kind", choices=["trivial", "std", "task"], help="only this kind")
     ap.add_argument("--trait-impls", action="store_true", help="include the methods of trait impls")
     ap.add_argument("--tests", action="store_true", help="include test code")
+    ap.add_argument("--chains", action="store_true",
+                    help="list the chains: a wrapper whose target is itself a wrapper (task 725), longest first")
     args = ap.parse_args()
 
     corpus = all_text()
@@ -211,6 +249,8 @@ def main() -> int:
                 owner = re.sub(r"^impl(<[^>]*>)?\s*", "", owner)
                 callers = len(re.findall(rf"(?<![\w]){re.escape(name)}\s*[(,)]", corpus)) - 1
                 rows.append((kind, crate.name, str(path.relative_to(ROOT)), line, f"{owner}::{name}" if owner else name, target, max(callers, 0)))
+    if args.chains:
+        return print_chains(rows)
     rows.sort(key=lambda r: (["trivial", "std", "task"].index(r[0]), r[1], r[2], r[3]))
     print("| kind | crate | where | name | calls | callers |\n|---|---|---|---|---|---|")
     for kind, crate, where, line, name, target, callers in rows:

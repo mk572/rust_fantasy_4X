@@ -137,3 +137,11 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   (`f4x-tools/src/metrics.rs`) sized its slots by the players that existed at the start; the neutral race
   players are made later (when a city of the race turns neutral), so their counts fell into the monsters'
   slot. It now reserves `FIRST_RACE_PLAYER` plus the number of races.
+- **Most forwarding functions have a purpose; look before removing.** The audit of call chains (task 725,
+  20 November 2026, `scripts/find_wrappers.py --chains`) found few real needless layers. Of the 125 chains the
+  script lists, nearly all were name matches (`find`, `new`, `any`) or one of: the `PlayerView` forwarders
+  (the boundary that keeps the AI off `&Game`), a method that binds the player's own id (`income`,
+  `treaty_with`), a method that wraps private data (`Game::treaty` over `Diplomacy`), or a ladder that fixes a
+  default (`red_button` to `red_button_face` to `red_button_face_sized`). What was removed: the free functions
+  `grant_ability`/`remove_ability` under `Game::grant_temp_ability`/`remove_temp_ability` and
+  `App::open_diplomacy` over `try_open_diplomacy`. The rule is in `docs/rust_coding_rules.md` (Layers of calls).

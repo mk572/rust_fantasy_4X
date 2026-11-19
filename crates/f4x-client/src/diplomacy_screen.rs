@@ -205,11 +205,6 @@ impl DiploUi {
 }
 
 impl App {
-    /// Talk to a wizard met. Does nothing for one not met.
-    pub fn open_diplomacy(&mut self, with: PlayerId) {
-        self.try_open_diplomacy(with);
-    }
-
     /// Talk to a player met; false when there is no talk (not met, or the human is banished).
     pub(crate) fn try_open_diplomacy(&mut self, with: PlayerId) -> bool {
         self.try_open_diplomacy_from(with, Screen::Magic)

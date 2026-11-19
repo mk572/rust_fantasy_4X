@@ -1701,7 +1701,7 @@ impl App {
         // A wizard just met greets the player on the next turn, on the diplomacy screen.
         if matches!(self.screen, Screen::Map) && !self.game.in_battle() {
             if let Some(w) = self.greetings.pop_front() {
-                self.open_diplomacy(w);
+                self.try_open_diplomacy(w);
                 return true;
             }
         }

@@ -62,16 +62,6 @@ pub(crate) fn add_modifier(world: &mut World, who: Target, m: Modifier) {
     push_temp(world, who, kind);
 }
 
-/// Give a unit an ability it does not have, for good.
-pub(crate) fn grant_ability(world: &mut World, who: Target, ability: Ability) {
-    push_temp(world, who, TempKind::Grant(ability));
-}
-
-/// Take an ability away from a unit for good.
-pub(crate) fn remove_ability(world: &mut World, who: Target, ability: Ability) {
-    push_temp(world, who, TempKind::Remove(ability));
-}
-
 impl<'a> UnitView<'a> {
     /// The temporary effects on a unit or city.
     pub fn temp_effects(&self, e: hecs::Entity) -> Vec<TempEffect> {
@@ -323,12 +313,12 @@ impl Game {
 
     /// Give a unit an ability it does not have, for good.
     pub fn grant_temp_ability(&mut self, who: Target, ability: Ability) {
-        grant_ability(&mut self.world, who, ability);
+        push_temp(&mut self.world, who, TempKind::Grant(ability));
     }
 
     /// Take an ability away from a unit for good.
     pub fn remove_temp_ability(&mut self, who: Target, ability: Ability) {
-        remove_ability(&mut self.world, who, ability);
+        push_temp(&mut self.world, who, TempKind::Remove(ability));
     }
 }
 

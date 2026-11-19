@@ -41,6 +41,17 @@ whenever an entry is added, and it says nothing about whether the right entries 
 
 Avoid cloning, especially on large entities.
 
+## Layers of calls
+
+A function gets its information at the source. A function between a caller and the source needs a
+purpose, which the doc comment states when it is not plain: it **wraps private data** (the caller may not see
+the field), **converts** (a type, a unit), **binds** a default, a constant or the caller's own identity
+(`PlayerView::income` binds `me`; `red_button` binds the face), **caches**, or **enforces a rule** (the
+`PlayerView` forwarders are the boundary that keeps the AI from holding a `&Game`: it reads only what a human
+sees). A function that only passes its arguments on, renames the call, drops a result, or exists because it
+once did something else is removed and its callers go to the source. `python3 scripts/find_wrappers.py`
+lists the wrappers and `--chains` the wrappers of wrappers (it matches by name: read the hits).
+
 # Basic Structure
 
 The game is built on four major components: rules engine, game engine, client and ai.
