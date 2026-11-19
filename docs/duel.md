@@ -73,4 +73,4 @@ replayed: `make_battle` with the same numbers and squares, and the seed in the l
   on which units are in the set (the default set has many strong monsters).
 - The battle AI decides everything (it may flee, wait or charge), so a win rate is the unit as the AI
   plays it, not the best play.
-- Units are drawn from the whole content with their shipped stats; a hero is a plain level 1 hero.
+- Units are spawned as the game spawns them, with no experience, items or enchantments added; what a hero gets from `spawn_unit` (level, abilities) has not been checked.
