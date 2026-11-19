@@ -229,10 +229,13 @@ mod tests {
         let stack = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 12);
         let view = PlayerView::new(&g, P0);
         let one = unit_strength(&view, stack[0]);
-        assert_eq!(fighting_strength(&view, &stack[..3]), 3.0 * one);
-        assert_eq!(
-            fighting_strength(&view, &stack),
-            view.max_battle_side() as f32 * one,
+        let near = |a: f32, b: f32| (a - b).abs() <= 1e-4 * b;
+        assert!(near(fighting_strength(&view, &stack[..3]), 3.0 * one));
+        assert!(
+            near(
+                fighting_strength(&view, &stack),
+                view.max_battle_side() as f32 * one
+            ),
             "the rest are a reserve"
         );
     }

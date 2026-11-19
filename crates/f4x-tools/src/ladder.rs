@@ -717,7 +717,7 @@ pub fn rank_csv(content: &Content, strength: &BTreeMap<u16, f64>, pairs: &[Pair]
             .iter()
             .find(|(_, d)| d.num == u)
             .map_or((0.0, 0), |(_, d)| {
-                (f64::from(f4x_core::battle::power::def_power(d)), d.cost)
+                (f64::from(f4x_core::battle::power::def_formula(d)), d.cost)
             })
     };
     let least = rows
@@ -1007,11 +1007,28 @@ fn combine_levels(
     if let Some(path) = ratings {
         let mut sorted: Vec<u16> = set.clone();
         sorted.sort_unstable();
+        let mut scales: Vec<f64> = sorted
+            .iter()
+            .filter(|&&u| {
+                content
+                    .rules
+                    .units
+                    .iter()
+                    .any(|(_, d)| d.num == u && d.kind != f4x_def::rules::UnitKind::Hero)
+            })
+            .filter_map(|&u| {
+                let d = content.rules.units.iter().find(|(_, d)| d.num == u)?.1;
+                Some(f64::from(f4x_core::battle::power::def_formula(d)) / worth(u, range[0]))
+            })
+            .collect();
+        scales.sort_by(f64::total_cmp);
+        let power_scale = scales.get(scales.len() / 2).copied().unwrap_or(1.0);
         let mut ron = format!(
-            "// What a unit is worth in a fight, in High Men spearmen (a recruit High Men spearman is 1): the\n// fit of `f4x-tools duel ladder` over real battles (task 655, `docs/duel.md`). `levels` is the worth at\n// experience level 1, 2, ... as far as it was measured ({} for a unit that levels up, one number for a\n// creature, which does not level); a higher level takes the last number. It is a rough guide, a\n// few percent either way: two units of 100 are worth one of 200, and rock-paper-scissors cases\n// (immunities, special attacks) can overturn it. A hero's numbers are those of the hero without the\n// random abilities, spells and items the game rolls, and `hero_factor` stands in for them.\n// Written by `f4x-tools duel ladder --combine {}-{} --ratings FILE`; no unit of the settler kind.\n(\n    hero_factor: 1.5,\n    units: [\n",
+            "// What a unit is worth in a fight, in High Men spearmen (a recruit High Men spearman is 1): the\n// fit of `f4x-tools duel ladder` over real battles (task 655, `docs/duel.md`). `levels` is the worth at\n// experience level 1, 2, ... as far as it was measured ({} for a unit that levels up, one number for a\n// creature, which does not level); a higher level takes the last number. It is a rough guide, a\n// few percent either way: two units of 100 are worth one of 200, and rock-paper-scissors cases\n// (immunities, special attacks) can overturn it. A hero's numbers are those of the hero without the\n// random abilities, spells and items the game rolls, and `hero_factor` stands in for them.\n// Written by `f4x-tools duel ladder --combine {}-{} --ratings FILE`; no unit of the settler kind.\n(\n    hero_factor: 1.5,\n    // What one spearman is in the numbers the AI's thresholds were tuned to: the median of the old formula\n    // (`battle::power`) over the worth at level 1 of the units that are not heroes.\n    power_scale: {},\n    units: [\n",
             range.len(),
             range[0],
-            range[range.len() - 1]
+            range[range.len() - 1],
+            sig3(power_scale)
         );
         for u in sorted {
             let values: Vec<String> = if levels_up(content, u) {

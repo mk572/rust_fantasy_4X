@@ -453,7 +453,7 @@ fn raw_profiles(d: &crate::rules::UnitDef, rules: &crate::rules::Rules) -> [f32;
     // What the unit adds to a battle is one number, whichever side begins it. An army unit is
     // also worth what it takes to get it to the fight: offence is that strength with the speed it
     // brings, defence is the strength alone (a garrison does not walk).
-    let power = crate::battle::power::def_power(d);
+    let power = crate::battle::power::def_power(d, rules);
     let offense = power * (1.0 + 0.15 * (mobility - 1.0).max(0.0));
     let defense = power;
     let sailing = matches!(d.movement, MovementType::Sailing);
@@ -479,7 +479,7 @@ pub fn soldier_value(
     walks: bool,
     elite: bool,
 ) -> f32 {
-    let power = crate::battle::power::def_power(d);
+    let power = crate::battle::power::def_power(d, rules);
     let reach = if walks {
         let mobility = crate::unit::mobility::def_mobility(d, &rules.config.abilities);
         1.0 + 0.15 * (mobility - 1.0).max(0.0)

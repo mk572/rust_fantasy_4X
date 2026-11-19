@@ -298,7 +298,22 @@ fn unit_worth(view: &Game, holder: PlayerId, serial: Serial) -> i32 {
         return 0;
     };
     let cost = view.units().unit_def(unit).map_or(0, |d| d.cost as i32);
-    unit_cost_worth(view, holder, veteran_cost(view, unit, cost))
+    let made = veteran_cost(view, unit, cost);
+    unit_cost_worth(view, holder, made.max(combat_worth(view, unit)))
+}
+
+/// What a unit's combat rating (its worth in spearmen at its level, `unit_ratings.ron`) is worth
+/// in gold; 0 for a unit with no row or when the rules leave it out. The rating says nothing of
+/// price or upkeep: the worth in a trade is the greater of this and what the unit cost to make.
+fn combat_worth(view: &Game, unit: hecs::Entity) -> i32 {
+    let rules = &view.content().rules;
+    let Some(def) = view.units().unit_def(unit) else {
+        return 0;
+    };
+    let level = view.units().unit_level(unit);
+    rules.combat_rating(def, level).map_or(0, |r| {
+        (r * rules.config.trade.gold_per_rating as f32).round() as i32
+    })
 }
 
 /// A hero: its hire cost, more for its level and experience, plus the items it carries, and more
@@ -318,7 +333,11 @@ fn hero_worth(view: &Game, holder: PlayerId, serial: Serial) -> i32 {
         .iter()
         .map(|(_, i)| i.cost as i32)
         .sum();
-    unit_cost_worth(view, holder, veteran_cost(view, hero, hire) + items)
+    unit_cost_worth(
+        view,
+        holder,
+        veteran_cost(view, hero, hire).max(combat_worth(view, hero)) + items,
+    )
 }
 
 /// What a unit of this base cost is worth with the level and experience it has: a quarter of the

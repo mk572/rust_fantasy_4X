@@ -602,13 +602,42 @@ impl<'a> UnitView<'a> {
         mobility::party_mobility(&members, carried, flying)
     }
 
-    /// What the unit adds to a battle at full health: the one measure of strength
-    /// (`battle::power::unit_power`).
+    /// What the unit adds to a battle at full health: the one measure of strength. A unit with a
+    /// row in the rating file is worth its measured combat rating at its experience level
+    /// (`Rules::combat_power`), times what it carries beyond that level: the formula of
+    /// `battle::power` on its stats and abilities now over the formula on the stats and abilities of
+    /// its level alone (an item, a spell, a rolled ability of a hero raise it, a curse lowers it).
+    /// A unit with no row is worth the formula.
     pub fn unit_power(&self, unit: hecs::Entity) -> f32 {
-        crate::battle::power::unit_power(
+        let now = crate::battle::power::unit_power(
             |s| self.unit_stat(unit, s),
             |a| self.unit_has_ability(unit, a),
-        )
+        );
+        let Some(def) = self.unit_def(unit) else {
+            return now;
+        };
+        let level = self.unit_level(unit);
+        let Some(rated) = self.content.rules.combat_power(def, level) else {
+            return now;
+        };
+        // The stats and abilities of the level alone: the row's own, the unit's innate abilities
+        // and the bonuses of its level path.
+        let mut mods = self.level_modifiers(unit, 0..level + 1);
+        for &id in &def.abilities {
+            mods.extend(passive_modifiers(
+                &self.content.rules.abilities.get(id).effects,
+                Source::Ability(id),
+            ));
+        }
+        let base = crate::battle::power::unit_power(
+            |s| compute(s, def.stats.get(&s).map_or(0, |v| v.floor()), &mods),
+            |a| def.abilities.contains(&a),
+        );
+        if base > 0.0 {
+            rated * now / base
+        } else {
+            rated
+        }
     }
 
     /// Units standing on `pos`, in a stable order.

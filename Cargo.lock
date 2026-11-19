@@ -2666,6 +2666,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "f4x-ai-ref"
+version = "0.0.7"
+dependencies = [
+ "f4x-core",
+ "f4x-def",
+ "f4x-master",
+ "hecs",
+ "ron",
+ "serde",
+]
+
+[[package]]
 name = "f4x-client"
 version = "0.0.7"
 dependencies = [
@@ -2802,6 +2814,7 @@ name = "f4x-tools"
 version = "0.0.7"
 dependencies = [
  "f4x-ai",
+ "f4x-ai-ref",
  "f4x-console",
  "f4x-core",
  "f4x-def",

@@ -347,7 +347,8 @@ fn name_offer(game: &Game, judge: PlayerId, asker: PlayerId, give: Goods) -> Opt
 /// what the buyer would pay at its margin. None when the two do not meet.
 fn price(game: &Game, seller: PlayerId, buyer: PlayerId, thing: Goods) -> Option<i32> {
     let k = Knobs::current();
-    let ask = core::worth(game, seller, thing) * margin(game, seller, buyer) / 100;
+    // Rounded up, so that the price clears the seller's own margin (`meets` checks it in hundredths).
+    let ask = (core::worth(game, seller, thing) * margin(game, seller, buyer) + 99) / 100;
     let ask = ask.max(k.least_price);
     let most = core::worth(game, buyer, thing) * 100 / margin(game, buyer, seller);
     (ask <= most).then_some(ask)

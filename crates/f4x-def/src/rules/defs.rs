@@ -217,6 +217,11 @@ pub struct UnitRatings {
     /// spells and items the game rolls for a hero, so a hero's rating is its row times this.
     #[serde(default = "one")]
     pub hero_factor: f32,
+    /// What one spearman is in the numbers the AI's thresholds were tuned to (the strength the
+    /// formula of `battle::power` gave a unit): the median of that formula over the ratings, so
+    /// that a typical unit weighs about what it did and the play starts where it was.
+    #[serde(default = "one")]
+    pub power_scale: f32,
     /// One row per unit, in the order of the unit numbers.
     #[serde(default)]
     pub units: Vec<UnitRating>,
@@ -231,6 +236,7 @@ impl Default for UnitRatings {
     fn default() -> Self {
         UnitRatings {
             hero_factor: 1.0,
+            power_scale: 1.0,
             units: Vec::new(),
         }
     }
@@ -1400,6 +1406,11 @@ pub struct TradeRules {
     pub item_no_user_pct: i32,
     /// A unit to a wizard at war.
     pub unit_at_war_pct: i32,
+    /// What one spearman of combat rating (`unit_ratings.ron`) is worth in gold: a unit is worth
+    /// at least its rating times this, whatever it cost to make (the median unit cost per spearman
+    /// of the rating file is about ten). 0 leaves a unit at its cost.
+    #[serde(default)]
+    pub gold_per_rating: i32,
 }
 
 impl Default for TradeRules {
@@ -1411,6 +1422,7 @@ impl Default for TradeRules {
             item_taken_slot_pct: 100,
             item_no_user_pct: 50,
             unit_at_war_pct: 125,
+            gold_per_rating: 0,
         }
     }
 }
@@ -1663,6 +1675,13 @@ impl Rules {
         } else {
             value
         })
+    }
+
+    /// [`Self::combat_rating`] in the units of `battle::power` (times `power_scale`): what the AI
+    /// and the game weigh a unit by.
+    pub fn combat_power(&self, unit: &UnitDef, level: usize) -> Option<f32> {
+        self.combat_rating(unit, level)
+            .map(|r| r * self.ratings.power_scale)
     }
 
     /// Whether `race` is left out of the building's list for its own sake, not because it cannot

@@ -7,7 +7,7 @@
     // The cost multiplier (percent) of a spell cast in battle: 5 at the fortress, else 10 plus 5 for
     // each of the distances in `beyond` the battle is further than; another plane counts as `far`.
     casting_range: (at_fortress: 5, base: 10, step: 5, beyond: [5, 10, 15, 20], far: 30),
-    trade: (spell_book_pct: 5, spell_book_cap: 8, item_free_slot_pct: 150, item_taken_slot_pct: 100, item_no_user_pct: 50, unit_at_war_pct: 125),
+    trade: (spell_book_pct: 5, spell_book_cap: 8, item_free_slot_pct: 150, item_taken_slot_pct: 100, item_no_user_pct: 50, unit_at_war_pct: 125, gold_per_rating: 10),
     diplomacy: (subversion_penalty: 25, max_rounds: 4, pact_relation: 10, alliance_relation: 50),
     offer: (first_turn: 30, ai_first_turn: 50, max_chance: 10, ai_bonus: 10),
     outpost: (start_tens: 3, city_tens: 10),

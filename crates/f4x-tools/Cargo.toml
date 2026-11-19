@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+f4x-ai-ref = { path = "../f4x-ai-ref" }
 f4x-core.workspace = true
 f4x-newgame.workspace = true
 f4x-master.workspace = true

@@ -508,6 +508,8 @@ from the reference-only game. `f4x-tools soak-diff A B` compares two snapshots. 
 brain is not part of this; only the strategic AI. There is
 one reference at a time; fork again to replace it.
 
+**The reference of 20 November 2026.** The fork of 19 November no longer built against the core (it broke on earlier core changes), so the project owner ordered a new one from `d26eeb9b` (the commit before the changes to unit strength: one soldier definition, one cost, the combat ratings). It is not repaired beyond three call sites that name `def_power` and now pass the rules (`builder.rs`, `spellhelper.rs`, `wizardry.rs`). It reads the core's `unit_power`, so both AIs weigh units by the same ratings: what a soak against it shows is the AI's own logic, not the measure. The old fork is kept in the session scratchpad only.
+
 `--mixed-only` plays only the two mixed games of a seed (new in the first half of the seats, then in the
 second), for a long run of many seeds (`soak-versus --seeds 1001..1004 --turns 1200 --players 4 --rules 1.31
 --mixed-only`; the reference-only and new-only games are left out). `ai_battle.py` passes it on.

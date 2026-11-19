@@ -81,13 +81,20 @@ pub fn unit_power(stat: impl Fn(Stat) -> i32, has: impl Fn(Ability) -> bool) -> 
     kernel(attack, defense, hits) * figures as f32 * (off + def - 1.0)
 }
 
-/// [`unit_power`] of a unit definition (a unit that does not exist yet: what a city could build,
-/// what a spell summons).
-pub fn def_power(d: &UnitDef) -> f32 {
+/// The formula alone for a unit definition: the strength of a unit with no row in the rating file
+/// (`def_power` falls back to it) and the measure the rating's scale is taken from.
+pub fn def_formula(d: &UnitDef) -> f32 {
     unit_power(
         |s| d.stats.get(&s).map_or(0, |v| v.floor()),
         |a| d.abilities.contains(&a),
     )
+}
+
+/// What a unit definition adds to a battle (a unit that does not exist yet: what a city could
+/// build, what a spell summons): its measured combat rating at the first level
+/// (`Rules::combat_power`), the formula for a unit that has no row.
+pub fn def_power(d: &UnitDef, rules: &crate::rules::Rules) -> f32 {
+    rules.combat_power(d, 0).unwrap_or_else(|| def_formula(d))
 }
 
 #[cfg(test)]
@@ -155,8 +162,8 @@ mod tests {
             }
             let stat = |s: Stat| d.stats.get(&s).map_or(0, |v| v.floor());
             let without = unit_power(stat, |a| !listed.contains(&a) && d.abilities.contains(&a));
-            assert!(def_power(d) >= without, "{}", d.id);
-            if def_power(d) > without {
+            assert!(def_formula(d) >= without, "{}", d.id);
+            if def_formula(d) > without {
                 checked += 1;
             }
         }

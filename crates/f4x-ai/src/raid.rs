@@ -707,10 +707,13 @@ mod tests {
         let drake = f4x_def::rules::UnitId::new(164 /* great_drake */);
         let content = game(COAST_CITY, 8 /* high_men */);
         let rules = &content.content().rules;
-        let one_paladin = f4x_core::battle::power::def_power(rules.units.get(
-            f4x_def::rules::UnitId::new(113 /* high_men_paladins */),
-        ));
-        let one_drake = f4x_core::battle::power::def_power(rules.units.get(drake));
+        let one_paladin = f4x_core::battle::power::def_power(
+            rules.units.get(f4x_def::rules::UnitId::new(
+                113, /* high_men_paladins */
+            )),
+            rules,
+        );
+        let one_drake = f4x_core::battle::power::def_power(rules.units.get(drake), rules);
         let guards = (3.0 * PARTY as f32 * one_paladin / one_drake)
             .ceil()
             .max(1.0) as u32;
@@ -725,9 +728,10 @@ mod tests {
 
     #[test]
     fn a_site_a_party_lost_on_is_left_alone_until_a_party_is_much_stronger() -> TestResult {
-        // The guards are weak by the measure, so a party would go: it stays home only because
-        // a party as strong as this one lost its assault on the site before.
-        let guards = vec![(f4x_def::rules::UnitId::new(164 /* great_drake */), 1)];
+        // The guards are weak by the measure (one spearman against a party of paladins), so a
+        // party would go: it stays home only because a party as strong as this one lost its
+        // assault on the site before.
+        let guards = vec![(f4x_def::rules::UnitId::new(104 /* high_men_spearmen */), 1)];
         let mut g = world(4, guards.clone(), true)?;
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 1);

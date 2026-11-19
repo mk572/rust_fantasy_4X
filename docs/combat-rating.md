@@ -80,19 +80,20 @@ policing (`unit_efficiency.ron` is the rating over the cost, still blind to spee
 a unit by the gold it costs to make as well as by the rating. Replacing the measure (task 720) changes
 the combat factor in these combinations and leaves the others where they are.
 
-- `unit_power(unit)` = `combat_rating(def, level)` of the unit's experience level, times the share
-  of its hit points left when it is hurt (the battle AI's `worth`, `order.rs`, counts the hit points
-  left; the rating is for a whole unit), times a **modifier for what it carries**: the ratio of the old
-  formula on the unit's stats now to the old formula on the stats of its level alone (an item, a
-  spell, Heroism or Black Channels raise it; the rating itself stays the measured base). Without
-  a row, the old formula as it is.
-- `def_power(def)` = the rating at level 1 (what a city could build, what a spell summons).
-- **The scale changes.** The AI's knobs were tuned to the old numbers (`military.rs`:
-  `attack_ratio` 1.4, `sortie_ratio` 2.5, `GUESS_DEFENDERS` 3.0, `average_strength`'s 20.0 fallback;
-  `war_plan.rs` `strength_wanted` adds a flat 1.0; `wizardry.rs`, `raid.rs`'s `one_paladin` and
-  `one_drake` constants). Fit a conversion factor first (the median of rating over old power for the
-  fighters) and apply it to those constants, so that the play starts where it was; then soak
-  (`scripts/soak_report.py`) before and after and list every behaviour change on purpose.
+- **Done (task 720, 20 November 2026).** `UnitView::unit_power(unit)` is `Rules::combat_power(def,
+  level)` (the rating times `power_scale`) of the unit's experience level, times what it carries
+  beyond that level: the old formula on its stats and abilities now over the old formula on the stats
+  and abilities of its level alone (an item, a spell or a rolled ability raises it, a curse lowers it).
+  It is still the strength **at full health** (callers that care about wounds, such as the battle
+  AI's `worth`, count the hit points left themselves). `def_power(def, rules)` is the rating at the
+  first level; a unit with no row keeps the old formula (`def_formula`).
+- **The scale.** The AI's thresholds were tuned to the old numbers, and mostly compare a strength with a
+  strength, so `power_scale` (69.2 in `unit_ratings.ron`, written by the `--combine` run: the median of
+  the old formula over the level 1 rating of the units that are not heroes) puts a typical unit where
+  it was and the thresholds (`attack_ratio`, `sortie_ratio`, `GUESS_DEFENDERS`, `strength_wanted`, the
+  raid yardsticks) stay as they are. The ratings change the *ratios between* units, which is the point
+  (an elite spearman is nine times a recruit; a great drake is worth 250 spearmen, the old formula
+  gave about a tenth of that gap). Not soaked: the real test is whether the AI beats the reference AI.
 
 ### Step 2: groups (task 721)
 

@@ -8,6 +8,9 @@
 // Written by `f4x-tools duel ladder --combine 1-4 --ratings FILE`; no unit of the settler kind.
 (
     hero_factor: 1.5,
+    // What one spearman is in the numbers the AI's thresholds were tuned to: the median of the old formula
+    // (`battle::power`) over the worth at level 1 of the units that are not heroes.
+    power_scale: 69.2,
     units: [
         (num: 0, id: "dwarf", levels: [3.31, 4.97, 8.59, 11.3]),
         (num: 1, id: "barbarian", levels: [2.79, 4.51, 8.19, 11.9]),
