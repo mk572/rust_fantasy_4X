@@ -333,6 +333,8 @@ pub fn process_attack(
 ) -> Damage {
     let mut total = Damage::default();
     let sp = &attacker.special;
+    // Magic immunity switches off every melee touch and gaze, as in the original (task 711): the
+    // exceptions are the thrown attack, the poison touch and doom damage, which never asked.
     let touchable = !def.immunities.has(DamageType::Magic);
     if attacker.immolation && attacker.mode == Mode::Melee && touchable && def.figures > 0 {
         let fire = Combatant {

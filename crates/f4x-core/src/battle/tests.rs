@@ -2706,6 +2706,40 @@ mod fields {
         );
     }
 
+    /// Task 711: the battlefield spells that work through the battlefield and not through the
+    /// unit reach a magic-immune unit as any other (the wiki's list of exceptions).
+    #[test]
+    fn battlefield_enchantments_still_change_a_magic_immune_unit() {
+        let paladins = 113; // high_men_paladins: magic immunity
+        for field in [Field::BlackPrayer, Field::WarpReality] {
+            let mut b = pair(105 /* high_men_swordsmen */, paladins);
+            let before = b.units[1].clone();
+            let caster = if field == Field::WarpReality {
+                Side::Defender
+            } else {
+                Side::Attacker
+            };
+            b.raise_field(caster, field, spell_for(field));
+            let after = &b.units[1];
+            assert!(
+                (after.melee, after.defense, after.resistance, after.to_hit)
+                    != (
+                        before.melee,
+                        before.defense,
+                        before.resistance,
+                        before.to_hit
+                    ),
+                "{field:?} changes a magic-immune unit"
+            );
+        }
+        // Entangle takes a move from it.
+        let mut b = pair(105 /* high_men_swordsmen */, paladins);
+        b.raise_field(Side::Attacker, Field::Entangle, spell_for(Field::Entangle));
+        let moves = b.units[1].moves;
+        end_turns(&mut b, 1);
+        assert!(b.units[1].moves_left < moves, "Entangle holds it");
+    }
+
     /// Task 713: Black Prayer curses the enemy, but not a unit immune to death, unless the
     /// original's exceptions are on.
     #[test]
@@ -5461,6 +5495,26 @@ fn a_vortex_crushes_the_unit_it_lands_on_and_is_steered_once_a_turn_by_its_owner
     Ok(())
 }
 
+/// Task 711: the Magic Vortex does nothing to a magic-immune unit it lands on or passes.
+#[test]
+fn a_vortex_does_nothing_to_a_magic_immune_unit() -> TestResult {
+    let mut b = real_battle(
+        &[(104 /* high_men_spearmen */, (3, 10))],
+        &[(113 /* high_men_paladins */, (11, 10))],
+        5,
+    );
+    let before = b.unit(1).ok_or("unit is missing")?.hit_points();
+    b.make_vortex(Side::Attacker, (10, 10));
+    b.apply(BattleCommand::MoveVortex {
+        index: 0,
+        to: (11, 10),
+    })
+    .map_err(|e| format!("{e:?}"))?;
+    let after = b.unit(1).ok_or("unit is missing")?.hit_points();
+    assert_eq!(after, before, "magic immunity turns the vortex away");
+    Ok(())
+}
+
 #[test]
 fn vortices_wander_three_squares_each_turn_and_there_are_at_most_ten() {
     let mut b = real_battle(
@@ -6959,6 +7013,28 @@ fn spells_the_battle_reads_by_name_can_be_cast_and_stay_on_the_unit() -> TestRes
         cast_on_first(&mut g, 121 /* bless */),
         Err(BattleError::Spell(SpellError::AlreadyEnchanted))
     );
+    Ok(())
+}
+
+/// Task 711: magic immunity turns away harmful magic only; a friendly spell lands on a
+/// magic-immune unit as on any other.
+#[test]
+fn friendly_spells_land_on_a_magic_immune_unit() -> TestResult {
+    let names = [121 /* bless */, 70 /* haste */];
+    let mut g = wizard_battle(113 /* high_men_paladins */, &names);
+    for name in names {
+        cast_on_first(&mut g, name).map_err(|e| format!("{e:?}"))?;
+    }
+    let unit = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(0)
+        .ok_or("unit is missing")?;
+    assert!(unit.has(Ability::new(40 /* magic_immunity */)));
+    let spells = &g.content.rules.spells;
+    assert!(names.iter().all(|n| spells
+        .id_numbered(*n)
+        .is_some_and(|id| unit.enchantments.contains(&id))));
     Ok(())
 }
 

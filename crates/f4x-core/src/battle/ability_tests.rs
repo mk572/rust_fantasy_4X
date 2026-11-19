@@ -343,3 +343,64 @@ fn a_major_spellcaster_has_forty_mana_and_casts_the_spells_of_its_realm() {
         "it casts the spells of its realm (life)"
     );
 }
+
+/// Task 711: magic immunity switches off the melee touches (the original's rule: it stops every
+/// special attack but a thrown one, a poison touch and a doom gaze; create undead, which deals no
+/// damage of its own, is covered in `attack/tests.rs`). A magic-immune target loses
+/// no more than it would to the same unit without the touch.
+#[test]
+fn magic_immunity_stops_the_melee_touches() {
+    for (attacker, defender, touch) in [
+        (181, 104, 66), // cockatrices, stoning touch
+        (170, 104, 35), // wraiths, life steal
+        (177, 155, 17), // an angel against hell hounds, dispel evil
+    ] {
+        let b = duel(attacker, defender, 1);
+        let (open_figures, open_hits) = losses(&b, false, nothing);
+        let (plain_figures, plain_hits) = losses(&b, false, without(touch));
+        assert!(
+            (open_figures, open_hits) > (plain_figures, plain_hits),
+            "the touch {touch} of {attacker} does something: {open_figures}/{open_hits} against {plain_figures}/{plain_hits}"
+        );
+        let (figures, hits) = losses(&b, false, immune(40 /* magic_immunity */));
+        assert!(
+            figures <= plain_figures && hits <= plain_hits,
+            "magic immunity stops touch {touch} of {attacker}: {figures}/{hits} against {plain_figures}/{plain_hits}"
+        );
+    }
+}
+
+/// Task 711: the attacks magic immunity does not stop: a poison touch and a thrown attack.
+#[test]
+fn magic_immunity_does_not_stop_a_poison_touch_or_a_thrown_attack() {
+    let spiders = duel(
+        183, /* giant_spiders */
+        104, /* high_men_spearmen */
+        1,
+    );
+    let (_, plain) = losses(&spiders, false, without(53 /* poison_touch */));
+    let (_, warded) = losses(&spiders, false, immune(40 /* magic_immunity */));
+    assert!(
+        warded > plain,
+        "the poison gets through: {warded} against {plain}"
+    );
+    // The thrown attack comes before the melee blows, so compare with and without it.
+    let throwers = duel(
+        39,  /* barbarian_spearmen */
+        105, /* high_men_swordsmen */
+        1,
+    );
+    let (_, thrown) = losses(&throwers, false, immune(40 /* magic_immunity */));
+    let (_, melee_only) = losses(&throwers, false, |b: &mut Battle| {
+        immune(40 /* magic_immunity */)(b);
+        for u in &mut b.units {
+            if u.side == Side::Attacker {
+                u.ranged = 0; // nothing to throw
+            }
+        }
+    });
+    assert!(
+        thrown > melee_only,
+        "a thrown attack hurts a magic-immune unit: {thrown} against {melee_only}"
+    );
+}
