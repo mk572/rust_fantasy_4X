@@ -432,6 +432,12 @@ pub struct RuleSettings {
     /// (the spells with `death_immunity_exception` in `spells.ron`).
     #[serde(default = "fb_death_immunity_exceptions")]
     pub death_immunity_exceptions: bool,
+    /// Illusion immunity protects from the Sorcery battle spells that name the illusion type
+    /// (Confusion, Vertigo, Mind Storm and Creature Binding: `types: [Illusion]` in
+    /// `spells.ron`), as it does in the original. Off: they affect an illusion-immune unit; the
+    /// immunity still sees through illusion attacks.
+    #[serde(default = "yes")]
+    pub illusion_immunity_protects: bool,
     /// The food each farmer grows (the original: 2). A race that names its own `farmer_food` in
     /// `races.ron` (halflings: 3) keeps it.
     #[serde(default = "fb_farmer_food")]

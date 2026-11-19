@@ -7038,6 +7038,36 @@ fn friendly_spells_land_on_a_magic_immune_unit() -> TestResult {
     Ok(())
 }
 
+/// Task 712: the four curses of Sorcery that name the illusion type are refused by illusion
+/// immunity, unless the rule `illusion_immunity_protects` is off.
+#[test]
+fn illusion_immunity_protects_from_the_sorcery_curses_unless_the_setting_is_off() -> TestResult {
+    for spell in [
+        46, /* confusion */
+        53, /* vertigo */
+        67, /* mind_storm */
+        73, /* creature_binding */
+    ] {
+        for protects in [true, false] {
+            let mut g = hook_game_against(spell, 163 /* hydra */);
+            g.settings.rules.illusion_immunity_protects = protects;
+            g.battle.as_mut().ok_or("no battle")?.battle.units[1]
+                .abilities
+                .push(Ability::new(31 /* illusion_immunity */));
+            let cast = cast_unit(&mut g, spell, SpellAim::Unit(1), 0);
+            if protects {
+                assert!(cast.is_err(), "spell {spell}: illusion immunity refuses it");
+            } else {
+                assert!(
+                    cast.is_ok(),
+                    "spell {spell}: the setting lets it through: {cast:?}"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 #[test]
 fn the_resistance_pairs_are_refused_in_a_battle() -> TestResult {
     let mut g = wizard_battle(

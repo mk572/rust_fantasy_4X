@@ -490,6 +490,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.settlers_cost_citizen = v != 0,
         ),
         flag(
+            "custom.illusion_immunity_protects",
+            |s| s.rules.illusion_immunity_protects.into(),
+            |s, v| s.rules.illusion_immunity_protects = v != 0,
+        ),
+        flag(
             "custom.death_immunity_exceptions",
             |s| s.rules.death_immunity_exceptions.into(),
             |s, v| s.rules.death_immunity_exceptions = v != 0,

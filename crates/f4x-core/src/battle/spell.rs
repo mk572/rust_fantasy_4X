@@ -909,7 +909,7 @@ impl Game {
                 // (`Combat_Spell_Target_Screen`); the types it is stopped by are in the spell's
                 // data (`save` in `spells.ron`: illusion for Sorcery, death for Death).
                 if let Some(save) = &def.save {
-                    if u.is_immune_to(&save.types, &self.content.rules) {
+                    if u.is_immune_to(&self.save_types(save), &self.content.rules) {
                         return Err(SpellError::Target(TargetError::NotAffected));
                     }
                 }
@@ -961,6 +961,17 @@ impl Game {
             }
             _ => Err(SpellError::Target(TargetError::WrongTarget)),
         }
+    }
+
+    /// The damage types a curse's save is stopped by: those in its data, less the illusion type
+    /// when the rule `illusion_immunity_protects` is off.
+    pub(super) fn save_types(&self, save: &SpellSave) -> Vec<DamageType> {
+        let protects = self.settings.rules.illusion_immunity_protects;
+        save.types
+            .iter()
+            .copied()
+            .filter(|t| protects || *t != DamageType::Illusion)
+            .collect()
     }
 
     /// The refusals for a lasting spell on a unit that cannot take it: it has the spell
@@ -1353,7 +1364,10 @@ impl Game {
                 }]
             }
             (Kind::Turn { bind, save }, SpellAim::Unit(target)) => {
-                let immune_types = save.as_ref().map(|s| s.types.clone()).unwrap_or_default();
+                let immune_types = save
+                    .as_ref()
+                    .map(|s| self.save_types(s))
+                    .unwrap_or_default();
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1403,7 +1417,10 @@ impl Game {
                 let mut mods = mods;
                 mods.extend(self.superseded_bonuses(spell, &present));
                 mods.extend(self.battle_bonuses_by_name(spell, target));
-                let immune_types = save.as_ref().map(|s| s.types.clone()).unwrap_or_default();
+                let immune_types = save
+                    .as_ref()
+                    .map(|s| self.save_types(s))
+                    .unwrap_or_default();
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1533,7 +1550,7 @@ impl Game {
         player: PlayerId,
         save: Option<&SpellSave>,
     ) -> Vec<BattleEvent> {
-        let immune_types = save.map(|s| s.types.clone()).unwrap_or_default();
+        let immune_types = save.map(|s| self.save_types(s)).unwrap_or_default();
         let Some(active) = self.battle.as_mut() else {
             return Vec::new();
         };
