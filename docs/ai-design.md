@@ -834,7 +834,7 @@ plans says only that a plan ended. Each place that ends one says why: never pick
 a ship and the clock ran out), did not arrive in time, site settled by someone else, site not fit for a city, way to the
 site blocked, and (per turn) no suitable site. The soak adds what the game took from the AI: settlers lost in battle,
 let go for lack of food, let go for lack of gold (`metrics.rs`, from the game's events). The refused-order log
-(`--refused-log`) has the columns `seed turn player source reason command stood detail`. `stood` is for how many turns in a row
+(`--refused-log`; written by default to `soak-out/refused-TIME.tsv`, `--no-refused-log` turns it off) has the columns `seed turn player source reason command stood detail`. `stood` is for how many turns in a row
 the same wizard has sent the same command from the same line and had it refused (1 for the first time). `detail` holds the
 facts of the failure when the game knows them: why a go-to found no way (`NoPath`: the target is water, land for a ship,
 full, an enemy, or the walk stopped at a square with a blocker beyond it, `unit/pathing/failure.rs`) and which square stopped a

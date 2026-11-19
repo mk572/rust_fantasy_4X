@@ -41,12 +41,13 @@ const USAGE: &str = "usage:
                                               with our rules and with the original's, as a table
   f4x-tools console [--seed N] [--load FILE] [--content DIR] [--access readonly|play|full] [--script FILE]
                                               run the game from text commands (stdin, or the script)
-  f4x-tools soak [--seeds A..B] [--turns N] [--players 2..5] [--every N] [--refused-log FILE]
+  f4x-tools soak [--seeds A..B] [--turns N] [--players 2..5] [--every N] [--refused-log FILE|--no-refused-log]
                                               AI wizards play whole games and report; --events adds
                                               a line on the random events; the casts per spell
                                               and the spells never cast are always printed; with
-                                              --refused-log, every refused command goes to FILE (TSV, with why in
-                                              the last column; scripts/refused_summary.py groups it);
+                                              every refused command goes to --refused-log FILE (default
+                                              soak-out/refused-TIME.tsv; --no-refused-log: none; TSV, with why
+                                              in the last column; scripts/refused_summary.py groups it);
                                               --snapshots-every N --out DIR saves the game every N turns
   f4x-tools queries --from SAVE [--player N] [--repeat N]
                                               time the game queries the client asks for in every frame

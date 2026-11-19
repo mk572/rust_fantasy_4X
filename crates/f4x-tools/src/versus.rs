@@ -15,7 +15,7 @@ use crate::metrics::Standing;
 use crate::report::{self, Played};
 use crate::soak::{self, Options, Roster};
 
-pub const USAGE: &str = "usage: f4x-tools soak-versus [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--detail] [--snapshots-every N (default 50, 0: none)] [--out DIR (default soak-out)] [--refused-log FILE] [--jobs N (default: one for each core)] [--no-cache] [--mixed-only (play only the two mixed games of a seed, no reference-only or new-only game)] [--from SAVE (one game, on from that save)]\n       f4x-tools soak-diff SNAPSHOT_A SNAPSHOT_B [--content DIR]";
+pub const USAGE: &str = "usage: f4x-tools soak-versus [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--detail] [--snapshots-every N (default 50, 0: none)] [--out DIR (default soak-out)] [--refused-log FILE | --no-refused-log] [--jobs N (default: one for each core)] [--no-cache] [--mixed-only (play only the two mixed games of a seed, no reference-only or new-only game)] [--from SAVE (one game, on from that save)]\n       f4x-tools soak-diff SNAPSHOT_A SNAPSHOT_B [--content DIR]";
 
 /// One of the four games of a seed.
 struct Variant {
@@ -65,7 +65,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     opts.snapshots_every.get_or_insert(50);
     opts.out.get_or_insert_with(|| "soak-out".into());
     let content = opts.load_content()?;
-    let refused = soak::open_refused_log(&opts.refused_log)?;
+    let refused = soak::open_refused_log(&soak::refused_log_path(&opts))?;
     let mut variants = variants(opts.players);
     if mixed_only {
         variants.retain(|v| v.name == "new-first" || v.name == "new-last");

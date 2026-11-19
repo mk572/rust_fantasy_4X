@@ -25,7 +25,7 @@ use crate::contestant::{self, Contestant, Version};
 use crate::metrics::{casts_line, Metrics, Standing, Tally};
 use crate::report::{self, Played};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE | --no-refused-log] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -42,6 +42,8 @@ pub struct Options {
     pub grant_mastery: Option<u32>,
     pub battle_ai: Option<PathBuf>,
     pub refused_log: Option<PathBuf>,
+    /// `--no-refused-log`: write no refused-order log (the default is a file in `out`).
+    pub no_refused_log: bool,
     pub dir: PathBuf,
     /// Save the game every this many turns into `out` (none: not at all).
     pub snapshots_every: Option<u32>,
@@ -92,6 +94,7 @@ impl Options {
             grant_mastery: None,
             battle_ai: None,
             refused_log: None,
+            no_refused_log: false,
             dir: f4x_def::SHIPPED_CONTENT.into(),
             snapshots_every: None,
             out: None,
@@ -131,6 +134,7 @@ impl Options {
                 "--content" => o.dir = value("--content")?.into(),
                 "--battle-ai" => o.battle_ai = Some(value("--battle-ai")?.into()),
                 "--refused-log" => o.refused_log = Some(value("--refused-log")?.into()),
+                "--no-refused-log" => o.no_refused_log = true,
                 "--snapshots-every" => {
                     o.snapshots_every = Some(
                         value("--snapshots-every")?
@@ -213,6 +217,26 @@ pub struct Roster {
 
 /// The refused-order log, one line per refused command, tab separated.
 pub type RefusedLog = Mutex<Option<std::io::BufWriter<std::fs::File>>>;
+
+/// The refused-order log of a run: the file of `--refused-log`, none for `--no-refused-log`,
+/// else `refused-<seconds since 1970>.tsv` in the output folder (`soak-out`), so a soak always
+/// leaves the data of its refusals and an earlier log is never overwritten. The path is told on stderr.
+pub fn refused_log_path(opts: &Options) -> Option<PathBuf> {
+    if opts.no_refused_log {
+        return None;
+    }
+    let path = opts.refused_log.clone().unwrap_or_else(|| {
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        opts.out
+            .clone()
+            .unwrap_or_else(|| "soak-out".into())
+            .join(format!("refused-{secs}.tsv"))
+    });
+    eprintln!("refused-order log: {}", path.display());
+    Some(path)
+}
 
 pub fn open_refused_log(path: &Option<PathBuf>) -> Result<RefusedLog, String> {
     let Some(path) = path else {
@@ -337,7 +361,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let opts = Options::parse(args, USAGE)?;
     name_panics();
     let content = opts.load_content()?;
-    let refused = open_refused_log(&opts.refused_log)?;
+    let refused = open_refused_log(&refused_log_path(&opts))?;
     let roster = Roster {
         versions: vec![Version::New; usize::from(opts.players)],
         neutrals: Version::New,
