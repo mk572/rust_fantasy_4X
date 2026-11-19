@@ -297,7 +297,6 @@ impl AttackNature {
             .filter_map(|&a| rules.abilities.try_get(a))
             .filter_map(|def| def.attack.as_ref())
             .filter(|a| a.delivery == Delivery::Any || mode != Mode::Melee)
-            .filter(|a| !a.gaze)
         {
             nature.types.union(DamageTypes::of(&attack.types));
             nature.armor_piercing |= attack.armor_piercing;

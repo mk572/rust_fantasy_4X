@@ -248,9 +248,6 @@ pub struct AbilityAttack {
     pub types: Vec<DamageType>,
     /// The attack halves the defence it meets.
     pub armor_piercing: bool,
-    /// A gaze that kills by a resistance check (death, stoning): its types are what that check
-    /// is stopped by, and not types of the unit's ranged damage.
-    pub gaze: bool,
     /// One of the original's exceptions to magic immunity: with the rule setting
     /// `magic_immunity_exceptions` the unit's attack is not of the magic type (illusion, the
     /// Chaos power, the Doom Gaze).
