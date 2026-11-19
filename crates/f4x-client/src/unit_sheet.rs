@@ -515,10 +515,9 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         match id.num() {
             53 => Some(special.poison),
             69 | 20 | 37 => Some(input.ranged),
-            35 => Some(-(special.penalty + special.life_steal_extra)),
+            35 | 64 | 15 | 46 => Some(-special.penalty),
             99 => Some(-(special.penalty + special.death_extra)),
             66 => Some(-(special.penalty + special.stoning_extra)),
-            64 | 15 | 46 => Some(-special.penalty),
             _ => None,
         }
         .filter(|&n| n != 0)

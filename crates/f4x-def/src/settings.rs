@@ -426,6 +426,12 @@ pub struct RuleSettings {
     /// the wall sections give, not just the +1 of the original, against attackers outside.
     #[serde(default = "fb_walls_cover_city")]
     pub walls_cover_city: bool,
+    /// Death immunity has the original's exceptions. Off (the default): a unit with death
+    /// immunity is not harmed by any spell of the Death realm that harms units (Word of Death,
+    /// Black Prayer and Terror included). On: those three ignore it, as they do in the original
+    /// (the spells with `death_immunity_exception` in `spells.ron`).
+    #[serde(default = "fb_death_immunity_exceptions")]
+    pub death_immunity_exceptions: bool,
     /// The food each farmer grows (the original: 2). A race that names its own `farmer_food` in
     /// `races.ron` (halflings: 3) keeps it.
     #[serde(default = "fb_farmer_food")]
@@ -644,6 +650,10 @@ fn fb_worker_production() -> HalfInt {
 
 fn fb_walls_cover_city() -> bool {
     fallback(|g| g.rules.walls_cover_city, false)
+}
+
+fn fb_death_immunity_exceptions() -> bool {
+    fallback(|g| g.rules.death_immunity_exceptions, false)
 }
 
 fn fb_miners_guild_half_ore() -> bool {

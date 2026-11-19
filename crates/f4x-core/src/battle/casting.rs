@@ -442,12 +442,10 @@ impl Battle {
 
     /// Life Drain: a death resistance check with `modifier` added (the extra mana makes it
     /// harder to resist), and the unit loses that many hit points as drained life, which can
-    /// raise it as undead. `None` if the unit is immune: a death creature, or immune to death.
-    pub fn drain_life(&mut self, target: usize, modifier: i32) -> Option<Damage> {
+    /// raise it as undead. `None` if the spell spares the unit (it is immune to death, and the exceptions rule is off).
+    pub fn drain_life(&mut self, target: usize, modifier: i32, spell: SpellId) -> Option<Damage> {
         let unit = &self.units[target];
-        if unit.realm == Some(Realm::Death)
-            || unit.is_immune_to(&[DamageType::Death], &self.content.rules)
-        {
+        if self.spares(unit, spell) {
             return None;
         }
         let mut state = unit.defender_state(&self.content.rules);

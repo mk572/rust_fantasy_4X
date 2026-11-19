@@ -392,11 +392,7 @@ pub fn process_attack(
                 total += kill_figure(def);
             }
             if sp.life_steal && !def.immunities.has(DamageType::Death) {
-                let stolen = def.resistance_failure(
-                    Some(Realm::Death),
-                    -sp.penalty - sp.life_steal_extra,
-                    rng,
-                );
+                let stolen = def.resistance_failure(Some(Realm::Death), -sp.penalty, rng);
                 total += unblockable(def, stolen).all_drained();
                 total.healed += stolen;
             }

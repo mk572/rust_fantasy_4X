@@ -902,10 +902,7 @@ impl Game {
                         None => return Err(SpellError::Target(TargetError::NotNormalUnit)),
                     }
                 }
-                if matches!(kind, Kind::LifeDrain)
-                    && (u.realm == Some(Realm::Death)
-                        || u.is_immune_to(&[DamageType::Death], &self.content.rules))
-                {
+                if matches!(kind, Kind::LifeDrain) && battle.spares(u, spell) {
                     return Err(SpellError::Target(TargetError::Deathly));
                 }
                 // A curse the target is immune to is refused before it costs anything
@@ -1051,7 +1048,7 @@ impl Game {
             && u.status == super::Status::Dead
             && u.fate() != super::Fate::Gone
             // Death Immunity keeps a unit from rising as undead (1.50 notes 496, 498).
-            && !u.has(Ability::new(16 /* death_immunity */))
+            && !u.is_immune_to(&[DamageType::Death], &self.content.rules)
             && self
                 .units()
                 .unit_def(entity)
@@ -1311,7 +1308,7 @@ impl Game {
                 };
                 let battle = &mut active.battle;
                 let extra = ((pool - def.cost as i32) / 5).max(0);
-                let dmg = battle.drain_life(target, -extra);
+                let dmg = battle.drain_life(target, -extra, spell);
                 let mut events = battle.spell_events_for_damage(
                     target,
                     dmg,
@@ -1452,11 +1449,17 @@ impl Game {
                     (false, SpellAim::Unit(t)) => vec![t],
                     _ => return Vec::new(),
                 };
-                let immune_types = types;
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
                 let battle = &mut active.battle;
+                // Word of Death is the original's exception: with the rule on, nothing stops it.
+                let immune_types =
+                    if def.death_immunity_exception && battle.death_immunity_exceptions {
+                        Vec::new()
+                    } else {
+                        types
+                    };
                 let mut events = Vec::new();
                 for t in targets {
                     // Spell Lock keeps a unit from the spells that sever or burn it.

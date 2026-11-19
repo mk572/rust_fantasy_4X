@@ -695,6 +695,12 @@ impl BattleUnit {
         Immunities::of(&self.abilities, &self.enchantments, rules).meets(DamageTypes::of(types))
     }
 
+    /// Whether the unit has a defence rule against one of these damage types (a set, as a spell's
+    /// `harm_types` holds it).
+    pub fn is_immune_to_set(&self, types: DamageTypes, rules: &Rules) -> bool {
+        Immunities::of(&self.abilities, &self.enchantments, rules).meets(types)
+    }
+
     fn melee_combatant(&self, rules: &Rules) -> Combatant {
         self.combatant(
             Mode::Melee,
@@ -1107,6 +1113,9 @@ pub struct Battle {
     /// Everyone inside a walled city gets the wall's +3 defence (`RuleSettings::walls_cover_city`).
     #[serde(default)]
     pub walls_cover_city: bool,
+    /// The original's exceptions to death immunity (`RuleSettings::death_immunity_exceptions`).
+    #[serde(default)]
+    pub death_immunity_exceptions: bool,
     /// Most units a side can have in the battle: summoning stops here
     /// (`RuleSettings::max_battle_side`).
     #[serde(default = "default_side_limit")]
@@ -1192,6 +1201,7 @@ impl Battle {
             spell_caster: None,
             melee_vs_fliers: MeleeVsFliers::default(),
             walls_cover_city: false,
+            death_immunity_exceptions: false,
             max_side: default_side_limit(),
             content: content_ref::ContentRef::new(content),
             rng: GameRng::new(seed),

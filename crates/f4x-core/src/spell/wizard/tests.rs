@@ -1495,3 +1495,29 @@ fn lycanthropy_keeps_damage_enchantments_weapons_and_moves() -> TestResult {
     );
     Ok(())
 }
+
+/// Task 713: death immunity protects from Death Wish and Black Wind, unless the rule
+/// `death_immunity_exceptions` (the original's gap) is on. The Dwarven Golem is a normal unit
+/// with death immunity (its resistance of 15 never fails, so Death Wish is asked, not rolled);
+/// undead spearmen show Black Wind.
+#[test]
+fn death_immunity_stops_death_wish_and_black_wind_unless_the_original_exceptions_are_on() {
+    for exceptions in [false, true] {
+        let mut g = world();
+        g.settings.rules.death_immunity_exceptions = exceptions;
+        let golem = unit(&mut g, P1, 81 /* dwarven_golem */, at(2, 2));
+        let wish = sp(&g, 199 /* death_wish */);
+        assert_eq!(g.spell_spares_unit(golem, wish), !exceptions, "Death Wish");
+        let mut rng = crate::game::rng::GameRng::new(5);
+        let mut winded = 0;
+        for _ in 0..40 {
+            let u = unit(&mut g, P1, 39 /* barbarian_spearmen */, at(6, 6));
+            g.make_undead(u);
+            winded += black_wind_square(&mut g, at(6, 6), &mut rng);
+            if g.world.contains(u) {
+                let _ = g.world.despawn(u);
+            }
+        }
+        assert_eq!(winded > 0, exceptions, "Black Wind: {winded} slain");
+    }
+}

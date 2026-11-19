@@ -55,10 +55,10 @@ pub struct SpecialAttacks {
     /// steal.
     pub penalty: i32,
     /// What more the touches cost the target's resistance when an item or a spell gives them:
-    /// stoning touch 1, death touch and life steal 3 (the original's `noninnate` attributes).
+    /// stoning touch 1, death touch 3 (the original's `noninnate` attributes). Life steal has no
+    /// extra: a Vampiric weapon costs the target no more resistance than the unit's own level.
     pub stoning_extra: i32,
     pub death_extra: i32,
-    pub life_steal_extra: i32,
     pub gaze: Gaze,
 }
 
@@ -94,7 +94,6 @@ impl SpecialAttacks {
             penalty: level,
             stoning_extra: given(Ability::new(66 /* stoning_touch */), 1),
             death_extra: given(Ability::new(99 /* death_touch */), 3),
-            life_steal_extra: given(Ability::new(35 /* life_steal */), 3),
             gaze: if has(Ability::new(46 /* multi_gaze */)) {
                 Gaze::Multi
             } else if has(Ability::new(64 /* stoning_gaze */)) {

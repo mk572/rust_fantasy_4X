@@ -73,6 +73,7 @@
     "custom.flee_you": "Fliehen ist sicher, du",
     "custom.flee_ai": "Fliehen ist sicher, Computermagier",
     "custom.settlers_cost_citizen": "Siedler kosten einen Bürger",
+    "custom.death_immunity_exceptions": "1.3-Ausnahmen bei Todesimmunität",
     "custom.walls_cover_city": "Mauern schützen die ganze Stadt (+3)",
     "custom.miners_guild_half_ore": "Bergarbeitergilde bringt die Hälfte mehr Eisen und Kohle (nicht das Doppelte)",
     "custom.spell_binding_always_succeeds": "Zauberbindung gelingt immer",

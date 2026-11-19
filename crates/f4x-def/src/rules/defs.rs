@@ -529,6 +529,16 @@ pub struct SpellDef {
     /// A curse the target can resist when it is cast in a battle.
     #[serde(default)]
     pub save: Option<SpellSave>,
+    /// What a spell that harms units without an attack of its own (a battlefield curse, Life
+    /// Drain) harms them with: a unit with a defence rule that is immune to one of these types
+    /// is not harmed (Wrack, Terror and Black Prayer are death, so death immunity stops them).
+    #[serde(default)]
+    pub harm_types: super::damage_type::DamageTypes,
+    /// The original game's version of this spell ignores the immunity to its death type (Word of
+    /// Death, Black Prayer, Terror): the rule setting `death_immunity_exceptions` brings that
+    /// back, and without it the spell respects the immunity like every other spell of its kind.
+    #[serde(default)]
+    pub death_immunity_exception: bool,
     /// Spells this one is not cumulative with. It cannot be cast on a unit that has one of them
     /// (or, for a global enchantment, on a wizard who keeps it), and while the unit has one its
     /// own bonuses do not count: Stone Skin gives way to Iron Skin.

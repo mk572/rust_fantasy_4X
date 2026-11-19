@@ -161,7 +161,7 @@ difference), **difference** (we do it another way).
 | 049 Scouting level shown one too high | **Not present.** The sheet shows the unit's current sight, floored (`unit_sheet.rs`); not compared with the help text. |
 | 050 Summon Demon shows the maximum, not what is left | **Not present.** The battle screen reads `casting.demons`, the demons still to summon. |
 | 051 Unit view shows current immunities and abilities | **Not present.** The sheet reads `unit_abilities` (items and spells included). Checking it found abilities the sheet never listed (below). |
-| 052 Life Steal and Death Touch show the save modifier | **Fixed.** Both show it ("Life Steal -2": the special level, 3 more when an item or spell gave the ability). Death Touch was not listed at all. |
+| 052 Life Steal and Death Touch show the save modifier | **Fixed.** Both show it ("Life Steal -2": the special level; Death Touch 3 more when an item or spell gave it, Life Steal never). Death Touch was not listed at all. |
 
 Found on the way, fixed (`unit_sheet.rs`, compared with the original's `UnitView.c`):
 

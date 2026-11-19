@@ -2706,6 +2706,51 @@ mod fields {
         );
     }
 
+    /// Task 713: Black Prayer curses the enemy, but not a unit immune to death, unless the
+    /// original's exceptions are on.
+    #[test]
+    fn black_prayer_spares_the_immune_to_death_unless_the_original_exceptions_are_on() {
+        for (exceptions, cursed) in [(false, false), (true, true)] {
+            let mut b = pair(105 /* high_men_swordsmen */, 165 /* skeletons */);
+            b.death_immunity_exceptions = exceptions;
+            let before = b.units[1].defense;
+            b.raise_field(
+                Side::Attacker,
+                Field::BlackPrayer,
+                spell_for(Field::BlackPrayer),
+            );
+            assert_eq!(
+                b.units[1].defense < before,
+                cursed,
+                "exceptions {exceptions}"
+            );
+        }
+    }
+
+    /// Task 713: Terror, the same way.
+    #[test]
+    fn terror_spares_the_immune_to_death_unless_the_original_exceptions_are_on() {
+        for exceptions in [false, true] {
+            let mut soft = pair(105 /* high_men_swordsmen */, 165 /* skeletons */);
+            soft.death_immunity_exceptions = exceptions;
+            soft.units[1].resistance = 0;
+            soft.raise_field(Side::Attacker, Field::Terror, spell_for(Field::Terror));
+            let mut frozen = 0;
+            for seed in 0..40 {
+                let mut b = reseeded(&soft, seed);
+                end_turns(&mut b, 1);
+                if b.units[1].attacked && b.units[1].moves_left == 0 {
+                    frozen += 1;
+                }
+            }
+            if exceptions {
+                assert!(frozen > 0, "{frozen} of 40 froze");
+            } else {
+                assert_eq!(frozen, 0, "death immunity stops Terror");
+            }
+        }
+    }
+
     #[test]
     fn a_loss_never_takes_a_stat_below_nothing_and_comes_back_whole() {
         // Settlers have no melee attack at all.
@@ -4495,13 +4540,23 @@ fn life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune(
         b.unit(0).ok_or("unit is missing")?.hit_points() > hurt,
         "the hero took the life"
     );
-    // Death creatures cannot be aimed at.
-    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1].realm = Some(Realm::Death);
+    // A unit immune to death cannot be aimed at: that is what keeps the Death creatures out.
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1]
+        .abilities
+        .push(Ability::new(16 /* death_immunity */));
     let refused = cast_unit(&mut g, 167 /* life_drain */, SpellAim::Unit(1), 10);
     assert_eq!(
         refused,
         Err(BattleError::Spell(SpellError::Target(TargetError::Deathly)))
     );
+    // The original's exception (the rule setting) lets Life Drain reach it.
+    g.battle
+        .as_mut()
+        .ok_or("as_mut is missing")?
+        .battle
+        .death_immunity_exceptions = true;
+    let allowed = cast_unit(&mut g, 167 /* life_drain */, SpellAim::Unit(1), 10);
+    assert!(allowed.is_ok(), "{allowed:?}");
     Ok(())
 }
 
@@ -7953,6 +8008,27 @@ fn wraith_form_is_no_shelter_from_flame_strike_death_spell_and_holy_word() -> Te
     Ok(())
 }
 
+/// Task 713: Word of Death is a Death spell like the others, so a unit immune to death is not
+/// hurt by it; the rule `death_immunity_exceptions` gives back the original's gap.
+#[test]
+fn word_of_death_is_stopped_by_death_immunity_unless_the_original_exceptions_are_on() -> TestResult
+{
+    let hurt = |exceptions: bool| -> Result<bool, String> {
+        let mut g = hook_game_against(192 /* word_of_death */, 165 /* skeletons */);
+        let b = &mut g.battle.as_mut().ok_or("no battle")?.battle;
+        b.death_immunity_exceptions = exceptions;
+        b.units[1].resistance = 0;
+        let events = cast_unit(&mut g, 192 /* word_of_death */, SpellAim::Unit(1), 0)
+            .map_err(|e| format!("{e:?}"))?;
+        Ok(events.iter().any(
+            |e| matches!(e, Event::Battle(BattleEvent::SpellSlew { kills, .. }) if *kills > 0),
+        ))
+    };
+    assert!(!hurt(false)?, "death immunity stops Word of Death");
+    assert!(hurt(true)?, "the original's exception lets it through");
+    Ok(())
+}
+
 /// Patch 1.50, note 159: every unit of the losing wizard that fell counts for his dislike of the
 /// attacker, not one of them (a Great Drake kills eight spearmen; each is worth 1 to 20).
 #[test]
@@ -8107,4 +8183,16 @@ fn flame_blade_and_the_flaming_power_add_fire_dice() {
         .expect("the Flaming power");
     assert_eq!(flaming.bonus_types, vec![DamageType::Fire]);
     assert!(flaming.melee_bonus > 0);
+}
+
+/// A Vampiric weapon (life steal given by an item) costs the target no more resistance than the
+/// unit's own level does, as in the original and on the wiki.
+#[test]
+fn an_item_gives_life_steal_no_extra_penalty() {
+    let life_steal = Ability::new(35 /* life_steal */);
+    let level = 3;
+    let innate = SpecialAttacks::of_unit(&[life_steal], &[], level);
+    let given = SpecialAttacks::of_unit(&[life_steal], &[life_steal], level);
+    assert_eq!(given.penalty, innate.penalty, "the same penalty");
+    assert_eq!(given.penalty, level, "the unit's own level, nothing more");
 }

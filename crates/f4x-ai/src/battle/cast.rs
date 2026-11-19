@@ -331,6 +331,8 @@ impl Scene<'_> {
     fn field_value(&self, field: Field) -> (f32, f32) {
         let (own, foe) = (self.friends, self.enemies);
         let all = |_: &BattleUnit| true;
+        // The units the enchantment cannot harm: those immune to what it harms with.
+        let spared = |u: &BattleUnit| self.game.battle().is_some_and(|b| b.field_spares(u, field));
         let realm = |r: Realm| move |u: &BattleUnit| u.realm == Some(r);
         let (gain, harm) = match field {
             Field::Prayer => (PRAYER_SHARE * Self::sum(own, all), 0.0),
@@ -348,12 +350,9 @@ impl Scene<'_> {
                 let total = Self::sum(foe, all).max(1.0);
                 (BLUR_SHARE * Self::sum(own, all) * shooters / total, 0.0)
             }
-            Field::Terror => (0.0, TERROR_SHARE * Self::sum(foe, all)),
+            Field::Terror => (0.0, TERROR_SHARE * Self::sum(foe, |u| !spared(u))),
             Field::Entangle => (0.0, ENTANGLE_SHARE * Self::sum(foe, all)),
-            Field::Wrack => (
-                0.0,
-                WRACK_SHARE * Self::sum(foe, |u| u.realm != Some(Realm::Death)),
-            ),
+            Field::Wrack => (0.0, WRACK_SHARE * Self::sum(foe, |u| !spared(u))),
             Field::CallLightning => (0.0, LIGHTNING_SHARE * Self::sum(foe, all)),
             Field::ManaLeak => {
                 let wizard = self.game.battle().map(|b| b.player_of(self.side.other()));

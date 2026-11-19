@@ -697,6 +697,7 @@ impl Game {
         battle.site = Some(site);
         battle.melee_vs_fliers = self.settings.rules.melee_vs_fliers;
         battle.walls_cover_city = self.settings.rules.walls_cover_city;
+        battle.death_immunity_exceptions = self.settings.rules.death_immunity_exceptions;
         battle.max_side = self.settings.rules.max_battle_side;
         (battle.node_aura, battle.node_site) = self.node_realms_at(site, city.is_none());
         battle.refresh_fields();
@@ -1143,7 +1144,10 @@ impl Game {
             return false;
         };
         u.fate() != super::Fate::Gone
-            && !u.has(Ability::new(16 /* death_immunity */))
+            && !u.is_immune_to(
+                &[crate::rules::damage_type::DamageType::Death],
+                &self.content.rules,
+            )
             && self.units().unit_def(entity).map(|d| d.kind) == Some(UnitKind::Normal)
             && self.has_global_effect(
                 battle.player_of(winner),
@@ -1164,7 +1168,10 @@ impl Game {
             || (winner != u.side
                 && u.fate() == super::Fate::Drained
                 && u.realm != Some(Realm::Death)
-                && !u.has(Ability::new(16 /* death_immunity */))
+                && !u.is_immune_to(
+                    &[crate::rules::damage_type::DamageType::Death],
+                    &self.content.rules,
+                )
                 && kind.is_some_and(|k| k != UnitKind::Hero))
     }
 

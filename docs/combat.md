@@ -149,7 +149,7 @@ to roll against each attack (`attack::process_attack`).
   | Wrack skips units with Wraith Form (ReMoM: "BUG: this enchantment should not help here"); Call Lightning does the same (patch IW112) | **fixed**: Wraith Form is no shelter from either; magic immunity still is, through the spell's damage roll |
   | Wraith Form protects against Flame Strike, Death Spell and Holy Word (patch 318) | never was: the spell grants only non-corporeal and weapon immunity |
   | Undead lack cold, poison and illusion immunity (patch 144) | they have them (task 29, `unit/undead.rs`) |
-  | Death immunity does not stop Terror (patch 440; the help: it "negates all spells which cause death and fear") | **fixed 24 October 2026**: a unit with death immunity is not frightened (`field.rs`) |
+  | Death immunity does not stop Terror (patch 440; the help: it "negates all spells which cause death and fear") | **fixed 24 October 2026**: a unit with death immunity is not frightened (`field.rs`); Terror, Black Prayer, Life Drain, Word of Death, Death Wish and Black Wind follow the rule setting `death_immunity_exceptions` (off: stopped; on: the original's gap), `docs/divergences.md` 48 |
   | Wall of Darkness is no hindrance to a shooter that sees through illusions (patch 470) | it is none (task 25) |
   | Righteousness does not work against ranged attacks (patch 694) | it does (the `defence` rules of Righteousness in `spells.ron`: immunity to chaos and death and +30 resistance) |
   | Blur rolls the defender's illusion immunity (patch 156) | the attacker's (task 13's rule, simplified) |
@@ -206,7 +206,7 @@ then brings dead figures back, and nothing over full strength is kept.
 
 Power drain (an item's: the target resists or loses 2 to 20 of its own mana, `Damage::mana_lost`) and
 the weaker touches and half doom damage of attacks granted by items and spells (`BattleUnit::granted`:
-stoning touch resists with 1 more, death touch and life steal with 3 more) are in (task 157).
+stoning touch resists with 1 more, death touch with 3 more; life steal has no extra, as in the original and on the wiki) are in (task 157).
 
 Damage is sorted by what dealt it (`Damage::drained` and `gone`, kept per unit in
 `BattleUnit::damage_kinds`). A unit that dies mostly of life steal, or of the blows and poison of a

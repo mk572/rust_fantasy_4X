@@ -87,6 +87,27 @@ impl Game {
         skill - now
     }
 
+    /// Whether the spell, which harms units with a damage type (`harm_types`), spares the unit
+    /// because the unit is immune to that type. The spells that are the original's exceptions
+    /// to death immunity are not spared when the rule `death_immunity_exceptions` is on.
+    pub(crate) fn spell_spares_unit(
+        &self,
+        unit: hecs::Entity,
+        spell: crate::rules::SpellId,
+    ) -> bool {
+        let def = self.content.rules.spells.get(spell);
+        if def.death_immunity_exception && self.settings.rules.death_immunity_exceptions {
+            return false;
+        }
+        let units = self.units();
+        crate::battle::immunity::Immunities::of(
+            &units.unit_abilities(unit),
+            &units.unit_enchantment_ids(unit),
+            &self.content.rules,
+        )
+        .meets(def.harm_types)
+    }
+
     /// The units on the map that the spell may touch, with the realm each is judged by.
     fn all_units_with_owner(&self) -> Vec<(hecs::Entity, PlayerId)> {
         let units = self.units();
@@ -103,6 +124,7 @@ impl Game {
         realm: Realm,
         modifier: i32,
         rng: &mut GameRng,
+        spell: Option<crate::rules::SpellId>,
         chosen: impl Fn(&Game, hecs::Entity, PlayerId) -> bool,
     ) -> u32 {
         let mut slain = 0;
@@ -110,7 +132,9 @@ impl Game {
             if !chosen(self, unit, owner) {
                 continue;
             }
-            if self.units().unit_protected_from(unit, Some(realm)) {
+            if self.units().unit_protected_from(unit, Some(realm))
+                || spell.is_some_and(|s| self.spell_spares_unit(unit, s))
+            {
                 continue;
             }
             let resistance = self.units().unit_resistance_against(unit, Some(realm));
@@ -129,7 +153,10 @@ impl Game {
     pub(crate) fn black_wind_unit(&mut self, unit: hecs::Entity, rng: &mut GameRng) -> bool {
         use crate::unit::Hurt;
         let units = self.units();
-        if units.unit_protected_from(unit, Some(Realm::Death)) {
+        let spell = self.content.rules.spells.id_numbered(187 /* black_wind */);
+        if units.unit_protected_from(unit, Some(Realm::Death))
+            || spell.is_some_and(|s| self.spell_spares_unit(unit, s))
+        {
             return false;
         }
         let figures = units.unit_stat(unit, crate::rules::Stat::Figures).max(1);
@@ -244,17 +271,24 @@ impl Game {
     /// Great Unsummoning: every fantastic creature on both planes, the caster's too, must resist
     /// at -2 or be banished.
     pub(crate) fn great_unsummoning(&mut self, rng: &mut GameRng) -> u32 {
+        let spell = self
+            .content
+            .rules
+            .spells
+            .id_numbered(75 /* great_unsummoning */);
         self.slay_units(
             Realm::Sorcery,
             self.content.rules.config.spell_effects.unsummoning_modifier,
             rng,
+            spell,
             |g, u, _| g.units().unit_realm(u).is_some(),
         )
     }
 
     /// Death Wish: every normal unit of the other wizards must resist or die.
     pub(crate) fn death_wish(&mut self, caster: PlayerId, rng: &mut GameRng) -> u32 {
-        self.slay_units(Realm::Death, 0, rng, |g, u, owner| {
+        let spell = self.content.rules.spells.id_numbered(199 /* death_wish */);
+        self.slay_units(Realm::Death, 0, rng, spell, |g, u, owner| {
             owner != caster
                 && g.units().unit_realm(u).is_none()
                 && g.units()

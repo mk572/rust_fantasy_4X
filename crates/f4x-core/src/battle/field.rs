@@ -173,6 +173,27 @@ impl Battle {
         self.fields[side.index()].iter().any(|&(f, _)| f == field)
     }
 
+    /// Whether the unit is spared by the spell: it is immune to a type the spell harms with
+    /// (`harm_types`), unless the spell is one of the original's exceptions and the rule
+    /// `death_immunity_exceptions` is on.
+    pub fn spares(&self, u: &BattleUnit, spell: SpellId) -> bool {
+        let def = self.content.rules.spells.get(spell);
+        if def.death_immunity_exception && self.death_immunity_exceptions {
+            return false;
+        }
+        u.is_immune_to_set(def.harm_types, &self.content.rules)
+    }
+
+    /// Whether the unit is spared by the battlefield enchantment `field` (the spell that raises it).
+    pub fn field_spares(&self, u: &BattleUnit, field: Field) -> bool {
+        self.content
+            .rules
+            .spells
+            .iter()
+            .filter(|(_, def)| Field::of(def) == Some(field))
+            .any(|(id, _)| self.spares(u, id))
+    }
+
     /// Whether either side has put it up.
     pub fn has_field_either(&self, field: Field) -> bool {
         self.has_field(Side::Attacker, field) || self.has_field(Side::Defender, field)
@@ -234,7 +255,7 @@ impl Battle {
         if self.has_field_either(Field::WarpReality) && u.realm != Some(Realm::Chaos) {
             b.to_hit -= 2;
         }
-        if theirs(Field::BlackPrayer) {
+        if theirs(Field::BlackPrayer) && !self.field_spares(u, Field::BlackPrayer) {
             b.melee -= 1;
             b.ranged -= 1;
             b.defense -= 1;
@@ -414,10 +435,7 @@ impl Battle {
         let mut events = Vec::new();
         for id in 0..self.units.len() {
             let u = &self.units[id];
-            if u.side == caster
-                || !u.is_active()
-                || u.has(Ability::new(16 /* death_immunity */))
-            {
+            if u.side == caster || !u.is_active() || self.field_spares(u, Field::Wrack) {
                 continue;
             }
             let mut state = u.defender_state(&self.content.rules);
@@ -455,8 +473,8 @@ impl Battle {
                 continue;
             }
             // Death immunity "negates all spells which cause death and fear" (the help; the
-            // original's Terror ignores it and the Unofficial Patch fixes that).
-            if terror && !self.units[id].has(Ability::new(16 /* death_immunity */)) {
+            // original's Terror ignores it, and `death_immunity_exceptions` brings that back).
+            if terror && !self.field_spares(&self.units[id], Field::Terror) {
                 let state = self.units[id].defender_state(&self.content.rules);
                 let rng: &mut dyn RngCore = &mut self.rng;
                 if state.resistance_failure(Some(Realm::Death), 1, rng) > 0 {
