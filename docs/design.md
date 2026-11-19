@@ -127,7 +127,7 @@ Every attack is made of a set of damage types (`f4x-def/src/rules/damage_type.rs
 | 3 | bow | Ranged | Missile, MundaneWeapon |  |
 | 14 | death_bolt | Ranged | Magic, DeathRealm |  |
 | 15 | death_gaze | Ranged | Magic, DeathRealm |  |
-| 18 | drow_bolt | Ranged | Magic, ChaosRealm |  |
+| 18 | drow_bolt | Ranged | Magic |  |
 | 20 | fire_breath | Ranged | Fire, Magic, ChaosRealm |  |
 | 22 | fireball_attack | Ranged | Fire, Magic, ChaosRealm |  |
 | 29 | ice_bolt | Ranged | Cold, Magic, NatureRealm |  |
