@@ -128,7 +128,10 @@ impl Game {
         let melders: Vec<hecs::Entity> = units
             .iter()
             .copied()
-            .filter(|&u| self.units().unit_has_ability(u, Ability::new(42)))
+            .filter(|&u| {
+                self.units()
+                    .unit_has_ability(u, Ability::new(42 /* meld */))
+            })
             .collect();
         let guardian = melders.iter().copied().find(|&u| {
             self.units()

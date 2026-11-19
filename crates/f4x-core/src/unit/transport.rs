@@ -963,7 +963,7 @@ mod tests {
         let guide = unit(&mut g, 107 /* high_men_cavalry */, at(2, 2));
         g.grant_temp_ability(
             crate::rules::exec::Target::Unit(guide),
-            crate::rules::Ability::new(74),
+            crate::rules::Ability::new(74 /* wind_walking */),
         );
         assert!(g.drown_stranded(None).is_empty());
         assert!(g.units().unit_position(boat).is_some());
@@ -1011,7 +1011,7 @@ mod tests {
         let walker = unit(&mut g, 107 /* high_men_cavalry */, at(5, 4));
         g.grant_temp_ability(
             crate::rules::exec::Target::Unit(guide),
-            crate::rules::Ability::new(74),
+            crate::rules::Ability::new(74 /* wind_walking */),
         );
         assert!(g.drown_stranded(None).is_empty(), "the walker rides along");
         assert!(g.units().unit_position(walker).is_some());

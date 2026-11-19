@@ -688,7 +688,7 @@ impl<'a> PlayerView<'a> {
             .units_at(position)
             .into_iter()
             .filter(|&u| units.unit_owner(u) == Some(owner))
-            .filter(|&u| !units.unit_has_ability(u, Ability::new(33)))
+            .filter(|&u| !units.unit_has_ability(u, Ability::new(33 /* invisibility */)))
             .collect();
         self.sort_by_serial(&mut garrison);
         Some(CityReport {

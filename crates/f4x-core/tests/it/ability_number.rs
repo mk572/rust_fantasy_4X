@@ -1,4 +1,4 @@
-//! The ability numbers written into the battle and the battle AI are the numbers of
+//! The ability numbers written into the game core, the AI and the client are the numbers of
 //! `abilities.ron`, each with its alias as a comment: `Ability::new(23 /* first_strike */)`.
 //! A number that names another ability than its comment, or has no comment, fails here.
 
@@ -6,7 +6,11 @@ use f4x_core::rules::Ability;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const DIRS: &[&str] = &["crates/f4x-core/src/battle", "crates/f4x-ai/src"];
+const DIRS: &[&str] = &[
+    "crates/f4x-core/src",
+    "crates/f4x-ai/src",
+    "crates/f4x-client/src",
+];
 
 fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else {

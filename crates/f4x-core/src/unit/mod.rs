@@ -680,7 +680,9 @@ impl<'a> UnitView<'a> {
         }
         let gold = match def.kind {
             UnitKind::Normal => def.upkeep.gold,
-            UnitKind::Hero if !self.unit_has_ability(unit, Ability::new(96)) => def.upkeep.gold,
+            UnitKind::Hero if !self.unit_has_ability(unit, Ability::new(96 /* noble */)) => {
+                def.upkeep.gold
+            }
             _ => HalfInt::ZERO,
         };
         // A computer wizard's difficulty cuts its units' upkeep.
@@ -917,7 +919,7 @@ mod tests {
         let (left, max) = units.unit_hits(e);
         assert!(max > 0 && left == max);
         assert_eq!(units.unit_level(e), 0);
-        assert!(!units.unit_has_ability(e, Ability::new(24)));
+        assert!(!units.unit_has_ability(e, Ability::new(24 /* flying */)));
         assert_eq!(units.units_at(AT), vec![e]);
         Ok(())
     }

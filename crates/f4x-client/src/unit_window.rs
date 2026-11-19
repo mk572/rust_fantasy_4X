@@ -60,9 +60,9 @@ impl App {
         });
         if builds {
             Special::Build
-        } else if any(Ability::new(42)) {
+        } else if any(Ability::new(42 /* meld */)) {
             Special::Meld
-        } else if any(Ability::new(54)) {
+        } else if any(Ability::new(54 /* purify */)) {
             Special::Purify
         } else {
             Special::None

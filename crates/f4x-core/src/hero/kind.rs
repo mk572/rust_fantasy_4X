@@ -154,7 +154,7 @@ pub fn roll_one(
                 }
             }
             10 => {
-                if !abilities.charmed && !has(Ability::new(40)) {
+                if !abilities.charmed && !has(Ability::new(40 /* magic_immunity */)) {
                     abilities.charmed = true;
                     spent = true;
                 }

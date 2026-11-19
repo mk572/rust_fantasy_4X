@@ -325,8 +325,9 @@ impl App {
             let noble = hero_kind
                 .and_then(|k| rules.hero_templates.get(k))
                 .is_some_and(|t| {
-                    t.abilities
-                        .contains(&f4x_def::rules::Ability::new(96) /* noble */)
+                    t.abilities.contains(
+                        &f4x_def::rules::Ability::new(96 /* noble */), /* noble */
+                    )
                 });
             if let (true, Some(upkeep)) = (noble, sheet.upkeep.as_mut()) {
                 upkeep.gold = f4x_def::half_int::HalfInt::ZERO;

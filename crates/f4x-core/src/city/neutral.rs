@@ -12,7 +12,6 @@
 //!
 //! Tests: in `f4x_newgame::neutral`, which places the cities of a new world.
 
-use crate::rules::Ability;
 use f4x_def::half_int::HalfInt;
 use std::collections::VecDeque;
 
@@ -225,7 +224,8 @@ impl Game {
                 .get(&crate::rules::Stat::Ranged)
                 .map_or(0, |v| v.floor())
                 > 0
-                && !def.abilities.contains(&Ability::new(69));
+                && crate::battle::game::weapon_shot_of(&def.abilities, rules)
+                    != Some(crate::battle::RangedKind::Short);
             if shoots {
                 ranged = Some(id);
             } else {

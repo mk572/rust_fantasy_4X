@@ -19,7 +19,8 @@ impl Economy<'_> {
     /// invisible unit shows to a viewer who has a unit immune to illusions in sight of it.
     pub fn unit_visible_to(&self, unit: hecs::Entity, viewer: PlayerId) -> bool {
         let units = self.units();
-        if units.unit_owner(unit) == Some(viewer) || !units.unit_has_ability(unit, Ability::new(33))
+        if units.unit_owner(unit) == Some(viewer)
+            || !units.unit_has_ability(unit, Ability::new(33 /* invisibility */))
         {
             return true;
         }
@@ -31,7 +32,7 @@ impl Economy<'_> {
         };
         let grid = map.plane(at.plane);
         units.player_units(viewer).into_iter().any(|u| {
-            units.unit_has_ability(u, Ability::new(31))
+            units.unit_has_ability(u, Ability::new(31 /* illusion_immunity */))
                 && units.unit_position(u).is_some_and(|p| {
                     p.plane == at.plane
                         && HalfInt::from_int(grid.chebyshev((p.x, p.y), (at.x, at.y)) as i32)

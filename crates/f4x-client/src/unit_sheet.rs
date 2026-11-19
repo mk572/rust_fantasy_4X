@@ -148,30 +148,30 @@ pub(crate) fn melee_icon(quality: u8) -> usize {
 /// The stat-icon number of the ranged row for a unit's abilities.
 pub(crate) fn ranged_icon(abilities: &[Ability]) -> usize {
     let has = |a: Ability| abilities.contains(&a);
-    if has(Ability::new(20))
-        || has(Ability::new(37))
-        || has(Ability::new(64))
-        || has(Ability::new(15))
-        || has(Ability::new(46))
+    if has(Ability::new(20 /* fire_breath */))
+        || has(Ability::new(37 /* lightning_breath */))
+        || has(Ability::new(64 /* stoning_gaze */))
+        || has(Ability::new(15 /* death_gaze */))
+        || has(Ability::new(46 /* multi_gaze */))
     {
         7
-    } else if has(Ability::new(69)) {
+    } else if has(Ability::new(69 /* thrown */)) {
         8
-    } else if has(Ability::new(57)) || has(Ability::new(59)) {
+    } else if has(Ability::new(57 /* rock_throwing */)) || has(Ability::new(59 /* sling */)) {
         6
-    } else if has(Ability::new(3)) {
+    } else if has(Ability::new(3 /* bow */)) {
         5
     } else if [
-        Ability::new(22), // fireball attack
-        Ability::new(36), // lightning bolt
-        Ability::new(29), // ice bolt
-        Ability::new(58), // shaman bolt
-        Ability::new(60), // sorcery bolt
-        Ability::new(14), // death bolt
-        Ability::new(18), // drow bolt
-        Ability::new(63), // sprite bolt
-        Ability::new(47), // nature bolt
-        Ability::new(30), // illusion attack
+        Ability::new(22 /* fireball_attack */), // fireball attack
+        Ability::new(36 /* lightning_bolt */),  // lightning bolt
+        Ability::new(29 /* ice_bolt */),        // ice bolt
+        Ability::new(58 /* shaman_bolt */),     // shaman bolt
+        Ability::new(60 /* sorcery_bolt */),    // sorcery bolt
+        Ability::new(14 /* death_bolt */),      // death bolt
+        Ability::new(18 /* drow_bolt */),       // drow bolt
+        Ability::new(63 /* sprite_bolt */),     // sprite bolt
+        Ability::new(47 /* nature_bolt */),     // nature bolt
+        Ability::new(30 /* illusion_attack */), // illusion attack
     ]
     .iter()
     .any(|&a| has(a))
@@ -185,12 +185,13 @@ pub(crate) fn ranged_icon(abilities: &[Ability]) -> usize {
 /// The quiver line ("Arrows x8", "Spells x3") for a ranged unit that is not a spell caster.
 pub(crate) fn quiver_name(texts: &Texts, abilities: &[Ability], ammo: i32) -> Option<String> {
     let has = |a: Ability| abilities.contains(&a);
-    let caster = has(Ability::new(61)) || has(Ability::new(62));
-    let key = if has(Ability::new(57)) {
+    let caster = has(Ability::new(61 /* spellcaster */))
+        || has(Ability::new(62 /* spellcaster_major */));
+    let key = if has(Ability::new(57 /* rock_throwing */)) {
         "unit.quiver_rock"
-    } else if has(Ability::new(3)) {
+    } else if has(Ability::new(3 /* bow */)) {
         "unit.quiver_arrow"
-    } else if has(Ability::new(59)) {
+    } else if has(Ability::new(59 /* sling */)) {
         "unit.quiver_bullet"
     } else if !caster && ranged_icon(abilities) == 1 {
         "unit.quiver_spell"
@@ -203,66 +204,66 @@ pub(crate) fn quiver_name(texts: &Texts, abilities: &[Ability], ammo: i32) -> Op
 /// Abilities the list shows, in the original's order, with their picture.
 const LISTED: &[(Ability, usize)] = &[
     // Movement and special unit abilities (`USW_Abilities`).
-    (Ability::new(68), 0),   // teleport
-    (Ability::new(25), 1),   // forester
-    (Ability::new(45), 2),   // mountaineer
-    (Ability::new(50), 20),  // pathfinding
-    (Ability::new(34), 14),  // large_shield
-    (Ability::new(70), 15),  // wall_crusher
-    (Ability::new(27), 16),  // healer
-    (Ability::new(12), 17),  // create_outpost
-    (Ability::new(33), 18),  // invisibility
-    (Ability::new(13), 19),  // create_undead
-    (Ability::new(38), 129), // long_range
-    (Ability::new(42), 40),  // meld
-    (Ability::new(49), 22),  // non_corporeal
-    (Ability::new(74), 23),  // wind_walking
-    (Ability::new(55), 24),  // regeneration
-    (Ability::new(54), 25),  // purify
-    (Ability::new(48), 48),  // negate_first_strike
-    (Ability::new(51), 91),  // planar_travel
-    (Ability::new(71), 71),  // water_walking
+    (Ability::new(68 /* teleport */), 0),
+    (Ability::new(25 /* forester */), 1),
+    (Ability::new(45 /* mountaineer */), 2),
+    (Ability::new(50 /* pathfinding */), 20),
+    (Ability::new(34 /* large_shield */), 14),
+    (Ability::new(70 /* wall_crusher */), 15),
+    (Ability::new(27 /* healer */), 16),
+    (Ability::new(12 /* create_outpost */), 17),
+    (Ability::new(33 /* invisibility */), 18),
+    (Ability::new(13 /* create_undead */), 19),
+    (Ability::new(38 /* long_range */), 129),
+    (Ability::new(42 /* meld */), 40),
+    (Ability::new(49 /* non_corporeal */), 22),
+    (Ability::new(74 /* wind_walking */), 23),
+    (Ability::new(55 /* regeneration */), 24),
+    (Ability::new(54 /* purify */), 25),
+    (Ability::new(48 /* negate_first_strike */), 48),
+    (Ability::new(51 /* planar_travel */), 91),
+    (Ability::new(71 /* water_walking */), 71),
     // Summoning and spell casting.
-    (Ability::new(67), 139), // summon_demon
-    (Ability::new(61), 55),  // spellcaster
-    (Ability::new(62), 55),  // spellcaster_major
+    (Ability::new(67 /* summon_demon */), 139),
+    (Ability::new(61 /* spellcaster */), 55),
+    (Ability::new(62 /* spellcaster_major */), 55),
     // Immunities and bonuses (`USW_Attributes_1` and `_2`).
-    (Ability::new(39), 127), // lucky
-    (Ability::new(52), 5),   // poison_immunity
-    (Ability::new(21), 6),   // fire_immunity
-    (Ability::new(65), 7),   // stoning_immunity
-    (Ability::new(72), 8),   // weapon_immunity
-    (Ability::new(44), 9),   // missile_immunity
-    (Ability::new(31), 10),  // illusion_immunity
-    (Ability::new(10), 11),  // cold_immunity
-    (Ability::new(40), 12),  // magic_immunity
-    (Ability::new(16), 49),  // death_immunity
-    (Ability::new(6), 38),   // casts_healing
-    (Ability::new(5), 39),   // casts_fireball
-    (Ability::new(4), 41),   // casts_doom_bolt
-    (Ability::new(32), 32),  // immolation
-    (Ability::new(8), 132),  // cause_fear
-    (Ability::new(7), 131),  // casts_web
-    (Ability::new(56), 33),  // resist_all
-    (Ability::new(28), 34),  // holy_bonus
+    (Ability::new(39 /* lucky */), 127),
+    (Ability::new(52 /* poison_immunity */), 5),
+    (Ability::new(21 /* fire_immunity */), 6),
+    (Ability::new(65 /* stoning_immunity */), 7),
+    (Ability::new(72 /* weapon_immunity */), 8),
+    (Ability::new(44 /* missile_immunity */), 9),
+    (Ability::new(31 /* illusion_immunity */), 10),
+    (Ability::new(10 /* cold_immunity */), 11),
+    (Ability::new(40 /* magic_immunity */), 12),
+    (Ability::new(16 /* death_immunity */), 49),
+    (Ability::new(6 /* casts_healing */), 38),
+    (Ability::new(5 /* casts_fireball */), 39),
+    (Ability::new(4 /* casts_doom_bolt */), 41),
+    (Ability::new(32 /* immolation */), 32),
+    (Ability::new(8 /* cause_fear */), 132),
+    (Ability::new(7 /* casts_web */), 131),
+    (Ability::new(56 /* resist_all */), 33),
+    (Ability::new(28 /* holy_bonus */), 34),
     // Attack flags (`USW_ATK_Flags`) and the special ranged attacks (`USW_SR_Attacks`).
-    (Ability::new(1), 28),    // armor_piercing
-    (Ability::new(53), 29),   // poison_touch
-    (Ability::new(35), 30),   // life_steal
-    (Ability::new(101), 31),  // doom_damage (automatic damage)
-    (Ability::new(100), 140), // destruction
-    (Ability::new(30), 116),  // illusion_attack
-    (Ability::new(66), 35),   // stoning_touch
-    (Ability::new(99), 27),   // death_touch
-    (Ability::new(103), 141), // power_drain
-    (Ability::new(17), 142),  // dispel_evil
-    (Ability::new(23), 133),  // first_strike
-    (Ability::new(69), 130),  // thrown
-    (Ability::new(20), 138),  // fire_breath
-    (Ability::new(37), 137),  // lightning_breath
-    (Ability::new(64), 26),   // stoning_gaze
-    (Ability::new(15), 135),  // death_gaze
-    (Ability::new(46), 134),  // multi_gaze
+    (Ability::new(1 /* armor_piercing */), 28),
+    (Ability::new(53 /* poison_touch */), 29),
+    (Ability::new(35 /* life_steal */), 30),
+    (Ability::new(101 /* doom_damage */), 31),
+    (Ability::new(100 /* destruction */), 140),
+    (Ability::new(30 /* illusion_attack */), 116),
+    (Ability::new(66 /* stoning_touch */), 35),
+    (Ability::new(99 /* death_touch */), 27),
+    (Ability::new(103 /* power_drain */), 141),
+    (Ability::new(17 /* dispel_evil */), 142),
+    (Ability::new(23 /* first_strike */), 133),
+    (Ability::new(69 /* thrown */), 130),
+    (Ability::new(20 /* fire_breath */), 138),
+    (Ability::new(37 /* lightning_breath */), 137),
+    (Ability::new(64 /* stoning_gaze */), 26),
+    (Ability::new(15 /* death_gaze */), 135),
+    (Ability::new(46 /* multi_gaze */), 134),
 ];
 
 /// The pictures of the lasting spells on a unit: spell number, the icon of the unit sheet
@@ -495,11 +496,11 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
     }
     let has = |a: Ability| input.abilities.contains(&a);
     // Merging, with the picture of the item power (the original shows it before Teleporting).
-    if has(Ability::new(43)) {
+    if has(Ability::new(43 /* merging */)) {
         out.push(Special {
-            help: (input.ability_help)(Ability::new(43)),
+            help: (input.ability_help)(Ability::new(43 /* merging */)),
             item: Some(ItemIcon::Power(MERGING_POWER_ICON)),
-            ..plain((input.ability_name)(Ability::new(43)), None)
+            ..plain((input.ability_name)(Ability::new(43 /* merging */)), None)
         });
     }
     // Some abilities show a number: poison strength, the strength of a thrown weapon or a
@@ -527,11 +528,14 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
             continue;
         }
         // A hero's Lucky is one of its hero abilities, listed with them.
-        if id == Ability::new(39) && input.hero_level.is_some() {
+        if id == Ability::new(39 /* lucky */) && input.hero_level.is_some() {
             continue;
         }
         // Pathfinding replaces the forester and mountaineer lines it contains.
-        if has(Ability::new(50)) && (id == Ability::new(25) || id == Ability::new(45)) {
+        if has(Ability::new(50 /* pathfinding */))
+            && (id == Ability::new(25 /* forester */)
+                || id == Ability::new(45 /* mountaineer */))
+        {
             continue;
         }
         let mut name = (input.ability_name)(id);
@@ -539,7 +543,10 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
             let args = Args::new().text("name", name).count("n", n);
             name = input.texts.get("unit.ability_value", &args);
         }
-        if (id == Ability::new(61) || id == Ability::new(62)) && input.mana > 0 {
+        if (id == Ability::new(61 /* spellcaster */)
+            || id == Ability::new(62 /* spellcaster_major */))
+            && input.mana > 0
+        {
             name = input
                 .texts
                 .get("unit.caster", &Args::new().count("n", input.mana));
@@ -562,9 +569,18 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         ));
     }
     for (marker, key) in [
-        (Ability::new(104), "unit.mutation_armor"),
-        (Ability::new(105), "unit.mutation_wings"),
-        (Ability::new(106), "unit.mutation_breath"),
+        (
+            Ability::new(104 /* mutation_armor */),
+            "unit.mutation_armor",
+        ),
+        (
+            Ability::new(105 /* mutation_wings */),
+            "unit.mutation_wings",
+        ),
+        (
+            Ability::new(106 /* mutation_breath */),
+            "unit.mutation_breath",
+        ),
     ] {
         if has(marker) {
             out.push(plain(input.texts.get(key, &Args::new()), None));
@@ -741,9 +757,9 @@ impl App {
                 )
             })
             .collect();
-        let mana = if abilities.contains(&Ability::new(62)) {
+        let mana = if abilities.contains(&Ability::new(62 /* spellcaster_major */)) {
             40
-        } else if abilities.contains(&Ability::new(61)) {
+        } else if abilities.contains(&Ability::new(61 /* spellcaster */)) {
             20
         } else {
             0
@@ -898,9 +914,9 @@ impl App {
                 .to_string()
         };
         let ability_help = |id: Ability| content.rules.abilities.get(id).help;
-        let mana = if abilities.contains(&Ability::new(62)) {
+        let mana = if abilities.contains(&Ability::new(62 /* spellcaster_major */)) {
             40
-        } else if abilities.contains(&Ability::new(61)) {
+        } else if abilities.contains(&Ability::new(61 /* spellcaster */)) {
             20
         } else {
             0
@@ -1153,7 +1169,11 @@ mod tests {
     #[test]
     fn the_list_runs_level_quiver_to_hit_abilities_then_spells() {
         // bow, first strike, poison immunity
-        let abilities = [Ability::new(3), Ability::new(23), Ability::new(52)];
+        let abilities = [
+            Ability::new(3 /* bow */),
+            Ability::new(23 /* first_strike */),
+            Ability::new(52 /* poison_immunity */),
+        ];
         let name = |id: Ability| format!("ability {}", id.num());
         let no_help = |_: Ability| None;
         let list = specials(&SpecialsInput {
@@ -1190,7 +1210,11 @@ mod tests {
     #[test]
     fn pathfinding_stands_in_for_forester_and_mountaineer() {
         // forester, mountaineer, pathfinding
-        let abilities = [Ability::new(25), Ability::new(45), Ability::new(50)];
+        let abilities = [
+            Ability::new(25 /* forester */),
+            Ability::new(45 /* mountaineer */),
+            Ability::new(50 /* pathfinding */),
+        ];
         let name = |id: Ability| format!("ability {}", id.num());
         let no_help = |_: Ability| None;
         let list = specials(&SpecialsInput {
@@ -1219,7 +1243,10 @@ mod tests {
     #[test]
     fn spell_casters_show_their_mana_and_no_quiver() {
         // spellcaster, fireball attack
-        let abilities = [Ability::new(61), Ability::new(22)];
+        let abilities = [
+            Ability::new(61 /* spellcaster */),
+            Ability::new(22 /* fireball_attack */),
+        ];
         let name = |id: Ability| format!("ability {}", id.num());
         let no_help = |_: Ability| None;
         let list = specials(&SpecialsInput {
@@ -1255,14 +1282,14 @@ mod tests {
         let no_help = |_: Ability| None;
         // Life steal, destruction, death touch, power drain and doom damage, in the original's order.
         let abilities = [
-            Ability::new(103),
-            Ability::new(99),
-            Ability::new(100),
-            Ability::new(101),
-            Ability::new(35),
+            Ability::new(103 /* power_drain */),
+            Ability::new(99 /* death_touch */),
+            Ability::new(100 /* destruction */),
+            Ability::new(101 /* doom_damage */),
+            Ability::new(35 /* life_steal */),
         ];
         // Special level 2; the unit's own life steal costs 2, a death touch an item gave 2 + 3.
-        let granted = [Ability::new(99)];
+        let granted = [Ability::new(99 /* death_touch */)];
         let list = specials(&SpecialsInput {
             abilities: &abilities,
             ammo: 0,
@@ -1330,13 +1357,13 @@ mod tests {
         // Super Might (86), Leadership (75), Armsmaster (81), Sage (89), Lucky (39), Charmed (95),
         // Noble (96), at level 2 (the third): x = 3.
         let abilities = [
-            Ability::new(86),
-            Ability::new(75),
-            Ability::new(81),
-            Ability::new(89),
-            Ability::new(39),
-            Ability::new(95),
-            Ability::new(96),
+            Ability::new(86 /* super_might */),
+            Ability::new(75 /* leadership */),
+            Ability::new(81 /* armsmaster */),
+            Ability::new(89 /* sage */),
+            Ability::new(39 /* lucky */),
+            Ability::new(95 /* charmed */),
+            Ability::new(96 /* noble */),
         ];
         let list = listed(&abilities, 0, 0, Some(2));
         assert_eq!(
@@ -1360,7 +1387,15 @@ mod tests {
 
     #[test]
     fn merging_is_listed_with_the_picture_of_its_item_power() {
-        let list = listed(&[Ability::new(43), Ability::new(68)], 0, 0, None);
+        let list = listed(
+            &[
+                Ability::new(43 /* merging */),
+                Ability::new(68 /* teleport */),
+            ],
+            0,
+            0,
+            None,
+        );
         assert_eq!(names(&list), ["ability 43", "ability 68"]);
         assert_eq!(list[0].item, Some(ItemIcon::Power(18)));
     }
@@ -1369,28 +1404,28 @@ mod tests {
     fn strengths_and_saves_follow_the_name_of_the_ability_that_has_one() {
         // Poison touch 4, thrown 3, fire breath 5, a stoning gaze -2 and a stoning touch -1.
         assert_eq!(
-            names(&listed(&[Ability::new(53)], 4, 0, None)),
+            names(&listed(&[Ability::new(53 /* poison_touch */)], 4, 0, None)),
             ["ability 53 4"]
         );
         assert_eq!(
-            names(&listed(&[Ability::new(69)], 0, 3, None)),
+            names(&listed(&[Ability::new(69 /* thrown */)], 0, 3, None)),
             ["ability 69 3"]
         );
         assert_eq!(
-            names(&listed(&[Ability::new(20)], 0, 5, None)),
+            names(&listed(&[Ability::new(20 /* fire_breath */)], 0, 5, None)),
             ["ability 20 5"]
         );
         assert_eq!(
-            names(&listed(&[Ability::new(64)], 2, 1, None)),
+            names(&listed(&[Ability::new(64 /* stoning_gaze */)], 2, 1, None)),
             ["ability 64 -2"]
         );
         assert_eq!(
-            names(&listed(&[Ability::new(66)], 1, 0, None)),
+            names(&listed(&[Ability::new(66 /* stoning_touch */)], 1, 0, None)),
             ["ability 66 -1"]
         );
         // Nothing to show: a touch with no penalty stays plain.
         assert_eq!(
-            names(&listed(&[Ability::new(66)], 0, 0, None)),
+            names(&listed(&[Ability::new(66 /* stoning_touch */)], 0, 0, None)),
             ["ability 66"]
         );
     }
@@ -1438,10 +1473,10 @@ mod tests {
         assert_eq!(melee_icon(0), 0);
         assert_eq!(melee_icon(2), 2);
         // bow, fire breath, rock throwing, ice bolt
-        assert_eq!(ranged_icon(&[Ability::new(3)]), 5);
-        assert_eq!(ranged_icon(&[Ability::new(20)]), 7);
-        assert_eq!(ranged_icon(&[Ability::new(57)]), 6);
-        assert_eq!(ranged_icon(&[Ability::new(29)]), 1);
+        assert_eq!(ranged_icon(&[Ability::new(3 /* bow */)]), 5);
+        assert_eq!(ranged_icon(&[Ability::new(20 /* fire_breath */)]), 7);
+        assert_eq!(ranged_icon(&[Ability::new(57 /* rock_throwing */)]), 6);
+        assert_eq!(ranged_icon(&[Ability::new(29 /* ice_bolt */)]), 1);
     }
 
     #[test]

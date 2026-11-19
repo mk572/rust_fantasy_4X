@@ -88,7 +88,10 @@ impl Game {
         let workers: Vec<hecs::Entity> = units
             .iter()
             .copied()
-            .filter(|&u| self.units().unit_has_ability(u, Ability::new(54)))
+            .filter(|&u| {
+                self.units()
+                    .unit_has_ability(u, Ability::new(54 /* purify */))
+            })
             .collect();
         if workers.is_empty() {
             return Err(PurifyError::CannotPurify);

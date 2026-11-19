@@ -395,18 +395,18 @@ fn kills(texts: &Texts, count: u32) -> String {
 pub(crate) fn missile_type(u: &BattleUnit) -> usize {
     let has = |a: Ability| u.abilities.contains(&a);
     [
-        (Ability::new(57), 4),  // rock_throwing
-        (Ability::new(59), 5),  // sling
-        (Ability::new(36), 0),  // lightning_bolt
-        (Ability::new(22), 2),  // fireball_attack
-        (Ability::new(30), 3),  // illusion_attack
-        (Ability::new(60), 3),  // sorcery_bolt
-        (Ability::new(14), 6),  // death_bolt
-        (Ability::new(29), 7),  // ice_bolt
-        (Ability::new(58), 9),  // shaman_bolt
-        (Ability::new(18), 10), // drow_bolt
-        (Ability::new(63), 11), // sprite_bolt
-        (Ability::new(47), 11), // nature_bolt
+        (Ability::new(57 /* rock_throwing */), 4),
+        (Ability::new(59 /* sling */), 5),
+        (Ability::new(36 /* lightning_bolt */), 0),
+        (Ability::new(22 /* fireball_attack */), 2),
+        (Ability::new(30 /* illusion_attack */), 3),
+        (Ability::new(60 /* sorcery_bolt */), 3),
+        (Ability::new(14 /* death_bolt */), 6),
+        (Ability::new(29 /* ice_bolt */), 7),
+        (Ability::new(58 /* shaman_bolt */), 9),
+        (Ability::new(18 /* drow_bolt */), 10),
+        (Ability::new(63 /* sprite_bolt */), 11),
+        (Ability::new(47 /* nature_bolt */), 11),
     ]
     .into_iter()
     .find_map(|(ability, kind)| has(ability).then_some(kind))
@@ -1507,7 +1507,7 @@ impl App {
             // A wall crusher strikes a wall section: with its blows next to it, or by shooting.
             (None, Some(u))
                 if battle.map.has_wall(cell)
-                    && u.has(Ability::new(70))
+                    && u.has(Ability::new(70 /* wall_crusher */))
                     && u.side == Side::Attacker
                     && !u.attacked =>
             {
@@ -2209,7 +2209,10 @@ impl App {
             let blink = (get_time() * 3.0) as i64 % 2 == 0;
             diamond(sx, sy, scale, if blink { GOLD } else { WHITE }, false);
             if my_turn {
-                if u.has(Ability::new(70)) && u.side == Side::Attacker && !u.attacked {
+                if u.has(Ability::new(70 /* wall_crusher */))
+                    && u.side == Side::Attacker
+                    && !u.attacked
+                {
                     for wall in battle.map.standing_walls() {
                         if distance(u.cell, wall) == 1 || can_shoot(u) {
                             let (wx, wy) = at(wall);

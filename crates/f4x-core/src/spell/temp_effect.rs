@@ -230,7 +230,7 @@ impl<'a> UnitView<'a> {
             d.kind != crate::rules::UnitKind::Normal
                 && !(d.kind == crate::rules::UnitKind::Fantastic
                     && (d.movement == crate::rules::MovementType::Sailing
-                        || d.abilities.contains(&Ability::new(70))))
+                        || d.abilities.contains(&Ability::new(70 /* wall_crusher */))))
         }) || self.unit_weapon_quality(unit) > 0
             || (self.unit_owner(unit).is_some_and(|o| {
                 self.has_global_effect(o, crate::spell::global_enchantment::GlobalEffect::HolyArms)
@@ -238,7 +238,7 @@ impl<'a> UnitView<'a> {
             || self
                 .unit_abilities(unit)
                 .iter()
-                .any(|a| *a == Ability::new(41))
+                .any(|a| *a == Ability::new(41 /* magical_weapon */))
     }
 
     /// The ids of the lasting spells on a unit.
@@ -377,12 +377,12 @@ mod tests {
         let mut g = world();
         // The Pegasai fly by nature.
         let u = unit(&mut g, 103 /* high_elf_pegasai */);
-        assert!(g.units().unit_has_ability(u, Ability::new(24)));
-        g.remove_temp_ability(Target::Unit(u), Ability::new(24));
-        assert!(!g.units().unit_has_ability(u, Ability::new(24)));
-        g.grant_temp_ability(Target::Unit(u), Ability::new(24));
+        assert!(g.units().unit_has_ability(u, Ability::new(24 /* flying */)));
+        g.remove_temp_ability(Target::Unit(u), Ability::new(24 /* flying */));
+        assert!(!g.units().unit_has_ability(u, Ability::new(24 /* flying */)));
+        g.grant_temp_ability(Target::Unit(u), Ability::new(24 /* flying */));
         assert!(
-            g.units().unit_has_ability(u, Ability::new(24)),
+            g.units().unit_has_ability(u, Ability::new(24 /* flying */)),
             "a later grant wins"
         );
     }
@@ -423,20 +423,20 @@ mod tests {
             .units()
             .unit_abilities(u)
             .iter()
-            .any(|a| *a == Ability::new(40)));
+            .any(|a| *a == Ability::new(40 /* magic_immunity */)));
         enchant(&mut g, u, 69 /* magic_immunity */);
         assert!(g
             .units()
             .unit_abilities(u)
             .iter()
-            .any(|a| *a == Ability::new(40)));
+            .any(|a| *a == Ability::new(40 /* magic_immunity */)));
         // A temporary removal still takes it away again.
-        g.remove_temp_ability(Target::Unit(u), Ability::new(40));
+        g.remove_temp_ability(Target::Unit(u), Ability::new(40 /* magic_immunity */));
         assert!(!g
             .units()
             .unit_abilities(u)
             .iter()
-            .any(|a| *a == Ability::new(40)));
+            .any(|a| *a == Ability::new(40 /* magic_immunity */)));
     }
 
     #[test]

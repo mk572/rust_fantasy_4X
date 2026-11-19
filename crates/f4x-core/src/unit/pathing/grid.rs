@@ -502,7 +502,7 @@ mod tests {
                 );
             }
             let guide = game.spawn_unit(owner, start, walker);
-            game.grant_temp_ability(Target::Unit(guide), Ability::new(50));
+            game.grant_temp_ability(Target::Unit(guide), Ability::new(50 /* pathfinding */));
             stacks.push(vec![game.spawn_unit(owner, start, walker), guide]);
             let real = game.units().player_units(owner);
             stacks.push(

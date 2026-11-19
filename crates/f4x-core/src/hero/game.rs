@@ -489,7 +489,7 @@ pub(crate) mod tests {
         assert_eq!(g.units().hero_kind(h), Some(dervish));
         assert_eq!(state(&g, dervish), HeroState::Serving);
         // Its abilities are the unit's, and a noble hero costs nothing to keep.
-        assert!(g.units().unit_has_ability(h, Ability::new(96)));
+        assert!(g.units().unit_has_ability(h, Ability::new(96 /* noble */)));
         assert_eq!(g.units().unit_gold_upkeep(h), 0);
         assert_eq!(g.budget(P0).noble_gold, 10);
         let beast = kind_of(&g, 4 /* beastmaster */);
@@ -905,7 +905,9 @@ pub(crate) mod tests {
             *g.world.get::<&Hero>(h)?
         );
         assert_eq!(back.units().hero_kind(heroes[0]), Some(dervish));
-        assert!(back.units().unit_has_ability(heroes[0], Ability::new(96)));
+        assert!(back
+            .units()
+            .unit_has_ability(heroes[0], Ability::new(96 /* noble */)));
         assert_eq!(back.units().raisable_heroes(), vec![barbarian]);
         Ok(())
     }

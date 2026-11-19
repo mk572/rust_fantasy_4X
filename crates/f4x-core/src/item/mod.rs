@@ -148,7 +148,7 @@ impl Item {
     pub fn granted_abilities(&self, rules: &Rules) -> Vec<Ability> {
         let mut out: Vec<Ability> = Vec::new();
         if self.kind == ItemKind::Shield {
-            out.push(Ability::new(34) /* large_shield */);
+            out.push(Ability::new(34 /* large_shield */) /* large_shield */);
         }
         for &p in &self.powers {
             if let Some(ability) = rules.item_powers.get(p).attack {
@@ -272,7 +272,8 @@ pub fn modifiers(
         add_typed(Stat::MeleeToHit, b.to_hit, &[]);
     }
     let kind = ranged_kind_of(abilities, rules);
-    let thrown = abilities.iter().any(|a| *a == Ability::new(69));
+    let thrown = crate::battle::game::weapon_shot_of(abilities, rules)
+        == Some(crate::battle::RangedKind::Short);
     if has_ranged && item.adds_to_ranged(kind, thrown) {
         let counts =
             |p: &&&ItemPowerDef| p.ranged_kinds.is_empty() || p.ranged_kinds.contains(&item.kind);

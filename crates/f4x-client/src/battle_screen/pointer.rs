@@ -72,7 +72,7 @@ impl App {
             (Some(_), None) => RED_CROSS,
             (None, Some(u))
                 if battle.map.has_wall(cell)
-                    && u.has(Ability::new(70))
+                    && u.has(Ability::new(70 /* wall_crusher */))
                     && u.side == Side::Attacker =>
             {
                 strike(u)

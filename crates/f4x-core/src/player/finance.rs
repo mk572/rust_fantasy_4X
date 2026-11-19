@@ -300,7 +300,7 @@ impl Game {
             id,
             food: units.unit_food(id),
             gold: units.unit_gold_upkeep(id),
-            noble_hero: units.unit_has_ability(id, Ability::new(96))
+            noble_hero: units.unit_has_ability(id, Ability::new(96 /* noble */))
                 && units.unit_def(id).is_some_and(|d| d.kind == UnitKind::Hero),
             cost: units.unit_def(id).map_or(0, |d| d.cost),
             last: units.hero_kind(id).is_some()

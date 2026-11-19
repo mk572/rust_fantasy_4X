@@ -120,17 +120,17 @@ mod tests {
         let (fame, research) = (g.fame(P0), g.income(P0).research);
         let bare = read(&g);
         g.world.get::<&mut Hero>(h)?.abilities = HeroAbilities::from_ids(&[
-            Ability::new(85), // might
-            Ability::new(94), // super_agility
-            Ability::new(79), // blademaster
-            Ability::new(83), // constitution
+            Ability::new(85 /* might */),
+            Ability::new(94 /* super_agility */),
+            Ability::new(79 /* blademaster */),
+            Ability::new(83 /* constitution */),
         ]);
         let with: Vec<i32> = read(&g).iter().zip(bare).map(|(n, b)| n - b).collect();
         assert_eq!(with, vec![2, 3, 1, 2]);
         // Super Legendary is 9 fame at x = 2, Sage 3 research at level 1.
         g.world.get::<&mut Hero>(h)?.abilities = HeroAbilities::from_ids(&[
-            Ability::new(78), /* super_legendary */
-            Ability::new(89), /* sage */
+            Ability::new(78 /* super_legendary */), /* super_legendary */
+            Ability::new(89 /* sage */),            /* sage */
         ]);
         assert_eq!(g.fame(P0), fame + 9);
         assert_eq!(g.income(P0).research, research + 3);
