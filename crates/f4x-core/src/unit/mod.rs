@@ -20,6 +20,7 @@ pub mod stasis;
 pub mod transport;
 pub mod undead;
 
+use crate::rules::damage_type::DamageTypes;
 use crate::rules::Ability;
 use f4x_def::half_int::HalfInt;
 use hecs::World;
@@ -31,7 +32,7 @@ use f4x_def::content::Content;
 
 use crate::game::{Event, Game};
 use crate::rules::stats::{compute, compute_half, passive_modifiers, Modifier, Source};
-use crate::rules::{LevelPathDef, Stat, UnitDef, UnitId, UnitKind};
+use crate::rules::{LevelPathDef, ModOp, Stat, UnitDef, UnitId, UnitKind};
 
 /// Marks an entity as a unit of this definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -462,6 +463,16 @@ impl<'a> UnitView<'a> {
             .and_then(|d| d.stats.get(&stat).map(|v| v.floor()))
             .unwrap_or(0);
         compute(stat, base, &self.modifiers_shared(unit))
+    }
+
+    /// The dice of an attack stat that are made of damage types (what a Flame Blade or a Flaming
+    /// weapon adds): each added amount with its types. They are part of `unit_stat`, not on top.
+    pub fn unit_typed_dice(&self, unit: hecs::Entity, stat: Stat) -> Vec<(i32, DamageTypes)> {
+        self.modifiers_shared(unit)
+            .iter()
+            .filter(|m| m.stat == stat && m.op == ModOp::Add && !m.types.is_empty())
+            .map(|m| (m.value.floor(), m.types))
+            .collect()
     }
 
     /// Full movement allowance.

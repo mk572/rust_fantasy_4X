@@ -30,7 +30,7 @@ pub mod vortex;
 use crate::game::rng::GameRng;
 use crate::game::serial::Serial;
 use crate::game::setting::MeleeVsFliers;
-use crate::rules::damage_type::DamageType;
+use crate::rules::damage_type::{DamageType, DamageTypes};
 use crate::rules::Ability;
 use crate::rules::{BattleRules, Rules};
 use f4x_def::half_int::HalfInt;
@@ -152,10 +152,10 @@ pub struct BattleUnit {
     /// thrown attack (its bow): the plus to hit of its items.
     pub melee_plus: i32,
     pub ranged_plus: i32,
-    /// Of the dice of the melee and of the ranged attack, how many are fire (Flame Blade,
-    /// Flaming): a defender immune to fire loses them.
-    pub fire_melee: i32,
-    pub fire_ranged: i32,
+    /// Of the dice of the melee and of the ranged attack, the ones made of damage types (Flame
+    /// Blade, Flaming): a defender immune to one of the types loses them.
+    pub melee_parts: Vec<(i32, DamageTypes)>,
+    pub ranged_parts: Vec<(i32, DamageTypes)>,
     pub to_block: i32,
     /// Hit points of one figure.
     pub hits: i32,
@@ -334,8 +334,8 @@ impl BattleUnit {
             to_hit: 0,
             melee_plus: 0,
             ranged_plus: 0,
-            fire_melee: 0,
-            fire_ranged: 0,
+            melee_parts: Vec::new(),
+            ranged_parts: Vec::new(),
             to_block: 0,
             hits,
             extra_hits: 0,
@@ -650,10 +650,10 @@ impl BattleUnit {
             ignores_defense: self.has(Ability::new(101 /* doom_damage */))
                 || (mode == Mode::ThrownOrBreath && special.gaze == Gaze::Multi),
             mode,
-            fire: if mode == Mode::Melee {
-                self.fire_melee
+            parts: if mode == Mode::Melee {
+                self.melee_parts.clone()
             } else {
-                self.fire_ranged
+                self.ranged_parts.clone()
             },
             nature: AttackNature::of_unit_attack(mode, &self.abilities, self.magical_weapon, rules),
             special,
@@ -672,8 +672,7 @@ impl BattleUnit {
     /// names types in its data is stopped by (illusion immunity too, which sees through an
     /// illusion attack and refuses a spell of illusions).
     pub fn is_immune_to(&self, types: &[DamageType], rules: &Rules) -> bool {
-        Immunities::of(&self.abilities, rules)
-            .meets(crate::rules::damage_type::DamageTypes::of(types))
+        Immunities::of(&self.abilities, rules).meets(DamageTypes::of(types))
     }
 
     fn melee_combatant(&self, rules: &Rules) -> Combatant {

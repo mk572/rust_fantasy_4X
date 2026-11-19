@@ -30,6 +30,7 @@ use crate::battle::RangedKind;
 use f4x_def::content::Content;
 
 use crate::game::Game;
+use crate::rules::damage_type::{DamageType, DamageTypes};
 use crate::rules::effects::Effect;
 use crate::rules::stats::{Modifier, Source};
 use crate::rules::{ItemDef, ItemKind, ItemPowerDef, ModOp, Rules, SlotKind, SpellId, Stat};
@@ -90,6 +91,7 @@ impl Item {
                 stat,
                 op: ModOp::Add,
                 value,
+                ..
             } = rule.effect
             {
                 match stat {
@@ -251,38 +253,44 @@ pub fn modifiers(
         .iter()
         .filter_map(|&p| rules.item_powers.try_get(p))
         .collect();
-    let melee: i32 = powers.iter().map(|p| p.melee_bonus).sum();
+    // The bonus dice of a power with `bonus_types` are of those types (Flaming: fire); the rest
+    // of the blow is the item's own.
+    let mut add_typed = |stat: Stat, value: i32, types: &[DamageType]| {
+        if value == 0 {
+            return;
+        }
+        let m = Modifier::new(stat, ModOp::Add, value, source);
+        mods.push(m.of_types(DamageTypes::of(types)));
+    };
+    let plain = |p: &&&ItemPowerDef| p.bonus_types.is_empty();
     if item.adds_to_melee() {
-        add(Stat::Melee, b.attack + melee);
-        add(
-            Stat::FireMelee,
-            powers
-                .iter()
-                .filter(|p| p.fire_bonus)
-                .map(|p| p.melee_bonus)
-                .sum(),
-        );
-        add(Stat::MeleeToHit, b.to_hit);
+        let melee: i32 = powers.iter().filter(plain).map(|p| p.melee_bonus).sum();
+        add_typed(Stat::Melee, b.attack + melee, &[]);
+        for p in powers.iter().filter(|p| !p.bonus_types.is_empty()) {
+            add_typed(Stat::Melee, p.melee_bonus, &p.bonus_types);
+        }
+        add_typed(Stat::MeleeToHit, b.to_hit, &[]);
     }
     let kind = ranged_kind_of(abilities);
     let thrown = abilities.iter().any(|a| *a == Ability::new(69));
     if has_ranged && item.adds_to_ranged(kind, thrown) {
+        let counts =
+            |p: &&&ItemPowerDef| p.ranged_kinds.is_empty() || p.ranged_kinds.contains(&item.kind);
         let ranged: i32 = powers
             .iter()
-            .filter(|p| p.ranged_kinds.is_empty() || p.ranged_kinds.contains(&item.kind))
+            .filter(plain)
+            .filter(counts)
             .map(|p| p.ranged_bonus)
             .sum();
-        add(Stat::Ranged, b.attack + ranged);
-        add(
-            Stat::FireRanged,
-            powers
-                .iter()
-                .filter(|p| p.fire_bonus)
-                .filter(|p| p.ranged_kinds.is_empty() || p.ranged_kinds.contains(&item.kind))
-                .map(|p| p.ranged_bonus)
-                .sum(),
-        );
-        add(Stat::RangedToHit, b.to_hit);
+        add_typed(Stat::Ranged, b.attack + ranged, &[]);
+        for p in powers
+            .iter()
+            .filter(|p| !p.bonus_types.is_empty())
+            .filter(counts)
+        {
+            add_typed(Stat::Ranged, p.ranged_bonus, &p.bonus_types);
+        }
+        add_typed(Stat::RangedToHit, b.to_hit, &[]);
     }
     mods
 }
@@ -550,21 +558,31 @@ mod tests {
     }
 
     #[test]
-    fn a_flaming_weapon_adds_fire_dice_equal_to_its_bonus() {
+    fn a_power_with_bonus_types_adds_typed_dice() {
         let rules = &shipped().rules;
         let (id, power) = rules
             .item_powers
             .iter()
-            .find(|(_, p)| p.fire_bonus)
-            .expect("a power whose bonus is fire");
+            .find(|(_, p)| !p.bonus_types.is_empty())
+            .expect("a power whose bonus has a type");
         let sword = real(|d| d.kind == ItemKind::Sword && d.powers == [id]);
         let mods = modifiers(rules, &sword, 0, &[Ability::new(3 /* bow */)], true);
-        assert_eq!(total(&mods, Stat::FireMelee), power.melee_bonus);
-        assert!(total(&mods, Stat::Melee) >= total(&mods, Stat::FireMelee));
-        // An item without the power has no fire dice.
+        let typed: i32 = mods
+            .iter()
+            .filter(|m| m.stat == Stat::Melee && !m.types.is_empty())
+            .map(|m| m.value.floor())
+            .sum();
+        assert_eq!(typed, power.melee_bonus);
+        assert!(mods
+            .iter()
+            .filter(|m| !m.types.is_empty())
+            .all(|m| m.types == DamageTypes::of(&power.bonus_types)));
+        // They are part of the melee total, not on top of it.
+        assert!(total(&mods, Stat::Melee) >= typed);
+        // An item without the power has no typed dice.
         let plain = real(|d| d.kind == ItemKind::Sword && d.powers.is_empty());
         let mods = modifiers(rules, &plain, 0, &[], false);
-        assert_eq!(total(&mods, Stat::FireMelee), 0);
+        assert!(mods.iter().all(|m| m.types.is_empty()));
     }
 
     #[test]

@@ -651,9 +651,9 @@ pub struct ItemPowerDef {
     /// Giant Strength 1).
     #[serde(default)]
     pub melee_bonus: i32,
-    /// The bonus dice of `melee_bonus` and `ranged_bonus` are fire damage (Flaming).
+    /// What the bonus dice of `melee_bonus` and `ranged_bonus` are made of (Flaming: fire).
     #[serde(default)]
-    pub fire_bonus: bool,
+    pub bonus_types: Vec<DamageType>,
     /// Added to the carrier's ranged attack on top of the item's own attack bonus, for an item of
     /// one of the `ranged_kinds` (any item that counts for the ranged attack when that is empty).
     #[serde(default)]

@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::damage_type::DamageType;
+use super::damage_type::{DamageType, DamageTypes};
 use super::ids::Id;
 use super::stats::{ModOp, Stat};
 use super::{AbilityDef, RealmDef};
@@ -84,10 +84,14 @@ pub enum SlayOnly {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Effect {
+    /// `types`: what an added amount of an attack stat is made of (Flame Blade adds fire dice);
+    /// a defender immune to one of them loses those dice.
     Modify {
         stat: Stat,
         op: ModOp,
         value: HalfInt,
+        #[serde(default)]
+        types: DamageTypes,
     },
     GrantAbility(Id<AbilityDef>),
     /// `types`: what the damage is made of; a target immune to one of them takes nothing

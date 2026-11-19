@@ -355,7 +355,9 @@ fn effect_values(content: &Content, b: BuildingId, wanted: &[Stat]) -> Vec<(Stat
         .effects
         .iter()
         .filter_map(|r| match r.effect {
-            Effect::Modify { stat, op, value } if wanted.contains(&stat) => Some((stat, op, value)),
+            Effect::Modify {
+                stat, op, value, ..
+            } if wanted.contains(&stat) => Some((stat, op, value)),
             _ => None,
         })
         .collect()

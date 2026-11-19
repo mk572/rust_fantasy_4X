@@ -284,8 +284,16 @@ impl UnitView<'_> {
                 if rule.when != Trigger::Passive || !eval(&rule.condition, &facts) {
                     continue;
                 }
-                if let Effect::Modify { stat, op, value } = rule.effect {
-                    mods.push(Modifier::amount(stat, op, value, Source::Spell(spell)));
+                if let Effect::Modify {
+                    stat,
+                    op,
+                    value,
+                    types,
+                } = rule.effect
+                {
+                    mods.push(
+                        Modifier::amount(stat, op, value, Source::Spell(spell)).of_types(types),
+                    );
                 }
             }
             if sdef.id == "charm_of_life" {

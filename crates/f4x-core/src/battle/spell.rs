@@ -287,8 +287,16 @@ impl Game {
                     return None;
                 }
                 match &r.effect {
-                    Effect::Modify { stat, op, value } => {
-                        mods.push(Modifier::amount(*stat, *op, *value, Source::Spell(spell)));
+                    Effect::Modify {
+                        stat,
+                        op,
+                        value,
+                        types,
+                    } => {
+                        mods.push(
+                            Modifier::amount(*stat, *op, *value, Source::Spell(spell))
+                                .of_types(*types),
+                        );
                     }
                     Effect::GrantAbility(a) => {
                         grants.push(*a);
@@ -1022,16 +1030,22 @@ impl Game {
                 continue;
             }
             for r in &def.effects {
-                if let (Trigger::Passive, Condition::Always, Effect::Modify { stat, op, value }) =
-                    (r.when, &r.condition, &r.effect)
+                if let (
+                    Trigger::Passive,
+                    Condition::Always,
+                    Effect::Modify {
+                        stat,
+                        op,
+                        value,
+                        types,
+                    },
+                ) = (r.when, &r.condition, &r.effect)
                 {
                     if *op == ModOp::Add {
-                        out.push(Modifier::amount(
-                            *stat,
-                            ModOp::Add,
-                            -*value,
-                            Source::Spell(other),
-                        ));
+                        out.push(
+                            Modifier::amount(*stat, ModOp::Add, -*value, Source::Spell(other))
+                                .of_types(*types),
+                        );
                     }
                 }
             }

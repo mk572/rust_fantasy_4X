@@ -875,6 +875,7 @@ impl App {
                         stat,
                         op: ModOp::Add,
                         value,
+                        ..
                     } = rule.effect
                     {
                         *stats

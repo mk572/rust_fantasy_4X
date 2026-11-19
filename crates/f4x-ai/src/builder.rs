@@ -73,11 +73,13 @@ fn effect_total(view: &PlayerView, b: BuildingId, wanted: &[Stat]) -> f32 {
                 stat,
                 op: ModOp::Add,
                 value,
+                ..
             } if wanted.contains(&stat) => Some(value.as_f32()),
             Effect::Modify {
                 stat,
                 op: ModOp::Percent,
                 value,
+                ..
             } if wanted.contains(&stat) => Some(value.as_f32() / 10.0),
             _ => None,
         })

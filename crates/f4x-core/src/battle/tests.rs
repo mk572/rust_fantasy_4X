@@ -8017,13 +8017,14 @@ fn flame_blade_and_the_flaming_power_add_fire_dice() {
     use crate::rules::effects::Effect;
     use crate::rules::stats::{ModOp, Stat};
     let rules = &shipped().rules;
-    // Flame Blade: the same dice it adds to the blow and the shot are fire.
+    // Flame Blade: the dice it adds to the blow and to the shot are fire.
     let spell = rules
         .spells
         .iter()
         .find(|(_, s)| s.id == "flame_blade")
         .map(|(_, s)| s)
         .expect("the Flame Blade spell");
+    let fire = DamageTypes::of(&[DamageType::Fire]);
     let added = |stat| {
         spell
             .effects
@@ -8033,14 +8034,16 @@ fn flame_blade_and_the_flaming_power_add_fire_dice() {
                     stat: s,
                     op: ModOp::Add,
                     value,
-                } if *s == stat => Some(value.floor()),
+                    types,
+                } if *s == stat => Some((value.floor(), *types)),
                 _ => None,
             })
-            .sum::<i32>()
+            .collect::<Vec<_>>()
     };
-    assert!(added(Stat::Melee) > 0);
-    assert_eq!(added(Stat::FireMelee), added(Stat::Melee));
-    assert_eq!(added(Stat::FireRanged), added(Stat::Ranged));
+    for stat in [Stat::Melee, Stat::Ranged] {
+        let dice = added(stat);
+        assert!(!dice.is_empty() && dice.iter().all(|(n, t)| *n > 0 && *t == fire));
+    }
     // Flaming: its whole bonus is fire.
     let flaming = rules
         .item_powers
@@ -8048,5 +8051,6 @@ fn flame_blade_and_the_flaming_power_add_fire_dice() {
         .find(|(_, p)| p.id == "flaming")
         .map(|(_, p)| p)
         .expect("the Flaming power");
-    assert!(flaming.fire_bonus && flaming.melee_bonus > 0);
+    assert_eq!(flaming.bonus_types, vec![DamageType::Fire]);
+    assert!(flaming.melee_bonus > 0);
 }

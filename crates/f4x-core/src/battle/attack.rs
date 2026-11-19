@@ -17,7 +17,7 @@
 //!
 //! Tests: in battle/attack/tests.rs.
 
-use crate::rules::damage_type::DamageType;
+use crate::rules::damage_type::{DamageType, DamageTypes};
 use crate::rules::BattleRules;
 use crate::rules::SpellId;
 use crate::spell::unit_effect::UnitEffect;
@@ -52,8 +52,8 @@ pub struct Combatant {
     /// How the attack is delivered and what it is made of: what immunities it meets.
     pub mode: Mode,
     pub nature: AttackNature,
-    /// Of `strength`, the dice that are fire (a Flame Blade's, a Flaming weapon's).
-    pub fire: i32,
+    /// Of `strength`, the dice made of damage types (a Flame Blade's, a Flaming weapon's).
+    pub parts: Vec<(i32, DamageTypes)>,
     /// Poison, touches, life steal and gazes (`special.rs`).
     pub special: SpecialAttacks,
     /// Eldritch Weapon: the defender blocks with one plus fewer.
@@ -226,14 +226,16 @@ impl DefenderState {
 }
 
 impl Combatant {
-    /// The dice that count against a defender with these immunities: the fire dice do nothing
-    /// to one that is immune to fire.
+    /// The dice that count against a defender with these immunities: the dice of a part whose
+    /// types the defender is immune to do nothing to it.
     pub fn strength_against(&self, immunities: &Immunities) -> i32 {
-        if immunities.has(DamageType::Fire) {
-            self.strength - self.fire.clamp(0, self.strength)
-        } else {
-            self.strength
-        }
+        let lost: i32 = self
+            .parts
+            .iter()
+            .filter(|(_, types)| immunities.stops(*types))
+            .map(|(dice, _)| dice)
+            .sum();
+        self.strength - lost.clamp(0, self.strength)
     }
 }
 

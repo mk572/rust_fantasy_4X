@@ -325,12 +325,12 @@ impl Game {
             to_hit: self.units().unit_stat(unit, Stat::ToHit) + lucky,
             melee_plus: self.units().unit_stat(unit, Stat::MeleeToHit),
             ranged_plus: self.units().unit_stat(unit, Stat::RangedToHit),
-            fire_melee: self.units().unit_stat(unit, Stat::FireMelee),
-            // Only the arrows and stones carry the fire, not a spell shot (it gets no bonus).
-            fire_ranged: if physical_shot {
-                self.units().unit_stat(unit, Stat::FireRanged)
+            melee_parts: self.units().unit_typed_dice(unit, Stat::Melee),
+            // Only the arrows and stones carry such dice, not a spell shot (it gets no bonus).
+            ranged_parts: if physical_shot {
+                self.units().unit_typed_dice(unit, Stat::Ranged)
             } else {
-                0
+                Vec::new()
             },
             to_block: lucky,
             hits,

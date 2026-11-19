@@ -200,8 +200,16 @@ fn run_effect(
     out: &mut Vec<Outcome>,
 ) {
     match effect {
-        Effect::Modify { stat, op, value } => {
-            host.add_modifier(who, Modifier::amount(*stat, *op, *value, ctx.source));
+        Effect::Modify {
+            stat,
+            op,
+            value,
+            types,
+        } => {
+            host.add_modifier(
+                who,
+                Modifier::amount(*stat, *op, *value, ctx.source).of_types(*types),
+            );
             out.push(Outcome::Modified { who, stat: *stat });
         }
         Effect::GrantAbility(ability) => {
@@ -288,6 +296,7 @@ pub fn add(stat: Stat, value: i32) -> Effect {
         stat,
         op: ModOp::Add,
         value: f4x_def::half_int::HalfInt::from_int(value),
+        types: Default::default(),
     }
 }
 

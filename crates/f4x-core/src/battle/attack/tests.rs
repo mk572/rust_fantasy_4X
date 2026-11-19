@@ -856,8 +856,9 @@ fn stoning_and_dispel_evil_leave_nothing_to_heal() {
 #[test]
 fn fire_dice_do_nothing_to_a_defender_immune_to_fire() {
     use crate::battle::immunity::Immunities;
+    let fire = DamageTypes::of(&[DamageType::Fire]);
     let blade = Combatant {
-        fire: 2,
+        parts: vec![(2, fire)],
         ..combatant(5, 0)
     };
     assert_eq!(blade.strength_against(&Immunities::default()), 5);
@@ -865,8 +866,15 @@ fn fire_dice_do_nothing_to_a_defender_immune_to_fire() {
     // Cold immunity does not stop them, and they never count for more than the blow has.
     assert_eq!(blade.strength_against(&Immunities::of_numbers(&[10])), 5);
     let weak = Combatant {
-        fire: 2,
+        parts: vec![(2, fire)],
         ..combatant(1, 0)
     };
     assert_eq!(weak.strength_against(&Immunities::of_numbers(&[21])), 0);
+    // A part of two types is lost to an immunity to either.
+    let both = Combatant {
+        parts: vec![(2, DamageTypes::of(&[DamageType::Fire, DamageType::Cold]))],
+        ..combatant(5, 0)
+    };
+    assert_eq!(both.strength_against(&Immunities::of_numbers(&[10])), 3);
+    assert_eq!(both.strength_against(&Immunities::of_numbers(&[21])), 3);
 }

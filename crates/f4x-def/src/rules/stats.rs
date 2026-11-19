@@ -32,11 +32,6 @@ pub enum Stat {
     MeleeToHit,
     /// Pluses to hit that count for the ranged attack only (a bow's).
     RangedToHit,
-    /// Of the dice of the melee attack, how many are fire (a Flame Blade's, a Flaming weapon's):
-    /// a defender immune to fire loses them. A part of `Melee`, not on top of it.
-    FireMelee,
-    /// The same for the dice of a shot from a bow, a sling or a thrown weapon.
-    FireRanged,
     Ammo,
     /// The number that goes with a unit's special attack or ability: poison strength, or the
     /// resistance penalty of its gaze, touch or life steal (the original stores a penalty as a
@@ -175,6 +170,10 @@ pub struct Modifier {
     /// 0.5. A percent is a whole number.
     pub value: HalfInt,
     pub source: Source,
+    /// What the added amount is made of, for the attack stats: the dice a Flame Blade adds are
+    /// fire. Empty for an ordinary amount.
+    #[serde(default)]
+    pub types: super::damage_type::DamageTypes,
 }
 
 impl Modifier {
@@ -189,7 +188,13 @@ impl Modifier {
             op,
             value,
             source,
+            types: super::damage_type::DamageTypes::NONE,
         }
+    }
+
+    /// The same modifier, its amount made of these damage types.
+    pub fn of_types(self, types: super::damage_type::DamageTypes) -> Self {
+        Self { types, ..self }
     }
 }
 
@@ -273,7 +278,12 @@ pub fn passive_modifiers(effects: &[EffectRule], source: Source) -> Vec<Modifier
         .iter()
         .filter(|r| r.when == Trigger::Passive && r.condition == Condition::Always)
         .filter_map(|r| match r.effect {
-            Effect::Modify { stat, op, value } => Some(Modifier::amount(stat, op, value, source)),
+            Effect::Modify {
+                stat,
+                op,
+                value,
+                types,
+            } => Some(Modifier::amount(stat, op, value, source).of_types(types)),
             _ => None,
         })
         .collect()

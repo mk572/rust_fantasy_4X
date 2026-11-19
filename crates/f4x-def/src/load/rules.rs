@@ -1185,6 +1185,7 @@ mod tests {
                         stat: s,
                         op: ModOp::Add,
                         value,
+                        ..
                     } if s == stat => value.floor(),
                     _ => 0,
                 })

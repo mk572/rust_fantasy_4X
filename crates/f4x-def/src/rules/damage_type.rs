@@ -76,9 +76,22 @@ impl DamageType {
     }
 }
 
-/// A set of damage types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+/// A set of damage types. Saved and written in the content as the list of its types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(from = "Vec<DamageType>", into = "Vec<DamageType>")]
 pub struct DamageTypes(u32);
+
+impl From<Vec<DamageType>> for DamageTypes {
+    fn from(types: Vec<DamageType>) -> Self {
+        DamageTypes::of(&types)
+    }
+}
+
+impl From<DamageTypes> for Vec<DamageType> {
+    fn from(set: DamageTypes) -> Self {
+        set.iter().collect()
+    }
+}
 
 impl DamageTypes {
     pub const NONE: DamageTypes = DamageTypes(0);
@@ -112,6 +125,12 @@ impl DamageTypes {
         self.0 & t.bit() != 0
     }
 
+    /// The types in the set, in the order of [`DamageType`].
+    pub fn iter(self) -> impl Iterator<Item = DamageType> {
+        use strum::IntoEnumIterator;
+        DamageType::iter().filter(move |&t| self.contains(t))
+    }
+
     /// Whether the two sets have a type in common.
     pub fn intersects(self, other: DamageTypes) -> bool {
         self.0 & other.0 != 0
@@ -123,10 +142,7 @@ impl DamageTypes {
 
     /// The realm type in the set, as its number in `realms.ron` (the first, if there are several).
     pub fn realm_num(self) -> Option<u16> {
-        use strum::IntoEnumIterator;
-        DamageType::iter()
-            .filter(|&t| self.contains(t))
-            .find_map(DamageType::realm_num)
+        self.iter().find_map(DamageType::realm_num)
     }
 }
 
@@ -184,6 +200,17 @@ mod tests {
         assert_eq!(
             set.minus(DamageTypes::of(&[DamageType::Fire])),
             DamageTypes::of(&[DamageType::ChaosRealm])
+        );
+    }
+
+    #[test]
+    fn a_set_is_saved_as_its_list_of_types() {
+        let set = DamageTypes::of(&[DamageType::ChaosRealm, DamageType::Fire]);
+        let text = ron::to_string(&set).expect("a set serialises");
+        assert_eq!(text, "[Fire,ChaosRealm]");
+        assert_eq!(
+            ron::from_str::<DamageTypes>(&text).expect("it reads back"),
+            set
         );
     }
 

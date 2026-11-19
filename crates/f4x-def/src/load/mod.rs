@@ -377,6 +377,7 @@ mod tests {
                     stat: Stat::Moves,
                     op: ModOp::Add,
                     value,
+                    ..
                 } = rule.effect
                 {
                     seen += 1;
