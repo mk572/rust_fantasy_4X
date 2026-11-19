@@ -8,7 +8,7 @@ use f4x_core::player::view::PlayerView;
 
 use crate::assault::guard_strength;
 use crate::military::average_strength;
-use crate::view::{distance, fighting_strength};
+use crate::view::{distance, fighting_strength, unit_strength};
 
 /// Squares from a city (or from a party in the field) within which a site is looked for.
 pub(crate) const SITE_RANGE: i32 = 10;
@@ -25,6 +25,48 @@ pub(crate) fn edge() -> f32 {
 /// What the AI expects the site's guards to be worth.
 pub(crate) fn expected(view: &PlayerView, site: Position) -> f32 {
     guard_strength(view, site).unwrap_or_else(|| GUESS_GUARDS * average_strength(view))
+}
+
+/// What a party that cannot hurt weapon-immune guards is worth against them, as a share of what it
+/// would be worth otherwise: their defence is at least 10 against a normal weapon.
+const IMMUNE_DISCOUNT: f32 = 0.2;
+
+/// How much stronger than the party that lost on a site a party must be to try it again.
+const RETRY_EDGE: f32 = 1.5;
+
+/// Did a party as strong as this one already lose its assault on the site? Then it is left alone:
+/// what the party is worth against the guards was misjudged, and the same fight would come out the
+/// same.
+pub(crate) fn lost_before(losses: &[(Position, f32)], site: Position, strength: f32) -> bool {
+    losses
+        .iter()
+        .any(|&(p, lost)| p == site && strength < lost * RETRY_EDGE)
+}
+
+/// What the AI expects the guards to be worth to a party of which `unarmed` (0 to 1) is the share
+/// of its strength with normal weapons and no spell to arm it: the guards that weapons barely hurt
+/// count for more, up to `1 / IMMUNE_DISCOUNT` times, as that share of the party is worth less.
+pub(crate) fn expected_vs(view: &PlayerView, site: Position, unarmed: f32) -> f32 {
+    match crate::assault::guard_parts(view, site) {
+        Some((all, immune)) => all + immune * unarmed * (1.0 / IMMUNE_DISCOUNT - 1.0),
+        None => GUESS_GUARDS * average_strength(view),
+    }
+}
+
+/// The share (0 to 1) of the strength of `units` that has normal weapons and cannot be armed with
+/// a spell of the wizard before the fight (one cast arms one unit, as far as the mana of a battle
+/// goes): against weapon-immune guards that share is worth little.
+pub(crate) fn unarmed_share(view: &PlayerView, units: &[hecs::Entity]) -> f32 {
+    let total: f32 = units.iter().map(|&u| unit_strength(view, u)).sum();
+    if total <= 0.0 {
+        return 0.0;
+    }
+    let normal: f32 = units
+        .iter()
+        .filter(|&&u| !view.unit_has_magical_weapon(u))
+        .map(|&u| unit_strength(view, u))
+        .sum();
+    normal / total * (1.0 - crate::spellhelper::arming_share(view, units.len()))
 }
 
 /// Is there a city of the neutral cities (no wizard's) on the square?
@@ -57,13 +99,16 @@ pub(crate) fn sites_near(
     view: &PlayerView,
     from: Position,
     strength: f32,
+    unarmed: f32,
     blocked: &[f4x_core::map::Plane],
 ) -> Vec<Position> {
     let mut found: Vec<Position> = Vec::new();
     for dy in -SITE_RANGE..=SITE_RANGE {
         for dx in -SITE_RANGE..=SITE_RANGE {
             if let Some(p) = view.shift(from, dx, dy) {
-                if view.has_lair(p) && strength >= expected(view, p) * edge() && !found.contains(&p)
+                if view.has_lair(p)
+                    && strength >= expected_vs(view, p, unarmed) * edge()
+                    && !found.contains(&p)
                 {
                     found.push(p);
                 }
@@ -84,7 +129,7 @@ pub(crate) fn sites_near(
             && !found.contains(&p)
             && !blocked.contains(&p.plane)
             && distance(view, from, p).is_some_and(|d| d <= TOWER_RANGE)
-            && strength >= expected(view, p) * edge()
+            && strength >= expected_vs(view, p, unarmed) * edge()
         {
             found.push(p);
         }
@@ -132,14 +177,17 @@ mod tests {
         // A rival city the army can walk to holds the towers back.
         let blocked = blocked_planes(&view, &[], None);
         assert_eq!(blocked, vec![rival.plane]);
-        assert!(sites_near(&view, at(10, 6), 10_000.0, &blocked).is_empty());
+        assert!(sites_near(&view, at(10, 6), 10_000.0, 0.0, &blocked).is_empty());
         // One that only a ship can reach does not, unless a landing is set on it.
         assert!(blocked_planes(&view, &[rival], None).is_empty());
         assert_eq!(
             blocked_planes(&view, &[rival], Some(rival)),
             vec![rival.plane]
         );
-        assert_eq!(sites_near(&view, at(10, 6), 10_000.0, &[]), vec![at(33, 9)]);
+        assert_eq!(
+            sites_near(&view, at(10, 6), 10_000.0, 0.0, &[]),
+            vec![at(33, 9)]
+        );
         Ok(())
     }
 }

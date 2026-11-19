@@ -100,6 +100,41 @@ pub(crate) fn spell_power(view: &PlayerView) -> f32 {
     (usable_mana(view) / MANA_PER_SOLDIER).min(MOST_SOLDIERS) * average_strength(view)
 }
 
+/// The share (0 to 1) of `units` units the wizard can give magical weapons before a fight: it
+/// knows a spell for the battle that does it (a unit's lasting spell that grants `magical_weapon`,
+/// 41, one cast for each unit as far as the usable mana goes, or the battlefield spell Metal Fires,
+/// one cast for all of them).
+pub(crate) fn arming_share(view: &PlayerView, units: usize) -> f32 {
+    let Some(w) = view.wizard() else {
+        return 0.0;
+    };
+    let mana = usable_mana(view);
+    let mut best = 0.0f32;
+    for &s in w.known().iter() {
+        let def = view.spell(s);
+        if !def.contexts.contains(&CastContext::Battle) {
+            continue;
+        }
+        // The cost in a battle, not the overland one (`overland_x5`).
+        let cost = def.cost.max(1) as f32;
+        let grants = def.effects.iter().any(|r| {
+            matches!(&r.effect, f4x_core::rules::effects::Effect::GrantAbility(a)
+                if *a == f4x_core::rules::Ability::new(41 /* magical_weapon */))
+        });
+        let field = def.effects.iter().any(|r| {
+            matches!(&r.effect, f4x_core::rules::effects::Effect::Custom { name, args }
+                if name == "battlefield" && args.first().is_some_and(|a| a == "metal_fires"))
+        });
+        if field && cost <= mana {
+            return 1.0;
+        }
+        if grants && units > 0 {
+            best = best.max(((mana / cost).floor() / units as f32).min(1.0));
+        }
+    }
+    best
+}
+
 /// The mana the wizard wants in the pool for the hardest intact tower in reach that its nine best
 /// soldiers cannot take alone, but soldiers and spells together could (0 when there is none, or
 /// when the wizard has no battle spell).
@@ -228,7 +263,7 @@ mod tests {
         let view = PlayerView::new(&g, P0);
         let soldiers = crate::view::stack_strength(&view, &paladins);
         let with = soldiers + spell_power(&view);
-        let near = |s| crate::site::sites_near(&view, at(10, 6), s, &[]);
+        let near = |s| crate::site::sites_near(&view, at(10, 6), s, 0.0, &[]);
         assert!(near(soldiers).is_empty());
         assert_eq!(near(with), vec![at(33, 9)]);
         Ok(())

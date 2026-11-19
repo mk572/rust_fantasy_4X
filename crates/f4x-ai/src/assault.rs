@@ -13,20 +13,29 @@ use crate::{Ai, Attack};
 /// How strong the guards of a site are, as `unit_strength` measures units, when the player has
 /// fought for the site once; `None` when it does not know them.
 pub(crate) fn guard_strength(view: &PlayerView, site: Position) -> Option<f32> {
+    guard_parts(view, site).map(|(all, _)| all)
+}
+
+/// The guards of a site as [`guard_strength`] measures them, and of that the part with weapon
+/// immunity (`weapon_immunity`, 72): normal weapons barely hurt those.
+pub(crate) fn guard_parts(view: &PlayerView, site: Position) -> Option<(f32, f32)> {
     let rules = &view.content().rules;
     let guards = view.lair_guards(site)?;
-    Some(
-        guards
-            .iter()
-            .map(|(id, n)| {
-                let def = rules.units.get(*id);
-                let stat = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor()).max(0) as f32;
-                let attack = stat(Stat::Melee).max(stat(Stat::Ranged));
-                let hits = stat(Stat::MaxHp) * stat(Stat::Figures).max(1.0);
-                (attack * 1.5 + stat(Stat::Defense) + 1.0) * hits * *n as f32
-            })
-            .sum(),
-    )
+    let (mut all, mut immune) = (0.0, 0.0);
+    for (id, n) in &guards {
+        let def = rules.units.get(*id);
+        let stat = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor()).max(0) as f32;
+        let attack = stat(Stat::Melee).max(stat(Stat::Ranged));
+        let hits = stat(Stat::MaxHp) * stat(Stat::Figures).max(1.0);
+        let worth = (attack * 1.5 + stat(Stat::Defense) + 1.0) * hits * *n as f32;
+        all += worth;
+        if def.abilities.contains(&f4x_core::rules::Ability::new(
+            72, /* weapon_immunity */
+        )) {
+            immune += worth;
+        }
+    }
+    Some((all, immune))
 }
 
 /// Why a party could not be sent to a site.

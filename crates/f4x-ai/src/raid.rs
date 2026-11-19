@@ -10,7 +10,9 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 
 use crate::assault::{assault, march, strike};
-use crate::site::{city_defence, edge, expected, neutral_city, sites_near};
+use crate::site::{
+    city_defence, edge, expected_vs, lost_before, neutral_city, sites_near, unarmed_share,
+};
 use crate::view::{distance, is_fighter, stack_strength, unit_strength};
 use crate::Ai;
 
@@ -55,19 +57,25 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         if game.game_over.is_some() {
             return;
         }
-        let (next_to, city_next, candidates) = {
+        let (next_to, city_next, candidates, strength) = {
             let view = PlayerView::new(game, me);
             let strength = stack_strength(&view, &units) + crate::spellhelper::spell_power(&view);
+            let unarmed = unarmed_share(&view, &units);
             let next_to = crate::military::neighbours(&view, pos)
                 .into_iter()
-                .find(|&p| view.has_lair(p) && strength >= expected(&view, p) * edge());
+                .find(|&p| {
+                    view.has_lair(p)
+                        && strength >= expected_vs(&view, p, unarmed) * edge()
+                        && !lost_before(&ai.site_losses, p, strength)
+                });
             let city_next = crate::military::neighbours(&view, pos)
                 .into_iter()
                 .find(|&p| neutral_city(&view, p) && strength >= city_defence(&view, p) * edge());
             // The site the party is set on stays its target while it is still worth taking:
             // "the nearest" changes as the party walks, and a party between two sites went to and
             // fro for ever.
-            let sites = sites_near(&view, pos, strength, &ai.tower_blocked);
+            let mut sites = sites_near(&view, pos, strength, unarmed, &ai.tower_blocked);
+            sites.retain(|&t| !lost_before(&ai.site_losses, t, strength));
             let kept = units
                 .iter()
                 .find_map(|&u| {
@@ -79,7 +87,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             // passed over, and a party with none it can reach goes home.
             let mut candidates: Vec<Position> = kept.into_iter().collect();
             candidates.extend(sites.iter().copied().filter(|&t| Some(t) != kept).take(4));
-            (next_to, city_next, candidates)
+            (next_to, city_next, candidates, strength)
         };
         let party: Vec<Serial> = {
             let view = PlayerView::new(game, me);
@@ -88,6 +96,18 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let before = events.len();
         if let Some(site) = next_to {
             assault(ai, game, &units, site, events);
+            // A party that lost the assault (no site cleared, the battle won by the guards) does
+            // not go again until it is much stronger.
+            let lost = events[before..]
+                .iter()
+                .any(|e| matches!(e, Event::BattleEnded { loser, .. } if *loser == me));
+            let cleared = events[before..]
+                .iter()
+                .any(|e| matches!(e, Event::SiteCleared { player, .. } if *player == me));
+            if lost && !cleared {
+                ai.site_losses.retain(|&(p, _)| p != site);
+                ai.site_losses.push((site, strength));
+            }
             // A cleared site is the raid's work done: the party has not stalled, so its time
             // limit starts again (`plan_clock.rs`).
             if events[before..]
@@ -220,7 +240,10 @@ pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
                 let view = PlayerView::new(game, me);
                 let strength =
                     stack_strength(&view, party) + crate::spellhelper::spell_power(&view);
-                sites_near(&view, pos, strength, &ai.tower_blocked)
+                let unarmed = unarmed_share(&view, party);
+                let mut sites = sites_near(&view, pos, strength, unarmed, &ai.tower_blocked);
+                sites.retain(|&t| !lost_before(&ai.site_losses, t, strength));
+                sites
             };
             for site in sites {
                 if crate::assault::march_with(&mut reached, ai, game, party, site, events).is_ok() {
@@ -313,11 +336,15 @@ pub(crate) fn gather(
         let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
         let mut found: Vec<(f32, u32, Position, Position)> = Vec::new();
         for &city in &cities {
-            for site in crate::site::sites_near(&view, city, strength, &ai.tower_blocked) {
+            let unarmed = unarmed_share(&view, &best);
+            for site in crate::site::sites_near(&view, city, strength, unarmed, &ai.tower_blocked) {
                 // A tower on a plane where a rival has a city waits (the rivals come first).
                 let blocked_tower = ai.tower_blocked.contains(&site.plane)
                     && view.towers().iter().any(|&(t, _)| t == site);
-                if site.plane != city.plane || blocked_tower {
+                if site.plane != city.plane
+                    || blocked_tower
+                    || lost_before(&ai.site_losses, site, strength)
+                {
                     continue;
                 }
                 if let Some(d) = distance(&view, city, site) {
@@ -438,7 +465,10 @@ mod tests {
         )?;
         g.reveal_map(P0);
         let view = PlayerView::new(&g, P0);
-        assert_eq!(sites_near(&view, at(10, 6), 10_000.0, &[]), vec![at(33, 9)]);
+        assert_eq!(
+            sites_near(&view, at(10, 6), 10_000.0, 0.0, &[]),
+            vec![at(33, 9)]
+        );
         Ok(())
     }
 
@@ -690,6 +720,89 @@ mod tests {
         assert!(!ai.roles.any(crate::roles::Role::Raid));
         assert!(g.economy().lair_at(at(8, 6)).is_some());
         assert!(all_home(&g));
+        Ok(())
+    }
+
+    #[test]
+    fn a_site_a_party_lost_on_is_left_alone_until_a_party_is_much_stronger() -> TestResult {
+        // The guards are weak by the measure, so a party would go: it stays home only because
+        // a party as strong as this one lost its assault on the site before.
+        let guards = vec![(f4x_def::rules::UnitId::new(164 /* great_drake */), 1)];
+        let mut g = world(4, guards.clone(), true)?;
+        let mut ai = Ai::new(P0);
+        turns(&mut g, &mut ai, 1);
+        assert!(
+            ai.roles.any(crate::roles::Role::Raid),
+            "the party goes when nothing is held against the site"
+        );
+        let mut g = world(4, guards.clone(), true)?;
+        let mut ai = Ai::new(P0);
+        ai.site_losses.push((at(8, 6), f32::MAX / 2.0));
+        turns(&mut g, &mut ai, 4);
+        assert!(!ai.roles.any(crate::roles::Role::Raid));
+        assert!(g.economy().lair_at(at(8, 6)).is_some());
+        assert!(all_home(&g));
+        Ok(())
+    }
+
+    #[test]
+    fn a_party_with_normal_weapons_leaves_guards_that_weapons_barely_hurt_unless_a_spell_arms_it(
+    ) -> TestResult {
+        use crate::site::{edge, expected_vs, unarmed_share};
+        let rules = &game(COAST_CITY, 8).content().rules.clone();
+        let ability = rules
+            .abilities
+            .id_numbered(72 /* weapon_immunity */)
+            .ok_or("no weapon immunity")?;
+        let immune = rules
+            .units
+            .defs()
+            .iter()
+            .find(|d| d.abilities.contains(&ability))
+            .map(|d| f4x_def::rules::UnitId::new(d.num))
+            .ok_or("no unit has weapon immunity")?;
+        // The most guards the party would take if its weapons hurt them, and no more.
+        let mut chosen = None;
+        for k in 1..60u32 {
+            let g = world(4, vec![(immune, k)], true)?;
+            let view = PlayerView::new(&g, P0);
+            let party = g.units().player_units(P0);
+            let strength = stack_strength(&view, &party);
+            let armed = expected_vs(&view, at(8, 6), 0.0) * edge() <= strength;
+            let unarmed = unarmed_share(&view, &party);
+            let blocked = expected_vs(&view, at(8, 6), unarmed) * edge() > strength;
+            if armed && blocked {
+                chosen = Some(k);
+            }
+        }
+        let k = chosen.ok_or("no number of guards is beatable only with magical weapons")?;
+        let mut g = world(4, vec![(immune, k)], true)?;
+        let mut ai = Ai::new(P0);
+        turns(&mut g, &mut ai, 4);
+        assert!(
+            !ai.roles.any(crate::roles::Role::Raid),
+            "paladins with normal weapons go against guards they cannot hurt"
+        );
+        // With Flame Blade known and the casting skill and mana for four casts, the same party goes.
+        let mut g = world(4, vec![(immune, k)], true)?;
+        let blade = g
+            .content()
+            .rules
+            .spells
+            .id_numbered(94)
+            .ok_or("no flame blade")?;
+        g.cheat_learn_spell(P0, blade);
+        g.wizard_mut(P0)
+            .ok_or("no wizard")?
+            .get_mut::<f4x_core::wizard::sheet::Skill>()
+            .points = 1000;
+        g.treasury_mut(P0).ok_or("no treasury")?.mana = f4x_def::half_int::HalfInt::from_int(400);
+        let mut ai = Ai::new(P0);
+        turns(&mut g, &mut ai, 1);
+        assert!(
+            ai.roles.any(crate::roles::Role::Raid),
+            "the party goes when a spell can arm it"
+        );
         Ok(())
     }
 

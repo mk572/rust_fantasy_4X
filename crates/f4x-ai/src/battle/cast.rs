@@ -103,6 +103,9 @@ const KILL_BONUS: f32 = 1.5;
 const WOUND_ENOUGH: f32 = 0.3;
 /// Mana added to a cost when weighing value against price, so cheap spells do not always win.
 const MANA_SOFTENING: f32 = 12.0;
+/// What making a unit's weapons magical is worth against enemies that normal weapons barely hurt,
+/// as a share of the unit's worth: the unit does little else in that fight without it.
+const ARM_SHARE: f32 = 2.0;
 
 /// The next command for the side to play: a cast if one is worth it, else a unit order.
 pub fn next_command(game: &Game) -> Option<BattleCommand> {
@@ -250,6 +253,9 @@ enum Tier {
     Support,
     Wound,
     Kill,
+    /// Magical weapons for units that cannot hurt the weapon-immune enemies in the fight: before
+    /// anything else, as the fight cannot be won without them (`Scene::blocked`).
+    Arm,
 }
 
 /// What one cast is worth, and of that how much harms the enemy.
@@ -263,11 +269,15 @@ struct Judged {
     kills: bool,
     /// The mana to put in (more than the cost when that makes a kill).
     mana: u32,
+    /// The cast gives magical weapons to units that need them against weapon-immune enemies.
+    arms: bool,
 }
 
 impl Judged {
     fn tier(&self, dearest_enemy: f32) -> Tier {
-        if self.kills {
+        if self.arms {
+            Tier::Arm
+        } else if self.kills {
             Tier::Kill
         } else if self.harm >= WOUND_ENOUGH * dearest_enemy {
             Tier::Wound
@@ -290,6 +300,24 @@ impl Scene<'_> {
         }
     }
 
+    /// Our units that cannot hurt the enemy: normal weapons against a side with weapon immunity
+    /// (`weapon_immunity`, 72) in it, where a unit's weapons are magical for fantastic creatures,
+    /// heroes and what a spell armed (`magical_weapon`, 41). None when no enemy is immune.
+    fn blocked(&self) -> Vec<&BattleUnit> {
+        let immune = self
+            .enemies
+            .iter()
+            .any(|u| u.has(f4x_core::rules::Ability::new(72 /* weapon_immunity */)));
+        if !immune {
+            return Vec::new();
+        }
+        self.friends
+            .iter()
+            .copied()
+            .filter(|u| !u.magical_weapon && u.melee > 0)
+            .collect()
+    }
+
     /// The worth of the units of one side that `keep` picks.
     fn sum(units: &[&BattleUnit], keep: impl Fn(&BattleUnit) -> bool) -> f32 {
         units.iter().filter(|u| keep(u)).map(|u| worth(u)).sum()
@@ -306,7 +334,8 @@ impl Scene<'_> {
             Field::HighPrayer => (HIGH_PRAYER_SHARE * Self::sum(own, all), 0.0),
             Field::BlackPrayer => (0.0, BLACK_PRAYER_SHARE * Self::sum(foe, all)),
             Field::MetalFires => (
-                METAL_FIRES_SHARE * Self::sum(own, |u| !u.is_fantastic()),
+                METAL_FIRES_SHARE * Self::sum(own, |u| !u.is_fantastic())
+                    + ARM_SHARE * Self::sum(&self.blocked(), |_| true),
                 0.0,
             ),
             Field::MassInvisibility => (MASS_INVISIBILITY_SHARE * Self::sum(own, all), 0.0),
@@ -482,6 +511,7 @@ impl Scene<'_> {
             harm: 0.0,
             kills: false,
             mana: least,
+            arms: false,
         };
         for rule in &def.effects {
             let (value, harm) = match &rule.effect {
@@ -534,7 +564,20 @@ impl Scene<'_> {
                     (v, v)
                 }
                 Effect::Custom { name, .. } if name == "battlefield" => {
+                    if Field::of(def) == Some(Field::MetalFires) && !self.blocked().is_empty() {
+                        out.arms = true;
+                    }
                     Field::of(def).map_or((0.0, 0.0), |f| self.field_value(f))
+                }
+                // Magical weapons for a unit that cannot hurt the weapon-immune enemies.
+                Effect::GrantAbility(a)
+                    if *a == f4x_core::rules::Ability::new(41 /* magical_weapon */)
+                        && aimed.is_some_and(|u| {
+                            u.side == self.side && self.blocked().iter().any(|b| b.id == u.id)
+                        }) =>
+                {
+                    out.arms = true;
+                    (ARM_SHARE * aimed.map_or(0.0, worth), 0.0)
                 }
                 Effect::Custom { name, .. } if name == "wall" => {
                     let v = WALL_SHARE * self.friends.iter().map(|u| worth(u)).sum::<f32>();
@@ -1216,6 +1259,41 @@ mod tests {
     }
 
     #[test]
+    fn magical_weapons_come_first_against_an_enemy_that_normal_weapons_barely_hurt() -> TestResult {
+        // The enemy has weapon immunity and our cavalry has normal weapons: Flame Blade on the
+        // cavalry goes before everything, a bolt that would be worth more at any other time
+        // included. Against an enemy that has no such immunity it is no more than a blessing.
+        let flame_blade = shipped()
+            .rules
+            .spells
+            .id_numbered(94)
+            .ok_or("no flame blade")?;
+        let immune = unit_with_ability(72 /* weapon_immunity */)?;
+        let g = duel_with(&[83 /* fire_bolt */, 94 /* flame_blade */], immune)?;
+        let Some(BattleCommand::Cast { spell, aim, .. }) = next_command(&g) else {
+            return Err("the wizard cast nothing".into());
+        };
+        assert_eq!(spell, flame_blade, "Flame Blade before any bolt");
+        let SpellAim::Unit(id) = aim else {
+            return Err("Flame Blade is aimed at a unit".into());
+        };
+        assert_eq!(
+            g.battle()
+                .ok_or("no battle")?
+                .unit(id)
+                .ok_or("no unit")?
+                .side,
+            Side::Attacker
+        );
+        let g = duel_with(&[83 /* fire_bolt */, 94 /* flame_blade */], cavalry()?)?;
+        assert!(
+            !matches!(next_command(&g), Some(BattleCommand::Cast { spell, .. }) if spell == flame_blade),
+            "no rush to arm the cavalry against an enemy that weapons hurt"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn a_fire_bolt_is_not_cast_at_a_unit_that_is_immune_to_fire_but_a_blessing_is() -> TestResult {
         let foe = unit_with_ability(21 /* fire_immunity */)?;
         let g = duel_with(&[83 /* fire_bolt */], foe)?;
@@ -1578,6 +1656,7 @@ mod tests {
             harm,
             kills,
             mana: 5,
+            arms: false,
         };
         assert!(j(10.0, 10.0, true).tier(100.0) > j(50.0, 50.0, false).tier(100.0));
         assert!(j(50.0, 50.0, false).tier(100.0) > j(20.0, 0.0, false).tier(100.0));

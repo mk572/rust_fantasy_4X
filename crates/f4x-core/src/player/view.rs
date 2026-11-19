@@ -425,6 +425,12 @@ impl<'a> PlayerView<'a> {
         self.game.units().unit_has_ability(unit, ability)
     }
 
+    /// Whether the unit's weapons are magical (heroes, fantastic creatures, a flaming or blessed
+    /// weapon): they hurt what normal weapons barely scratch.
+    pub fn unit_has_magical_weapon(&self, unit: hecs::Entity) -> bool {
+        self.game.units().unit_has_magical_weapon(unit)
+    }
+
     /// How quickly the unit gets to a square (`unit::mobility`).
     pub fn unit_mobility(&self, unit: hecs::Entity) -> f32 {
         self.game.units().unit_mobility(unit)

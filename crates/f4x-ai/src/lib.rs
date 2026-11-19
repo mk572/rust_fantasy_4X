@@ -190,6 +190,11 @@ pub struct Ai {
     /// The planes where a rival's city blocks the clearing of towers this turn (`raid.rs`).
     #[serde(skip)]
     tower_blocked: Vec<f4x_core::map::Plane>,
+    /// The sites a raiding party lost its assault on, and the strength (with the wizard's spells)
+    /// of the party that lost: the estimate of the guards was wrong for them (guards that weapons
+    /// cannot hurt, say), so only a party much stronger goes again (`raid.rs`).
+    #[serde(default)]
+    site_losses: Vec<(Position, f32)>,
     /// The open tower an army crosses by to reach a rival's city on the other plane (`military.rs`).
     #[serde(default)]
     crossing: Option<Position>,
@@ -319,6 +324,7 @@ impl Ai {
             planar_tower: None,
             tower_blocked: Vec::new(),
             crossing: None,
+            site_losses: Vec::new(),
             road_checked: Vec::new(),
             road_cities: 0,
             city_memory: HashMap::new(),
