@@ -278,10 +278,7 @@ impl Game {
         let current = total - hurt;
         let alive = ((current + hits - 1) / hits) as u32;
         let abilities = self.units().unit_abilities(unit);
-        let flies = def.movement == MovementType::Flying
-            || abilities
-                .iter()
-                .any(|a| *a == Ability::new(24 /* flying */));
+        let flies = def.movement == MovementType::Flying;
         let has = |a: Ability| abilities.contains(&a);
         // Mithril adds one and adamantium two to the attacks and the defence.
         let quality = self.units().unit_weapon_quality(unit);
@@ -306,7 +303,7 @@ impl Game {
             ammo = mana / self.content().rules.config.battle.shot_mana;
         }
         let formulas = &self.content().rules;
-        Some(BattleUnit {
+        let mut built = BattleUnit {
             id: 0,
             side,
             source: Some(index),
@@ -348,9 +345,9 @@ impl Game {
             flies,
             sails: def.movement == MovementType::Sailing,
             swims: def.movement == MovementType::Swimming,
-            first_strike: has(Ability::new(23 /* first_strike */)),
-            negate_first_strike: has(Ability::new(48 /* negate_first_strike */)),
-            long_range: has(Ability::new(38 /* long_range */)),
+            first_strike: false,
+            negate_first_strike: false,
+            long_range: false,
             magical_weapon: self.units().unit_has_magical_weapon(unit),
             weapon_quality: quality,
             special_level: self.units().unit_stat(unit, Stat::SpecialLevel),
@@ -391,7 +388,9 @@ impl Game {
             turned_from: None,
             bound_from: None,
             web_hits: 0,
-        })
+        };
+        built.sync_abilities(formulas);
+        Some(built)
     }
 
     /// Hurt an overland unit with a damage spell of `strength`, by the dice of a battle: its

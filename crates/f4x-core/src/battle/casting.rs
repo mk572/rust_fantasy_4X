@@ -9,6 +9,7 @@
 //! Tests: in battle/tests.rs.
 
 use crate::rules::damage_type::{DamageType, DamageTypes};
+use crate::rules::defs::BattleFlag;
 use crate::rules::Ability;
 use crate::spell::unit_effect::{UnitEffect, UnitEffects};
 use f4x_def::half_int::HalfInt;
@@ -539,7 +540,7 @@ impl Battle {
             mods: mods.to_vec(),
             grants: grants.to_vec(),
         });
-        unit.recompute();
+        unit.recompute(&self.content.rules);
         if webbing {
             unit.web_closes(web_hits);
         }
@@ -552,7 +553,7 @@ impl Battle {
         let unit = &mut self.units[target];
         unit.base = Some(base);
         unit.lasting = lasting;
-        unit.recompute();
+        unit.recompute(&self.content.rules);
         // With no spell and no field left, nothing changes its numbers: it is as it was made.
         if unit.lasting.is_empty() && unit.field == Default::default() {
             unit.base = None;
@@ -619,7 +620,7 @@ impl BattleUnit {
     /// spell going down takes off, the rest is untouched, and nothing is remembered to be taken
     /// off again. The damage taken is kept, and the unit is dead if its hit points do not cover
     /// it any longer (`settle_hit_points`).
-    pub(super) fn recompute(&mut self) {
+    pub(super) fn recompute(&mut self, rules: &Rules) {
         let Some(base) = self.base.clone() else {
             return;
         };
@@ -666,7 +667,7 @@ impl BattleUnit {
         } else if !hasted_before && !self.attacked {
             self.extra_attack = true;
         }
-        self.sync_abilities();
+        self.sync_abilities(rules);
         // A web that is gone is gone with its hit points.
         if !self.effects.contains(UnitEffect::Web) {
             self.web_hits = 0;
@@ -727,14 +728,20 @@ impl BattleUnit {
     }
 
     /// The flags the battle reads, brought in line with the abilities.
-    fn sync_abilities(&mut self) {
-        self.first_strike |= self.has(Ability::new(23 /* first_strike */));
-        self.negate_first_strike |= self.has(Ability::new(48 /* negate_first_strike */));
-        self.long_range |= self.has(Ability::new(38 /* long_range */));
-        self.magical_weapon |= self.has(Ability::new(41 /* magical_weapon */));
-        self.flies |= self.has(Ability::new(24 /* flying */));
+    pub(super) fn sync_abilities(&mut self, rules: &Rules) {
+        let flags: Vec<BattleFlag> = self
+            .abilities
+            .iter()
+            .flat_map(|&a| rules.abilities.get(a).flags.iter().copied())
+            .collect();
+        let has = |f: BattleFlag| flags.contains(&f);
+        self.first_strike |= has(BattleFlag::FirstStrike);
+        self.negate_first_strike |= has(BattleFlag::NegatesFirstStrike);
+        self.long_range |= has(BattleFlag::LongRange);
+        self.magical_weapon |= has(BattleFlag::MagicalWeapon);
+        self.flies |= has(BattleFlag::Flies);
         // A web or sleep grounds a flyer.
-        if self.has(Ability::new(73 /* webbed */)) || self.has(Ability::new(2 /* asleep */)) {
+        if has(BattleFlag::Grounds) {
             self.flies = false;
         }
     }

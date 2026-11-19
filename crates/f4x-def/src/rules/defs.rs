@@ -276,6 +276,24 @@ impl UnitDef {
     }
 }
 
+/// A fact about a unit in a battle that an ability sets (`flags` in `abilities.ron`): the battle
+/// reads these from the unit, not the abilities' numbers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BattleFlag {
+    /// Strikes before the defender can answer.
+    FirstStrike,
+    /// Cancels the enemy's first strike.
+    NegatesFirstStrike,
+    /// Its ranged attacks reach farther without a penalty.
+    LongRange,
+    /// Its normal attacks count as magical.
+    MagicalWeapon,
+    /// Moves over any terrain and over the walls.
+    Flies,
+    /// Takes away flight (a web, sleep).
+    Grounds,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AbilityDef {
     /// The ability's number, the id the game passes around: the original has no table of
@@ -302,6 +320,9 @@ pub struct AbilityDef {
     /// shots with it.
     #[serde(default)]
     pub caster_mana: i32,
+    /// What the ability sets on its unit in a battle.
+    #[serde(default)]
+    pub flags: Vec<BattleFlag>,
     pub effects: Vec<EffectRule>,
 }
 

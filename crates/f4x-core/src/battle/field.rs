@@ -321,13 +321,13 @@ impl Battle {
             // nothing changing its numbers has no base and needs none.
             if self.units[i].base.is_some() {
                 self.units[i].field = FieldBonus::default();
-                self.units[i].recompute();
+                self.units[i].recompute(&self.content.rules);
             }
             let wanted = self.field_bonus_for(&self.units[i]);
             if wanted != FieldBonus::default() || self.units[i].base.is_some() {
                 self.units[i].keep_base();
                 self.units[i].field = wanted;
-                self.units[i].recompute();
+                self.units[i].recompute(&self.content.rules);
             }
             // Invisibility that begins now hides the unit at once.
             let invisible = self.units[i].is_invisible();
