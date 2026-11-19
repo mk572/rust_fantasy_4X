@@ -24,6 +24,7 @@ use f4x_core::battle::{
 };
 use f4x_core::game::{Command, Event};
 use f4x_core::map::Plane;
+use f4x_core::rules::damage_type::DamageType;
 use f4x_def::rules::defs::SpellTarget;
 use f4x_def::rules::SpellId;
 use macroquad::prelude::*;
@@ -275,7 +276,25 @@ pub(crate) fn describe(
                 .text("kills", kills(texts, *k));
             say("battle.takes_damage", args)
         }
-        BattleEvent::SpellImmune { unit: u } => say("battle.unharmed", unit(*u)),
+        BattleEvent::SpellImmune {
+            unit: u,
+            by: Some(t),
+        } => say(
+            "battle.immune_to",
+            unit(*u).text("type", damage_type_name(texts, *t)),
+        ),
+        BattleEvent::SpellImmune { unit: u, by: None } => say("battle.unharmed", unit(*u)),
+        BattleEvent::Unharmed {
+            attacker,
+            defender,
+            by,
+        } => say(
+            "battle.attack_stopped",
+            Args::new()
+                .term("attacker", name(*attacker))
+                .term("defender", name(*defender))
+                .text("type", damage_type_name(texts, *by)),
+        ),
         BattleEvent::SpellHealed { unit: u, healed } => {
             say("battle.healed", unit(*u).count("healed", *healed))
         }
@@ -329,6 +348,36 @@ pub(crate) fn describe(
         BattleEvent::HeroRecalled { unit: u } => say("battle.recalled", unit(*u)),
         BattleEvent::Ended { .. } | BattleEvent::Exhausted => None,
     }
+}
+
+/// The key of the text that names a damage type, for the log. No wildcard arm: a new type does
+/// not compile until it has its text.
+fn damage_type_key(t: DamageType) -> &'static str {
+    match t {
+        DamageType::MundaneWeapon => "battle.type_mundane_weapon",
+        DamageType::Missile => "battle.type_missile",
+        DamageType::Magic => "battle.type_magic",
+        DamageType::Fire => "battle.type_fire",
+        DamageType::Cold => "battle.type_cold",
+        DamageType::Lightning => "battle.type_lightning",
+        DamageType::Poison => "battle.type_poison",
+        DamageType::Stoning => "battle.type_stoning",
+        DamageType::Death => "battle.type_death",
+        DamageType::Illusion => "battle.type_illusion",
+        DamageType::Melee => "battle.type_melee",
+        DamageType::Ranged => "battle.type_ranged",
+        DamageType::NatureRealm => "battle.type_nature_realm",
+        DamageType::SorceryRealm => "battle.type_sorcery_realm",
+        DamageType::ChaosRealm => "battle.type_chaos_realm",
+        DamageType::LifeRealm => "battle.type_life_realm",
+        DamageType::DeathRealm => "battle.type_death_realm",
+        DamageType::ArcaneRealm => "battle.type_arcane_realm",
+    }
+}
+
+/// The name of a damage type, as it reads in "immune to {type}".
+fn damage_type_name(texts: &Texts, t: DamageType) -> String {
+    texts.get(damage_type_key(t), &Args::new())
 }
 
 /// ", 2 figures lost", or nothing when none was.

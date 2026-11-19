@@ -667,6 +667,11 @@ impl BattleUnit {
         }
     }
 
+    /// The one of these damage types the unit has a defence rule against, for the log.
+    pub fn immune_type(&self, types: &[DamageType], rules: &Rules) -> Option<DamageType> {
+        Immunities::of(&self.abilities, &self.enchantments, rules).met_by(DamageTypes::of(types))
+    }
+
     /// Whether the unit has a defence rule against one of these damage types: what a spell that
     /// names types in its data is stopped by (illusion immunity too, which sees through an
     /// illusion attack and refuses a spell of illusions).
@@ -881,9 +886,17 @@ pub enum BattleEvent {
         dealt: i32,
         kills: u32,
     },
-    /// The unit took no harm from the spell: immune, or protected by a lasting spell.
+    /// The unit took no harm from the spell: immune, or protected by a lasting spell. `by` is
+    /// the damage type it is immune to, when there is one to name.
     SpellImmune {
         unit: usize,
+        by: Option<DamageType>,
+    },
+    /// A blow or a shot did nothing to the defender: it is immune to the damage type `by`.
+    Unharmed {
+        attacker: usize,
+        defender: usize,
+        by: DamageType,
     },
     /// A healing spell mended the unit, or it regenerated.
     SpellHealed {
@@ -1501,7 +1514,7 @@ impl Battle {
         };
         let nature = AttackNature::magical(Realm::Chaos, &[DamageType::Fire]);
         let dmg = self.spell_damage(unit, self.rules().wall_of_fire_strength, &traits, nature);
-        self.spell_events_for_damage(unit, dmg)
+        self.spell_events_for_damage(unit, dmg, nature.types)
     }
 
     /// Whether a Wall of Darkness stops `unit` shooting at `target`: the target is in the city
@@ -1768,6 +1781,9 @@ impl Battle {
                 t.to_hit -= penalty;
             }
         }
+        // Which immunity, if any, will stop the blows of each side (for the log).
+        let stopped_def = d.state.immunities.stopped_by(a.melee.types());
+        let stopped_att = a.state.immunities.stopped_by(d.melee.types());
         let rng: &mut dyn RngCore = &mut self.rng;
         let out = attack::melee_exchange(&self.content.rules.config.battle, &mut a, &mut d, rng);
         let mut events = vec![BattleEvent::Attacked {
@@ -1778,6 +1794,20 @@ impl Battle {
             taken: out.taken.points,
             taken_kills: out.taken.kills,
         }];
+        if let Some(by) = stopped_def.filter(|_| out.dealt.points == 0) {
+            events.push(BattleEvent::Unharmed {
+                attacker: att,
+                defender: def,
+                by,
+            });
+        }
+        if let Some(by) = stopped_att.filter(|_| out.taken.points == 0) {
+            events.push(BattleEvent::Unharmed {
+                attacker: def,
+                defender: att,
+                by,
+            });
+        }
         self.units[att].set_from(&a.state);
         self.units[def].set_from(&d.state);
         self.units[def].record(out.dealt);
@@ -1824,6 +1854,7 @@ impl Battle {
         let figures = a.figures;
         let mut state = self.units[def].defender_state(&self.content.rules);
         state.defense += self.city_defense_bonus(def, att);
+        let stopped = state.immunities.stopped_by(shooter.types());
         let rng: &mut dyn RngCore = &mut self.rng;
         let dmg = attack::ranged_attack(
             &self.content.rules.config.battle,
@@ -1850,6 +1881,13 @@ impl Battle {
             dealt: dmg.points,
             kills: dmg.kills,
         }];
+        if let Some(by) = stopped.filter(|_| dmg.points == 0) {
+            events.push(BattleEvent::Unharmed {
+                attacker: att,
+                defender: def,
+                by,
+            });
+        }
         events.extend(self.power_drained(def, dmg.mana_lost));
         if !self.units[def].is_active() {
             events.push(BattleEvent::UnitDied { unit: def });

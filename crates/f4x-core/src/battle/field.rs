@@ -397,7 +397,7 @@ impl Battle {
             }
             let dmg = self.spell_damage(id, self.rules().call_lightning_strength, &traits, nature);
             events.push(BattleEvent::LightningStruck { unit: id });
-            events.extend(self.spell_events_for_damage(id, dmg));
+            events.extend(self.spell_events_for_damage(id, dmg, nature.types));
             bolts -= 1;
             tries = 0;
         }

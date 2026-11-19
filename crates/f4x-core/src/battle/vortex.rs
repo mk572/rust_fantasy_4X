@@ -150,7 +150,7 @@ impl Battle {
             if cell != to && map::distance(cell, to) == 1 && self.roll(3) == 1 {
                 let dmg =
                     self.spell_damage(id, self.rules().vortex_bolt_strength, &bolt, bolt_nature);
-                events.extend(self.spell_events_for_damage(id, dmg));
+                events.extend(self.spell_events_for_damage(id, dmg, bolt_nature.types));
             }
         }
         events

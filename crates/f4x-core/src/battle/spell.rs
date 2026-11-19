@@ -1253,7 +1253,7 @@ impl Game {
         let mut events = Vec::new();
         for &t in targets {
             let dmg = battle.spell_damage(t, strength, traits, nature);
-            events.extend(battle.spell_events_for_damage(t, dmg));
+            events.extend(battle.spell_events_for_damage(t, dmg, nature.types));
         }
         events
     }
@@ -1388,7 +1388,11 @@ impl Game {
                 if let Some(id) = over {
                     if battle.roll(4) == 1 {
                         let dmg = battle.destroy_unit(id);
-                        events.extend(battle.spell_events_for_damage(id, Some(dmg)));
+                        events.extend(battle.spell_events_for_damage(
+                            id,
+                            Some(dmg),
+                            DamageTypes::NONE,
+                        ));
                     }
                 }
                 if battle.map.has_wall(cell) {
@@ -1404,7 +1408,11 @@ impl Game {
                 let battle = &mut active.battle;
                 let extra = ((pool - def.cost as i32) / 5).max(0);
                 let dmg = battle.drain_life(target, -extra);
-                let mut events = battle.spell_events_for_damage(target, dmg);
+                let mut events = battle.spell_events_for_damage(
+                    target,
+                    dmg,
+                    DamageTypes::of(&[DamageType::Death]),
+                );
                 if let Some(d) = dmg.filter(|d| d.points > 0) {
                     events.push(BattleEvent::LifeDrained {
                         unit: target,
@@ -1452,7 +1460,10 @@ impl Game {
                 if let Some(save) = save {
                     let unit = &battle.units[target];
                     if unit.is_immune_to(&immune_types, &battle.content.rules) {
-                        return vec![BattleEvent::SpellImmune { unit: target }];
+                        return vec![BattleEvent::SpellImmune {
+                            unit: target,
+                            by: unit.immune_type(&immune_types, &battle.content.rules),
+                        }];
                     }
                     if !battle.resist_fails(target, Realm::of(def.realm), save.modifier) {
                         return vec![BattleEvent::SpellResisted { unit: target }];
@@ -1499,7 +1510,10 @@ impl Game {
                 if let Some(save) = save {
                     let unit = &battle.units[target];
                     if unit.is_immune_to(&immune_types, &battle.content.rules) {
-                        return vec![BattleEvent::SpellImmune { unit: target }];
+                        return vec![BattleEvent::SpellImmune {
+                            unit: target,
+                            by: unit.immune_type(&immune_types, &battle.content.rules),
+                        }];
                     }
                     let realm = Realm::of(def.realm);
                     if !battle.resist_fails(target, realm, save.modifier) {
@@ -1552,7 +1566,10 @@ impl Game {
                         modifier
                     };
                     match battle.spell_slay(t, realm, modifier, &immune_types, below) {
-                        None => events.push(BattleEvent::SpellImmune { unit: t }),
+                        None => events.push(BattleEvent::SpellImmune {
+                            unit: t,
+                            by: battle.units[t].immune_type(&immune_types, &battle.content.rules),
+                        }),
                         Some(d) => {
                             events.push(BattleEvent::SpellSlew {
                                 unit: t,
@@ -1615,7 +1632,10 @@ impl Game {
         if let Some(save) = save {
             let unit = &battle.units[target];
             if unit.is_immune_to(&immune_types, &battle.content.rules) {
-                return vec![BattleEvent::SpellImmune { unit: target }];
+                return vec![BattleEvent::SpellImmune {
+                    unit: target,
+                    by: unit.immune_type(&immune_types, &battle.content.rules),
+                }];
             }
             if !battle.resist_fails(target, Realm::of(def.realm), save.modifier) {
                 return vec![BattleEvent::SpellResisted { unit: target }];

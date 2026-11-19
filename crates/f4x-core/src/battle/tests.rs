@@ -1509,6 +1509,42 @@ fn missile_immunity_stops_arrows_completely() {
 }
 
 #[test]
+fn the_log_names_the_immunity_that_stopped_a_shot() {
+    // Longbowmen against a necromancer: the arrow is stopped by missile immunity (a missile).
+    let proof = real_battle(
+        &[(101 /* high_elf_longbowmen */, (3, 10))],
+        &[(32 /* necromancer */, (5, 10))],
+        1,
+    );
+    let mut b = reseeded(&proof, 1);
+    let events = b
+        .apply(BattleCommand::Shoot { unit: 0, target: 1 })
+        .expect("apply succeeds");
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            BattleEvent::Unharmed {
+                attacker: 0,
+                defender: 1,
+                by: DamageType::Missile
+            }
+        )),
+        "{events:?}"
+    );
+    // Without the immunity nothing is reported as stopped.
+    let open = without(&proof, 1, 44 /* missile_immunity */);
+    let events = reseeded(&open, 1)
+        .apply(BattleCommand::Shoot { unit: 0, target: 1 })
+        .expect("apply succeeds");
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, BattleEvent::Unharmed { .. })),
+        "{events:?}"
+    );
+}
+
+#[test]
 fn magic_immunity_and_fire_immunity_each_stop_a_fireball() {
     // Magicians' fireballs against paladins (magic immunity) and a fire elemental (fire immunity).
     let warded = real_battle(
@@ -3754,7 +3790,7 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
         match outcome {
             4..=6 => assert!(touched(|e, u| matches!(
                 e,
-                BattleEvent::SpellDamaged { unit, .. } | BattleEvent::SpellImmune { unit } if *unit == u
+                BattleEvent::SpellDamaged { unit, .. } | BattleEvent::SpellImmune { unit, .. } if *unit == u
             ))),
             1 => assert!(touched(
                 |e, u| matches!(e, BattleEvent::SpellHealed { unit, .. } if *unit == u)
@@ -3763,7 +3799,7 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
                 e,
                 BattleEvent::SpellDamaged { unit, .. }
                     | BattleEvent::SpellHealed { unit, .. }
-                    | BattleEvent::SpellImmune { unit } if *unit == u
+                    | BattleEvent::SpellImmune { unit, .. } if *unit == u
             ))),
             _ => {}
         }
@@ -3960,7 +3996,7 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() -> TestRes
     assert!(events.iter().any(|e| matches!(
         e,
         Event::Battle(
-            BattleEvent::SpellDamaged { unit: 1, .. } | BattleEvent::SpellImmune { unit: 1 }
+            BattleEvent::SpellDamaged { unit: 1, .. } | BattleEvent::SpellImmune { unit: 1, .. }
         )
     )));
     let b = g.battle().ok_or("battle is missing")?;
@@ -7838,7 +7874,7 @@ fn cast_over_wraiths(
                 _ => false,
             };
             let immune =
-                |e: &BattleEvent| matches!(e, BattleEvent::SpellImmune { unit } if *unit == u.id);
+                |e: &BattleEvent| matches!(e, BattleEvent::SpellImmune { unit, .. } if *unit == u.id);
             (
                 u.has(crate::rules::Ability::new(49)) && u.has(crate::rules::Ability::new(72)),
                 events.iter().any(hit),

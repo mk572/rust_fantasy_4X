@@ -135,6 +135,28 @@ impl Immunities {
             .any(|r| r.effect == DefenceEffect::Immune)
     }
 
+    /// The type of the attack the unit is immune to, for the log: the first of the attack's
+    /// types that an immunity of the unit matches.
+    pub fn stopped_by(&self, attack: DamageTypes) -> Option<DamageType> {
+        self.matching(attack)
+            .filter(|r| r.effect == DefenceEffect::Immune)
+            .find_map(|r| r.against.iter().find(|t| attack.contains(*t)))
+    }
+
+    /// The same for what `meets` counts: an immunity, a floor or a seen-through illusion.
+    pub fn met_by(&self, attack: DamageTypes) -> Option<DamageType> {
+        self.matching(attack)
+            .filter(|r| {
+                matches!(
+                    r.effect,
+                    DefenceEffect::Immune
+                        | DefenceEffect::SeeThrough
+                        | DefenceEffect::DefenceFloor(_)
+                )
+            })
+            .find_map(|r| r.against.iter().find(|t| attack.contains(*t)))
+    }
+
     /// Whether the unit sees through an illusion.
     pub fn sees_through(&self, attack: DamageTypes) -> bool {
         self.matching(attack)

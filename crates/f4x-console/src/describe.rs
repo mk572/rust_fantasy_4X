@@ -554,7 +554,17 @@ fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
         B::SpellDamaged { unit, dealt, kills } => {
             format!("Spell hits unit {unit} for {dealt}, {kills} figures lost")
         }
-        B::SpellImmune { unit } => format!("Unit {unit} takes no harm from the spell"),
+        B::SpellImmune { unit, by: Some(by) } => {
+            format!("Unit {unit} takes no harm from the spell: immune to {by:?}")
+        }
+        B::SpellImmune { unit, by: None } => format!("Unit {unit} takes no harm from the spell"),
+        B::Unharmed {
+            attacker,
+            defender,
+            by,
+        } => format!(
+            "Unit {defender} is immune to {by:?}: the attack of unit {attacker} does nothing"
+        ),
         B::SpellHealed { unit, healed } => format!("Unit {unit} heals {healed}"),
         B::Merged { unit } => format!("Unit {unit} sinks into the ground"),
         B::Surfaced { unit, cell } => format!("Unit {unit} comes up at {},{}", cell.0, cell.1),

@@ -8,7 +8,7 @@
 //!
 //! Tests: in battle/tests.rs.
 
-use crate::rules::damage_type::DamageType;
+use crate::rules::damage_type::{DamageType, DamageTypes};
 use crate::rules::Ability;
 use crate::spell::unit_effect::{UnitEffect, UnitEffects};
 use f4x_def::half_int::HalfInt;
@@ -563,10 +563,18 @@ impl Battle {
         &self,
         target: usize,
         dmg: Option<Damage>,
+        types: DamageTypes,
     ) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         match dmg {
-            None => events.push(BattleEvent::SpellImmune { unit: target }),
+            None => {
+                // A spell is a ranged attack.
+                let by = self.units[target]
+                    .defender_state(&self.content.rules)
+                    .immunities
+                    .stopped_by(types.with(DamageType::Ranged));
+                events.push(BattleEvent::SpellImmune { unit: target, by });
+            }
             Some(d) => {
                 events.push(BattleEvent::SpellDamaged {
                     unit: target,
