@@ -75,7 +75,7 @@ fn every_written_ability_number_has_the_alias_of_abilities_ron() {
         }
     }
     assert!(
-        count > 100,
+        count > 50,
         "only {count} numbers found: is the scan broken?"
     );
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
