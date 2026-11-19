@@ -963,9 +963,12 @@ impl Game {
             self.bench_flees(&benched, battle.player_of(Side::Attacker));
         }
         // The units that sat the fight out go down with a side that lost it.
+        let mut fallen: std::collections::BTreeMap<crate::player::PlayerId, u32> =
+            std::collections::BTreeMap::new();
         if let Some(winner) = battle.winner {
             for (side, unit) in left_out {
                 if side != winner {
+                    *fallen.entry(battle.player_of(side)).or_default() += 1;
                     self.remove_unit_to(
                         unit,
                         crate::hero::Fate::Slain,
@@ -975,6 +978,21 @@ impl Game {
             }
         }
         let mut events = Vec::new();
+        // The units of the army that fell in the fight (a summoned creature is no unit of the army,
+        // and one that regenerates or comes back is not lost): counted by who owned them.
+        for u in &battle.units {
+            if u.source.is_some()
+                && u.status == Status::Dead
+                && !(u.regenerates() && revived(&battle, u))
+            {
+                *fallen.entry(battle.player_of(u.side)).or_default() += 1;
+            }
+        }
+        events.extend(
+            fallen
+                .into_iter()
+                .map(|(player, units)| Event::BattleCasualties { player, units }),
+        );
         let spoils = self.battle_spoils(&battle, &sources);
         self.battle_loss_relations(&battle, &sources);
         let survivors: Vec<hecs::Entity> = battle

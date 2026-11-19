@@ -682,6 +682,13 @@ pub fn game(
     }
     logln!(log, "defeats: {}", defeat_line(&game, &tally));
     logln!(log, "far captures: {}", far_capture_line(&tally));
+    logln!(log, "wars: {}", war_line(&tally));
+    for (p, place, count) in tally.worst_places(3) {
+        logln!(
+            log,
+            "attacks lost on monsters or neutrals: p{p} {count} at {place}"
+        );
+    }
     for line in unit_lines(&game) {
         logln!(log, "{line}");
     }
@@ -1244,12 +1251,13 @@ fn neutral_lines(game: &Game, tally: &Tally) -> Vec<String> {
                 .count();
             let units = game.units().player_units(p).len();
             format!(
-                "{name} {cities}c/{units}u (founded {}, lost {}, taken {}, battles won {} lost {}, units lost {})",
+                "{name} {cities}c/{units}u (founded {}, lost {}, taken {}, battles won {} lost {}, units lost in battle {} outside {})",
                 m.cities_founded,
                 m.cities_lost,
                 m.cities_captured,
                 m.battles_won,
                 m.battles_lost,
+                m.units_lost_in_battle,
                 m.units_lost
             )
         })
@@ -1321,6 +1329,20 @@ fn far_capture_line(tally: &Tally) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// The wars declared, `p1>p3@88` for the turn: who declared on whom. `none` without a war.
+fn war_line(tally: &Tally) -> String {
+    let parts: Vec<String> = tally
+        .wars()
+        .iter()
+        .map(|&(turn, from, to)| format!("p{from}>p{to}@{turn}"))
+        .collect();
+    if parts.is_empty() {
+        "none".to_string()
+    } else {
+        parts.join(" ")
+    }
 }
 
 /// Who defeated each wizard that fell: `p3 by p1 (turn 340)` for a rival wizard, `p0 by neutral

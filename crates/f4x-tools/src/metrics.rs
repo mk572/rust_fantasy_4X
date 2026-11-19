@@ -40,7 +40,10 @@ pub struct Metrics {
     pub battles_won: u32,
     pub battles_lost: u32,
     pub units_built: u32,
+    /// Units lost outside a battle: no food, no gold, no mana, wounds (`UnitLost`).
     pub units_lost: u32,
+    /// Units of the army that fell in a battle or were lost fleeing from one.
+    pub units_lost_in_battle: u32,
     pub buildings_built: u32,
     pub spells_cast: u32,
     pub spells_learned: u32,
@@ -151,11 +154,21 @@ pub struct Metrics {
     pub settlers_unpaid: u32,
     /// Units of any kind let go for lack of food (the settlers among them too).
     pub units_starved: u32,
+    /// Battles by who attacked and who the other side was (a wizard, or the monsters and neutral
+    /// cities): counted for the wizard on each side.
+    pub attack_won_wizard: u32,
+    pub attack_lost_wizard: u32,
+    pub defense_won_wizard: u32,
+    pub defense_lost_wizard: u32,
+    pub attack_won_other: u32,
+    pub attack_lost_other: u32,
+    pub defense_won_other: u32,
+    pub defense_lost_other: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 75] {
+    pub fn rows(&self) -> [(&'static str, u32); 84] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -163,7 +176,8 @@ impl Metrics {
             ("battles won", self.battles_won),
             ("battles lost", self.battles_lost),
             ("units built", self.units_built),
-            ("units lost", self.units_lost),
+            ("units lost outside battle", self.units_lost),
+            ("units lost in battle", self.units_lost_in_battle),
             ("buildings built", self.buildings_built),
             ("spells cast", self.spells_cast),
             ("spells learned", self.spells_learned),
@@ -240,6 +254,23 @@ impl Metrics {
             ("settlers let go for lack of food", self.settlers_starved),
             ("settlers let go for lack of gold", self.settlers_unpaid),
             ("units let go for lack of food", self.units_starved),
+            ("attacks won on a wizard", self.attack_won_wizard),
+            ("attacks lost on a wizard", self.attack_lost_wizard),
+            ("defenses won against a wizard", self.defense_won_wizard),
+            ("defenses lost against a wizard", self.defense_lost_wizard),
+            ("attacks won on monsters or neutrals", self.attack_won_other),
+            (
+                "attacks lost on monsters or neutrals",
+                self.attack_lost_other,
+            ),
+            (
+                "defenses won against monsters or neutrals",
+                self.defense_won_other,
+            ),
+            (
+                "defenses lost against monsters or neutrals",
+                self.defense_lost_other,
+            ),
             (
                 "cities captured on the other plane",
                 self.cities_captured_far_plane,
@@ -326,6 +357,7 @@ impl AddAssign for Metrics {
             battles_lost,
             units_built,
             units_lost,
+            units_lost_in_battle,
             buildings_built,
             spells_cast,
             spells_learned,
@@ -395,6 +427,14 @@ impl AddAssign for Metrics {
             settlers_starved,
             settlers_unpaid,
             units_starved,
+            attack_won_wizard,
+            attack_lost_wizard,
+            defense_won_wizard,
+            defense_lost_wizard,
+            attack_won_other,
+            attack_lost_other,
+            defense_won_other,
+            defense_lost_other,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -403,6 +443,7 @@ impl AddAssign for Metrics {
         self.battles_lost += battles_lost;
         self.units_built += units_built;
         self.units_lost += units_lost;
+        self.units_lost_in_battle += units_lost_in_battle;
         self.buildings_built += buildings_built;
         self.spells_cast += spells_cast;
         self.spells_learned += spells_learned;
@@ -471,6 +512,14 @@ impl AddAssign for Metrics {
         self.settlers_starved += settlers_starved;
         self.settlers_unpaid += settlers_unpaid;
         self.units_starved += units_starved;
+        self.attack_won_wizard += attack_won_wizard;
+        self.attack_lost_wizard += attack_lost_wizard;
+        self.defense_won_wizard += defense_won_wizard;
+        self.defense_lost_wizard += defense_lost_wizard;
+        self.attack_won_other += attack_won_other;
+        self.attack_lost_other += attack_lost_other;
+        self.defense_won_other += defense_won_other;
+        self.defense_lost_other += defense_lost_other;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -512,12 +561,21 @@ pub struct Tally {
     /// and the turn each war between wizards began, for the stalled-war count.
     #[serde(default)]
     last_fight: BTreeMap<(u8, u8), u32>,
+    /// The attacker, the defender and the square of the battle being fought.
+    open_battle: Option<(PlayerId, PlayerId, String)>,
+    /// The attacks a wizard lost on something that is no wizard (monsters, a neutral city), by
+    /// wizard and place: the count.
+    #[serde(skip)]
+    lost_on_others: BTreeMap<(u8, String), u32>,
     #[serde(default)]
     war_since: BTreeMap<(u8, u8), u32>,
     /// The wizards defeated: the turn, the wizard, and who took its last city (`None` when it
     /// lost its last city some other way, razed, destroyed or lost to rebels).
     #[serde(default)]
     defeats: Vec<(u32, u8, Option<u8>)>,
+    /// The wars declared: the turn, the wizard who declared and the one it declared on.
+    #[serde(default)]
+    wars: Vec<(u32, u8, u8)>,
     /// The plane (index) each wizard started on, by player number.
     #[serde(default)]
     home_plane: Vec<Option<usize>>,
@@ -565,8 +623,11 @@ impl Tally {
             mana_left: vec![0; count + 1],
             last_taker: BTreeMap::new(),
             last_fight: BTreeMap::new(),
+            open_battle: None,
+            lost_on_others: BTreeMap::new(),
             war_since: BTreeMap::new(),
             defeats: Vec::new(),
+            wars: Vec::new(),
             home_plane: (0..=count)
                 .map(|k| {
                     game.wizard(PlayerId(k as u8))
@@ -738,6 +799,26 @@ impl Tally {
         &self.defeats
     }
 
+    /// The places where each wizard lost the most attacks on what is no wizard (monsters, neutral
+    /// cities): wizard, place, count; at most `n` for each wizard, the worst first.
+    pub fn worst_places(&self, n: usize) -> Vec<(u8, String, u32)> {
+        let mut by: BTreeMap<u8, Vec<(String, u32)>> = BTreeMap::new();
+        for ((p, place), c) in &self.lost_on_others {
+            by.entry(*p).or_default().push((place.clone(), *c));
+        }
+        let mut out = Vec::new();
+        for (p, mut v) in by {
+            v.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+            out.extend(v.into_iter().take(n).map(|(place, c)| (p, place, c)));
+        }
+        out
+    }
+
+    /// The wars declared, in order: the turn, the wizard who declared and the one it declared on.
+    pub fn wars(&self) -> &[(u32, u8, u8)] {
+        &self.wars
+    }
+
     /// The cities taken on the other plane than the taker started on, in order: the turn, the
     /// taker, the former owner and the plane (index).
     pub fn far_captures(&self) -> &[(u32, u8, u8, usize)] {
@@ -796,6 +877,35 @@ impl Tally {
             sum += *m;
         }
         sum
+    }
+
+    /// The battle just ended, by who attacked and whether the other side was a wizard.
+    fn count_by_role(&mut self, winner: PlayerId, loser: PlayerId) {
+        let Some((attacker, _, place)) = self.open_battle.take() else {
+            return;
+        };
+        let wizards = self.players.len() - 1;
+        if attacker == loser && usize::from(winner.0) >= wizards {
+            *self.lost_on_others.entry((attacker.0, place)).or_default() += 1;
+        }
+        let wizards = self.players.len() - 1;
+        let is_wizard = |p: PlayerId| usize::from(p.0) < wizards;
+        for (me, other, won) in [(winner, loser, true), (loser, winner, false)] {
+            let by_me = me == attacker;
+            let vs_wizard = is_wizard(other);
+            let Some(m) = self.at(me) else { continue };
+            let counter = match (by_me, won, vs_wizard) {
+                (true, true, true) => &mut m.attack_won_wizard,
+                (true, false, true) => &mut m.attack_lost_wizard,
+                (false, true, true) => &mut m.defense_won_wizard,
+                (false, false, true) => &mut m.defense_lost_wizard,
+                (true, true, false) => &mut m.attack_won_other,
+                (true, false, false) => &mut m.attack_lost_other,
+                (false, true, false) => &mut m.defense_won_other,
+                (false, false, false) => &mut m.defense_lost_other,
+            };
+            *counter += 1;
+        }
     }
 
     fn at(&mut self, player: PlayerId) -> Option<&mut Metrics> {
@@ -859,8 +969,29 @@ impl Tally {
                         m.cities_lost += 1;
                     }
                 }
+                Event::BattleStarted {
+                    attacker,
+                    defender,
+                    site,
+                } => {
+                    let kind = if game.economy().city_at(*site).is_some() {
+                        "city"
+                    } else {
+                        "site"
+                    };
+                    self.open_battle = Some((
+                        *attacker,
+                        *defender,
+                        format!("{kind} {site:?} held by p{}", defender.0),
+                    ));
+                }
+                Event::BattleCasualties { player, units }
+                | Event::UnitsLostFleeing { player, units } => {
+                    self.bump(*player, |m| m.units_lost_in_battle += units)
+                }
                 Event::BattleEnded { winner, loser } => {
                     self.last_fight.insert(pair(*winner, *loser), game.turn);
+                    self.count_by_role(*winner, *loser);
                     if let Some(m) = self.at(*winner) {
                         m.battles_won += 1;
                     }
@@ -1019,7 +1150,8 @@ impl Tally {
                 Event::ItemMade { player, .. } => self.bump(*player, |m| m.items_made += 1),
                 Event::ItemSold { player, .. } => self.bump(*player, |m| m.items_sold += 1),
                 Event::ItemScrapped { player, .. } => self.bump(*player, |m| m.items_scrapped += 1),
-                Event::Diplomacy(DiplomacyEvent::WarDeclared { attacker, .. }) => {
+                Event::Diplomacy(DiplomacyEvent::WarDeclared { attacker, defender }) => {
+                    self.wars.push((game.turn, attacker.0, defender.0));
                     self.bump(*attacker, |m| {
                         m.wars_declared += 1;
                         m.diplomacy_started += 1;

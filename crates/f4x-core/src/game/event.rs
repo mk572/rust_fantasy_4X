@@ -451,6 +451,12 @@ pub enum Event {
     },
     /// Something happened in the battle being fought.
     Battle(battle::BattleEvent),
+    /// Units of the army that fell in a battle that has just ended (not the creatures a wizard
+    /// summoned for the fight): counted by a soak for the side that lost them.
+    BattleCasualties {
+        player: player::PlayerId,
+        units: u32,
+    },
     /// Units of a side that fled a battle were lost on the way.
     UnitsLostFleeing {
         player: player::PlayerId,
