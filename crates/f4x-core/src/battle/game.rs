@@ -6,7 +6,7 @@
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
-use crate::rules::battle_flag::{BattleFlag, BattleFlags};
+use crate::rules::unit_flag::{UnitFlag, UnitFlags};
 use crate::rules::Ability;
 use crate::rules::SpellId;
 use crate::rules::{MovementType, Stat, UnitId};
@@ -281,12 +281,12 @@ impl Game {
         let abilities = self.units().unit_abilities(unit);
         // Flight and a magical weapon come from more than abilities (the movement type, items and
         // spells); the abilities add theirs in `sync_abilities`.
-        let mut flags = BattleFlags::NONE;
+        let mut flags = UnitFlags::NONE;
         if def.movement == MovementType::Flying {
-            flags.insert(BattleFlag::Flies);
+            flags.insert(UnitFlag::Flies);
         }
         if self.units().unit_has_magical_weapon(unit) {
-            flags.insert(BattleFlag::MagicalWeapon);
+            flags.insert(UnitFlag::MagicalWeapon);
         }
         let has = |a: Ability| abilities.contains(&a);
         // Mithril adds one and adamantium two to the attacks and the defence.
@@ -627,7 +627,7 @@ impl Game {
                     .ok_or(BattleStartError::BadSides)?;
                 // Wind Walking carries the whole stack through the air.
                 if carried {
-                    bu.flags.insert(BattleFlag::Flies);
+                    bu.flags.insert(UnitFlag::Flies);
                 }
                 bus.push(bu);
             }

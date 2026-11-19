@@ -8,7 +8,7 @@
 use super::*;
 use crate::game::rng::GameRng;
 use crate::game::testutil::shipped;
-use crate::rules::battle_flag::BattleFlag;
+use crate::rules::unit_flag::UnitFlag;
 
 use crate::game::Game;
 use crate::map::{Grid, Map, Plane, Position};
@@ -280,7 +280,7 @@ fn a_magical_weapon_hurts_what_normal_weapons_barely_scratch() {
         for u in &mut b.units {
             if u.side == Side::Attacker {
                 u.abilities.push(Ability::new(41));
-                u.flags.insert(BattleFlag::MagicalWeapon);
+                u.flags.insert(UnitFlag::MagicalWeapon);
             }
         }
     });

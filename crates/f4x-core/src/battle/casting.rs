@@ -8,8 +8,8 @@
 //!
 //! Tests: in battle/tests.rs.
 
-use crate::rules::battle_flag::{BattleFlag, BattleFlags};
 use crate::rules::damage_type::{DamageType, DamageTypes};
+use crate::rules::unit_flag::{UnitFlag, UnitFlags};
 use crate::rules::Ability;
 use crate::spell::unit_effect::{UnitEffect, UnitEffects};
 use f4x_def::half_int::HalfInt;
@@ -97,7 +97,7 @@ pub struct BaseStats {
     /// Hit points of one figure, without the extra ones life steal gave.
     pub hits: i32,
     pub moves: HalfInt,
-    pub flags: BattleFlags,
+    pub flags: UnitFlags,
     pub special_level: i32,
     pub ranged_kind: RangedKind,
     pub abilities: Vec<Ability>,
@@ -723,8 +723,8 @@ impl BattleUnit {
             }
         }
         // A web or sleep grounds a flyer.
-        if self.flags.contains(BattleFlag::Grounds) {
-            self.flags = self.flags.without(BattleFlag::Flies);
+        if self.flags.contains(UnitFlag::Grounds) {
+            self.flags = self.flags.without(UnitFlag::Flies);
         }
     }
 }

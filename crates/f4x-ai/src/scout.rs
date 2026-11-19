@@ -11,7 +11,6 @@ use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::view::PlayerView;
 use f4x_def::half_int::HalfInt;
-use f4x_def::rules::Ability;
 use f4x_def::rules::Stat;
 
 use crate::view::{distance, is_fighter, is_ship};
@@ -467,7 +466,7 @@ fn recruit(ai: &Ai, game: &Game, reach: Option<Position>) -> Option<hecs::Entity
         }
         let key = (
             view.unit_stat(u, Stat::Moves) * 2
-                + i32::from(view.unit_has_ability(u, Ability::new(24 /* flying */))) * 2,
+                + i32::from(view.unit_has_flag(u, f4x_core::rules::unit_flag::UnitFlag::Flies)) * 2,
             std::cmp::Reverse(view.serial_of(u)),
             u,
         );

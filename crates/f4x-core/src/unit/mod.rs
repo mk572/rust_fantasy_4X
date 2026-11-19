@@ -21,6 +21,7 @@ pub mod transport;
 pub mod undead;
 
 use crate::rules::damage_type::DamageTypes;
+use crate::rules::unit_flag::{UnitFlag, UnitFlags};
 use crate::rules::Ability;
 use f4x_def::half_int::HalfInt;
 use hecs::World;
@@ -269,6 +270,23 @@ impl<'a> UnitView<'a> {
         self.unit_def(unit).is_some() && self.abilities_shared(unit).contains(&ability)
     }
 
+    /// The flags the abilities set (`flags` in `abilities.ron`).
+    pub fn flags_of(&self, abilities: &[Ability]) -> UnitFlags {
+        let mut flags = UnitFlags::NONE;
+        for &a in abilities {
+            for &f in &self.content.rules.abilities.get(a).flags {
+                flags.insert(f);
+            }
+        }
+        flags
+    }
+
+    /// Whether one of the unit's abilities (its own, its enchantments' and its items') sets the
+    /// flag.
+    pub fn unit_has_flag(&self, unit: hecs::Entity, flag: UnitFlag) -> bool {
+        self.unit_def(unit).is_some() && self.flags_of(&self.abilities_shared(unit)).contains(flag)
+    }
+
     /// Whether the unit can found a city.
     pub fn unit_is_settler(&self, unit: hecs::Entity) -> bool {
         self.unit_has_ability(unit, Ability::new(12 /* create_outpost */))
@@ -509,7 +527,7 @@ impl<'a> UnitView<'a> {
         self.unit_def(unit)
             .is_some_and(|d| matches!(d.movement, MovementType::Sailing | MovementType::Flying))
             || self.unit_stat(unit, Stat::Transport) > 0
-            || self.unit_has_ability(unit, Ability::new(24))
+            || self.unit_has_flag(unit, UnitFlag::Flies)
     }
 
     pub fn unit_moves_left(&self, unit: hecs::Entity) -> HalfInt {
@@ -531,8 +549,8 @@ impl<'a> UnitView<'a> {
         let flies = self
             .unit_def(unit)
             .is_some_and(|d| d.movement == crate::rules::MovementType::Flying)
-            || self.unit_has_ability(unit, Ability::new(24))
-            || self.unit_has_ability(unit, Ability::new(74));
+            || self.unit_has_flag(unit, UnitFlag::Flies)
+            || self.unit_has_flag(unit, UnitFlag::WindWalking);
         if flies {
             sight.max(crate::map::fog::sight_for(2))
         } else {

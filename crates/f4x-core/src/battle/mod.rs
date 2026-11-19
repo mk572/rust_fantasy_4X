@@ -30,8 +30,8 @@ pub mod vortex;
 use crate::game::rng::GameRng;
 use crate::game::serial::Serial;
 use crate::game::setting::MeleeVsFliers;
-use crate::rules::battle_flag::{BattleFlag, BattleFlags};
 use crate::rules::damage_type::{DamageType, DamageTypes};
+use crate::rules::unit_flag::{UnitFlag, UnitFlags};
 use crate::rules::Ability;
 use crate::rules::{BattleRules, Rules};
 use f4x_def::half_int::HalfInt;
@@ -178,8 +178,8 @@ pub struct BattleUnit {
     pub ranged_kind: RangedKind,
     /// What its abilities and other sources set on it for the battle: flight, first strike, a
     /// magical weapon (heroes, fantastic and summoned creatures, units with a flaming or blessed
-    /// blade), ... (`BattleFlag`).
-    pub flags: BattleFlags,
+    /// blade), ... (`UnitFlag`).
+    pub flags: UnitFlags,
     /// A ship: it sails water and cannot leave it.
     pub sails: bool,
     /// A swimmer: it moves on land and water alike.
@@ -338,7 +338,7 @@ impl BattleUnit {
             hero_name: String::new(),
             casting: UnitCasting::default(),
             ranged_kind: RangedKind::None,
-            flags: BattleFlags::NONE,
+            flags: UnitFlags::NONE,
             sails: false,
             swims: false,
             weapon_quality: 0,
@@ -439,20 +439,20 @@ impl BattleUnit {
     /// pass through the walls of a city.
     pub fn mover(&self) -> Mover {
         Mover {
-            flying: self.flag(BattleFlag::Flies),
+            flying: self.flag(UnitFlag::Flies),
             sails: self.sails,
             swims: self.swims,
-            through_walls: self.flag(BattleFlag::Flies)
+            through_walls: self.flag(UnitFlag::Flies)
                 || self.moves_instantly()
-                || self.flag(BattleFlag::NonCorporeal),
-            ignores_mud: self.flag(BattleFlag::NonCorporeal),
+                || self.flag(UnitFlag::NonCorporeal),
+            ignores_mud: self.flag(UnitFlag::NonCorporeal),
         }
     }
 
     /// Teleporting units go to any free square for one move. (Merging units do not: they sink
     /// into the ground and come up a turn later, `BattleCommand::Merge`.)
     pub fn moves_instantly(&self) -> bool {
-        self.flag(BattleFlag::Teleports)
+        self.flag(UnitFlag::Teleports)
     }
 
     /// Whether the unit can sink into the ground now: it has Merging, half a move left, and did
@@ -524,8 +524,8 @@ impl BattleUnit {
         }
     }
 
-    /// Whether the unit has the battle flag (`BattleFlag`).
-    pub fn flag(&self, flag: BattleFlag) -> bool {
+    /// Whether the unit has the battle flag (`UnitFlag`).
+    pub fn flag(&self, flag: UnitFlag) -> bool {
         self.flags.contains(flag)
     }
 
@@ -651,7 +651,7 @@ impl BattleUnit {
             nature: AttackNature::of_unit_attack(
                 mode,
                 &self.abilities,
-                self.flag(BattleFlag::MagicalWeapon),
+                self.flag(UnitFlag::MagicalWeapon),
                 rules,
             ),
             special,
@@ -1497,7 +1497,7 @@ impl Battle {
     /// that move instantly do not.
     fn burns_at_the_wall(&self, unit: usize) -> bool {
         let u = &self.units[unit];
-        !u.flag(BattleFlag::Flies) && !u.moves_instantly()
+        !u.flag(UnitFlag::Flies) && !u.moves_instantly()
     }
 
     /// A Wall of Fire's attack on a unit: strength 5, area, fire (the original casts a Fireball
@@ -1749,8 +1749,8 @@ impl Battle {
         Fighter {
             melee,
             thrown: u.thrown_combatant(rules),
-            first_strike: u.flag(BattleFlag::FirstStrike),
-            negate_first_strike: u.flag(BattleFlag::NegatesFirstStrike),
+            first_strike: u.flag(UnitFlag::FirstStrike),
+            negate_first_strike: u.flag(UnitFlag::NegatesFirstStrike),
             state: u.defender_state(rules),
         }
     }
@@ -1764,7 +1764,7 @@ impl Battle {
 
     fn melee(&mut self, att: usize, def: usize) -> Vec<BattleEvent> {
         let reach_blocked =
-            self.units[def].flag(BattleFlag::Flies) && !self.units[att].flag(BattleFlag::Flies);
+            self.units[def].flag(UnitFlag::Flies) && !self.units[att].flag(UnitFlag::Flies);
         let mut a = self.fighter(att, reach_blocked);
         let mut d = self.fighter(def, false);
         a.state.defense += self.city_defense_bonus(att, def);
@@ -1831,7 +1831,7 @@ impl Battle {
             if a.ranged_kind == RangedKind::Missile {
                 attack::range_penalty(
                     distance(a.cell, self.units[def].cell),
-                    a.flag(BattleFlag::LongRange),
+                    a.flag(UnitFlag::LongRange),
                 )
             } else {
                 0

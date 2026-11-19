@@ -10,7 +10,7 @@ use f4x_core::battle::immunity::Realm;
 use f4x_core::battle::map::{in_city_area, GRID_H, GRID_W};
 use f4x_core::battle::{Battle, RangedKind, Side};
 use f4x_core::game::Game;
-use f4x_core::rules::battle_flag::BattleFlag;
+use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_def::content::Content;
 use f4x_def::rules::defs::SpellTarget;
 
@@ -178,10 +178,10 @@ impl ObsSpec {
                 u.moves.raw() as f32 / 12.0,
                 u.ammo as f32 / 10.0,
                 f32::from(u.attacked),
-                f32::from(u.flag(BattleFlag::Flies)),
+                f32::from(u.flag(UnitFlag::Flies)),
                 f32::from(u.undead),
                 f32::from(u.is_fantastic()),
-                f32::from(u.flag(BattleFlag::FirstStrike)),
+                f32::from(u.flag(UnitFlag::FirstStrike)),
                 u.special_level as f32 / 5.0,
                 f32::from(u.weapon_quality) / 3.0,
                 u.enchantments.len() as f32 / 4.0,
@@ -189,7 +189,7 @@ impl ObsSpec {
                 f32::from(kind == 2),
                 f32::from(kind == 3),
                 realm as f32 / 6.0,
-                f32::from(u.flag(BattleFlag::LongRange)),
+                f32::from(u.flag(UnitFlag::LongRange)),
             ];
             row[..f.len()].copy_from_slice(&f);
             for (i, &a) in self.abilities.iter().enumerate() {

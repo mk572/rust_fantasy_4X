@@ -9,6 +9,7 @@ use crate::city::economy::Economy;
 use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
+use crate::rules::unit_flag::{UnitFlag, UnitFlags};
 use crate::rules::Ability;
 
 use crate::game::Game;
@@ -129,15 +130,14 @@ struct StepFlags {
 }
 
 impl StepFlags {
-    fn of(abilities: &[Ability]) -> Self {
-        let has = |n: u16| abilities.contains(&Ability::new(n));
+    fn of(flags: UnitFlags) -> Self {
         Self {
-            non_corporeal: has(49),
-            flier: has(24),
-            water_walker: has(71),
-            pathfinder: has(50),
-            forester: has(25),
-            mountaineer: has(45),
+            non_corporeal: flags.contains(UnitFlag::NonCorporeal),
+            flier: flags.contains(UnitFlag::Flies),
+            water_walker: flags.contains(UnitFlag::WaterWalking),
+            pathfinder: flags.contains(UnitFlag::Pathfinding),
+            forester: flags.contains(UnitFlag::Forester),
+            mountaineer: flags.contains(UnitFlag::Mountaineer),
         }
     }
 }
@@ -154,12 +154,12 @@ impl StepProfile<'_> {
 impl Economy<'_> {
     /// What a stack's units give each other: flight, pathfinding, forest and mountain walking.
     pub fn stack_traits(&self, units: &[hecs::Entity]) -> StackTraits {
-        let any = |a: Ability| units.iter().any(|&u| self.units().unit_has_ability(u, a));
+        let any = |f: UnitFlag| units.iter().any(|&u| self.units().unit_has_flag(u, f));
         StackTraits {
-            flies: any(Ability::new(74)),
-            pathfinding: any(Ability::new(50)),
-            forester: any(Ability::new(25)),
-            mountaineer: any(Ability::new(45)),
+            flies: any(UnitFlag::WindWalking),
+            pathfinding: any(UnitFlag::Pathfinding),
+            forester: any(UnitFlag::Forester),
+            mountaineer: any(UnitFlag::Mountaineer),
             sea_lift: units.iter().any(|&u| self.is_ship(u)),
         }
     }
@@ -186,7 +186,7 @@ impl Economy<'_> {
         Ok(StepProfile {
             owner: self.units().unit_owner(unit),
             def,
-            flags: StepFlags::of(&abilities),
+            flags: StepFlags::of(self.units().flags_of(&abilities)),
             abilities,
         })
     }
@@ -358,14 +358,14 @@ impl Economy<'_> {
         units
             .iter()
             .copied()
-            .find(|&u| self.units().unit_has_ability(u, Ability::new(74)))
+            .find(|&u| self.units().unit_has_flag(u, UnitFlag::WindWalking))
     }
 
     /// Whether any unit in `units` carries its stack through the air.
     pub fn stack_flies(&self, units: &[hecs::Entity]) -> bool {
         units
             .iter()
-            .any(|&u| self.units().unit_has_ability(u, Ability::new(74)))
+            .any(|&u| self.units().unit_has_flag(u, UnitFlag::WindWalking))
     }
 
     /// The same square on the other plane when `pos` is a tower: a stack standing in a tower is
@@ -614,7 +614,7 @@ impl Economy<'_> {
         let on_tower = self.is_tower(from);
         let all_travel = units
             .iter()
-            .all(|&u| self.units().unit_has_ability(u, Ability::new(51)));
+            .all(|&u| self.units().unit_has_flag(u, UnitFlag::PlanarTravel));
         let (_, owner) = self.check_stack(units)?;
         let on_gate = self.has_gate(from, owner, crate::city::gate::ASTRAL_GATE);
         if !on_tower && !all_travel && !on_gate {

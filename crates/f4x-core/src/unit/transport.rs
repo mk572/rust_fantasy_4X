@@ -11,7 +11,7 @@ use crate::game::serial::Serial;
 use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::{PlayerId, MONSTERS};
-use crate::rules::Ability;
+use crate::rules::unit_flag::UnitFlag;
 use crate::rules::{MovementType, Stat};
 use f4x_def::half_int::HalfInt;
 
@@ -46,10 +46,14 @@ impl Economy<'_> {
         units
             .unit_def(unit)
             .is_some_and(|d| d.movement == MovementType::Walking)
-            && !units
-                .unit_abilities(unit)
-                .iter()
-                .any(|a| [24, 49, 71, 74].iter().any(|&n| *a == Ability::new(n)))
+            && ![
+                UnitFlag::Flies,
+                UnitFlag::NonCorporeal,
+                UnitFlag::WaterWalking,
+                UnitFlag::WindWalking,
+            ]
+            .iter()
+            .any(|&f| units.flags_of(&units.unit_abilities(unit)).contains(f))
     }
 
     /// Whether the unit cannot cross the sea by itself: it walks and neither flies nor is
@@ -59,9 +63,13 @@ impl Economy<'_> {
         !stack_flies
             && units.unit_def(unit).is_some_and(|d| {
                 d.movement == MovementType::Walking
-                    && !units.unit_abilities(unit).iter().any(|a| {
-                        *a == Ability::new(24) || *a == Ability::new(49) || *a == Ability::new(71)
-                    })
+                    && ![
+                        UnitFlag::Flies,
+                        UnitFlag::NonCorporeal,
+                        UnitFlag::WaterWalking,
+                    ]
+                    .iter()
+                    .any(|&f| units.flags_of(&units.unit_abilities(unit)).contains(f))
             })
     }
 

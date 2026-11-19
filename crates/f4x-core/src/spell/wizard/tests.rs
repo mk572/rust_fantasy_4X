@@ -1,5 +1,6 @@
 use super::*;
 use crate::game::testutil::shipped;
+use crate::rules::Ability;
 
 use crate::map::{Grid, Map, Plane, Position};
 use crate::rules::RealmId;

@@ -425,6 +425,15 @@ impl<'a> PlayerView<'a> {
         self.game.units().unit_has_ability(unit, ability)
     }
 
+    /// Whether one of the unit's abilities sets the flag (`Units::unit_has_flag`).
+    pub fn unit_has_flag(
+        &self,
+        unit: hecs::Entity,
+        flag: crate::rules::unit_flag::UnitFlag,
+    ) -> bool {
+        self.game.units().unit_has_flag(unit, flag)
+    }
+
     /// Whether the unit can found a city.
     pub fn unit_is_settler(&self, unit: hecs::Entity) -> bool {
         self.game.units().unit_is_settler(unit)

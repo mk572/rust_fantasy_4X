@@ -9,7 +9,7 @@ use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::frame::Layout;
 use crate::input::Input;
-use f4x_core::rules::battle_flag::BattleFlag;
+use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_def::half_int::HalfInt;
 
 /// Top of the panel (`combat_background_bottom`), and of the buttons and text in it.
@@ -42,7 +42,7 @@ fn ranged_icon(u: &BattleUnit) -> Option<usize> {
 
 /// 0 walking, 1 flying, 2 sailing or swimming.
 fn move_mode(u: &BattleUnit) -> usize {
-    if u.flag(BattleFlag::Flies) {
+    if u.flag(UnitFlag::Flies) {
         1
     } else if u.sails || u.swims {
         2

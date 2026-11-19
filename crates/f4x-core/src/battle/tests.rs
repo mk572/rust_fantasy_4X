@@ -5,7 +5,7 @@ use super::*;
 use crate::game::rng::GameRng;
 use crate::game::save::Snapshot;
 use crate::game::testutil::shipped;
-use crate::rules::battle_flag::BattleFlag;
+use crate::rules::unit_flag::UnitFlag;
 
 use crate::game::{Command, Event, Game, Rejection};
 use crate::map::{Grid, Map, Plane};
@@ -1485,7 +1485,7 @@ fn weapon_immunity_blunts_normal_blows_but_not_magical_ones() {
     );
     let open = without(&stone, 1, 72 /* weapon_immunity */);
     let mut magic = stone.clone();
-    magic.units[0].flags.insert(BattleFlag::MagicalWeapon);
+    magic.units[0].flags.insert(UnitFlag::MagicalWeapon);
     let (open, stone, stone_vs_magic) = (
         damage_over_seeds(&open, false),
         damage_over_seeds(&stone, false),
@@ -2259,11 +2259,11 @@ mod casting {
         b.rebuild_unit(0, base, Vec::new());
         let u = &b.units[0];
         assert_eq!(
-            (u.moves, u.melee, u.flag(BattleFlag::FirstStrike)),
+            (u.moves, u.melee, u.flag(UnitFlag::FirstStrike)),
             (
                 before.moves,
                 before.melee,
-                before.flag(BattleFlag::FirstStrike)
+                before.flag(UnitFlag::FirstStrike)
             )
         );
         assert!(u.combat_spells().is_empty());
@@ -2869,7 +2869,7 @@ mod fields {
             (b.units[0].melee, b.units[0].ranged),
             (ordinary.melee + 1, ordinary.ranged + 1)
         );
-        assert!(b.units[0].flag(BattleFlag::MagicalWeapon));
+        assert!(b.units[0].flag(UnitFlag::MagicalWeapon));
         assert_eq!(
             b.units[1].melee, fantastic.melee,
             "fantastic creatures already burn"
@@ -2968,7 +2968,7 @@ mod fields {
     fn black_sleep_and_web_hold_a_unit_and_ground_a_flyer() {
         let mut b = cast_on_foe(103 /* high_elf_pegasai, a flier */, 5 /* web */);
         let u = &b.units[1];
-        assert!(!u.flag(BattleFlag::Flies) && u.moves_left == 0);
+        assert!(!u.flag(UnitFlag::Flies) && u.moves_left == 0);
         assert!(u.attacked, "a webbed unit cannot attack");
         assert_eq!(u.web_hits, rules().web_hits);
         end_turns(&mut b, 1);
@@ -2997,7 +2997,7 @@ mod fields {
         let before = {
             let u = &mut g.battle.as_mut().ok_or("no battle")?.battle.units[1];
             u.resistance = 0;
-            (u.flag(BattleFlag::Flies), u.moves)
+            (u.flag(UnitFlag::Flies), u.moves)
         };
         assert!(before.0);
         cast_on(&mut g, 5 /* web */, 1).expect("the spell is cast");
@@ -3006,11 +3006,11 @@ mod fields {
             .ok_or("no battle")?
             .unit(1)
             .ok_or("no unit")?
-            .flag(BattleFlag::Flies));
+            .flag(UnitFlag::Flies));
         g.dispel_battle_unit(1, 10_000, D);
         let u = g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?;
         assert!(
-            u.flag(BattleFlag::Flies) && u.moves == before.1 && !u.held_by_web(),
+            u.flag(UnitFlag::Flies) && u.moves == before.1 && !u.held_by_web(),
             "{u:?}"
         );
         Ok(())
@@ -3049,7 +3049,7 @@ mod fields {
         end_turns(&mut b, 2);
         let u = &b.units[1];
         assert!(!u.attacked && u.moves_left == u.moves && u.moves > 0);
-        assert!(u.has(Ability::new(73)) && !u.flag(BattleFlag::Flies));
+        assert!(u.has(Ability::new(73)) && !u.flag(UnitFlag::Flies));
     }
 
     #[test]
@@ -6303,11 +6303,11 @@ fn numbers(u: &BattleUnit) -> Numbers {
         hits: u.hits,
         moves: u.moves,
         flags: [
-            u.flag(BattleFlag::Flies),
-            u.flag(BattleFlag::FirstStrike),
-            u.flag(BattleFlag::NegatesFirstStrike),
-            u.flag(BattleFlag::LongRange),
-            u.flag(BattleFlag::MagicalWeapon),
+            u.flag(UnitFlag::Flies),
+            u.flag(UnitFlag::FirstStrike),
+            u.flag(UnitFlag::NegatesFirstStrike),
+            u.flag(UnitFlag::LongRange),
+            u.flag(UnitFlag::MagicalWeapon),
             u.extra_attack,
         ],
         special_level: u.special_level,

@@ -2,7 +2,7 @@ use f4x_def::rules::Ability;
 
 use f4x_core::game::Game;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::battle_flag::BattleFlag;
+use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_def::content::Content;
 use f4x_def::testdir::TestResult;
 
@@ -1180,10 +1180,10 @@ fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() -
         .iter()
         .find(|u| u.unit_id.is_some_and(|id| id.num() != 168 /* werewolves */))
         .expect("the wizard starts with a unit");
-    assert!(!spearmen.flag(BattleFlag::MagicalWeapon));
+    assert!(!spearmen.flag(UnitFlag::MagicalWeapon));
     let wolves = find(168 /* werewolves */);
     assert!(
-        wolves.flag(BattleFlag::MagicalWeapon),
+        wolves.flag(UnitFlag::MagicalWeapon),
         "summoned creatures fight with magical weapons"
     );
     assert!(wolves.abilities.contains(&Ability::new(72)));

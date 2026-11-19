@@ -304,7 +304,7 @@ pub struct AbilityDef {
     pub caster_mana: i32,
     /// What the ability sets on its unit in a battle.
     #[serde(default)]
-    pub flags: Vec<super::battle_flag::BattleFlag>,
+    pub flags: Vec<super::unit_flag::UnitFlag>,
     pub effects: Vec<EffectRule>,
 }
 

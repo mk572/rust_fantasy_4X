@@ -162,7 +162,7 @@ fn resend(
 }
 
 /// A unit on the other plane from `target` that can travel between the planes by itself shifts
-/// now (`Ability::new(51 /* planar_travel */)`, its own, its enchantments' or its items'), so that its walk is an
+/// now (`UnitFlag::PlanarTravel`, its own, its enchantments' or its items'), so that its walk is an
 /// ordinary one and it is never tagged `Crossing::Plane`. Does nothing for any other unit, or
 /// while the game will not let it shift (Planar Seal, no moves left).
 fn shift_by_itself(
@@ -176,7 +176,7 @@ fn shift_by_itself(
         let view = f4x_core::player::view::PlayerView::new(game, ai.player);
         view.unit_position(unit)
             .is_some_and(|p| p.plane != target.plane)
-            && view.unit_has_ability(unit, f4x_def::rules::Ability::new(51 /* planar_travel */))
+            && view.unit_has_flag(unit, f4x_def::rules::unit_flag::UnitFlag::PlanarTravel)
             && view.can_shift_plane(&[unit])
     };
     if shifts {

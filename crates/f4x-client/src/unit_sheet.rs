@@ -8,7 +8,7 @@
 
 use crate::text::{Args, Term, Texts};
 use f4x_core::battle::{Battle, BattleUnit, RangedKind};
-use f4x_core::rules::battle_flag::BattleFlag;
+use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_def::rules::Ability;
 use f4x_def::rules::SpellId;
 use f4x_def::rules::{MovementType, Stat, UnitKind};
@@ -1046,7 +1046,7 @@ impl App {
             figures: u.figures,
             water: matches!(def.movement, MovementType::Sailing | MovementType::Swimming),
             moves: u.moves.floor().max(0) as u32,
-            move_icon: if u.flag(BattleFlag::Flies) {
+            move_icon: if u.flag(UnitFlag::Flies) {
                 12
             } else {
                 move_icon_of(def.movement)

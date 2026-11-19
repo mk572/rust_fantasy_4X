@@ -998,7 +998,9 @@ impl App {
                 // A teleporter crosses the field in one jump, with its own sound and picture
                 // (`Battle_Unit_Teleport`). A merging unit walks like any other: it goes under
                 // with `Merge` instead.
-                let teleports = before.unit(*unit).is_some_and(|u| u.has(Ability::new(68)));
+                let teleports = before
+                    .unit(*unit)
+                    .is_some_and(|u| u.flag(f4x_core::rules::unit_flag::UnitFlag::Teleports));
                 match (teleports, path.last()) {
                     (true, Some(&to)) => {
                         out.push(Anim::Sound { cast: 11 });
