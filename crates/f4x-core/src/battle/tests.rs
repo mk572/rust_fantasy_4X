@@ -3408,7 +3408,13 @@ mod fields {
         // resists.
         let mut b = slay(165 /* skeletons */, 30);
         assert!(b
-            .spell_slay(1, Realm::Death, -2, &[crate::rules::Ability::new(16)], None)
+            .spell_slay(
+                1,
+                Realm::Death,
+                -2,
+                &[crate::rules::damage_type::DamageType::Death],
+                None
+            )
             .is_none());
         assert_eq!(
             b.spell_slay(1, Realm::Death, -2, &[], None)

@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::damage_type::DamageType;
 use super::ids::Id;
 use super::stats::{ModOp, Stat};
 use super::{AbilityDef, RealmDef};
@@ -104,15 +105,15 @@ pub enum Effect {
     },
     Heal(i32),
     /// Battle only: each figure of the target must resist (a check against `realm` with
-    /// `modifier` added to the resistance) or is destroyed. A target with one of the `immune`
-    /// abilities takes no harm. `below`: the target is destroyed outright if its resistance
+    /// `modifier` added to the resistance) or is destroyed. A target immune to one of the `types`
+    /// takes no harm. `below`: the target is destroyed outright if its resistance
     /// plus `modifier` is under this (Disintegrate) instead. `mana_per_step`: each this much
     /// mana beyond the cost lowers the resistance by one more (Banish).
     Slay {
         realm: Id<RealmDef>,
         modifier: i32,
         #[serde(default)]
-        immune: Vec<Id<AbilityDef>>,
+        types: Vec<DamageType>,
         #[serde(default)]
         only: SlayOnly,
         #[serde(default)]

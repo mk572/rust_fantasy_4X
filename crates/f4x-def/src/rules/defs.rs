@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use super::damage_type::DamageType;
 use super::effects::EffectRule;
 use super::ids::Id;
 use super::registry::{Def, Registry};
@@ -537,9 +538,10 @@ pub struct SpellDef {
 pub struct SpellSave {
     /// Added to the target's resistance (negative: harder to resist).
     pub modifier: i32,
-    /// A target with one of these abilities cannot be affected at all.
+    /// A target immune to one of these damage types cannot be affected at all (a curse of
+    /// Sorcery is of the illusion type, one of Death of the death type).
     #[serde(default)]
-    pub immune: Vec<Id<AbilityDef>>,
+    pub types: Vec<DamageType>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

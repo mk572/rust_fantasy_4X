@@ -658,7 +658,6 @@ fn check_spells(r: &Rules, p: &mut Vec<String>) {
         let unknown_abilities = s
             .already_able
             .iter()
-            .chain(s.save.iter().flat_map(|save| &save.immune))
             .filter(|a| r.abilities.try_get(**a).is_none());
         for a in unknown_abilities {
             p.push(format!("{who} names unknown ability {}", a.num()));
@@ -780,10 +779,7 @@ fn check_rule(r: &Rules, owner: &str, rule: &EffectRule, p: &mut Vec<String>) {
                 p.push(format!("{owner}: damage must be positive"));
             }
         }
-        Effect::Slay {
-            immune, realm: m, ..
-        } => {
-            immune.iter().for_each(|a| ability(a, p));
+        Effect::Slay { realm: m, .. } => {
             realm(m, p);
         }
         Effect::Heal(n) if *n <= 0 => p.push(format!("{owner}: heal must be positive")),

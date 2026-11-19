@@ -403,11 +403,11 @@ impl Battle {
         target: usize,
         realm: Realm,
         modifier: i32,
-        immune: &[Ability],
+        types: &[DamageType],
         below: Option<i32>,
     ) -> Option<Damage> {
         let unit = &self.units[target];
-        if immune.iter().any(|&i| unit.has(i)) {
+        if unit.is_immune_to(types, &self.content.rules) {
             return None;
         }
         let mut state = unit.defender_state(&self.content.rules);

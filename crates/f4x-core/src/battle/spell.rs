@@ -18,6 +18,7 @@
 //! Not here: dispelling battlefield enchantments, the spells whose effects are not in the game,
 //! the node counter and the heroes' own casting.
 
+use crate::rules::damage_type::DamageType;
 use crate::rules::damage_type::DamageTypes;
 use crate::rules::Ability;
 use rand::SeedableRng;
@@ -94,7 +95,7 @@ enum Kind {
     Slay {
         realm: Realm,
         modifier: i32,
-        immune: Vec<Ability>,
+        types: Vec<DamageType>,
         only: SlayOnly,
         below: Option<i32>,
         mana_per_step: u32,
@@ -352,14 +353,14 @@ impl Game {
             Effect::Slay {
                 realm,
                 modifier,
-                immune,
+                types,
                 only,
                 below,
                 mana_per_step,
             } => Some(Kind::Slay {
                 realm: Realm::of(*realm)?,
                 modifier: *modifier,
-                immune: immune.clone(),
+                types: types.clone(),
                 only: *only,
                 below: *below,
                 mana_per_step: *mana_per_step,
@@ -903,16 +904,10 @@ impl Game {
                     return Err(SpellError::Target(TargetError::Deathly));
                 }
                 // A curse the target is immune to is refused before it costs anything
-                // (`Combat_Spell_Target_Screen`: Sorcery against illusion immunity, Death against
-                // death immunity), as are the abilities the spell's data names.
+                // (`Combat_Spell_Target_Screen`); the types it is stopped by are in the spell's
+                // data (`save` in `spells.ron`: illusion for Sorcery, death for Death).
                 if let Some(save) = &def.save {
-                    let realm = Realm::of(def.realm);
-                    let immune = save.immune.iter().any(|&a| u.has(a))
-                        || (realm == Some(Realm::Sorcery)
-                            && u.has(Ability::new(31 /* illusion_immunity */)))
-                        || (realm == Some(Realm::Death)
-                            && u.has(Ability::new(16 /* death_immunity */)));
-                    if immune {
+                    if u.is_immune_to(&save.types, &self.content.rules) {
                         return Err(SpellError::Target(TargetError::NotAffected));
                     }
                 }
@@ -1435,14 +1430,14 @@ impl Game {
                 }]
             }
             (Kind::Turn { bind, save }, SpellAim::Unit(target)) => {
-                let immune_ids = save.as_ref().map(|s| s.immune.clone()).unwrap_or_default();
+                let immune_types = save.as_ref().map(|s| s.types.clone()).unwrap_or_default();
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
                 let battle = &mut active.battle;
                 if let Some(save) = save {
                     let unit = &battle.units[target];
-                    if immune_ids.iter().any(|&i| unit.has(i)) {
+                    if unit.is_immune_to(&immune_types, &battle.content.rules) {
                         return vec![BattleEvent::SpellImmune { unit: target }];
                     }
                     if !battle.resist_fails(target, Realm::of(def.realm), save.modifier) {
@@ -1482,14 +1477,14 @@ impl Game {
                 let mut mods = mods;
                 mods.extend(self.superseded_bonuses(spell, &present));
                 mods.extend(self.battle_bonuses_by_name(spell, target));
-                let immune_ids = save.as_ref().map(|s| s.immune.clone()).unwrap_or_default();
+                let immune_types = save.as_ref().map(|s| s.types.clone()).unwrap_or_default();
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
                 let battle = &mut active.battle;
                 if let Some(save) = save {
                     let unit = &battle.units[target];
-                    if immune_ids.iter().any(|&i| unit.has(i)) {
+                    if unit.is_immune_to(&immune_types, &battle.content.rules) {
                         return vec![BattleEvent::SpellImmune { unit: target }];
                     }
                     let realm = Realm::of(def.realm);
@@ -1507,7 +1502,7 @@ impl Game {
                 Kind::Slay {
                     realm,
                     modifier,
-                    immune,
+                    types,
                     only,
                     below,
                     mana_per_step,
@@ -1525,7 +1520,7 @@ impl Game {
                     (false, SpellAim::Unit(t)) => vec![t],
                     _ => return Vec::new(),
                 };
-                let immune_ids = immune;
+                let immune_types = types;
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1542,7 +1537,7 @@ impl Game {
                     } else {
                         modifier
                     };
-                    match battle.spell_slay(t, realm, modifier, &immune_ids, below) {
+                    match battle.spell_slay(t, realm, modifier, &immune_types, below) {
                         None => events.push(BattleEvent::SpellImmune { unit: t }),
                         Some(d) => {
                             events.push(BattleEvent::SpellSlew {
@@ -1598,14 +1593,14 @@ impl Game {
         player: PlayerId,
         save: Option<&SpellSave>,
     ) -> Vec<BattleEvent> {
-        let immune_ids = save.map(|s| s.immune.clone()).unwrap_or_default();
+        let immune_types = save.map(|s| s.types.clone()).unwrap_or_default();
         let Some(active) = self.battle.as_mut() else {
             return Vec::new();
         };
         let battle = &mut active.battle;
         if let Some(save) = save {
             let unit = &battle.units[target];
-            if immune_ids.iter().any(|&i| unit.has(i)) {
+            if unit.is_immune_to(&immune_types, &battle.content.rules) {
                 return vec![BattleEvent::SpellImmune { unit: target }];
             }
             if !battle.resist_fails(target, Realm::of(def.realm), save.modifier) {

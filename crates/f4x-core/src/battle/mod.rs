@@ -668,6 +668,14 @@ impl BattleUnit {
         }
     }
 
+    /// Whether the unit has a defence rule against one of these damage types: what a spell that
+    /// names types in its data is stopped by (illusion immunity too, which sees through an
+    /// illusion attack and refuses a spell of illusions).
+    pub fn is_immune_to(&self, types: &[DamageType], rules: &Rules) -> bool {
+        Immunities::of(&self.abilities, rules)
+            .meets(crate::rules::damage_type::DamageTypes::of(types))
+    }
+
     fn melee_combatant(&self, rules: &Rules) -> Combatant {
         self.combatant(
             Mode::Melee,

@@ -25,6 +25,7 @@
 use super::order::{self as ai, worth};
 use f4x_core::battle::casting::SpellAim;
 use f4x_core::battle::field::Field;
+use f4x_core::battle::immunity::Immunities;
 use f4x_core::battle::immunity::Realm;
 use f4x_core::battle::map::{self, Pos};
 use f4x_core::battle::spell::{slay_allows, BattleEffect};
@@ -301,13 +302,14 @@ impl Scene<'_> {
     }
 
     /// Our units that cannot hurt the enemy: normal weapons against a side with weapon immunity
-    /// (`weapon_immunity`, 72) in it, where a unit's weapons are magical for fantastic creatures,
+    /// (a defence floor against the weapon type) in it, where a unit's weapons are magical for fantastic creatures,
     /// heroes and what a spell armed (`magical_weapon`, 41). None when no enemy is immune.
     fn blocked(&self) -> Vec<&BattleUnit> {
-        let immune = self
-            .enemies
-            .iter()
-            .any(|u| u.has(f4x_core::rules::Ability::new(72 /* weapon_immunity */)));
+        let rules = &self.game.content().rules;
+        let immune = self.enemies.iter().any(|u| {
+            Immunities::of(&u.abilities, rules)
+                .has(f4x_core::rules::damage_type::DamageType::Weapon)
+        });
         if !immune {
             return Vec::new();
         }
@@ -780,7 +782,7 @@ fn rule_value(
         // A slaying spell: a share of the worth of each enemy it can touch, by the odds that
         // the enemy fails its resistance check.
         Effect::Slay {
-            immune,
+            types,
             realm,
             modifier,
             only,
@@ -789,7 +791,7 @@ fn rule_value(
             .iter()
             .filter(|u| {
                 !ours(u)
-                    && !immune.iter().any(|&a| u.has(a))
+                    && !u.is_immune_to(types, &game.content().rules)
                     && slay_allows(*only, u)
                     // Spell Lock keeps a unit from the spells that sever or burn it.
                     && !u.effects.contains(UnitEffect::SpellLock)
