@@ -227,6 +227,9 @@ pub struct AbilityAttack {
     pub delivery: Delivery,
     /// The ranged attack the ability gives the unit (none for an ability that only adds to it).
     pub kind: RangedKind,
+    /// The damage is the unit's own bodily strength (a thrown boulder), not a weapon's: a web
+    /// takes it as it takes a melee blow.
+    pub bodily: bool,
     pub types: Vec<DamageType>,
     /// The attack halves the defence it meets.
     pub armor_piercing: bool,

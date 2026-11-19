@@ -552,19 +552,20 @@ impl BattleUnit {
     ///   melee (boulders do not count, they are the same bodily strength as melee);
     /// - a thrown weapon, a breath or a gaze: its strength on top of melee;
     /// - Immolation: its fire on top.
-    pub fn web_strength(&self, rules: &BattleRules) -> i32 {
+    pub fn web_strength(&self, rules: &Rules) -> i32 {
         let mut strength = self.melee.max(0);
         let shoots = self.ammo > 0
             && (self.ranged_kind == RangedKind::Magic
-                || self.has(Ability::new(3 /* bow */))
-                || self.has(Ability::new(59 /* sling */)));
+                || self
+                    .weapon_attack(rules)
+                    .is_some_and(|a| a.kind == RangedKind::Missile && !a.bodily));
         if shoots {
             strength = strength.max(self.ranged);
         } else if self.ranged_kind == RangedKind::Short {
             strength += self.ranged.max(0);
         }
         if self.has(Ability::new(32 /* immolation */)) {
-            strength += rules.immolation_strength;
+            strength += rules.config.battle.immolation_strength;
         }
         strength
     }
@@ -583,6 +584,14 @@ impl BattleUnit {
     /// The kind of the unit's weapon shot, if it has one (`game::weapon_shot_of`).
     pub fn weapon_shot(&self, rules: &Rules) -> Option<RangedKind> {
         game::weapon_shot_of(&self.abilities, rules)
+    }
+
+    /// The attack of the unit's weapon shot, if it has one (`game::weapon_attack_of`).
+    pub fn weapon_attack<'a>(
+        &self,
+        rules: &'a Rules,
+    ) -> Option<&'a crate::rules::damage_type::AbilityAttack> {
+        game::weapon_attack_of(&self.abilities, rules)
     }
 
     /// Whether an ability makes the unit a spell caster (not a hero with casting skill).

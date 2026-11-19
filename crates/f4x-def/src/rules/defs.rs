@@ -302,6 +302,9 @@ pub struct AbilityDef {
     /// shots with it.
     #[serde(default)]
     pub caster_mana: i32,
+    /// How many times a unit with the ability may summon a demon in a battle (Summon Demon: 3).
+    #[serde(default)]
+    pub summons_per_battle: u32,
     /// What the ability sets on its unit in a battle.
     #[serde(default)]
     pub flags: Vec<super::unit_flag::UnitFlag>,

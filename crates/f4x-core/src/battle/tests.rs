@@ -3020,7 +3020,7 @@ mod fields {
     fn a_held_unit_spends_each_turn_tearing_at_the_web_until_it_is_free() {
         // Swordsmen, caught in the web, tear at it with their blows.
         let mut b = cast_on_foe(105 /* high_men_swordsmen */, 5 /* web */);
-        let strength = b.units[1].web_strength(&rules());
+        let strength = b.units[1].web_strength(&shipped().rules);
         assert!(strength > 0 && strength < rules().web_hits);
         let mut left = rules().web_hits;
         let mut events = end_turns(&mut b, 1);
@@ -3056,7 +3056,7 @@ mod fields {
     fn a_unit_that_cannot_hurt_the_web_stays_held() {
         // Settlers have no attack at all.
         let mut b = cast_on_foe(111 /* high_men_settlers */, 5 /* web */);
-        assert_eq!(b.units[1].web_strength(&rules()), 0);
+        assert_eq!(b.units[1].web_strength(&shipped().rules), 0);
         end_turns(&mut b, 4);
         assert_eq!(b.units[1].web_hits, rules().web_hits);
         assert!(b.units[1].held_by_web());
@@ -3093,7 +3093,7 @@ mod fields {
             if let Some(ammo) = ammo {
                 u.ammo = ammo;
             }
-            (u.web_strength(&rules()), u.melee, u.ranged)
+            (u.web_strength(&shipped().rules), u.melee, u.ranged)
         };
         let (w, melee, _) = web(105 /* high_men_swordsmen */, None);
         assert_eq!(w, melee, "melee alone");

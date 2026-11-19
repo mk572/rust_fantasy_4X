@@ -102,6 +102,14 @@ pub fn ranged_kind_of(abilities: &[Ability], rules: &crate::rules::Rules) -> Ran
 /// The kind of the weapon shot the abilities give (a bow, sling, boulder or thrown weapon: a ranged
 /// attack of the mundane weapon type), `None` for no such shot. A breath, gaze or bolt is not one.
 pub fn weapon_shot_of(abilities: &[Ability], rules: &crate::rules::Rules) -> Option<RangedKind> {
+    weapon_attack_of(abilities, rules).map(|attack| attack.kind)
+}
+
+/// The attack of that weapon shot.
+pub fn weapon_attack_of<'a>(
+    abilities: &[Ability],
+    rules: &'a crate::rules::Rules,
+) -> Option<&'a crate::rules::damage_type::AbilityAttack> {
     abilities
         .iter()
         .filter_map(|&a| rules.abilities.get(a).attack.as_ref())
@@ -110,7 +118,6 @@ pub fn weapon_shot_of(abilities: &[Ability], rules: &crate::rules::Rules) -> Opt
                 .types
                 .contains(&crate::rules::damage_type::DamageType::MundaneWeapon)
         })
-        .map(|attack| attack.kind)
 }
 
 /// The mana the abilities make a spell caster of: the most any of them gives, 0 for none.
@@ -242,12 +249,11 @@ impl Game {
                 }
             }
         }
-        if abilities
+        casting.demons = abilities
             .iter()
-            .any(|a| *a == Ability::new(67 /* summon_demon */))
-        {
-            casting.demons = 3;
-        }
+            .map(|&a| self.content().rules.abilities.get(a).summons_per_battle)
+            .max()
+            .unwrap_or(0);
         for ability in abilities {
             let spell = match ability.num() {
                 4 => SpellId::new(104), /* doom_bolt */
@@ -590,10 +596,9 @@ impl Game {
         for (side, group) in [(Side::Attacker, attackers), (Side::Defender, defenders)] {
             let ship_decks = decks.of(side);
             let carried = ocean
-                && group.iter().any(|&u| {
-                    self.units()
-                        .unit_has_ability(u, Ability::new(74 /* wind_walking */))
-                });
+                && group
+                    .iter()
+                    .any(|&u| self.units().unit_has_flag(u, UnitFlag::WindWalking));
             let fighters: Vec<hecs::Entity> = group
                 .iter()
                 .copied()
@@ -791,26 +796,19 @@ impl Game {
         self.units()
             .unit_def(unit)
             .is_some_and(|d| d.movement == MovementType::Sailing)
-            && !self
-                .units()
-                .unit_has_ability(unit, Ability::new(24 /* flying */))
-            && !self
-                .units()
-                .unit_has_ability(unit, Ability::new(49 /* non_corporeal */))
+            && !self.units().unit_has_flag(unit, UnitFlag::Flies)
+            && !self.units().unit_has_flag(unit, UnitFlag::NonCorporeal)
     }
 
     /// Whether a unit may fight on the sea: a ship (it carries others or sails), a flier or a
     /// swimmer.
     fn can_fight_at_sea(&self, unit: hecs::Entity) -> bool {
-        let abilities = self.units().unit_abilities(unit);
         self.units().unit_def(unit).is_some_and(|d| {
             matches!(
                 d.movement,
                 MovementType::Flying | MovementType::Sailing | MovementType::Swimming
             )
-        }) || abilities
-            .iter()
-            .any(|a| *a == Ability::new(24 /* flying */))
+        }) || self.units().unit_has_flag(unit, UnitFlag::Flies)
             || self.units().unit_stat(unit, Stat::Transport) > 0
     }
 

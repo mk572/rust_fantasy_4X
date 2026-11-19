@@ -449,7 +449,6 @@ impl Battle {
     pub(super) fn side_turn_effects(&mut self, side: Side) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         let terror = self.has_field(side.other(), Field::Terror);
-        let rules = *self.rules();
         let entangle = self.has_field(side.other(), Field::Entangle);
         for id in 0..self.units.len() {
             if self.units[id].side != side || !self.units[id].is_active() {
@@ -479,7 +478,7 @@ impl Battle {
             // A unit in a web spends its whole turn striking at it.
             if self.units[id].held_by_web() {
                 let u = &mut self.units[id];
-                let dealt = u.web_strength(&rules).min(u.web_hits);
+                let dealt = u.web_strength(&self.content.rules).min(u.web_hits);
                 u.web_hits -= dealt;
                 u.moves_left = HalfInt::ZERO;
                 u.attacked = true;
