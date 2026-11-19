@@ -791,6 +791,10 @@ pub struct BattleRules {
     pub invulnerability_block: i32,
     /// Mana a Mana Leak takes from a caster each turn.
     pub mana_leak_drain: i32,
+    /// The defence a unit gains against an attack from outside a walled city: on a standing
+    /// wall, and elsewhere in the city (`wall_defence` everywhere with `walls_cover_city`).
+    pub wall_defence: i32,
+    pub city_defence: i32,
     /// The strength of Call Lightning's bolt, and of a Wall of Fire's burn.
     pub call_lightning_strength: i32,
     pub wall_of_fire_strength: i32,
@@ -825,6 +829,8 @@ impl Default for BattleRules {
             immolation_strength: 4,
             invulnerability_block: 2,
             mana_leak_drain: 5,
+            wall_defence: 3,
+            city_defence: 1,
             call_lightning_strength: 8,
             wall_of_fire_strength: 5,
             node_counter_strength: 50,

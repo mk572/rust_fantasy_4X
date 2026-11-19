@@ -33,7 +33,7 @@
     (num: 11, id: "confused", help: Some(1010), description: "Each turn it stands about, wanders to a random square, is led by the enemy, or acts as usual.", effects: []),
     (num: 12, id: "create_outpost", help: Some(1011), description: "Can found cities.", effects: []),
     (num: 13, id: "create_undead", help: Some(1012), description: "Raises the dead as undead.", effects: []),
-    (num: 14, id: "death_bolt", help: Some(1013), description: "Ranged attack type: Death Bolt.", attack: Some((delivery: Ranged, types: [Magic, ChaosRealm])), effects: []),
+    (num: 14, id: "death_bolt", help: Some(1013), description: "Ranged attack type: Death Bolt.", attack: Some((delivery: Ranged, types: [Magic, DeathRealm])), effects: []),
     (num: 15, id: "death_gaze", help: Some(1014), description: "Ranged attack type: Death Gaze.", attack: Some((delivery: Ranged, types: [Magic, DeathRealm])), effects: []),
     (num: 16, id: "death_immunity", help: Some(1015), description: "Spells that kill or frighten do nothing to it.", defence: [(against: [Death], effect: Immune)], effects: []),
     (num: 17, id: "dispel_evil", help: Some(1016), description: "Banishes evil creatures.", effects: []),

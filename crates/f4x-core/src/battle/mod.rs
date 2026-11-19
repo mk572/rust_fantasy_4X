@@ -1401,18 +1401,20 @@ impl Battle {
     }
 
     /// The defence a unit being hit gains from the city's walls: against attacks from outside
-    /// the city area, +3 on a standing wall and +1 elsewhere in the city (the original's
-    /// `Battle_Unit_Process_Attack`), or +3 everywhere inside with `walls_cover_city`. Only a
-    /// city with walls gives it.
+    /// the city area (melee or ranged: it is the position that counts, not the attack),
+    /// `wall_defence` on a standing wall and `city_defence` elsewhere in the city (the original's
+    /// `Battle_Unit_Process_Attack`), or `wall_defence` everywhere inside with `walls_cover_city`.
+    /// Only a city with walls gives it.
     fn city_defense_bonus(&self, hit: usize, from: usize) -> i32 {
         let (hit, from) = (&self.units[hit], &self.units[from]);
         if !self.map.is_walled() || !in_city_area(hit.cell) || in_city_area(from.cell) {
             return 0;
         }
+        let rules = &self.content.rules.config.battle;
         if self.walls_cover_city || self.map.has_wall(hit.cell) {
-            3
+            rules.wall_defence
         } else {
-            1
+            rules.city_defence
         }
     }
 

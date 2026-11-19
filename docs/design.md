@@ -115,6 +115,91 @@ treasury and healing rules are all written out in [`game-flow.md`](game-flow.md)
 ## 7. Tactical battle module
 A `Battle` is separate state seeded from the world, played with the same stat and ability components as the world (no translation layer); auto-resolve runs the same rules through the battle AI, and the result is a set of events (casualties, XP, loot, city capture or razing). The rules are in [`combat.md`](combat.md).
 
+### Damage types and defence rules
+
+Every attack is made of a set of damage types (`f4x-def/src/rules/damage_type.rs`): its form (`Weapon`, `Missile`, `Magic`), its element (`Fire`, `Cold`, `Lightning`, `Poison`, `Stoning`, `Death`, `Illusion`), its realm (`NatureRealm` to `ArcaneRealm`) and its delivery (`Melee` or `Ranged`, added where the attack is made). What a unit does against them is a list of defence rules on its abilities and on the lasting spells it carries (`defence` in `abilities.ron` and `spells.ron`): a rule matches an attack with any of its `against` types and all of its `with` types, and is an immunity (no damage), a seen-through illusion, a defence floor, or a bonus to defence or resistance. Tests read the shipped data; the tables below are generated from it (19 November 2026) and list what the data says, not the original's behaviour (differences: `divergences.md` 48). Open: magic immunity (task 711), doom damage and Black Sleep (714), the illusion set (712), death immunity (713).
+
+**Attacks of unit abilities** (`attack`; an ability not listed adds no type):
+
+| # | Ability | Delivery | Types | Armour piercing |
+|---|---|---|---|---|
+| 1 | armor_piercing | Any |  | yes |
+| 3 | bow | Ranged | Missile, Weapon |  |
+| 14 | death_bolt | Ranged | Magic, DeathRealm |  |
+| 15 | death_gaze | Ranged | Magic, DeathRealm |  |
+| 18 | drow_bolt | Ranged | Magic, ChaosRealm |  |
+| 20 | fire_breath | Ranged | Fire, Magic, ChaosRealm |  |
+| 22 | fireball_attack | Ranged | Fire, Magic, ChaosRealm |  |
+| 29 | ice_bolt | Ranged | Cold, Magic, NatureRealm |  |
+| 30 | illusion_attack | Any | Illusion |  |
+| 36 | lightning_bolt | Ranged | Lightning, Magic, ChaosRealm |  |
+| 37 | lightning_breath | Ranged | Lightning, Magic, ChaosRealm | yes |
+| 46 | multi_gaze | Ranged | Magic, ChaosRealm |  |
+| 47 | nature_bolt | Ranged | Magic, NatureRealm |  |
+| 57 | rock_throwing | Ranged | Missile, Weapon |  |
+| 58 | shaman_bolt | Ranged | Magic, NatureRealm |  |
+| 59 | sling | Ranged | Missile, Weapon |  |
+| 60 | sorcery_bolt | Ranged | Magic, SorceryRealm |  |
+| 63 | sprite_bolt | Ranged | Magic, NatureRealm |  |
+| 64 | stoning_gaze | Ranged | Magic, NatureRealm |  |
+| 69 | thrown | Ranged | Missile, Weapon |  |
+
+**Defence rules of abilities and spells** (`against`: any of; `with`: all of; empty `against`: every attack):
+
+| Source | Against | With | Effect |
+|---|---|---|---|
+| ability cold_immunity | Cold |  | Immune |
+| ability death_immunity | Death |  | Immune |
+| ability fire_immunity | Fire |  | Immune |
+| ability illusion_immunity | Illusion |  | SeeThrough |
+| ability large_shield | any | Ranged | DefenceBonus(2) |
+| ability magic_immunity | Magic |  | Immune |
+| ability missile_immunity | Missile |  | Immune |
+| ability poison_immunity | Poison |  | Immune |
+| ability stoning_immunity | Stoning |  | Immune |
+| ability weapon_immunity | Weapon |  | DefenceFloor(10) |
+| spell resist_elements | ChaosRealm, NatureRealm |  | DefenceBonus(3) |
+| spell resist_elements | ChaosRealm, NatureRealm |  | ResistanceBonus(3) |
+| spell elemental_armor | ChaosRealm, NatureRealm |  | DefenceBonus(10) |
+| spell elemental_armor | ChaosRealm, NatureRealm |  | ResistanceBonus(10) |
+| spell resist_magic | NatureRealm, SorceryRealm, ChaosRealm, LifeRealm, DeathRealm, ArcaneRealm |  | ResistanceBonus(5) |
+| spell bless | ChaosRealm, DeathRealm |  | DefenceBonus(3) |
+| spell bless | ChaosRealm, DeathRealm |  | ResistanceBonus(3) |
+| spell righteousness | ChaosRealm, DeathRealm |  | Immune |
+| spell righteousness | ChaosRealm, DeathRealm |  | ResistanceBonus(30) |
+
+**Damage of spells** (`Damage` in `spells.ron`; `Slay` and the `save` of a curse list the types an immunity refuses them by):
+
+| # | Spell | Strength | Types |
+|---|---|---|---|
+| 13 | ice_bolt | 5 | Cold, Magic, NatureRealm |
+| 25 | ice_storm | 6 | Cold, Magic, NatureRealm |
+| 50 | psionic_blast | 5 | Illusion, Magic, SorceryRealm |
+| 83 | fire_bolt | 5 | Fire, Magic, ChaosRealm |
+| 91 | lightning_bolt | 5 | Lightning, Magic, ChaosRealm |
+| 96 | fireball | 5 | Fire, Magic, ChaosRealm |
+| 101 | warp_lightning | 10 | Lightning, Magic, ChaosRealm |
+| 104 | doom_bolt | 10 | Magic, ChaosRealm |
+| 107 | fire_storm | 8 | Fire, Magic, ChaosRealm |
+| 109 | flame_strike | 15 | Fire, Magic, ChaosRealm |
+| 122 | star_fires | 15 | Magic, LifeRealm |
+
+| # | Spell | Refused by an immunity to |
+|---|---|---|
+| 22 | petrify | Stoning |
+| 46 | confusion | Illusion |
+| 53 | vertigo | Illusion |
+| 67 | mind_storm | Illusion |
+| 73 | creature_binding | Illusion |
+| 162 | weakness | Death |
+| 165 | black_sleep | Death |
+| 172 | possession | Death |
+| 194 | death_spell | Death |
+
+**Dice of a part** (`types` on a `Modify` of `Melee` or `Ranged`, `bonus_types` of an item power): Flame Blade (spell 94) and the Flaming item power add fire dice; a defender immune to fire loses them.
+**Positional defence** is not a type rule: a city wall gives `wall_defence` against any attack from outside the city area, the rest of the city `city_defence` (`rules.ron`, `battle/mod.rs` `city_defense_bonus`).
+
+
 ## 8. AI
 - Layered: strategic (what to build, where to expand, when to attack), operational (unit group tasks), and tactical (battle moves).
 - Implement as utility scoring or a behaviour tree over read-only views of the world, outputting `Command`s.
