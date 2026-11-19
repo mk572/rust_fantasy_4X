@@ -30,6 +30,7 @@ pub mod vortex;
 use crate::game::rng::GameRng;
 use crate::game::serial::Serial;
 use crate::game::setting::MeleeVsFliers;
+use crate::rules::battle_flag::{BattleFlag, BattleFlags};
 use crate::rules::damage_type::{DamageType, DamageTypes};
 use crate::rules::Ability;
 use crate::rules::{BattleRules, Rules};
@@ -175,17 +176,14 @@ pub struct BattleUnit {
     /// What the unit can cast on its own (a hero's spells and items, a caster's abilities).
     pub casting: UnitCasting,
     pub ranged_kind: RangedKind,
-    pub flies: bool,
+    /// What its abilities and other sources set on it for the battle: flight, first strike, a
+    /// magical weapon (heroes, fantastic and summoned creatures, units with a flaming or blessed
+    /// blade), ... (`BattleFlag`).
+    pub flags: BattleFlags,
     /// A ship: it sails water and cannot leave it.
     pub sails: bool,
     /// A swimmer: it moves on land and water alike.
     pub swims: bool,
-    pub first_strike: bool,
-    pub negate_first_strike: bool,
-    pub long_range: bool,
-    /// Its weapons are magical, so weapon immunity does not stop its normal attacks: heroes,
-    /// fantastic and summoned creatures, units with a flaming or blessed blade.
-    pub magical_weapon: bool,
     /// The quality of its weapons (`unit::WeaponQuality`): above normal, its attacks have a
     /// plus to hit (its thrown and missile attacks too, but not breath, gazes or spell shots).
     pub weapon_quality: u8,
@@ -340,13 +338,9 @@ impl BattleUnit {
             hero_name: String::new(),
             casting: UnitCasting::default(),
             ranged_kind: RangedKind::None,
-            flies: false,
+            flags: BattleFlags::NONE,
             sails: false,
             swims: false,
-            first_strike: false,
-            negate_first_strike: false,
-            long_range: false,
-            magical_weapon: false,
             weapon_quality: 0,
             special_level: 0,
             leadership: 0,
@@ -445,22 +439,20 @@ impl BattleUnit {
     /// pass through the walls of a city.
     pub fn mover(&self) -> Mover {
         Mover {
-            flying: self.flies,
+            flying: self.flag(BattleFlag::Flies),
             sails: self.sails,
             swims: self.swims,
-            through_walls: self.flies
+            through_walls: self.flag(BattleFlag::Flies)
                 || self.moves_instantly()
-                || self.has(Ability::new(49 /* non_corporeal */)),
-            ignores_mud: self.has(Ability::new(49 /* non_corporeal */)),
+                || self.flag(BattleFlag::NonCorporeal),
+            ignores_mud: self.flag(BattleFlag::NonCorporeal),
         }
     }
 
     /// Teleporting units go to any free square for one move. (Merging units do not: they sink
     /// into the ground and come up a turn later, `BattleCommand::Merge`.)
     pub fn moves_instantly(&self) -> bool {
-        self.abilities
-            .iter()
-            .any(|a| *a == Ability::new(68 /* teleport */))
+        self.flag(BattleFlag::Teleports)
     }
 
     /// Whether the unit can sink into the ground now: it has Merging, half a move left, and did
@@ -530,6 +522,11 @@ impl BattleUnit {
         if self.figures == 0 {
             self.status = Status::Dead;
         }
+    }
+
+    /// Whether the unit has the battle flag (`BattleFlag`).
+    pub fn flag(&self, flag: BattleFlag) -> bool {
+        self.flags.contains(flag)
     }
 
     pub fn has(&self, ability: Ability) -> bool {
@@ -651,7 +648,12 @@ impl BattleUnit {
             } else {
                 self.ranged_parts.clone()
             },
-            nature: AttackNature::of_unit_attack(mode, &self.abilities, self.magical_weapon, rules),
+            nature: AttackNature::of_unit_attack(
+                mode,
+                &self.abilities,
+                self.flag(BattleFlag::MagicalWeapon),
+                rules,
+            ),
             special,
             eldritch: self.has(Ability::new(19 /* eldritch_weapon */))
                 && (mode == Mode::Melee || self.weapon_shot(rules).is_some()),
@@ -1495,7 +1497,7 @@ impl Battle {
     /// that move instantly do not.
     fn burns_at_the_wall(&self, unit: usize) -> bool {
         let u = &self.units[unit];
-        !u.flies && !u.moves_instantly()
+        !u.flag(BattleFlag::Flies) && !u.moves_instantly()
     }
 
     /// A Wall of Fire's attack on a unit: strength 5, area, fire (the original casts a Fireball
@@ -1747,8 +1749,8 @@ impl Battle {
         Fighter {
             melee,
             thrown: u.thrown_combatant(rules),
-            first_strike: u.first_strike,
-            negate_first_strike: u.negate_first_strike,
+            first_strike: u.flag(BattleFlag::FirstStrike),
+            negate_first_strike: u.flag(BattleFlag::NegatesFirstStrike),
             state: u.defender_state(rules),
         }
     }
@@ -1761,7 +1763,8 @@ impl Battle {
     }
 
     fn melee(&mut self, att: usize, def: usize) -> Vec<BattleEvent> {
-        let reach_blocked = self.units[def].flies && !self.units[att].flies;
+        let reach_blocked =
+            self.units[def].flag(BattleFlag::Flies) && !self.units[att].flag(BattleFlag::Flies);
         let mut a = self.fighter(att, reach_blocked);
         let mut d = self.fighter(def, false);
         a.state.defense += self.city_defense_bonus(att, def);
@@ -1826,7 +1829,10 @@ impl Battle {
         let penalty = {
             let a = &self.units[att];
             if a.ranged_kind == RangedKind::Missile {
-                attack::range_penalty(distance(a.cell, self.units[def].cell), a.long_range)
+                attack::range_penalty(
+                    distance(a.cell, self.units[def].cell),
+                    a.flag(BattleFlag::LongRange),
+                )
             } else {
                 0
             }

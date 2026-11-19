@@ -6,6 +6,7 @@
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
+use crate::rules::battle_flag::{BattleFlag, BattleFlags};
 use crate::rules::Ability;
 use crate::rules::SpellId;
 use crate::rules::{MovementType, Stat, UnitId};
@@ -278,7 +279,15 @@ impl Game {
         let current = total - hurt;
         let alive = ((current + hits - 1) / hits) as u32;
         let abilities = self.units().unit_abilities(unit);
-        let flies = def.movement == MovementType::Flying;
+        // Flight and a magical weapon come from more than abilities (the movement type, items and
+        // spells); the abilities add theirs in `sync_abilities`.
+        let mut flags = BattleFlags::NONE;
+        if def.movement == MovementType::Flying {
+            flags.insert(BattleFlag::Flies);
+        }
+        if self.units().unit_has_magical_weapon(unit) {
+            flags.insert(BattleFlag::MagicalWeapon);
+        }
         let has = |a: Ability| abilities.contains(&a);
         // Mithril adds one and adamantium two to the attacks and the defence.
         let quality = self.units().unit_weapon_quality(unit);
@@ -342,13 +351,9 @@ impl Game {
             hero_name: hero.as_ref().map(|h| h.name.clone()).unwrap_or_default(),
             casting: self.unit_casting(unit, &abilities),
             ranged_kind,
-            flies,
+            flags,
             sails: def.movement == MovementType::Sailing,
             swims: def.movement == MovementType::Swimming,
-            first_strike: false,
-            negate_first_strike: false,
-            long_range: false,
-            magical_weapon: self.units().unit_has_magical_weapon(unit),
             weapon_quality: quality,
             special_level: self.units().unit_stat(unit, Stat::SpecialLevel),
             leadership: hero.as_ref().map_or(0, |h| {
@@ -621,7 +626,9 @@ impl Game {
                     .battle_unit_from(unit, side, sources.len() + n)
                     .ok_or(BattleStartError::BadSides)?;
                 // Wind Walking carries the whole stack through the air.
-                bu.flies |= carried;
+                if carried {
+                    bu.flags.insert(BattleFlag::Flies);
+                }
                 bus.push(bu);
             }
             // Melee units take the front squares, shooters the ones behind them.

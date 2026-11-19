@@ -13,6 +13,7 @@ use f4x_core::battle::immunity::{AttackNature, Immunities};
 use f4x_core::battle::map::{distance, in_city_area, Pos};
 use f4x_core::battle::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
 use f4x_core::game::setting::MeleeVsFliers;
+use f4x_core::rules::battle_flag::BattleFlag;
 use f4x_core::rules::{Ability, Rules};
 use f4x_def::half_int::HalfInt;
 
@@ -166,7 +167,7 @@ pub fn expected_damage(
 ) -> f32 {
     let (mode, strength, parts) = if ranged {
         (Mode::Ranged, attacker.ranged, &attacker.ranged_parts)
-    } else if target.flies && !attacker.flies {
+    } else if target.flag(BattleFlag::Flies) && !attacker.flag(BattleFlag::Flies) {
         (
             Mode::Melee,
             vs_fliers.strength(attacker.melee),
@@ -175,8 +176,12 @@ pub fn expected_damage(
     } else {
         (Mode::Melee, attacker.melee, &attacker.melee_parts)
     };
-    let nature =
-        AttackNature::of_unit_attack(mode, &attacker.abilities, attacker.magical_weapon, rules);
+    let nature = AttackNature::of_unit_attack(
+        mode,
+        &attacker.abilities,
+        attacker.flag(BattleFlag::MagicalWeapon),
+        rules,
+    );
     let immunities = Immunities::of(&target.abilities, &target.enchantments, rules);
     if immunities.meets(nature.types) {
         return 0.0;
@@ -596,7 +601,7 @@ mod tests {
             1,
         );
         let (walker, bat) = (&b.units[0], &b.units[1]);
-        assert!(bat.flies);
+        assert!(bat.flag(BattleFlag::Flies));
         let expect = |rule| expected_damage(&b.content.rules, walker, bat, false, rule);
         assert_eq!(expect(MeleeVsFliers::Zero), 0.0);
         assert!(expect(MeleeVsFliers::Half) > 0.0);
@@ -628,7 +633,7 @@ mod tests {
             0.0
         );
         let mut magic = a.clone();
-        magic.magical_weapon = true;
+        magic.flags.insert(BattleFlag::MagicalWeapon);
         assert!(expected_damage(&b.content.rules, &magic, stone, false, rule) > 0.0);
     }
 
@@ -663,7 +668,7 @@ mod tests {
             &[(196 /* sky_drake */, (10, 5))],
             1,
         );
-        assert!(b.units[1].flies);
+        assert!(b.units[1].flag(BattleFlag::Flies));
         assert_eq!(next_command(&b), BattleCommand::Done { unit: 0 });
     }
 

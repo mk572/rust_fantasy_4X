@@ -17,6 +17,7 @@
 //!
 //! Tests: in battle/tests.rs.
 
+use crate::rules::battle_flag::BattleFlag;
 use crate::rules::damage_type::DamageType;
 use crate::rules::Ability;
 use f4x_def::half_int::HalfInt;
@@ -149,7 +150,9 @@ impl BattleUnit {
         self.resistance = (self.resistance + wanted.resistance).max(0);
         self.to_hit += wanted.to_hit;
         self.to_block += wanted.to_block;
-        self.magical_weapon |= wanted.magical;
+        if wanted.magical {
+            self.flags.insert(BattleFlag::MagicalWeapon);
+        }
     }
 
     /// Whether the creature belongs to a realm (a summoned or fantastic creature, not one of a
@@ -467,8 +470,8 @@ impl Battle {
             // Entangle holds only walkers with a body: the help says so, and the original's code,
             // which takes the move from every unit, is taken to be a bug.
             if entangle
-                && !self.units[id].flies
-                && !self.units[id].has(Ability::new(49 /* non_corporeal */))
+                && !self.units[id].flag(BattleFlag::Flies)
+                && !self.units[id].flag(BattleFlag::NonCorporeal)
             {
                 let u = &mut self.units[id];
                 u.moves_left = u.moves_left.saturating_sub(crate::battle::map::OPEN_COST);

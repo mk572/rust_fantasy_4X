@@ -8,8 +8,8 @@
 //!
 //! Tests: in battle/tests.rs.
 
+use crate::rules::battle_flag::{BattleFlag, BattleFlags};
 use crate::rules::damage_type::{DamageType, DamageTypes};
-use crate::rules::defs::BattleFlag;
 use crate::rules::Ability;
 use crate::spell::unit_effect::{UnitEffect, UnitEffects};
 use f4x_def::half_int::HalfInt;
@@ -97,11 +97,7 @@ pub struct BaseStats {
     /// Hit points of one figure, without the extra ones life steal gave.
     pub hits: i32,
     pub moves: HalfInt,
-    pub flies: bool,
-    pub first_strike: bool,
-    pub negate_first_strike: bool,
-    pub long_range: bool,
-    pub magical_weapon: bool,
+    pub flags: BattleFlags,
     pub special_level: i32,
     pub ranged_kind: RangedKind,
     pub abilities: Vec<Ability>,
@@ -122,11 +118,7 @@ impl BaseStats {
             to_block: unit.to_block,
             hits: unit.hits - unit.extra_hits,
             moves: unit.moves,
-            flies: unit.flies,
-            first_strike: unit.first_strike,
-            negate_first_strike: unit.negate_first_strike,
-            long_range: unit.long_range,
-            magical_weapon: unit.magical_weapon,
+            flags: unit.flags,
             special_level: unit.special_level,
             ranged_kind: unit.ranged_kind,
             abilities: unit.abilities.clone(),
@@ -635,11 +627,7 @@ impl BattleUnit {
         self.to_block = base.to_block;
         self.hits = base.hits;
         self.moves = base.moves;
-        self.flies = base.flies;
-        self.first_strike = base.first_strike;
-        self.negate_first_strike = base.negate_first_strike;
-        self.long_range = base.long_range;
-        self.magical_weapon = base.magical_weapon;
+        self.flags = base.flags;
         self.special_level = base.special_level;
         self.enchantments = base.enchantments.clone();
         self.effects = base.effects;
@@ -729,20 +717,14 @@ impl BattleUnit {
 
     /// The flags the battle reads, brought in line with the abilities.
     pub(super) fn sync_abilities(&mut self, rules: &Rules) {
-        let flags: Vec<BattleFlag> = self
-            .abilities
-            .iter()
-            .flat_map(|&a| rules.abilities.get(a).flags.iter().copied())
-            .collect();
-        let has = |f: BattleFlag| flags.contains(&f);
-        self.first_strike |= has(BattleFlag::FirstStrike);
-        self.negate_first_strike |= has(BattleFlag::NegatesFirstStrike);
-        self.long_range |= has(BattleFlag::LongRange);
-        self.magical_weapon |= has(BattleFlag::MagicalWeapon);
-        self.flies |= has(BattleFlag::Flies);
+        for &a in &self.abilities {
+            for &f in &rules.abilities.get(a).flags {
+                self.flags.insert(f);
+            }
+        }
         // A web or sleep grounds a flyer.
-        if has(BattleFlag::Grounds) {
-            self.flies = false;
+        if self.flags.contains(BattleFlag::Grounds) {
+            self.flags = self.flags.without(BattleFlag::Flies);
         }
     }
 }

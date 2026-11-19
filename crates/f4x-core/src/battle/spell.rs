@@ -18,6 +18,7 @@
 //! Not here: dispelling battlefield enchantments, the spells whose effects are not in the game,
 //! the node counter and the heroes' own casting.
 
+use crate::rules::battle_flag::BattleFlag;
 use crate::rules::damage_type::DamageType;
 use crate::rules::damage_type::DamageTypes;
 use crate::rules::Ability;
@@ -934,7 +935,7 @@ impl Game {
                     }
                     self.check_stacking_in_battle(battle.player_of(side), spell, def, u)?;
                 }
-                if UnitEffect::Web.is_in(def) && u.has(Ability::new(49 /* non_corporeal */)) {
+                if UnitEffect::Web.is_in(def) && u.flag(BattleFlag::NonCorporeal) {
                     return Err(SpellError::Target(TargetError::NonCorporeal));
                 }
                 // Warp Wood needs a missile unit, whatever its kind, and a unit is warped once.
@@ -1283,8 +1284,8 @@ impl Game {
                 let over = battle
                     .unit_at(cell)
                     .filter(|u| {
-                        !u.flies
-                            && !u.has(Ability::new(49 /* non_corporeal */))
+                        !u.flag(BattleFlag::Flies)
+                            && !u.flag(BattleFlag::NonCorporeal)
                             && !u.has(Ability::new(43 /* merging */))
                     })
                     .map(|u| u.id);

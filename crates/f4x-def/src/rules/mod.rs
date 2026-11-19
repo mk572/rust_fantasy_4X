@@ -4,6 +4,7 @@
 //! Tests: none, because it only declares modules.
 
 pub mod ai_site;
+pub mod battle_flag;
 pub mod damage_type;
 pub mod defs;
 pub mod effects;

@@ -31,6 +31,7 @@ use f4x_core::battle::map::{self, Pos};
 use f4x_core::battle::spell::{slay_allows, BattleEffect};
 use f4x_core::battle::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
 use f4x_core::game::Game;
+use f4x_core::rules::battle_flag::BattleFlag;
 use f4x_core::rules::effects::{Effect, EffectRule, TargetSel};
 use f4x_core::rules::{ModOp, SpellDef, SpellId, Stat};
 use f4x_core::spell::unit_effect::UnitEffect;
@@ -316,7 +317,7 @@ impl Scene<'_> {
         self.friends
             .iter()
             .copied()
-            .filter(|u| !u.magical_weapon && u.melee > 0)
+            .filter(|u| !u.flag(BattleFlag::MagicalWeapon) && u.melee > 0)
             .collect()
     }
 
@@ -399,9 +400,8 @@ impl Scene<'_> {
         let Some(battle) = self.game.battle() else {
             return 0.0;
         };
-        let walks = |u: &BattleUnit| {
-            !u.flies && !u.has(f4x_core::rules::Ability::new(49 /* non_corporeal */))
-        };
+        let walks =
+            |u: &BattleUnit| !u.flag(BattleFlag::Flies) && !u.flag(BattleFlag::NonCorporeal);
         let near = |u: &&BattleUnit, reach: u32| map::distance(u.cell, cell) <= reach;
         let ours = |reach: u32| Self::sum(self.friends, |u| walks(u) && near(&u, reach));
         let theirs = |reach: u32| Self::sum(self.enemies, |u| walks(u) && near(&u, reach));
