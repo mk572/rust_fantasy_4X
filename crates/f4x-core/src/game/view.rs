@@ -219,7 +219,7 @@ mod tests {
 
     fn game() -> Game {
         let mut g = Game::new(3);
-        g.content = shipped();
+        g.set_content(shipped());
         let grass = g
             .content
             .terrains
@@ -267,7 +267,7 @@ mod tests {
     #[test]
     fn the_game_answers_what_a_wizard_sees_and_has() -> TestResult {
         let mut g = Game::new(3);
-        g.content = shipped();
+        g.set_content(shipped());
         let grass = g
             .content
             .terrains

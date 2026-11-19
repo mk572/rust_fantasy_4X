@@ -511,7 +511,7 @@ mod tests {
             g
         };
         let mut g = Game::new(2);
-        g.content = c;
+        g.set_content(c);
         g.map = Some(Map::new(build(), build()));
         for id in [P0, P1] {
             g.add_player(id, "");

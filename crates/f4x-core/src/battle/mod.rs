@@ -13,6 +13,7 @@
 
 pub mod attack;
 pub mod casting;
+pub mod content_ref;
 pub mod field;
 pub mod game;
 pub mod immunity;
@@ -1041,6 +1042,10 @@ pub struct Battle {
     /// The numbers of the battle (`rules.ron`), copied when it starts.
     #[serde(default)]
     pub rules: BattleRules,
+    /// The definitions of the game, shared with it: not saved, the game that loads the battle
+    /// attaches its own.
+    #[serde(skip)]
+    pub content: content_ref::ContentRef,
     rng: GameRng,
 }
 
@@ -1080,6 +1085,7 @@ impl Battle {
 
     /// Start a battle. Unit ids are assigned in list order; the attacker moves first.
     pub fn new(
+        content: std::sync::Arc<f4x_def::content::Content>,
         attacker: PlayerId,
         defender: PlayerId,
         map: BattleMap,
@@ -1114,6 +1120,7 @@ impl Battle {
             walls_cover_city: false,
             max_side: default_side_limit(),
             rules: BattleRules::default(),
+            content: content_ref::ContentRef::new(content),
             rng: GameRng::new(seed),
         };
         let _ = b.begin_side_turn();

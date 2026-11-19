@@ -29,7 +29,7 @@ fn world() -> Game {
         .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(3);
-    g.content = c;
+    g.set_content(c);
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for id in [P0, P1] {

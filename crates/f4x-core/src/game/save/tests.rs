@@ -58,7 +58,7 @@ fn game() -> Game {
         .id_numbered(20 /* sorcery_node */)
         .expect("id_of succeeds");
     let mut g = Game::new(99);
-    g.content = c;
+    g.set_content(c);
     g.settings.basic.magic_strength = 2;
     g.settings.basic.difficulty = 4;
     g.map = Some(map);
@@ -177,7 +177,7 @@ fn a_snapshot_survives_text() -> TestResult {
 fn restoring_gives_the_same_game() -> TestResult {
     let g = game();
     let snap = g.snapshot();
-    let back = Snapshot::from_text(&snap.to_text()?)?.restore(g.content.clone())?;
+    let back = Snapshot::from_text(&snap.to_text()?)?.restore(g.content().clone())?;
     assert_eq!(back.snapshot(), snap);
     assert_eq!(back.turn, g.turn);
     assert_eq!(back.economy().cities().len(), 3);
@@ -238,7 +238,7 @@ fn the_random_stream_resumes_where_it_stopped() -> TestResult {
         g.rng.draws() > 0,
         "the world used random numbers (outposts, healing)"
     );
-    let mut back = g.snapshot().restore(g.content.clone())?;
+    let mut back = g.snapshot().restore(g.content().clone())?;
     for _ in 0..5 {
         assert_eq!(g.next_u64(), back.next_u64());
     }
@@ -302,7 +302,7 @@ fn missing_content_is_reported_by_number_or_name() -> TestResult {
         .by_num(95)
         .ok_or("by_name is missing")?
         .num;
-    let mut without = g.content.clone();
+    let mut without = g.content().clone();
     let units: Vec<_> = without
         .rules
         .units
@@ -316,7 +316,7 @@ fn missing_content_is_reported_by_number_or_name() -> TestResult {
         snap.clone().restore(without).err(),
         Some(LoadError::UnknownId("unit", spearmen.to_string()))
     );
-    let mut no_terrain = g.content.clone();
+    let mut no_terrain = g.content().clone();
     let hills = 5 /* hills */;
     let terrains: Vec<_> = no_terrain
         .terrains
@@ -366,7 +366,7 @@ fn unreadable_and_foreign_saves_are_refused() -> TestResult {
 #[test]
 fn contradictory_saves_are_refused() {
     let g = game();
-    let content = g.content.clone();
+    let content = g.content().clone();
     let base = g.snapshot();
 
     let mut dup = base.clone();
@@ -407,7 +407,8 @@ fn contradictory_saves_are_refused() {
 fn an_empty_game_round_trips() -> TestResult {
     let g = Game::new(5);
     let snap = g.snapshot();
-    let back = Snapshot::from_text(&snap.to_text()?)?.restore(Default::default())?;
+    let back =
+        Snapshot::from_text(&snap.to_text()?)?.restore(f4x_def::content::Content::default())?;
     assert_eq!(back.snapshot(), snap);
     Ok(())
 }
@@ -587,7 +588,7 @@ fn every_setting_survives_a_save() -> TestResult {
 fn a_save_with_out_of_range_settings_is_brought_into_range() -> TestResult {
     let mut snap = Game::new(5).snapshot();
     snap.settings.basic.difficulty = 9;
-    let back = snap.restore(Default::default())?;
+    let back = snap.restore(f4x_def::content::Content::default())?;
     assert_eq!(back.settings().basic.difficulty, 5);
     Ok(())
 }
@@ -607,7 +608,7 @@ fn weapon_quality_survives_a_save() -> TestResult {
         crate::unit::WeaponQuality(crate::unit::WEAPON_MITHRIL),
     );
     let snap = g.snapshot();
-    let back = Snapshot::from_text(&snap.to_text()?)?.restore(g.content.clone())?;
+    let back = Snapshot::from_text(&snap.to_text()?)?.restore(g.content().clone())?;
     let again = back
         .units()
         .units_at(at(11, 6))
@@ -633,7 +634,7 @@ fn an_undead_unit_stays_undead_through_a_save() -> TestResult {
     let unit = g.spawn_unit(P0, at(11, 6), walker);
     g.make_undead(unit);
     let snap = g.snapshot();
-    let back = Snapshot::from_text(&snap.to_text()?)?.restore(g.content.clone())?;
+    let back = Snapshot::from_text(&snap.to_text()?)?.restore(g.content().clone())?;
     let again = back
         .units()
         .units_at(at(11, 6))
@@ -649,7 +650,7 @@ fn an_undead_unit_stays_undead_through_a_save() -> TestResult {
 fn creation_numbers_keep_counting_after_a_load() -> TestResult {
     let g = game();
     let next = g.next_serial;
-    let mut back = g.snapshot().restore(g.content.clone())?;
+    let mut back = g.snapshot().restore(g.content().clone())?;
     let walker = back
         .content
         .rules
@@ -684,7 +685,7 @@ fn a_unit_in_stasis_stays_there_through_a_save() -> TestResult {
         .world
         .insert_one(unit, crate::unit::stasis::Stasis::Lingering);
     let snap = g.snapshot();
-    let back = Snapshot::from_text(&snap.to_text()?)?.restore(g.content.clone())?;
+    let back = Snapshot::from_text(&snap.to_text()?)?.restore(g.content().clone())?;
     let again = back
         .units()
         .units_at(at(11, 6))
@@ -699,7 +700,7 @@ fn a_unit_in_stasis_stays_there_through_a_save() -> TestResult {
 #[test]
 fn a_lasting_spell_on_the_world_stays_through_a_save() -> TestResult {
     let mut g = game();
-    g.content = crate::game::testutil::shipped();
+    g.set_content(crate::game::testutil::shipped());
     let spell = g
         .content
         .rules
@@ -710,7 +711,7 @@ fn a_lasting_spell_on_the_world_stays_through_a_save() -> TestResult {
         .ok_or("map is missing")?;
     g.add_global(P0, spell);
     let serial = g.wizard(P0).ok_or("wizard is missing")?.global_instances()[0].1;
-    let back = g.snapshot().restore(g.content.clone())?;
+    let back = g.snapshot().restore(g.content().clone())?;
     assert_eq!(
         back.wizard(P0)
             .ok_or("wizard is missing")?
@@ -724,7 +725,7 @@ fn a_lasting_spell_on_the_world_stays_through_a_save() -> TestResult {
 #[test]
 fn a_spell_on_a_city_stays_through_a_save() -> TestResult {
     let mut g = game();
-    g.content = crate::game::testutil::shipped();
+    g.set_content(crate::game::testutil::shipped());
     let spell = g
         .content
         .rules
@@ -741,7 +742,7 @@ fn a_spell_on_a_city_stays_through_a_save() -> TestResult {
         .ok_or("find is missing")?
         .0;
     g.add_city_enchantment(city, spell, P0);
-    let back = g.snapshot().restore(g.content.clone())?;
+    let back = g.snapshot().restore(g.content().clone())?;
     let again = back
         .economy()
         .cities()
@@ -757,7 +758,7 @@ fn a_spell_on_a_city_stays_through_a_save() -> TestResult {
 #[test]
 fn a_spell_on_a_unit_stays_through_a_save() -> TestResult {
     let mut g = game();
-    g.content = crate::game::testutil::shipped();
+    g.set_content(crate::game::testutil::shipped());
     let spell = g
         .content
         .rules
@@ -768,7 +769,7 @@ fn a_spell_on_a_unit_stays_through_a_save() -> TestResult {
         .ok_or("map is missing")?;
     let unit = g.units().player_units(P0)[0];
     g.add_unit_enchantment(unit, spell, P0);
-    let back = g.snapshot().restore(g.content.clone())?;
+    let back = g.snapshot().restore(g.content().clone())?;
     let again = back.units().player_units(P0)[0];
     assert_eq!(back.units().unit_enchantments(again), vec![(spell, P0)]);
     assert_eq!(back.snapshot(), g.snapshot());
@@ -885,7 +886,7 @@ fn a_wizard_without_a_player_is_refused() {
     extra.player = 200;
     snap.wizards.push(extra);
     assert!(matches!(
-        snap.restore(g.content.clone()).err(),
+        snap.restore(g.content().clone()).err(),
         Some(LoadError::Inconsistent(_))
     ));
 }

@@ -152,8 +152,19 @@ impl Game {
     // ---- setting up by hand ------------------------------------------------------
 
     /// Replace the game's definitions.
-    pub fn set_content(&mut self, content: Content) {
-        self.content = content;
+    pub fn set_content(&mut self, content: impl Into<std::sync::Arc<Content>>) {
+        self.content = content.into();
+    }
+
+    /// The definitions, for a test that changes one (a copy is made if a battle shares them).
+    #[cfg(test)]
+    pub(crate) fn content_mut(&mut self) -> &mut Content {
+        std::sync::Arc::make_mut(&mut self.content)
+    }
+
+    /// The definitions of the game as the shared handle a battle keeps.
+    pub fn content_arc(&self) -> std::sync::Arc<Content> {
+        self.content.clone()
     }
 
     /// Hand the game its name lists (a loaded game has none until this is called).
@@ -192,7 +203,7 @@ impl Game {
     ) -> Game {
         let mut game = Game::new(seed);
         game.settings = settings;
-        game.content = content.clone();
+        game.set_content(std::sync::Arc::new(content.clone()));
         game.apply_content_settings();
         game.names = names;
         game.set_map(map);

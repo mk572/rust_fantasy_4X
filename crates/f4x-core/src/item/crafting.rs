@@ -611,7 +611,7 @@ mod tests {
             .id_numbered(4 /* grassland */)
             .expect("id_of succeeds");
         let mut g = Game::new(7);
-        g.content = c;
+        g.set_content(c);
         g.map = Some(Map::new(Grid::new(8, 8, grass), Grid::new(8, 8, grass)));
         g.add_player(P0, "Merlin");
         g.treasury_mut(P0).expect("treasury_mut succeeds").mana =

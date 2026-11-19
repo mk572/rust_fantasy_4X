@@ -14,33 +14,29 @@ impl crate::game::Game {
     /// saved with. Called when a game is made and when one is loaded.
     pub(crate) fn apply_content_settings(&mut self) {
         let rules = self.settings.rules;
-        let targets = self.content.rules.config.targets.clone();
-        self.content.settings.half_upkeep.enabled = rules.half_upkeep;
-        self.content.settings.spell_library.arcane_candidate_cap = rules.arcane_candidate_cap;
+        let content = std::sync::Arc::make_mut(&mut self.content);
+        let targets = content.rules.config.targets.clone();
+        content.settings.half_upkeep.enabled = rules.half_upkeep;
+        content.settings.spell_library.arcane_candidate_cap = rules.arcane_candidate_cap;
         // Adamant Alchemy: the retort costs two picks, for the creation screen, the computer
         // wizards and the treasure alike (they all read the cost from the rules).
         if rules.adamant_alchemy {
-            if let Some(alchemy) = self
-                .content
-                .rules
-                .retorts
-                .by_num_mut(targets.alchemy_retort)
-            {
+            if let Some(alchemy) = content.rules.retorts.by_num_mut(targets.alchemy_retort) {
                 alchemy.cost = 2;
             }
         }
         // 2-Pick Myrran: two picks, and the fortress on Myrror makes no more mana.
         if rules.two_pick_myrran {
-            if let Some(myrran) = self.content.rules.retorts.by_num_mut(targets.myrran_retort) {
+            if let Some(myrran) = content.rules.retorts.by_num_mut(targets.myrran_retort) {
                 myrran.cost = 2;
             }
-            self.content.settings.myrror_fortress_power = 0;
+            content.settings.myrror_fortress_power = 0;
         }
         for (num, capacity) in [
             (targets.trireme_unit, rules.trireme_capacity),
             (targets.galley_unit, rules.galley_capacity),
         ] {
-            if let Some(unit) = self.content.rules.units.by_num_mut(num) {
+            if let Some(unit) = content.rules.units.by_num_mut(num) {
                 unit.stats.insert(
                     crate::rules::Stat::Transport,
                     HalfInt::from_int(i32::from(capacity)),

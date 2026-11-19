@@ -12,7 +12,7 @@ fn world() -> Game {
         .expect("id_of succeeds");
     let map = Map::new(Grid::new(12, 8, grass), Grid::new(12, 8, grass));
     let mut game = Game::new(3);
-    game.content = c;
+    game.set_content(c);
     game.map = Some(map);
     game.add_player(PlayerId(0), "Merlin");
     game.add_player(PlayerId(1), "Raven");

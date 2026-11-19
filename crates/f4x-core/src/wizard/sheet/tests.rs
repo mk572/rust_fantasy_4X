@@ -11,7 +11,7 @@ const P0: PlayerId = PlayerId(0);
 
 fn game_with(books: &[(RealmId, u8)], retorts: &[Retort]) -> Game {
     let mut g = Game::new(5);
-    g.content = shipped();
+    g.set_content(shipped());
     g.add_player(P0, "W");
     g.init_wizard(P0, books, retorts, None)
         .expect("init_wizard succeeds");
@@ -72,7 +72,7 @@ fn the_library_depends_on_the_seed_and_the_books_alone() -> TestResult {
             &[],
         );
         let mut rng = GameRng::new(seed);
-        let content = g.content.clone();
+        let content = g.content().clone();
         let mut w = g.wizard_mut(P0).expect("wizard_mut succeeds");
         w.init_library(&content, &mut rng, None);
         w.refill_research(&content, &mut rng, 1, true);
@@ -172,7 +172,7 @@ fn the_power_is_split_by_the_percentages() -> TestResult {
 #[test]
 fn the_spell_of_mastery_is_offered_last_and_costs_less_for_each_spell_known() -> TestResult {
     let mut g = game_with(&[(RealmId::new(3 /* life */), 1)], &[]);
-    let content = g.content.clone();
+    let content = g.content().clone();
     let mastery = spell(&g, 213 /* spell_of_mastery */);
     let mut rng = GameRng::new(3);
     g.wizard_mut(P0)
@@ -260,7 +260,7 @@ fn research_runs_from_choice_to_a_known_spell() -> TestResult {
         &[(RealmId::new(3 /* life */), 3)],
         &[Retort::new(7) /* sage_master */],
     );
-    let content = g.content.clone();
+    let content = g.content().clone();
     let mut rng = GameRng::new(3);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
@@ -393,7 +393,7 @@ fn power_reaches_the_reserve_the_research_and_the_skill() -> TestResult {
         &[(RealmId::new(3 /* life */), 2)],
         &[Retort::new(10) /* archmage */],
     );
-    let content = g.content.clone();
+    let content = g.content().clone();
     let mut rng = GameRng::new(3);
     let target = spell(&g, 125 /* healing */);
     let mut w = g.wizard_mut(P0).ok_or("wizard_mut is missing")?;
@@ -456,7 +456,7 @@ fn the_books_of_one_realm_that_the_setting_names_take_off_the_spell_of_mastery()
 #[test]
 fn a_found_book_opens_the_spells_its_realms_table_row_allows() -> TestResult {
     let mut g = game_with(&[(RealmId::new(3 /* life */), 2)], &[]);
-    let content = g.content.clone();
+    let content = g.content().clone();
     let life = RealmId::new(3);
     let mut rng = GameRng::new(11);
     let count = |g: &Game, rarity: Rarity| -> usize {
@@ -542,7 +542,7 @@ fn a_wizards_books_decide_which_spells_it_may_hold() -> TestResult {
 #[test]
 fn with_the_patch_setting_only_so_many_arcane_spells_are_on_offer_at_once() -> TestResult {
     let mut g = game_with(&[(RealmId::new(3 /* life */), 4)], &[]);
-    let mut content = g.content.clone();
+    let mut content = g.content().clone();
     content.settings.spell_library.arcane_candidate_cap = 4;
     let mut rng = GameRng::new(3);
     let arcane_on_offer = |g: &Game| {
@@ -554,7 +554,7 @@ fn with_the_patch_setting_only_so_many_arcane_spells_are_on_offer_at_once() -> T
             .count()
     };
     // Without a cap the arcane spells fill the eight places that life leaves free.
-    let plain = g.content.clone();
+    let plain = g.content().clone();
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .refill_research(&plain, &mut rng, 5, true);

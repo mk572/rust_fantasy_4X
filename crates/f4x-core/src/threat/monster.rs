@@ -360,7 +360,7 @@ mod tests {
 
     fn game() -> Game {
         let mut g = Game::new(3);
-        g.content = shipped();
+        g.set_content(shipped());
         g
     }
 

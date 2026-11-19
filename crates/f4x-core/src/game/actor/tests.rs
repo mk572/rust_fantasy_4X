@@ -14,7 +14,7 @@ fn a_command_names_the_player_it_acts_for() -> TestResult {
         .id_numbered(4 /* grassland */)
         .ok_or("no grass")?;
     let mut g = Game::new(3);
-    g.content = c;
+    g.set_content(c);
     g.map = Some(Map::new(Grid::new(8, 8, grass), Grid::new(8, 8, grass)));
     g.add_player(P0, "A");
     g.add_player(P1, "B");

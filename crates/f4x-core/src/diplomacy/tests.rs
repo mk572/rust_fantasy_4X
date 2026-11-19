@@ -27,7 +27,7 @@ fn world() -> Game {
         .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(11);
-    g.content = c;
+    g.set_content(c);
     g.map = Some(Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass)));
     for id in [P0, P1, P2] {
         g.add_player(id, "W");

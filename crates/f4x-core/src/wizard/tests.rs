@@ -8,7 +8,7 @@ const P0: PlayerId = PlayerId(0);
 
 fn game() -> Game {
     let mut g = Game::new(5);
-    g.content = shipped();
+    g.set_content(shipped());
     g.add_player(P0, "W");
     g
 }

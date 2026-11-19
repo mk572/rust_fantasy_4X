@@ -34,7 +34,7 @@ fn world() -> Game {
     };
     let map = Map::new(build(), build());
     let mut game = Game::new(1);
-    game.content = c;
+    game.set_content(c);
     game.map = Some(map);
     game.put_feature(at(1, 4), 21 /* tower */);
     for id in (0..4).map(PlayerId) {

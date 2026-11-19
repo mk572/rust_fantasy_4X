@@ -106,7 +106,7 @@ mod tests {
             .id_numbered(16 /* nightshade */)
             .expect("id_of succeeds");
         let mut game = Game::new(3);
-        game.content = c;
+        game.set_content(c);
         let mut map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
         for &(x, y) in plants {
             map.plane_mut(Plane::Arcanus).set_mineral(x, y, Some(plant));

@@ -502,7 +502,7 @@ fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() -> TestResult {
         .id_numbered(4 /* grassland */)
         .ok_or("grassland is not in the content")?;
     let mut g = Game::new(3);
-    g.content = c;
+    g.set_content(c);
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.add_player(PlayerId(0), "W");
     g.treasury_mut(PlayerId(0))

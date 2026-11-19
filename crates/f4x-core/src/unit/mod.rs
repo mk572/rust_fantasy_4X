@@ -913,7 +913,7 @@ mod tests {
             .ok_or("grassland is not in the content")?;
         let mut g = crate::game::Game::new(1);
         g.add_player(PlayerId(0), "");
-        g.content = c;
+        g.set_content(c);
         g.map = Some(Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass)));
         let spear = g
             .content

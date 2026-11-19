@@ -671,7 +671,7 @@ impl Game {
                 map = map.with_flying_fortress();
             }
         }
-        let mut battle = Battle::new(a_owner, d_owner, map, units, seed);
+        let mut battle = Battle::new(self.content.clone(), a_owner, d_owner, map, units, seed);
         battle.site = Some(site);
         battle.melee_vs_fliers = self.settings.rules.melee_vs_fliers;
         battle.walls_cover_city = self.settings.rules.walls_cover_city;

@@ -23,7 +23,7 @@ fn world() -> (Game, Serial) {
         .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(3);
-    g.content = c;
+    g.set_content(c);
     g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
     g.fog = crate::map::fog::Fog::new(20, 10);
     g.add_player(P0, "W");

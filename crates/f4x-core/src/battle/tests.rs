@@ -616,7 +616,7 @@ fn game_seeded(seed: u64) -> Game {
         .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(seed);
-    g.content = c;
+    g.set_content(c);
     g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
     for id in [A, D] {
         g.add_player(id, "");

@@ -33,7 +33,7 @@ fn world(troops: usize) -> Game {
         .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(11);
-    g.content = c;
+    g.set_content(c);
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     g.add_player(P0, "W");
@@ -681,7 +681,7 @@ fn island() -> Game {
     }
     g.map = Some(map);
     g.settings.world.sea_raids = true;
-    g.content.rules.config.threat.sea_raid.chance_percent = 100;
+    g.content_mut().rules.config.threat.sea_raid.chance_percent = 100;
     // The two cities of `world` stand in the sea now; the island's own town takes the west.
     for (e, ..) in g.economy().cities() {
         let _ = g.world.despawn(e);

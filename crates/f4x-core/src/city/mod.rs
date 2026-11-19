@@ -142,7 +142,7 @@ mod tests {
         };
         let mut game = Game::new(1);
         game.map = Some(crate::map::Map::new(build(), build()));
-        game.content = c;
+        game.set_content(c);
         let at = |plane, x, y| Position { plane, x, y };
         // A tower stands on both planes, a node on one.
         game.put_feature(at(Plane::Arcanus, 14, 8), 21 /* tower */);

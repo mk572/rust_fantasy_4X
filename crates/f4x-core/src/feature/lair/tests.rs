@@ -26,7 +26,7 @@ fn world(seed: u64) -> Game {
         .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut g = Game::new(seed);
-    g.content = c;
+    g.set_content(c);
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for id in [P0, PlayerId(1)] {
@@ -1034,8 +1034,8 @@ fn rich_lair() -> Lair {
 /// The lair world with a hero roster and an independent city that has a home at (2, 2).
 fn heroic_world() -> (Game, PlayerId) {
     let mut g = crate::hero::game::tests::world();
-    let lair_feature = world(1).content.features;
-    g.content.features = lair_feature;
+    let lair_feature = world(1).content.features.clone();
+    g.content_mut().features = lair_feature;
     let town = PlayerId(9);
     g.spawn_city(town, at(2, 2), "Free Town".into(), None, 4);
     (g, town)
@@ -1099,7 +1099,7 @@ fn a_neutral_winner_without_a_hero_gets_no_item_and_a_prisoner_joins_it_at_home(
 #[test]
 fn a_prisoner_with_no_free_hero_left_is_rerolled_for_a_wizard_too() -> TestResult {
     let mut g = crate::hero::game::tests::world();
-    g.content.features = world(1).content.features;
+    g.content_mut().features = world(1).content.features.clone();
     for kind in 0..g.content.rules.hero_templates.len() {
         g.spawn_hero(P0, at(1, 1), kind)
             .map_err(|e| format!("{e:?}"))?;

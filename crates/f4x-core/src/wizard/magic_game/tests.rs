@@ -39,7 +39,7 @@ fn world() -> Game {
         .id_numbered(4 /* grassland */)
         .expect("id_of succeeds");
     let mut game = Game::new(7);
-    game.content = c;
+    game.set_content(c);
     game.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     game.add_player(P0, "Merlin");
     game.treasury_mut(P0).expect("treasury_mut succeeds").gold =

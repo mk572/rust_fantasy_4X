@@ -386,7 +386,7 @@ mod tests {
         for id in (0..3).map(PlayerId) {
             g.add_player(id, "");
         }
-        g.content = c;
+        g.set_content(c);
         g.map = Some(map);
         let walker = g
             .content
@@ -429,7 +429,7 @@ mod tests {
         for id in (0..3).map(PlayerId) {
             g.add_player(id, "");
         }
-        g.content = c;
+        g.set_content(c);
         g.map = Some(map);
         let at = Position {
             plane: Plane::Arcanus,
@@ -511,7 +511,7 @@ mod tests {
         for id in (0..3).map(PlayerId) {
             g.add_player(id, "");
         }
-        g.content = c;
+        g.set_content(c);
         g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
         let at = |x| Position {
             plane: Plane::Arcanus,
@@ -596,7 +596,7 @@ mod tests {
         let map = Map::new(Grid::new(12, 8, grass), Grid::new(12, 8, grass));
         let mut g = Game::new(1);
         g.add_player(PlayerId(0), "");
-        g.content = c;
+        g.set_content(c);
         g.map = Some(map);
         let walker = g
             .content

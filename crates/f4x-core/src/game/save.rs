@@ -1202,7 +1202,7 @@ impl Snapshot {
     }
 
     /// Rebuild the game, resolving every id against `content`.
-    pub fn restore(self, content: Content) -> Result<Game, LoadError> {
+    pub fn restore(self, content: impl Into<std::sync::Arc<Content>>) -> Result<Game, LoadError> {
         if self.version != SAVE_VERSION {
             return Err(LoadError::Version {
                 found: self.version,
@@ -1210,7 +1210,7 @@ impl Snapshot {
             });
         }
         let mut game = Game::new(self.seed);
-        game.content = content;
+        game.set_content(content.into());
         game.turn = self.turn;
         game.settings = self.settings.normalised();
         game.apply_content_settings();

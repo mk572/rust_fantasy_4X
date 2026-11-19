@@ -61,7 +61,7 @@ fn world_seeded(seed: u64) -> Game {
     };
     let map = Map::new(build(), build());
     let mut game = Game::new(seed);
-    game.content = c;
+    game.set_content(c);
     game.map = Some(map);
     game.add_player(P0, "Merlin");
     game.add_player(PlayerId(1), "Rival");

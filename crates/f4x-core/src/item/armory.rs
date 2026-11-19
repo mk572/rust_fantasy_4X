@@ -440,7 +440,7 @@ mod tests {
             g
         };
         let mut g = Game::new(2);
-        g.content = c;
+        g.set_content(c);
         g.map = Some(Map::new(build(), build()));
         g.add_player(P0, "A");
         g.add_player(P1, "B");

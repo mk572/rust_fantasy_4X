@@ -514,7 +514,7 @@ mod tests {
 
     fn game() -> Game {
         let mut g = Game::new(5);
-        g.content = shipped();
+        g.set_content(shipped());
         g.add_player(P0, "A");
         g.add_player(P1, "B");
         g

@@ -406,7 +406,7 @@ pub(crate) mod tests {
             .id_numbered(4 /* grassland */)
             .expect("id_of succeeds");
         let mut g = Game::new(5);
-        g.content = c;
+        g.set_content(c);
         g.map = Some(Map::new(Grid::new(14, 8, grass), Grid::new(14, 8, grass)));
         g.add_player(P0, "A");
         g.add_player(P1, "B");
