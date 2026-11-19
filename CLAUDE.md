@@ -56,7 +56,7 @@ Refer to `docs/ecs-structure.md`
 - **Project lessons** (non-obvious findings of the rework) are in `docs/KNOWLEDGE.md`; add to it when you
   find something like that.
 
-- **`crates/f4x-ai-ref` is never repaired.** It is outside the workspace; if a change breaks it, run
+- **`crates/f4x-ai-ref` is never repaired** (one exception, 19 November 2026, ordered by the project owner: `docs/ai-design.md` 8.1a). It is outside the workspace; if a change breaks it, run
   `python3 scripts/fork_ai.py --mark-stale` and go on. `scripts/ai_battle.py` never forks it itself: it stops and asks for a fork by hand (`python3 scripts/fork_ai.py --from REF --replace`) before the
   next AI battle (`docs/ai-design.md` 8.1a).
 

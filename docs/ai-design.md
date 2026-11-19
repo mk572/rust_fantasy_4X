@@ -457,7 +457,7 @@ how often each spell was cast and the map spells nobody cast, and the same for t
 Every game also prints, at its start, a `profile pN:` line per wizard (the race of its capital, the
 plane it started on, the rolled personality and objective, books and retorts), and, at its end, a
 `neutrals:` line with the cities and units each neutral race and the monsters hold, and what
-happened to them over the game (cities founded, lost and taken, battles won and lost, units lost).
+happened to them over the game (cities founded, lost and taken, battles won and lost, units lost; per wizard, units lost in battle and outside it).
 
 | Build | Ended of 8 (400 turns) | End turns | Battles (all seeds) | Note |
 |---|---|---|---|---|
@@ -507,6 +507,28 @@ games, who won the mixed games, and the first snapshot (every 50 turns, `soak-ou
 from the reference-only game. `f4x-tools soak-diff A B` compares two snapshots. A snapshot is an ordinary game save (`Game::snapshot`), with the plans of the AIs that can write them in it (`Game::plans`; not the frozen reference), so the client can load it. `soak --from SAVE` (also `soak-versus`) goes on from such a save instead of a new game: the game is loaded by the game's own `load_game`, the AIs take their plans back with `Ai::recall`, and the rounds run in the same master as ever; one game, played to `--turns`. The snapshots of a run that went on from a save equal the straight run's (a test pins it). The learned battle
 brain is not part of this; only the strategic AI. There is
 one reference at a time; fork again to replace it.
+
+`--mixed-only` plays only the two mixed games of a seed (new in the first half of the seats, then in the
+second), for a long run of many seeds (`soak-versus --seeds 1001..1004 --turns 1200 --players 4 --rules 1.31
+--mixed-only`; the reference-only and new-only games are left out). `ai_battle.py` passes it on.
+
+*One exception to "do not repair" (19 November 2026, by the project owner's order).* The reference of the
+14 November AI (tag `ai-2026-11-14`) no longer built against the core, so it was repaired once by hand: the
+constants it took from the core are frozen in a `frozen` module of the copy, the renamed calls follow the
+new names, and its `military.rs` `march` sends the `MarchLaunched` event the soak counts (a stack sent at a
+city, no effect on play). The 14 November AI has no unit roles, no war plan and no marches called off (all
+later), so those counters (`units adrift`, `missions over`, `war plan ... changes`, `marches called off`,
+`unit-turns waiting for a ship`) are zero for it because the thing does not exist, not because nothing
+happened, and its `marches launched` counts every stack sent (many times the new AI's count for a
+campaign): leave all of these out when comparing the two.
+
+What a soak counts for each wizard (`metrics.rs`), besides the counts above: battles by who attacked and what
+the other side was (`attacks won on` / `attacks lost on` / `defenses won against` / `defenses lost against`
+a wizard, a neutral city, a lair; a neutral city is the player of a race, a lair the monsters: tower, node
+and encounter site), units lost in battle (`BattleCasualties` and units lost fleeing) and outside battle
+(food, gold, mana, wounds), and in the game report a `wars:` line (`p1>p3@88`: who declared on whom, on
+which turn) and per wizard the three places where it lost the most attacks on a neutral city or a lair.
+Results of the runs: `docs/soak-baseline.md`.
 
 Speed: the games run `--jobs N` at a time (default one for each core; games that print as they
 go, with `--every`, `--trace` or `--detail`, run one at a time), 5.7 times faster on ten cores
