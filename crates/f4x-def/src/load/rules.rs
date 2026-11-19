@@ -82,6 +82,12 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         retorts: Registry::new(retorts),
         // The starting records of the hero types, also optional.
         hero_templates,
+        // The unit combat ratings, also optional: without the file no unit has one.
+        ratings: if find(dir, "unit_ratings.ron").is_some() {
+            parse::<crate::rules::UnitRatings>(dir, "unit_ratings.ron")?
+        } else {
+            crate::rules::UnitRatings::default()
+        },
         // The lair rules, also optional: a rule set without the file uses the original's.
         lairs: if find(dir, "lairs.ron").is_some() {
             parse::<crate::rules::lair::LairRules>(dir, "lairs.ron")?
@@ -172,6 +178,33 @@ fn check_lairs(r: &Rules, p: &mut Vec<String>) {
     }
     if !(1..=4).contains(&l.spell_total) {
         p.push("lairs.ron: spell_total must be 1 to 4 (a spell's rarity)".into());
+    }
+}
+
+/// The unit ratings: rows in the order of the unit numbers, each for a unit that exists, with at
+/// least one positive number.
+fn check_ratings(r: &Rules, p: &mut Vec<String>) {
+    if !(r.ratings.hero_factor.is_finite() && r.ratings.hero_factor > 0.0) {
+        p.push("unit_ratings.ron: hero_factor must be above 0".to_string());
+    }
+    for w in r.ratings.units.windows(2) {
+        if w[0].num >= w[1].num {
+            p.push(format!(
+                "unit_ratings.ron: unit {} is out of order or twice",
+                w[1].num
+            ));
+        }
+    }
+    for row in &r.ratings.units {
+        if !r.units.iter().any(|(_, u)| u.num == row.num) {
+            p.push(format!("unit_ratings.ron: unit {} does not exist", row.num));
+        }
+        if row.levels.is_empty() || row.levels.iter().any(|v| !(v.is_finite() && *v > 0.0)) {
+            p.push(format!(
+                "unit_ratings.ron: unit {} needs positive numbers",
+                row.num
+            ));
+        }
     }
 }
 
@@ -300,6 +333,7 @@ pub fn validate_rules(r: &Rules) -> Vec<String> {
     check_wizards(r, &mut p);
     check_items(r, &mut p);
     check_hero_templates(r, &mut p);
+    check_ratings(r, &mut p);
 
     // Effect and condition references, for everything that carries effect rules.
     let mut carriers: Vec<(String, &[EffectRule])> = Vec::new();
@@ -864,6 +898,7 @@ mod tests {
             level_paths: Registry::new(level_paths),
             wizards: Registry::new(wizards),
             hero_templates,
+            ratings: Default::default(),
             lairs: shipped("lairs.ron", edits),
             ai_sites: shipped("ai_sites.ron", edits),
         }

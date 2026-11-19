@@ -9,6 +9,8 @@ mod console_cmd;
 mod contestant;
 mod duel;
 mod game_methods;
+mod hero_duel;
+mod ladder;
 mod metrics;
 mod queries;
 mod report;
@@ -52,7 +54,7 @@ const USAGE: &str = "usage:
   f4x-tools soak-versus [--seeds A..B] [--turns N] [--players 2..5] [--snapshots-every N] [--out DIR]
                                               the AI under work against the frozen reference (scripts/fork_ai.py):
                                               four games a seed (ref only, new in each half of the seats, new only)
-  f4x-tools duel pairs|teams [--units N,..] [--seeds N] [--battles N] [--csv FILE]
+  f4x-tools duel pairs|teams|ladder [--units N,..] [--seeds N] [--battles N] [--csv FILE]
                                               real battles between shipped units, played by the battle AI, with the
                                               rules' invariants checked and the win rate of each unit (task 655)
   f4x-tools soak-diff SNAPSHOT_A SNAPSHOT_B   show how two saved games differ

@@ -206,6 +206,58 @@ pub enum PickType {
     Any,
 }
 
+/// What a unit is worth in a fight, in High Men spearmen: the unit combat rating, the fit of
+/// `f4x-tools duel ladder` over real battles (task 655, `docs/duel.md`; `unit_ratings.ron`). A
+/// recruit High Men spearman is 1, and two units of 50 are worth one of 100: a rough guide to
+/// trades, army size and who would win, not a promise (rock-paper-scissors cases of immunities and
+/// special attacks overturn it, and spells, terrain and walls swing a real battle).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UnitRatings {
+    /// What a hero is worth beyond its table row: the rows were fought without the abilities,
+    /// spells and items the game rolls for a hero, so a hero's rating is its row times this.
+    #[serde(default = "one")]
+    pub hero_factor: f32,
+    /// One row per unit, in the order of the unit numbers.
+    #[serde(default)]
+    pub units: Vec<UnitRating>,
+}
+
+fn one() -> f32 {
+    1.0
+}
+
+impl Default for UnitRatings {
+    /// No rows, and a hero worth its row.
+    fn default() -> Self {
+        UnitRatings {
+            hero_factor: 1.0,
+            units: Vec::new(),
+        }
+    }
+}
+
+/// The rating of one unit at its experience levels.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UnitRating {
+    /// The unit's number.
+    pub num: u16,
+    /// The alias for human editing.
+    pub id: String,
+    /// The worth at experience level 1, 2, ... (a unit that does not level up has one number); a
+    /// level beyond the last number takes the last.
+    pub levels: Vec<f32>,
+}
+
+impl UnitRatings {
+    /// The row of the unit with this number.
+    pub fn row(&self, num: u16) -> Option<&UnitRating> {
+        self.units
+            .binary_search_by_key(&num, |r| r.num)
+            .ok()
+            .map(|i| &self.units[i])
+    }
+}
+
 /// How a hero type starts in each wizard's game (`NewGame.c:_hero_premade_table`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HeroTemplate {
@@ -1532,6 +1584,20 @@ impl BuildingDef {
 }
 
 impl Rules {
+    /// The combat rating of a unit at an experience level (from 0; the level of
+    /// `UnitView::unit_level`): its worth in High Men spearmen (`UnitRatings`), a hero's times
+    /// the hero factor. `None` for a unit with no row (a settler, a unit of a rule set that has no
+    /// ratings): the callers fall back to `battle::power`.
+    pub fn combat_rating(&self, unit: &UnitDef, level: usize) -> Option<f32> {
+        let row = self.ratings.row(unit.num)?;
+        let value = *row.levels.get(level).or_else(|| row.levels.last())?;
+        Some(if unit.kind == UnitKind::Hero {
+            value * self.ratings.hero_factor
+        } else {
+            value
+        })
+    }
+
     /// Whether `race` is left out of the building's list for its own sake, not because it cannot
     /// build what the building needs: what the original's help text names as a race's missing
     /// buildings (`cant_build`).
@@ -1658,6 +1724,8 @@ pub struct Rules {
     pub retorts: Registry<RetortDef>,
     /// The starting record of each hero type, in the order of the hero units (optional).
     pub hero_templates: Vec<HeroTemplate>,
+    /// The unit combat ratings (`unit_ratings.ron`, optional): what each unit is worth in a fight.
+    pub ratings: UnitRatings,
     /// The guard and treasure rules of the sites (`lairs.ron`).
     pub lairs: super::lair::LairRules,
     /// How the AI weighs a place for a city (`ai_sites.ron`, optional).
@@ -1668,6 +1736,36 @@ pub struct Rules {
 mod tests {
     use super::*;
     use crate::rules::stats::Stat;
+
+    /// Action: ask for the combat rating of a hero, of a unit that levels up beyond the levels the
+    /// table has, and of a unit with no row. Outcome: a hero's is its row times the hero factor, a
+    /// level past the last takes the last, and a unit with no row has none (the callers fall back).
+    #[test]
+    fn the_combat_rating_follows_the_row_the_level_and_the_hero_factor() {
+        let rules = &crate::testdir::shipped().rules;
+        let hero = rules
+            .units
+            .iter()
+            .map(|(_, u)| u)
+            .find(|u| u.kind == UnitKind::Hero && rules.ratings.row(u.num).is_some())
+            .expect("a hero with a rating");
+        let row = rules.ratings.row(hero.num).expect("its row");
+        assert_eq!(
+            rules.combat_rating(hero, 0),
+            Some(row.levels[0] * rules.ratings.hero_factor)
+        );
+        assert_eq!(
+            rules.combat_rating(hero, 99),
+            rules.combat_rating(hero, row.levels.len() - 1)
+        );
+        let unrated = rules
+            .units
+            .iter()
+            .map(|(_, u)| u)
+            .find(|u| rules.ratings.row(u.num).is_none())
+            .expect("a unit with no row");
+        assert_eq!(rules.combat_rating(unrated, 0), None);
+    }
 
     #[test]
     fn a_spell_gives_up_its_plain_bonuses_to_the_one_it_is_not_with() {

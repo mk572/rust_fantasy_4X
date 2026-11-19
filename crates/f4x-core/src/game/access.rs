@@ -227,6 +227,39 @@ impl Game {
         self.put(unit, Experience(xp));
     }
 
+    /// Scenario setup: a hero rolled elsewhere (`hero::kind::roll_one`) enters the game, free
+    /// and with no experience, so that `spawn_hero` can bring it into a wizard's army. Returns
+    /// its entity.
+    pub fn scenario_make_hero(&mut self, hero: crate::hero::Hero) -> hecs::Entity {
+        self.make_hero(hero, crate::hero::HeroState::Free, 0)
+    }
+
+    /// Scenario setup: change the battle on the table (its map, where its units stand), as a
+    /// scenario sets it up. Does nothing when there is no battle.
+    pub fn scenario_edit_battle(&mut self, change: impl FnOnce(&mut crate::battle::Battle)) {
+        if let Some(a) = self.battle.as_mut() {
+            change(&mut a.battle);
+        }
+    }
+
+    /// Scenario setup: the player's units get `bonus` levels beyond what experience gives,
+    /// the way the real game gives them: the first from the Warlord retort, the second from
+    /// the Crusade spell (a normal unit reaches Ultra-Elite with one and Champion with both).
+    pub fn scenario_level_bonus(&mut self, player: PlayerId, bonus: usize) {
+        if bonus >= 1 {
+            if let Some(mut w) = self.wizard_mut(player) {
+                w.get_mut::<crate::wizard::sheet::Retorts>()
+                    .0
+                    .insert(crate::wizard::magic::Retort::new(1 /* warlord */));
+            }
+        }
+        if bonus >= 2 {
+            if let Some(crusade) = self.content.rules.spells.id_numbered(158 /* crusade */) {
+                self.add_global(player, crusade);
+            }
+        }
+    }
+
     /// Give the wizard of `side` in the battle on the table `mana` to cast with and the same
     /// to spend, with a casting skill of ten (a test or a scenario setting up a fight).
     pub fn scenario_battle_caster(&mut self, side: crate::battle::Side, mana: i32) {

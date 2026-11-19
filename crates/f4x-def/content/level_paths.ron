@@ -1,5 +1,6 @@
 // The names of the levels are in `text/<lang>/name/level_path.ron`, by the path's `num`: the levels in order, then the bonus levels.
 // Kept by hand (the importer no longer writes this file).
+// Hit points: a normal unit gains one at Elite and one at Champion (`Unit_Hit_Points`, the wiki's Hits column); a hero one a level.
 // Level bonuses are the original's `Battle_Unit_Level_Stats` (task 174): a melee or ranged
 // plus only counts for a unit that has that attack (`Units::unit_modifiers` drops it
 // otherwise). Heroes also gain a hit point a level (the original's `COMBINIT.c`).
@@ -20,9 +21,9 @@
         (xp: 0, effects: []),
         (xp: 20, effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1))]),
         (xp: 60, effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Defense, op: Add, value: 1))]),
-        (xp: 120, effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1))]),
+        (xp: 120, effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1)), (effect: Modify(stat: MaxHp, op: Add, value: 1))]),
     ], bonus: [
         (effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Defense, op: Add, value: 1))]),
-        (effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1))]),
+        (effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1)), (effect: Modify(stat: MaxHp, op: Add, value: 1))]),
     ]),
 ]

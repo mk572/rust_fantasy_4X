@@ -226,14 +226,25 @@ fn the_doom_gaze_gets_through_magic_immunity_only_with_the_exceptions_on() {
         through > stopped,
         "the doom gaze hurts a magic-immune unit only with the exceptions on: {through} against {stopped}"
     );
-    let (death_figures, _) = losses(&b, false, without(46 /* doom_gaze */));
+    // With no thrown strength of its own (the gazes need none), only the gazes are left to
+    // compare: a magic-immune unit loses nothing more to the death and stoning gazes.
+    let no_thrown = |b: &mut Battle| {
+        for u in b.units.iter_mut().filter(|u| u.side == Side::Attacker) {
+            u.ranged = 0;
+        }
+    };
+    let (gazing, _) = losses(&b, false, |b: &mut Battle| {
+        no_thrown(b);
+        without(46 /* doom_gaze */)(b);
+    });
     let (open_figures, _) = losses(&b, false, |b: &mut Battle| {
+        no_thrown(b);
         without(46 /* doom_gaze */)(b);
         without(15 /* death_gaze */)(b);
         without(64 /* stoning_gaze */)(b);
     });
     assert_eq!(
-        death_figures, open_figures,
+        gazing, open_figures,
         "magic immunity stops the death and stoning gazes"
     );
 }

@@ -25,3 +25,4 @@ __pycache__/
 # Local soak baselines and the archived docs
 /docs/soak-baseline.md
 /docs/archive/
+/duel-out

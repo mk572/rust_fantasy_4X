@@ -27,7 +27,7 @@ use f4x_core::player::PlayerId;
 use f4x_core::rules::damage_type::{DamageType, DamageTypes};
 use f4x_def::content::Content;
 
-pub const USAGE: &str = "usage: f4x-tools duel pairs|teams [--units N,N,...|--all] [--seeds N] [--battles N] [--max-team N] [--max-commands N] [--seed N] [--csv FILE] [--content DIR]
+pub const USAGE: &str = "usage: f4x-tools duel pairs|teams|ladder|heroes [--units N,N,...|--all] [--seeds N] [--battles N] [--max-team N] [--max-commands N] [--seed N] [--csv FILE] [--content DIR]
   pairs   every unit of the set against every unit of the set, --seeds fights each (default 1)
   teams   --battles random groups of 1 to --max-team units (default 6000 and 4)
   the set is --units, or --all, or by default the units that have an attack or a defence rule
@@ -68,6 +68,12 @@ impl Lcg {
 
 pub fn run(args: &[String]) -> Result<(), String> {
     let mode = args.first().map(String::as_str).ok_or(USAGE)?;
+    if mode == "ladder" {
+        return crate::ladder::run(&args[1..]);
+    }
+    if mode == "heroes" {
+        return crate::hero_duel::run(&args[1..]);
+    }
     let (mut units, mut all, mut seeds, mut battles, mut max_team) =
         (Vec::<u16>::new(), false, 1u64, 6000u64, 4usize);
     let (mut max_commands, mut seed, mut csv, mut dir) = (

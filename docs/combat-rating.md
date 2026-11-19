@@ -1,0 +1,125 @@
+# The unit combat rating
+
+What a unit is worth in a fight, as one number: **spearmen**. A recruit High Men spearman is 1;
+a unit of 8 is worth about eight of them, and two units of 100 are worth one of 200, as a rough
+guide. It is measured, not computed: `f4x-tools duel ladder` plays real battles on the shipped
+rules ([`duel.md`](duel.md)) and the numbers are fitted to the results (task 655). It replaces the
+eyeballed formula of `battle::power` as the thing the game and the AI weigh units by (the plan
+below; tasks 720 to 723).
+
+It is a rough guide. The weights move it a few percent either way, about 4 pairs in 100 are
+rock-paper-scissors cases a single number cannot carry (immunities, special attacks, a missing
+damage type), and spells, terrain and walls swing a real battle. It is still much closer to the
+battles than an attack-and-defence formula: on pairs the fit had not seen it names the winner of
+about 95 in 100.
+
+## The data
+
+The outcome tables of the runs are archived in `duel-out/` (local, not committed; see `duel.md`).
+
+`crates/f4x-def/content/unit_ratings.ron` (`Rules::ratings`, optional):
+
+```
+(
+    hero_factor: 1.5,
+    units: [ (num: 104, id: "high_men_spearmen", levels: [1.00, 1.81, 2.41, 9.18]), ... ],
+)
+```
+
+- One row per unit that fights (180 of 196; settlers, ships and units with no attack have none).
+  `Rules::combat_rating(unit_def, level)` returns the row's number for the experience level (from
+  0, as `UnitView::unit_level`), a level past the last number taking the last, and a hero's times
+  `hero_factor`; `None` for a unit with no row (callers fall back to `battle::power`).
+- `levels` holds levels 1 to 4 for normal units and heroes (Recruit to Elite; Ultra-Elite and
+  Champion need the Warlord retort or the Crusade spell and were not measured), one number for a
+  creature, which does not level.
+- **Heroes** are the base heroes: the stats, the innate abilities and the level bonuses, with no
+  rolled skills, no spells and no items. `hero_factor` (1.5 for now) stands in for what a real hero
+  has beyond that. The one against one table of heroes with rolled abilities at level 5
+  (`duel heroes`, `heroes_5_rank.csv`) shows how much that matters: the casters, which cast nothing
+  in the base table, rise most.
+- Regenerate after a change of the units, abilities, spells or battle rules: run the ladder
+  (`duel ladder --levels 1-4`, `--normal --cross 1-4`), then
+  `duel ladder --combine 1-4 --ratings crates/f4x-def/content/unit_ratings.ron`, and
+  `python3 scripts/ron_hashes.py --update`. The tables themselves (`target/ladder/`) are local and not
+  committed. A full run takes about three hours on four threads (`scripts/cool_run.sh`).
+
+What the numbers show that the old formula did not: the level jump. High Men spearmen are worth
+1.0, 1.8, 2.4 and 9.2 at recruit, regular, veteran and elite, as the wiki says of Elites ("double the
+staying power and four times the killing power"): the extra hit point and to-hit of Elite are worth
+more than all the levels before. And the cost curve is nearly linear for the plain troops (about 0.1 to
+0.25 spearmen a gold piece) with outliers worth looking at (the engineers and the Klackon
+engineers, a fighter bought at 80 for a rating of 0.5).
+
+## The plan to wire it in
+
+The AI weighs units in many places, nearly all through two functions: `battle::power::unit_power`
+(a unit) and `def_power` (a definition), read through `PlayerView::unit_power`,
+`ai::view::unit_strength` and `fighting_strength` (the strongest `max_battle_side` units summed).
+So the first step swaps the measure behind those two and everything that reads it changes at once;
+the rest tunes what the numbers are compared with. Task 718 (one measure, one fighter predicate, no
+retyped formulas) comes first, so that the swap is one place.
+
+### Step 1: the unit measure (task 720, needs 718)
+
+- `unit_power(unit)` = `combat_rating(def, level)` of the unit's experience level, times the share
+  of its hit points left when it is hurt (the battle AI's `worth`, `order.rs`, counts the hit points
+  left; the rating is for a whole unit), times a **modifier for what it carries**: the ratio of the old
+  formula on the unit's stats now to the old formula on the stats of its level alone (an item, a
+  spell, Heroism or Black Channels raise it; the rating itself stays the measured base). Without
+  a row, the old formula as it is.
+- `def_power(def)` = the rating at level 1 (what a city could build, what a spell summons).
+- **The scale changes.** The AI's knobs were tuned to the old numbers (`military.rs`:
+  `attack_ratio` 1.4, `sortie_ratio` 2.5, `GUESS_DEFENDERS` 3.0, `average_strength`'s 20.0 fallback;
+  `war_plan.rs` `strength_wanted` adds a flat 1.0; `wizardry.rs`, `raid.rs`'s `one_paladin` and
+  `one_drake` constants). Fit a conversion factor first (the median of rating over old power for the
+  fighters) and apply it to those constants, so that the play starts where it was; then soak
+  (`scripts/soak_report.py`) before and after and list every behaviour change on purpose.
+
+### Step 2: groups (task 721)
+
+- A group is the sum of the best `max_battle_side` ratings (as `fighting_strength` does), and the
+  harness already tests it: `duel teams` plays random groups, and the share of battles the larger
+  sum wins is the number to report (with the old formula beside it): a report of the harness, run by
+  hand after a change of the rules or of the file. **No test enforces the ratings or their order**: a
+  change of the game's rules is allowed to move them, and the rating file is regenerated, not defended.
+- Context factors for a group, each measured the same way before it is used: the side that
+  defends a walled city (the harness can place walls: `BattleMap::with_city`), ranged units
+  against a wall, fliers, a ranged group against a melee one on open ground. A first estimate
+  is a multiplier on the group sum, with the measured ones replacing it.
+- Counters: units with a rock-paper-scissors flag (the misfit list of each table,
+  `ladder_L_misfits.csv`) are not special-cased yet; once the AI knows what it faces (a group of
+  missile-immune units, no ranged defence) a correction by ability tag, from the misfits, is a
+  later refinement.
+
+### Step 3: who reads it (done by step 1; checks and exceptions)
+
+| Place | Reads the measure for | Change |
+|---|---|---|
+| Raid composition: `raid.rs`, `threat/raider.rs` | how strong a raid or a monster party is against a target, the paladin and drake yardsticks | yardsticks read ratings; party strength is the group sum |
+| Attack plans: `war_plan.rs` `strength_wanted`, `military.rs` `expected_defence`, `attack_ratio`, `sortie_ratio`, `reinforce.rs` | the force wanted for a target and whether to march | thresholds rescaled (step 1), the defence of a walled city with the wall factor (step 2) |
+| Garrisons: `military.rs`, `crowd.rs`, `escort.rs` (the weak hero), `assault.rs` `guard_parts`, `city/neutral.rs` | who stays, who marches, the neutral and lair garrisons | ranking by rating; `neutral.rs` keeps the original's melee and ranged slots and chooses within them by rating |
+| Production: `city/autobuild.rs` (`best_defender`, `raw_profiles`), `ai/builder.rs` `best_soldier` | the best soldier a city can build for its gold | rating over the square root of the lifetime cost as now, the mobility bonus kept; the ratings expose the cost-inefficient units |
+| Diplomacy: `diplomacy/trade.rs` `unit_worth`, `hero_worth`; `ai/statecraft.rs` `Power { army }`, `leader_of`, `is_straggler` | what a unit is worth in a trade offer, how strong a rival's army is | a unit's price is its rating times a price per spearman read off the cost curve, at least its cost-based price; the army strength is the sum of ratings, the thresholds rescaled (task 722) |
+| Battle AI: `ai/battle/order.rs` `worth`, `cast.rs` (the worth of a summon) | which enemy to attack first, whether a spell is worth casting | `worth` = rating with the figures and hit points left; a summon is its rating |
+| Spells: `ai/spellhelper.rs`, `wizardry.rs` | what a summon or an enchantment adds | the rating; an enchantment as the modifier of step 1 |
+| Client: `fighter_pick.rs` | the order of the fighters in the pick screen | the same measure (the rating could also be shown to the player as an estimate) |
+| Lairs: `feature/lair.rs` | the strength of a guard against the treasure | the group sum of the guards' ratings |
+
+### Step 4: the data gets better (task 723)
+
+- **Heroes**: replace `hero_factor` with a function of the rolled abilities, spells and items,
+  fitted from `duel heroes` (the rolled heroes) and the item powers; measure the heroes at the levels
+  above 4 (the ladder for heroes only at levels 5 to 9).
+- **Levels 5 and 6 of the normal units** (Ultra-Elite and Champion): `duel ladder --normal --cross
+  1-6`, needing the Warlord retort and the Crusade spell in the harness, which it has
+  (`Game::scenario_level_bonus`).
+- **A stale rating**: the file does not know that a unit changed. A check that the units, abilities
+  and spells the rating was made for are the shipped ones (a hash in the header, tested) would flag it.
+
+### Not to expect
+
+A rating does not say who wins a given battle: a group of 100 spearmen of ratings does not beat a
+drake of 100 on open ground against the engine every time, the wall and the spells matter, and the
+one against one cases the table fits are the plainest. It is a starting point for the AI, better than
+attack and defence alone, and it gets better with each correction above.
