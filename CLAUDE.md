@@ -24,7 +24,7 @@ The crates and who may depend on whom: `docs/design.md` section 2 and `docs/rust
 - **Test with nextest:** `cargo nextest run --workspace` runs every test as its own process in parallel (about 2150 tests in a few seconds; the slow ones are skipped as above; nextest does not run doctests).
 - **Test what changed:** `python3 scripts/test_changed.py` while working (`--dry-run` shows the plan); `cargo test --workspace` before a commit.
 - **Soaks and other long runs** go through `scripts/cool_run.sh COMMAND...` (low priority, paused while the Mac is hot, `docs/learning-ai.md` section 3) with at most 4 jobs: `scripts/cool_run.sh target/release/f4x-tools soak --jobs 4 ...`. `scripts/ai_battle.py` does it by itself.
-- **Duels:** `target/release/f4x-tools duel pairs` (every unit with an attack or defence rule against every other, one against one) and `duel teams` (random groups): real battles played by the battle AI, with invariants checked and the win rate of each unit (`--csv FILE`); run it after changing battle rules (about a second).
+- **Duels:** `target/release/f4x-tools duel pairs` (every unit with an attack or defence rule against every other, one against one) and `duel teams` (random groups): real battles played by the battle AI, with invariants checked and the win rate of each unit (`--csv FILE`); run it after changing battle rules (about a second); see `docs/duel.md`.
 - **Lint/format:** `cargo fmt --all` and `cargo clippy --workspace --tests`
 - **Scripts:** `scripts/` (table in `docs/scripts.md`)
 
