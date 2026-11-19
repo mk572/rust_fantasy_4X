@@ -4,14 +4,14 @@
 //! `Battle_Unit_Attack_Immunities`, `Battle_Unit_Defense_Special`,
 //! `Combat_Effective_Resistance` and `Combat_Resistance_Check`:
 //!
-//! - **What an attack is made of** ([`AttackNature`]): a normal weapon, a missile, fire, a
-//!   magical shot, an illusion. A unit is stopped by an attack when it has an immunity to any
-//!   of those parts ([`Immunities`]).
+//! - **What an attack is made of** ([`AttackNature`]): a set of damage types
+//!   (`f4x-def/src/rules/damage_type.rs`), from the attack abilities of the unit (`attack` in
+//!   `abilities.ron`). A unit is stopped by an attack when it is immune to one of its types
+//!   ([`Immunities`], from the `defence` of its abilities).
 //! - **What that does to the defence** ([`effective_defense`]): against anything but melee, a
-//!   matching immunity makes the defence 50, so nothing gets through. Weapon immunity against
-//!   a normal weapon, in melee or not, raises the defence to at least 10. Magic immunity makes
-//!   the defence 50 against any ranged magic. An illusion ignores the defence altogether unless
-//!   the defender sees through illusions.
+//!   matching immunity makes the defence 50, so nothing gets through. A defence floor (weapon
+//!   immunity: at least 10) applies to the type it names, in melee or not. An illusion ignores
+//!   the defence altogether unless the defender sees through illusions.
 //! - **Resistance** ([`effective_resistance`], [`resistance_failure`]): a ten-sided die that
 //!   rolls above the resistance fails; magic immunity adds 30, and some enchantments add to
 //!   resistance against particular realms.
