@@ -1,4 +1,4 @@
-// f4x save, version 4, game 0.0.7, checksum 54c1eb6be87fbc43
+// f4x save, version 4, game 0.0.7, checksum aa2b74f1b8f8ded7
 (
     version: 4,
     game_version: "0.0.7",
@@ -481,14 +481,14 @@
         moves: 2,
     ), (
         serial: 108,
-        unit: 110,
+        unit: 105,
         owner: 108,
         pos: (plane: Arcanus, x: 23, y: 10),
         xp: 0,
         moves: 2,
     ), (
         serial: 109,
-        unit: 110,
+        unit: 105,
         owner: 108,
         pos: (plane: Arcanus, x: 23, y: 10),
         xp: 0,
@@ -537,42 +537,42 @@
         moves: 2,
     ), (
         serial: 120,
-        unit: 144,
+        unit: 139,
         owner: 112,
         pos: (plane: Arcanus, x: 15, y: 5),
         xp: 0,
         moves: 2,
     ), (
         serial: 121,
-        unit: 144,
+        unit: 139,
         owner: 112,
         pos: (plane: Arcanus, x: 15, y: 5),
         xp: 0,
         moves: 2,
     ), (
         serial: 123,
-        unit: 78,
+        unit: 76,
         owner: 104,
         pos: (plane: Myrror, x: 6, y: 24),
         xp: 0,
         moves: 2,
     ), (
         serial: 124,
-        unit: 78,
+        unit: 76,
         owner: 104,
         pos: (plane: Myrror, x: 6, y: 24),
         xp: 0,
         moves: 2,
     ), (
         serial: 127,
-        unit: 78,
+        unit: 76,
         owner: 104,
         pos: (plane: Myrror, x: 46, y: 27),
         xp: 0,
         moves: 2,
     ), (
         serial: 128,
-        unit: 78,
+        unit: 76,
         owner: 104,
         pos: (plane: Myrror, x: 46, y: 27),
         xp: 0,

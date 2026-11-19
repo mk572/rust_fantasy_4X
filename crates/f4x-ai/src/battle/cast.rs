@@ -818,11 +818,15 @@ fn rule_value(
             unit: id, count, ..
         } => {
             let d = game.content().rules.units.get(*id);
-            let stat = |s: Stat| d.stats.get(&s).map_or(0, |v| v.floor()) as f32;
-            let attack = stat(Stat::Melee).max(stat(Stat::Ranged));
-            let hp = stat(Stat::MaxHp).max(1.0) * stat(Stat::Figures).max(1.0);
-            // Fresh units fight at once but are an extra target: three quarters of their worth.
-            0.75 * (attack * 1.5 + stat(Stat::Defense) + 1.0) * hp * f32::from(*count)
+            let stat = |s: Stat| d.stats.get(&s).map_or(0, |v| v.floor());
+            let hp = stat(Stat::MaxHp).max(1) * stat(Stat::Figures).max(1);
+            // Fresh units fight at once but are an extra target: three quarters of their worth,
+            // on the footing of `worth` above (the strength of a unit as it stands in a fight).
+            0.75 * f4x_core::battle::strength(
+                stat(Stat::Melee).max(stat(Stat::Ranged)),
+                stat(Stat::Defense),
+                hp,
+            ) * f32::from(*count)
         }
         Effect::Modify { op, value, .. } => {
             // A blessing on the strongest of ours is worth a share of its strength; a curse on

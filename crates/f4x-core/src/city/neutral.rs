@@ -21,7 +21,7 @@ use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
 
 use crate::game::Game;
-use crate::rules::{RaceId, UnitKind};
+use crate::rules::RaceId;
 
 // What a city's population gives it is `starting_buildings` of `rules.ron`.
 
@@ -207,11 +207,10 @@ impl Game {
         let (mut melee, mut ranged) = (None, None);
         for &id in &rules.races.get(race).units {
             let def = rules.units.get(id);
-            let plain = def.kind == UnitKind::Normal
-                && def.cost > 0
-                && def.movement != crate::rules::MovementType::Sailing
-                && !def.is_settler();
-            if !plain
+            // The original's own test (`MAPGEN.c`, the garrison of a neutral city): no settlers,
+            // engineers or transports; the choice is the last of the race's list the city has the
+            // buildings for, one melee and one ranged, so it does not move to the rating.
+            if !def.is_fighter()
                 || self
                     .economy()
                     .can_build(city, ProductionItem::Unit(id))

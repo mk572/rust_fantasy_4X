@@ -5,7 +5,6 @@
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_def::rules::Stat;
 
 use crate::view::distance;
 use crate::{Ai, Attack};
@@ -24,10 +23,7 @@ pub(crate) fn guard_parts(view: &PlayerView, site: Position) -> Option<(f32, f32
     let (mut all, mut immune) = (0.0, 0.0);
     for (id, n) in &guards {
         let def = rules.units.get(*id);
-        let stat = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor()).max(0) as f32;
-        let attack = stat(Stat::Melee).max(stat(Stat::Ranged));
-        let hits = stat(Stat::MaxHp) * stat(Stat::Figures).max(1.0);
-        let worth = (attack * 1.5 + stat(Stat::Defense) + 1.0) * hits * *n as f32;
+        let worth = f4x_core::battle::power::def_power(def) * *n as f32;
         all += worth;
         if def.abilities.contains(&f4x_core::rules::Ability::new(
             72, /* weapon_immunity */

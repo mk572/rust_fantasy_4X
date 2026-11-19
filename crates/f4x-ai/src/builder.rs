@@ -158,18 +158,10 @@ fn best_soldier(view: &PlayerView, pool: &[UnitId], elite: bool, walks: bool) ->
         .copied()
         .map(|u| {
             let d = rules.units.get(u);
-            let power = f4x_core::battle::power::def_power(d);
-            // An army walks to the fight, a garrison does not.
-            let reach = if walks {
-                1.0 + 0.15
-                    * (f4x_core::unit::mobility::def_mobility(d, &rules.config.abilities) - 1.0)
-                        .max(0.0)
-            } else {
-                1.0
-            };
-            let cost = f4x_core::city::autobuild::lifetime_cost(d);
-            let price = if elite { cost.powf(0.1) } else { cost.sqrt() };
-            (u, power * reach / price)
+            (
+                u,
+                f4x_core::city::autobuild::soldier_value(d, rules, walks, elite),
+            )
         })
         .max_by(|a, b| a.1.total_cmp(&b.1).then(b.0.cmp(&a.0)))
         .map(|(u, _)| u)

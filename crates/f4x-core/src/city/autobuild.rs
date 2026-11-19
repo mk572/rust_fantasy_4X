@@ -468,6 +468,28 @@ fn raw_profiles(d: &crate::rules::UnitDef, rules: &crate::rules::Rules) -> [f32;
     [offense, defense, exploration]
 }
 
+/// What a soldier is worth for its price: its strength (`battle::power::def_power`) over the square
+/// root of its cost over its life (a tenth power for an elite army, so the dear units win). An army
+/// unit (`walks`) is also worth what it takes to get it to the fight: a bonus for speed; a garrison
+/// does not walk and never weighs it. The one ranking of soldiers, for the city's own choice
+/// (`best_defender`) and for the AI's builder.
+pub fn soldier_value(
+    d: &crate::rules::UnitDef,
+    rules: &crate::rules::Rules,
+    walks: bool,
+    elite: bool,
+) -> f32 {
+    let power = crate::battle::power::def_power(d);
+    let reach = if walks {
+        let mobility = crate::unit::mobility::def_mobility(d, &rules.config.abilities);
+        1.0 + 0.15 * (mobility - 1.0).max(0.0)
+    } else {
+        1.0
+    };
+    let cost = lifetime_cost(d);
+    power * reach / if elite { cost.powf(0.1) } else { cost.sqrt() }
+}
+
 fn max_profiles(content: &Content, candidates: &[UnitId]) -> [f32; 3] {
     let mut best = [f32::EPSILON; 3];
     for &u in candidates {
@@ -490,12 +512,12 @@ fn best_defender(content: &Content, f: &CityFacts) -> Option<UnitId> {
             d.is_fighter()
         })
         .collect();
-    let best = max_profiles(content, &pool);
     pool.into_iter()
         .map(|u| {
-            let d = content.rules.units.get(u);
-            let s = raw_profiles(d, &content.rules)[1] / best[1] / lifetime_cost(d).sqrt();
-            (u, s)
+            (
+                u,
+                soldier_value(content.rules.units.get(u), &content.rules, false, false),
+            )
         })
         .max_by(|a, b| a.1.total_cmp(&b.1))
         .map(|(u, _)| u)

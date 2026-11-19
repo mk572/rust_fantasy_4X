@@ -1,4 +1,4 @@
-// f4x save, version 4, game 0.0.7, checksum 537a75c863faeee0
+// f4x save, version 4, game 0.0.7, checksum ca1ae509889b272a
 (
     version: 4,
     game_version: "0.0.7",
@@ -512,14 +512,14 @@
         moves: 2,
     ), (
         serial: 117,
-        unit: 78,
+        unit: 77,
         owner: 104,
         pos: (plane: Myrror, x: 23, y: 18),
         xp: 0,
         moves: 2,
     ), (
         serial: 118,
-        unit: 78,
+        unit: 77,
         owner: 104,
         pos: (plane: Myrror, x: 23, y: 18),
         xp: 0,
