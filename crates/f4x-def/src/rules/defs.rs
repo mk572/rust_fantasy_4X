@@ -297,6 +297,11 @@ pub struct AbilityDef {
     /// The damage the ability adds to its unit's attack.
     #[serde(default)]
     pub attack: Option<super::damage_type::AbilityAttack>,
+    /// The mana a unit with the ability casts spells with in a battle (a spell caster 20, a major
+    /// one 40); 0 for an ability that does not make a caster. A caster also shoots its spell
+    /// shots with it.
+    #[serde(default)]
+    pub caster_mana: i32,
     pub effects: Vec<EffectRule>,
 }
 

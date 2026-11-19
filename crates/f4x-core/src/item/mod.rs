@@ -271,7 +271,7 @@ pub fn modifiers(
         }
         add_typed(Stat::MeleeToHit, b.to_hit, &[]);
     }
-    let kind = ranged_kind_of(abilities);
+    let kind = ranged_kind_of(abilities, rules);
     let thrown = abilities.iter().any(|a| *a == Ability::new(69));
     if has_ranged && item.adds_to_ranged(kind, thrown) {
         let counts =

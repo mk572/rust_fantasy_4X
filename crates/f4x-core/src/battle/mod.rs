@@ -70,17 +70,7 @@ impl Side {
     }
 }
 
-/// How a unit's ranged attack works.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum RangedKind {
-    None,
-    /// Arrows, slings and boulders: fired at a distance with a penalty, using ammunition.
-    Missile,
-    /// Spell shots: no range penalty, using ammunition (mana).
-    Magic,
-    /// Thrown weapons and breath: used just before melee, no ammunition.
-    Short,
-}
+pub use crate::rules::damage_type::RangedKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Status {
@@ -589,17 +579,24 @@ impl BattleUnit {
 
     /// Whether the unit's spell shots are paid for with its mana: a spell caster with a magical
     /// ranged attack (the original's rule for casters and heroes).
-    pub fn shoots_with_mana(&self) -> bool {
-        self.ranged_kind == RangedKind::Magic
-            && (self.hero_caster
-                || self.has(Ability::new(61 /* spellcaster */))
-                || self.has(Ability::new(62 /* spellcaster_major */)))
+    pub fn shoots_with_mana(&self, rules: &Rules) -> bool {
+        self.ranged_kind == RangedKind::Magic && (self.hero_caster || self.is_caster(rules))
+    }
+
+    /// The kind of the unit's weapon shot, if it has one (`game::weapon_shot_of`).
+    pub fn weapon_shot(&self, rules: &Rules) -> Option<RangedKind> {
+        game::weapon_shot_of(&self.abilities, rules)
+    }
+
+    /// Whether an ability makes the unit a spell caster (not a hero with casting skill).
+    pub fn is_caster(&self, rules: &Rules) -> bool {
+        game::caster_mana_of(&self.abilities, rules) > 0
     }
 
     /// Use up one shot (and the mana it costs a caster).
-    fn spend_shot(&mut self, shot_mana: i32) {
+    fn spend_shot(&mut self, shot_mana: i32, rules: &Rules) {
         self.ammo -= 1;
-        if self.shoots_with_mana() {
+        if self.shoots_with_mana(rules) {
             self.mana = (self.mana - shot_mana).max(0);
             self.ammo = self.ammo.min(self.mana / shot_mana);
         }
@@ -607,10 +604,10 @@ impl BattleUnit {
 
     /// Power Drain: the unit loses up to `amount` mana (a spell shooter's shots follow its mana).
     /// Returns what it lost.
-    pub(super) fn drain_power(&mut self, amount: i32, shot_mana: i32) -> i32 {
+    pub(super) fn drain_power(&mut self, amount: i32, shot_mana: i32, rules: &Rules) -> i32 {
         let lost = amount.min(self.mana).max(0);
         self.mana -= lost;
-        if self.shoots_with_mana() {
+        if self.shoots_with_mana(rules) {
             self.ammo = self.ammo.min(self.mana / shot_mana);
         }
         lost
@@ -618,10 +615,10 @@ impl BattleUnit {
 
     /// Mana Leak: a caster loses `drain` mana; any unit with spell shots loses
     /// one (a caster's shots follow its mana).
-    pub(super) fn leak_mana(&mut self, drain: i32, shot_mana: i32) {
+    pub(super) fn leak_mana(&mut self, drain: i32, shot_mana: i32, rules: &Rules) {
         self.mana = (self.mana - drain).max(0);
         if self.ranged_kind == RangedKind::Magic {
-            if self.shoots_with_mana() {
+            if self.shoots_with_mana(rules) {
                 self.ammo = self.ammo.min(self.mana / shot_mana);
             } else {
                 self.ammo = (self.ammo - 1).max(0);
@@ -657,11 +654,7 @@ impl BattleUnit {
             nature: AttackNature::of_unit_attack(mode, &self.abilities, self.magical_weapon, rules),
             special,
             eldritch: self.has(Ability::new(19 /* eldritch_weapon */))
-                && (mode == Mode::Melee
-                    || self.has(Ability::new(3 /* bow */))
-                    || self.has(Ability::new(59 /* sling */))
-                    || self.has(Ability::new(57 /* rock_throwing */))
-                    || self.has(Ability::new(69 /* thrown */))),
+                && (mode == Mode::Melee || self.weapon_shot(rules).is_some()),
             immolation: self.has(Ability::new(32 /* immolation */)),
             fear: self.has(Ability::new(8 /* cause_fear */)),
         }
@@ -698,7 +691,7 @@ impl BattleUnit {
         let gazes = self.special_attacks().gaze != Gaze::None;
         (self.ranged_kind == RangedKind::Short && (self.ranged > 0 || gazes)).then(|| {
             // Only a thrown weapon gains the plus, not breath or a gaze.
-            let plus = if self.has(Ability::new(69 /* thrown */)) {
+            let plus = if self.weapon_shot(rules) == Some(RangedKind::Short) {
                 self.weapon_plus()
             } else {
                 0
@@ -1397,7 +1390,7 @@ impl Battle {
         u.attacked = true;
         u.revealed = true;
         if ranged {
-            u.spend_shot(shot_mana);
+            u.spend_shot(shot_mana, &self.content.rules);
         }
         u.moves_left = HalfInt::ZERO;
         vec![BattleEvent::WallAttacked {
@@ -1763,7 +1756,7 @@ impl Battle {
     /// Take the mana of a Power Drain off the unit, with the event when it had any to lose.
     fn power_drained(&mut self, unit: usize, amount: i32) -> Option<BattleEvent> {
         let shot_mana = self.rules().shot_mana;
-        let lost = self.units[unit].drain_power(amount, shot_mana);
+        let lost = self.units[unit].drain_power(amount, shot_mana, &self.content.rules);
         (lost > 0).then_some(BattleEvent::PowerDrained { unit, amount: lost })
     }
 
@@ -1870,7 +1863,7 @@ impl Battle {
         if dmg.healed > 0 {
             a.heal_points(dmg.healed, true);
         }
-        a.spend_shot(shot_mana);
+        a.spend_shot(shot_mana, &self.content.rules);
         a.used_attack();
         a.revealed = true;
         // A ranged attack uses up the rest of the movement, as blows do (1.50 note 747).

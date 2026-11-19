@@ -869,31 +869,35 @@ fn units_asleep_confused_or_webbed_are_always_lost_when_their_side_flees() {
 #[test]
 fn ranged_abilities_map_to_battle_kinds() {
     use super::game::ranged_kind_of;
+    let rules = &shipped().rules;
     assert_eq!(
-        ranged_kind_of(&[Ability::new(3 /* bow */)]),
+        ranged_kind_of(&[Ability::new(3 /* bow */)], rules),
         RangedKind::Missile
     );
     assert_eq!(
-        ranged_kind_of(&[Ability::new(57 /* rock_throwing */)]),
+        ranged_kind_of(&[Ability::new(57 /* rock_throwing */)], rules),
         RangedKind::Missile
     );
     assert_eq!(
-        ranged_kind_of(&[Ability::new(69 /* thrown */)]),
+        ranged_kind_of(&[Ability::new(69 /* thrown */)], rules),
         RangedKind::Short
     );
     assert_eq!(
-        ranged_kind_of(&[
-            Ability::new(20 /* fire_breath */),
-            Ability::new(24 /* flying */)
-        ]),
+        ranged_kind_of(
+            &[
+                Ability::new(20 /* fire_breath */),
+                Ability::new(24 /* flying */)
+            ],
+            rules
+        ),
         RangedKind::Short
     );
     assert_eq!(
-        ranged_kind_of(&[Ability::new(29 /* ice_bolt */)]),
+        ranged_kind_of(&[Ability::new(29 /* ice_bolt */)], rules),
         RangedKind::Magic
     );
     assert_eq!(
-        ranged_kind_of(&[Ability::new(25 /* forester */)]),
+        ranged_kind_of(&[Ability::new(25 /* forester */)], rules),
         RangedKind::None
     );
 }
@@ -3607,7 +3611,7 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestRes
     armed.ranged_kind = RangedKind::Magic;
     armed.ammo = armed.mana / rules().shot_mana;
     assert_eq!(armed.ammo, mana / rules().shot_mana);
-    armed.spend_shot(rules().shot_mana);
+    armed.spend_shot(rules().shot_mana, &shipped().rules);
     assert_eq!(
         (armed.mana, armed.ammo),
         (
@@ -3615,7 +3619,7 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestRes
             (mana - rules().shot_mana) / rules().shot_mana
         )
     );
-    armed.leak_mana(rules().mana_leak_drain, rules().shot_mana);
+    armed.leak_mana(rules().mana_leak_drain, rules().shot_mana, &shipped().rules);
     let left = (mana - rules().shot_mana - rules().mana_leak_drain).max(0);
     assert_eq!((armed.mana, armed.ammo), (left, left / rules().shot_mana));
     Ok(())
@@ -4956,12 +4960,12 @@ fn a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot() -> TestResul
         "a shot costs mana"
     );
     // Mana leak takes mana, and the shots follow it.
-    b.units[0].leak_mana(leak, shot);
+    b.units[0].leak_mana(leak, shot, &shipped().rules);
     let u = b.unit(0).ok_or("unit is missing")?;
     assert_eq!(u.mana, mana - shot - leak);
     assert_eq!(u.ammo, (ammo - 1).min((mana - shot - leak) / shot));
     // With no mana left it cannot shoot.
-    b.units[0].leak_mana(1000, shot);
+    b.units[0].leak_mana(1000, shot, &shipped().rules);
     assert_eq!(
         (
             b.unit(0).ok_or("unit is missing")?.mana,
@@ -4973,10 +4977,10 @@ fn a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot() -> TestResul
     let mut plain = unit_numbered(51 /* beastmen_magicians */);
     let shots = plain.ammo;
     assert_eq!(plain.mana, 0);
-    plain.leak_mana(leak, shot);
+    plain.leak_mana(leak, shot, &shipped().rules);
     assert_eq!((plain.mana, plain.ammo), (0, shots - 1));
     plain.ranged_kind = RangedKind::Missile;
-    plain.leak_mana(leak, shot);
+    plain.leak_mana(leak, shot, &shipped().rules);
     assert_eq!(plain.ammo, shots - 1, "arrows are not spell shots");
     Ok(())
 }

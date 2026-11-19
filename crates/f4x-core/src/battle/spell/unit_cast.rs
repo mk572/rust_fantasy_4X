@@ -14,7 +14,6 @@
 
 use super::*;
 use crate::battle::{BattleUnit, UnitCasting};
-use crate::rules::Ability;
 use f4x_def::half_int::HalfInt;
 
 /// Where a unit's cast comes from, which decides what it uses up.
@@ -68,10 +67,7 @@ impl Game {
         for &spell in innate {
             add(spell, SpellSource::Mana);
         }
-        if !unit.hero_caster
-            && (unit.has(Ability::new(61 /* spellcaster */))
-                || unit.has(Ability::new(62 /* spellcaster_major */)))
-        {
+        if !unit.hero_caster && unit.is_caster(&self.content.rules) {
             if let Some(realm) = unit.realm {
                 let spells = &self.content.rules.spells;
                 for def in spells.defs() {
@@ -340,7 +336,7 @@ impl Game {
         match source {
             SpellSource::Mana => {
                 u.mana -= paid;
-                if u.shoots_with_mana() {
+                if u.shoots_with_mana(&self.content.rules) {
                     u.ammo = u.ammo.min(u.mana / shot_mana);
                 }
             }

@@ -257,7 +257,7 @@ impl Battle {
             if u.melee > 0 {
                 b.melee += 1;
             }
-            if u.ranged_kind == RangedKind::Missile || u.has(Ability::new(69 /* thrown */)) {
+            if u.weapon_shot(&self.content.rules).is_some() {
                 b.ranged += 1;
             }
             b.magical = true;
@@ -372,7 +372,7 @@ impl Battle {
             .iter_mut()
             .filter(|u| u.side == victim && u.is_active())
         {
-            u.leak_mana(drain, shot_mana);
+            u.leak_mana(drain, shot_mana, &self.content.rules);
         }
         vec![BattleEvent::ManaLeaked { side: victim }]
     }

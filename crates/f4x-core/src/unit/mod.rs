@@ -355,8 +355,10 @@ impl<'a> UnitView<'a> {
         let mut mods = self.level_modifiers(unit, from + 1..to + 1);
         // A hero's abilities grow with its level too; the change is added as a difference.
         if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
-            let magic = crate::battle::game::ranged_kind_of(&self.unit_abilities(unit))
-                == crate::battle::RangedKind::Magic;
+            let magic = crate::battle::game::ranged_kind_of(
+                &self.unit_abilities(unit),
+                &self.content.rules,
+            ) == crate::battle::RangedKind::Magic;
             let formulas = &self.content.rules;
             let before = hero.abilities.modifiers(formulas, from, magic);
             for m in hero.abilities.modifiers(formulas, to, magic) {
@@ -428,8 +430,10 @@ impl<'a> UnitView<'a> {
         mods.extend(self.ability_modifiers(unit));
         let level = self.unit_level(unit);
         if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
-            let magic = crate::battle::game::ranged_kind_of(&self.unit_abilities(unit))
-                == crate::battle::RangedKind::Magic;
+            let magic = crate::battle::game::ranged_kind_of(
+                &self.unit_abilities(unit),
+                &self.content.rules,
+            ) == crate::battle::RangedKind::Magic;
             mods.extend(hero.abilities.modifiers(&self.content.rules, level, magic));
         }
         mods.extend(self.level_modifiers(unit, 0..level + 1));

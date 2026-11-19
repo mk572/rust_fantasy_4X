@@ -85,36 +85,40 @@ impl BattleStartError {
     }
 }
 
-/// What kind of ranged attack the unit's abilities give it.
-pub fn ranged_kind_of(abilities: &[Ability]) -> RangedKind {
-    let has = |names: &[u16]| abilities.iter().any(|a| names.contains(&a.num()));
-    // bow, sling, rock throwing
-    if has(&[3, 59, 57]) {
-        RangedKind::Missile
-    } else if has(&[
-        69, // thrown
-        20, // fire breath
-        37, // lightning breath
-        64, // stoning gaze
-        15, // death gaze
-        46, // multi gaze
-    ]) {
-        RangedKind::Short
-    } else if has(&[
-        22, // fireball attack
-        36, // lightning bolt
-        29, // ice bolt
-        47, // nature bolt
-        60, // sorcery bolt
-        63, // sprite bolt
-        18, // drow bolt
-        58, // shaman bolt
-        14, // death bolt
-    ]) {
-        RangedKind::Magic
-    } else {
-        RangedKind::None
-    }
+/// What kind of ranged attack the unit's abilities give it (`attack.kind` in `abilities.ron`): a
+/// missile weapon before a short-range attack before a magical one, when it has several.
+pub fn ranged_kind_of(abilities: &[Ability], rules: &crate::rules::Rules) -> RangedKind {
+    let kinds = abilities
+        .iter()
+        .filter_map(|&a| rules.abilities.get(a).attack.as_ref())
+        .map(|attack| attack.kind);
+    [RangedKind::Missile, RangedKind::Short, RangedKind::Magic]
+        .into_iter()
+        .find(|k| kinds.clone().any(|have| have == *k))
+        .unwrap_or(RangedKind::None)
+}
+
+/// The kind of the weapon shot the abilities give (a bow, sling, boulder or thrown weapon: a ranged
+/// attack of the mundane weapon type), `None` for no such shot. A breath, gaze or bolt is not one.
+pub fn weapon_shot_of(abilities: &[Ability], rules: &crate::rules::Rules) -> Option<RangedKind> {
+    abilities
+        .iter()
+        .filter_map(|&a| rules.abilities.get(a).attack.as_ref())
+        .find(|attack| {
+            attack
+                .types
+                .contains(&crate::rules::damage_type::DamageType::MundaneWeapon)
+        })
+        .map(|attack| attack.kind)
+}
+
+/// The mana the abilities make a spell caster of: the most any of them gives, 0 for none.
+pub fn caster_mana_of(abilities: &[Ability], rules: &crate::rules::Rules) -> i32 {
+    abilities
+        .iter()
+        .map(|&a| rules.abilities.get(a).caster_mana)
+        .max()
+        .unwrap_or(0)
 }
 
 /// Something that plays a wizard's side of a battle: it is asked for one command at a time.
@@ -282,22 +286,17 @@ impl Game {
         // Mithril adds one and adamantium two to the attacks and the defence.
         let quality = self.units().unit_weapon_quality(unit);
         let extra = i32::from(quality.max(1)) - 1;
-        let ranged_kind = ranged_kind_of(&abilities);
-        let physical_shot =
-            ranged_kind == RangedKind::Missile || has(Ability::new(69 /* thrown */));
+        let ranged_kind = ranged_kind_of(&abilities, &self.content().rules);
+        let physical_shot = weapon_shot_of(&abilities, &self.content().rules).is_some();
         let melee = self.units().unit_stat(unit, Stat::Melee);
         let ranged = self.units().unit_stat(unit, Stat::Ranged);
-        // A spell caster has mana (20, or 40 for a major one), and shoots its spells with it.
+        // A spell caster has mana (`caster_mana` of its ability), and shoots its spells with it.
         // A hero's mana comes from its casting skill and level, and its items.
         let hero_mana = self.units().hero_mana(unit);
         let mana = if hero_mana > 0 {
             hero_mana
-        } else if has(Ability::new(62 /* spellcaster_major */)) {
-            40
-        } else if has(Ability::new(61 /* spellcaster */)) {
-            20
         } else {
-            0
+            caster_mana_of(&abilities, &self.content().rules)
         };
         let lucky = i32::from(has(Ability::new(39 /* lucky */)));
         let hero = self.world.get::<&crate::hero::Hero>(unit).ok();

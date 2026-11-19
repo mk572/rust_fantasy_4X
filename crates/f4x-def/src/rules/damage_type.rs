@@ -206,11 +206,27 @@ pub enum Delivery {
     Ranged,
 }
 
+/// How a unit's ranged attack works.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum RangedKind {
+    /// No ranged attack.
+    #[default]
+    None,
+    /// Arrows, slings and boulders: fired at a distance with a penalty, using ammunition.
+    Missile,
+    /// Spell shots: no range penalty, using ammunition (mana).
+    Magic,
+    /// Thrown weapons and breath: used just before melee, no ammunition.
+    Short,
+}
+
 /// The damage an ability adds to the attack of its unit (`attack` in `abilities.ron`).
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AbilityAttack {
     pub delivery: Delivery,
+    /// The ranged attack the ability gives the unit (none for an ability that only adds to it).
+    pub kind: RangedKind,
     pub types: Vec<DamageType>,
     /// The attack halves the defence it meets.
     pub armor_piercing: bool,
