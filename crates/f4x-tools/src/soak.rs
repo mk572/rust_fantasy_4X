@@ -686,7 +686,7 @@ pub fn game(
     for (p, place, count) in tally.worst_places(3) {
         logln!(
             log,
-            "attacks lost on monsters or neutrals: p{p} {count} at {place}"
+            "attacks lost on a neutral city or lair: p{p} {count} at {place}"
         );
     }
     for line in unit_lines(&game) {

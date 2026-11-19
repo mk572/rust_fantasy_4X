@@ -26,6 +26,26 @@ const STALLED_WAR_TURNS: u32 = 100;
 /// The ability of a settler (`Ability::new(12)`): a unit that can found a city.
 const SETTLER_ABILITY: u16 = 12;
 
+/// What the other side of a battle is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Wizard,
+    /// A neutral city: the player of a race.
+    Neutral,
+    /// A lair, tower or node: the monsters.
+    Lair,
+}
+
+fn kind_of(player: PlayerId) -> Kind {
+    if player == f4x_core::player::MONSTERS {
+        Kind::Lair
+    } else if player.0 >= f4x_core::player::race_player::FIRST_RACE_PLAYER {
+        Kind::Neutral
+    } else {
+        Kind::Wizard
+    }
+}
+
 /// The key of two players in the tables of wars: the lower number first.
 fn pair(a: PlayerId, b: PlayerId) -> (u8, u8) {
     (a.0.min(b.0), a.0.max(b.0))
@@ -154,21 +174,25 @@ pub struct Metrics {
     pub settlers_unpaid: u32,
     /// Units of any kind let go for lack of food (the settlers among them too).
     pub units_starved: u32,
-    /// Battles by who attacked and who the other side was (a wizard, or the monsters and neutral
-    /// cities): counted for the wizard on each side.
+    /// Battles by who attacked and who the other side was: a wizard, a neutral city (a race's
+    /// player) or a lair (the monsters). Counted for the wizard on each side.
     pub attack_won_wizard: u32,
     pub attack_lost_wizard: u32,
     pub defense_won_wizard: u32,
     pub defense_lost_wizard: u32,
-    pub attack_won_other: u32,
-    pub attack_lost_other: u32,
-    pub defense_won_other: u32,
-    pub defense_lost_other: u32,
+    pub attack_won_neutral: u32,
+    pub attack_lost_neutral: u32,
+    pub defense_won_neutral: u32,
+    pub defense_lost_neutral: u32,
+    pub attack_won_lair: u32,
+    pub attack_lost_lair: u32,
+    pub defense_won_lair: u32,
+    pub defense_lost_lair: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 84] {
+    pub fn rows(&self) -> [(&'static str, u32); 88] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -258,19 +282,20 @@ impl Metrics {
             ("attacks lost on a wizard", self.attack_lost_wizard),
             ("defenses won against a wizard", self.defense_won_wizard),
             ("defenses lost against a wizard", self.defense_lost_wizard),
-            ("attacks won on monsters or neutrals", self.attack_won_other),
+            ("attacks won on a neutral city", self.attack_won_neutral),
+            ("attacks lost on a neutral city", self.attack_lost_neutral),
             (
-                "attacks lost on monsters or neutrals",
-                self.attack_lost_other,
+                "defenses won against a neutral city",
+                self.defense_won_neutral,
             ),
             (
-                "defenses won against monsters or neutrals",
-                self.defense_won_other,
+                "defenses lost against a neutral city",
+                self.defense_lost_neutral,
             ),
-            (
-                "defenses lost against monsters or neutrals",
-                self.defense_lost_other,
-            ),
+            ("attacks won on a lair", self.attack_won_lair),
+            ("attacks lost on a lair", self.attack_lost_lair),
+            ("defenses won against a lair", self.defense_won_lair),
+            ("defenses lost against a lair", self.defense_lost_lair),
             (
                 "cities captured on the other plane",
                 self.cities_captured_far_plane,
@@ -431,10 +456,14 @@ impl AddAssign for Metrics {
             attack_lost_wizard,
             defense_won_wizard,
             defense_lost_wizard,
-            attack_won_other,
-            attack_lost_other,
-            defense_won_other,
-            defense_lost_other,
+            attack_won_neutral,
+            attack_lost_neutral,
+            defense_won_neutral,
+            defense_lost_neutral,
+            attack_won_lair,
+            attack_lost_lair,
+            defense_won_lair,
+            defense_lost_lair,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -516,10 +545,14 @@ impl AddAssign for Metrics {
         self.attack_lost_wizard += attack_lost_wizard;
         self.defense_won_wizard += defense_won_wizard;
         self.defense_lost_wizard += defense_lost_wizard;
-        self.attack_won_other += attack_won_other;
-        self.attack_lost_other += attack_lost_other;
-        self.defense_won_other += defense_won_other;
-        self.defense_lost_other += defense_lost_other;
+        self.attack_won_neutral += attack_won_neutral;
+        self.attack_lost_neutral += attack_lost_neutral;
+        self.defense_won_neutral += defense_won_neutral;
+        self.defense_lost_neutral += defense_lost_neutral;
+        self.attack_won_lair += attack_won_lair;
+        self.attack_lost_lair += attack_lost_lair;
+        self.defense_won_lair += defense_won_lair;
+        self.defense_lost_lair += defense_lost_lair;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -879,30 +912,30 @@ impl Tally {
         sum
     }
 
-    /// The battle just ended, by who attacked and whether the other side was a wizard.
+    /// The battle just ended, by who attacked and what the other side was.
     fn count_by_role(&mut self, winner: PlayerId, loser: PlayerId) {
         let Some((attacker, _, place)) = self.open_battle.take() else {
             return;
         };
-        let wizards = self.players.len() - 1;
-        if attacker == loser && usize::from(winner.0) >= wizards {
+        if attacker == loser && kind_of(winner) != Kind::Wizard {
             *self.lost_on_others.entry((attacker.0, place)).or_default() += 1;
         }
-        let wizards = self.players.len() - 1;
-        let is_wizard = |p: PlayerId| usize::from(p.0) < wizards;
         for (me, other, won) in [(winner, loser, true), (loser, winner, false)] {
             let by_me = me == attacker;
-            let vs_wizard = is_wizard(other);
             let Some(m) = self.at(me) else { continue };
-            let counter = match (by_me, won, vs_wizard) {
-                (true, true, true) => &mut m.attack_won_wizard,
-                (true, false, true) => &mut m.attack_lost_wizard,
-                (false, true, true) => &mut m.defense_won_wizard,
-                (false, false, true) => &mut m.defense_lost_wizard,
-                (true, true, false) => &mut m.attack_won_other,
-                (true, false, false) => &mut m.attack_lost_other,
-                (false, true, false) => &mut m.defense_won_other,
-                (false, false, false) => &mut m.defense_lost_other,
+            let counter = match (by_me, won, kind_of(other)) {
+                (true, true, Kind::Wizard) => &mut m.attack_won_wizard,
+                (true, false, Kind::Wizard) => &mut m.attack_lost_wizard,
+                (false, true, Kind::Wizard) => &mut m.defense_won_wizard,
+                (false, false, Kind::Wizard) => &mut m.defense_lost_wizard,
+                (true, true, Kind::Neutral) => &mut m.attack_won_neutral,
+                (true, false, Kind::Neutral) => &mut m.attack_lost_neutral,
+                (false, true, Kind::Neutral) => &mut m.defense_won_neutral,
+                (false, false, Kind::Neutral) => &mut m.defense_lost_neutral,
+                (true, true, Kind::Lair) => &mut m.attack_won_lair,
+                (true, false, Kind::Lair) => &mut m.attack_lost_lair,
+                (false, true, Kind::Lair) => &mut m.defense_won_lair,
+                (false, false, Kind::Lair) => &mut m.defense_lost_lair,
             };
             *counter += 1;
         }
