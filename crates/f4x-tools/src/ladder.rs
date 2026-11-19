@@ -27,7 +27,7 @@ use f4x_core::player::PlayerId;
 use f4x_core::rules::{Ability, Stat, UnitKind};
 use f4x_def::content::Content;
 
-pub const USAGE: &str = "usage: f4x-tools duel ladder [--levels 1-9|N,N,..] [--units N,N,..] [--normal] [--cross LO-HI] [--combine LO-HI] [--ratings FILE] [--seeds N] [--jobs N] [--out DIR] [--report] [--content DIR]
+pub const USAGE: &str = "usage: f4x-tools duel ladder [--levels 1-9|N,N,..] [--units N,N,..] [--normal] [--cross LO-HI] [--combine LO-HI] [--ratings FILE] [--efficiency FILE] [--seeds N] [--jobs N] [--out DIR] [--report] [--content DIR]
   Fights every unit against every other at each experience level (1 is a recruit or a plain hero,
   9 a Demi-God; a normal unit stops at 6, a fantastic unit has no levels) and writes, per level
   into DIR (default target/ladder): ladder_L.csv (every pair), ladder_L_rank.csv (the fitted strength
@@ -35,7 +35,9 @@ pub const USAGE: &str = "usage: f4x-tools duel ladder [--levels 1-9|N,N,..] [--u
   ladder_ranking.csv; --normal fights normal units only (no heroes, creatures or settlers);
   --cross 1-4 fights every normal unit at a level against every one at a higher level
   (cross_A_B.csv, kept if there); --combine 1-4 fits one worth for every unit at every level
-  from ladder_L.csv and cross_A_B.csv into ladder_levels.csv; --report builds the other files from the ladder_L.csv of an earlier run
+  from ladder_L.csv and cross_A_B.csv into ladder_levels.csv; --efficiency FILE writes the rating
+  per resource of every rated unit (unit_efficiency.ron, from the rating file and the unit rows);
+  --report builds the other files from the ladder_L.csv of an earlier run
   without fighting. --seeds is the fights of a step (default 6, even), --jobs the threads (default 4).";
 
 const P0: PlayerId = PlayerId(0);
@@ -1030,6 +1032,51 @@ fn combine_levels(
     Ok(())
 }
 
+/// The efficiency file: for every rated unit the rating (averaged over the measured levels, a
+/// hero's with its factor) over the base cost plus 100 turns of upkeep, gold, food and mana
+/// counting alike (the half-upkeep setting of the basic troops is not applied).
+fn write_efficiency(content: &Content, path: &Path) -> Result<(), String> {
+    let turns = 100u32;
+    let rules = &content.rules;
+    let rated = |num: u16| -> Option<(String, f64, f64)> {
+        let (_, def) = rules.units.iter().find(|(_, u)| u.num == num)?;
+        let row = rules.ratings.row(num)?;
+        let avg = (0..row.levels.len())
+            .filter_map(|l| rules.combat_rating(def, l))
+            .map(f64::from)
+            .sum::<f64>()
+            / row.levels.len() as f64;
+        let upkeep = def.upkeep.gold.as_f32() + def.upkeep.food.as_f32() + def.upkeep.mana as f32;
+        let cost = f64::from(def.cost) + f64::from(turns) * f64::from(upkeep);
+        Some((def.id.clone(), avg, cost))
+    };
+    let (_, pawn_rating, pawn_cost) = rated(PAWN).ok_or("the pawn has no rating")?;
+    let pawn = pawn_rating / pawn_cost * 100.0;
+    let mut ron = format!(
+        "// What a unit's rating buys per resource: the rating (`unit_ratings.ron`, averaged over the measured\n// levels, a hero's with its factor) over the base cost plus {turns} turns of upkeep, gold, food and\n// mana counting alike (the half-upkeep setting is not applied). `per_100` is rating per 100 resources,\n// `relative` that over a High Men spearman's. Made by `f4x-tools duel ladder --efficiency FILE`; a\n// rough guide, for garrisons, what to build and what to hire.\n(\n    upkeep_turns: {turns},\n    units: [\n"
+    );
+    let mut nums: Vec<u16> = rules.ratings.units.iter().map(|r| r.num).collect();
+    nums.sort_unstable();
+    for num in nums {
+        let Some((id, rating, cost)) = rated(num) else {
+            continue;
+        };
+        if cost <= 0.0 {
+            continue;
+        }
+        let per_100 = rating / cost * 100.0;
+        ron += &format!(
+            "        (num: {num}, id: \"{id}\", rating: {}, cost: {cost:.0}, per_100: {per_100:.2}, relative: {:.2}),\n",
+            sig3(rating),
+            per_100 / pawn
+        );
+    }
+    ron += "    ],\n)\n";
+    std::fs::write(path, ron).map_err(|e| e.to_string())?;
+    println!("the efficiency: {}", path.display());
+    Ok(())
+}
+
 /// A number to three significant figures, as RON text.
 fn sig3(x: f64) -> String {
     let digits = if x >= 100.0 {
@@ -1059,7 +1106,7 @@ fn parse_levels(text: &str) -> Result<Vec<usize>, String> {
 pub fn run(args: &[String]) -> Result<(), String> {
     let (mut report, mut normal, mut levels_given) = (false, false, false);
     let (mut cross, mut combine) = (None::<Vec<usize>>, None::<Vec<usize>>);
-    let mut ratings = None::<PathBuf>;
+    let (mut ratings, mut efficiency) = (None::<PathBuf>, None::<PathBuf>);
     let (mut levels, mut units, mut seeds, mut jobs) =
         (vec![1usize], Vec::<u16>::new(), 6u64, 4usize);
     let (mut out, mut dir) = (
@@ -1087,11 +1134,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "--cross" => cross = Some(parse_levels(&value("--cross")?)?),
             "--combine" => combine = Some(parse_levels(&value("--combine")?)?),
             "--ratings" => ratings = Some(PathBuf::from(value("--ratings")?)),
+            "--efficiency" => efficiency = Some(PathBuf::from(value("--efficiency")?)),
             "--content" => dir = value("--content")?.into(),
             other => return Err(format!("unknown option {other:?}\n{USAGE}")),
         }
     }
-    if (cross.is_some() || combine.is_some()) && !levels_given {
+    if (cross.is_some() || combine.is_some() || efficiency.is_some()) && !levels_given {
         levels.clear();
     }
     if seeds == 0 || seeds % 2 != 0 {
@@ -1203,6 +1251,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
     if let Some(range) = &combine {
         combine_levels(&content, range, &out, ratings.as_deref())?;
+    }
+    if let Some(path) = &efficiency {
+        write_efficiency(&content, path)?;
     }
     if levels.len() > 1 {
         let mut text = String::from("unit,name,kind");

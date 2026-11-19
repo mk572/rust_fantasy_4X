@@ -5,7 +5,7 @@ a unit of 8 is worth about eight of them, and two units of 100 are worth one of 
 guide. It is measured, not computed: `f4x-tools duel ladder` plays real battles on the shipped
 rules ([`duel.md`](duel.md)) and the numbers are fitted to the results (task 655). It replaces the
 eyeballed formula of `battle::power` as the thing the game and the AI weigh units by (the plan
-below; tasks 720 to 723).
+below; tasks 720 to 724).
 
 It is a rough guide. The weights move it a few percent either way, about 4 pairs in 100 are
 rock-paper-scissors cases a single number cannot carry (immunities, special attacks, a missing
@@ -43,6 +43,15 @@ The outcome tables of the runs are archived in `duel-out/` (local, not committed
   `duel ladder --combine 1-4 --ratings crates/f4x-def/content/unit_ratings.ron`, and
   `python3 scripts/ron_hashes.py --update`. The tables themselves (`target/ladder/`) are local and not
   committed. A full run takes about three hours on four threads (`scripts/cool_run.sh`).
+
+- **Efficiency** (`crates/f4x-def/content/unit_efficiency.ron`, `Rules::efficiency.row(num)`, optional):
+  the rating per resource, for choosing garrisons, what to build and what to hire. The rating is
+  averaged over the measured levels (a creature's is flat, a hero's has its factor), the cost is the
+  base cost plus 100 turns of upkeep with gold, food and mana counting alike (the half-upkeep setting is
+  not applied); `per_100` is rating per 100 resources and `relative` that over a High Men spearman's
+  (1.71). Regenerate with `duel ladder --efficiency crates/f4x-def/content/unit_efficiency.ron` after the
+  ratings. **Garrison caveat:** only normal units and heroes calm unrest (half a rebel each, as in the
+  original); fantastic units defend but do not police, so a garrison chosen for unrest cannot use them.
 
 What the numbers show that the old formula did not: the level jump. High Men spearmen are worth
 1.0, 1.8, 2.4 and 9.2 at recruit, regular, veteran and elite, as the wiki says of Elites ("double the
@@ -98,7 +107,7 @@ retyped formulas) comes first, so that the swap is one place.
 |---|---|---|
 | Raid composition: `raid.rs`, `threat/raider.rs` | how strong a raid or a monster party is against a target, the paladin and drake yardsticks | yardsticks read ratings; party strength is the group sum |
 | Attack plans: `war_plan.rs` `strength_wanted`, `military.rs` `expected_defence`, `attack_ratio`, `sortie_ratio`, `reinforce.rs` | the force wanted for a target and whether to march | thresholds rescaled (step 1), the defence of a walled city with the wall factor (step 2) |
-| Garrisons: `military.rs`, `crowd.rs`, `escort.rs` (the weak hero), `assault.rs` `guard_parts`, `city/neutral.rs` | who stays, who marches, the neutral and lair garrisons | ranking by rating; `neutral.rs` keeps the original's melee and ranged slots and chooses within them by rating |
+| Garrisons: `military.rs`, `crowd.rs`, `escort.rs` (the weak hero), `assault.rs` `guard_parts`, `city/neutral.rs` | who stays, who marches, the neutral and lair garrisons | ranking by rating; `neutral.rs` keeps the original's melee and ranged slots and chooses within them by rating; **a garrison also has to calm the city: only normal units and heroes count as police (half a rebel each, up to one battle side, and only while the buildings and spells leave rebels), fantastic units never do, so the garrison logic keeps enough policing units in a city with unrest and picks the rest by efficiency (`unit_efficiency.ron`), where the fantastic units may fill the remaining slots** |
 | Production: `city/autobuild.rs` (`best_defender`, `raw_profiles`), `ai/builder.rs` `best_soldier` | the best soldier a city can build for its gold | rating over the square root of the lifetime cost as now, the mobility bonus kept; the ratings expose the cost-inefficient units |
 | Diplomacy: `diplomacy/trade.rs` `unit_worth`, `hero_worth`; `ai/statecraft.rs` `Power { army }`, `leader_of`, `is_straggler` | what a unit is worth in a trade offer, how strong a rival's army is | a unit's price is its rating times a price per spearman read off the cost curve, at least its cost-based price; the army strength is the sum of ratings, the thresholds rescaled (task 722) |
 | Battle AI: `ai/battle/order.rs` `worth`, `cast.rs` (the worth of a summon) | which enemy to attack first, whether a spell is worth casting | `worth` = rating with the figures and hit points left; a summon is its rating |
@@ -106,16 +115,19 @@ retyped formulas) comes first, so that the swap is one place.
 | Client: `fighter_pick.rs` | the order of the fighters in the pick screen | the same measure (the rating could also be shown to the player as an estimate) |
 | Lairs: `feature/lair.rs` | the strength of a guard against the treasure | the group sum of the guards' ratings |
 
-### Step 4: the data gets better (task 723)
+### Step 4: the data gets better (tasks 723 and 724)
 
-- **Heroes**: replace `hero_factor` with a function of the rolled abilities, spells and items,
-  fitted from `duel heroes` (the rolled heroes) and the item powers; measure the heroes at the levels
-  above 4 (the ladder for heroes only at levels 5 to 9).
-- **Levels 5 and 6 of the normal units** (Ultra-Elite and Champion): `duel ladder --normal --cross
-  1-6`, needing the Warlord retort and the Crusade spell in the harness, which it has
+- **Heroes (task 724)**: replace `hero_factor` with a function of class, level and carried items. The
+  measured pointer: rolled casters climb the hero ranking a lot (Warlock 24 places, Witch 15, Wind Mage
+  14) and warriors do not, and the rolled abilities scale with the level, so one flat factor is wrong
+  both ways. Measure the rolled hero against fixed reference units per hero, add a typical item loadout
+  by level, and measure the heroes at levels 5 to 9. The wiring goes first; this changes numbers.
+- **Levels 5 and 6 of the normal units** (Ultra-Elite and Champion, task 723): `duel ladder --normal
+  --cross 1-6`, needing the Warlord retort and the Crusade spell in the harness, which it has
   (`Game::scenario_level_bonus`).
-- **A stale rating**: the file does not know that a unit changed. A check that the units, abilities
-  and spells the rating was made for are the shipped ones (a hash in the header, tested) would flag it.
+- **A stale rating** (task 723): the file does not know that a unit changed. A check that the units,
+  abilities and spells the rating was made for are the shipped ones (a hash in the header, tested)
+  would flag it.
 
 ### Not to expect
 

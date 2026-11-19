@@ -258,6 +258,61 @@ impl UnitRatings {
     }
 }
 
+/// What a unit's rating buys per resource: the unit combat rating over what the unit costs to
+/// have (`unit_efficiency.ron`, made from `unit_ratings.ron` and the unit rows by `f4x-tools duel
+/// ladder --efficiency FILE`): for choosing garrisons, what to build, what to hire. A rough guide
+/// like the ratings it is made from.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UnitEfficiencies {
+    /// The turns of upkeep that count beside the base cost (100).
+    #[serde(default = "hundred")]
+    pub upkeep_turns: u32,
+    /// One row per unit with a rating and a cost, in the order of the unit numbers.
+    #[serde(default)]
+    pub units: Vec<UnitEfficiency>,
+}
+
+fn hundred() -> u32 {
+    100
+}
+
+impl Default for UnitEfficiencies {
+    fn default() -> Self {
+        UnitEfficiencies {
+            upkeep_turns: 100,
+            units: Vec::new(),
+        }
+    }
+}
+
+/// The efficiency of one unit.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UnitEfficiency {
+    /// The unit's number.
+    pub num: u16,
+    /// The alias for human editing.
+    pub id: String,
+    /// The rating, averaged over the levels that were measured (a creature's is flat), a hero's
+    /// with its factor.
+    pub rating: f32,
+    /// The base cost plus `upkeep_turns` turns of upkeep, gold, food and mana counting alike.
+    pub cost: f32,
+    /// Rating per 100 resources of cost.
+    pub per_100: f32,
+    /// `per_100` over that of a High Men spearman (1 is as good a buy as a spearman).
+    pub relative: f32,
+}
+
+impl UnitEfficiencies {
+    /// The row of the unit with this number.
+    pub fn row(&self, num: u16) -> Option<&UnitEfficiency> {
+        self.units
+            .binary_search_by_key(&num, |r| r.num)
+            .ok()
+            .map(|i| &self.units[i])
+    }
+}
+
 /// How a hero type starts in each wizard's game (`NewGame.c:_hero_premade_table`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HeroTemplate {
@@ -1726,6 +1781,8 @@ pub struct Rules {
     pub hero_templates: Vec<HeroTemplate>,
     /// The unit combat ratings (`unit_ratings.ron`, optional): what each unit is worth in a fight.
     pub ratings: UnitRatings,
+    /// What the ratings buy per resource (`unit_efficiency.ron`, optional).
+    pub efficiency: UnitEfficiencies,
     /// The guard and treasure rules of the sites (`lairs.ron`).
     pub lairs: super::lair::LairRules,
     /// How the AI weighs a place for a city (`ai_sites.ron`, optional).

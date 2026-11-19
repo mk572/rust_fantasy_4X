@@ -88,6 +88,12 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         } else {
             crate::rules::UnitRatings::default()
         },
+        // What the ratings buy per resource, also optional.
+        efficiency: if find(dir, "unit_efficiency.ron").is_some() {
+            parse::<crate::rules::UnitEfficiencies>(dir, "unit_efficiency.ron")?
+        } else {
+            crate::rules::UnitEfficiencies::default()
+        },
         // The lair rules, also optional: a rule set without the file uses the original's.
         lairs: if find(dir, "lairs.ron").is_some() {
             parse::<crate::rules::lair::LairRules>(dir, "lairs.ron")?
@@ -184,6 +190,31 @@ fn check_lairs(r: &Rules, p: &mut Vec<String>) {
 /// The unit ratings: rows in the order of the unit numbers, each for a unit that exists, with at
 /// least one positive number.
 fn check_ratings(r: &Rules, p: &mut Vec<String>) {
+    for w in r.efficiency.units.windows(2) {
+        if w[0].num >= w[1].num {
+            p.push(format!(
+                "unit_efficiency.ron: unit {} is out of order or twice",
+                w[1].num
+            ));
+        }
+    }
+    for row in &r.efficiency.units {
+        if !r.units.iter().any(|(_, u)| u.num == row.num) {
+            p.push(format!(
+                "unit_efficiency.ron: unit {} does not exist",
+                row.num
+            ));
+        }
+        if ![row.rating, row.cost, row.per_100, row.relative]
+            .iter()
+            .all(|v| v.is_finite() && *v > 0.0)
+        {
+            p.push(format!(
+                "unit_efficiency.ron: unit {} needs positive numbers",
+                row.num
+            ));
+        }
+    }
     if !(r.ratings.hero_factor.is_finite() && r.ratings.hero_factor > 0.0) {
         p.push("unit_ratings.ron: hero_factor must be above 0".to_string());
     }
@@ -899,6 +930,7 @@ mod tests {
             wizards: Registry::new(wizards),
             hero_templates,
             ratings: Default::default(),
+            efficiency: Default::default(),
             lairs: shipped("lairs.ron", edits),
             ai_sites: shipped("ai_sites.ron", edits),
         }
