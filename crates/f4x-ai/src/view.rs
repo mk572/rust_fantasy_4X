@@ -106,7 +106,7 @@ pub fn is_coastal(view: &PlayerView, at: Position) -> bool {
 
 /// A unit that can fight on land (settlers, engineers, ships and the like are not counted).
 pub fn is_fighter(view: &PlayerView, unit: hecs::Entity) -> bool {
-    !view.unit_has_ability(unit, Ability::new(12 /* create_outpost */))
+    !view.unit_is_settler(unit)
         && !is_ship(view, unit)
         && view.unit_stat(unit, Stat::Construction) <= 0
         && !view.unit_has_ability(unit, Ability::new(42 /* meld */))

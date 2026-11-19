@@ -8,7 +8,6 @@
 //!
 //! Tests: in city/autobuild/tests.rs.
 
-use crate::rules::Ability;
 use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
@@ -328,10 +327,6 @@ pub struct CityFacts {
     pub cities: u32,
 }
 
-fn is_settler(d: &crate::rules::UnitDef) -> bool {
-    d.abilities.contains(&Ability::new(12))
-}
-
 fn is_combat(d: &crate::rules::UnitDef) -> bool {
     d.stat(Stat::Melee) > 0.0 || d.stat(Stat::Ranged) > 0.0
 }
@@ -340,7 +335,7 @@ fn is_combat(d: &crate::rules::UnitDef) -> bool {
 /// have a melee value but walk off to build roads, and a city that counted them would build one
 /// after another to fill its garrison).
 fn is_garrison(d: &crate::rules::UnitDef) -> bool {
-    is_combat(d) && !is_settler(d) && !is_engineer(d)
+    is_combat(d) && !d.is_settler() && !is_engineer(d)
 }
 
 fn is_engineer(d: &crate::rules::UnitDef) -> bool {
@@ -349,7 +344,7 @@ fn is_engineer(d: &crate::rules::UnitDef) -> bool {
 
 /// A ship or other unit with no attack that the exploration focus may like.
 fn is_transport(d: &crate::rules::UnitDef) -> bool {
-    !is_combat(d) && !is_settler(d) && !is_engineer(d)
+    !is_combat(d) && !d.is_settler() && !is_engineer(d)
 }
 
 fn effect_values(content: &Content, b: BuildingId, wanted: &[Stat]) -> Vec<(Stat, ModOp, HalfInt)> {
@@ -473,7 +468,7 @@ fn raw_profiles(d: &crate::rules::UnitDef, rules: &crate::rules::Rules) -> [f32;
         + if sailing { 1.5 } else { 0.0 }
         + d.stat(Stat::Transport) * 0.3
         + d.stat(Stat::Construction) * 1.5
-        + if is_settler(d) { 1.0 } else { 0.0 };
+        + if d.is_settler() { 1.0 } else { 0.0 };
     [offense, defense, exploration]
 }
 
@@ -533,7 +528,7 @@ fn ranked_units(
         .copied()
         .filter(|&u| {
             let d = content.rules.units.get(u);
-            if is_settler(d) {
+            if d.is_settler() {
                 exploring && settlers_ok
             } else if is_engineer(d) {
                 // Roads halve every army's and settler's walk: engineers are built under any
@@ -552,7 +547,7 @@ fn ranked_units(
     // its cheap ones. The garrison minimum is chosen apart from this and stays cheap.
     let pool = if plan.elite_units {
         let fighter = |d: &crate::rules::UnitDef| {
-            is_combat(d) && !is_settler(d) && d.movement != MovementType::Sailing
+            is_combat(d) && !d.is_settler() && d.movement != MovementType::Sailing
         };
         let dearest = pool
             .iter()
@@ -640,7 +635,7 @@ fn cheapest_settler(content: &Content, f: &CityFacts) -> Option<UnitId> {
     f.units
         .iter()
         .copied()
-        .filter(|&u| is_settler(content.rules.units.get(u)))
+        .filter(|&u| content.rules.units.get(u).is_settler())
         .min_by_key(|&u| content.rules.units.get(u).cost)
 }
 
@@ -885,7 +880,7 @@ impl Game {
             };
             let alive = my_units
                 .iter()
-                .filter(|&&u| view.unit_has_ability(u, Ability::new(12)))
+                .filter(|&&u| view.unit_is_settler(u))
                 .filter(|&&u| near(view.unit_position(u)))
                 .count();
             let building = cities
@@ -894,7 +889,7 @@ impl Game {
                 .filter(|&&(c, _)| {
                     matches!(
                         view.city_production(c).item,
-                        Some(ProductionItem::Unit(u)) if is_settler(content.rules.units.get(u))
+                        Some(ProductionItem::Unit(u)) if content.rules.units.get(u).is_settler()
                     )
                 })
                 .count();

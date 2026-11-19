@@ -785,8 +785,7 @@ fn cheapest_fighters(g: &Game, race: crate::rules::RaceId, n: usize) -> Vec<u32>
 }
 
 fn is_settler(g: &Game, u: hecs::Entity) -> bool {
-    g.units()
-        .unit_has_ability(u, crate::rules::Ability::new(12))
+    g.units().unit_is_settler(u)
 }
 
 #[test]

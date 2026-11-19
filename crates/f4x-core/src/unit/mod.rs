@@ -268,6 +268,11 @@ impl<'a> UnitView<'a> {
         self.unit_def(unit).is_some() && self.abilities_shared(unit).contains(&ability)
     }
 
+    /// Whether the unit can found a city.
+    pub fn unit_is_settler(&self, unit: hecs::Entity) -> bool {
+        self.unit_has_ability(unit, Ability::new(12 /* create_outpost */))
+    }
+
     pub(crate) fn unit_level_path(&self, unit: hecs::Entity) -> Option<&'a LevelPathDef> {
         self.unit_def(unit)?
             .level_path

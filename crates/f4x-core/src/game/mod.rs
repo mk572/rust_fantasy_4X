@@ -23,7 +23,6 @@ pub mod view;
 #[cfg(test)]
 mod tests;
 
-use crate::rules::Ability;
 use crate::{battle, city, diplomacy, game, map, player, threat, unit, wizard, world_event};
 use f4x_def::content;
 use f4x_def::half_int::HalfInt;
@@ -847,7 +846,7 @@ impl Game {
                 unit::movement::MoveError::BadSelection,
             ))];
         };
-        if !self.units().unit_has_ability(unit, Ability::new(12)) {
+        if !self.units().unit_is_settler(unit) {
             return vec![Event::Rejected(Rejection::Production(
                 city::production::ProductionError::WrongRace,
             ))];

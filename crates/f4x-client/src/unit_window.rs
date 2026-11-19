@@ -56,8 +56,7 @@ impl App {
                 .any(|&u| units.unit_has_ability(u, ability))
         };
         let builds = self.selection.iter().any(|&u| {
-            units.unit_has_ability(u, Ability::new(12))
-                || units.unit_stat(u, f4x_def::rules::Stat::Construction) > 0
+            units.unit_is_settler(u) || units.unit_stat(u, f4x_def::rules::Stat::Construction) > 0
         });
         if builds {
             Special::Build

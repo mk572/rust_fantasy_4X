@@ -19,7 +19,6 @@
 pub mod trade;
 pub use trade::Goods;
 
-use crate::rules::Ability;
 use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -1735,9 +1734,7 @@ impl Diplomacy {
             else {
                 continue;
             };
-            if !view.takes_part_in_diplomacy(owner)
-                || units.unit_has_ability(unit, Ability::new(12))
-            {
+            if !view.takes_part_in_diplomacy(owner) || units.unit_is_settler(unit) {
                 continue;
             }
             let grid = map.plane(pos.plane);

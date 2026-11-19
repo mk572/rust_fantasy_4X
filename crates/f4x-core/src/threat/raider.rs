@@ -9,7 +9,6 @@
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::{PlayerId, MONSTERS};
-use crate::rules::Ability;
 use crate::rules::{Stat, UnitId, UnitKind};
 use crate::unit::{Experience, Unit, Unpaid};
 
@@ -164,7 +163,7 @@ impl Game {
         units
             .unit_def(unit)
             .is_some_and(|d| d.kind == UnitKind::Normal)
-            && !units.unit_has_ability(unit, Ability::new(12))
+            && !units.unit_is_settler(unit)
             && units.unit_stat(unit, Stat::Transport) == 0
             && units
                 .unit_stat(unit, Stat::Melee)

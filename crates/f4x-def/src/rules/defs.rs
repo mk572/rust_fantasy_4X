@@ -268,6 +268,11 @@ impl UnitDef {
     pub fn stat(&self, stat: Stat) -> f32 {
         self.stats.get(&stat).map_or(0.0, |v| v.as_f32())
     }
+
+    /// Whether the unit can found a city.
+    pub fn is_settler(&self) -> bool {
+        self.abilities.contains(&Id::new(12 /* create_outpost */))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

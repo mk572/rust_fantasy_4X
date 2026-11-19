@@ -483,9 +483,7 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
             }
         }
         // Settlers first: a city founded late costs more than a soldier delivered late.
-        let settler = |u: &hecs::Entity| {
-            view.unit_has_ability(*u, f4x_def::rules::Ability::new(12 /* create_outpost */))
-        };
+        let settler = |u: &hecs::Entity| view.unit_is_settler(*u);
         groups.sort_by_key(|(_, units)| !units.iter().any(settler));
         let mut groups = groups
             .into_iter()

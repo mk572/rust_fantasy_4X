@@ -146,7 +146,7 @@ fn is_soldier(d: &UnitDef) -> bool {
     d.kind == UnitKind::Normal
         && d.cost > 0
         && d.movement != MovementType::Sailing
-        && !d.abilities.contains(&Ability::new(12 /* create_outpost */))
+        && !d.is_settler()
         && !d.abilities.contains(&Ability::new(42 /* meld */))
         && d.stat(Stat::Construction) <= 0.0
         && d.stat(Stat::Melee).max(d.stat(Stat::Ranged)) > 0.0
@@ -200,7 +200,7 @@ fn cheapest_settler(view: &PlayerView, city: hecs::Entity) -> Option<UnitId> {
     rules
         .units
         .iter()
-        .filter(|(_, d)| d.abilities.contains(&Ability::new(12 /* create_outpost */)))
+        .filter(|(_, d)| d.is_settler())
         .filter(|&(u, _)| view.can_build(city, ProductionItem::Unit(u)).is_ok())
         .min_by_key(|&(u, d)| (d.cost, u))
         .map(|(u, _)| u)

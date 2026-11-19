@@ -211,7 +211,7 @@ impl Game {
             let plain = def.kind == UnitKind::Normal
                 && def.cost > 0
                 && def.movement != crate::rules::MovementType::Sailing
-                && !def.abilities.contains(&Ability::new(12));
+                && !def.is_settler();
             if !plain
                 || self
                     .economy()

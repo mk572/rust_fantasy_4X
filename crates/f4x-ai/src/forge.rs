@@ -84,9 +84,7 @@ fn is_land_fighter(view: &PlayerView, unit: UnitId) -> bool {
         && d.stats
             .get(&Stat::Construction)
             .is_none_or(|v| v.as_f32() <= 0.0)
-        && !d
-            .abilities
-            .contains(&f4x_def::rules::Ability::new(12 /* create_outpost */))
+        && !d.is_settler()
 }
 
 /// The dearest land fighter of the city's race whose buildings the city can still get (a coastal

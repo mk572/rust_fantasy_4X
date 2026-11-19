@@ -59,7 +59,7 @@ fn is_defender(c: &Content, f: &CityFacts, item: ProductionItem) -> bool {
         return false;
     };
     let d = c.rules.units.get(u);
-    f.units.contains(&u) && is_combat(d) && !is_settler(d) && d.movement != MovementType::Sailing
+    f.units.contains(&u) && is_combat(d) && !d.is_settler() && d.movement != MovementType::Sailing
 }
 
 fn first(_: u32) -> u32 {
@@ -575,7 +575,7 @@ fn ranking(c: &Content, f: &CityFacts, elite: bool) -> Vec<(UnitId, f32)> {
 
 fn is_land_fighter(c: &Content, u: UnitId) -> bool {
     let d = c.rules.units.get(u);
-    is_combat(d) && !is_settler(d) && d.movement != MovementType::Sailing
+    is_combat(d) && !d.is_settler() && d.movement != MovementType::Sailing
 }
 
 // An elite plan is meant to make the army of the dear units a city can build. The check fails if

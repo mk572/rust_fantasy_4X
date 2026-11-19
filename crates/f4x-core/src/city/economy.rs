@@ -11,7 +11,6 @@
 //! in tens of people; growth is in tens of people per turn; food in whole food; production
 //! and gold in whole points.
 
-use crate::rules::Ability;
 use crate::spell::city::CityEffect;
 use crate::spell::global_enchantment::GlobalEffect;
 use f4x_def::half_int::HalfInt;
@@ -314,14 +313,7 @@ impl<'a> Economy<'a> {
     /// Whether building this unit takes a citizen from the city: Settlers do, unless the setting
     /// says they cost none.
     pub fn costs_a_citizen(&self, unit: crate::rules::UnitId) -> bool {
-        self.settlers_cost_citizen
-            && self
-                .content
-                .rules
-                .units
-                .get(unit)
-                .abilities
-                .contains(&Ability::new(12))
+        self.settlers_cost_citizen && self.content.rules.units.get(unit).is_settler()
     }
 
     /// The same view with diagonal steps costing half as much again, or not.

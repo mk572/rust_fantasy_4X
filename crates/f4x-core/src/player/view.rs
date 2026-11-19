@@ -425,6 +425,11 @@ impl<'a> PlayerView<'a> {
         self.game.units().unit_has_ability(unit, ability)
     }
 
+    /// Whether the unit can found a city.
+    pub fn unit_is_settler(&self, unit: hecs::Entity) -> bool {
+        self.game.units().unit_is_settler(unit)
+    }
+
     /// Whether the unit's weapons are magical (heroes, fantastic creatures, a flaming or blessed
     /// weapon): they hurt what normal weapons barely scratch.
     pub fn unit_has_magical_weapon(&self, unit: hecs::Entity) -> bool {

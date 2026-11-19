@@ -3,7 +3,6 @@
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_def::rules::Ability;
 
 use crate::city_site::Free;
 use crate::view::nearest_unexplored;
@@ -16,7 +15,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let mut mine: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
-            .filter(|&u| view.unit_has_ability(u, Ability::new(12 /* create_outpost */)))
+            .filter(|&u| view.unit_is_settler(u))
             .collect();
         view.sort_by_serial(&mut mine);
         // Forget the targets of settlers that are gone.

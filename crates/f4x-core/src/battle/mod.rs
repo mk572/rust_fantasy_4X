@@ -531,6 +531,11 @@ impl BattleUnit {
         self.abilities.contains(&ability)
     }
 
+    /// Whether the unit can found a city.
+    pub fn is_settler(&self) -> bool {
+        self.has(Ability::new(12 /* create_outpost */))
+    }
+
     /// Whether a web still holds the unit: it cannot move or attack until the web is broken.
     pub fn held_by_web(&self) -> bool {
         self.web_hits > 0

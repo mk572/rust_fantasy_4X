@@ -11,7 +11,7 @@
 use crate::game::{Event, Game};
 use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
-use crate::rules::{Ability, RaceId, Stat, UnitId, UnitKind};
+use crate::rules::{RaceId, Stat, UnitId, UnitKind};
 use crate::unit::{Experience, Unpaid};
 
 /// The eight neighbours of a square.
@@ -134,7 +134,7 @@ impl Game {
             if def.kind != UnitKind::Normal {
                 continue;
             }
-            if def.abilities.contains(&Ability::new(12)) {
+            if def.is_settler() {
                 settler = settler.or(Some(u));
             } else if def.stat(Stat::Transport) == 0.0
                 && def.stat(Stat::Melee).max(def.stat(Stat::Ranged)) > 0.0

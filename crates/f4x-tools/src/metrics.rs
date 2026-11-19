@@ -23,9 +23,6 @@ fn is_ship(def: &UnitDef) -> bool {
 /// turns old (task 561; the plan clock of task 515 is 100 turns too).
 const STALLED_WAR_TURNS: u32 = 100;
 
-/// The ability of a settler (`Ability::new(12)`): a unit that can found a city.
-const SETTLER_ABILITY: u16 = 12;
-
 /// What the other side of a battle is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Kind {
@@ -763,10 +760,7 @@ impl Tally {
             .units()
             .all_units()
             .into_iter()
-            .filter(|&u| {
-                game.units()
-                    .unit_has_ability(u, f4x_def::rules::Ability::new(SETTLER_ABILITY))
-            })
+            .filter(|&u| game.units().unit_is_settler(u))
             .filter_map(|u| {
                 Some((
                     game.units().serial_of(u),
@@ -1146,14 +1140,7 @@ impl Tally {
                             m.units_starved += 1;
                         }
                     });
-                    if game
-                        .content()
-                        .rules
-                        .units
-                        .get(*unit)
-                        .abilities
-                        .contains(&f4x_def::rules::Ability::new(SETTLER_ABILITY))
-                    {
+                    if game.content().rules.units.get(*unit).is_settler() {
                         self.settlers_let_go.push((*player, *cause));
                     }
                 }
@@ -1430,10 +1417,7 @@ mod tests {
             .units
             .defs()
             .iter()
-            .find(|d| {
-                d.abilities
-                    .contains(&f4x_def::rules::Ability::new(SETTLER_ABILITY))
-            })
+            .find(|d| d.is_settler())
             .and_then(|d| content.rules.units.id_numbered(d.num))
             .ok_or("no settler in the content")?;
         let home = game
@@ -1449,10 +1433,7 @@ mod tests {
             });
         }
         for u in game.units().units_at(home) {
-            if game
-                .units()
-                .unit_has_ability(u, f4x_def::rules::Ability::new(SETTLER_ABILITY))
-            {
+            if game.units().unit_is_settler(u) {
                 made.push(u);
             }
         }

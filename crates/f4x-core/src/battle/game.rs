@@ -939,7 +939,7 @@ impl Game {
                     .and_then(|i| sources.get(i).copied())
                     .and_then(|e| self.units().unit_def(e))
                     .is_some_and(|d| d.kind == crate::rules::UnitKind::Hero);
-                (hero, u.has(Ability::new(12 /* create_outpost */)))
+                (hero, u.is_settler())
             })
             .collect();
         let mut value = 0;

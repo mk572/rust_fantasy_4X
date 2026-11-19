@@ -13,7 +13,6 @@
 //!
 //! Tests: in player/offer/tests.rs.
 
-use crate::rules::Ability;
 use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
@@ -198,7 +197,7 @@ pub fn mercenary_pool(rules: &Rules, arcanus: bool, myrror: bool) -> Vec<&UnitDe
         .filter(|u| {
             u.kind == UnitKind::Normal
                 && u.movement != MovementType::Sailing
-                && !u.abilities.contains(&Ability::new(12))
+                && !u.is_settler()
                 && u.hireable
                 && u.race.map(|r| rules.races.get(r)).is_some_and(|race| {
                     if race.myrror {
