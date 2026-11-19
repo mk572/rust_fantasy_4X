@@ -195,10 +195,9 @@ pub struct BattleUnit {
     pub prayermaster: i32,
     /// The ids of its lasting spells, which add to resistance against some realms.
     pub enchantments: Vec<SpellId>,
-    /// What those spells do (the `unit_effect` hook), kept beside the ids so the battle can ask
-    /// without the rules.
+    /// Held in Stasis when the battle began: the unit acts as if asleep and cannot get away.
     #[serde(default)]
-    pub effects: crate::spell::unit_effect::UnitEffects,
+    pub in_stasis: bool,
     /// Which of Warp Creature's three curses the unit has.
     #[serde(default)]
     pub warp: Option<WarpKind>,
@@ -295,10 +294,8 @@ impl BattleUnit {
         let rules = crate::game::testutil::shipped().rules;
         self.enchantments.push(spell);
         let effects = crate::spell::unit_effect::UnitEffects::of(rules.spells.get(spell));
-        self.effects.union(effects);
         if let Some(base) = &mut self.base {
             base.enchantments.push(spell);
-            base.effects.union(effects);
         }
         if effects.contains(crate::spell::unit_effect::UnitEffect::Web) {
             self.web_closes(rules.config.battle.web_hits);
@@ -346,7 +343,7 @@ impl BattleUnit {
             leadership: 0,
             prayermaster: 0,
             enchantments: Vec::new(),
-            effects: Default::default(),
+            in_stasis: false,
             warp: None,
             realm: None,
             undead: false,
@@ -490,6 +487,7 @@ impl BattleUnit {
     fn defender_state(&self, rules: &Rules) -> DefenderState {
         DefenderState {
             immunities: Immunities::of(&self.abilities, &self.enchantments, rules),
+            effects: self.effects(rules),
             ..self.body_state()
         }
     }
@@ -503,7 +501,7 @@ impl BattleUnit {
             immunities: Immunities::default(),
             resistance: self.resistance,
             enchantments: self.enchantments.clone(),
-            effects: self.effects,
+            effects: Default::default(),
             realm: self.realm,
             undead: self.undead,
             figures_max: self.figures_start,
@@ -538,11 +536,25 @@ impl BattleUnit {
         self.has(Ability::new(12 /* create_outpost */))
     }
 
+    /// What its lasting spells do (the `unit_effect` hook), and Stasis.
+    pub fn effects(&self, rules: &Rules) -> crate::spell::unit_effect::UnitEffects {
+        use crate::spell::unit_effect::{UnitEffect, UnitEffects};
+        let mut set = UnitEffects::NONE;
+        for &spell in &self.enchantments {
+            set.union(UnitEffects::of(rules.spells.get(spell)));
+        }
+        if self.in_stasis {
+            set.insert(UnitEffect::BlackSleep);
+            set.insert(UnitEffect::Holds);
+        }
+        set
+    }
+
     /// Whether a web still holds the unit: it cannot move or attack until the web is broken.
-    pub fn held_by_web(&self) -> bool {
+    pub fn held_by_web(&self, rules: &Rules) -> bool {
         self.web_hits > 0
             && self
-                .effects
+                .effects(rules)
                 .contains(crate::spell::unit_effect::UnitEffect::Web)
     }
 
@@ -1342,7 +1354,7 @@ impl Battle {
                 // A creature still under Creature Binding is destroyed (Possession only lasts).
                 if u.is_active()
                     && u.bound_from.is_some()
-                    && u.effects
+                    && u.effects(&self.content.rules)
                         .contains(crate::spell::unit_effect::UnitEffect::CreatureBinding)
                 {
                     u.figures = 0;

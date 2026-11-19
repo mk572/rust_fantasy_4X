@@ -3010,7 +3010,7 @@ mod fields {
         g.dispel_battle_unit(1, 10_000, D);
         let u = g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?;
         assert!(
-            u.flag(UnitFlag::Flies) && u.moves == before.1 && !u.held_by_web(),
+            u.flag(UnitFlag::Flies) && u.moves == before.1 && !u.held_by_web(&shipped().rules),
             "{u:?}"
         );
         Ok(())
@@ -3037,7 +3037,11 @@ mod fields {
             if broken {
                 break;
             }
-            assert!(b.units[1].held_by_web() && b.units[1].attacked && b.units[1].moves_left == 0);
+            assert!(
+                b.units[1].held_by_web(&shipped().rules)
+                    && b.units[1].attacked
+                    && b.units[1].moves_left == 0
+            );
             assert!(b.legal_commands().iter().all(|c| !matches!(
                 c,
                 BattleCommand::Move { unit: 1, .. } | BattleCommand::Attack { unit: 1, .. }
@@ -3045,7 +3049,11 @@ mod fields {
             events = end_turns(&mut b, 2);
         }
         // It spent that turn on the web too; it acts from the next one, and still cannot fly.
-        assert!(!b.units[1].held_by_web() && b.units[1].attacked && b.units[1].moves_left == 0);
+        assert!(
+            !b.units[1].held_by_web(&shipped().rules)
+                && b.units[1].attacked
+                && b.units[1].moves_left == 0
+        );
         end_turns(&mut b, 2);
         let u = &b.units[1];
         assert!(!u.attacked && u.moves_left == u.moves && u.moves > 0);
@@ -3059,7 +3067,7 @@ mod fields {
         assert_eq!(b.units[1].web_strength(&shipped().rules), 0);
         end_turns(&mut b, 4);
         assert_eq!(b.units[1].web_hits, rules().web_hits);
-        assert!(b.units[1].held_by_web());
+        assert!(b.units[1].held_by_web(&shipped().rules));
     }
 
     #[test]
@@ -3070,8 +3078,7 @@ mod fields {
         assert_eq!(b.units[1].web_hits, 0);
         end_turns(&mut b, 2);
         let rules = crate::game::testutil::shipped().rules;
-        let effects = crate::spell::unit_effect::UnitEffects::of(rules.spells.get(SpellId::new(5)));
-        b.enchant_unit(1, SpellId::new(5), A, effects, &[], &[]);
+        b.enchant_unit(1, SpellId::new(5), A, &[], &[]);
         let u = &b.units[1];
         assert_eq!(u.web_hits, rules.config.battle.web_hits);
         assert!(u.attacked && u.moves_left == 0);
@@ -6313,7 +6320,7 @@ fn numbers(u: &BattleUnit) -> Numbers {
         special_level: u.special_level,
         abilities: sorted(&u.abilities),
         granted: sorted(&u.granted),
-        effects: u.effects,
+        effects: u.effects(&shipped().rules),
         enchantments,
         web_hits: u.web_hits,
         warp: u.warp.map(|w| format!("{w:?}")),
@@ -6546,7 +6553,7 @@ fn a_creature_binding_that_is_dispelled_returns_the_unit_and_takes_only_its_own_
         assert_eq!(u.side == Side::Attacker, has(73), "strength {strength}");
         assert_eq!(u.bound_from.is_some(), has(73));
         assert_eq!(
-            u.effects
+            u.effects(&shipped().rules)
                 .contains(crate::spell::unit_effect::UnitEffect::CreatureBinding),
             has(73)
         );

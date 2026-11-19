@@ -727,7 +727,6 @@ impl App {
                     u.lasting.push(f4x_core::battle::Lasting {
                         spell,
                         caster: f4x_core::player::PlayerId(0),
-                        effects: Default::default(),
                         mods: Vec::new(),
                         grants: Vec::new(),
                     });
@@ -2359,11 +2358,12 @@ impl App {
             let step = (get_time() * 8.0) as usize;
             let figure = (ty, vis.facing, frame, banner_index);
             // Black Sleep greys a figure, Warp Creature turns it red and inside out.
+            let effects = u.effects(&self.game.content().rules);
             let effect = if u.is_invisible() {
                 Some(FigureEffect::Revealed)
-            } else if u.effects.contains(UnitEffect::WarpCreature) {
+            } else if effects.contains(UnitEffect::WarpCreature) {
                 Some(FigureEffect::Warped)
-            } else if u.effects.contains(UnitEffect::BlackSleep) {
+            } else if effects.contains(UnitEffect::BlackSleep) {
                 Some(FigureEffect::Asleep)
             } else {
                 None

@@ -798,7 +798,7 @@ fn rule_value(
                     && !u.is_immune_to(types, &game.content().rules)
                     && slay_allows(*only, u)
                     // Spell Lock keeps a unit from the spells that sever or burn it.
-                    && !u.effects.contains(UnitEffect::SpellLock)
+                    && !u.effects(&game.content().rules).contains(UnitEffect::SpellLock)
             })
             .map(|u| {
                 let chance = game.battle().map_or(1.0, |b| {

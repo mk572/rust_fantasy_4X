@@ -38,7 +38,7 @@ use crate::rules::effects::{Condition, DamageTraits, Effect, SlayOnly, TargetSel
 use crate::rules::stats::{ModOp, Modifier, Source, Stat};
 use crate::rules::{SpellId, UnitId};
 use crate::spell::target_error::TargetError;
-use crate::spell::unit_effect::{UnitEffect, UnitEffects, UNIT_EFFECT};
+use crate::spell::unit_effect::{UnitEffect, UNIT_EFFECT};
 use f4x_def::half_int::HalfInt;
 
 mod unit_cast;
@@ -977,13 +977,13 @@ impl Game {
         unit: &super::BattleUnit,
     ) -> Result<(), SpellError> {
         // A web that has been broken may be cast again; the curse that is left changes nothing.
-        if UnitEffect::Web.is_in(def) && !unit.held_by_web() {
+        if UnitEffect::Web.is_in(def) && !unit.held_by_web(&self.content.rules) {
             return Ok(());
         }
         let carrier = crate::spell::stacking::Carrier {
             has_spell: &|id| unit.enchantments.contains(&id),
             has_ability: &|a| unit.has(a),
-            effects: unit.effects,
+            effects: unit.effects(&self.content.rules),
         };
         match crate::spell::stacking::stacking_refusal(spell, def, &carrier, &|id| {
             self.has_global(player, id)
@@ -1374,7 +1374,7 @@ impl Game {
                     }
                 }
                 if bind {
-                    battle.enchant_unit(target, spell, player, UnitEffects::of(def), &[], &[]);
+                    battle.enchant_unit(target, spell, player, &[], &[]);
                 }
                 battle.change_sides(target, side);
                 vec![BattleEvent::SpellEnchanted {
@@ -1424,7 +1424,7 @@ impl Game {
                         return vec![BattleEvent::SpellResisted { unit: target }];
                     }
                 }
-                battle.enchant_unit(target, spell, player, UnitEffects::of(def), &mods, &grants);
+                battle.enchant_unit(target, spell, player, &mods, &grants);
                 vec![BattleEvent::SpellEnchanted {
                     unit: target,
                     spell,
@@ -1460,7 +1460,9 @@ impl Game {
                 let mut events = Vec::new();
                 for t in targets {
                     // Spell Lock keeps a unit from the spells that sever or burn it.
-                    let locked = battle.units[t].effects.contains(UnitEffect::SpellLock);
+                    let locked = battle.units[t]
+                        .effects(&self.content.rules)
+                        .contains(UnitEffect::SpellLock);
                     if !slay_allows(only, &battle.units[t]) || locked {
                         continue;
                     }
@@ -1550,14 +1552,7 @@ impl Game {
             2 => WarpKind::Defense,
             _ => WarpKind::Resistance,
         };
-        battle.enchant_unit(
-            target,
-            spell,
-            player,
-            UnitEffects::of(def),
-            &warp_mods(kind, spell),
-            &[],
-        );
+        battle.enchant_unit(target, spell, player, &warp_mods(kind, spell), &[]);
         battle.units[target].warp = Some(kind);
         vec![BattleEvent::SpellEnchanted {
             unit: target,
@@ -1816,10 +1811,14 @@ impl Game {
                 .any(|&(s, _)| UnitEffect::WarpCreature.is_in(self.content.rules.spells.get(s)));
             let bound = lasting
                 .iter()
-                .any(|l| l.effects.contains(UnitEffect::CreatureBinding));
+                .any(|l| UnitEffect::CreatureBinding.is_in(self.content.rules.spells.get(l.spell)));
             active.battle.rebuild_unit(target, base, lasting);
             active.battle.units[target].warp = unit.warp.filter(|_| warped);
-            if unit.effects.contains(UnitEffect::CreatureBinding) && !bound {
+            if unit
+                .effects(&self.content.rules)
+                .contains(UnitEffect::CreatureBinding)
+                && !bound
+            {
                 active.battle.return_unit(target);
             }
             active.battle.refresh_fields();
@@ -1859,7 +1858,6 @@ impl Game {
                 Some(super::Lasting {
                     spell,
                     caster,
-                    effects: UnitEffects::of(def),
                     mods,
                     grants,
                 })

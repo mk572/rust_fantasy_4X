@@ -476,7 +476,7 @@ impl Battle {
                 u.moves_left = u.moves_left.saturating_sub(crate::battle::map::OPEN_COST);
             }
             // A unit in a web spends its whole turn striking at it.
-            if self.units[id].held_by_web() {
+            if self.units[id].held_by_web(&self.content.rules) {
                 let u = &mut self.units[id];
                 let dealt = u.web_strength(&self.content.rules).min(u.web_hits);
                 u.web_hits -= dealt;

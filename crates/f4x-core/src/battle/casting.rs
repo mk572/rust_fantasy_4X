@@ -103,7 +103,6 @@ pub struct BaseStats {
     pub abilities: Vec<Ability>,
     /// The lasting spells it came into the battle with (from the overland unit), and what they do.
     pub enchantments: Vec<SpellId>,
-    pub effects: UnitEffects,
 }
 
 impl BaseStats {
@@ -123,7 +122,6 @@ impl BaseStats {
             ranged_kind: unit.ranged_kind,
             abilities: unit.abilities.clone(),
             enchantments: unit.enchantments.clone(),
-            effects: unit.effects,
         }
     }
 }
@@ -135,7 +133,6 @@ impl BaseStats {
 pub struct Lasting {
     pub spell: SpellId,
     pub caster: PlayerId,
-    pub effects: UnitEffects,
     pub mods: Vec<Modifier>,
     pub grants: Vec<Ability>,
 }
@@ -508,12 +505,12 @@ impl Battle {
         target: usize,
         spell: SpellId,
         caster: PlayerId,
-        effects: UnitEffects,
         mods: &[Modifier],
         grants: &[Ability],
     ) {
         let web_hits = self.rules().web_hits;
         let unit = &mut self.units[target];
+        let effects = UnitEffects::of(self.content.rules.spells.get(spell));
         let webbing = effects.contains(UnitEffect::Web);
         // A web cast again on a unit that has it (its web broken) only closes round it anew.
         if webbing && unit.enchantments.contains(&spell) {
@@ -528,7 +525,6 @@ impl Battle {
         unit.lasting.push(Lasting {
             spell,
             caster,
-            effects,
             mods: mods.to_vec(),
             grants: grants.to_vec(),
         });
@@ -630,12 +626,10 @@ impl BattleUnit {
         self.flags = base.flags;
         self.special_level = base.special_level;
         self.enchantments = base.enchantments.clone();
-        self.effects = base.effects;
         self.abilities = base.abilities.clone();
         self.ranged_kind = base.ranged_kind;
         for l in std::mem::take(&mut self.lasting) {
             self.enchantments.push(l.spell);
-            self.effects.union(l.effects);
             self.apply(&l.mods, &l.grants);
             self.lasting.push(l);
         }
@@ -657,7 +651,7 @@ impl BattleUnit {
         }
         self.sync_abilities(rules);
         // A web that is gone is gone with its hit points.
-        if !self.effects.contains(UnitEffect::Web) {
+        if !self.effects(rules).contains(UnitEffect::Web) {
             self.web_hits = 0;
         }
         self.settle_hit_points(ceiling, hit_points);

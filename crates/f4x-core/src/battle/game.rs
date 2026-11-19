@@ -371,14 +371,7 @@ impl Game {
             // A unit held in Stasis cannot act: it is as if asleep.
             warp: None,
             enchantments: self.units().unit_enchantment_ids(unit),
-            effects: {
-                let mut effects = self.units().unit_effects(unit);
-                if self.unit_in_stasis(unit) {
-                    effects.insert(crate::spell::unit_effect::UnitEffect::BlackSleep);
-                    effects.insert(crate::spell::unit_effect::UnitEffect::Holds);
-                }
-                effects
-            },
+            in_stasis: self.unit_in_stasis(unit),
             realm: self.units().unit_realm(unit).and_then(Realm::of),
             undead: self.units().unit_counts_as_undead(unit),
             abilities: abilities.clone(),
@@ -1284,13 +1277,10 @@ impl Game {
                 .filter(|u| u.side == side && u.status == Status::Fled && !u.slipped)
                 .filter_map(|u| {
                     // Asleep, confused or in a web that has not been broken.
-                    let webbed = u
-                        .effects
-                        .contains(crate::spell::unit_effect::UnitEffect::Web);
-                    let held = u
-                        .effects
-                        .contains(crate::spell::unit_effect::UnitEffect::Holds)
-                        && (!webbed || u.held_by_web());
+                    let effects = u.effects(&self.content().rules);
+                    let webbed = effects.contains(crate::spell::unit_effect::UnitEffect::Web);
+                    let held = effects.contains(crate::spell::unit_effect::UnitEffect::Holds)
+                        && (!webbed || u.held_by_web(&self.content().rules));
                     source_of(u).map(|e| (e, held))
                 })
                 .collect();
