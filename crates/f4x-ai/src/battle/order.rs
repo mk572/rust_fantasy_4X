@@ -13,6 +13,7 @@ use f4x_core::battle::immunity::{AttackNature, Immunities};
 use f4x_core::battle::map::{distance, in_city_area, Pos};
 use f4x_core::battle::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
 use f4x_core::game::setting::MeleeVsFliers;
+use f4x_core::rules::damage_type::DamageType;
 use f4x_core::rules::{Ability, Rules};
 use f4x_def::half_int::HalfInt;
 
@@ -164,19 +165,30 @@ pub fn expected_damage(
     ranged: bool,
     vs_fliers: MeleeVsFliers,
 ) -> f32 {
-    let (mode, strength) = if ranged {
-        (Mode::Ranged, attacker.ranged)
+    let (mode, strength, fire) = if ranged {
+        (Mode::Ranged, attacker.ranged, attacker.fire_ranged)
     } else if target.flies && !attacker.flies {
-        (Mode::Melee, vs_fliers.strength(attacker.melee))
+        (
+            Mode::Melee,
+            vs_fliers.strength(attacker.melee),
+            attacker.fire_melee,
+        )
     } else {
-        (Mode::Melee, attacker.melee)
+        (Mode::Melee, attacker.melee, attacker.fire_melee)
     };
-    if strength <= 0 {
-        return 0.0;
-    }
     let nature =
         AttackNature::of_unit_attack(mode, &attacker.abilities, attacker.magical_weapon, rules);
-    if Immunities::of(&target.abilities, rules).meets(nature.types) {
+    let immunities = Immunities::of(&target.abilities, rules);
+    if immunities.meets(nature.types) {
+        return 0.0;
+    }
+    // The fire dice do nothing to a target immune to fire.
+    let strength = if immunities.has(DamageType::Fire) {
+        strength - fire.clamp(0, strength)
+    } else {
+        strength
+    };
+    if strength <= 0 {
         return 0.0;
     }
     let p_hit = (0.3 + 0.1 * attacker.to_hit as f32).clamp(0.05, 0.95);

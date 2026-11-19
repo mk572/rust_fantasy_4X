@@ -8005,3 +8005,42 @@ fn a_reserve_that_exactly_pays_a_spell_casts_it_at_any_distance() {
         }
     }
 }
+
+#[test]
+fn flame_blade_and_the_flaming_power_add_fire_dice() {
+    use crate::rules::effects::Effect;
+    use crate::rules::stats::{ModOp, Stat};
+    let rules = &shipped().rules;
+    // Flame Blade: the same dice it adds to the blow and the shot are fire.
+    let spell = rules
+        .spells
+        .iter()
+        .find(|(_, s)| s.id == "flame_blade")
+        .map(|(_, s)| s)
+        .expect("the Flame Blade spell");
+    let added = |stat| {
+        spell
+            .effects
+            .iter()
+            .filter_map(|e| match &e.effect {
+                Effect::Modify {
+                    stat: s,
+                    op: ModOp::Add,
+                    value,
+                } if *s == stat => Some(value.floor()),
+                _ => None,
+            })
+            .sum::<i32>()
+    };
+    assert!(added(Stat::Melee) > 0);
+    assert_eq!(added(Stat::FireMelee), added(Stat::Melee));
+    assert_eq!(added(Stat::FireRanged), added(Stat::Ranged));
+    // Flaming: its whole bonus is fire.
+    let flaming = rules
+        .item_powers
+        .iter()
+        .find(|(_, p)| p.id == "flaming")
+        .map(|(_, p)| p)
+        .expect("the Flaming power");
+    assert!(flaming.fire_bonus && flaming.melee_bonus > 0);
+}

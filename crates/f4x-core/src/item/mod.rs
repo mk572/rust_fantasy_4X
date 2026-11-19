@@ -254,6 +254,14 @@ pub fn modifiers(
     let melee: i32 = powers.iter().map(|p| p.melee_bonus).sum();
     if item.adds_to_melee() {
         add(Stat::Melee, b.attack + melee);
+        add(
+            Stat::FireMelee,
+            powers
+                .iter()
+                .filter(|p| p.fire_bonus)
+                .map(|p| p.melee_bonus)
+                .sum(),
+        );
         add(Stat::MeleeToHit, b.to_hit);
     }
     let kind = ranged_kind_of(abilities);
@@ -265,6 +273,15 @@ pub fn modifiers(
             .map(|p| p.ranged_bonus)
             .sum();
         add(Stat::Ranged, b.attack + ranged);
+        add(
+            Stat::FireRanged,
+            powers
+                .iter()
+                .filter(|p| p.fire_bonus)
+                .filter(|p| p.ranged_kinds.is_empty() || p.ranged_kinds.contains(&item.kind))
+                .map(|p| p.ranged_bonus)
+                .sum(),
+        );
         add(Stat::RangedToHit, b.to_hit);
     }
     mods
@@ -530,6 +547,24 @@ mod tests {
         );
         let mods = modifiers(&shipped().rules, &axe, 0, &[], false);
         assert_eq!(total(&mods, Stat::Ranged), 0);
+    }
+
+    #[test]
+    fn a_flaming_weapon_adds_fire_dice_equal_to_its_bonus() {
+        let rules = &shipped().rules;
+        let (id, power) = rules
+            .item_powers
+            .iter()
+            .find(|(_, p)| p.fire_bonus)
+            .expect("a power whose bonus is fire");
+        let sword = real(|d| d.kind == ItemKind::Sword && d.powers == [id]);
+        let mods = modifiers(rules, &sword, 0, &[Ability::new(3 /* bow */)], true);
+        assert_eq!(total(&mods, Stat::FireMelee), power.melee_bonus);
+        assert!(total(&mods, Stat::Melee) >= total(&mods, Stat::FireMelee));
+        // An item without the power has no fire dice.
+        let plain = real(|d| d.kind == ItemKind::Sword && d.powers.is_empty());
+        let mods = modifiers(rules, &plain, 0, &[], false);
+        assert_eq!(total(&mods, Stat::FireMelee), 0);
     }
 
     #[test]

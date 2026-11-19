@@ -67,12 +67,12 @@ impl Realm {
     /// The realm as a damage type.
     pub fn damage_type(self) -> DamageType {
         match self {
-            Realm::Nature => DamageType::RealmNature,
-            Realm::Sorcery => DamageType::RealmSorcery,
-            Realm::Chaos => DamageType::RealmChaos,
-            Realm::Life => DamageType::RealmLife,
-            Realm::Death => DamageType::RealmDeath,
-            Realm::Arcane => DamageType::RealmArcane,
+            Realm::Nature => DamageType::NatureRealm,
+            Realm::Sorcery => DamageType::SorceryRealm,
+            Realm::Chaos => DamageType::ChaosRealm,
+            Realm::Life => DamageType::LifeRealm,
+            Realm::Death => DamageType::DeathRealm,
+            Realm::Arcane => DamageType::ArcaneRealm,
         }
     }
 

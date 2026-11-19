@@ -52,6 +52,8 @@ pub struct Combatant {
     /// How the attack is delivered and what it is made of: what immunities it meets.
     pub mode: Mode,
     pub nature: AttackNature,
+    /// Of `strength`, the dice that are fire (a Flame Blade's, a Flaming weapon's).
+    pub fire: i32,
     /// Poison, touches, life steal and gazes (`special.rs`).
     pub special: SpecialAttacks,
     /// Eldritch Weapon: the defender blocks with one plus fewer.
@@ -223,6 +225,18 @@ impl DefenderState {
     }
 }
 
+impl Combatant {
+    /// The dice that count against a defender with these immunities: the fire dice do nothing
+    /// to one that is immune to fire.
+    pub fn strength_against(&self, immunities: &Immunities) -> i32 {
+        if immunities.has(DamageType::Fire) {
+            self.strength - self.fire.clamp(0, self.strength)
+        } else {
+            self.strength
+        }
+    }
+}
+
 /// Damage that no defence blocks, `points` of it, landing on the front figure and passing on
 /// to the next as figures die.
 pub fn unblockable(def: &mut DefenderState, points: i32) -> Damage {
@@ -357,7 +371,8 @@ pub fn process_attack(
             }
         }
     }
-    if attacker.strength <= 0 || def.figures == 0 {
+    let strength = attacker.strength_against(&def.immunities);
+    if strength <= 0 || def.figures == 0 {
         return total;
     }
     let defense = def.defense_versus(attacker, rules);
@@ -402,13 +417,9 @@ pub fn process_attack(
             break;
         }
         let mut dmg = if attacker.ignores_defense || def.asleep() {
-            attacker.strength
+            strength
         } else {
-            let hits = roll_successes(
-                attacker.strength,
-                attacker.to_hit - i32::from(def.lucky),
-                rng,
-            );
+            let hits = roll_successes(strength, attacker.to_hit - i32::from(def.lucky), rng);
             (hits - def.blocks(defense, attacker.eldritch, rules, rng)).max(0)
         };
         while dmg > 0 && def.figures > 0 {

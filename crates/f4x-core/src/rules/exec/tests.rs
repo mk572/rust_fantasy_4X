@@ -355,7 +355,7 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
             TargetSel::AllEnemyUnits,
             Effect::Damage {
                 amount: 4,
-                types: vec![DamageType::Fire, DamageType::RealmChaos],
+                types: vec![DamageType::Fire, DamageType::ChaosRealm],
                 resistible: true,
                 resist_modifier,
                 traits: Default::default(),
@@ -373,7 +373,7 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
             Outcome::Damaged {
                 who: Target::Unit(plain),
                 amount: 4,
-                types: DamageTypes::of(&[DamageType::Fire, DamageType::RealmChaos])
+                types: DamageTypes::of(&[DamageType::Fire, DamageType::ChaosRealm])
             },
         ]
     );

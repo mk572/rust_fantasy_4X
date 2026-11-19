@@ -32,6 +32,11 @@ pub enum Stat {
     MeleeToHit,
     /// Pluses to hit that count for the ranged attack only (a bow's).
     RangedToHit,
+    /// Of the dice of the melee attack, how many are fire (a Flame Blade's, a Flaming weapon's):
+    /// a defender immune to fire loses them. A part of `Melee`, not on top of it.
+    FireMelee,
+    /// The same for the dice of a shot from a bow, a sling or a thrown weapon.
+    FireRanged,
     Ammo,
     /// The number that goes with a unit's special attack or ability: poison strength, or the
     /// resistance penalty of its gaze, touch or life steal (the original stores a penalty as a

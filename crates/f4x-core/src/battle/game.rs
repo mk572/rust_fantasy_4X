@@ -325,6 +325,13 @@ impl Game {
             to_hit: self.units().unit_stat(unit, Stat::ToHit) + lucky,
             melee_plus: self.units().unit_stat(unit, Stat::MeleeToHit),
             ranged_plus: self.units().unit_stat(unit, Stat::RangedToHit),
+            fire_melee: self.units().unit_stat(unit, Stat::FireMelee),
+            // Only the arrows and stones carry the fire, not a spell shot (it gets no bonus).
+            fire_ranged: if physical_shot {
+                self.units().unit_stat(unit, Stat::FireRanged)
+            } else {
+                0
+            },
             to_block: lucky,
             hits,
             extra_hits: 0,

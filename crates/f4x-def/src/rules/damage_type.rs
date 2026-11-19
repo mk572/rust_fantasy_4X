@@ -27,12 +27,12 @@ pub enum DamageType {
     Death,
     /// Ignores the defence of a defender that cannot see through illusions.
     Illusion,
-    RealmNature,
-    RealmSorcery,
-    RealmChaos,
-    RealmLife,
-    RealmDeath,
-    RealmArcane,
+    NatureRealm,
+    SorceryRealm,
+    ChaosRealm,
+    LifeRealm,
+    DeathRealm,
+    ArcaneRealm,
 }
 
 impl DamageType {
@@ -43,12 +43,12 @@ impl DamageType {
     /// The type of the realm with this number in `realms.ron`.
     pub fn of_realm(num: u16) -> Option<DamageType> {
         Some(match num {
-            0 => DamageType::RealmNature,
-            1 => DamageType::RealmSorcery,
-            2 => DamageType::RealmChaos,
-            3 => DamageType::RealmLife,
-            4 => DamageType::RealmDeath,
-            5 => DamageType::RealmArcane,
+            0 => DamageType::NatureRealm,
+            1 => DamageType::SorceryRealm,
+            2 => DamageType::ChaosRealm,
+            3 => DamageType::LifeRealm,
+            4 => DamageType::DeathRealm,
+            5 => DamageType::ArcaneRealm,
             _ => return None,
         })
     }
@@ -56,12 +56,12 @@ impl DamageType {
     /// The number of the realm in `realms.ron`, if this is a realm type.
     pub fn realm_num(self) -> Option<u16> {
         Some(match self {
-            DamageType::RealmNature => 0,
-            DamageType::RealmSorcery => 1,
-            DamageType::RealmChaos => 2,
-            DamageType::RealmLife => 3,
-            DamageType::RealmDeath => 4,
-            DamageType::RealmArcane => 5,
+            DamageType::NatureRealm => 0,
+            DamageType::SorceryRealm => 1,
+            DamageType::ChaosRealm => 2,
+            DamageType::LifeRealm => 3,
+            DamageType::DeathRealm => 4,
+            DamageType::ArcaneRealm => 5,
             DamageType::Weapon
             | DamageType::Missile
             | DamageType::Magic
@@ -173,9 +173,9 @@ mod tests {
 
     #[test]
     fn a_set_holds_what_was_put_in() {
-        let set = DamageTypes::of(&[DamageType::Fire, DamageType::RealmChaos]);
+        let set = DamageTypes::of(&[DamageType::Fire, DamageType::ChaosRealm]);
         assert!(set.contains(DamageType::Fire));
-        assert!(set.contains(DamageType::RealmChaos));
+        assert!(set.contains(DamageType::ChaosRealm));
         assert!(!set.contains(DamageType::Cold));
         assert!(!set.without(DamageType::Fire).contains(DamageType::Fire));
         assert!(set.intersects(DamageTypes::of(&[DamageType::Fire, DamageType::Cold])));
@@ -183,7 +183,7 @@ mod tests {
         assert!(DamageTypes::NONE.is_empty());
         assert_eq!(
             set.minus(DamageTypes::of(&[DamageType::Fire])),
-            DamageTypes::of(&[DamageType::RealmChaos])
+            DamageTypes::of(&[DamageType::ChaosRealm])
         );
     }
 
@@ -205,7 +205,7 @@ mod tests {
             }
         }
         assert_eq!(
-            DamageTypes::of(&[DamageType::Fire, DamageType::RealmChaos]).realm_num(),
+            DamageTypes::of(&[DamageType::Fire, DamageType::ChaosRealm]).realm_num(),
             Some(2)
         );
         assert_eq!(DamageTypes::of(&[DamageType::Fire]).realm_num(), None);

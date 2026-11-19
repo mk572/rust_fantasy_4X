@@ -852,3 +852,21 @@ fn stoning_and_dispel_evil_leave_nothing_to_heal() {
     assert!(d.kills > 0);
     assert_eq!(d.gone, 0, "death can be healed back");
 }
+
+#[test]
+fn fire_dice_do_nothing_to_a_defender_immune_to_fire() {
+    use crate::battle::immunity::Immunities;
+    let blade = Combatant {
+        fire: 2,
+        ..combatant(5, 0)
+    };
+    assert_eq!(blade.strength_against(&Immunities::default()), 5);
+    assert_eq!(blade.strength_against(&Immunities::of_numbers(&[21])), 3);
+    // Cold immunity does not stop them, and they never count for more than the blow has.
+    assert_eq!(blade.strength_against(&Immunities::of_numbers(&[10])), 5);
+    let weak = Combatant {
+        fire: 2,
+        ..combatant(1, 0)
+    };
+    assert_eq!(weak.strength_against(&Immunities::of_numbers(&[21])), 0);
+}

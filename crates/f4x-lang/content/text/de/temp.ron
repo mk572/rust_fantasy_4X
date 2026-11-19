@@ -19,6 +19,8 @@
     "temp.stat_to_hit": "Trefferchance",
     "temp.stat_melee_to_hit": "Trefferchance im Nahkampf",
     "temp.stat_ranged_to_hit": "Trefferchance im Fernkampf",
+    "temp.stat_fire_melee": "Feuerschaden im Nahkampf",
+    "temp.stat_fire_ranged": "Feuerschaden im Fernkampf",
     "temp.stat_ammo": "Munition",
     "temp.stat_special_level": "Besondere Stufe",
     "temp.stat_construction": "Bau",

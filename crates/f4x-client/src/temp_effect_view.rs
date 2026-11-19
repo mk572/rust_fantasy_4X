@@ -22,6 +22,8 @@ fn stat_key(stat: Stat) -> &'static str {
         Stat::ToHit => "temp.stat_to_hit",
         Stat::MeleeToHit => "temp.stat_melee_to_hit",
         Stat::RangedToHit => "temp.stat_ranged_to_hit",
+        Stat::FireMelee => "temp.stat_fire_melee",
+        Stat::FireRanged => "temp.stat_fire_ranged",
         Stat::Ammo => "temp.stat_ammo",
         Stat::SpecialLevel => "temp.stat_special_level",
         Stat::Construction => "temp.stat_construction",

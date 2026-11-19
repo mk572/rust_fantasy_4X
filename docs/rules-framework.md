@@ -127,7 +127,7 @@ source has no position; `Chosen` yields none if no target was selected.
 |---|---|
 | `Modify { stat, op, value }` | Add a stat modifier tagged with the rule's source. |
 | `GrantAbility(id)` | Add an ability. |
-| `Damage { ... }` | Deal damage of a `DamageKind`, optionally resistible, with explicit immunity abilities, realm, resistance modifier and battle damage traits. |
+| `Damage { ... }` | Deal damage made of `types` (a set of damage types: fire, chaos realm, magic and so on; the target's immunities come from them), optionally resistible, with a resistance modifier and battle damage traits. |
 | `Heal(amount)` | Restore hit points. |
 | `Slay { ... }` | Battle-only destruction effect with realm, resistance modifier, immunity list and optional restrictions/thresholds. |
 | `Summon { unit, count }` | Summon a number of units at the target's tile. |
