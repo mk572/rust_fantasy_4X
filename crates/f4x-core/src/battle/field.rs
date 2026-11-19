@@ -174,14 +174,14 @@ impl Battle {
     }
 
     /// Whether the unit is spared by the spell: it is immune to a type the spell harms with
-    /// (`harm_types`), unless the spell is one of the original's exceptions and the rule
-    /// `death_immunity_exceptions` is on.
+    /// (`harm_types`), less the types the spell is an exception for while the rule for it is on
+    /// (`death_immunity_exceptions`, `magic_immunity_exceptions`).
     pub fn spares(&self, u: &BattleUnit, spell: SpellId) -> bool {
-        let def = self.content.rules.spells.get(spell);
-        if def.death_immunity_exception && self.death_immunity_exceptions {
-            return false;
-        }
-        u.is_immune_to_set(def.harm_types, &self.content.rules)
+        let types = self.content.rules.spells.get(spell).harmful_types(
+            self.death_immunity_exceptions,
+            self.magic_immunity_exceptions,
+        );
+        u.is_immune_to_set(types, &self.content.rules)
     }
 
     /// Whether the unit is spared by the battlefield enchantment `field` (the spell that raises it).
@@ -237,8 +237,12 @@ impl Battle {
         let theirs = |f| self.has_field(mine.other(), f);
         let mut b = FieldBonus::default();
         // Light and darkness: life and death creatures gain and lose by turns.
-        let light = i32::from(self.has_field_either(Field::TrueLight));
-        let dark = i32::from(self.has_field_either(Field::Darkness));
+        let light = i32::from(
+            self.has_field_either(Field::TrueLight) && !self.field_spares(u, Field::TrueLight),
+        );
+        let dark = i32::from(
+            self.has_field_either(Field::Darkness) && !self.field_spares(u, Field::Darkness),
+        );
         let swing = match u.realm {
             Some(Realm::Life) => light - dark,
             Some(Realm::Death) => dark - light,
@@ -252,7 +256,10 @@ impl Battle {
             b.defense += step;
             b.resistance += step;
         }
-        if self.has_field_either(Field::WarpReality) && u.realm != Some(Realm::Chaos) {
+        if self.has_field_either(Field::WarpReality)
+            && u.realm != Some(Realm::Chaos)
+            && !self.field_spares(u, Field::WarpReality)
+        {
             b.to_hit -= 2;
         }
         if theirs(Field::BlackPrayer) && !self.field_spares(u, Field::BlackPrayer) {
@@ -487,6 +494,7 @@ impl Battle {
             // Entangle holds only walkers with a body: the help says so, and the original's code,
             // which takes the move from every unit, is taken to be a bug.
             if entangle
+                && !self.field_spares(&self.units[id], Field::Entangle)
                 && !self.units[id].flag(UnitFlag::Flies)
                 && !self.units[id].flag(UnitFlag::NonCorporeal)
             {

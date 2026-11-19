@@ -45,7 +45,7 @@
     43: "Verschmelzung",  // merging
     44: "Geschossimmunität",  // missile_immunity
     45: "Bergsteiger",  // mountaineer
-    46: "Mehrfachblick",  // multi_gaze
+    46: "Verdammnisblick",  // doom_gaze
     47: "Naturblitz",  // nature_bolt
     48: "Erstschlag aufheben",  // negate_first_strike
     49: "Unkörperlich",  // non_corporeal

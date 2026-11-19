@@ -539,6 +539,10 @@ pub struct SpellDef {
     /// back, and without it the spell respects the immunity like every other spell of its kind.
     #[serde(default)]
     pub death_immunity_exception: bool,
+    /// The same for magic immunity (the battlefield enchantments and curses the original lets
+    /// through): the rule setting `magic_immunity_exceptions` brings that back.
+    #[serde(default)]
+    pub magic_immunity_exception: bool,
     /// Spells this one is not cumulative with. It cannot be cast on a unit that has one of them
     /// (or, for a global enchantment, on a wizard who keeps it), and while the unit has one its
     /// own bonuses do not count: Stone Skin gives way to Iron Skin.
@@ -1555,6 +1559,23 @@ impl Def for BuildingDef {
 }
 
 impl SpellDef {
+    /// The types the spell harms with that a unit's immunity can stop: `harm_types`, less the
+    /// death type when the spell is an exception to death immunity and the rule
+    /// `death_immunity_exceptions` is on, and less the magic type likewise for magic immunity.
+    pub fn harmful_types(
+        &self,
+        death_exceptions: bool,
+        magic_exceptions: bool,
+    ) -> super::damage_type::DamageTypes {
+        let mut types = self.harm_types;
+        if self.death_immunity_exception && death_exceptions {
+            types = types.without(super::damage_type::DamageType::Death);
+        }
+        if self.magic_immunity_exception && magic_exceptions {
+            types = types.without(super::damage_type::DamageType::Magic);
+        }
+        types
+    }
     /// What this spell, lasting on a unit, gives up when `newer` is cast on the same unit: if it
     /// is not with `newer` (`not_with`), every plain bonus it adds (a passive, always-on `Add`
     /// modifier) comes back negated and tagged with this spell, so the two do not both count.

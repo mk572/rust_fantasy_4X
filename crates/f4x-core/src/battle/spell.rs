@@ -902,8 +902,12 @@ impl Game {
                         None => return Err(SpellError::Target(TargetError::NotNormalUnit)),
                     }
                 }
-                if matches!(kind, Kind::LifeDrain) && battle.spares(u, spell) {
-                    return Err(SpellError::Target(TargetError::Deathly));
+                if battle.spares(u, spell) {
+                    return Err(SpellError::Target(if matches!(kind, Kind::LifeDrain) {
+                        TargetError::Deathly
+                    } else {
+                        TargetError::NotAffected
+                    }));
                 }
                 // A curse the target is immune to is refused before it costs anything
                 // (`Combat_Spell_Target_Screen`); the types it is stopped by are in the spell's
@@ -1293,6 +1297,7 @@ impl Game {
                     .unit_at(cell)
                     .filter(|u| {
                         !u.flag(UnitFlag::Flies)
+                            && !battle.spares(u, spell)
                             && !u.flag(UnitFlag::NonCorporeal)
                             && !u.has(Ability::new(43 /* merging */))
                     })

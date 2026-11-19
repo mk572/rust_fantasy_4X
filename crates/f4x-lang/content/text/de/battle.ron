@@ -50,6 +50,7 @@
     "battle.type_life_realm": "Lebensmagie",
     "battle.type_death_realm": "Todesmagie",
     "battle.type_arcane_realm": "arkane Magie",
+    "battle.type_doom": "Verdammnis",
     "battle.healed": (number: "unit", singular: "{unit:Def} heilt {healed} Trefferpunkte", plural: "{unit:Def} heilen {healed} Trefferpunkte"),
     "battle.enchanted": (number: "unit", singular: "{unit:Def} steht unter dem Einfluss {spell:def_gen}", plural: "{unit:Def} stehen unter dem Einfluss {spell:def_gen}"),
     "battle.dispelled": "Bannen auf {unit:def_acc}: {removed} entfernt",

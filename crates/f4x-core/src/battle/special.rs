@@ -11,7 +11,7 @@
 //!   figure.
 //! - **Life steal:** each attacking figure makes the target resist at a penalty; every point by
 //!   which it fails is a point of damage no defence blocks, and the attacker heals as much.
-//! - **Gazes** (stoning, death, or both for a multiple gaze): used in the thrown and breath
+//! - **Gazes** (stoning or death; the Chaos Spawn has both, as two abilities): used in the thrown and breath
 //!   step, once against each of the target's figures, each resisting at a penalty or dying.
 //! - **Chaos** (`doom_damage`): no to-hit roll, no defence: the attack strength is the damage.
 //! - **Armour piercing** halves the defence (`immunity::effective_defense`).
@@ -24,17 +24,6 @@
 //! Tests: in battle/tests.rs.
 
 use crate::rules::Ability;
-
-/// A gaze: a ranged attack that makes each of the target's figures resist.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Gaze {
-    #[default]
-    None,
-    Stoning,
-    Death,
-    /// Both of the above, and the damage of the unit's ranged attack ignores defence.
-    Multi,
-}
 
 /// The special attacks a unit has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -59,7 +48,10 @@ pub struct SpecialAttacks {
     /// extra: a Vampiric weapon costs the target no more resistance than the unit's own level.
     pub stoning_extra: i32,
     pub death_extra: i32,
-    pub gaze: Gaze,
+    /// Gazes: a ranged attack that makes each of the target's figures resist. A unit can have
+    /// both (the Chaos Spawn).
+    pub stoning_gaze: bool,
+    pub death_gaze: bool,
 }
 
 impl SpecialAttacks {
@@ -94,16 +86,13 @@ impl SpecialAttacks {
             penalty: level,
             stoning_extra: given(Ability::new(66 /* stoning_touch */), 1),
             death_extra: given(Ability::new(99 /* death_touch */), 3),
-            gaze: if has(Ability::new(46 /* multi_gaze */)) {
-                Gaze::Multi
-            } else if has(Ability::new(64 /* stoning_gaze */)) {
-                Gaze::Stoning
-            } else if has(Ability::new(15 /* death_gaze */)) {
-                Gaze::Death
-            } else {
-                Gaze::None
-            },
+            stoning_gaze: has(Ability::new(64 /* stoning_gaze */)),
+            death_gaze: has(Ability::new(15 /* death_gaze */)),
         }
+    }
+
+    pub fn has_gaze(&self) -> bool {
+        self.stoning_gaze || self.death_gaze
     }
 
     /// Whether the unit has none of them.
@@ -116,6 +105,7 @@ impl SpecialAttacks {
             && !self.dispel_evil
             && !self.create_undead
             && !self.power_drain
-            && self.gaze == Gaze::None
+            && !self.stoning_gaze
+            && !self.death_gaze
     }
 }

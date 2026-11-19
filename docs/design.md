@@ -134,7 +134,7 @@ Every attack is made of a set of damage types (`f4x-def/src/rules/damage_type.rs
 | 30 | illusion_attack | Any | Illusion |  |
 | 36 | lightning_bolt | Ranged | Lightning, Magic, ChaosRealm |  |
 | 37 | lightning_breath | Ranged | Lightning, Magic, ChaosRealm | yes |
-| 46 | multi_gaze | Ranged | Magic, ChaosRealm |  |
+| 46 | doom_gaze | Ranged | Magic, Doom, ChaosRealm |  |
 | 47 | nature_bolt | Ranged | Magic, NatureRealm |  |
 | 57 | rock_throwing | Ranged | Missile, MundaneWeapon |  |
 | 58 | shaman_bolt | Ranged | Magic, NatureRealm |  |

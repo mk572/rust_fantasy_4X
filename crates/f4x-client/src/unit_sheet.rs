@@ -152,7 +152,7 @@ pub(crate) fn ranged_icon(abilities: &[Ability]) -> usize {
         || has(Ability::new(37 /* lightning_breath */))
         || has(Ability::new(64 /* stoning_gaze */))
         || has(Ability::new(15 /* death_gaze */))
-        || has(Ability::new(46 /* multi_gaze */))
+        || has(Ability::new(46 /* doom_gaze */))
     {
         7
     } else if has(Ability::new(69 /* thrown */)) {
@@ -263,7 +263,7 @@ const LISTED: &[(Ability, usize)] = &[
     (Ability::new(37 /* lightning_breath */), 137),
     (Ability::new(64 /* stoning_gaze */), 26),
     (Ability::new(15 /* death_gaze */), 135),
-    (Ability::new(46 /* multi_gaze */), 134),
+    (Ability::new(46 /* doom_gaze */), 134),
 ];
 
 /// The pictures of the lasting spells on a unit: spell number, the icon of the unit sheet

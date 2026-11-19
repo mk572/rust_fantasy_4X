@@ -164,6 +164,7 @@ pub fn expected_damage(
     target: &BattleUnit,
     ranged: bool,
     vs_fliers: MeleeVsFliers,
+    magic_exceptions: bool,
 ) -> f32 {
     let (mode, strength, parts) = if ranged {
         (Mode::Ranged, attacker.ranged, &attacker.ranged_parts)
@@ -180,6 +181,7 @@ pub fn expected_damage(
         mode,
         &attacker.abilities,
         attacker.flag(UnitFlag::MagicalWeapon),
+        magic_exceptions,
         rules,
     );
     let immunities = Immunities::of(&target.abilities, &target.enchantments, rules);
@@ -217,9 +219,12 @@ fn attack_value(
     target: &BattleUnit,
     ranged: bool,
     vs_fliers: MeleeVsFliers,
+    magic_exceptions: bool,
 ) -> f32 {
     let left = target.hit_points().max(1) as f32;
-    let taken = (expected_damage(rules, attacker, target, ranged, vs_fliers) / left).min(1.0);
+    let taken = (expected_damage(rules, attacker, target, ranged, vs_fliers, magic_exceptions)
+        / left)
+        .min(1.0);
     let threat = if can_shoot(target) { 1.2 } else { 1.0 };
     taken * worth(target) * threat
 }
@@ -260,6 +265,7 @@ pub fn merge_order(battle: &Battle) -> Option<BattleCommand> {
                         u,
                         can_shoot(e),
                         battle.melee_vs_fliers,
+                        battle.magic_immunity_exceptions,
                     ) > 0.0
             });
             let alone = on_field <= 1;
@@ -303,7 +309,16 @@ pub fn surface_order(battle: &Battle) -> Option<BattleCommand> {
                 .collect();
             let blow = near
                 .iter()
-                .map(|e| attack_value(&battle.content.rules, &at, e, false, battle.melee_vs_fliers))
+                .map(|e| {
+                    attack_value(
+                        &battle.content.rules,
+                        &at,
+                        e,
+                        false,
+                        battle.melee_vs_fliers,
+                        battle.magic_immunity_exceptions,
+                    )
+                })
                 .fold(0.0, f32::max);
             let key = (blow, std::cmp::Reverse(near.len()), p);
             if blow > 0.0 && best.as_ref().is_none_or(|b| (key.0, key.1) > (b.0, b.1)) {
@@ -365,6 +380,7 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
                             e,
                             false,
                             battle.melee_vs_fliers,
+                            battle.magic_immunity_exceptions,
                         ),
                         e.id,
                     )
@@ -382,6 +398,7 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
                                 e,
                                 true,
                                 battle.melee_vs_fliers,
+                                battle.magic_immunity_exceptions,
                             ),
                             e.id,
                         )
@@ -434,6 +451,7 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
                 e,
                 false,
                 battle.melee_vs_fliers,
+                battle.magic_immunity_exceptions,
             ) > 0.0
         };
         if !enemies.iter().any(hurts)
@@ -452,6 +470,7 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
                         e,
                         false,
                         battle.melee_vs_fliers,
+                        battle.magic_immunity_exceptions,
                     ) / (1.0 + distance(unit.cell, e.cell) as f32)
                 };
                 value(a).total_cmp(&value(b)).then(b.id.cmp(&a.id))
@@ -602,7 +621,7 @@ mod tests {
         );
         let (walker, bat) = (&b.units[0], &b.units[1]);
         assert!(bat.flag(UnitFlag::Flies));
-        let expect = |rule| expected_damage(&b.content.rules, walker, bat, false, rule);
+        let expect = |rule| expected_damage(&b.content.rules, walker, bat, false, rule, false);
         assert_eq!(expect(MeleeVsFliers::Zero), 0.0);
         assert!(expect(MeleeVsFliers::Half) > 0.0);
         assert!(expect(MeleeVsFliers::Full) > expect(MeleeVsFliers::Half));
@@ -625,16 +644,16 @@ mod tests {
         assert!(soft.defense < hard.defense);
         let rule = MeleeVsFliers::default();
         assert!(
-            expected_damage(&b.content.rules, a, soft, false, rule)
-                > expected_damage(&b.content.rules, a, hard, false, rule)
+            expected_damage(&b.content.rules, a, soft, false, rule, false)
+                > expected_damage(&b.content.rules, a, hard, false, rule, false)
         );
         assert_eq!(
-            expected_damage(&b.content.rules, a, stone, false, rule),
+            expected_damage(&b.content.rules, a, stone, false, rule, false),
             0.0
         );
         let mut magic = a.clone();
         magic.flags.insert(UnitFlag::MagicalWeapon);
-        assert!(expected_damage(&b.content.rules, &magic, stone, false, rule) > 0.0);
+        assert!(expected_damage(&b.content.rules, &magic, stone, false, rule, false) > 0.0);
     }
 
     #[test]

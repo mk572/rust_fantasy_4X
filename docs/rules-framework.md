@@ -134,7 +134,7 @@ source has no position; `Chosen` yields none if no target was selected.
 | `Custom(name: "x", args: [..])` | Call a named Rust hook. The name is a plain tag in the `.ron` file; `args` (optional) tell the spells that share a hook apart, e.g. `Custom(name: "wall", args: ["fire"])`. `f4x_core::hook::CUSTOM_HOOKS` lists the hooks the code implements and the argument each takes, and `hook::problems` checks the content against it. A hook may also take one trailing number, e.g. `Custom(name: "counter_effect", args: ["dispel", "10"])`. There is no spell-number dispatch: the engine asks a spell for its hook and arguments. |
 
 Damage kinds are `Physical`, `Fire`, `Cold`, `Lightning`, `Poison`, `Death`
-and `Holy`. `DamageTraits` supports `armor_piercing`, `ignores_defense`, `area`,
+and `Holy`. `DamageTraits` supports `armor_piercing`, `area`,
 `decaying` and `mana_per_point`. Slay effects can apply to `Any`, `Fantastic` or
 `ChaosOrDeath` targets. `Custom(name: "unimplemented")` marks imported rules for which the
 engine still lacks a native primitive.

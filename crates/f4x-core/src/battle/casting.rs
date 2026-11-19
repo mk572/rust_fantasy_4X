@@ -53,7 +53,6 @@ pub(crate) fn damage_unit_with_spell(
     let spell = Combatant {
         strength,
         to_hit: 0,
-        ignores_defense: traits.ignores_defense,
         mode: Mode::Ranged,
         nature: AttackNature {
             armor_piercing: traits.armor_piercing,

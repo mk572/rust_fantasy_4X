@@ -52,6 +52,7 @@
     "battle.type_life_realm": "life magic",
     "battle.type_death_realm": "death magic",
     "battle.type_arcane_realm": "arcane magic",
+    "battle.type_doom": "doom",
     "battle.healed": "{unit} heals {healed}",
     "battle.enchanted": "{unit} is under {spell}",
     "battle.dispelled": "Dispel on {unit}: {removed} removed",

@@ -45,7 +45,7 @@ use attack::{Combatant, DefenderState, Fighter, Mode};
 use field::{Field, FieldBonus};
 use immunity::{AttackNature, Immunities, Realm};
 use map::{distance, in_city_area, BattleMap, Mover, Pos, OPEN_COST};
-use special::{Gaze, SpecialAttacks};
+use special::SpecialAttacks;
 
 pub use casting::{BaseStats, BattleCaster, Lasting, SpellAim, SpellError};
 
@@ -649,7 +649,14 @@ impl BattleUnit {
     }
 
     /// A combatant for one of the unit's attacks.
-    fn combatant(&self, mode: Mode, strength: i32, to_hit: i32, rules: &Rules) -> Combatant {
+    fn combatant(
+        &self,
+        mode: Mode,
+        strength: i32,
+        to_hit: i32,
+        rules: &Rules,
+        magic_exceptions: bool,
+    ) -> Combatant {
         let special = self.special_attacks();
         // Doom damage that an item or a spell gives is half as strong.
         let strength = if self.granted.contains(&Ability::new(101 /* doom_damage */)) {
@@ -660,9 +667,6 @@ impl BattleUnit {
         Combatant {
             strength,
             to_hit,
-            // Chaos damage, and the damage of a multiple gaze, ignores every defence.
-            ignores_defense: self.has(Ability::new(101 /* doom_damage */))
-                || (mode == Mode::ThrownOrBreath && special.gaze == Gaze::Multi),
             mode,
             parts: if mode == Mode::Melee {
                 self.melee_parts.clone()
@@ -673,6 +677,7 @@ impl BattleUnit {
                 mode,
                 &self.abilities,
                 self.flag(UnitFlag::MagicalWeapon),
+                magic_exceptions,
                 rules,
             ),
             special,
@@ -701,12 +706,13 @@ impl BattleUnit {
         Immunities::of(&self.abilities, &self.enchantments, rules).meets(types)
     }
 
-    fn melee_combatant(&self, rules: &Rules) -> Combatant {
+    fn melee_combatant(&self, rules: &Rules, magic_exceptions: bool) -> Combatant {
         self.combatant(
             Mode::Melee,
             self.melee,
             self.to_hit + self.weapon_plus() + self.melee_plus,
             rules,
+            magic_exceptions,
         )
     }
 
@@ -715,9 +721,9 @@ impl BattleUnit {
         i32::from(self.weapon_quality > 0 || self.has(Ability::new(19 /* eldritch_weapon */)))
     }
 
-    fn thrown_combatant(&self, rules: &Rules) -> Option<Combatant> {
+    fn thrown_combatant(&self, rules: &Rules, magic_exceptions: bool) -> Option<Combatant> {
         // A gaze needs no attack strength (1.50 note 153): a unit weakened to none still gazes.
-        let gazes = self.special_attacks().gaze != Gaze::None;
+        let gazes = self.special_attacks().has_gaze();
         (self.ranged_kind == RangedKind::Short && (self.ranged > 0 || gazes)).then(|| {
             // Only a thrown weapon gains the plus, not breath or a gaze.
             let plus = if self.weapon_shot(rules) == Some(RangedKind::Short) {
@@ -730,6 +736,7 @@ impl BattleUnit {
                 self.ranged,
                 self.to_hit + plus + self.ranged_plus,
                 rules,
+                magic_exceptions,
             )
         })
     }
@@ -1116,6 +1123,9 @@ pub struct Battle {
     /// The original's exceptions to death immunity (`RuleSettings::death_immunity_exceptions`).
     #[serde(default)]
     pub death_immunity_exceptions: bool,
+    /// The original's exceptions to magic immunity (`RuleSettings::magic_immunity_exceptions`).
+    #[serde(default)]
+    pub magic_immunity_exceptions: bool,
     /// Most units a side can have in the battle: summoning stops here
     /// (`RuleSettings::max_battle_side`).
     #[serde(default = "default_side_limit")]
@@ -1202,6 +1212,7 @@ impl Battle {
             melee_vs_fliers: MeleeVsFliers::default(),
             walls_cover_city: false,
             death_immunity_exceptions: false,
+            magic_immunity_exceptions: false,
             max_side: default_side_limit(),
             content: content_ref::ContentRef::new(content),
             rng: GameRng::new(seed),
@@ -1485,7 +1496,8 @@ impl Battle {
     fn blur_penalty(&self, attacker: usize, hit: usize) -> i32 {
         i32::from(
             self.units[hit].field.blur
-                && !self.units[attacker].has(Ability::new(31 /* illusion_immunity */)),
+                && !self.units[attacker].has(Ability::new(31 /* illusion_immunity */))
+                && !self.field_spares(&self.units[attacker], Field::Blur),
         )
     }
 
@@ -1771,7 +1783,7 @@ impl Battle {
     fn fighter(&self, id: usize, vs_flier_blocked: bool) -> Fighter {
         let u = &self.units[id];
         let rules = &self.content.rules;
-        let mut melee = u.melee_combatant(rules);
+        let mut melee = u.melee_combatant(rules, self.magic_immunity_exceptions);
         if vs_flier_blocked {
             // A walker's blows reach a flier by the setting: not at all (the original, so only
             // thrown weapons and breath could hurt it), half as well, or in full (divergence 26).
@@ -1779,7 +1791,7 @@ impl Battle {
         }
         Fighter {
             melee,
-            thrown: u.thrown_combatant(rules),
+            thrown: u.thrown_combatant(rules, self.magic_immunity_exceptions),
             first_strike: u.flag(UnitFlag::FirstStrike),
             negate_first_strike: u.flag(UnitFlag::NegatesFirstStrike),
             state: u.defender_state(rules),
@@ -1880,6 +1892,7 @@ impl Battle {
             a.ranged,
             a.to_hit + plus + a.ranged_plus - penalty,
             &self.content.rules,
+            self.magic_immunity_exceptions,
         );
         let figures = a.figures;
         let mut state = self.units[def].defender_state(&self.content.rules);

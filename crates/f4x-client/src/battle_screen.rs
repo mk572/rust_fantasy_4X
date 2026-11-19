@@ -372,6 +372,7 @@ fn damage_type_key(t: DamageType) -> &'static str {
         DamageType::LifeRealm => "battle.type_life_realm",
         DamageType::DeathRealm => "battle.type_death_realm",
         DamageType::ArcaneRealm => "battle.type_arcane_realm",
+        DamageType::Doom => "battle.type_doom",
     }
 }
 

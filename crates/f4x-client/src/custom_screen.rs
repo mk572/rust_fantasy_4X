@@ -500,6 +500,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.death_immunity_exceptions = v != 0,
         ),
         flag(
+            "custom.magic_immunity_exceptions",
+            |s| s.rules.magic_immunity_exceptions.into(),
+            |s, v| s.rules.magic_immunity_exceptions = v != 0,
+        ),
+        flag(
             "custom.walls_cover_city",
             |s| s.rules.walls_cover_city.into(),
             |s, v| s.rules.walls_cover_city = v != 0,

@@ -39,6 +39,11 @@ pub enum DamageType {
     LifeRealm,
     DeathRealm,
     ArcaneRealm,
+    /// Doom damage: every die hits and the target rolls no defence. An attack is of this type
+    /// from its source (a doom gaze, a Chaos weapon, a Doom Bolt) or from a sleeping target
+    /// (`DefenceEffect::BecomesDoom`). Only a nullifying immunity (magic immunity, Righteousness)
+    /// still stops it.
+    Doom,
 }
 
 impl DamageType {
@@ -79,7 +84,8 @@ impl DamageType {
             | DamageType::Death
             | DamageType::Illusion
             | DamageType::Melee
-            | DamageType::Ranged => return None,
+            | DamageType::Ranged
+            | DamageType::Doom => return None,
         })
     }
 }
@@ -119,6 +125,11 @@ impl DamageTypes {
     /// The types in this set that are not in `other`.
     pub fn minus(self, other: DamageTypes) -> DamageTypes {
         DamageTypes(self.0 & !other.0)
+    }
+
+    /// The types in both sets.
+    pub fn both(self, other: DamageTypes) -> DamageTypes {
+        DamageTypes(self.0 & other.0)
     }
 
     pub fn insert(&mut self, t: DamageType) {
@@ -173,6 +184,10 @@ pub enum DefenceEffect {
     DefenceBonus(i32),
     /// This much is added to the resistance against the attack's spell or effect.
     ResistanceBonus(i32),
+    /// The attack becomes doom damage: its types are cut to the ones listed (the types that a
+    /// nullifying immunity stops: magic, the realms of Righteousness) and Doom. A target asleep
+    /// under Black Sleep takes every melee and ranged blow so.
+    BecomesDoom(DamageTypes),
 }
 
 /// What an ability or a lasting spell does against some attacks (`defence` in `abilities.ron` and
@@ -233,6 +248,13 @@ pub struct AbilityAttack {
     pub types: Vec<DamageType>,
     /// The attack halves the defence it meets.
     pub armor_piercing: bool,
+    /// A gaze that kills by a resistance check (death, stoning): its types are what that check
+    /// is stopped by, and not types of the unit's ranged damage.
+    pub gaze: bool,
+    /// One of the original's exceptions to magic immunity: with the rule setting
+    /// `magic_immunity_exceptions` the unit's attack is not of the magic type (illusion, the
+    /// Chaos power, the Doom Gaze).
+    pub magic_immunity_exception: bool,
 }
 
 #[cfg(test)]

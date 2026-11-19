@@ -175,6 +175,18 @@ impl Immunities {
         })
     }
 
+    /// The types of an attack as this unit takes it: an attack that a rule of the unit turns into
+    /// doom damage (a sleeper's melee and ranged blows) keeps only the types the rule lists, and
+    /// is of the doom type. Other attacks are as they are.
+    pub fn convert(&self, attack: DamageTypes) -> DamageTypes {
+        self.matching(attack)
+            .find_map(|r| match r.effect {
+                DefenceEffect::BecomesDoom(keeps) => Some(keeps),
+                _ => None,
+            })
+            .map_or(attack, |keeps| attack.both(keeps).with(DamageType::Doom))
+    }
+
     /// The least defence the unit has against this attack (weapon immunity), if it has one.
     pub fn floor_against(&self, attack: DamageTypes) -> Option<i32> {
         self.matching(attack)
@@ -242,6 +254,7 @@ impl AttackNature {
             mode,
             &abilities,
             magical_weapon,
+            false,
             &crate::game::testutil::shipped().rules,
         )
     }
@@ -271,9 +284,11 @@ impl AttackNature {
         mode: Mode,
         abilities: &[Ability],
         magical_weapon: bool,
+        magic_exceptions: bool,
         rules: &Rules,
     ) -> AttackNature {
         let mut nature = AttackNature::default();
+        let mut exception = false;
         if mode == Mode::Melee {
             nature.types.insert(DamageType::MundaneWeapon);
         }
@@ -282,9 +297,16 @@ impl AttackNature {
             .filter_map(|&a| rules.abilities.try_get(a))
             .filter_map(|def| def.attack.as_ref())
             .filter(|a| a.delivery == Delivery::Any || mode != Mode::Melee)
+            .filter(|a| !a.gaze)
         {
             nature.types.union(DamageTypes::of(&attack.types));
             nature.armor_piercing |= attack.armor_piercing;
+            exception |= attack.magic_immunity_exception;
+        }
+        // The original's exceptions to magic immunity (the rule setting): such an attack is not
+        // of the magic type.
+        if magic_exceptions && exception {
+            nature.types = nature.types.without(DamageType::Magic);
         }
         if magical_weapon {
             nature.types = nature.types.without(DamageType::MundaneWeapon);

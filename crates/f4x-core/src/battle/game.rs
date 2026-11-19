@@ -698,6 +698,7 @@ impl Game {
         battle.melee_vs_fliers = self.settings.rules.melee_vs_fliers;
         battle.walls_cover_city = self.settings.rules.walls_cover_city;
         battle.death_immunity_exceptions = self.settings.rules.death_immunity_exceptions;
+        battle.magic_immunity_exceptions = self.settings.rules.magic_immunity_exceptions;
         battle.max_side = self.settings.rules.max_battle_side;
         (battle.node_aura, battle.node_site) = self.node_realms_at(site, city.is_none());
         battle.refresh_fields();

@@ -2161,9 +2161,10 @@ mod casting {
             },
             ..bolt(15)
         };
-        let doom = Combatant {
-            ignores_defense: true,
-            ..bolt(15)
+        let doom = {
+            let mut doom = bolt(15);
+            doom.nature.types.insert(DamageType::Doom);
+            doom
         };
         let wall = target(1, 100, 6);
         assert!(mean(Volley::Bolt, &piercing, &wall, 2000) > armoured + 0.5);
@@ -2173,9 +2174,10 @@ mod casting {
     #[test]
     fn a_fireball_hits_each_figure_and_none_loses_more_than_one_figure() {
         let squad = target(6, 2, 0);
-        let ball = Combatant {
-            ignores_defense: true,
-            ..bolt(5)
+        let ball = {
+            let mut c = bolt(5);
+            c.nature.types.insert(DamageType::Doom);
+            c
         };
         let mut state = squad.clone();
         let mut rng = Pcg64Mcg::seed_from_u64(1);
@@ -2192,9 +2194,10 @@ mod casting {
 
     #[test]
     fn warp_lightning_is_a_chain_of_weaker_and_weaker_bolts() {
-        let chain = Combatant {
-            ignores_defense: true,
-            ..bolt(4)
+        let chain = {
+            let mut c = bolt(4);
+            c.nature.types.insert(DamageType::Doom);
+            c
         };
         let mut state = target(10, 5, 0);
         let mut rng = Pcg64Mcg::seed_from_u64(1);
@@ -2470,6 +2473,8 @@ mod fields {
         let mut b = g.battle().ok_or("no battle")?.clone();
         let plain = b.units[0].clone();
         assert_eq!(plain.realm, Some(Realm::Life));
+        // Torin is immune to magic: the darkness reaches him as the original's exception.
+        b.magic_immunity_exceptions = true;
         b.raise_field(Side::Defender, Field::Darkness, spell_for(Field::Darkness));
         assert_eq!(b.units[0].defense, plain.defense - 1);
         assert_eq!(b.units[0].resistance, plain.resistance - 1);
@@ -2706,13 +2711,23 @@ mod fields {
         );
     }
 
-    /// Task 711: the battlefield spells that work through the battlefield and not through the
-    /// unit reach a magic-immune unit as any other (the wiki's list of exceptions).
+    /// A battlefield spell changes a magic-immune unit when the content marks it as an exception
+    /// and the rule `magic_immunity_exceptions` is on, and not otherwise.
     #[test]
-    fn battlefield_enchantments_still_change_a_magic_immune_unit() {
+    fn battlefield_enchantments_change_a_magic_immune_unit_as_the_exceptions_say() {
         let paladins = 113; // high_men_paladins: magic immunity
-        for field in [Field::BlackPrayer, Field::WarpReality] {
+        for (field, exceptions) in [Field::BlackPrayer, Field::WarpReality]
+            .into_iter()
+            .flat_map(|f| [(f, false), (f, true)])
+        {
             let mut b = pair(105 /* high_men_swordsmen */, paladins);
+            b.magic_immunity_exceptions = exceptions;
+            let marked = b
+                .content
+                .rules
+                .spells
+                .get(spell_for(field))
+                .magic_immunity_exception;
             let before = b.units[1].clone();
             let caster = if field == Field::WarpReality {
                 Side::Defender
@@ -2721,7 +2736,7 @@ mod fields {
             };
             b.raise_field(caster, field, spell_for(field));
             let after = &b.units[1];
-            assert!(
+            assert_eq!(
                 (after.melee, after.defense, after.resistance, after.to_hit)
                     != (
                         before.melee,
@@ -2729,11 +2744,13 @@ mod fields {
                         before.resistance,
                         before.to_hit
                     ),
-                "{field:?} changes a magic-immune unit"
+                marked && exceptions,
+                "{field:?}, exceptions {exceptions}"
             );
         }
-        // Entangle takes a move from it.
+        // Entangle takes a move from it when the exceptions are on.
         let mut b = pair(105 /* high_men_swordsmen */, paladins);
+        b.magic_immunity_exceptions = true;
         b.raise_field(Side::Attacker, Field::Entangle, spell_for(Field::Entangle));
         let moves = b.units[1].moves;
         end_turns(&mut b, 1);
@@ -3654,8 +3671,8 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
     }
     // The plus to hit counts for the melee blow, not for a shot.
     assert_eq!(
-        armed.melee_combatant(&shipped().rules).to_hit,
-        plain.melee_combatant(&shipped().rules).to_hit + sword_bonus.to_hit
+        armed.melee_combatant(&shipped().rules, false).to_hit,
+        plain.melee_combatant(&shipped().rules, false).to_hit + sword_bonus.to_hit
     );
     Ok(())
 }
@@ -8133,6 +8150,70 @@ fn word_of_death_is_stopped_by_death_immunity_unless_the_original_exceptions_are
     assert!(!hurt(false)?, "death immunity stops Word of Death");
     assert!(hurt(true)?, "the original's exception lets it through");
     Ok(())
+}
+
+/// The rule `magic_immunity_exceptions`: every spell the content marks as an exception to
+/// magic immunity spares a magic-immune unit while the rule is off, and not once it is on.
+#[test]
+fn magic_immunity_spares_the_marked_spells_unless_the_exceptions_are_on() -> TestResult {
+    let mut g = hook_game_against(1 /* earth_to_mud */, 105 /* high_men_swordsmen */);
+    let active = g.battle.as_mut().ok_or("no battle")?;
+    let spells: Vec<SpellId> = active
+        .battle
+        .content
+        .rules
+        .spells
+        .iter()
+        .filter(|(_, d)| d.magic_immunity_exception)
+        .map(|(id, _)| id)
+        .collect();
+    assert!(!spells.is_empty(), "the content marks some spells");
+    let b = &mut active.battle;
+    b.units[1]
+        .abilities
+        .push(Ability::new(40 /* magic_immunity */));
+    for exceptions in [false, true] {
+        b.magic_immunity_exceptions = exceptions;
+        for &spell in &spells {
+            assert_eq!(
+                b.spares(&b.units[1], spell),
+                !exceptions,
+                "spell {spell:?}, exceptions {exceptions}"
+            );
+        }
+    }
+    Ok(())
+}
+
+/// The same for attacks: the content marks the attacks of the magic type that get through magic
+/// immunity, and the rule takes the magic type off exactly those.
+#[test]
+fn the_magic_type_of_the_marked_attacks_goes_when_the_exceptions_are_on() {
+    let rules = &crate::game::testutil::shipped().rules;
+    let marked: Vec<u16> = rules
+        .abilities
+        .iter()
+        .filter(|(_, d)| {
+            d.attack
+                .as_ref()
+                .is_some_and(|a| a.magic_immunity_exception)
+        })
+        .map(|(_, d)| d.num)
+        .collect();
+    assert!(!marked.is_empty(), "the content marks some attacks");
+    for num in marked {
+        let nature = |exceptions: bool| {
+            AttackNature::of_unit_attack(
+                Mode::Ranged,
+                &[Ability::new(num)],
+                false,
+                exceptions,
+                rules,
+            )
+        };
+        assert!(nature(false).types.contains(DamageType::Magic), "{num}");
+        assert!(!nature(true).types.contains(DamageType::Magic), "{num}");
+    }
 }
 
 /// Patch 1.50, note 159: every unit of the losing wizard that fell counts for his dislike of the

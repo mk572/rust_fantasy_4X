@@ -61,8 +61,6 @@ pub enum Trigger {
 pub struct DamageTraits {
     /// Halves the target's defence.
     pub armor_piercing: bool,
-    /// The target's defence does not count at all.
-    pub ignores_defense: bool,
     /// Every figure of the target is hit on its own, none losing more than one figure.
     pub area: bool,
     /// A chain of bolts, each one die weaker than the last.

@@ -1192,7 +1192,7 @@ fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() -
 
 #[test]
 fn battle_units_carry_the_numbers_of_their_special_attacks() -> TestResult {
-    use f4x_core::battle::special::{Gaze, SpecialAttacks};
+    use f4x_core::battle::special::SpecialAttacks;
     use f4x_core::battle::RangedKind;
     let content = content();
     let mut g = new_game(
@@ -1244,8 +1244,8 @@ fn battle_units_carry_the_numbers_of_their_special_attacks() -> TestResult {
     assert_eq!(s.poison, 4);
     let (_, s, kind) = special(182 /* basilisk */);
     assert_eq!(
-        (s.gaze, s.penalty, kind),
-        (Gaze::Stoning, 1, RangedKind::Short)
+        (s.stoning_gaze, s.death_gaze, s.penalty, kind),
+        (true, false, 1, RangedKind::Short)
     );
     let (_, s, _) = special(170 /* wraiths */);
     assert!(s.life_steal);

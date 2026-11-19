@@ -147,38 +147,94 @@ fn a_death_gaze_kills_figures_that_fail_to_resist_unless_the_target_is_immune() 
     );
 }
 
+/// The Chaos Spawn's three gazes are three abilities, each doing its own work: the doom gaze
+/// deals its damage, the death and stoning gazes make each figure resist.
 #[test]
-fn a_multiple_gaze_stones_and_kills_unless_the_target_is_immune_to_both() {
+fn the_chaos_spawns_gazes_each_work_alone() {
     let b = duel(
         159, /* chaos_spawn */
-        104, /* high_men_spearmen */
+        79,  /* dwarven_hammerhands: resistance 9, a gaze at -4 fails half the rolls */
         1,
     );
-    let (with, _) = losses(&b, false, nothing);
-    let (plain, _) = losses(&b, false, without(46 /* multi_gaze */));
+    // Only the kill checks of the two gazes: no melee blows, no poison and no doom gaze.
+    let checks_only = |b: &mut Battle| {
+        without(46 /* doom_gaze */)(b);
+        without(53 /* poison_touch */)(b);
+        for u in &mut b.units {
+            if u.side == Side::Attacker {
+                u.melee = 0;
+                u.ranged = 0; // no dice of its own: the gazes still gaze
+            }
+        }
+    };
+    let both = |b: &mut Battle| checks_only(b);
+    let (open, _) = losses(&b, false, both);
+    let (no_death, _) = losses(&b, false, |b: &mut Battle| {
+        checks_only(b);
+        without(15 /* death_gaze */)(b);
+    });
+    let (no_stoning, _) = losses(&b, false, |b: &mut Battle| {
+        checks_only(b);
+        without(64 /* stoning_gaze */)(b);
+    });
+    let (neither, _) = losses(&b, false, |b: &mut Battle| {
+        checks_only(b);
+        without(15 /* death_gaze */)(b);
+        without(64 /* stoning_gaze */)(b);
+    });
+    assert_eq!(neither, 0, "without the two gazes nothing dies");
+    assert!(no_death > 0, "the stoning gaze works alone: {no_death}");
+    assert!(no_stoning > 0, "the death gaze works alone: {no_stoning}");
     assert!(
-        with > plain,
-        "the gaze kills figures: {with} against {plain}"
+        open > no_death && open > no_stoning,
+        "each gaze adds figures: {open} against {no_death} and {no_stoning}"
     );
-    // Either gaze alone still kills; the first to roll may leave the other nothing to do, so each
-    // is compared with the unit without the ability, not with the two together.
-    let (stoning_only, _) = losses(&b, false, immune(16 /* death_immunity */));
-    let (death_only, _) = losses(&b, false, immune(65 /* stoning_immunity */));
-    let (both, _) = losses(&b, false, |b: &mut Battle| {
+    // Death immunity stops the death gaze and stoning immunity the stoning gaze; with both
+    // immunities neither is left.
+    let (death_immune, _) = losses(&b, false, |b: &mut Battle| {
+        checks_only(b);
+        immune(16 /* death_immunity */)(b);
+    });
+    let (stoning_immune, _) = losses(&b, false, |b: &mut Battle| {
+        checks_only(b);
+        immune(65 /* stoning_immunity */)(b);
+    });
+    let (both_immune, _) = losses(&b, false, |b: &mut Battle| {
+        checks_only(b);
         immune(16 /* death_immunity */)(b);
         immune(65 /* stoning_immunity */)(b);
     });
-    assert!(
-        stoning_only > plain,
-        "the stoning gaze works alone: {stoning_only} against {plain}"
+    assert!(death_immune < open && stoning_immune < open);
+    assert_eq!(both_immune, 0, "immune to both, neither gaze is left");
+}
+
+/// The doom gaze is one of the attacks marked as an exception to magic immunity: it goes through
+/// when the rule `magic_immunity_exceptions` is on and is stopped when it is off, where the death
+/// and stoning gazes are stopped either way.
+#[test]
+fn the_doom_gaze_gets_through_magic_immunity_only_with_the_exceptions_on() {
+    let b = duel(
+        159, /* chaos_spawn */
+        113, /* high_men_paladins */
+        1,
     );
+    let (_, stopped) = losses(&b, false, nothing);
+    let (_, through) = losses(&b, false, |b: &mut Battle| {
+        b.magic_immunity_exceptions = true
+    });
     assert!(
-        death_only > plain,
-        "the death gaze works alone: {death_only} against {plain}"
+        through > stopped,
+        "the doom gaze hurts a magic-immune unit only with the exceptions on: {through} against {stopped}"
     );
-    assert!(
-        both < stoning_only && both < death_only,
-        "immune to both, neither gaze is left: {both} against {stoning_only} and {death_only}"
+    let (death_figures, _) = losses(&b, false, without(46 /* doom_gaze */));
+    let (open_figures, _) = losses(&b, false, |b: &mut Battle| {
+        without(46 /* doom_gaze */)(b);
+        without(15 /* death_gaze */)(b);
+        without(64 /* stoning_gaze */)(b);
+    });
+    assert_eq!(
+        death_figures, open_figures,
+        "magic immunity stops the death and stoning gazes"
     );
 }
 

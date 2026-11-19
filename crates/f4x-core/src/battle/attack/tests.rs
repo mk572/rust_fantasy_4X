@@ -67,11 +67,10 @@ fn defense_blocks_hits() {
 fn damage_goes_to_the_front_figure_and_overflows_to_the_next() {
     let mut r = rng(3);
     // Unblockable, certain hits (strength 10 at +7 always rolls 1+ ... use doom damage).
-    let doom = Combatant {
+    let doom = with_doom(Combatant {
         strength: 5,
-        ignores_defense: true,
         ..Combatant::default()
-    };
+    });
     let mut d = def(3, 2, 9);
     let dmg = process_attack(&rules(), &doom, 1, &mut d, &mut r);
     // Five damage on 2-hit figures: two figures dead, one point on the third.
@@ -141,12 +140,17 @@ fn the_same_seed_gives_the_same_battle() {
     assert!(outcomes.len() > 3, "varied across seeds");
 }
 
+/// The attack as doom damage: every die hits and the target rolls no defence.
+fn with_doom(mut attack: Combatant) -> Combatant {
+    attack.nature.types.insert(DamageType::Doom);
+    attack
+}
+
 fn doomed(strength: i32) -> Combatant {
-    Combatant {
+    with_doom(Combatant {
         strength,
-        ignores_defense: true,
         ..Combatant::default()
-    }
+    })
 }
 
 fn fighter(figures: u32, hits: i32, melee: Combatant) -> Fighter {
@@ -293,10 +297,7 @@ fn a_defender_rolls_the_defense_its_immunities_give_it() {
     assert_eq!(through, 0);
     // Doom damage ignores the defence, not an immunity: a unit immune to what the attack is
     // made of takes nothing from it.
-    let doom = Combatant {
-        ignores_defense: true,
-        ..arrows
-    };
+    let doom = with_doom(arrows);
     assert_eq!(
         process_attack(
             &rules(),
@@ -598,10 +599,11 @@ fn a_melee_exchange_heals_a_life_stealer() {
 
 #[test]
 fn a_gaze_makes_each_figure_resist_in_the_thrown_step_only() {
-    let gazer = |gaze, mode| {
+    let gazer = |stoning_gaze, death_gaze, mode| {
         special(
             SpecialAttacks {
-                gaze,
+                stoning_gaze,
+                death_gaze,
                 penalty: 2,
                 ..SpecialAttacks::default()
             },
@@ -609,18 +611,18 @@ fn a_gaze_makes_each_figure_resist_in_the_thrown_step_only() {
         )
     };
     // Resistance 4 at -2: fails on 3 to 10, eight in ten of ten figures.
-    let k = mean_kills(&gazer(Gaze::Stoning, Mode::ThrownOrBreath), 1, || {
+    let k = mean_kills(&gazer(true, false, Mode::ThrownOrBreath), 1, || {
         soft(10, 100, 4)
     });
     assert!((k - 8.0).abs() < 0.4, "{k}");
     // The same unit's melee blows do not gaze.
-    assert!(mean_kills(&gazer(Gaze::Stoning, Mode::Melee), 1, || soft(10, 100, 4)) < 1.0);
-    // A multiple gaze stones and kills: about 1 - 0.2 * 0.2 of the figures.
-    let multi = mean_kills(&gazer(Gaze::Multi, Mode::ThrownOrBreath), 1, || {
+    assert!(mean_kills(&gazer(true, false, Mode::Melee), 1, || soft(10, 100, 4)) < 1.0);
+    // A unit with both gazes stones and kills: about 1 - 0.2 * 0.2 of the figures.
+    let multi = mean_kills(&gazer(true, true, Mode::ThrownOrBreath), 1, || {
         soft(10, 100, 4)
     });
     assert!((multi - 9.6).abs() < 0.4, "{multi}");
-    let death = mean_kills(&gazer(Gaze::Death, Mode::ThrownOrBreath), 1, || {
+    let death = mean_kills(&gazer(false, true, Mode::ThrownOrBreath), 1, || {
         DefenderState {
             immunities: Immunities::of_numbers(&[16]),
             ..soft(10, 100, 4)
@@ -694,6 +696,56 @@ fn a_sleeper_takes_every_blow_at_full_strength() {
     d.figures_max = 1;
     let hit = process_attack(&rules(), &combatant(5, 0), 1, &mut d, &mut r);
     assert_eq!(hit.points, 5);
+}
+
+/// A rule of the shipped content that turns damage into doom damage (`BecomesDoom`) is applied
+/// as the data says: the attack keeps the types the rule lists and gains Doom, and a blow made
+/// of types the rule does not list lands with its full strength through the defence.
+#[test]
+fn a_rule_that_turns_damage_into_doom_is_applied_as_the_data_says() {
+    use crate::rules::damage_type::DefenceEffect;
+    use strum::IntoEnumIterator;
+    let content = crate::game::testutil::shipped();
+    let mut found = 0;
+    for (id, spell) in content.rules.spells.iter() {
+        for rule in &spell.defence {
+            let DefenceEffect::BecomesDoom(keeps) = rule.effect else {
+                continue;
+            };
+            found += 1;
+            let mut d = def(1, 100, 10);
+            d.put_enchantment(id);
+            // An attack of every type the rule matches, as the rule's own `against` lists them.
+            let all: DamageTypes = DamageTypes::of(&DamageType::iter().collect::<Vec<_>>());
+            let converted = d.immunities.convert(all);
+            assert!(converted.contains(DamageType::Doom));
+            assert_eq!(converted.without(DamageType::Doom), all.both(keeps));
+            // A blow of the types the rule drops meets no defence.
+            let dropped = all.minus(keeps).without(DamageType::Doom);
+            let blow = Combatant {
+                strength: 6,
+                mode: Mode::Ranged,
+                nature: AttackNature {
+                    types: dropped,
+                    armor_piercing: false,
+                },
+                ..Combatant::default()
+            };
+            let hit = process_attack(&rules(), &blow, 1, &mut d, &mut rng(2));
+            assert_eq!(hit.points, blow.strength, "{}", spell.id);
+        }
+    }
+    assert!(found > 0, "the shipped content has such a rule");
+}
+
+/// Task 714: a doom attack of its own (a Chaos weapon, a Doom Bolt, a doom gaze) rolls no
+/// dice and meets no defence, and an immunity to what else it is made of still stops it.
+#[test]
+fn doom_damage_hits_with_every_die_and_meets_no_defence() {
+    let doom = with_doom(combatant(5, -5));
+    let mut d = def(1, 100, 10);
+    let hit = process_attack(&rules(), &doom, 1, &mut d, &mut rng(4));
+    assert_eq!(hit.points, doom.strength, "no roll to hit, no block");
 }
 
 #[test]

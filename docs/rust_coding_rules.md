@@ -95,6 +95,22 @@ Implement several test layers:
 
 ## Functional testing
 
+### This is a game, not a banking system
+
+A banking system has business rules the application must never stray from, and its tests pin them.
+A game changes its gameplay as it evolves, and that is allowed and expected. So a test does **not
+define the gameplay**: it never says "this spell does that" or "this immunity stops this" as a fact
+of its own. The rules and their switches live in the content and in the settings (`settings.rs`,
+`.ron`); a test reads them and checks that the game implements what they say. When the design
+changes, the content or the setting changes, and the tests, which only follow it, stay green. A
+test that has to be rewritten whenever the balance moves is carrying a rule it should not carry.
+
+A good test performs an **action** and checks the **outcome the player sees**. Good: target a
+death-immune unit with a spell of the death realm; the cast is refused and the player gets a message
+that says why. Bad: check that zombies have death immunity (that is a fact of the content, and
+changing the content must not break a test). Where the outcome depends on a setting, run the action
+under each value of the setting and check the outcome the setting promises.
+
 Small tests within rs files themselves.
 
 ### Comments

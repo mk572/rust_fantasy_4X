@@ -432,6 +432,13 @@ pub struct RuleSettings {
     /// (the spells with `death_immunity_exception` in `spells.ron`).
     #[serde(default = "fb_death_immunity_exceptions")]
     pub death_immunity_exceptions: bool,
+    /// Magic immunity has the original's exceptions. Off (the default): a unit with magic
+    /// immunity is not harmed by any spell that harms units, whatever way it reaches them
+    /// (the battlefield enchantments, Web, Warp Wood), and no attack goes through it. On: the
+    /// spells with `magic_immunity_exception` in `spells.ron` and the attacks with it in
+    /// `abilities.ron` (illusion, the Chaos power, the Doom Gaze) are not of the magic type.
+    #[serde(default = "fb_magic_immunity_exceptions")]
+    pub magic_immunity_exceptions: bool,
     /// Illusion immunity protects from the Sorcery battle spells that name the illusion type
     /// (Confusion, Vertigo, Mind Storm and Creature Binding: `types: [Illusion]` in
     /// `spells.ron`), as it does in the original. Off: they affect an illusion-immune unit; the
@@ -656,6 +663,10 @@ fn fb_worker_production() -> HalfInt {
 
 fn fb_walls_cover_city() -> bool {
     fallback(|g| g.rules.walls_cover_city, false)
+}
+
+fn fb_magic_immunity_exceptions() -> bool {
+    fallback(|g| g.rules.magic_immunity_exceptions, false)
 }
 
 fn fb_death_immunity_exceptions() -> bool {

@@ -55,7 +55,7 @@ Everything is in `attack.rs` as pure functions over numbers and a random generat
 - A walking unit's melee against a **flying** unit follows the setting `rules.melee_vs_fliers`:
   `zero` (the default, the original: nothing), `half` (half strength, rounded up) or `full`. The
   flier still hits back at full strength; thrown and breath attacks are unchanged. Divergence 26.
-- **Doom damage** (`ignores_defense`) skips both the to-hit and the defence rolls.
+- **Doom damage** (the `Doom` damage type: Doom Bolt, the Chaos power, the Doom Gaze, and what Black Sleep turns a sleeper's melee and ranged damage into) skips both the to-hit and the defence rolls: all dice hit. It is stopped only by an immunity to what else it is made of (magic immunity for a spell).
 
 Ability rules (task 37): **large shield** adds 2 to the defence against anything but a melee blow
 (arrows, thrown weapons, breath, spell shots and damage spells; before armour piercing halves it).
@@ -178,7 +178,7 @@ life steal. Every attack of the unit (melee, thrown, ranged) carries its special
 the original; a gaze only counts in the thrown and breath step.
 
 Per attack, in order:
-1. **Gaze** (stoning, death, or both for a multiple gaze), once, against *each of the target's
+1. **Gaze** (stoning or death: the Chaos Spawn has both as separate abilities, next to its Doom Gaze), once, against *each of the target's
    figures*: the figure resists at the gaze's penalty (stoning is nature, death is death) or
    is killed. Stoning immunity, death immunity and magic immunity stop the matching gaze. The
    damage of a multiple gaze's ranged strength ignores defence. A defender with a gaze gazes

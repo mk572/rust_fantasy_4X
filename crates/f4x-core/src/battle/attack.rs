@@ -27,7 +27,7 @@ use super::immunity::{
     delivery, effective_defense, effective_resistance, resistance_failure, AttackNature,
     Immunities, Realm,
 };
-use super::special::{Gaze, SpecialAttacks};
+use super::special::SpecialAttacks;
 
 /// How an attack is delivered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -47,8 +47,6 @@ pub struct Combatant {
     pub strength: i32,
     /// Pluses to hit (each is ten percentage points); may be negative.
     pub to_hit: i32,
-    /// Attackers ignore defense altogether (doom damage).
-    pub ignores_defense: bool,
     /// How the attack is delivered and what it is made of: what immunities it meets.
     pub mode: Mode,
     pub nature: AttackNature,
@@ -110,9 +108,13 @@ impl DefenderState {
 }
 
 impl DefenderState {
-    /// Under Black Sleep: every blow against it does its full strength.
-    fn asleep(&self) -> bool {
-        self.effects.contains(UnitEffect::BlackSleep)
+    /// Whether the blow is doom damage to this defender: from its source (a doom gaze, a Chaos
+    /// weapon) or because the defender turns it into doom (Black Sleep). Every die hits and no
+    /// defence is rolled.
+    fn takes_doom(&self, attacker: &Combatant) -> bool {
+        self.immunities
+            .convert(attacker.types())
+            .contains(DamageType::Doom)
     }
 
     /// The defence it rolls against one of `attacker`'s attacks: its own plus what its abilities
@@ -120,7 +122,7 @@ impl DefenderState {
     /// one, Elemental Armor against chaos and nature), then what its floors make of it. `None`
     /// if it is immune to the attack: nothing gets through.
     fn defense_versus(&self, attacker: &Combatant) -> Option<i32> {
-        let types = attacker.types();
+        let types = self.immunities.convert(attacker.types());
         // Berserk: no defence at all, whatever else the unit has (immunities still count).
         let defense = if self.effects.contains(UnitEffect::Berserk) {
             0
@@ -221,7 +223,7 @@ impl Combatant {
         let lost: i32 = self
             .parts
             .iter()
-            .filter(|(_, types)| immunities.stops(*types))
+            .filter(|(_, types)| immunities.stops(immunities.convert(*types)))
             .map(|(dice, _)| dice)
             .sum();
         self.strength - lost.clamp(0, self.strength)
@@ -345,18 +347,16 @@ pub fn process_attack(
         };
         total += spell_attack(rules, &fire, Volley::Area, def, rng);
     }
-    if attacker.mode == Mode::ThrownOrBreath && sp.gaze != Gaze::None && touchable {
+    if attacker.mode == Mode::ThrownOrBreath && sp.has_gaze() && touchable {
         let gazed = def.figures;
-        if matches!(sp.gaze, Gaze::Stoning | Gaze::Multi)
-            && !def.immunities.has(DamageType::Stoning)
-        {
+        if sp.stoning_gaze && !def.immunities.has(DamageType::Stoning) {
             for _ in 0..gazed {
                 if def.resistance_failure(Some(Realm::Nature), -sp.penalty, rng) > 0 {
                     total += kill_figure(def).all_gone();
                 }
             }
         }
-        if matches!(sp.gaze, Gaze::Death | Gaze::Multi) && !def.immunities.has(DamageType::Death) {
+        if sp.death_gaze && !def.immunities.has(DamageType::Death) {
             for _ in 0..gazed {
                 if def.resistance_failure(Some(Realm::Death), -sp.penalty, rng) > 0 {
                     total += kill_figure(def);
@@ -407,7 +407,7 @@ pub fn process_attack(
         }
         // An attack the defender is immune to does nothing, whatever else is true of it.
         let mut dmg = if let Some(defense) = defense {
-            if attacker.ignores_defense || def.asleep() {
+            if def.takes_doom(attacker) {
                 strength
             } else {
                 let hits = roll_successes(strength, attacker.to_hit - i32::from(def.lucky), rng);
@@ -425,7 +425,7 @@ pub fn process_attack(
                 def.front_damage = 0;
                 dmg -= need;
                 // The overflow meets the next figure's defense.
-                if dmg > 0 && !attacker.ignores_defense && !def.asleep() {
+                if dmg > 0 && !def.takes_doom(attacker) {
                     let blocked = def.blocks(defense.unwrap_or(0), attacker.eldritch, rules, rng);
                     dmg = (dmg - blocked).max(0);
                 }
@@ -488,7 +488,7 @@ pub fn spell_attack(
     };
     let blow = |strength: i32, rng: &mut dyn RngCore| {
         // A sleeper takes the full strength of every blow.
-        if attacker.ignores_defense || def.asleep() {
+        if def.takes_doom(attacker) {
             strength
         } else {
             let hits = roll_successes(strength, attacker.to_hit - i32::from(def.lucky), rng);
@@ -565,7 +565,7 @@ pub fn melee_exchange(
         out.dealt += d;
     }
     // A defender with a gaze gazes back before the blows, with the figures it has left.
-    if let Some(gaze) = def.thrown.as_ref().filter(|t| t.special.gaze != Gaze::None) {
+    if let Some(gaze) = def.thrown.as_ref().filter(|t| t.special.has_gaze()) {
         if def.state.figures > 0 && att.state.figures > 0 {
             let d = process_attack(rules, gaze, def.state.figures, &mut att.state, rng);
             def.state.heal_overflow(d.healed);

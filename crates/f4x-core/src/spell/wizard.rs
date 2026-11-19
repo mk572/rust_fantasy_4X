@@ -96,16 +96,17 @@ impl Game {
         spell: crate::rules::SpellId,
     ) -> bool {
         let def = self.content.rules.spells.get(spell);
-        if def.death_immunity_exception && self.settings.rules.death_immunity_exceptions {
-            return false;
-        }
+        let types = def.harmful_types(
+            self.settings.rules.death_immunity_exceptions,
+            self.settings.rules.magic_immunity_exceptions,
+        );
         let units = self.units();
         crate::battle::immunity::Immunities::of(
             &units.unit_abilities(unit),
             &units.unit_enchantment_ids(unit),
             &self.content.rules,
         )
-        .meets(def.harm_types)
+        .meets(types)
     }
 
     /// The units on the map that the spell may touch, with the realm each is judged by.
