@@ -15,8 +15,8 @@ use super::attack::unblockable;
 use super::immunity::{AttackNature, Realm};
 use super::map::{self, Pos};
 use super::{Battle, BattleError, BattleEvent, Side};
+use crate::rules::damage_type::{DamageType, DamageTypes};
 use crate::rules::effects::DamageTraits;
-use crate::rules::Ability;
 
 /// The most vortices on one battlefield.
 pub const MAX_VORTICES: usize = 10;
@@ -124,10 +124,11 @@ impl Battle {
             let cell = self.units[id].cell;
             if cell == to {
                 let u = &self.units[id];
-                if !u.has(Ability::new(40 /* magic_immunity */))
-                    && !u
-                        .effects
-                        .contains(crate::spell::unit_effect::UnitEffect::Righteousness)
+                let types = DamageTypes::of(&[DamageType::Magic, DamageType::ChaosRealm]);
+                if !u
+                    .defender_state(&self.content.rules)
+                    .immunities
+                    .stops(types)
                 {
                     let mut state = u.defender_state(&self.content.rules);
                     let lost = unblockable(&mut state, crush);

@@ -22,9 +22,8 @@
 //!
 //! Tests: in battle/immunity/tests.rs.
 
-use crate::rules::damage_type::{DamageType, DamageTypes, DefenceEffect, Delivery};
-use crate::rules::{Ability, Rules};
-use crate::spell::unit_effect::{UnitEffect, UnitEffects};
+use crate::rules::damage_type::{DamageType, DamageTypes, DefenceEffect, DefenceRule, Delivery};
+use crate::rules::{Ability, Rules, SpellId};
 use rand::{Rng, RngCore};
 
 use super::attack::Mode;
@@ -82,58 +81,110 @@ impl Realm {
     }
 }
 
-/// The damage types a unit has a defence rule against, from its abilities (`defence` in
-/// `abilities.ron`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// What a unit's abilities and lasting spells do against attacks: its defence rules (`defence`
+/// in `abilities.ron` and `spells.ron`).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Immunities {
-    /// Every type it has a rule for.
-    types: DamageTypes,
-    /// Of those, the types it meets with a defence floor instead of being immune to them.
-    floored: DamageTypes,
-    floor: i32,
+    rules: Vec<DefenceRule>,
 }
 
 impl Immunities {
-    /// The defence rules of a unit's abilities.
-    pub fn of(abilities: &[Ability], rules: &Rules) -> Immunities {
-        let mut out = Immunities::default();
-        for rule in abilities
+    /// The defence rules of a unit's abilities and of the lasting spells on it.
+    pub fn of(abilities: &[Ability], spells: &[SpellId], rules: &Rules) -> Immunities {
+        let from_abilities = abilities
             .iter()
             .filter_map(|&a| rules.abilities.try_get(a))
-            .flat_map(|def| &def.defence)
-        {
-            out.types.insert(rule.against);
-            if let DefenceEffect::DefenceFloor(floor) = rule.effect {
-                out.floored.insert(rule.against);
-                out.floor = out.floor.max(floor);
-            }
+            .flat_map(|def| def.defence.iter().copied());
+        let from_spells = spells
+            .iter()
+            .filter_map(|&s| rules.spells.try_get(s))
+            .flat_map(|def| def.defence.iter().copied());
+        Immunities {
+            rules: from_abilities.chain(from_spells).collect(),
         }
-        out
     }
 
-    /// Whether the unit has a defence rule against this type.
+    /// A lasting spell put on the unit adds its rules (for a defender built by hand in a test).
+    #[cfg(test)]
+    pub(crate) fn add_spell(&mut self, spell: SpellId, rules: &Rules) {
+        self.rules
+            .extend(rules.spells.get(spell).defence.iter().copied());
+    }
+
+    fn matching(&self, attack: DamageTypes) -> impl Iterator<Item = &DefenceRule> {
+        self.rules.iter().filter(move |r| r.matches(attack))
+    }
+
+    /// Whether the unit has an immunity, a floor or a seeing-through against this type: what
+    /// the abilities named after a type (fire immunity) give.
     pub fn has(&self, t: DamageType) -> bool {
-        self.types.contains(t)
+        self.rules.iter().any(|r| {
+            r.against.contains(t)
+                && matches!(
+                    r.effect,
+                    DefenceEffect::Immune
+                        | DefenceEffect::SeeThrough
+                        | DefenceEffect::DefenceFloor(_)
+                )
+        })
     }
 
-    /// Whether an attack of these types does nothing to the unit: it is immune to one of them. A
-    /// type it meets with a floor (weapon) or sees through (illusion) does not count.
+    /// Whether an attack of these types does nothing to the unit: it is immune to one of them.
     pub fn stops(&self, attack: DamageTypes) -> bool {
-        attack.intersects(self.types.minus(self.floored).without(DamageType::Illusion))
+        self.matching(attack)
+            .any(|r| r.effect == DefenceEffect::Immune)
     }
 
-    /// Whether the unit has a defence rule against any type of this attack, a floor and a seen-through illusion included: what a planner treats as a wasted attack.
+    /// Whether the unit sees through an illusion.
+    pub fn sees_through(&self, attack: DamageTypes) -> bool {
+        self.matching(attack)
+            .any(|r| r.effect == DefenceEffect::SeeThrough)
+    }
+
+    /// Whether the unit has a rule against any type of this attack that an immunity, a floor or a
+    /// seen-through illusion makes: what a planner treats as a wasted attack, and a spell of
+    /// illusions or death is refused by.
     pub fn meets(&self, attack: DamageTypes) -> bool {
-        attack.intersects(self.types)
+        self.matching(attack).any(|r| {
+            matches!(
+                r.effect,
+                DefenceEffect::Immune | DefenceEffect::SeeThrough | DefenceEffect::DefenceFloor(_)
+            )
+        })
     }
 
-    /// Whether it raises its defence against this attack to a floor (weapon immunity).
-    pub fn floors(&self, attack: DamageTypes) -> bool {
-        attack.intersects(self.floored)
+    /// The least defence the unit has against this attack (weapon immunity), if it has one.
+    pub fn floor_against(&self, attack: DamageTypes) -> Option<i32> {
+        self.matching(attack)
+            .filter_map(|r| match r.effect {
+                DefenceEffect::DefenceFloor(n) => Some(n),
+                _ => None,
+            })
+            .max()
+    }
+
+    /// What is added to the defence against this attack.
+    pub fn defence_bonus(&self, attack: DamageTypes) -> i32 {
+        self.matching(attack)
+            .filter_map(|r| match r.effect {
+                DefenceEffect::DefenceBonus(n) => Some(n),
+                _ => None,
+            })
+            .sum()
+    }
+
+    /// What is added to the resistance against this attack's spell or effect.
+    pub fn resistance_bonus(&self, attack: DamageTypes) -> i32 {
+        self.matching(attack)
+            .filter_map(|r| match r.effect {
+                DefenceEffect::ResistanceBonus(n) => Some(n),
+                _ => None,
+            })
+            .sum()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.types.is_empty()
+        self.rules.is_empty()
     }
 }
 
@@ -141,8 +192,13 @@ impl Immunities {
 impl Immunities {
     /// For tests: the defence rules the shipped content gives these abilities (by number).
     pub(crate) fn of_numbers(numbers: &[u16]) -> Immunities {
+        Immunities::of_numbers_and_spells(numbers, &[])
+    }
+
+    /// For tests: the same with lasting spells on the unit.
+    pub(crate) fn of_numbers_and_spells(numbers: &[u16], spells: &[SpellId]) -> Immunities {
         let abilities: Vec<Ability> = numbers.iter().map(|&n| Ability::new(n)).collect();
-        Immunities::of(&abilities, &crate::game::testutil::shipped().rules)
+        Immunities::of(&abilities, spells, &crate::game::testutil::shipped().rules)
     }
 }
 
@@ -215,107 +271,47 @@ impl AttackNature {
     }
 }
 
-/// The defence a unit rolls against one attack.
+/// How an attack reaches its target, as a damage type.
+pub fn delivery(mode: Mode) -> DamageType {
+    match mode {
+        Mode::Melee => DamageType::Melee,
+        Mode::ThrownOrBreath | Mode::Ranged => DamageType::Ranged,
+    }
+}
+
+/// The defence a unit rolls against one attack, or `None` if the unit is immune to it: the
+/// attack does nothing. `types` are the types of the attack with its delivery.
 ///
-/// Armour piercing halves the defence first (rounding down). An immunity in common with a non-melee attack makes the defence 50. Weapon immunity then
-/// sets it to at least 10 against a normal weapon, even if the attack was stopped outright
-/// above (the original's order), and magic immunity sets it to 50 against any ranged magic.
+/// An illusion the defender cannot see through ignores every armour. Armour piercing halves the
+/// defence (rounding down); a floor (weapon immunity) then raises it.
 pub fn effective_defense(
     defense: i32,
     unit: &Immunities,
-    attack: &AttackNature,
-    mode: Mode,
-    immune_defense: i32,
-) -> i32 {
-    // An illusion the defender cannot see through ignores every armour.
-    if attack.types.contains(DamageType::Illusion) && !unit.has(DamageType::Illusion) {
-        return 0;
+    types: DamageTypes,
+    armor_piercing: bool,
+) -> Option<i32> {
+    if unit.stops(types) {
+        return None;
     }
-    let defense = if attack.armor_piercing {
-        defense / 2
-    } else {
-        defense
-    };
-    let mut immune = unit.stops(attack.types) && mode != Mode::Melee;
-    let mut floored = false;
-    if unit.floors(attack.types) {
-        immune = false;
-        floored = true;
+    if types.contains(DamageType::Illusion) && !unit.sees_through(types) {
+        return Some(0);
     }
-    if immune {
-        return immune_defense;
-    }
-    if floored {
-        return defense.max(unit.floor);
-    }
-    defense
+    let defense = if armor_piercing { defense / 2 } else { defense };
+    Some(
+        unit.floor_against(types)
+            .map_or(defense, |f| defense.max(f)),
+    )
 }
 
-/// A unit's resistance against a spell or attack of `realm`: its own, and 30 more with magic
-/// immunity against any realm. `effects` are what its lasting spells do; each adds to
-/// resistance against particular realms:
-/// - Righteousness +30 against chaos and death, Bless +3 against chaos and death;
-/// - Elemental Armor +10, or else Resist Elements +3, against chaos and nature;
-/// - Resist Magic +5 against any realm.
-pub fn effective_resistance(
-    resistance: i32,
-    unit: &Immunities,
-    realm: Option<Realm>,
-    effects: UnitEffects,
-) -> i32 {
-    let mut out = resistance;
-    let has = |e: UnitEffect| effects.contains(e);
+/// A unit's resistance against a spell or attack of `realm`: its own, 30 more with magic
+/// immunity against any realm, and what its lasting spells add against that realm
+/// (`resistance_bonus` of their `defence`).
+pub fn effective_resistance(resistance: i32, unit: &Immunities, realm: Option<Realm>) -> i32 {
     let Some(realm) = realm else {
-        return out;
+        return resistance;
     };
-    if unit.has(DamageType::Magic) {
-        out += 30;
-    }
-    let dark = matches!(realm, Realm::Chaos | Realm::Death);
-    let elemental = matches!(realm, Realm::Chaos | Realm::Nature);
-    if dark && has(UnitEffect::Righteousness) {
-        out += 30;
-    }
-    if elemental {
-        if has(UnitEffect::ElementalArmor) {
-            out += 10;
-        } else if has(UnitEffect::ResistElements) {
-            out += 3;
-        }
-    }
-    if dark && has(UnitEffect::Bless) {
-        out += 3;
-    }
-    if has(UnitEffect::ResistMagic) {
-        out += 5;
-    }
-    out
-}
-
-/// The defence a unit's lasting spells add against an attack of `realm` (`Battle_Unit_Defense_Special`):
-/// Elemental Armor +10, or else Resist Elements +3, against ranged chaos and nature; Bless +3
-/// against chaos and death.
-pub fn defense_bonus(realm: Option<Realm>, mode: Mode, effects: UnitEffects) -> i32 {
-    let has = |e: UnitEffect| effects.contains(e);
-    let mut out = 0;
-    if matches!(realm, Some(Realm::Chaos | Realm::Nature)) && mode != Mode::Melee {
-        if has(UnitEffect::ElementalArmor) {
-            out += 10;
-        } else if has(UnitEffect::ResistElements) {
-            out += 3;
-        }
-    }
-    if matches!(realm, Some(Realm::Chaos | Realm::Death)) && has(UnitEffect::Bless) {
-        out += 3;
-    }
-    out
-}
-
-/// Righteousness: a ranged attack of chaos or death cannot touch the unit.
-pub fn righteous_ward(realm: Option<Realm>, mode: Mode, effects: UnitEffects) -> bool {
-    matches!(realm, Some(Realm::Chaos | Realm::Death))
-        && mode != Mode::Melee
-        && effects.contains(UnitEffect::Righteousness)
+    let magic = if unit.has(DamageType::Magic) { 30 } else { 0 };
+    resistance + magic + unit.resistance_bonus(DamageTypes::of(&[realm.damage_type()]))
 }
 
 /// A resistance check: roll a ten-sided die against the resistance plus the spell's modifier

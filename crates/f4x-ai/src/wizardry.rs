@@ -208,7 +208,7 @@ pub fn kind(def: &SpellDef) -> Kind {
     {
         return Kind::UnitBuff;
     }
-    if def.effects.is_empty() || has_hook(def, "unimplemented") {
+    if (def.effects.is_empty() && def.defence.is_empty()) || has_hook(def, "unimplemented") {
         return Kind::Other;
     }
     if def.target == SpellTarget::GlobalEnchantment {

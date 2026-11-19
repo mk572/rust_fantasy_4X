@@ -177,7 +177,7 @@ pub fn expected_damage(
     };
     let nature =
         AttackNature::of_unit_attack(mode, &attacker.abilities, attacker.magical_weapon, rules);
-    let immunities = Immunities::of(&target.abilities, rules);
+    let immunities = Immunities::of(&target.abilities, &target.enchantments, rules);
     if immunities.meets(nature.types) {
         return 0.0;
     }

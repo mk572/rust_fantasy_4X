@@ -507,7 +507,7 @@ impl BattleUnit {
     /// The unit as a defender, with the defence rules of its abilities.
     fn defender_state(&self, rules: &Rules) -> DefenderState {
         DefenderState {
-            immunities: Immunities::of(&self.abilities, rules),
+            immunities: Immunities::of(&self.abilities, &self.enchantments, rules),
             ..self.body_state()
         }
     }
@@ -528,7 +528,6 @@ impl BattleUnit {
             to_block: self.to_block,
             figures: self.figures,
             front_damage: self.front_damage,
-            large_shield: self.has(Ability::new(34 /* large_shield */)),
             lucky: self.has(Ability::new(39 /* lucky */)),
         }
     }
@@ -672,7 +671,7 @@ impl BattleUnit {
     /// names types in its data is stopped by (illusion immunity too, which sees through an
     /// illusion attack and refuses a spell of illusions).
     pub fn is_immune_to(&self, types: &[DamageType], rules: &Rules) -> bool {
-        Immunities::of(&self.abilities, rules).meets(DamageTypes::of(types))
+        Immunities::of(&self.abilities, &self.enchantments, rules).meets(DamageTypes::of(types))
     }
 
     fn melee_combatant(&self, rules: &Rules) -> Combatant {

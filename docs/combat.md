@@ -151,7 +151,7 @@ to roll against each attack (`attack::process_attack`).
   | Undead lack cold, poison and illusion immunity (patch 144) | they have them (task 29, `unit/undead.rs`) |
   | Death immunity does not stop Terror (patch 440; the help: it "negates all spells which cause death and fear") | **fixed 24 October 2026**: a unit with death immunity is not frightened (`field.rs`) |
   | Wall of Darkness is no hindrance to a shooter that sees through illusions (patch 470) | it is none (task 25) |
-  | Righteousness does not work against ranged attacks (patch 694) | it does (`righteous_ward`, and +30 resistance) |
+  | Righteousness does not work against ranged attacks (patch 694) | it does (the `defence` rules of Righteousness in `spells.ron`: immunity to chaos and death and +30 resistance) |
   | Blur rolls the defender's illusion immunity (patch 156) | the attacker's (task 13's rule, simplified) |
   | Weapon immunity overrides missile immunity (Insecticide IW083) | **kept as the original**: weapon plus missile immunity gives 10 against arrows (tested) |
   | Weapon immunity gives 50 against thrown, boulders and missiles (Insecticide, reverted by patch 637) | 10, the original's |

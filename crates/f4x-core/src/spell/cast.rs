@@ -169,6 +169,7 @@ impl EffectHost for GameHost<'_> {
         };
         crate::battle::immunity::Immunities::of(
             &self.game.units().unit_abilities(u),
+            &self.game.units().unit_enchantment_ids(u),
             &self.game.content.rules,
         )
         .stops(types)

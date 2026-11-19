@@ -14,12 +14,7 @@ crate::hook::effect_enum! {
     /// What a spell does to or for a unit: the arguments of the `unit_effect` hook.
     pub enum UnitEffect in UNIT_EFFECT;
     // Read from the lasting spells on a unit.
-    ResistElements = "resist_elements",
-    ElementalArmor = "elemental_armor",
-    ResistMagic = "resist_magic",
     SpellLock = "spell_lock",
-    Bless = "bless",
-    Righteousness = "righteousness",
     BlackChannels = "black_channels",
     Berserk = "berserk",
     Invulnerability = "invulnerability",
@@ -114,9 +109,9 @@ mod tests {
     #[test]
     fn a_set_holds_what_was_put_in() {
         let mut set = UnitEffects::NONE;
-        assert!(!set.contains(UnitEffect::Bless));
-        set.insert(UnitEffect::Bless);
-        assert!(set.contains(UnitEffect::Bless));
+        assert!(!set.contains(UnitEffect::Berserk));
+        set.insert(UnitEffect::Berserk);
+        assert!(set.contains(UnitEffect::Berserk));
         assert!(!set.contains(UnitEffect::Holds));
     }
 }

@@ -1203,7 +1203,7 @@ impl Game {
         const TRIES: u32 = 24;
         let (strength, types, traits) = self.damage_of(spell)?;
         let unit = self.battle()?.unit(target)?;
-        if Immunities::of(&unit.abilities, &self.content.rules).stops(types) {
+        if Immunities::of(&unit.abilities, &unit.enchantments, &self.content.rules).stops(types) {
             return None;
         }
         let extra = extra_mana
@@ -2009,12 +2009,8 @@ impl Battle {
             return 1.0;
         };
         let state = unit.defender_state(&self.content.rules);
-        let resistance = super::immunity::effective_resistance(
-            state.resistance,
-            &state.immunities,
-            realm,
-            state.effects,
-        );
+        let resistance =
+            super::immunity::effective_resistance(state.resistance, &state.immunities, realm);
         let needed = resistance + modifier - self.save_penalty;
         (10 - needed.clamp(0, 10)) as f32 / 10.0
     }

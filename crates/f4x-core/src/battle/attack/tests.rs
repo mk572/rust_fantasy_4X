@@ -259,14 +259,19 @@ fn a_defender_rolls_the_defense_its_immunities_give_it() {
             &mut r,
         )
         .points;
-        stone += process_attack(&rules(), &sword, 4, &mut armoured(golem), &mut r).points;
-        stone_vs_magic +=
-            process_attack(&rules(), &magic_sword, 4, &mut armoured(golem), &mut r).points;
+        stone += process_attack(&rules(), &sword, 4, &mut armoured(golem.clone()), &mut r).points;
+        stone_vs_magic += process_attack(
+            &rules(),
+            &magic_sword,
+            4,
+            &mut armoured(golem.clone()),
+            &mut r,
+        )
+        .points;
     }
     assert!(stone * 4 < plain, "{stone} vs {plain}");
     assert!((f64::from(stone_vs_magic) / f64::from(plain) - 1.0).abs() < 0.1);
-    // Fifty dice of defense stop all but a die in a thousand: arrows against missile
-    // immunity do no damage at all over a thousand volleys.
+    // Arrows against missile immunity do no damage at all.
     let arrows = Combatant {
         strength: 6,
         mode: Mode::Ranged,
@@ -276,17 +281,32 @@ fn a_defender_rolls_the_defense_its_immunities_give_it() {
     let archer_proof = Immunities::of_numbers(&[44]);
     let mut through = 0;
     for _ in 0..1_000 {
-        through += process_attack(&rules(), &arrows, 4, &mut armoured(archer_proof), &mut r).points;
+        through += process_attack(
+            &rules(),
+            &arrows,
+            4,
+            &mut armoured(archer_proof.clone()),
+            &mut r,
+        )
+        .points;
     }
     assert_eq!(through, 0);
-    // Doom damage ignores even that.
+    // Doom damage ignores the defence, not an immunity: a unit immune to what the attack is
+    // made of takes nothing from it.
     let doom = Combatant {
         ignores_defense: true,
         ..arrows
     };
     assert_eq!(
-        process_attack(&rules(), &doom, 1, &mut armoured(archer_proof), &mut r).points,
-        6
+        process_attack(
+            &rules(),
+            &doom,
+            1,
+            &mut armoured(archer_proof.clone()),
+            &mut r
+        )
+        .points,
+        0
     );
 }
 
@@ -435,13 +455,13 @@ fn poison_makes_each_point_of_strength_resisted_or_hurt() {
     assert!((mean - 3.6).abs() < 0.2, "{mean}");
     let proof = Immunities::of_numbers(&[52]);
     let none: i32 = (0..200)
-        .map(|_| process_attack(&rules(), &spider, 1, &mut armoured(proof), &mut r).points)
+        .map(|_| process_attack(&rules(), &spider, 1, &mut armoured(proof.clone()), &mut r).points)
         .sum();
     assert_eq!(none, 0);
     // Magic immunity does not stop poison.
     let warded = Immunities::of_numbers(&[40]);
     let still: i32 = (0..200)
-        .map(|_| process_attack(&rules(), &spider, 1, &mut armoured(warded), &mut r).points)
+        .map(|_| process_attack(&rules(), &spider, 1, &mut armoured(warded.clone()), &mut r).points)
         .sum();
     assert!(still > 400, "{still}");
 }
@@ -657,11 +677,12 @@ fn righteousness_and_bonuses_change_the_defense_a_bolt_meets() {
         ..combatant(5, 0)
     };
     let mut d = def(1, 10, 2);
-    assert_eq!(d.defense_versus(&bolt, &rules()), 2);
+    assert_eq!(d.defense_versus(&bolt), Some(2));
     d.put_enchantment(SpellId::new(21));
-    assert_eq!(d.defense_versus(&bolt, &rules()), 12);
+    assert_eq!(d.defense_versus(&bolt), Some(12));
+    // Righteousness: a chaos bolt does nothing.
     d.put_enchantment(SpellId::new(144));
-    assert_eq!(d.defense_versus(&bolt, &rules()), rules().immune_defense);
+    assert_eq!(d.defense_versus(&bolt), None);
 }
 
 #[test]
@@ -685,7 +706,7 @@ fn berserk_leaves_no_defense_whatever_the_bonuses() {
     let mut d = def(1, 10, 4);
     d.put_enchantment(SpellId::new(21));
     d.put_enchantment(SpellId::new(179));
-    assert_eq!(d.defense_versus(&bolt, &rules()), 0);
+    assert_eq!(d.defense_versus(&bolt), Some(0));
 }
 
 #[test]

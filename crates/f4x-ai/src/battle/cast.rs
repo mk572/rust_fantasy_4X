@@ -307,7 +307,7 @@ impl Scene<'_> {
     fn blocked(&self) -> Vec<&BattleUnit> {
         let rules = &self.game.content().rules;
         let immune = self.enemies.iter().any(|u| {
-            Immunities::of(&u.abilities, rules)
+            Immunities::of(&u.abilities, &u.enchantments, rules)
                 .has(f4x_core::rules::damage_type::DamageType::Weapon)
         });
         if !immune {
@@ -519,6 +519,11 @@ impl Scene<'_> {
             mana: least,
             arms: false,
         };
+        // A lasting spell that only gives the unit defence rules (a blessing, Elemental Armor,
+        // Righteousness): a share of the unit's worth, as any other lasting spell on a unit.
+        if def.effects.is_empty() && !def.defence.is_empty() {
+            out.value += aimed.map_or(0.0, |u| LASTING_SHARE * worth(u)) * landing;
+        }
         for rule in &def.effects {
             let (value, harm) = match &rule.effect {
                 Effect::Damage { .. } => {

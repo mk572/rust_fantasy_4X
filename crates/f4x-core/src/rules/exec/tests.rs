@@ -112,8 +112,12 @@ impl EffectHost for MockHost {
     }
     fn immune_to(&self, who: Target, types: DamageTypes) -> bool {
         let abilities = self.facts(who).abilities;
-        crate::battle::immunity::Immunities::of(&abilities, &crate::game::testutil::shipped().rules)
-            .stops(types)
+        crate::battle::immunity::Immunities::of(
+            &abilities,
+            &[],
+            &crate::game::testutil::shipped().rules,
+        )
+        .stops(types)
     }
     fn damage(
         &mut self,

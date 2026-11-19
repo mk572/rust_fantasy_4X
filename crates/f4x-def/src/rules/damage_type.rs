@@ -27,6 +27,11 @@ pub enum DamageType {
     Death,
     /// Ignores the defence of a defender that cannot see through illusions.
     Illusion,
+    /// How the damage reaches its target: in a melee blow, or from a distance (a shot, a thrown
+    /// weapon, breath, a gaze, a spell). Every attack has one; it is added where the attack is
+    /// made.
+    Melee,
+    Ranged,
     NatureRealm,
     SorceryRealm,
     ChaosRealm,
@@ -71,7 +76,9 @@ impl DamageType {
             | DamageType::Poison
             | DamageType::Stoning
             | DamageType::Death
-            | DamageType::Illusion => return None,
+            | DamageType::Illusion
+            | DamageType::Melee
+            | DamageType::Ranged => return None,
         })
     }
 }
@@ -131,6 +138,11 @@ impl DamageTypes {
         DamageType::iter().filter(move |&t| self.contains(t))
     }
 
+    /// Whether every type of `other` is in this set.
+    pub fn contains_all(self, other: DamageTypes) -> bool {
+        self.0 & other.0 == other.0
+    }
+
     /// Whether the two sets have a type in common.
     pub fn intersects(self, other: DamageTypes) -> bool {
         self.0 & other.0 != 0
@@ -146,20 +158,41 @@ impl DamageTypes {
     }
 }
 
-/// What a defence rule does to a part of an attack of the type it matches.
+/// What a defence rule does to the attacks it matches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DefenceEffect {
-    /// The part does nothing.
+    /// The attack does no damage.
     Immune,
-    /// The defence is at least this much against the part.
+    /// The defender is not fooled: an illusion does not ignore its defence, and a spell of
+    /// illusions is refused.
+    SeeThrough,
+    /// The defence is at least this much against the attack.
     DefenceFloor(i32),
+    /// This much is added to the defence against the attack.
+    DefenceBonus(i32),
+    /// This much is added to the resistance against the attack's spell or effect.
+    ResistanceBonus(i32),
 }
 
-/// What an ability does against one damage type.
+/// What an ability or a lasting spell does against some attacks (`defence` in `abilities.ron` and
+/// `spells.ron`). It matches an attack that has any of the types in `against` (every attack when
+/// that is empty) and all of the types in `with`: Elemental Armor is against chaos or nature,
+/// a large shield with ranged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DefenceRule {
-    pub against: DamageType,
+    #[serde(default)]
+    pub against: DamageTypes,
+    #[serde(default)]
+    pub with: DamageTypes,
     pub effect: DefenceEffect,
+}
+
+impl DefenceRule {
+    /// Whether the rule applies to an attack made of these types.
+    pub fn matches(&self, attack: DamageTypes) -> bool {
+        (self.against.is_empty() || self.against.intersects(attack))
+            && attack.contains_all(self.with)
+    }
 }
 
 /// How an ability's attack reaches its target.

@@ -530,6 +530,10 @@ pub struct SpellDef {
     /// The kinds of unit the spell may be aimed at.
     #[serde(default)]
     pub unit_only: UnitOnly,
+    /// What the spell does against some attacks to the unit it lasts on (Elemental Armor, Bless,
+    /// Righteousness): the same rules as an ability's `defence`.
+    #[serde(default)]
+    pub defence: Vec<super::damage_type::DefenceRule>,
     pub effects: Vec<EffectRule>,
 }
 
@@ -783,12 +787,8 @@ pub struct RulesConfig {
 pub struct BattleRules {
     /// The strength of the fire attack Immolation adds to a melee attack.
     pub immolation_strength: i32,
-    /// What a Large Shield adds to the defence against ranged attacks and spells.
-    pub large_shield: i32,
     /// The blows Invulnerability stops on top of the defence roll.
     pub invulnerability_block: i32,
-    /// The defence of a unit that is immune to an attack (nothing gets through it).
-    pub immune_defense: i32,
     /// Mana a Mana Leak takes from a caster each turn.
     pub mana_leak_drain: i32,
     /// The strength of Call Lightning's bolt, and of a Wall of Fire's burn.
@@ -823,9 +823,7 @@ impl Default for BattleRules {
     fn default() -> Self {
         Self {
             immolation_strength: 4,
-            large_shield: 2,
             invulnerability_block: 2,
-            immune_defense: 50,
             mana_leak_drain: 5,
             call_lightning_strength: 8,
             wall_of_fire_strength: 5,

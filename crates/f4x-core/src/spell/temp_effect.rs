@@ -266,19 +266,28 @@ impl<'a> UnitView<'a> {
     pub fn unit_resistance_against(&self, unit: hecs::Entity, realm: Option<Realm>) -> i32 {
         effective_resistance(
             self.unit_stat(unit, Stat::Resistance),
-            &Immunities::of(&self.unit_abilities(unit), &self.content.rules),
+            &Immunities::of(
+                &self.unit_abilities(unit),
+                &self.unit_enchantment_ids(unit),
+                &self.content.rules,
+            ),
             realm,
-            self.unit_effects(unit),
         )
     }
 
     /// Whether the unit cannot be hurt by spells of `realm` at all: Righteousness against
     /// chaos and death.
     pub fn unit_protected_from(&self, unit: hecs::Entity, realm: Option<Realm>) -> bool {
-        matches!(realm, Some(Realm::Chaos | Realm::Death))
-            && self
-                .unit_effects(unit)
-                .contains(crate::spell::unit_effect::UnitEffect::Righteousness)
+        realm.is_some_and(|realm| {
+            Immunities::of(
+                &self.unit_abilities(unit),
+                &self.unit_enchantment_ids(unit),
+                &self.content.rules,
+            )
+            .stops(crate::rules::damage_type::DamageTypes::of(&[
+                realm.damage_type()
+            ]))
+        })
     }
 
     /// What the lasting spells on the unit do (the `unit_effect` hook).

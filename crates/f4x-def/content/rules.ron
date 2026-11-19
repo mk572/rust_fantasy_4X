@@ -53,7 +53,7 @@
     // The battle: attack strengths and defence of the abilities and fields, mana of a shot and of a leak, the web, the
     // turn limit, the node, Counter Magic, Power Drain, Stasis and the Magic Vortex.
     battle: (
-        immolation_strength: 4, large_shield: 2, invulnerability_block: 2, immune_defense: 50,
+        immolation_strength: 4, invulnerability_block: 2,
         mana_leak_drain: 5, call_lightning_strength: 8, wall_of_fire_strength: 5,
         node_counter_strength: 50, node_aura_bonus: 2, counter_magic_drain: 5,
         shot_mana: 3, web_hits: 12, turn_limit: 100, power_drain_min: 2, power_drain_max: 20, freeing_modifier: -5,

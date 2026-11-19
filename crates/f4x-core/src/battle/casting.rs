@@ -34,9 +34,12 @@ pub(crate) fn damage_unit_with_spell(
     rng: &mut dyn RngCore,
 ) -> Option<Damage> {
     let mut state = unit.defender_state(rules);
-    let protected = state.effects.contains(UnitEffect::Righteousness)
-        && matches!(nature.realm(), Some(Realm::Chaos | Realm::Death));
-    if state.immunities.has(DamageType::Magic) || protected {
+    // A spell is a ranged attack: Righteousness, a type immunity or magic immunity turn it away.
+    if state.immunities.has(DamageType::Magic)
+        || state
+            .immunities
+            .stops(nature.types.with(DamageType::Ranged))
+    {
         return None;
     }
     let volley = if traits.area {
@@ -412,12 +415,7 @@ impl Battle {
         }
         let mut state = unit.defender_state(&self.content.rules);
         let dmg = if let Some(limit) = below {
-            let res = effective_resistance(
-                state.resistance,
-                &state.immunities,
-                Some(realm),
-                state.effects,
-            );
+            let res = effective_resistance(state.resistance, &state.immunities, Some(realm));
             if res + modifier < limit {
                 let all = state.hit_points();
                 unblockable(&mut state, all)

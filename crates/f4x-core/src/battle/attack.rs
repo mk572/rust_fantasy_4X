@@ -24,8 +24,8 @@ use crate::spell::unit_effect::UnitEffect;
 use rand::{Rng, RngCore};
 
 use super::immunity::{
-    defense_bonus, effective_defense, effective_resistance, resistance_failure, righteous_ward,
-    AttackNature, Immunities, Realm,
+    delivery, effective_defense, effective_resistance, resistance_failure, AttackNature,
+    Immunities, Realm,
 };
 use super::special::{Gaze, SpecialAttacks};
 
@@ -91,8 +91,6 @@ pub struct DefenderState {
     pub figures: u32,
     /// Damage already taken by the front figure.
     pub front_damage: i32,
-    /// It carries a large shield: +2 defence against every attack but a melee blow.
-    pub large_shield: bool,
     /// A Lucky hero: whoever attacks it has one plus less to hit.
     pub lucky: bool,
 }
@@ -103,6 +101,7 @@ impl DefenderState {
     pub(crate) fn put_enchantment(&mut self, spell: SpellId) {
         let rules = crate::game::testutil::shipped().rules;
         self.enchantments.push(spell);
+        self.immunities.add_spell(spell, &rules);
         self.effects
             .union(crate::spell::unit_effect::UnitEffects::of(
                 rules.spells.get(spell),
@@ -111,42 +110,28 @@ impl DefenderState {
 }
 
 impl DefenderState {
-    /// The defence it rolls before immunities against an attack of this `mode`.
-    fn defense_against(&self, mode: Mode, rules: &BattleRules) -> i32 {
-        self.defense
-            + if self.large_shield && mode != Mode::Melee {
-                rules.large_shield
-            } else {
-                0
-            }
-    }
-
     /// Under Black Sleep: every blow against it does its full strength.
     fn asleep(&self) -> bool {
         self.effects.contains(UnitEffect::BlackSleep)
     }
 
-    /// The defence it rolls against one of `attacker`'s attacks: its own, the bonuses its
-    /// lasting spells give against the attack's realm, then what its immunities make of it.
-    /// Righteousness turns a ranged chaos or death attack away outright.
-    fn defense_versus(&self, attacker: &Combatant, rules: &BattleRules) -> i32 {
-        let ids = self.effects;
-        let (realm, mode) = (attacker.nature.realm(), attacker.mode);
-        if righteous_ward(realm, mode, ids) {
-            return rules.immune_defense;
-        }
+    /// The defence it rolls against one of `attacker`'s attacks: its own plus what its abilities
+    /// and lasting spells add against the attack's types (a large shield against a ranged
+    /// one, Elemental Armor against chaos and nature), then what its floors make of it. `None`
+    /// if it is immune to the attack: nothing gets through.
+    fn defense_versus(&self, attacker: &Combatant) -> Option<i32> {
+        let types = attacker.types();
         // Berserk: no defence at all, whatever else the unit has (immunities still count).
-        let defense = if ids.contains(UnitEffect::Berserk) {
+        let defense = if self.effects.contains(UnitEffect::Berserk) {
             0
         } else {
-            self.defense_against(mode, rules) + defense_bonus(realm, mode, ids)
+            self.defense + self.immunities.defence_bonus(types)
         };
         effective_defense(
             defense,
             &self.immunities,
-            &attacker.nature,
-            mode,
-            rules.immune_defense,
+            types,
+            attacker.nature.armor_piercing,
         )
     }
 
@@ -183,8 +168,7 @@ impl DefenderState {
         modifier: i32,
         rng: &mut dyn RngCore,
     ) -> i32 {
-        let resistance =
-            effective_resistance(self.resistance, &self.immunities, realm, self.effects);
+        let resistance = effective_resistance(self.resistance, &self.immunities, realm);
         resistance_failure(resistance, modifier, rng)
     }
 
@@ -226,6 +210,11 @@ impl DefenderState {
 }
 
 impl Combatant {
+    /// What the attack is made of, with how it is delivered.
+    pub fn types(&self) -> DamageTypes {
+        self.nature.types.with(delivery(self.mode))
+    }
+
     /// The dice that count against a defender with these immunities: the dice of a part whose
     /// types the defender is immune to do nothing to it.
     pub fn strength_against(&self, immunities: &Immunities) -> i32 {
@@ -377,7 +366,7 @@ pub fn process_attack(
     if strength <= 0 || def.figures == 0 {
         return total;
     }
-    let defense = def.defense_versus(attacker, rules);
+    let defense = def.defense_versus(attacker);
     for _ in 0..figures {
         if def.figures == 0 {
             break;
@@ -418,11 +407,16 @@ pub fn process_attack(
         if def.figures == 0 {
             break;
         }
-        let mut dmg = if attacker.ignores_defense || def.asleep() {
-            strength
+        // An attack the defender is immune to does nothing, whatever else is true of it.
+        let mut dmg = if let Some(defense) = defense {
+            if attacker.ignores_defense || def.asleep() {
+                strength
+            } else {
+                let hits = roll_successes(strength, attacker.to_hit - i32::from(def.lucky), rng);
+                (hits - def.blocks(defense, attacker.eldritch, rules, rng)).max(0)
+            }
         } else {
-            let hits = roll_successes(strength, attacker.to_hit - i32::from(def.lucky), rng);
-            (hits - def.blocks(defense, attacker.eldritch, rules, rng)).max(0)
+            0
         };
         while dmg > 0 && def.figures > 0 {
             let need = def.hits - def.front_damage;
@@ -434,7 +428,8 @@ pub fn process_attack(
                 dmg -= need;
                 // The overflow meets the next figure's defense.
                 if dmg > 0 && !attacker.ignores_defense && !def.asleep() {
-                    dmg = (dmg - def.blocks(defense, attacker.eldritch, rules, rng)).max(0);
+                    let blocked = def.blocks(defense.unwrap_or(0), attacker.eldritch, rules, rng);
+                    dmg = (dmg - blocked).max(0);
                 }
             } else {
                 def.front_damage += dmg;
@@ -490,7 +485,9 @@ pub fn spell_attack(
     if attacker.strength <= 0 || def.figures == 0 {
         return Damage::default();
     }
-    let defense = def.defense_versus(attacker, rules);
+    let Some(defense) = def.defense_versus(attacker) else {
+        return Damage::default();
+    };
     let blow = |strength: i32, rng: &mut dyn RngCore| {
         // A sleeper takes the full strength of every blow.
         if attacker.ignores_defense || def.asleep() {
