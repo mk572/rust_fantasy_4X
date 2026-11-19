@@ -907,7 +907,7 @@ impl Game {
                 }
                 if matches!(kind, Kind::LifeDrain)
                     && (u.realm == Some(Realm::Death)
-                        || u.has(Ability::new(16 /* death_immunity */)))
+                        || u.is_immune_to(&[DamageType::Death], &self.content.rules))
                 {
                     return Err(SpellError::Target(TargetError::Deathly));
                 }
