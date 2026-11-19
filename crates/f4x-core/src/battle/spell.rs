@@ -1018,35 +1018,11 @@ impl Game {
     /// the two are not cumulative: Iron Skin cast on a unit with Stone Skin leaves +5, not +6.
     /// Only added bonuses are taken back.
     fn superseded_bonuses(&self, spell: SpellId, present: &[SpellId]) -> Vec<Modifier> {
-        let rules = &self.content.rules;
-        let mut out = Vec::new();
-        for &other in present {
-            let def = rules.spells.get(other);
-            if !def.not_with.contains(&spell) {
-                continue;
-            }
-            for r in &def.effects {
-                if let (
-                    Trigger::Passive,
-                    Condition::Always,
-                    Effect::Modify {
-                        stat,
-                        op,
-                        value,
-                        types,
-                    },
-                ) = (r.when, &r.condition, &r.effect)
-                {
-                    if *op == ModOp::Add {
-                        out.push(
-                            Modifier::amount(*stat, ModOp::Add, -*value, Source::Spell(other))
-                                .of_types(*types),
-                        );
-                    }
-                }
-            }
-        }
-        out
+        let spells = &self.content.rules.spells;
+        present
+            .iter()
+            .flat_map(|&other| spells.get(other).bonuses_given_up_for(spell))
+            .collect()
     }
 
     /// Whether the unit of the battle is a hero, from the overland unit it was copied from.

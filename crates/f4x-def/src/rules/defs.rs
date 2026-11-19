@@ -6,11 +6,11 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use super::damage_type::DamageType;
-use super::effects::EffectRule;
+use super::effects::{Condition, Effect, EffectRule, Trigger};
 use super::ids::Id;
 use super::registry::{Def, Registry};
-use super::stats::Stat;
-use super::{Ability, BuildingId, RealmId};
+use super::stats::{ModOp, Modifier, Source, Stat};
+use super::{Ability, BuildingId, RealmId, SpellId};
 use crate::half_int::HalfInt;
 use crate::map::TerrainClass;
 
@@ -1534,6 +1534,39 @@ impl Def for BuildingDef {
 }
 
 impl SpellDef {
+    /// What this spell, lasting on a unit, gives up when `newer` is cast on the same unit: if it
+    /// is not with `newer` (`not_with`), every plain bonus it adds (a passive, always-on `Add`
+    /// modifier) comes back negated and tagged with this spell, so the two do not both count.
+    pub fn bonuses_given_up_for(&self, newer: SpellId) -> Vec<Modifier> {
+        if !self.not_with.contains(&newer) {
+            return Vec::new();
+        }
+        self.effects
+            .iter()
+            .filter_map(|r| match (r.when, &r.condition, &r.effect) {
+                (
+                    Trigger::Passive,
+                    Condition::Always,
+                    Effect::Modify {
+                        stat,
+                        op: ModOp::Add,
+                        value,
+                        types,
+                    },
+                ) => Some(
+                    Modifier::amount(
+                        *stat,
+                        ModOp::Add,
+                        -*value,
+                        Source::Spell(SpellId::new(self.num)),
+                    )
+                    .of_types(*types),
+                ),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Whether the spell runs the named `Custom` hook.
     pub fn has_hook(&self, hook: &str) -> bool {
         self.hook_args(hook).is_some()
@@ -1587,4 +1620,35 @@ pub struct Rules {
     pub lairs: super::lair::LairRules,
     /// How the AI weighs a place for a city (`ai_sites.ron`, optional).
     pub ai_sites: super::ai_site::SiteRules,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rules::stats::Stat;
+
+    #[test]
+    fn a_spell_gives_up_its_plain_bonuses_to_the_one_it_is_not_with() {
+        let spells = &crate::testdir::shipped().rules.spells;
+        let stone_skin = SpellId::new(7); // stone_skin
+        let iron_skin = SpellId::new(24); // iron_skin
+        let given_up = spells.get(stone_skin).bonuses_given_up_for(iron_skin);
+        assert_eq!(given_up.len(), 1);
+        assert_eq!(given_up[0].stat, Stat::Defense);
+        assert_eq!(given_up[0].source, Source::Spell(stone_skin));
+        let gained = spells
+            .get(stone_skin)
+            .effects
+            .iter()
+            .find_map(|r| match &r.effect {
+                Effect::Modify { value, .. } => Some(*value),
+                _ => None,
+            });
+        assert_eq!(gained.map(|v| -v), Some(given_up[0].value));
+        // A spell it is not exclusive with takes nothing back.
+        assert!(spells
+            .get(stone_skin)
+            .bonuses_given_up_for(stone_skin)
+            .is_empty());
+    }
 }
