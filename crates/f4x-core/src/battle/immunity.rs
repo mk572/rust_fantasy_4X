@@ -253,7 +253,7 @@ impl AttackNature {
     ) -> AttackNature {
         let mut nature = AttackNature::default();
         if mode == Mode::Melee {
-            nature.types.insert(DamageType::Weapon);
+            nature.types.insert(DamageType::MundaneWeapon);
         }
         for attack in abilities
             .iter()
@@ -265,7 +265,7 @@ impl AttackNature {
             nature.armor_piercing |= attack.armor_piercing;
         }
         if magical_weapon {
-            nature.types = nature.types.without(DamageType::Weapon);
+            nature.types = nature.types.without(DamageType::MundaneWeapon);
         }
         nature
     }

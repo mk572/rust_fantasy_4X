@@ -117,14 +117,14 @@ A `Battle` is separate state seeded from the world, played with the same stat an
 
 ### Damage types and defence rules
 
-Every attack is made of a set of damage types (`f4x-def/src/rules/damage_type.rs`): its form (`Weapon`, `Missile`, `Magic`), its element (`Fire`, `Cold`, `Lightning`, `Poison`, `Stoning`, `Death`, `Illusion`), its realm (`NatureRealm` to `ArcaneRealm`) and its delivery (`Melee` or `Ranged`, added where the attack is made). What a unit does against them is a list of defence rules on its abilities and on the lasting spells it carries (`defence` in `abilities.ron` and `spells.ron`): a rule matches an attack with any of its `against` types and all of its `with` types, and is an immunity (no damage), a seen-through illusion, a defence floor, or a bonus to defence or resistance. Tests read the shipped data; the tables below are generated from it (19 November 2026) and list what the data says, not the original's behaviour (differences: `divergences.md` 48). Open: magic immunity (task 711), doom damage and Black Sleep (714), the illusion set (712), death immunity (713).
+Every attack is made of a set of damage types (`f4x-def/src/rules/damage_type.rs`): its form (`MundaneWeapon`, `Missile`, `Magic`), its element (`Fire`, `Cold`, `Lightning`, `Poison`, `Stoning`, `Death`, `Illusion`), its realm (`NatureRealm` to `ArcaneRealm`) and its delivery (`Melee` or `Ranged`, added where the attack is made). What a unit does against them is a list of defence rules on its abilities and on the lasting spells it carries (`defence` in `abilities.ron` and `spells.ron`): a rule matches an attack with any of its `against` types and all of its `with` types, and is an immunity (no damage), a seen-through illusion, a defence floor, or a bonus to defence or resistance. Tests read the shipped data; the tables below are generated from it (19 November 2026) and list what the data says, not the original's behaviour (differences: `divergences.md` 48). Open: magic immunity (task 711), doom damage and Black Sleep (714), the illusion set (712), death immunity (713).
 
 **Attacks of unit abilities** (`attack`; an ability not listed adds no type):
 
 | # | Ability | Delivery | Types | Armour piercing |
 |---|---|---|---|---|
 | 1 | armor_piercing | Any |  | yes |
-| 3 | bow | Ranged | Missile, Weapon |  |
+| 3 | bow | Ranged | Missile, MundaneWeapon |  |
 | 14 | death_bolt | Ranged | Magic, DeathRealm |  |
 | 15 | death_gaze | Ranged | Magic, DeathRealm |  |
 | 18 | drow_bolt | Ranged | Magic, ChaosRealm |  |
@@ -136,13 +136,13 @@ Every attack is made of a set of damage types (`f4x-def/src/rules/damage_type.rs
 | 37 | lightning_breath | Ranged | Lightning, Magic, ChaosRealm | yes |
 | 46 | multi_gaze | Ranged | Magic, ChaosRealm |  |
 | 47 | nature_bolt | Ranged | Magic, NatureRealm |  |
-| 57 | rock_throwing | Ranged | Missile, Weapon |  |
+| 57 | rock_throwing | Ranged | Missile, MundaneWeapon |  |
 | 58 | shaman_bolt | Ranged | Magic, NatureRealm |  |
-| 59 | sling | Ranged | Missile, Weapon |  |
+| 59 | sling | Ranged | Missile, MundaneWeapon |  |
 | 60 | sorcery_bolt | Ranged | Magic, SorceryRealm |  |
 | 63 | sprite_bolt | Ranged | Magic, NatureRealm |  |
 | 64 | stoning_gaze | Ranged | Magic, NatureRealm |  |
-| 69 | thrown | Ranged | Missile, Weapon |  |
+| 69 | thrown | Ranged | Missile, MundaneWeapon |  |
 
 **Defence rules of abilities and spells** (`against`: any of; `with`: all of; empty `against`: every attack):
 
@@ -157,7 +157,7 @@ Every attack is made of a set of damage types (`f4x-def/src/rules/damage_type.rs
 | ability missile_immunity | Missile |  | Immune |
 | ability poison_immunity | Poison |  | Immune |
 | ability stoning_immunity | Stoning |  | Immune |
-| ability weapon_immunity | Weapon |  | DefenceFloor(10) |
+| ability weapon_immunity | MundaneWeapon |  | DefenceFloor(10) |
 | spell resist_elements | ChaosRealm, NatureRealm |  | DefenceBonus(3) |
 | spell resist_elements | ChaosRealm, NatureRealm |  | ResistanceBonus(3) |
 | spell elemental_armor | ChaosRealm, NatureRealm |  | DefenceBonus(10) |

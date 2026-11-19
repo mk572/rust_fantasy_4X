@@ -308,7 +308,7 @@ impl Scene<'_> {
         let rules = &self.game.content().rules;
         let immune = self.enemies.iter().any(|u| {
             Immunities::of(&u.abilities, &u.enchantments, rules)
-                .has(f4x_core::rules::damage_type::DamageType::Weapon)
+                .has(f4x_core::rules::damage_type::DamageType::MundaneWeapon)
         });
         if !immune {
             return Vec::new();

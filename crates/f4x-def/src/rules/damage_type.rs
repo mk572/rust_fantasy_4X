@@ -13,8 +13,9 @@ use strum::EnumIter;
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, EnumIter,
 )]
 pub enum DamageType {
-    /// A normal (not magical) weapon.
-    Weapon,
+    /// A normal (not magical) weapon: what weapon immunity is a floor against, and what a
+    /// magical weapon is not.
+    MundaneWeapon,
     /// An arrow or a sling stone.
     Missile,
     /// Spells and special ranged attacks (bolts, breath, gazes): what magic immunity stops.
@@ -67,7 +68,7 @@ impl DamageType {
             DamageType::LifeRealm => 3,
             DamageType::DeathRealm => 4,
             DamageType::ArcaneRealm => 5,
-            DamageType::Weapon
+            DamageType::MundaneWeapon
             | DamageType::Missile
             | DamageType::Magic
             | DamageType::Fire

@@ -244,7 +244,7 @@ fn immunities_come_from_abilities() {
         31, /* illusion_immunity */
     ]);
     for t in [
-        DamageType::Weapon,
+        DamageType::MundaneWeapon,
         DamageType::Magic,
         DamageType::Missile,
         DamageType::Fire,
@@ -436,7 +436,7 @@ fn enchantments_add_defense_against_the_realms_they_guard_however_it_is_delivere
 fn a_large_shield_adds_defense_against_ranged_attacks_only() {
     let shield = unit(&[34 /* large_shield */]);
     assert_eq!(
-        shield.defence_bonus(types(&[DamageType::Weapon, DamageType::Ranged])),
+        shield.defence_bonus(types(&[DamageType::MundaneWeapon, DamageType::Ranged])),
         2
     );
     assert_eq!(
@@ -448,7 +448,7 @@ fn a_large_shield_adds_defense_against_ranged_attacks_only() {
         2
     );
     assert_eq!(
-        shield.defence_bonus(types(&[DamageType::Weapon, DamageType::Melee])),
+        shield.defence_bonus(types(&[DamageType::MundaneWeapon, DamageType::Melee])),
         0
     );
 }
