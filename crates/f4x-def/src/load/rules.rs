@@ -769,14 +769,13 @@ fn check_rule(r: &Rules, owner: &str, rule: &EffectRule, p: &mut Vec<String>) {
                 p.push(format!("{owner}: summon count must be at least 1"));
             }
         }
-        Effect::Damage {
-            amount,
-            immune,
-            realm: m,
-            ..
-        } => {
-            immune.iter().for_each(|a| ability(a, p));
-            m.iter().for_each(|m| realm(m, p));
+        Effect::Damage { amount, types, .. } => {
+            if types.is_empty() {
+                p.push(format!("{owner}: damage has no type"));
+            }
+            if types.iter().filter(|t| t.realm_num().is_some()).count() > 1 {
+                p.push(format!("{owner}: damage has more than one realm"));
+            }
             if *amount <= 0 {
                 p.push(format!("{owner}: damage must be positive"));
             }

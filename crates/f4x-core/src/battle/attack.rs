@@ -17,6 +17,7 @@
 //!
 //! Tests: in battle/attack/tests.rs.
 
+use crate::rules::damage_type::DamageType;
 use crate::rules::BattleRules;
 use crate::rules::SpellId;
 use crate::spell::unit_effect::UnitEffect;
@@ -128,7 +129,7 @@ impl DefenderState {
     /// Righteousness turns a ranged chaos or death attack away outright.
     fn defense_versus(&self, attacker: &Combatant, rules: &BattleRules) -> i32 {
         let ids = self.effects;
-        let (realm, mode) = (attacker.nature.realm, attacker.mode);
+        let (realm, mode) = (attacker.nature.realm(), attacker.mode);
         if righteous_ward(realm, mode, ids) {
             return rules.immune_defense;
         }
@@ -327,34 +328,28 @@ pub fn process_attack(
 ) -> Damage {
     let mut total = Damage::default();
     let sp = &attacker.special;
-    let touchable = !def.immunities.magic;
+    let touchable = !def.immunities.has(DamageType::Magic);
     if attacker.immolation && attacker.mode == Mode::Melee && touchable && def.figures > 0 {
         let fire = Combatant {
             strength: rules.immolation_strength,
             mode: Mode::Ranged,
-            nature: AttackNature {
-                stopped_by: Immunities {
-                    fire: true,
-                    magic: true,
-                    ..Immunities::default()
-                },
-                realm: Some(Realm::Chaos),
-                armor_piercing: false,
-            },
+            nature: AttackNature::magical(Realm::Chaos, &[DamageType::Fire]),
             ..Combatant::default()
         };
         total += spell_attack(rules, &fire, Volley::Area, def, rng);
     }
     if attacker.mode == Mode::ThrownOrBreath && sp.gaze != Gaze::None && touchable {
         let gazed = def.figures;
-        if matches!(sp.gaze, Gaze::Stoning | Gaze::Multi) && !def.immunities.stoning {
+        if matches!(sp.gaze, Gaze::Stoning | Gaze::Multi)
+            && !def.immunities.has(DamageType::Stoning)
+        {
             for _ in 0..gazed {
                 if def.resistance_failure(Some(Realm::Nature), -sp.penalty, rng) > 0 {
                     total += kill_figure(def).all_gone();
                 }
             }
         }
-        if matches!(sp.gaze, Gaze::Death | Gaze::Multi) && !def.immunities.death {
+        if matches!(sp.gaze, Gaze::Death | Gaze::Multi) && !def.immunities.has(DamageType::Death) {
             for _ in 0..gazed {
                 if def.resistance_failure(Some(Realm::Death), -sp.penalty, rng) > 0 {
                     total += kill_figure(def);
@@ -378,19 +373,19 @@ pub fn process_attack(
                 }
             }
             if sp.stoning_touch
-                && !def.immunities.stoning
+                && !def.immunities.has(DamageType::Stoning)
                 && def.resistance_failure(Some(Realm::Nature), -sp.penalty - sp.stoning_extra, rng)
                     > 0
             {
                 total += kill_figure(def).all_gone();
             }
             if sp.death_touch
-                && !def.immunities.death
+                && !def.immunities.has(DamageType::Death)
                 && def.resistance_failure(Some(Realm::Death), -sp.penalty - sp.death_extra, rng) > 0
             {
                 total += kill_figure(def);
             }
-            if sp.life_steal && !def.immunities.death {
+            if sp.life_steal && !def.immunities.has(DamageType::Death) {
                 let stolen = def.resistance_failure(
                     Some(Realm::Death),
                     -sp.penalty - sp.life_steal_extra,
@@ -434,7 +429,7 @@ pub fn process_attack(
                 dmg = 0;
             }
         }
-        if sp.poison > 0 && !def.immunities.poison {
+        if sp.poison > 0 && !def.immunities.has(DamageType::Poison) {
             for _ in 0..sp.poison {
                 if def.figures > 0 && def.resistance_failure(None, 0, rng) > 0 {
                     total += unblockable(def, 1);
@@ -451,7 +446,7 @@ pub fn process_attack(
         total.mana_lost = rng.gen_range(rules.power_drain_min..=rules.power_drain_max);
     }
     // What a creator of undead deals, apart from what the touches destroy, can raise the dead.
-    if sp.create_undead && !def.immunities.magic {
+    if sp.create_undead && !def.immunities.has(DamageType::Magic) {
         total.drained = total.points - total.gone;
     }
     total
@@ -606,7 +601,7 @@ pub fn melee_exchange(
 /// the ones that fail cannot fight this round (attack or counter-attack, whoever began). Nothing for an attacker that causes no fear or a
 /// defender immune to death.
 fn feared_figures(attacker: &Combatant, def: &DefenderState, rng: &mut dyn RngCore) -> u32 {
-    if !attacker.fear || def.immunities.death {
+    if !attacker.fear || def.immunities.has(DamageType::Death) {
         return 0;
     }
     (0..def.figures)

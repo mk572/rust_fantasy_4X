@@ -17,6 +17,7 @@ use crate::city::economy::{Buildings, Economy};
 use crate::city::production::ProductionItem;
 use crate::game::{Event, Game};
 use crate::player::PlayerId;
+use crate::rules::damage_type::DamageType;
 use crate::rules::RealmId;
 use crate::rules::SpellId;
 use crate::spell::target_error::TargetError;
@@ -87,7 +88,7 @@ impl Game {
     /// building falls (one that no other building needs). The original's code for it is a stub, so
     /// this is the help text's rule.
     pub(crate) fn process_chaos_rifts(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
-        use crate::battle::immunity::{AttackNature, Immunities, Realm};
+        use crate::battle::immunity::{AttackNature, Realm};
         use crate::rules::effects::DamageTraits;
         use rand::SeedableRng;
         let mut events = Vec::new();
@@ -109,14 +110,7 @@ impl Game {
                 armor_piercing: true,
                 ..Default::default()
             };
-            let nature = AttackNature {
-                stopped_by: Immunities {
-                    magic: true,
-                    ..Default::default()
-                },
-                realm: Some(Realm::Chaos),
-                armor_piercing: false,
-            };
+            let nature = AttackNature::magical(Realm::Chaos, &[DamageType::Lightning]);
             let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0xC4A0);
             let mut units_lost = 0;
             for unit in self.units().units_at(at) {

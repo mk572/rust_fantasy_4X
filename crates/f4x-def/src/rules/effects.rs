@@ -53,17 +53,6 @@ pub enum Trigger {
     OnCast,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DamageKind {
-    Physical,
-    Fire,
-    Cold,
-    Lightning,
-    Poison,
-    Death,
-    Holy,
-}
-
 /// How a damage spell is dealt in a battle (the original's attack attributes). None of it
 /// matters overland, where the damage is a flat number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -100,17 +89,14 @@ pub enum Effect {
         value: HalfInt,
     },
     GrantAbility(Id<AbilityDef>),
-    /// `resistible`: the target gets a resistance check, against `realm` with `resist_modifier`
-    /// added to its resistance (negative for a spell that is hard to resist). A target with
-    /// one of the `immune` abilities (`fire_immunity`, `magic_immunity`, ...) takes nothing.
+    /// `types`: what the damage is made of; a target immune to one of them takes nothing
+    /// (`damage_type.rs`). `resistible`: the target gets a resistance check, against the realm
+    /// among the types, with `resist_modifier` added to its resistance (negative for a spell
+    /// that is hard to resist).
     Damage {
         amount: i32,
-        kind: DamageKind,
+        types: Vec<super::damage_type::DamageType>,
         resistible: bool,
-        #[serde(default)]
-        immune: Vec<Id<AbilityDef>>,
-        #[serde(default)]
-        realm: Option<Id<RealmDef>>,
         #[serde(default)]
         resist_modifier: i32,
         #[serde(default)]

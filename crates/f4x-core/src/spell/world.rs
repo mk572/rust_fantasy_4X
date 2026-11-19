@@ -4,9 +4,10 @@
 //!
 //! Tests: in spell/wizard/tests.rs.
 
+use crate::rules::damage_type::DamageType;
 use rand::SeedableRng;
 
-use crate::battle::immunity::{AttackNature, Immunities, Realm};
+use crate::battle::immunity::{AttackNature, Realm};
 use crate::game::rng::GameRng;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
@@ -140,15 +141,7 @@ impl Game {
             return Vec::new();
         };
         let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0x3E7E);
-        let nature = AttackNature {
-            stopped_by: Immunities {
-                magic: true,
-                fire: true,
-                ..Default::default()
-            },
-            realm: Some(Realm::Chaos),
-            armor_piercing: false,
-        };
+        let nature = AttackNature::magical(Realm::Chaos, &[DamageType::Fire]);
         let traits = DamageTraits::default();
         let mut units_lost = 0;
         for unit in self.units().all_units() {

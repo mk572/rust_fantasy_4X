@@ -17,12 +17,13 @@
 //!
 //! Tests: in battle/tests.rs.
 
+use crate::rules::damage_type::DamageType;
 use crate::rules::Ability;
 use f4x_def::half_int::HalfInt;
 use rand::{Rng, RngCore};
 
 use super::attack::{unblockable, Damage};
-use super::immunity::{AttackNature, Immunities, Realm};
+use super::immunity::{AttackNature, Realm};
 use super::map::{self, Pos};
 use super::{Battle, BattleEvent, BattleUnit, Confusion, RangedKind, Side};
 use crate::rules::effects::DamageTraits;
@@ -386,14 +387,7 @@ impl Battle {
             armor_piercing: true,
             ..Default::default()
         };
-        let nature = AttackNature {
-            stopped_by: Immunities {
-                magic: true,
-                ..Default::default()
-            },
-            realm: Some(Realm::Nature),
-            armor_piercing: false,
-        };
+        let nature = AttackNature::magical(Realm::Nature, &[DamageType::Lightning]);
         while bolts > 0 && tries < 30 && !self.units.is_empty() {
             tries += 1;
             let id = self.rng.gen_range(0..self.units.len());
@@ -423,7 +417,7 @@ impl Battle {
             {
                 continue;
             }
-            let mut state = u.defender_state();
+            let mut state = u.defender_state(&self.content.rules);
             let rng: &mut dyn RngCore = &mut self.rng;
             let mut lost = Damage::default();
             for _ in 0..state.figures {
@@ -461,7 +455,7 @@ impl Battle {
             // Death immunity "negates all spells which cause death and fear" (the help; the
             // original's Terror ignores it and the Unofficial Patch fixes that).
             if terror && !self.units[id].has(Ability::new(16 /* death_immunity */)) {
-                let state = self.units[id].defender_state();
+                let state = self.units[id].defender_state(&self.content.rules);
                 let rng: &mut dyn RngCore = &mut self.rng;
                 if state.resistance_failure(Some(Realm::Death), 1, rng) > 0 {
                     let u = &mut self.units[id];

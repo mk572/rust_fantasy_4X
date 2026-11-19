@@ -22,7 +22,8 @@
 //!
 //! Tests: in battle/immunity/tests.rs.
 
-use crate::rules::Ability;
+use crate::rules::damage_type::{DamageType, DamageTypes, DefenceEffect, Delivery};
+use crate::rules::{Ability, Rules};
 use crate::spell::unit_effect::{UnitEffect, UnitEffects};
 use rand::{Rng, RngCore};
 
@@ -63,168 +64,154 @@ impl Realm {
         self as u16
     }
 
+    /// The realm as a damage type.
+    pub fn damage_type(self) -> DamageType {
+        match self {
+            Realm::Nature => DamageType::RealmNature,
+            Realm::Sorcery => DamageType::RealmSorcery,
+            Realm::Chaos => DamageType::RealmChaos,
+            Realm::Life => DamageType::RealmLife,
+            Realm::Death => DamageType::RealmDeath,
+            Realm::Arcane => DamageType::RealmArcane,
+        }
+    }
+
     /// The realm's id.
     pub fn id(self) -> crate::rules::RealmId {
         crate::rules::RealmId::new(self.num())
     }
 }
 
-/// Immunities a unit has, or the immunities that stop an attack (the same nine, so an attack
-/// is stopped when the two share one).
+/// The damage types a unit has a defence rule against, from its abilities (`defence` in
+/// `abilities.ron`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Immunities {
-    pub weapon: bool,
-    pub magic: bool,
-    pub missiles: bool,
-    pub fire: bool,
-    pub cold: bool,
-    pub poison: bool,
-    pub stoning: bool,
-    pub death: bool,
-    pub illusion: bool,
+    /// Every type it has a rule for.
+    types: DamageTypes,
+    /// Of those, the types it meets with a defence floor instead of being immune to them.
+    floored: DamageTypes,
+    floor: i32,
 }
 
 impl Immunities {
-    /// The immunities among a unit's abilities (`weapon_immunity`, `magic_immunity`, ...).
-    pub fn of(abilities: &[Ability]) -> Immunities {
-        let has = |name: Ability| abilities.contains(&name);
-        Immunities {
-            weapon: has(Ability::new(72 /* weapon_immunity */)),
-            magic: has(Ability::new(40 /* magic_immunity */)),
-            missiles: has(Ability::new(44 /* missile_immunity */)),
-            fire: has(Ability::new(21 /* fire_immunity */)),
-            cold: has(Ability::new(10 /* cold_immunity */)),
-            poison: has(Ability::new(52 /* poison_immunity */)),
-            stoning: has(Ability::new(65 /* stoning_immunity */)),
-            death: has(Ability::new(16 /* death_immunity */)),
-            illusion: has(Ability::new(31 /* illusion_immunity */)),
+    /// The defence rules of a unit's abilities.
+    pub fn of(abilities: &[Ability], rules: &Rules) -> Immunities {
+        let mut out = Immunities::default();
+        for rule in abilities
+            .iter()
+            .filter_map(|&a| rules.abilities.try_get(a))
+            .flat_map(|def| &def.defence)
+        {
+            out.types.insert(rule.against);
+            if let DefenceEffect::DefenceFloor(floor) = rule.effect {
+                out.floored.insert(rule.against);
+                out.floor = out.floor.max(floor);
+            }
         }
+        out
     }
 
-    /// Whether the two have an immunity in common.
-    pub fn meets(&self, other: &Immunities) -> bool {
-        (self.weapon && other.weapon)
-            || (self.magic && other.magic)
-            || (self.missiles && other.missiles)
-            || (self.fire && other.fire)
-            || (self.cold && other.cold)
-            || (self.poison && other.poison)
-            || (self.stoning && other.stoning)
-            || (self.death && other.death)
-            || (self.illusion && other.illusion)
+    /// Whether the unit has a defence rule against this type.
+    pub fn has(&self, t: DamageType) -> bool {
+        self.types.contains(t)
+    }
+
+    /// Whether an attack of these types does nothing to the unit: it is immune to one of them. A
+    /// type it meets with a floor (weapon) or sees through (illusion) does not count.
+    pub fn stops(&self, attack: DamageTypes) -> bool {
+        attack.intersects(self.types.minus(self.floored).without(DamageType::Illusion))
+    }
+
+    /// Whether the unit has a defence rule against any type of this attack, a floor and a seen-through illusion included: what a planner treats as a wasted attack.
+    pub fn meets(&self, attack: DamageTypes) -> bool {
+        attack.intersects(self.types)
+    }
+
+    /// Whether it raises its defence against this attack to a floor (weapon immunity).
+    pub fn floors(&self, attack: DamageTypes) -> bool {
+        attack.intersects(self.floored)
     }
 
     pub fn is_empty(&self) -> bool {
-        *self == Immunities::default()
+        self.types.is_empty()
+    }
+}
+
+#[cfg(test)]
+impl Immunities {
+    /// For tests: the defence rules the shipped content gives these abilities (by number).
+    pub(crate) fn of_numbers(numbers: &[u16]) -> Immunities {
+        let abilities: Vec<Ability> = numbers.iter().map(|&n| Ability::new(n)).collect();
+        Immunities::of(&abilities, &crate::game::testutil::shipped().rules)
     }
 }
 
 /// What an attack is made of.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct AttackNature {
-    /// The immunities that stop it.
-    pub stopped_by: Immunities,
-    /// The realm it belongs to, if it is magical.
-    pub realm: Option<Realm>,
-    /// It halves the defence it meets (`armor_piercing`; lightning breath does too).
+    /// Its damage types: what the target is immune to, and the realm for the resistance checks.
+    pub types: DamageTypes,
+    /// It halves the defence it meets.
     pub armor_piercing: bool,
 }
 
+#[cfg(test)]
 impl AttackNature {
-    /// The nature of one of a unit's attacks. `mode` says which: its melee blows, or its
-    /// thrown, breath or ranged attack (the kind found among `abilities`).
-    pub fn of_unit_attack(mode: Mode, abilities: &[Ability], magical_weapon: bool) -> AttackNature {
-        let has = |name: Ability| abilities.contains(&name);
-        let mut stopped_by = Immunities {
-            illusion: has(Ability::new(30 /* illusion_attack */)),
-            ..Immunities::default()
-        };
-        let mut realm = None;
-        let mut armor_piercing = has(Ability::new(1 /* armor_piercing */));
-        if mode == Mode::Melee {
-            stopped_by.weapon = !magical_weapon;
-            return AttackNature {
-                stopped_by,
-                realm,
-                armor_piercing,
-            };
-        }
-        match ranged_flavour(abilities) {
-            Flavour::Arrows => {
-                stopped_by.missiles = true;
-                stopped_by.weapon = !magical_weapon;
-            }
-            Flavour::Boulders | Flavour::Thrown => stopped_by.weapon = !magical_weapon,
-            Flavour::FireBreath => {
-                stopped_by.fire = true;
-                realm = Some(Realm::Chaos);
-            }
-            Flavour::LightningBreath => {
-                realm = Some(Realm::Chaos);
-                armor_piercing = true;
-            }
-            Flavour::Bolt(r) => {
-                stopped_by.magic = true;
-                realm = Some(r);
-            }
-            Flavour::Gaze(r) => realm = Some(r),
-            Flavour::None => {}
-        }
-        AttackNature {
-            stopped_by,
-            realm,
-            armor_piercing,
-        }
+    /// For tests: the nature of a unit's attack with these abilities (by number) in the shipped content.
+    pub(crate) fn of_numbers(mode: Mode, numbers: &[u16], magical_weapon: bool) -> AttackNature {
+        let abilities: Vec<Ability> = numbers.iter().map(|&n| Ability::new(n)).collect();
+        AttackNature::of_unit_attack(
+            mode,
+            &abilities,
+            magical_weapon,
+            &crate::game::testutil::shipped().rules,
+        )
     }
 }
 
-/// Which ranged attack a unit has (in the order the battle gives them precedence).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Flavour {
-    None,
-    Arrows,
-    Boulders,
-    Thrown,
-    FireBreath,
-    LightningBreath,
-    Bolt(Realm),
-    Gaze(Realm),
-}
+impl AttackNature {
+    /// The realm among its types, if it is magical.
+    pub fn realm(&self) -> Option<Realm> {
+        self.types.realm_num().and_then(Realm::from_num)
+    }
 
-fn ranged_flavour(abilities: &[Ability]) -> Flavour {
-    let has = |name: Ability| abilities.contains(&name);
-    if has(Ability::new(3 /* bow */)) || has(Ability::new(59 /* sling */)) {
-        Flavour::Arrows
-    } else if has(Ability::new(57 /* rock_throwing */)) {
-        Flavour::Boulders
-    } else if has(Ability::new(69 /* thrown */)) {
-        Flavour::Thrown
-    } else if has(Ability::new(20 /* fire_breath */)) {
-        Flavour::FireBreath
-    } else if has(Ability::new(37 /* lightning_breath */)) {
-        Flavour::LightningBreath
-    } else if has(Ability::new(46 /* multi_gaze */)) {
-        Flavour::Gaze(Realm::Chaos)
-    } else if has(Ability::new(64 /* stoning_gaze */)) {
-        Flavour::Gaze(Realm::Nature)
-    } else if has(Ability::new(15 /* death_gaze */)) {
-        Flavour::Gaze(Realm::Death)
-    } else if has(Ability::new(22 /* fireball_attack */))
-        || has(Ability::new(36 /* lightning_bolt */))
-        || has(Ability::new(18 /* drow_bolt */))
-        || has(Ability::new(14 /* death_bolt */))
-    {
-        Flavour::Bolt(Realm::Chaos)
-    } else if has(Ability::new(60 /* sorcery_bolt */)) {
-        Flavour::Bolt(Realm::Sorcery)
-    } else if has(Ability::new(29 /* ice_bolt */))
-        || has(Ability::new(47 /* nature_bolt */))
-        || has(Ability::new(63 /* sprite_bolt */))
-        || has(Ability::new(58 /* shaman_bolt */))
-    {
-        Flavour::Bolt(Realm::Nature)
-    } else {
-        Flavour::None
+    /// A magical attack of `realm`, made of `elements` as well.
+    pub fn magical(realm: Realm, elements: &[DamageType]) -> AttackNature {
+        let mut types = DamageTypes::of(elements);
+        types.insert(DamageType::Magic);
+        types.insert(realm.damage_type());
+        AttackNature {
+            types,
+            armor_piercing: false,
+        }
+    }
+
+    /// The nature of one of a unit's attacks. `mode` says which: its melee blows, or its
+    /// thrown, breath or ranged attack. What the abilities add is in their `attack` (`abilities.ron`); a
+    /// weapon is a normal one unless `magical_weapon`.
+    pub fn of_unit_attack(
+        mode: Mode,
+        abilities: &[Ability],
+        magical_weapon: bool,
+        rules: &Rules,
+    ) -> AttackNature {
+        let mut nature = AttackNature::default();
+        if mode == Mode::Melee {
+            nature.types.insert(DamageType::Weapon);
+        }
+        for attack in abilities
+            .iter()
+            .filter_map(|&a| rules.abilities.try_get(a))
+            .filter_map(|def| def.attack.as_ref())
+            .filter(|a| a.delivery == Delivery::Any || mode != Mode::Melee)
+        {
+            nature.types.union(DamageTypes::of(&attack.types));
+            nature.armor_piercing |= attack.armor_piercing;
+        }
+        if magical_weapon {
+            nature.types = nature.types.without(DamageType::Weapon);
+        }
+        nature
     }
 }
 
@@ -240,13 +227,8 @@ pub fn effective_defense(
     mode: Mode,
     immune_defense: i32,
 ) -> i32 {
-    let mut stopped = attack.stopped_by;
-    // Seeing through illusions takes the illusion out of the attack; what is left is an
-    // illusion the defender cannot see through, which no armour helps against.
-    if stopped.illusion && unit.illusion {
-        stopped.illusion = false;
-    }
-    if stopped.illusion {
+    // An illusion the defender cannot see through ignores every armour.
+    if attack.types.contains(DamageType::Illusion) && !unit.has(DamageType::Illusion) {
         return 0;
     }
     let defense = if attack.armor_piercing {
@@ -254,23 +236,17 @@ pub fn effective_defense(
     } else {
         defense
     };
-    let mut immune = false;
-    let mut at_least_ten = false;
-    if stopped.meets(unit) && mode != Mode::Melee {
-        immune = true;
-    }
-    if stopped.weapon && unit.weapon {
+    let mut immune = unit.stops(attack.types) && mode != Mode::Melee;
+    let mut floored = false;
+    if unit.floors(attack.types) {
         immune = false;
-        at_least_ten = true;
-    }
-    if unit.magic && attack.realm.is_some() && mode != Mode::Melee {
-        immune = true;
+        floored = true;
     }
     if immune {
         return immune_defense;
     }
-    if at_least_ten {
-        return defense.max(10);
+    if floored {
+        return defense.max(unit.floor);
     }
     defense
 }
@@ -292,7 +268,7 @@ pub fn effective_resistance(
     let Some(realm) = realm else {
         return out;
     };
-    if unit.magic {
+    if unit.has(DamageType::Magic) {
         out += 30;
     }
     let dark = matches!(realm, Realm::Chaos | Realm::Death);

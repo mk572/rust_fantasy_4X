@@ -1509,7 +1509,7 @@ fn missile_immunity_stops_arrows_completely() {
 }
 
 #[test]
-fn magic_immunity_stops_a_bolt_that_a_fire_immunity_does_not() {
+fn magic_immunity_and_fire_immunity_each_stop_a_fireball() {
     // Magicians' fireballs against paladins (magic immunity) and a fire elemental (fire immunity).
     let warded = real_battle(
         &[(51 /* beastmen_magicians */, (3, 10))],
@@ -1524,10 +1524,10 @@ fn magic_immunity_stops_a_bolt_that_a_fire_immunity_does_not() {
         &[(158 /* fire_elemental */, (5, 10))],
         1,
     );
-    // The bolt is magic, not fire (only fire breath is stopped by fire immunity).
+    // The fireball is fire as well as magic, so fire immunity stops it too.
     let open = damage_over_seeds(&without(&fireproof, 1, 21 /* fire_immunity */), true);
-    let proof = damage_over_seeds(&fireproof, true);
-    assert!(open > 0 && proof * 10 > open * 9, "{proof} vs {open}");
+    assert!(open > 20, "{open}");
+    assert_eq!(damage_over_seeds(&fireproof, true), 0);
 }
 
 #[test]
@@ -1971,7 +1971,7 @@ mod casting {
     use super::*;
     use crate::battle::attack::{spell_attack, Combatant, Mode, Volley};
     use crate::battle::casting::{range_percent, BattleCaster};
-    use crate::battle::immunity::{AttackNature, Immunities, Realm};
+    use crate::battle::immunity::{AttackNature, Realm};
     use crate::rules::effects::DamageTraits;
     use crate::rules::stats::Stat;
     use f4x_def::testdir::TestResult;
@@ -2173,11 +2173,7 @@ mod casting {
             if blessed {
                 b.units[1].put_enchantment(SpellId::new(144));
             }
-            let nature = AttackNature {
-                stopped_by: Immunities::default(),
-                realm: Some(realm),
-                armor_piercing: false,
-            };
+            let nature = AttackNature::magical(realm, &[]);
             b.spell_damage(1, 10, &DamageTraits::default(), nature)
         };
         let paladins = 113; // high_men_paladins: magic immunity
@@ -3519,8 +3515,8 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
     }
     // The plus to hit counts for the melee blow, not for a shot.
     assert_eq!(
-        armed.melee_combatant().to_hit,
-        plain.melee_combatant().to_hit + sword_bonus.to_hit
+        armed.melee_combatant(&shipped().rules).to_hit,
+        plain.melee_combatant(&shipped().rules).to_hit + sword_bonus.to_hit
     );
     Ok(())
 }

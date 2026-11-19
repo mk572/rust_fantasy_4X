@@ -290,6 +290,12 @@ pub struct AbilityDef {
     /// What a hero ability gives per level (`abilities.ron`); none for any other ability.
     #[serde(default)]
     pub per_level: Option<PerLevel>,
+    /// What the ability does against damage types: immunities and defence floors.
+    #[serde(default)]
+    pub defence: Vec<super::damage_type::DefenceRule>,
+    /// The damage the ability adds to its unit's attack.
+    #[serde(default)]
+    pub attack: Option<super::damage_type::AbilityAttack>,
     pub effects: Vec<EffectRule>,
 }
 

@@ -402,9 +402,14 @@ impl Game {
         let Some(mut bu) = self.battle_unit_from(unit, Side::Defender, 0) else {
             return false;
         };
-        let rules = self.content.rules.config.battle;
-        let _ =
-            super::casting::damage_unit_with_spell(&rules, &mut bu, strength, traits, nature, rng);
+        let _ = super::casting::damage_unit_with_spell(
+            &self.content.rules,
+            &mut bu,
+            strength,
+            traits,
+            nature,
+            rng,
+        );
         if bu.figures == 0 {
             self.remove_unit(unit, crate::hero::Fate::Slain);
             return true;

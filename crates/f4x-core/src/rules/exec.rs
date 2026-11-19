@@ -11,7 +11,8 @@
 use crate::rules::{Ability, RealmId, UnitId};
 use rand::RngCore;
 
-use super::effects::{Condition, DamageKind, Effect, EffectRule, TargetSel, Trigger};
+use super::damage_type::DamageTypes;
+use super::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
 use super::stats::{ModOp, Modifier, Source, Stat};
 use crate::battle::immunity::{resistance_failure, Realm};
 use crate::map::Position;
@@ -79,11 +80,15 @@ pub trait EffectHost {
     fn protected_from(&self, _who: Target, _realm: Option<Realm>) -> bool {
         false
     }
+    /// Whether the target is immune to damage made of these types.
+    fn immune_to(&self, _who: Target, _types: DamageTypes) -> bool {
+        false
+    }
 
     fn add_modifier(&mut self, who: Target, modifier: Modifier);
     fn grant_ability(&mut self, who: Target, ability: Ability);
     /// Returns the damage actually dealt (after hp clamping), for the event log.
-    fn damage(&mut self, who: Target, amount: i32, kind: DamageKind) -> i32;
+    fn damage(&mut self, who: Target, amount: i32, types: DamageTypes) -> i32;
     /// A damage spell of `strength` struck by the dice of a battle (every figure of the unit is
     /// attacked), when the effect asks for it with `traits.area`; otherwise plain damage. Returns
     /// the hit points lost.
@@ -91,11 +96,11 @@ pub trait EffectHost {
         &mut self,
         who: Target,
         strength: i32,
-        kind: DamageKind,
+        types: DamageTypes,
         _realm: Option<Realm>,
         _traits: &crate::rules::effects::DamageTraits,
     ) -> i32 {
-        self.damage(who, strength, kind)
+        self.damage(who, strength, types)
     }
     fn heal(&mut self, who: Target, amount: i32) -> i32;
     fn summon(&mut self, owner: PlayerId, at: Position, unit: UnitId, count: u8);
@@ -119,7 +124,7 @@ pub enum Outcome {
     Damaged {
         who: Target,
         amount: i32,
-        kind: DamageKind,
+        types: DamageTypes,
     },
     /// The target's resistance check negated the effect.
     Resisted {
@@ -206,17 +211,14 @@ fn run_effect(
         }
         Effect::Damage {
             amount,
-            kind,
+            types,
             resistible,
-            immune,
-            realm,
             resist_modifier,
             traits,
         } => {
-            let realm = realm.and_then(Realm::of);
-            let abilities = host.facts(who).abilities;
-            let immune_ids = immune.clone();
-            if immune_ids.iter().any(|i| abilities.contains(i)) || host.protected_from(who, realm) {
+            let types = DamageTypes::of(types);
+            let realm = types.realm_num().and_then(Realm::from_num);
+            if host.immune_to(who, types) || host.protected_from(who, realm) {
                 out.push(Outcome::Immune { who });
             } else if *resistible && {
                 let resistance = host.resistance_against(who, realm);
@@ -224,11 +226,11 @@ fn run_effect(
             } {
                 out.push(Outcome::Resisted { who });
             } else {
-                let dealt = host.strike(who, *amount, *kind, realm, traits);
+                let dealt = host.strike(who, *amount, types, realm, traits);
                 out.push(Outcome::Damaged {
                     who,
                     amount: dealt,
-                    kind: *kind,
+                    types,
                 });
             }
         }

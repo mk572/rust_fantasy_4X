@@ -18,6 +18,7 @@
 //! Not here: dispelling battlefield enchantments, the spells whose effects are not in the game,
 //! the node counter and the heroes' own casting.
 
+use crate::rules::damage_type::DamageTypes;
 use crate::rules::Ability;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
@@ -67,8 +68,7 @@ enum CityWall {
 enum Kind {
     Damage {
         strength: i32,
-        immune: Vec<Ability>,
-        realm: Option<Realm>,
+        types: DamageTypes,
         traits: DamageTraits,
         /// Every enemy unit, not one chosen.
         all: bool,
@@ -317,14 +317,12 @@ impl Game {
         match &rule.effect {
             Effect::Damage {
                 amount,
-                immune,
-                realm,
+                types,
                 traits,
                 ..
             } => Some(Kind::Damage {
                 strength: *amount,
-                immune: immune.clone(),
-                realm: realm.and_then(Realm::of),
+                types: DamageTypes::of(types),
                 traits: *traits,
                 all: all_enemies,
             }),
@@ -1169,19 +1167,15 @@ impl Game {
         })
     }
 
-    /// The damage a spell does, by its id: strength, what stops it, its realm and traits.
-    fn damage_of(
-        &self,
-        spell: SpellId,
-    ) -> Option<(i32, Vec<Ability>, Option<Realm>, DamageTraits)> {
+    /// The damage a spell does, by its id: strength, its types and traits.
+    fn damage_of(&self, spell: SpellId) -> Option<(i32, DamageTypes, DamageTraits)> {
         match self.battle_kind(spell, self.content.rules.spells.get(spell))? {
             Kind::Damage {
                 strength,
-                immune,
-                realm,
+                types,
                 traits,
                 ..
-            } => Some((strength, immune, realm, traits)),
+            } => Some((strength, types, traits)),
             _ => None,
         }
     }
@@ -1198,26 +1192,24 @@ impl Game {
         extra_mana: u32,
     ) -> Option<DamageOdds> {
         const TRIES: u32 = 24;
-        let (strength, immune, realm, traits) = self.damage_of(spell)?;
+        let (strength, types, traits) = self.damage_of(spell)?;
         let unit = self.battle()?.unit(target)?;
-        if immune.iter().any(|&a| unit.has(a)) {
+        if Immunities::of(&unit.abilities, &self.content.rules).stops(types) {
             return None;
         }
         let extra = extra_mana
             .checked_div(traits.mana_per_point)
             .map_or(0, |points| points as i32);
         let nature = AttackNature {
-            stopped_by: Immunities::of(&immune),
-            realm,
+            types,
             armor_piercing: false,
         };
-        let rules = *self.battle()?.rules();
         let (mut points, mut kills) = (0.0, 0);
         for seed in 0..TRIES {
             let mut copy = unit.clone();
             let mut rng = Pcg64Mcg::seed_from_u64(u64::from(seed) + 1);
             let dealt = super::casting::damage_unit_with_spell(
-                &rules,
+                &self.content.rules,
                 &mut copy,
                 strength + extra,
                 &traits,
@@ -1238,13 +1230,11 @@ impl Game {
         &mut self,
         targets: &[usize],
         strength: i32,
-        immune: &[Ability],
-        realm: Option<Realm>,
+        types: DamageTypes,
         traits: &DamageTraits,
     ) -> Vec<BattleEvent> {
         let nature = AttackNature {
-            stopped_by: Immunities::of(immune),
-            realm,
+            types,
             armor_piercing: false,
         };
         let Some(active) = self.battle.as_mut() else {
@@ -1274,8 +1264,7 @@ impl Game {
             (
                 Kind::Damage {
                     strength,
-                    immune,
-                    realm,
+                    types,
                     traits,
                     all,
                 },
@@ -1291,7 +1280,7 @@ impl Game {
                     (false, SpellAim::Unit(t)) => vec![t],
                     _ => return Vec::new(),
                 };
-                self.strike(&targets, strength + extra, &immune, realm, &traits)
+                self.strike(&targets, strength + extra, types, &traits)
             }
             (
                 Kind::Heal {
@@ -1707,14 +1696,8 @@ impl Game {
                         6 => (SpellId::new(101) /* warp_lightning */, None),
                         _ => (SpellId::new(104) /* doom_bolt */, None),
                     };
-                    if let Some((base, immune, realm, traits)) = self.damage_of(id) {
-                        events.extend(self.strike(
-                            &[t],
-                            strength.unwrap_or(base),
-                            &immune,
-                            realm,
-                            &traits,
-                        ));
+                    if let Some((base, types, traits)) = self.damage_of(id) {
+                        events.extend(self.strike(&[t], strength.unwrap_or(base), types, &traits));
                     }
                 }
                 8 => {
@@ -2016,7 +1999,7 @@ impl Battle {
         let Some(unit) = self.units.get(target) else {
             return 1.0;
         };
-        let state = unit.defender_state();
+        let state = unit.defender_state(&self.content.rules);
         let resistance = super::immunity::effective_resistance(
             state.resistance,
             &state.immunities,
@@ -2029,7 +2012,7 @@ impl Battle {
 
     /// A resistance check of one unit against a realm: whether it *fails*.
     pub fn resist_fails(&mut self, target: usize, realm: Option<Realm>, modifier: i32) -> bool {
-        let state = self.units[target].defender_state();
+        let state = self.units[target].defender_state(&self.content.rules);
         let rng: &mut dyn rand::RngCore = &mut self.rng;
         state.resistance_failure(realm, modifier - self.save_penalty, rng) > 0
     }

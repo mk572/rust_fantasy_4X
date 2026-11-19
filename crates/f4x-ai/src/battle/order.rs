@@ -13,7 +13,7 @@ use f4x_core::battle::immunity::{AttackNature, Immunities};
 use f4x_core::battle::map::{distance, in_city_area, Pos};
 use f4x_core::battle::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
 use f4x_core::game::setting::MeleeVsFliers;
-use f4x_core::rules::Ability;
+use f4x_core::rules::{Ability, Rules};
 use f4x_def::half_int::HalfInt;
 
 /// The nearest active enemy the unit's side can see (lowest id on ties).
@@ -158,6 +158,7 @@ pub fn worth(u: &BattleUnit) -> f32 {
 /// `ranged`: its dice that hit, less what the target's defence blocks. Zero when the target is
 /// immune to what the attack is made of.
 pub fn expected_damage(
+    rules: &Rules,
     attacker: &BattleUnit,
     target: &BattleUnit,
     ranged: bool,
@@ -173,8 +174,9 @@ pub fn expected_damage(
     if strength <= 0 {
         return 0.0;
     }
-    let nature = AttackNature::of_unit_attack(mode, &attacker.abilities, attacker.magical_weapon);
-    if nature.stopped_by.meets(&Immunities::of(&target.abilities)) {
+    let nature =
+        AttackNature::of_unit_attack(mode, &attacker.abilities, attacker.magical_weapon, rules);
+    if Immunities::of(&target.abilities, rules).meets(nature.types) {
         return 0.0;
     }
     let p_hit = (0.3 + 0.1 * attacker.to_hit as f32).clamp(0.05, 0.95);
@@ -193,13 +195,14 @@ pub fn expected_damage(
 /// What an attack is worth: how much of the target it takes (a kill is worth all of it) times
 /// what the target is worth, with a premium on the units that shoot back.
 fn attack_value(
+    rules: &Rules,
     attacker: &BattleUnit,
     target: &BattleUnit,
     ranged: bool,
     vs_fliers: MeleeVsFliers,
 ) -> f32 {
     let left = target.hit_points().max(1) as f32;
-    let taken = (expected_damage(attacker, target, ranged, vs_fliers) / left).min(1.0);
+    let taken = (expected_damage(rules, attacker, target, ranged, vs_fliers) / left).min(1.0);
     let threat = if can_shoot(target) { 1.2 } else { 1.0 };
     taken * worth(target) * threat
 }
@@ -234,7 +237,13 @@ pub fn merge_order(battle: &Battle) -> Option<BattleCommand> {
             let left = u.hit_points().max(0) as f32 / u.max_hit_points().max(1) as f32;
             let threatened = battle.active_units(side.other()).any(|e| {
                 distance(u.cell, e.cell) <= 3
-                    && expected_damage(e, u, can_shoot(e), battle.melee_vs_fliers) > 0.0
+                    && expected_damage(
+                        &battle.content.rules,
+                        e,
+                        u,
+                        can_shoot(e),
+                        battle.melee_vs_fliers,
+                    ) > 0.0
             });
             let alone = on_field <= 1;
             threatened && (left < 0.25 || (left < 0.5 && !alone))
@@ -277,7 +286,7 @@ pub fn surface_order(battle: &Battle) -> Option<BattleCommand> {
                 .collect();
             let blow = near
                 .iter()
-                .map(|e| attack_value(&at, e, false, battle.melee_vs_fliers))
+                .map(|e| attack_value(&battle.content.rules, &at, e, false, battle.melee_vs_fliers))
                 .fold(0.0, f32::max);
             let key = (blow, std::cmp::Reverse(near.len()), p);
             if blow > 0.0 && best.as_ref().is_none_or(|b| (key.0, key.1) > (b.0, b.1)) {
@@ -331,13 +340,35 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
             let melee = enemies
                 .iter()
                 .filter(|e| distance(unit.cell, e.cell) == 1)
-                .map(|e| (attack_value(unit, e, false, battle.melee_vs_fliers), e.id))
+                .map(|e| {
+                    (
+                        attack_value(
+                            &battle.content.rules,
+                            unit,
+                            e,
+                            false,
+                            battle.melee_vs_fliers,
+                        ),
+                        e.id,
+                    )
+                })
                 .max_by(|a, b| a.0.total_cmp(&b.0).then(b.1.cmp(&a.1)));
             let shot = if shooter {
                 enemies
                     .iter()
                     .filter(|e| !battle.blocked_by_darkness(unit.id, e.id))
-                    .map(|e| (attack_value(unit, e, true, battle.melee_vs_fliers), e.id))
+                    .map(|e| {
+                        (
+                            attack_value(
+                                &battle.content.rules,
+                                unit,
+                                e,
+                                true,
+                                battle.melee_vs_fliers,
+                            ),
+                            e.id,
+                        )
+                    })
                     .max_by(|a, b| a.0.total_cmp(&b.0).then(b.1.cmp(&a.1)))
             } else {
                 None
@@ -379,7 +410,15 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
         // A unit that can hurt none of them (walkers against fliers, with the melee rule that
         // gives them nothing against fliers) does not walk into them when its side is outmatched:
         // it holds its place instead of dying for nothing.
-        let hurts = |e: &&BattleUnit| attack_value(unit, e, false, battle.melee_vs_fliers) > 0.0;
+        let hurts = |e: &&BattleUnit| {
+            attack_value(
+                &battle.content.rules,
+                unit,
+                e,
+                false,
+                battle.melee_vs_fliers,
+            ) > 0.0
+        };
         if !enemies.iter().any(hurts)
             && field_worth(battle, side.other()) > field_worth(battle, side)
         {
@@ -390,8 +429,13 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
             .iter()
             .max_by(|a, b| {
                 let value = |e: &&BattleUnit| {
-                    attack_value(unit, e, false, battle.melee_vs_fliers)
-                        / (1.0 + distance(unit.cell, e.cell) as f32)
+                    attack_value(
+                        &battle.content.rules,
+                        unit,
+                        e,
+                        false,
+                        battle.melee_vs_fliers,
+                    ) / (1.0 + distance(unit.cell, e.cell) as f32)
                 };
                 value(a).total_cmp(&value(b)).then(b.id.cmp(&a.id))
             })
@@ -541,7 +585,7 @@ mod tests {
         );
         let (walker, bat) = (&b.units[0], &b.units[1]);
         assert!(bat.flies);
-        let expect = |rule| expected_damage(walker, bat, false, rule);
+        let expect = |rule| expected_damage(&b.content.rules, walker, bat, false, rule);
         assert_eq!(expect(MeleeVsFliers::Zero), 0.0);
         assert!(expect(MeleeVsFliers::Half) > 0.0);
         assert!(expect(MeleeVsFliers::Full) > expect(MeleeVsFliers::Half));
@@ -563,11 +607,17 @@ mod tests {
         let (a, soft, hard, stone) = (&b.units[0], &b.units[1], &b.units[2], &b.units[3]);
         assert!(soft.defense < hard.defense);
         let rule = MeleeVsFliers::default();
-        assert!(expected_damage(a, soft, false, rule) > expected_damage(a, hard, false, rule));
-        assert_eq!(expected_damage(a, stone, false, rule), 0.0);
+        assert!(
+            expected_damage(&b.content.rules, a, soft, false, rule)
+                > expected_damage(&b.content.rules, a, hard, false, rule)
+        );
+        assert_eq!(
+            expected_damage(&b.content.rules, a, stone, false, rule),
+            0.0
+        );
         let mut magic = a.clone();
         magic.magical_weapon = true;
-        assert!(expected_damage(&magic, stone, false, rule) > 0.0);
+        assert!(expected_damage(&b.content.rules, &magic, stone, false, rule) > 0.0);
     }
 
     #[test]

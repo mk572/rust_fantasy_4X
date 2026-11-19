@@ -1,5 +1,6 @@
 use super::*;
 use crate::map::Plane;
+use crate::rules::damage_type::{DamageType, DamageTypes};
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 use std::collections::BTreeMap;
@@ -109,7 +110,17 @@ impl EffectHost for MockHost {
             u.facts.abilities.push(a);
         }
     }
-    fn damage(&mut self, who: Target, amount: i32, _k: DamageKind) -> i32 {
+    fn immune_to(&self, who: Target, types: DamageTypes) -> bool {
+        let abilities = self.facts(who).abilities;
+        crate::battle::immunity::Immunities::of(&abilities, &crate::game::testutil::shipped().rules)
+            .stops(types)
+    }
+    fn damage(
+        &mut self,
+        who: Target,
+        amount: i32,
+        _k: crate::rules::damage_type::DamageTypes,
+    ) -> i32 {
         let u = self.unit_mut(who).expect("unit_mut succeeds");
         let dealt = amount.min(u.hp);
         u.hp -= dealt;
@@ -294,10 +305,8 @@ fn damage_respects_hp_and_resistance() {
             TargetSel::AllEnemyUnits,
             Effect::Damage {
                 amount: 6,
-                kind: DamageKind::Fire,
+                types: vec![DamageType::Fire],
                 resistible,
-                immune: Vec::new(),
-                realm: None,
                 resist_modifier: 0,
                 traits: Default::default(),
             },
@@ -311,7 +320,7 @@ fn damage_respects_hp_and_resistance() {
             Outcome::Damaged {
                 who: Target::Unit(soft),
                 amount: 4,
-                kind: DamageKind::Fire
+                types: DamageTypes::of(&[DamageType::Fire])
             },
             Outcome::Resisted {
                 who: Target::Unit(immune)
@@ -339,29 +348,22 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
         Ability::new(21 /* fire_immunity */),
     );
     let plain = h.spawn(1, pos(2, 0), 9, 0);
-    let bolt = |immune: &[u16], resist_modifier| {
+    let bolt = |resist_modifier| {
         [rule(
             Trigger::OnCast,
             Condition::Always,
             TargetSel::AllEnemyUnits,
             Effect::Damage {
                 amount: 4,
-                kind: DamageKind::Fire,
+                types: vec![DamageType::Fire, DamageType::RealmChaos],
                 resistible: true,
-                immune: immune.iter().map(|&s| Ability::new(s)).collect(),
-                realm: Some(RealmId::new(2 /* chaos */)),
                 resist_modifier,
                 traits: Default::default(),
             },
         )]
     };
     let cx = ctx(Target::Unit(caster), 0);
-    let out = run_rules(
-        &bolt(&[21 /* fire_immunity */], 0),
-        Trigger::OnCast,
-        &cx,
-        &mut h,
-    );
+    let out = run_rules(&bolt(0), Trigger::OnCast, &cx, &mut h);
     assert_eq!(
         out,
         vec![
@@ -371,7 +373,7 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
             Outcome::Damaged {
                 who: Target::Unit(plain),
                 amount: 4,
-                kind: DamageKind::Fire
+                types: DamageTypes::of(&[DamageType::Fire, DamageType::RealmChaos])
             },
         ]
     );
@@ -385,7 +387,7 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
                 h.spawn(1, pos(1, 0), 9, 5);
                 h.rng = SeededRng(Pcg64Mcg::seed_from_u64(seed));
                 let out = run_rules(
-                    &bolt(&[], modifier),
+                    &bolt(modifier),
                     Trigger::OnCast,
                     &ctx(Target::Unit(c), 0),
                     &mut h,
@@ -465,10 +467,8 @@ fn same_seed_same_outcomes() {
             TargetSel::AllEnemyUnits,
             Effect::Damage {
                 amount: 3,
-                kind: DamageKind::Cold,
+                types: vec![DamageType::Cold],
                 resistible: true,
-                immune: Vec::new(),
-                realm: None,
                 resist_modifier: 0,
                 traits: Default::default(),
             },

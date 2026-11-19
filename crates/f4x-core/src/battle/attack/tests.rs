@@ -232,10 +232,7 @@ fn shooting_draws_no_reply_and_range_costs_accuracy() {
 #[test]
 fn a_defender_rolls_the_defense_its_immunities_give_it() {
     use crate::battle::immunity::{AttackNature, Immunities};
-    let golem = Immunities {
-        weapon: true,
-        ..Immunities::default()
-    };
+    let golem = Immunities::of_numbers(&[72]);
     let armoured = |immunities| DefenderState {
         immunities,
         ..def(100, 100, 0)
@@ -244,11 +241,11 @@ fn a_defender_rolls_the_defense_its_immunities_give_it() {
     let sword = Combatant {
         strength: 6,
         mode: Mode::Melee,
-        nature: AttackNature::of_unit_attack(Mode::Melee, &[], false),
+        nature: AttackNature::of_numbers(Mode::Melee, &[], false),
         ..Combatant::default()
     };
     let magic_sword = Combatant {
-        nature: AttackNature::of_unit_attack(Mode::Melee, &[], true),
+        nature: AttackNature::of_numbers(Mode::Melee, &[], true),
         ..sword.clone()
     };
     let (mut plain, mut stone, mut stone_vs_magic) = (0, 0, 0);
@@ -273,13 +270,10 @@ fn a_defender_rolls_the_defense_its_immunities_give_it() {
     let arrows = Combatant {
         strength: 6,
         mode: Mode::Ranged,
-        nature: AttackNature::of_unit_attack(Mode::Ranged, &[crate::rules::Ability::new(3)], false),
+        nature: AttackNature::of_numbers(Mode::Ranged, &[3], false),
         ..Combatant::default()
     };
-    let archer_proof = Immunities {
-        missiles: true,
-        ..Immunities::default()
-    };
+    let archer_proof = Immunities::of_numbers(&[44]);
     let mut through = 0;
     for _ in 0..1_000 {
         through += process_attack(&rules(), &arrows, 4, &mut armoured(archer_proof), &mut r).points;
@@ -342,17 +336,11 @@ fn a_touch_that_is_not_resisted_kills_a_figure_for_each_attacker() {
     assert!((k - 5.4).abs() < 0.3, "{k}");
     // Stoning immunity and magic immunity both stop it.
     let stone_proof = || DefenderState {
-        immunities: Immunities {
-            stoning: true,
-            ..Immunities::default()
-        },
+        immunities: Immunities::of_numbers(&[65]),
         ..soft(40, 100, 4)
     };
     let warded = || DefenderState {
-        immunities: Immunities {
-            magic: true,
-            ..Immunities::default()
-        },
+        immunities: Immunities::of_numbers(&[40]),
         ..soft(40, 100, 4)
     };
     assert!(mean_kills(&touch(stoner), 6, stone_proof) < 1.0);
@@ -445,19 +433,13 @@ fn poison_makes_each_point_of_strength_resisted_or_hurt() {
     // Six checks at resistance 4: six in ten fail, so 3.6 points a time.
     let mean = f64::from(hurt) / f64::from(n);
     assert!((mean - 3.6).abs() < 0.2, "{mean}");
-    let proof = Immunities {
-        poison: true,
-        ..Immunities::default()
-    };
+    let proof = Immunities::of_numbers(&[52]);
     let none: i32 = (0..200)
         .map(|_| process_attack(&rules(), &spider, 1, &mut armoured(proof), &mut r).points)
         .sum();
     assert_eq!(none, 0);
     // Magic immunity does not stop poison.
-    let warded = Immunities {
-        magic: true,
-        ..Immunities::default()
-    };
+    let warded = Immunities::of_numbers(&[40]);
     let still: i32 = (0..200)
         .map(|_| process_attack(&rules(), &spider, 1, &mut armoured(warded), &mut r).points)
         .sum();
@@ -492,10 +474,7 @@ fn life_steal_hurts_past_armour_and_heals_the_thief() {
     assert_eq!(dealt, healed, "what it steals it takes from the target");
     // Death immunity protects against it.
     let proof = DefenderState {
-        immunities: Immunities {
-            death: true,
-            ..Immunities::default()
-        },
+        immunities: Immunities::of_numbers(&[16]),
         ..target()
     };
     let d = process_attack(&rules(), &wraith, 1, &mut proof.clone(), &mut r);
@@ -536,10 +515,7 @@ fn damage_is_sorted_by_what_dealt_it_so_the_dead_know_how_they_fell() {
     assert_eq!((d.drained, d.gone), (d.points, 0));
     // Magic immunity keeps the victim from being raised.
     let warded = DefenderState {
-        immunities: Immunities {
-            magic: true,
-            ..Immunities::default()
-        },
+        immunities: Immunities::of_numbers(&[40]),
         ..target()
     };
     let d = process_attack(&rules(), &ghoul, 4, &mut warded.clone(), &mut r);
@@ -626,10 +602,7 @@ fn a_gaze_makes_each_figure_resist_in_the_thrown_step_only() {
     assert!((multi - 9.6).abs() < 0.4, "{multi}");
     let death = mean_kills(&gazer(Gaze::Death, Mode::ThrownOrBreath), 1, || {
         DefenderState {
-            immunities: Immunities {
-                death: true,
-                ..Immunities::default()
-            },
+            immunities: Immunities::of_numbers(&[16]),
             ..soft(10, 100, 4)
         }
     });
@@ -679,10 +652,7 @@ fn invulnerability_blocks_two_more_points_of_each_hit() {
 #[test]
 fn righteousness_and_bonuses_change_the_defense_a_bolt_meets() {
     let bolt = Combatant {
-        nature: AttackNature {
-            realm: Some(Realm::Chaos),
-            ..AttackNature::default()
-        },
+        nature: AttackNature::magical(Realm::Chaos, &[]),
         mode: Mode::Ranged,
         ..combatant(5, 0)
     };
@@ -708,10 +678,7 @@ fn a_sleeper_takes_every_blow_at_full_strength() {
 #[test]
 fn berserk_leaves_no_defense_whatever_the_bonuses() {
     let bolt = Combatant {
-        nature: AttackNature {
-            realm: Some(Realm::Chaos),
-            ..AttackNature::default()
-        },
+        nature: AttackNature::magical(Realm::Chaos, &[]),
         mode: Mode::Ranged,
         ..combatant(5, 0)
     };
@@ -752,13 +719,13 @@ fn immolation_burns_the_defender_on_top_of_the_blows() {
     // No melee dice, so every point comes from the strength-four fire.
     assert!(dealt.points > 0, "the fire hurt");
     let mut immune = def(4, 10, 0);
-    immune.immunities.fire = true;
+    immune.immunities = Immunities::of_numbers(&[21]);
     assert_eq!(
         process_attack(&rules(), &burning, 1, &mut immune, &mut r).points,
         0
     );
     let mut warded = def(4, 10, 0);
-    warded.immunities.magic = true;
+    warded.immunities = Immunities::of_numbers(&[40]);
     assert_eq!(
         process_attack(&rules(), &burning, 1, &mut warded, &mut r).points,
         0
@@ -793,7 +760,7 @@ fn fear_keeps_figures_from_striking_back() {
     // A defender immune to death is not frightened.
     let mut r = rng(14);
     let mut steady = fighter(false, 4);
-    steady.state.immunities.death = true;
+    steady.state.immunities = Immunities::of_numbers(&[16]);
     let scary = fighter(true, 0);
     let total: i32 = (0..500)
         .map(|_| {

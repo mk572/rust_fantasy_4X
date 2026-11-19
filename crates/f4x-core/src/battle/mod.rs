@@ -30,8 +30,9 @@ pub mod vortex;
 use crate::game::rng::GameRng;
 use crate::game::serial::Serial;
 use crate::game::setting::MeleeVsFliers;
+use crate::rules::damage_type::DamageType;
 use crate::rules::Ability;
-use crate::rules::BattleRules;
+use crate::rules::{BattleRules, Rules};
 use f4x_def::half_int::HalfInt;
 use rand::RngCore;
 
@@ -415,7 +416,7 @@ impl BattleUnit {
             return 0;
         }
         let before = self.hit_points();
-        let mut state = self.defender_state();
+        let mut state = self.body_state();
         if overheal {
             state.heal_overflow(amount);
         } else {
@@ -490,19 +491,28 @@ impl BattleUnit {
 
     /// Hit points left over all figures.
     pub fn hit_points(&self) -> i32 {
-        self.defender_state().hit_points()
+        self.body_state().hit_points()
     }
 
     pub fn max_hit_points(&self) -> i32 {
         self.figures_start as i32 * (self.hits - self.extra_hits)
     }
 
-    fn defender_state(&self) -> DefenderState {
+    /// The unit as a defender, with the defence rules of its abilities.
+    fn defender_state(&self, rules: &Rules) -> DefenderState {
+        DefenderState {
+            immunities: Immunities::of(&self.abilities, rules),
+            ..self.body_state()
+        }
+    }
+
+    /// The unit's body without its defence rules: all that hit points and healing need.
+    fn body_state(&self) -> DefenderState {
         DefenderState {
             hits: self.hits,
             extra_hits: self.extra_hits,
             defense: self.defense,
-            immunities: Immunities::of(&self.abilities),
+            immunities: Immunities::default(),
             resistance: self.resistance,
             enchantments: self.enchantments.clone(),
             effects: self.effects,
@@ -619,7 +629,7 @@ impl BattleUnit {
     }
 
     /// A combatant for one of the unit's attacks.
-    fn combatant(&self, mode: Mode, strength: i32, to_hit: i32) -> Combatant {
+    fn combatant(&self, mode: Mode, strength: i32, to_hit: i32, rules: &Rules) -> Combatant {
         let special = self.special_attacks();
         // Doom damage that an item or a spell gives is half as strong.
         let strength = if self.granted.contains(&Ability::new(101 /* doom_damage */)) {
@@ -634,7 +644,7 @@ impl BattleUnit {
             ignores_defense: self.has(Ability::new(101 /* doom_damage */))
                 || (mode == Mode::ThrownOrBreath && special.gaze == Gaze::Multi),
             mode,
-            nature: AttackNature::of_unit_attack(mode, &self.abilities, self.magical_weapon),
+            nature: AttackNature::of_unit_attack(mode, &self.abilities, self.magical_weapon, rules),
             special,
             eldritch: self.has(Ability::new(19 /* eldritch_weapon */))
                 && (mode == Mode::Melee
@@ -647,11 +657,12 @@ impl BattleUnit {
         }
     }
 
-    fn melee_combatant(&self) -> Combatant {
+    fn melee_combatant(&self, rules: &Rules) -> Combatant {
         self.combatant(
             Mode::Melee,
             self.melee,
             self.to_hit + self.weapon_plus() + self.melee_plus,
+            rules,
         )
     }
 
@@ -660,7 +671,7 @@ impl BattleUnit {
         i32::from(self.weapon_quality > 0 || self.has(Ability::new(19 /* eldritch_weapon */)))
     }
 
-    fn thrown_combatant(&self) -> Option<Combatant> {
+    fn thrown_combatant(&self, rules: &Rules) -> Option<Combatant> {
         // A gaze needs no attack strength (1.50 note 153): a unit weakened to none still gazes.
         let gazes = self.special_attacks().gaze != Gaze::None;
         (self.ranged_kind == RangedKind::Short && (self.ranged > 0 || gazes)).then(|| {
@@ -674,6 +685,7 @@ impl BattleUnit {
                 Mode::ThrownOrBreath,
                 self.ranged,
                 self.to_hit + plus + self.ranged_plus,
+                rules,
             )
         })
     }
@@ -1468,15 +1480,7 @@ impl Battle {
             area: true,
             ..Default::default()
         };
-        let nature = AttackNature {
-            stopped_by: Immunities {
-                fire: true,
-                magic: true,
-                ..Default::default()
-            },
-            realm: Some(Realm::Chaos),
-            armor_piercing: false,
-        };
+        let nature = AttackNature::magical(Realm::Chaos, &[DamageType::Fire]);
         let dmg = self.spell_damage(unit, self.rules().wall_of_fire_strength, &traits, nature);
         self.spell_events_for_damage(unit, dmg)
     }
@@ -1708,7 +1712,8 @@ impl Battle {
 
     fn fighter(&self, id: usize, vs_flier_blocked: bool) -> Fighter {
         let u = &self.units[id];
-        let mut melee = u.melee_combatant();
+        let rules = &self.content.rules;
+        let mut melee = u.melee_combatant(rules);
         if vs_flier_blocked {
             // A walker's blows reach a flier by the setting: not at all (the original, so only
             // thrown weapons and breath could hurt it), half as well, or in full (divergence 26).
@@ -1716,10 +1721,10 @@ impl Battle {
         }
         Fighter {
             melee,
-            thrown: u.thrown_combatant(),
+            thrown: u.thrown_combatant(rules),
             first_strike: u.first_strike,
             negate_first_strike: u.negate_first_strike,
-            state: u.defender_state(),
+            state: u.defender_state(rules),
         }
     }
 
@@ -1795,9 +1800,10 @@ impl Battle {
             Mode::Ranged,
             a.ranged,
             a.to_hit + plus + a.ranged_plus - penalty,
+            &self.content.rules,
         );
         let figures = a.figures;
-        let mut state = self.units[def].defender_state();
+        let mut state = self.units[def].defender_state(&self.content.rules);
         state.defense += self.city_defense_bonus(def, att);
         let rng: &mut dyn RngCore = &mut self.rng;
         let dmg = attack::ranged_attack(

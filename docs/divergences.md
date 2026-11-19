@@ -965,3 +965,7 @@ Ours (`f4x-newgame/src/neutral.rs`, 15 November 2026) works in four steps: the s
 The computer wizards' races are no longer limited above Normal difficulty either: `limit_ai_races` is off by default (the setting stays).
 
 The setting `mix_neutral_races` (off by default) rolls the independent cities' races among all 14 races on both planes, by `neutral_weight` in `races.ron`: ten in all for each race and seventy on each plane. Arcanus, Myrror: High Men, High Elf, Halfling 8, 2; Barbarian 7, 3; Gnoll, Lizardman, Nomad, Orc 6, 4; Klackon 5, 5; Dwarf 4, 6; Beastmen, Troll 2, 8; Dark Elf, Draconian 1, 9. With it off each plane rolls among its own races, all equally likely, as before.
+
+## 48. A unit's fireball and ice bolt are fire and cold (task 708)
+
+In the original, fire immunity stops fire breath only, and cold immunity stops nothing a unit does: the Fireball and Ice Bolt attacks of units (magicians, warlocks, efreet, wind mages, djinn and others) are plain magical shots, stopped by magic immunity alone. Here an attack is made of damage types (`abilities.ron`, `attack`; `f4x-def/src/rules/damage_type.rs`): the unit Fireball is fire, chaos and magic, the unit Ice Bolt cold, nature and magic, so fire immunity stops the one and cold immunity the other, as they already stop the spells of those names. A unit with several ranged abilities is stopped by the immunities of all of them (the original took the first of a fixed order).

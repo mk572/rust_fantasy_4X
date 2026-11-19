@@ -12,7 +12,7 @@
 //! Tests: in battle/tests.rs.
 
 use super::attack::unblockable;
-use super::immunity::{AttackNature, Immunities, Realm};
+use super::immunity::{AttackNature, Realm};
 use super::map::{self, Pos};
 use super::{Battle, BattleError, BattleEvent, Side};
 use crate::rules::effects::DamageTraits;
@@ -115,14 +115,7 @@ impl Battle {
             armor_piercing: true,
             ..Default::default()
         };
-        let bolt_nature = AttackNature {
-            stopped_by: Immunities {
-                magic: true,
-                ..Default::default()
-            },
-            realm: Some(Realm::Chaos),
-            armor_piercing: false,
-        };
+        let bolt_nature = AttackNature::magical(Realm::Chaos, &[]);
         let crush = self.rules().vortex_crush_damage;
         for id in 0..self.units.len() {
             if !self.units[id].is_active() {
@@ -136,7 +129,7 @@ impl Battle {
                         .effects
                         .contains(crate::spell::unit_effect::UnitEffect::Righteousness)
                 {
-                    let mut state = u.defender_state();
+                    let mut state = u.defender_state(&self.content.rules);
                     let lost = unblockable(&mut state, crush);
                     if lost.points > 0 {
                         self.units[id].set_from(&state);

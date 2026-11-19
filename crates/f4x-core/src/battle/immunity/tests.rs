@@ -1,5 +1,6 @@
 use super::*;
-use crate::rules::{Ability, SpellId};
+use crate::rules::damage_type::DamageType;
+use crate::rules::SpellId;
 use crate::spell::unit_effect::UnitEffects;
 use rand::SeedableRng;
 
@@ -22,15 +23,11 @@ fn immune() -> i32 {
 }
 
 fn unit(names: &[u16]) -> Immunities {
-    Immunities::of(&names.iter().map(|&n| Ability::new(n)).collect::<Vec<_>>())
+    Immunities::of_numbers(names)
 }
 
 fn defense(base: i32, unit: &Immunities, names: &[u16], mode: Mode, magical: bool) -> i32 {
-    let attack = AttackNature::of_unit_attack(
-        mode,
-        &names.iter().map(|&n| Ability::new(n)).collect::<Vec<_>>(),
-        magical,
-    );
+    let attack = AttackNature::of_numbers(mode, names, magical);
     effective_defense(
         base,
         unit,
@@ -126,7 +123,7 @@ fn a_unit_with_both_weapon_and_missile_immunity_gets_only_ten_against_arrows() {
 }
 
 #[test]
-fn fire_immunity_stops_fire_breath_only() {
+fn fire_immunity_stops_fire_breath_and_fireballs_but_not_lightning_or_melee() {
     let salamander = unit(&[21 /* fire_immunity */]);
     assert_eq!(
         defense(
@@ -157,9 +154,22 @@ fn fire_immunity_stops_fire_breath_only() {
             Mode::Ranged,
             false
         ),
-        2
+        immune()
     );
     assert_eq!(defense(2, &salamander, &[], Mode::Melee, false), 2);
+}
+
+#[test]
+fn cold_immunity_stops_the_ice_bolt_of_a_unit() {
+    let yeti = unit(&[10 /* cold_immunity */]);
+    assert_eq!(
+        defense(2, &yeti, &[29 /* ice_bolt */], Mode::Ranged, false),
+        immune()
+    );
+    assert_eq!(
+        defense(2, &yeti, &[36 /* lightning_bolt */], Mode::Ranged, false),
+        2
+    );
 }
 
 #[test]
@@ -242,10 +252,21 @@ fn immunities_come_from_abilities() {
         16, /* death_immunity */
         31, /* illusion_immunity */
     ]);
-    assert!(all.weapon && all.magic && all.missiles && all.fire && all.cold);
-    assert!(all.poison && all.stoning && all.death && all.illusion);
+    for t in [
+        DamageType::Weapon,
+        DamageType::Magic,
+        DamageType::Missile,
+        DamageType::Fire,
+        DamageType::Cold,
+        DamageType::Poison,
+        DamageType::Stoning,
+        DamageType::Death,
+        DamageType::Illusion,
+    ] {
+        assert!(all.has(t), "{t:?}");
+    }
     assert!(unit(&[24 /* flying */, 23 /* first_strike */]).is_empty());
-    assert!(Immunities::of(&[Ability::new(21), Ability::new(3)]).fire);
+    assert!(Immunities::of_numbers(&[21, 3]).has(DamageType::Fire));
 }
 
 #[test]

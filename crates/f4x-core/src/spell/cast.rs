@@ -10,7 +10,8 @@ use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
-use crate::rules::effects::{DamageKind, Trigger};
+use crate::rules::damage_type::DamageTypes;
+use crate::rules::effects::Trigger;
 use crate::rules::exec::{run_rules, Context, EffectHost, Facts, Outcome, Target};
 use crate::rules::{Duration, Modifier, Source, SpellId, SpellTarget, Stat, UnitId};
 use crate::spell::instance::SpellTarget as Placed;
@@ -162,11 +163,22 @@ impl EffectHost for GameHost<'_> {
         self.game.add_temp_modifier(who, modifier);
     }
 
+    fn immune_to(&self, who: Target, types: DamageTypes) -> bool {
+        let Target::Unit(u) = who else {
+            return false;
+        };
+        crate::battle::immunity::Immunities::of(
+            &self.game.units().unit_abilities(u),
+            &self.game.content.rules,
+        )
+        .stops(types)
+    }
+
     fn grant_ability(&mut self, who: Target, ability: Ability) {
         self.game.grant_temp_ability(who, ability);
     }
 
-    fn damage(&mut self, who: Target, amount: i32, _kind: DamageKind) -> i32 {
+    fn damage(&mut self, who: Target, amount: i32, _types: DamageTypes) -> i32 {
         let Target::Unit(u) = who else {
             return 0;
         };
@@ -184,19 +196,18 @@ impl EffectHost for GameHost<'_> {
         &mut self,
         who: Target,
         strength: i32,
-        kind: DamageKind,
-        realm: Option<crate::battle::immunity::Realm>,
+        types: DamageTypes,
+        _realm: Option<crate::battle::immunity::Realm>,
         traits: &crate::rules::effects::DamageTraits,
     ) -> i32 {
         let Target::Unit(u) = who else {
             return 0;
         };
         if !traits.area {
-            return self.damage(who, strength, kind);
+            return self.damage(who, strength, types);
         }
         let nature = crate::battle::immunity::AttackNature {
-            stopped_by: Default::default(),
-            realm,
+            types,
             armor_piercing: traits.armor_piercing,
         };
         let before = self.game.units().unit_hits(u).0 as i32;

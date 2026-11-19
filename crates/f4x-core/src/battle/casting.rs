@@ -8,6 +8,7 @@
 //!
 //! Tests: in battle/tests.rs.
 
+use crate::rules::damage_type::DamageType;
 use crate::rules::Ability;
 use crate::spell::unit_effect::{UnitEffect, UnitEffects};
 use f4x_def::half_int::HalfInt;
@@ -20,22 +21,22 @@ use super::{Battle, BattleEvent, BattleUnit, RangedKind, Side, Status};
 use crate::player::PlayerId;
 use crate::rules::effects::DamageTraits;
 use crate::rules::stats::{compute, Modifier, Stat};
-use crate::rules::{BattleRules, SpellId};
+use crate::rules::{Rules, SpellId};
 
 /// A damage spell of `strength` on one unit (see [`Battle::spell_damage`]); the unit is changed
 /// in place. Overland spells that hurt units (`Game::process_chaos_rifts`) use it too.
 pub(crate) fn damage_unit_with_spell(
-    rules: &BattleRules,
+    rules: &Rules,
     unit: &mut BattleUnit,
     strength: i32,
     traits: &DamageTraits,
     nature: AttackNature,
     rng: &mut dyn RngCore,
 ) -> Option<Damage> {
-    let mut state = unit.defender_state();
+    let mut state = unit.defender_state(rules);
     let protected = state.effects.contains(UnitEffect::Righteousness)
-        && matches!(nature.realm, Some(Realm::Chaos | Realm::Death));
-    if state.immunities.magic || protected {
+        && matches!(nature.realm(), Some(Realm::Chaos | Realm::Death));
+    if state.immunities.has(DamageType::Magic) || protected {
         return None;
     }
     let volley = if traits.area {
@@ -57,7 +58,7 @@ pub(crate) fn damage_unit_with_spell(
         special: Default::default(),
         ..Combatant::default()
     };
-    let dmg = spell_attack(rules, &spell, volley, &mut state, rng);
+    let dmg = spell_attack(&rules.config.battle, &spell, volley, &mut state, rng);
     unit.set_from(&state);
     unit.record(dmg);
     Some(dmg)
@@ -376,10 +377,9 @@ impl Battle {
         traits: &DamageTraits,
         nature: AttackNature,
     ) -> Option<Damage> {
-        let rules = *self.rules();
         let rng: &mut dyn RngCore = &mut self.rng;
         damage_unit_with_spell(
-            &rules,
+            &self.content.rules,
             &mut self.units[target],
             strength,
             traits,
@@ -410,7 +410,7 @@ impl Battle {
         if immune.iter().any(|&i| unit.has(i)) {
             return None;
         }
-        let mut state = unit.defender_state();
+        let mut state = unit.defender_state(&self.content.rules);
         let dmg = if let Some(limit) = below {
             let res = effective_resistance(
                 state.resistance,
@@ -444,7 +444,7 @@ impl Battle {
     /// Destroy a unit outright, no defence or resistance helping (Cracks Call). Nothing is left
     /// to raise.
     pub fn destroy_unit(&mut self, target: usize) -> Damage {
-        let mut state = self.units[target].defender_state();
+        let mut state = self.units[target].defender_state(&self.content.rules);
         let all = state.hit_points();
         let dmg = unblockable(&mut state, all).all_gone();
         self.units[target].set_from(&state);
@@ -460,7 +460,7 @@ impl Battle {
         if unit.realm == Some(Realm::Death) || unit.has(Ability::new(16 /* death_immunity */)) {
             return None;
         }
-        let mut state = unit.defender_state();
+        let mut state = unit.defender_state(&self.content.rules);
         let rng: &mut dyn RngCore = &mut self.rng;
         let amount =
             state.resistance_failure(Some(Realm::Death), modifier - self.save_penalty, rng);

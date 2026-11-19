@@ -266,7 +266,7 @@ impl<'a> UnitView<'a> {
     pub fn unit_resistance_against(&self, unit: hecs::Entity, realm: Option<Realm>) -> i32 {
         effective_resistance(
             self.unit_stat(unit, Stat::Resistance),
-            &Immunities::of(&self.unit_abilities(unit)),
+            &Immunities::of(&self.unit_abilities(unit), &self.content.rules),
             realm,
             self.unit_effects(unit),
         )
