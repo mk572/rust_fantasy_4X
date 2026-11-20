@@ -399,7 +399,7 @@ fn archers_shoot_with_ammunition_and_range_costs_accuracy() -> TestResult {
         assert_eq!(b.unit(0).ok_or("unit is missing")?.ammo, shots - fired);
         assert_eq!(
             b.apply(BattleCommand::Shoot { unit: 0, target: 1 }),
-            Err(BattleError::AlreadyAttacked)
+            Err(BattleError::NoMovesLeft)
         );
         for _ in 0..2 {
             b.apply(BattleCommand::EndTurn)
