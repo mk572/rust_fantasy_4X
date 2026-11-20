@@ -1,6 +1,8 @@
 use super::*;
 use crate::map::Plane;
 use crate::rules::damage_type::{DamageType, DamageTypes};
+use crate::rules::effects::Condition;
+use crate::rules::RealmId;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 use std::collections::BTreeMap;

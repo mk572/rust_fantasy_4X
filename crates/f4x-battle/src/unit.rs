@@ -8,8 +8,9 @@ use f4x_def::rules::attack_nature::AttackNature;
 use f4x_def::rules::damage_type::{DamageType, DamageTypes, RangedKind};
 use f4x_def::rules::immunity::Immunities;
 use f4x_def::rules::realm::Realm;
+use f4x_def::rules::stats::Stat;
 use f4x_def::rules::unit_effect::{UnitEffect, UnitEffects};
-use f4x_def::rules::unit_flag::{UnitFlag, UnitFlags};
+use f4x_def::rules::unit_flag::UnitFlag;
 use f4x_def::rules::{Ability, Rules, SpellId, UnitId};
 
 use crate::attack::{self, Combatant, DefenderState, Mode};
@@ -18,10 +19,16 @@ use crate::side::Side;
 use crate::special::SpecialAttacks;
 
 pub mod field_bonus;
+pub mod from_def;
 pub mod lasting;
+pub mod sheet;
+pub mod stats;
 
 pub use field_bonus::FieldBonus;
-pub use lasting::{BaseStats, Lasting};
+pub use lasting::Lasting;
+pub use sheet::{HeroSheet, Sheet, WizardSheet};
+use stats::Memo;
+pub use stats::Stats;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Status {
     Active,
@@ -72,7 +79,10 @@ pub enum WarpKind {
     Resistance,
 }
 
-/// One unit in a battle, with the statistics it fights with.
+/// One unit in a battle. It holds what is true of it and nothing worked out: the sheet the game
+/// handed over, what happened to it in the battle, and what it has lost, spent and used. Its
+/// numbers (`Stats`, read straight off the unit) are worked out from those when asked
+/// (`unit/stats.rs`).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BattleUnit {
     pub id: usize,
@@ -82,41 +92,27 @@ pub struct BattleUnit {
     /// The unit definition (`None` for a plain unit made for a test); the client names it.
     pub unit_id: Option<UnitId>,
     pub cell: Pos,
-    pub melee: i32,
-    pub ranged: i32,
-    pub defense: i32,
-    pub resistance: i32,
-    /// Pluses to hit (each ten percentage points).
-    pub to_hit: i32,
-    /// Pluses to hit that only the melee attack gets (a hero's sword), and only the ranged or
-    /// thrown attack (its bow): the plus to hit of its items.
-    pub melee_plus: i32,
-    pub ranged_plus: i32,
-    /// Of the dice of the melee and of the ranged attack, the ones made of damage types (Flame
-    /// Blade, Flaming): a defender immune to one of the types loses them.
-    pub melee_parts: Vec<(i32, DamageTypes)>,
-    pub ranged_parts: Vec<(i32, DamageTypes)>,
-    pub to_block: i32,
-    /// Hit points of one figure.
-    pub hits: i32,
-    /// Of `hits`, the extra ones overhealing (life steal) added in this battle: they are not
-    /// part of the unit's real strength, so the damage written back ignores them.
-    pub extra_hits: i32,
+    /// What the game handed over (`unit/sheet.rs`).
+    sheet: Sheet,
+    /// The wizards of both sides, by id: their global enchantments and retorts.
+    wizards: [WizardSheet; 2],
+    /// Lasting spells cast on it in this battle, in the order cast, with who cast them and what
+    /// they do to its numbers. They last until the battle ends or a dispel takes them off.
+    lasting: Vec<Lasting>,
+    /// What the battlefield spells ask of its numbers (`field.rs`).
+    field: FieldBonus,
+    /// Of its hit points per figure, the extra ones overhealing (life steal) added in this battle:
+    /// they are not part of the unit's real strength, so the damage written back ignores them.
+    extra_hits: i32,
+    /// The figures it started with.
     pub figures_start: u32,
-    pub figures: u32,
-    /// Damage on the front figure.
-    pub front_damage: i32,
-    /// Moves per turn and left this turn. Saved as half-moves, the form older saves have.
-    #[serde(with = "f4x_def::half_int::raw")]
-    pub moves: HalfInt,
-    #[serde(with = "f4x_def::half_int::raw")]
-    pub moves_left: HalfInt,
-    /// Shots left. A spell caster with a magical ranged attack shoots with its mana instead
-    /// (`rules.shot_mana` a shot): its shots are what its mana pays for.
-    pub ammo: i32,
-    /// The mana of a spell caster unit (20, or 40 for a major one) or of a hero with casting
-    /// skill (`Game::hero_mana`).
-    pub mana: i32,
+    /// The hit points it has lost, over all figures: its figures and the damage on the front one
+    /// follow from it and its hit points per figure.
+    lost: i32,
+    /// The moves it has spent this turn, the mana it has spent and the shots it has fired.
+    moves_spent: HalfInt,
+    mana_used: i32,
+    ammo_used: i32,
     /// A hero with casting skill: its spell shots are paid for with its mana too.
     pub hero_caster: bool,
     /// A hero's own name, looked up when the battle starts and kept (empty for any other unit).
@@ -124,11 +120,6 @@ pub struct BattleUnit {
     pub hero_name: String,
     /// What the unit can cast on its own (a hero's spells and items, a caster's abilities).
     pub casting: UnitCasting,
-    pub ranged_kind: RangedKind,
-    /// What its abilities and other sources set on it for the battle: flight, first strike, a
-    /// magical weapon (heroes, fantastic and summoned creatures, units with a flaming or blessed
-    /// blade), ... (`UnitFlag`).
-    pub flags: UnitFlags,
     /// A ship: it sails water and cannot leave it.
     pub sails: bool,
     /// A swimmer: it moves on land and water alike.
@@ -136,14 +127,6 @@ pub struct BattleUnit {
     /// The quality of its weapons (`unit::WeaponQuality`): above normal, its attacks have a
     /// plus to hit (its thrown and missile attacks too, but not breath, gazes or spell shots).
     pub weapon_quality: u8,
-    /// `Stat::SpecialLevel`: poison strength, or the penalty of its gaze and touches.
-    pub special_level: i32,
-    /// A hero's Leadership and Prayermaster in this battle (`hero/mod.rs`), 0 for anything else: the
-    /// best one on a side counts for all its units.
-    pub leadership: i32,
-    pub prayermaster: i32,
-    /// The ids of its lasting spells, which add to resistance against some realms.
-    pub enchantments: Vec<SpellId>,
     /// Held in Stasis when the battle began: the unit acts as if asleep and cannot get away.
     #[serde(default)]
     pub in_stasis: bool,
@@ -154,11 +137,6 @@ pub struct BattleUnit {
     /// undead.
     pub realm: Option<Realm>,
     pub undead: bool,
-    pub abilities: Vec<Ability>,
-    /// Of those, the ones an item or a lasting spell gives: their touches are weaker and their
-    /// doom damage is halved (`SpecialAttacks::of_unit`).
-    #[serde(default)]
-    pub granted: Vec<Ability>,
     pub status: Status,
     /// The damage it has taken, by kind: ordinary, drained, and the kind that destroys.
     pub damage_kinds: [i32; 3],
@@ -179,15 +157,6 @@ pub struct BattleUnit {
     /// Whether it was invisible when the field was last refreshed, to tell when invisibility
     /// begins (it hides the unit at once).
     pub was_invisible: bool,
-    /// Lasting spells cast on it in this battle, in the order cast, with who cast them and what
-    /// they do to its numbers. They last until the battle ends or a dispel takes them off.
-    pub lasting: Vec<Lasting>,
-    /// What it started the battle with, kept from the first time something changes its numbers
-    /// (a lasting spell, or a request of the battlefield spells): its numbers are those, the
-    /// effect of the list and the field's request (`BattleUnit::recompute`).
-    pub base: Option<BaseStats>,
-    /// What the battlefield spells ask of its numbers (`field.rs`).
-    pub field: FieldBonus,
     /// Confusion has put it under the enemy's orders for their next turn.
     pub seized: bool,
     /// While it is under the enemy's orders: the side it really belongs to.
@@ -199,6 +168,9 @@ pub struct BattleUnit {
     /// unit is free to act again, though the web's curse (no flight) stays until it is dispelled.
     #[serde(default)]
     pub web_hits: i32,
+    /// The content it reads definitions from, and its numbers as last worked out: neither is saved.
+    #[serde(skip)]
+    memo: Memo,
 }
 
 /// What a unit casts with its own mana rather than the wizard's skill.
@@ -216,6 +188,32 @@ pub struct UnitCasting {
     pub spell_save: i32,
     /// Demons it can still summon this battle (`summon_demon`: three for a Demon Lord).
     pub demons: u32,
+}
+
+impl UnitCasting {
+    /// What the abilities alone let a unit cast: the spells they cast once a battle, and the
+    /// demons it may summon.
+    pub fn of_abilities(abilities: &[Ability], rules: &f4x_def::rules::Rules) -> Self {
+        let mut casting = Self {
+            demons: abilities
+                .iter()
+                .map(|&a| rules.abilities.get(a).summons_per_battle)
+                .max()
+                .unwrap_or(0),
+            ..Self::default()
+        };
+        for ability in abilities {
+            let spell = match ability.num() {
+                4 => SpellId::new(104), /* doom_bolt */
+                5 => SpellId::new(96),  /* fireball */
+                6 => SpellId::new(125), /* healing */
+                7 => SpellId::new(5),   /* web */
+                _ => continue,
+            };
+            casting.abilities.push(spell);
+        }
+        casting
+    }
 }
 
 /// A spell of a hero's item and the charges it has left in this battle.
@@ -242,63 +240,98 @@ impl BattleUnit {
     /// For tests: put a lasting spell on the unit, with what the shipped rules say it does.
     pub fn put_enchantment(&mut self, spell: SpellId) {
         let rules = &f4x_def::testdir::shipped().rules;
-        self.enchantments.push(spell);
+        self.sheet_mut().enchantments.push(spell);
         let effects = f4x_def::rules::unit_effect::UnitEffects::of(rules.spells.get(spell));
-        if let Some(base) = &mut self.base {
-            base.enchantments.push(spell);
-        }
         if effects.contains(f4x_def::rules::unit_effect::UnitEffect::Web) {
             self.web_closes(rules.battle.web_hits);
         }
     }
 }
 
+/// Making a unit what a scenario needs: each puts a rule on its sheet, so the numbers are worked out
+/// from it like any other.
+#[cfg(any(test, feature = "testutil"))]
 impl BattleUnit {
-    /// A plain unit for tests and simple scenarios: one dice per melee point, no specials.
-    pub fn simple(side: Side, figures: u32, hits: i32, melee: i32, defense: i32) -> Self {
+    /// The stat is this number, whatever its sheet says (before the battle's lasting spells).
+    pub fn force(&mut self, stat: Stat, value: i32) {
+        self.sheet_mut()
+            .modifiers
+            .push(f4x_def::rules::stats::Modifier::new(
+                stat,
+                f4x_def::rules::stats::ModOp::Set,
+                value,
+                f4x_def::rules::stats::Source::Other,
+            ));
+    }
+
+    /// The unit has this much movement a turn.
+    pub fn force_moves(&mut self, moves: HalfInt) {
+        self.sheet_mut()
+            .modifiers
+            .push(f4x_def::rules::stats::Modifier::amount(
+                Stat::Moves,
+                f4x_def::rules::stats::ModOp::Set,
+                moves,
+                f4x_def::rules::stats::Source::Other,
+            ));
+    }
+
+    pub fn put_ranged_kind(&mut self, kind: RangedKind) {
+        self.sheet_mut().ranged_kind = kind;
+    }
+
+    pub fn put_flag(&mut self, flag: UnitFlag) {
+        self.sheet_mut().flags.insert(flag);
+    }
+
+    /// The unit has this ability.
+    pub fn grant(&mut self, ability: Ability) {
+        self.sheet_mut().abilities.push(ability);
+    }
+
+    /// The unit does not have this ability.
+    pub fn strip(&mut self, ability: Ability) {
+        self.sheet_mut().abilities.retain(|a| *a != ability);
+    }
+
+    /// The front figure has this much damage on it.
+    pub fn set_front_damage(&mut self, damage: i32) {
+        let lost = self.figures_start as i32 * self.per_figure()
+            - (self.figures as i32 * self.per_figure() - damage);
+        self.set_lost(lost);
+    }
+}
+
+impl BattleUnit {
+    /// A unit with this sheet, whole and with all its moves, on no square yet. Its numbers are
+    /// worked out from the sheet once it has the content (`bind`).
+    pub fn from_sheet(side: Side, sheet: Sheet, figures: u32) -> Self {
         Self {
             id: 0,
             side,
             source: None,
             unit_id: None,
             cell: (0, 0),
-            melee,
-            ranged: 0,
-            defense,
-            resistance: 4,
-            to_hit: 0,
-            melee_plus: 0,
-            ranged_plus: 0,
-            melee_parts: Vec::new(),
-            ranged_parts: Vec::new(),
-            to_block: 0,
-            hits,
+            sheet,
+            wizards: Default::default(),
+            lasting: Vec::new(),
+            field: FieldBonus::default(),
             extra_hits: 0,
             figures_start: figures,
-            figures,
-            front_damage: 0,
-            moves: OPEN_COST * 2,
-            moves_left: OPEN_COST * 2,
-            ammo: 0,
-            mana: 0,
+            lost: 0,
+            moves_spent: HalfInt::ZERO,
+            mana_used: 0,
+            ammo_used: 0,
             hero_caster: false,
             hero_name: String::new(),
             casting: UnitCasting::default(),
-            ranged_kind: RangedKind::None,
-            flags: UnitFlags::NONE,
             sails: false,
             swims: false,
             weapon_quality: 0,
-            special_level: 0,
-            leadership: 0,
-            prayermaster: 0,
-            enchantments: Vec::new(),
             in_stasis: false,
             warp: None,
             realm: None,
             undead: false,
-            abilities: Vec::new(),
-            granted: Vec::new(),
             status: Status::Active,
             damage_kinds: [0; 3],
             attacked: false,
@@ -307,14 +340,151 @@ impl BattleUnit {
             surfaced: false,
             slipped: false,
             was_invisible: false,
-            lasting: Vec::new(),
-            base: None,
-            field: FieldBonus::default(),
             seized: false,
             turned_from: None,
             bound_from: None,
             web_hits: 0,
+            memo: Memo::default(),
         }
+    }
+
+    /// A plain unit for tests and simple scenarios: one dice per melee point, no specials.
+    pub fn simple(side: Side, figures: u32, hits: i32, melee: i32, defense: i32) -> Self {
+        let base = [
+            (Stat::Melee, melee),
+            (Stat::MaxHp, hits),
+            (Stat::Defense, defense),
+            (Stat::Resistance, 4),
+        ]
+        .into_iter()
+        .map(|(s, v)| (s, HalfInt::from_int(v)))
+        .chain([(Stat::Moves, OPEN_COST * 2)])
+        .collect();
+        Self::from_sheet(side, Sheet::plain(side, base), figures)
+    }
+
+    pub fn sheet(&self) -> &Sheet {
+        &self.sheet
+    }
+
+    /// The sheet, to change: the numbers are worked out again from it.
+    pub fn sheet_mut(&mut self) -> &mut Sheet {
+        self.memo.clear();
+        &mut self.sheet
+    }
+
+    /// Replace what the game handed over about the unit (an overland spell has changed it).
+    pub fn set_sheet(&mut self, sheet: Sheet) {
+        self.memo.clear();
+        self.sheet = sheet;
+    }
+
+    pub fn lasting(&self) -> &[Lasting] {
+        &self.lasting
+    }
+
+    pub fn lasting_mut(&mut self) -> &mut Vec<Lasting> {
+        self.memo.clear();
+        &mut self.lasting
+    }
+
+    pub fn field(&self) -> FieldBonus {
+        self.field
+    }
+
+    pub fn set_field(&mut self, field: FieldBonus) {
+        self.memo.clear();
+        self.field = field;
+    }
+
+    pub fn wizards(&self) -> &[WizardSheet; 2] {
+        &self.wizards
+    }
+
+    pub fn set_wizards(&mut self, wizards: [WizardSheet; 2]) {
+        self.memo.clear();
+        self.wizards = wizards;
+    }
+
+    pub fn extra_hits(&self) -> i32 {
+        self.extra_hits
+    }
+
+    /// The hit points the unit has lost over all figures.
+    pub fn lost(&self) -> i32 {
+        self.lost
+    }
+
+    /// The unit has lost this many hit points over all figures.
+    pub fn set_lost(&mut self, lost: i32) {
+        self.memo.clear();
+        self.lost = lost;
+    }
+
+    /// Every figure dies.
+    pub fn kill(&mut self) {
+        let ceiling = self.figures_start as i32 * self.per_figure();
+        self.set_lost(ceiling);
+    }
+
+    /// Only this many figures are left, whole.
+    pub fn set_figures(&mut self, figures: u32) {
+        let lost = (self.figures_start as i32 - figures as i32) * self.per_figure();
+        self.set_lost(lost);
+    }
+
+    /// The unit has this many hit points left over all figures.
+    pub fn set_hit_points(&mut self, hit_points: i32) {
+        let lost = self.figures_start as i32 * self.per_figure() - hit_points;
+        self.set_lost(lost);
+    }
+
+    /// Spend all the moves of the turn.
+    pub fn end_moves(&mut self) {
+        let moves = self.moves;
+        self.set_moves_spent(moves);
+    }
+
+    /// A new turn: all the moves again.
+    pub fn refill_moves(&mut self) {
+        self.set_moves_spent(HalfInt::ZERO);
+    }
+
+    /// Spend `cost` of the moves left, or all that is left when that is less.
+    pub fn spend_moves(&mut self, cost: HalfInt) {
+        let spent = self.moves_spent + cost.min(self.moves_left);
+        self.set_moves_spent(spent);
+    }
+
+    /// The unit has this much movement left this turn.
+    pub fn set_moves_left(&mut self, left: HalfInt) {
+        let spent = self.moves - left;
+        self.set_moves_spent(spent);
+    }
+
+    fn set_moves_spent(&mut self, spent: HalfInt) {
+        self.memo.clear();
+        self.moves_spent = spent;
+    }
+
+    /// The unit pays this much of its mana.
+    pub fn spend_mana(&mut self, mana: i32) {
+        self.memo.clear();
+        self.mana_used += mana;
+    }
+
+    /// The unit has this much mana left.
+    pub fn set_mana(&mut self, mana: i32) {
+        let used = self.mana + self.mana_used - mana;
+        self.memo.clear();
+        self.mana_used = used;
+    }
+
+    /// The unit has this many shots left.
+    pub fn set_ammo(&mut self, ammo: i32) {
+        let used = self.ammo + self.ammo_used - ammo;
+        self.memo.clear();
+        self.ammo_used = used;
     }
 
     /// Note the damage the unit took, by its kind.
@@ -406,7 +576,7 @@ impl BattleUnit {
     pub fn can_merge(&self) -> bool {
         self.is_active()
             && self.has(Ability::new(43 /* merging */))
-            && self.moves_left > 0
+            && self.moves_left > HalfInt::ZERO
             && !self.surfaced
     }
 
@@ -421,13 +591,13 @@ impl BattleUnit {
     /// half-moves; wiki article "Ranged Attack"). Only a unit with a great allowance, a Hasted
     /// one or a hero with items, has moves left after it.
     pub fn spend_ranged_moves(&mut self) {
-        self.moves_left = self.moves_left.saturating_sub(RANGED_ATTACK_COST);
+        self.spend_moves(RANGED_ATTACK_COST);
     }
 
     /// The blows of a melee attack use up half the allowance (rounded up to a half), or all that
     /// is left when that is less.
     pub fn spend_melee_moves(&mut self) {
-        self.moves_left = self.moves_left.saturating_sub(self.moves.half());
+        self.spend_moves(self.moves.half());
     }
 
     /// Whether Haste is on the unit: its attack is doubled (a second swing in the exchange, a
@@ -445,8 +615,21 @@ impl BattleUnit {
         self.body_state().hit_points()
     }
 
+    /// The most hit points the unit has without the lasting spells cast on it in the battle.
+    pub fn max_hit_points_without_lasting(&self) -> i32 {
+        let mut bare = self.clone();
+        bare.lasting_mut().clear();
+        bare.max_hit_points()
+    }
+
+    /// What each figure can stand: its hits and the extra ones life steal gave it.
+    pub fn per_figure(&self) -> i32 {
+        self.hits + self.extra_hits
+    }
+
+    /// The unit's hit points when whole, not counting the extra ones life steal gave.
     pub fn max_hit_points(&self) -> i32 {
-        self.figures_start as i32 * (self.hits - self.extra_hits)
+        self.figures_start as i32 * self.hits
     }
 
     /// The unit as a defender, with the defence rules of its abilities.
@@ -461,7 +644,7 @@ impl BattleUnit {
     /// The unit's body without its defence rules: all that hit points and healing need.
     pub fn body_state(&self) -> DefenderState {
         DefenderState {
-            hits: self.hits,
+            hits: self.per_figure(),
             extra_hits: self.extra_hits,
             defense: self.defense,
             immunities: Immunities::default(),
@@ -478,12 +661,12 @@ impl BattleUnit {
         }
     }
 
+    /// Take the body the attack rules have changed: its extra hit points and what it has lost.
     pub fn set_from(&mut self, state: &DefenderState) {
-        self.hits = state.hits;
+        self.memo.clear();
         self.extra_hits = state.extra_hits;
-        self.figures = state.figures;
-        self.front_damage = state.front_damage;
-        if self.figures == 0 {
+        self.lost = state.figures_max as i32 * state.hits - state.hit_points();
+        if state.figures == 0 {
             self.status = Status::Dead;
         }
     }
@@ -578,34 +761,30 @@ impl BattleUnit {
 
     /// Use up one shot (and the mana it costs a caster).
     pub fn spend_shot(&mut self, shot_mana: i32, rules: &Rules) {
-        self.ammo -= 1;
-        if self.shoots_with_mana(rules) {
-            self.mana = (self.mana - shot_mana).max(0);
-            self.ammo = self.ammo.min(self.mana / shot_mana);
+        let with_mana = self.shoots_with_mana(rules);
+        let mana = self.mana;
+        self.ammo_used += 1;
+        if with_mana {
+            self.mana_used += shot_mana.min(mana);
         }
+        self.memo.clear();
     }
 
     /// Power Drain: the unit loses up to `amount` mana (a spell shooter's shots follow its mana).
     /// Returns what it lost.
-    pub fn drain_power(&mut self, amount: i32, shot_mana: i32, rules: &Rules) -> i32 {
+    pub fn drain_power(&mut self, amount: i32) -> i32 {
         let lost = amount.min(self.mana).max(0);
-        self.mana -= lost;
-        if self.shoots_with_mana(rules) {
-            self.ammo = self.ammo.min(self.mana / shot_mana);
-        }
+        self.spend_mana(lost);
         lost
     }
 
     /// Mana Leak: a caster loses `drain` mana; any unit with spell shots loses
     /// one (a caster's shots follow its mana).
-    pub fn leak_mana(&mut self, drain: i32, shot_mana: i32, rules: &Rules) {
-        self.mana = (self.mana - drain).max(0);
-        if self.ranged_kind == RangedKind::Magic {
-            if self.shoots_with_mana(rules) {
-                self.ammo = self.ammo.min(self.mana / shot_mana);
-            } else {
-                self.ammo = (self.ammo - 1).max(0);
-            }
+    pub fn leak_mana(&mut self, drain: i32, rules: &Rules) {
+        self.spend_mana(drain.min(self.mana).max(0));
+        if self.ranged_kind == RangedKind::Magic && !self.shoots_with_mana(rules) {
+            self.memo.clear();
+            self.ammo_used += 1;
         }
     }
 

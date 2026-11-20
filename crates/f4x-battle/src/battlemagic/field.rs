@@ -290,18 +290,10 @@ impl Battle {
     /// Bring every unit's numbers in line with the enchantments on the field.
     pub fn refresh_fields(&mut self) {
         for i in 0..self.units.len() {
-            // What the field wants depends on the unit's numbers without it. A unit with
-            // nothing changing its numbers has no base and needs none.
-            if self.units[i].base.is_some() {
-                self.units[i].field = FieldBonus::default();
-                self.units[i].recompute(&self.content.rules);
-            }
+            // What the field wants depends on the unit's numbers without it.
+            self.units[i].set_field(FieldBonus::default());
             let wanted = self.field_bonus_for(&self.units[i]);
-            if wanted != FieldBonus::default() || self.units[i].base.is_some() {
-                self.units[i].keep_base();
-                self.units[i].field = wanted;
-                self.units[i].recompute(&self.content.rules);
-            }
+            self.units[i].set_field(wanted);
             // Invisibility that begins now hides the unit at once.
             let invisible = self.units[i].is_invisible();
             if invisible && !self.units[i].was_invisible {
@@ -336,7 +328,7 @@ impl Battle {
 
     /// The side's wizard loses mana and its units with spell shots lose a shot.
     pub fn mana_leak(&mut self, victim: Side) -> Vec<BattleEvent> {
-        let (drain, shot_mana) = (self.rules().mana_leak_drain, self.rules().shot_mana);
+        let drain = self.rules().mana_leak_drain;
         if let Some(c) = self.casters[victim.index()].as_mut() {
             c.mana = (c.mana - drain).max(HalfInt::default());
         }
@@ -345,7 +337,7 @@ impl Battle {
             .iter_mut()
             .filter(|u| u.side == victim && u.is_active())
         {
-            u.leak_mana(drain, shot_mana, &self.content.rules);
+            u.leak_mana(drain, &self.content.rules);
         }
         vec![BattleEvent::ManaLeaked { side: victim }]
     }
@@ -428,7 +420,7 @@ impl Battle {
                 let rng: &mut dyn RngCore = &mut self.rng;
                 if state.resistance_failure(Some(Realm::Death), 1, rng) > 0 {
                     let u = &mut self.units[id];
-                    u.moves_left = HalfInt::ZERO;
+                    u.end_moves();
                     u.attacked = true;
                     events.push(BattleEvent::Terrified { unit: id });
                 }
@@ -440,14 +432,14 @@ impl Battle {
                 && !self.units[id].flag(UnitFlag::NonCorporeal)
             {
                 let u = &mut self.units[id];
-                u.moves_left = u.moves_left.saturating_sub(crate::map::OPEN_COST);
+                u.spend_moves(crate::map::OPEN_COST);
             }
             // A unit in a web spends its whole turn striking at it.
             if self.units[id].held_by_web(&self.content.rules) {
                 let u = &mut self.units[id];
                 let dealt = u.web_strength(&self.content.rules).min(u.web_hits);
                 u.web_hits -= dealt;
-                u.moves_left = HalfInt::ZERO;
+                u.end_moves();
                 u.attacked = true;
                 events.push(BattleEvent::WebStruck {
                     unit: id,
@@ -471,7 +463,7 @@ impl Battle {
                 u.seized = false;
                 u.turned_from = Some(u.side);
                 u.side = side;
-                u.moves_left = u.moves;
+                u.refill_moves();
                 u.attacked = false;
             }
         }
@@ -508,7 +500,7 @@ impl Battle {
             }
         }
         let u = &mut self.units[id];
-        u.moves_left = HalfInt::ZERO;
+        u.end_moves();
         u.attacked = true;
         u.seized = act == Confusion::Seized;
         Some(BattleEvent::Confused { unit: id, act })

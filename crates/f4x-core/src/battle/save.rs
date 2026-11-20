@@ -59,6 +59,7 @@ impl Game {
         let bad = |why: &str| LoadError::Inconsistent(format!("the saved battle {why}"));
         let mut battle = save.battle;
         battle.content = super::content_ref::ContentRef::new(self.content.clone());
+        battle.bind_units();
         battle
             .check_spells(&self.content.rules)
             .map_err(|BattleLoadError::UnknownSpell(n)| {

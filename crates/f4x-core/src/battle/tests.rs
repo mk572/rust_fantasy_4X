@@ -1194,7 +1194,7 @@ fn merging_needs_the_ability_and_half_a_move() -> TestResult {
     );
     // Half a move is enough.
     let mut b = merging_battle();
-    b.units[0].moves_left = HalfInt::from_raw(1);
+    b.units[0].set_moves_left(HalfInt::from_raw(1));
     assert!(b.units[0].moves_left > 0);
     b.apply(BattleCommand::Merge { unit: 0 })
         .map_err(|e| format!("{e:?}"))?;
@@ -1492,7 +1492,7 @@ fn damage_over_seeds(start: &Battle, shoot: bool) -> i32 {
 fn without(b: &Battle, unit: usize, number: u16) -> Battle {
     let mut c = b.clone();
     let gone = Ability::new(number);
-    c.units[unit].abilities.retain(|a| *a != gone);
+    c.units[unit].strip(gone);
     c
 }
 
@@ -1506,7 +1506,7 @@ fn weapon_immunity_blunts_normal_blows_but_not_magical_ones() {
     );
     let open = without(&stone, 1, 72 /* weapon_immunity */);
     let mut magic = stone.clone();
-    magic.units[0].flags.insert(UnitFlag::MagicalWeapon);
+    magic.units[0].put_flag(UnitFlag::MagicalWeapon);
     let (open, stone, stone_vs_magic) = (
         damage_over_seeds(&open, false),
         damage_over_seeds(&stone, false),
@@ -1661,9 +1661,9 @@ fn a_gaze_works_when_the_attack_strength_is_down_to_zero() -> TestResult {
         &[(182 /* basilisk */, (4, 10))],
         1,
     );
-    start.units[1].ranged = 0;
+    start.units[1].force(f4x_def::rules::stats::Stat::Ranged, 0);
     let mut plain = without(&start, 1, 64 /* stoning_gaze */);
-    plain.units[1].ranged = 0;
+    plain.units[1].force(f4x_def::rules::stats::Stat::Ranged, 0);
     let figures = start.units[0].figures;
     let (mut lost, mut gazeless_lost) = (0, 0);
     for seed in 0..100 {
@@ -1686,7 +1686,7 @@ fn a_life_stealing_shot_heals_the_shooter() -> TestResult {
         &[(104 /* high_men_spearmen */, (5, 10))],
         1,
     );
-    start.units[0].front_damage = 8;
+    start.units[0].set_front_damage(8);
     let mut healed = 0;
     for seed in 0..50 {
         let mut b = reseeded(&start, seed);
@@ -2342,7 +2342,7 @@ mod casting {
             "{spells:?}"
         );
         // A dispel: back to the base, with no spells on.
-        let base = u.base.clone().ok_or("as_deref is missing")?;
+        let base = u.sheet().clone();
         b.rebuild_unit(0, base, Vec::new());
         let u = &b.units[0];
         assert_eq!(
@@ -2372,7 +2372,7 @@ mod casting {
         let (normal, max) = {
             let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
             (
-                u.base.clone().ok_or("no base")?.hits * u.figures_start as i32,
+                (u.sheet().clone(), u.max_hit_points_without_lasting()).1,
                 u.max_hit_points(),
             )
         };
@@ -2380,8 +2380,7 @@ mod casting {
         {
             let u = &mut g.battle.as_mut().ok_or("no battle")?.battle.units[0];
             let left = left(normal, max);
-            u.figures = ((left + u.hits - 1) / u.hits) as u32;
-            u.front_damage = u.figures as i32 * u.hits - left;
+            u.set_hit_points(left);
             assert_eq!(u.hit_points(), left);
         }
         g.dispel_battle_unit(0, 10_000, D);
@@ -2445,13 +2444,13 @@ mod casting {
             1,
         );
         let hits = b.units[0].hits;
-        b.units[0].figures = 1;
-        b.units[0].front_damage = 0;
+        b.units[0].set_figures(1);
+        b.units[0].set_front_damage(0);
         assert_eq!(b.units[0].hit_points(), hits);
         // Each figure has `hits` hit points: five figures' worth heal five figures.
         assert_eq!(b.spell_heal(0, 5 * hits), 5 * hits);
         assert_eq!(b.units[0].figures, 6);
-        b.units[0].moves_left = HalfInt::ZERO;
+        b.units[0].end_moves();
         let fresh = unit_of(&b, 104 /* high_men_spearmen */);
         let id = b.add_summoned(Side::Attacker, fresh, (4, 5));
         assert_eq!(id, 2);
@@ -2704,7 +2703,8 @@ mod fields {
             105, /* high_men_swordsmen */
             105, /* high_men_swordsmen */
         );
-        b.units[1].resistance += shipped().rules.config.renown.charmed_resistance;
+        let charmed = b.units[1].resistance + shipped().rules.config.renown.charmed_resistance;
+        b.units[1].force(f4x_def::rules::stats::Stat::Resistance, charmed);
         let fails = |b: &mut Battle, i: usize| {
             (0..40)
                 .filter(|_| b.resist_fails(i, Some(Realm::Death), 0))
@@ -2868,7 +2868,7 @@ mod fields {
         for exceptions in [false, true] {
             let mut soft = pair(105 /* high_men_swordsmen */, 165 /* skeletons */);
             soft.death_immunity_exceptions = exceptions;
-            soft.units[1].resistance = 0;
+            soft.units[1].force(f4x_def::rules::stats::Stat::Resistance, 0);
             soft.raise_field(Side::Attacker, Field::Terror, spell_for(Field::Terror));
             let mut frozen = 0;
             for seed in 0..40 {
@@ -2915,7 +2915,7 @@ mod fields {
             .into_iter()
             .map(|i| {
                 let u = b.unit(i).ok_or("no unit")?;
-                Ok((numbers(u), u.field.invisible, u.field.blur))
+                Ok((numbers(u), u.field().invisible, u.field().blur))
             })
             .collect()
     }
@@ -3112,7 +3112,7 @@ mod fields {
             105, /* high_men_swordsmen */
             104, /* high_men_spearmen */
         );
-        soft.units[1].resistance = 0;
+        soft.units[1].force(f4x_def::rules::stats::Stat::Resistance, 0);
         soft.raise_field(Side::Attacker, Field::Terror, spell_for(Field::Terror));
         let mut frozen = 0;
         for seed in 0..40 {
@@ -3125,7 +3125,7 @@ mod fields {
         assert!(frozen > 30, "{frozen} of 40 froze");
         // Death immunity (skeletons) is proof against it.
         let mut deathless = pair(105 /* high_men_swordsmen */, 165 /* skeletons */);
-        deathless.units[1].resistance = 0;
+        deathless.units[1].force(f4x_def::rules::stats::Stat::Resistance, 0);
         deathless.raise_field(Side::Attacker, Field::Terror, spell_for(Field::Terror));
         for seed in 0..20 {
             let mut b = reseeded(&deathless, seed);
@@ -3139,7 +3139,8 @@ mod fields {
     /// the spell takes hold.
     fn cast_on_foe(foe: u16, spell: u16) -> Battle {
         let mut g = wizard_battle_versus(105 /* high_men_swordsmen */, &[spell], foe, 1);
-        g.battle.as_mut().expect("a battle").battle.units[1].resistance = 0;
+        g.battle.as_mut().expect("a battle").battle.units[1]
+            .force(f4x_def::rules::stats::Stat::Resistance, 0);
         cast_on(&mut g, spell, 1).expect("the spell is cast");
         g.battle().expect("a battle").clone()
     }
@@ -3176,7 +3177,7 @@ mod fields {
         );
         let before = {
             let u = &mut g.battle.as_mut().ok_or("no battle")?.battle.units[1];
-            u.resistance = 0;
+            u.force(f4x_def::rules::stats::Stat::Resistance, 0);
             (u.flag(UnitFlag::Flies), u.moves)
         };
         assert!(before.0);
@@ -3278,7 +3279,7 @@ mod fields {
         let web = |number: u16, ammo: Option<i32>| {
             let mut u = unit_numbered(number);
             if let Some(ammo) = ammo {
-                u.ammo = ammo;
+                u.set_ammo(ammo);
             }
             (u.web_strength(&shipped().rules), u.melee, u.ranged)
         };
@@ -3442,7 +3443,7 @@ mod fields {
             105, /* high_men_swordsmen */
             104, /* high_men_spearmen */
         );
-        b.units[1].resistance = 0;
+        b.units[1].force(f4x_def::rules::stats::Stat::Resistance, 0);
         b.raise_field(Side::Attacker, Field::Wrack, spell_for(Field::Wrack));
         end_turns(&mut b, 2);
         assert_eq!(b.turn, 2);
@@ -3454,7 +3455,7 @@ mod fields {
             105, /* high_men_swordsmen */
             104, /* high_men_spearmen */
         );
-        b.units[1].resistance = 0;
+        b.units[1].force(f4x_def::rules::stats::Stat::Resistance, 0);
         b.units[1].put_enchantment(SpellId::new(181 /* wraith_form */));
         b.raise_field(Side::Attacker, Field::Wrack, spell_for(Field::Wrack));
         end_turns(&mut b, 4);
@@ -3464,8 +3465,8 @@ mod fields {
             105, /* high_men_swordsmen */
             104, /* high_men_spearmen */
         );
-        b.units[1].defense = 0;
-        b.units[1].hits = 100;
+        b.units[1].force(f4x_def::rules::stats::Stat::Defense, 0);
+        b.units[1].force(f4x_def::rules::stats::Stat::MaxHp, 100);
         b.raise_field(
             Side::Attacker,
             Field::CallLightning,
@@ -3500,10 +3501,10 @@ mod fields {
             105, /* high_men_swordsmen */
             104, /* high_men_spearmen */
         );
-        b.units[1].resistance = resistance;
-        b.units[1].hits = 1000;
+        b.units[1].force(f4x_def::rules::stats::Stat::Resistance, resistance);
+        b.units[1].force(f4x_def::rules::stats::Stat::MaxHp, 1000);
         for &a in abilities {
-            b.units[1].abilities.push(Ability::new(a));
+            b.units[1].grant(Ability::new(a));
         }
         b.raise_field(Side::Attacker, Field::Wrack, spell_for(Field::Wrack));
         end_turns(&mut b, 10)
@@ -3666,7 +3667,7 @@ mod fields {
                 &[(foe, (6, 5))],
                 3,
             );
-            b.units[1].resistance = resistance;
+            b.units[1].force(f4x_def::rules::stats::Stat::Resistance, resistance);
             b
         };
         let mut b = slay(104 /* high_men_spearmen */, 0);
@@ -3705,6 +3706,96 @@ mod fields {
         assert!(b.units[1].is_active());
         Ok(())
     }
+}
+
+#[test]
+fn a_unit_made_from_its_definition_has_the_numbers_of_a_fresh_overland_unit() -> TestResult {
+    let mut g = game();
+    let ids: Vec<_> = g
+        .content
+        .rules
+        .units
+        .defs()
+        .iter()
+        .filter(|d| d.kind != crate::rules::UnitKind::Hero)
+        .map(|d| (d.num, d.id.clone()))
+        .collect();
+    assert!(!ids.is_empty());
+    for (num, name) in ids {
+        let id = g
+            .content
+            .rules
+            .units
+            .id_numbered(num)
+            .ok_or("a unit of the content is missing")?;
+        let entity = g.spawn_unit(A, at(4, 4), id);
+        let mut overland = g
+            .battle_unit_from(entity, Side::Attacker, 0)
+            .ok_or("battle_unit_from is missing")?;
+        overland.source = None;
+        let made = BattleUnit::from_def(&g.content.rules, id, Side::Attacker);
+        assert_eq!(made, overland, "{name}");
+    }
+    Ok(())
+}
+
+#[test]
+fn a_unit_with_its_wizards_global_enchantments_has_the_numbers_it_has_overland() -> TestResult {
+    let mut g = wizard_battle(107 /* high_men_cavalry */, &[]);
+    for num in [
+        154, /* holy_arms */
+        158, /* crusade */
+        160, /* charm_of_life */
+    ] {
+        let id = g
+            .content
+            .rules
+            .spells
+            .id_numbered(num)
+            .ok_or("a global enchantment is not in the content")?;
+        g.add_global(A, id);
+    }
+    let globals = g.wizard(A).ok_or("the wizard is missing")?.global();
+    assert!(!globals.is_empty());
+    let id = g
+        .content
+        .rules
+        .units
+        .id_numbered(107)
+        .ok_or("high_men_cavalry is not in the content")?;
+    let entity = g.spawn_unit(A, at(4, 4), id);
+    g.put(entity, crate::unit::Hurt(7));
+    let overland_hits = g.units().unit_stat(entity, crate::rules::Stat::MaxHp);
+    let mut bu = g
+        .battle_unit_from(entity, Side::Attacker, 0)
+        .ok_or("battle_unit_from is missing")?;
+    // What the game hands over is free of the global enchantments: they are the battle's.
+    let plain = bu.hits;
+    let mut wizards: [WizardSheet; 2] = Default::default();
+    wizards[Side::Attacker.index()] = WizardSheet {
+        globals: globals.clone(),
+        retorts: Vec::new(),
+    };
+    bu.set_wizards(wizards);
+    let view = g.units();
+    assert!(bu.hits > plain, "Charm of Life adds hit points");
+    assert_eq!(bu.hits, overland_hits);
+    for (stat, number) in [
+        (crate::rules::Stat::Melee, bu.melee),
+        (crate::rules::Stat::Defense, bu.defense),
+        (crate::rules::Stat::Resistance, bu.resistance),
+        (crate::rules::Stat::ToHit, bu.to_hit),
+    ] {
+        assert_eq!(number, view.unit_stat(entity, stat), "{stat:?}");
+    }
+    assert_eq!(
+        bu.flags
+            .contains(crate::rules::unit_flag::UnitFlag::MagicalWeapon),
+        view.unit_has_magical_weapon(entity)
+    );
+    let total = overland_hits * view.unit_stat(entity, crate::rules::Stat::Figures);
+    assert_eq!(bu.hit_points(), total - 7);
+    Ok(())
 }
 
 #[test]
@@ -3840,8 +3931,8 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestRes
     let mana = skilled + skill;
     assert_eq!(armed.mana, mana);
     // A magic shot costs the hero three mana, and its shots follow its mana.
-    armed.ranged_kind = RangedKind::Magic;
-    armed.ammo = armed.mana / rules().shot_mana;
+    armed.put_ranged_kind(RangedKind::Magic);
+    armed.set_ammo(armed.mana / rules().shot_mana);
     assert_eq!(armed.ammo, mana / rules().shot_mana);
     armed.spend_shot(rules().shot_mana, &shipped().rules);
     assert_eq!(
@@ -3851,7 +3942,7 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestRes
             (mana - rules().shot_mana) / rules().shot_mana
         )
     );
-    armed.leak_mana(rules().mana_leak_drain, rules().shot_mana, &shipped().rules);
+    armed.leak_mana(rules().mana_leak_drain, &shipped().rules);
     let left = (mana - rules().shot_mana - rules().mana_leak_drain).max(0);
     assert_eq!((armed.mana, armed.ammo), (left, left / rules().shot_mana));
     Ok(())
@@ -4142,7 +4233,7 @@ fn evil_omens_make_a_unit_pay_more_for_life_and_nature_spells() -> TestResult {
     let mut g = game();
     let hero = hero_unit(&mut g, &[83 /* fire_bolt */, 125 /* healing */], 2);
     begin(&mut g, hero);
-    g.battle.as_mut().ok_or("no battle")?.battle.units[0].mana = 20;
+    g.battle.as_mut().ok_or("no battle")?.battle.units[0].set_mana(20);
     let costs = |g: &Game| -> Vec<(i32, bool)> {
         g.battle_unit_spells(0)
             .iter()
@@ -4206,7 +4297,7 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() -> TestRes
     });
     assert_eq!(refused, Err(BattleError::Spell(SpellError::TooExpensive)));
     // With mana for more, it casts, pays and cannot cast again.
-    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0].mana = 25;
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0].set_mana(25);
     let hp = g
         .battle()
         .ok_or("battle is missing")?
@@ -4465,7 +4556,7 @@ fn hook_game_against(id: u16, foe: u16) -> Game {
     let mut g = game();
     let hero = hero_unit(&mut g, &[id], 4);
     begin_versus(&mut g, hero, foe);
-    g.battle.as_mut().expect("as_mut succeeds").battle.units[0].mana = 1000;
+    g.battle.as_mut().expect("as_mut succeeds").battle.units[0].set_mana(1000);
     g
 }
 
@@ -4482,7 +4573,8 @@ fn cast_unit(
         .id_numbered(spell)
         .expect("id_of succeeds");
     // The unit may cast again in the next test step.
-    g.battle.as_mut().expect("as_mut succeeds").battle.units[0].moves_left = HalfInt::from_int(2);
+    g.battle.as_mut().expect("as_mut succeeds").battle.units[0]
+        .set_moves_left(HalfInt::from_int(2));
     g.battle_command(BattleCommand::UnitCast {
         unit: 0,
         spell,
@@ -4682,8 +4774,8 @@ fn life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune(
     let mut g = hook_game(167 /* life_drain */);
     {
         let b = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle;
-        b.units[1].resistance = 0;
-        b.units[0].front_damage = 3;
+        b.units[1].force(f4x_def::rules::stats::Stat::Resistance, 0);
+        b.units[0].set_front_damage(3);
     }
     let before = g
         .battle()
@@ -4715,8 +4807,7 @@ fn life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune(
     );
     // A unit immune to death cannot be aimed at: that is what keeps the Death creatures out.
     g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1]
-        .abilities
-        .push(Ability::new(16 /* death_immunity */));
+        .grant(Ability::new(16 /* death_immunity */));
     let refused = cast_unit(&mut g, 167 /* life_drain */, SpellAim::Unit(1), 10);
     assert_eq!(
         refused,
@@ -4797,8 +4888,8 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() -> Te
         Err(BattleError::NotYours)
     );
     for turn in 0..3 {
-        g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0].moves_left =
-            HalfInt::from_int(1);
+        g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0]
+            .set_moves_left(HalfInt::from_int(1));
         let before = g.battle().ok_or("battle is missing")?.units.len();
         let events = g
             .battle_command(BattleCommand::SummonDemon { unit: 0 })
@@ -4824,7 +4915,8 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() -> Te
             Err(BattleError::NoMovesLeft)
         );
     }
-    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0].moves_left = HalfInt::from_int(1);
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0]
+        .set_moves_left(HalfInt::from_int(1));
     assert_eq!(
         g.battle_command(BattleCommand::SummonDemon { unit: 0 }),
         Err(BattleError::Spell(SpellError::NotKnown)),
@@ -4959,8 +5051,8 @@ fn a_flying_fortress_shuts_the_city_to_walkers_and_its_walkers_in() {
     );
     b.map = map.clone();
     for u in &mut b.units {
-        u.moves = HalfInt::from_int(10);
-        u.moves_left = u.moves;
+        u.force_moves(HalfInt::from_int(10));
+        u.refill_moves();
     }
     let area = |reach: &std::collections::HashMap<Pos, HalfInt>| {
         reach.keys().any(|&p| map::in_city_area(p))
@@ -5028,7 +5120,7 @@ fn the_legal_commands_are_exactly_what_apply_accepts() -> TestResult {
         ],
         1,
     );
-    b.units[2].ammo = 0;
+    b.units[2].set_ammo(0);
     check_legal_list(&b);
     // After the attacker's turn, the defender's.
     b.apply(BattleCommand::Done { unit: 0 })
@@ -5206,12 +5298,12 @@ fn a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot() -> TestResul
         "a shot costs mana"
     );
     // Mana leak takes mana, and the shots follow it.
-    b.units[0].leak_mana(leak, shot, &shipped().rules);
+    b.units[0].leak_mana(leak, &shipped().rules);
     let u = b.unit(0).ok_or("unit is missing")?;
     assert_eq!(u.mana, mana - shot - leak);
     assert_eq!(u.ammo, (ammo - 1).min((mana - shot - leak) / shot));
     // With no mana left it cannot shoot.
-    b.units[0].leak_mana(1000, shot, &shipped().rules);
+    b.units[0].leak_mana(1000, &shipped().rules);
     assert_eq!(
         (
             b.unit(0).ok_or("unit is missing")?.mana,
@@ -5223,10 +5315,10 @@ fn a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot() -> TestResul
     let mut plain = unit_numbered(51 /* beastmen_magicians */);
     let shots = plain.ammo;
     assert_eq!(plain.mana, 0);
-    plain.leak_mana(leak, shot, &shipped().rules);
+    plain.leak_mana(leak, &shipped().rules);
     assert_eq!((plain.mana, plain.ammo), (0, shots - 1));
-    plain.ranged_kind = RangedKind::Missile;
-    plain.leak_mana(leak, shot, &shipped().rules);
+    plain.put_ranged_kind(RangedKind::Missile);
+    plain.leak_mana(leak, &shipped().rules);
     assert_eq!(plain.ammo, shots - 1, "arrows are not spell shots");
     Ok(())
 }
@@ -5239,7 +5331,7 @@ fn regenerating_units_heal_a_hit_as_their_sides_turn_begins() -> TestResult {
         &[(147 /* troll_spearmen */, (4, 10))],
         1,
     );
-    b.units[1].front_damage = 2;
+    b.units[1].set_front_damage(2);
     let before = b.unit(1).ok_or("unit is missing")?.hit_points();
     b.apply(BattleCommand::EndTurn)
         .map_err(|e| format!("{e:?}"))?;
@@ -5254,8 +5346,8 @@ fn regenerating_units_heal_a_hit_as_their_sides_turn_begins() -> TestResult {
     cast_on_first(&mut g, regeneration).map_err(|e| format!("{e:?}"))?;
     let mut b = g.battle().ok_or("no battle")?.clone();
     assert!(b.units[0].has(Ability::new(55)));
-    b.units[0].front_damage = 1;
-    b.units[0].moves_left = HalfInt::from_int(1);
+    b.units[0].set_front_damage(1);
+    b.units[0].set_moves_left(HalfInt::from_int(1));
     let before = b.unit(0).ok_or("unit is missing")?.hit_points();
     b.apply(BattleCommand::EndTurn)
         .map_err(|e| format!("{e:?}"))?;
@@ -5312,7 +5404,7 @@ fn finish_with_dead(
     });
     let b = &mut g.battle.as_mut().expect("as_mut succeeds").battle;
     for &i in dead {
-        b.units[i].figures = 0;
+        b.units[i].set_figures(0);
         b.units[i].status = Status::Dead;
     }
     g.apply(Command::Battle(BattleCommand::EndTurn))
@@ -5555,7 +5647,7 @@ fn healing_cannot_bring_back_what_was_destroyed() {
     let (figures, h) = (u.figures_start, u.hits);
     assert_eq!(u.figures, figures);
     // One figure lost to destruction, one to ordinary blows.
-    u.figures = figures - 2;
+    u.set_figures(figures - 2);
     u.record(attack::Damage {
         points: 2 * h,
         kills: 2,
@@ -5575,7 +5667,7 @@ fn healing_cannot_bring_back_what_was_destroyed() {
     let gained = u.heal_points(h + figures as i32, true);
     // One figure comes back, the rest is one more hit point for each of the figures.
     assert_eq!(
-        (gained, u.figures, u.extra_hits),
+        (gained, u.figures, u.extra_hits()),
         (h + figures as i32, figures, 1)
     );
     assert_eq!(u.healable(), 0, "the destroyed damage is still there");
@@ -5588,7 +5680,7 @@ fn extra_hits_do_not_count_as_the_units_real_strength() {
     let max = u.max_hit_points();
     assert_eq!(u.figures_start, 2);
     u.heal_points(4, true);
-    assert_eq!(u.extra_hits, 2);
+    assert_eq!(u.extra_hits(), 2);
     assert_eq!(u.hit_points(), max + 4);
     assert_eq!(u.max_hit_points(), max, "the real maximum stays");
 }
@@ -6142,7 +6234,7 @@ fn a_side_whose_units_cannot_move_keeps_its_turn_and_its_casting() -> TestResult
     {
         let b = &mut g.battle.as_mut().ok_or("no battle")?.battle;
         for u in b.units.iter_mut().filter(|u| u.side == Side::Attacker) {
-            u.moves_left = HalfInt::ZERO;
+            u.end_moves();
             u.attacked = true;
         }
         assert_eq!((b.active, b.turn), (Side::Attacker, 1));
@@ -6319,7 +6411,7 @@ fn spells_are_not_aimed_at_the_dead_or_at_squares_outside_the_field() -> TestRes
             .position(|u| u.side == Side::Defender)
             .ok_or("no defender")?;
         b.units[id].status = Status::Dead;
-        b.units[id].figures = 0;
+        b.units[id].set_figures(0);
         id
     };
     assert!(
@@ -6832,7 +6924,8 @@ fn a_creature_binding_that_is_dispelled_returns_the_unit_and_takes_only_its_own_
         &[73 /* creature_binding */, 162 /* weakness */],
         2,
     );
-    g.battle.as_mut().ok_or("no battle")?.battle.units[1].resistance = 0;
+    g.battle.as_mut().ok_or("no battle")?.battle.units[1]
+        .force(f4x_def::rules::stats::Stat::Resistance, 0);
     g.battle.as_mut().ok_or("no battle")?.battle.units[1].realm = Some(Realm::Chaos);
     let pristine = numbers(g.battle().ok_or("no battle")?.unit(1).ok_or("no unit")?);
     cast_on(&mut g, 162 /* weakness */, 1).map_err(|e| format!("{e:?}"))?;
@@ -6849,7 +6942,8 @@ fn a_creature_binding_that_is_dispelled_returns_the_unit_and_takes_only_its_own_
     let mut one_of_them = false;
     for strength in 1..400 {
         let mut h = wizard_battle_against(107, &[73, 162], 2);
-        h.battle.as_mut().ok_or("no battle")?.battle.units[1].resistance = 0;
+        h.battle.as_mut().ok_or("no battle")?.battle.units[1]
+            .force(f4x_def::rules::stats::Stat::Resistance, 0);
         h.battle.as_mut().ok_or("no battle")?.battle.units[1].realm = Some(Realm::Chaos);
         cast_on(&mut h, 162, 1).map_err(|e| format!("{e:?}"))?;
         cast_on(&mut h, 73, 1).map_err(|e| format!("{e:?}"))?;
@@ -6952,7 +7046,7 @@ fn a_lionheart_cast_in_the_battle_ends_with_it_and_the_damage_stays() -> TestRes
         let (base, max, ours) = {
             let a = g.battle.as_ref().ok_or("no battle")?;
             let u = a.battle.unit(0).ok_or("no unit")?;
-            let base = u.base.clone().ok_or("no base")?.hits * u.figures_start as i32;
+            let base = (u.sheet().clone(), u.max_hit_points_without_lasting()).1;
             (base, u.max_hit_points(), a.sources[0])
         };
         assert!(max > base, "lionheart gave hit points: {max} over {base}");
@@ -6961,8 +7055,7 @@ fn a_lionheart_cast_in_the_battle_ends_with_it_and_the_damage_stays() -> TestRes
         {
             let u = &mut g.battle.as_mut().ok_or("no battle")?.battle.units[0];
             let left = max - taken;
-            u.figures = ((left + u.hits - 1) / u.hits) as u32;
-            u.front_damage = u.figures as i32 * u.hits - left;
+            u.set_hit_points(left);
             assert_eq!(u.hit_points(), left);
         }
         // The other side flees, so ours wins and nothing is lost on the way.
@@ -6990,28 +7083,33 @@ fn life_steal_extras_stay_and_lionheart_goes_when_it_is_dispelled() -> TestResul
     let mut g = wizard_battle(107 /* high_men_cavalry */, &[141 /* lionheart */]);
     cast_on_first(&mut g, 141).map_err(|e| format!("{e:?}"))?;
     let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
-    let base_max = u.base.clone().ok_or("no base")?.hits * u.figures_start as i32;
+    let base_max = (u.sheet().clone(), u.max_hit_points_without_lasting()).1;
     let with_spell = u.max_hit_points();
     // Hurt by three, then healed past the maximum by life steal.
     {
         let u = &mut g.battle.as_mut().ok_or("no battle")?.battle.units[0];
-        u.front_damage = 3;
+        u.set_front_damage(3);
         u.heal_points(100, true);
-        assert!(u.extra_hits > 0 && u.hit_points() > with_spell);
+        assert!(u.extra_hits() > 0 && u.hit_points() > with_spell);
     }
     let (extra, figures) = {
         let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
-        (u.extra_hits, u.figures_start as i32)
+        (u.extra_hits(), u.figures_start as i32)
     };
     g.dispel_battle_unit(0, 10_000, D);
     let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
-    assert_eq!(u.extra_hits, extra, "the extras are no spell's");
+    assert_eq!(u.extra_hits(), extra, "the extras are no spell's");
     assert_eq!(
         u.max_hit_points(),
         base_max,
         "the spell's hit points are gone"
     );
-    assert_eq!(u.hits, base_max / figures + extra);
+    assert_eq!(
+        u.hits,
+        base_max / figures,
+        "the extras are not among its hits"
+    );
+    assert_eq!(u.per_figure(), base_max / figures + extra);
     assert!(u.is_active());
     assert_eq!(
         u.hit_points(),
@@ -7066,7 +7164,7 @@ fn knights_overhealed_by_life_steal(
             return Ok(None);
         };
         match b.unit(0) {
-            Some(u) if u.is_active() && u.extra_hits > 0 => {
+            Some(u) if u.is_active() && u.extra_hits() > 0 => {
                 return Ok(Some((g, plain_melee, plain_max)))
             }
             Some(u) if !u.is_active() => return Ok(None),
@@ -7118,12 +7216,12 @@ fn life_steal_hit_points_survive_the_dispel_of_an_unrelated_spell() -> TestResul
         plain_max,
         "this spell gives no hit points"
     );
-    let (extra, hp) = (u.extra_hits, u.hit_points());
+    let (extra, hp) = (u.extra_hits(), u.hit_points());
     assert!(hp > plain_max, "{hp} of {plain_max}");
     g.dispel_battle_unit(0, 10_000, D);
     let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
     assert_eq!(u.melee, plain_melee, "the dispel took Giant Strength off");
-    assert_eq!(u.extra_hits, extra, "the extras are no spell's");
+    assert_eq!(u.extra_hits(), extra, "the extras are no spell's");
     assert_eq!(u.max_hit_points(), plain_max);
     assert_eq!(u.hit_points(), hp);
     Ok(())
@@ -7246,8 +7344,7 @@ fn illusion_immunity_protects_from_the_sorcery_curses_unless_the_setting_is_off(
             let mut g = hook_game_against(spell, 163 /* hydra */);
             g.settings.rules.illusion_immunity_protects = protects;
             g.battle.as_mut().ok_or("no battle")?.battle.units[1]
-                .abilities
-                .push(Ability::new(31 /* illusion_immunity */));
+                .grant(Ability::new(31 /* illusion_immunity */));
             let cast = cast_unit(&mut g, spell, SpellAim::Unit(1), 0);
             if protects {
                 assert!(cast.is_err(), "spell {spell}: illusion immunity refuses it");
@@ -7889,8 +7986,7 @@ fn the_legal_unit_casts_are_the_castable_spells_with_the_units_they_can_hit() ->
 fn a_curse_the_target_is_immune_to_is_refused_before_it_costs_mana() -> TestResult {
     let mut g = hook_game(46 /* confusion */);
     g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1]
-        .abilities
-        .push(Ability::new(31 /* illusion_immunity */));
+        .grant(Ability::new(31 /* illusion_immunity */));
     let refused = cast_unit(&mut g, 46 /* confusion */, SpellAim::Unit(1), 10);
     assert_eq!(
         refused,
@@ -7907,15 +8003,15 @@ fn warp_wood_asks_for_a_missile_attack_and_not_for_a_kind_of_unit() -> TestResul
     {
         let u = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1];
         u.realm = Some(Realm::Nature);
-        u.ranged_kind = crate::battle::RangedKind::Missile;
-        u.ammo = 4;
+        u.put_ranged_kind(crate::battle::RangedKind::Missile);
+        u.set_ammo(4);
     }
     let fantastic = cast_unit(&mut g, 81 /* warp_wood */, SpellAim::Unit(1), 10);
     assert!(
         fantastic.is_ok(),
         "a fantastic archer can be warped: {fantastic:?}"
     );
-    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1].ammo = 0;
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1].set_ammo(0);
     let empty = cast_unit(&mut g, 81 /* warp_wood */, SpellAim::Unit(1), 10);
     assert_eq!(
         empty,
@@ -7963,7 +8059,7 @@ fn necromancy_battle() -> Result<(Game, hecs::Entity), String> {
     });
     assert!(g.in_battle());
     let b = &mut g.battle.as_mut().ok_or("no battle")?.battle;
-    b.units[0].mana = 1000;
+    b.units[0].set_mana(1000);
     Ok((g, cavalry))
 }
 
@@ -7977,7 +8073,7 @@ fn fallen_cavalry(g: &mut Game, kind: Fate) -> Result<usize, String> {
         .ok_or("no second attacker")?;
     let u = &mut b.units[id];
     u.status = Status::Dead;
-    u.figures = 0;
+    u.set_figures(0);
     u.damage_kinds = match kind {
         Fate::Slain => [5, 0, 0],
         Fate::Drained => [0, 5, 0],
@@ -8002,8 +8098,9 @@ fn raise_dead_brings_a_fallen_soldier_back_with_half_its_figures_on_its_own_side
     let dead = fallen_cavalry(&mut g, Fate::Slain)?;
     // A lasting spell it carried is gone with its death.
     g.battle.as_mut().ok_or("no battle")?.battle.units[dead]
+        .sheet_mut()
         .enchantments
-        .push(SpellId::new(0));
+        .push(SpellId::new(141 /* lionheart */));
     let start = g.battle().ok_or("no battle")?.units[dead].figures_start;
     let events = cast_unit(&mut g, 137 /* raise_dead */, SpellAim::Unit(dead), 0)
         .map_err(|e| format!("{e:?}"))?;
@@ -8061,8 +8158,7 @@ fn a_fallen_unit_with_death_immunity_is_not_raised_as_undead() -> TestResult {
     let (mut g, _) = necromancy_battle()?;
     let dead = fallen_cavalry(&mut g, Fate::Slain)?;
     g.battle.as_mut().ok_or("no battle")?.battle.units[dead]
-        .abilities
-        .push(Ability::new(16 /* death_immunity */));
+        .grant(Ability::new(16 /* death_immunity */));
     for spell in [137 /* raise_dead */, 195 /* animate_dead */] {
         let refused = cast_unit(&mut g, spell, SpellAim::Unit(dead), 0);
         assert!(refused.is_err(), "spell {spell}: death immunity");
@@ -8100,7 +8196,7 @@ fn the_dead_that_cannot_be_raised_are_refused_without_spending_anything() -> Tes
     {
         let u = &mut g.battle.as_mut().ok_or("no battle")?.battle.units[foe];
         u.status = Status::Dead;
-        u.figures = 0;
+        u.set_figures(0);
     }
     for spell in [137 /* raise_dead */, 195 /* animate_dead */] {
         let refused = cast_unit(&mut g, spell, SpellAim::Unit(foe), 0);
@@ -8316,7 +8412,7 @@ fn word_of_death_is_stopped_by_death_immunity_unless_the_original_exceptions_are
         let mut g = hook_game_against(192 /* word_of_death */, 165 /* skeletons */);
         let b = &mut g.battle.as_mut().ok_or("no battle")?.battle;
         b.death_immunity_exceptions = exceptions;
-        b.units[1].resistance = 0;
+        b.units[1].force(f4x_def::rules::stats::Stat::Resistance, 0);
         let events = cast_unit(&mut g, 192 /* word_of_death */, SpellAim::Unit(1), 0)
             .map_err(|e| format!("{e:?}"))?;
         Ok(events.iter().any(
@@ -8345,9 +8441,7 @@ fn magic_immunity_spares_the_marked_spells_unless_the_exceptions_are_on() -> Tes
         .collect();
     assert!(!spells.is_empty(), "the content marks some spells");
     let b = &mut active.battle;
-    b.units[1]
-        .abilities
-        .push(Ability::new(40 /* magic_immunity */));
+    b.units[1].grant(Ability::new(40 /* magic_immunity */));
     for exceptions in [false, true] {
         b.magic_immunity_exceptions = exceptions;
         for &spell in &spells {

@@ -213,18 +213,18 @@ impl<'a> UnitView<'a> {
     /// adamantium weapons, anything with the `magical_weapon` ability (a flaming or blessed
     /// blade), and the living normal units of a wizard who keeps Holy Arms.
     pub fn unit_has_magical_weapon(&self, unit: hecs::Entity) -> bool {
-        // Ships and catapults are `Fantastic` in the data, as in the original, but they are not
-        // creatures: their blows and boulders are stopped by weapon immunity (the Unofficial Patch
-        // fixes the original, where they were not).
-        self.unit_def(unit).is_some_and(|d| {
-            d.kind != crate::rules::UnitKind::Normal
-                && !(d.kind == crate::rules::UnitKind::Fantastic
-                    && (d.movement == crate::rules::MovementType::Sailing
-                        || d.abilities.contains(&Ability::new(70 /* wall_crusher */))))
-        }) || self.unit_weapon_quality(unit) > 0
+        self.unit_has_innate_magical_weapon(unit)
             || (self.unit_owner(unit).is_some_and(|o| {
                 self.has_global_effect(o, crate::spell::global_enchantment::GlobalEffect::HolyArms)
             }) && !self.unit_is_undead(unit))
+    }
+
+    /// [`Self::unit_has_magical_weapon`] without what its owner's global enchantments give (Holy
+    /// Arms): a battle works that out itself.
+    pub fn unit_has_innate_magical_weapon(&self, unit: hecs::Entity) -> bool {
+        self.unit_def(unit)
+            .is_some_and(|d| d.innate_magical_weapon())
+            || self.unit_weapon_quality(unit) > 0
             || self
                 .unit_abilities(unit)
                 .iter()

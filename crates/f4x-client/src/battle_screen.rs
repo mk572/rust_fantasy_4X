@@ -805,10 +805,10 @@ impl App {
                     SpellId::new(181), /* wraith_form */
                     SpellId::new(56),  /* flight */
                 ]) {
-                    u.enchantments.push(spell);
+                    u.sheet_mut().enchantments.push(spell);
                 }
                 for (u, spell) in battle.units.iter_mut().skip(5).zip(curses) {
-                    u.lasting.push(f4x_core::battle::Lasting {
+                    u.lasting_mut().push(f4x_core::battle::Lasting {
                         spell,
                         caster: f4x_core::player::PlayerId(0),
                         mods: Vec::new(),
@@ -1273,7 +1273,7 @@ impl App {
         u.enchantments
             .iter()
             .copied()
-            .chain(u.lasting.iter().map(|l| l.spell))
+            .chain(u.lasting().iter().map(|l| l.spell))
             .collect()
     }
 
@@ -1301,7 +1301,7 @@ impl App {
             } if u.id == defender => (dealt, *t - anim.duration() * battle_anim::SHOT_FLIGHT),
             _ => (0, 0.0),
         };
-        battle_anim::blood(u.figures, u.hits, damage, landed)
+        battle_anim::blood(u.figures, u.per_figure(), damage, landed)
     }
 
     fn visual_of(&self, ui: &mut BattleUi, battle: &Battle, id: usize) -> Visual {

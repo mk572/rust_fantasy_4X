@@ -14,7 +14,6 @@
 
 use super::*;
 use crate::battle::{BattleUnit, UnitCasting};
-use f4x_def::half_int::HalfInt;
 
 /// Where a unit's cast comes from, which decides what it uses up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -286,29 +285,17 @@ impl Game {
         if self.content.rules.units.id_numbered(demon.num()).is_none() {
             return Err(BattleError::Spell(SpellError::Unsupported));
         }
-        let battle = &mut self.battle.as_mut().ok_or(BattleError::Over)?.battle;
-        let (side, player) = (battle.active, battle.player_of(battle.active));
-        let cell = squares[battle.roll(squares.len() as u32) as usize - 1];
-        // Make the demon as the game would, copy it, and let the original go.
-        let site = self
-            .battle()
-            .and_then(|b| b.site)
-            .or_else(|| self.summon_point(player));
-        let Some(site) = site else {
-            return Err(BattleError::Spell(SpellError::NoRoom));
-        };
-        let entity = self.spawn_unit(player, site, demon);
-        let copy = self.battle_unit_from(entity, side, 0);
-        let _ = self.world.despawn(entity);
-        let Some(copy) = copy else {
-            return Err(BattleError::Spell(SpellError::Unsupported));
-        };
         let Some(active) = self.battle.as_mut() else {
             return Err(BattleError::Over);
         };
+        let battle = &mut active.battle;
+        let side = battle.active;
+        let cell = squares[battle.roll(squares.len() as u32) as usize - 1];
+        // The demon exists only in this battle: it is made from its definition.
+        let copy = BattleUnit::from_def(&self.content.rules, demon, side);
         let u = &mut active.battle.units[unit];
         u.casting.demons -= 1;
-        u.moves_left = HalfInt::ZERO;
+        u.end_moves();
         u.attacked = true;
         let id = active.battle.add_summoned(side, copy, cell);
         Ok(vec![Event::Battle(BattleEvent::Summoned { unit: id })])
@@ -328,18 +315,14 @@ impl Game {
         let player = battle.player_of(side);
 
         // Pay: the unit's mana, a charge or the ability, and its turn.
-        let shot_mana = battle.rules().shot_mana;
         let u = &mut battle.units[unit];
-        u.moves_left = HalfInt::ZERO;
+        u.end_moves();
         u.attacked = true;
         u.revealed = true;
         let spell_save = u.casting.spell_save;
         match source {
             SpellSource::Mana => {
-                u.mana -= paid;
-                if u.shoots_with_mana(&self.content.rules) {
-                    u.ammo = u.ammo.min(u.mana / shot_mana);
-                }
+                u.spend_mana(paid);
             }
             SpellSource::Item(item) => {
                 if let Some(i) = u.casting.item_charges.iter().position(|c| c.item == item) {

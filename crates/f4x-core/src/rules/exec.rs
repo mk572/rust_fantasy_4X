@@ -8,15 +8,16 @@
 //!
 //! Tests: in rules/exec/tests.rs.
 
-use crate::rules::{Ability, RealmId, UnitId};
+use crate::rules::{Ability, UnitId};
 use rand::RngCore;
 
 use super::damage_type::DamageTypes;
-use super::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
+use super::effects::{Effect, EffectRule, TargetSel, Trigger};
 use super::stats::{ModOp, Modifier, Source, Stat};
 use crate::battle::immunity::{resistance_failure, Realm};
 use crate::map::Position;
 use crate::player::PlayerId;
+pub use f4x_def::rules::facts::{eval, Facts};
 
 /// Something an effect can act on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -34,17 +35,6 @@ pub enum Target {
     Hero(usize),
     /// A spell instance: an enemy wizard's global enchantment (`docs/ecs-structure.md` 3.4).
     Spell(#[serde(with = "crate::game::replay::stable_ref::one")] hecs::Entity),
-}
-
-/// What the rules need to know about a target to evaluate a [`Condition`].
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Facts {
-    /// The target's abilities, which the executor reads for the immunities of a damage effect.
-    pub abilities: Vec<Ability>,
-    pub realm: Option<RealmId>,
-    pub kind: Option<crate::rules::UnitKind>,
-    /// The kinds the spell in question is (for a wizard's retorts).
-    pub spell_tags: Vec<crate::rules::effects::SpellTag>,
 }
 
 /// Who is acting, and on what, when an effect rule runs.
@@ -145,17 +135,6 @@ pub enum Outcome {
     Custom {
         hook: String,
     },
-}
-
-/// Evaluate a condition against the facts about the subject.
-pub fn eval(cond: &Condition, facts: &Facts) -> bool {
-    match cond {
-        Condition::Always => true,
-        Condition::RealmIs(r) => facts.realm == Some(*r),
-        Condition::KindIs(k) => facts.kind == Some(*k),
-        Condition::SpellIs(t) => facts.spell_tags.contains(t),
-        Condition::Not(c) => !eval(c, facts),
-    }
 }
 
 /// The targets a selector picks out, in a stable order.

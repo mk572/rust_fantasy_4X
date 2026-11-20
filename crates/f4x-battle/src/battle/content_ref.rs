@@ -13,6 +13,11 @@ impl ContentRef {
     pub fn new(content: Arc<Content>) -> ContentRef {
         ContentRef(content)
     }
+
+    /// The shared content, for the units that read it.
+    pub fn arc(&self) -> Arc<Content> {
+        Arc::clone(&self.0)
+    }
 }
 
 impl std::ops::Deref for ContentRef {

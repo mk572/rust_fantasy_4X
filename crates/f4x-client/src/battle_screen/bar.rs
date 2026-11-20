@@ -56,8 +56,8 @@ fn move_mode(u: &BattleUnit) -> usize {
 
 /// The length of a unit's damage bar (`Draw_Active_Unit_Damage_Bar`), none when it is dead.
 fn damage_bar(u: &BattleUnit) -> Option<(i32, &'static str)> {
-    let max = u.hits * u.figures_start as i32;
-    let lost = (u.figures_start - u.figures) as i32 * u.hits + u.front_damage.max(0);
+    let max = u.per_figure() * u.figures_start as i32;
+    let lost = (u.figures_start - u.figures) as i32 * u.per_figure() + u.front_damage.max(0);
     let current = max - lost;
     if current <= 0 || max <= 0 {
         return None;

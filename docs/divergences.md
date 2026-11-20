@@ -934,7 +934,7 @@ In the original a spell that gives hit points (Lionheart, Charm of Life) can end
 taken more damage than it can stand without it, and the unit stays alive at zero hit points or less;
 the 1.50 patch only stops the crash by setting such a unit to one hit point when it enters a battle.
 Here the damage a unit has taken stays when its maximum falls, and a unit left with zero or less is
-dead and removed: in a battle at once (`settle_hit_points`, which a dispel or a new spell calls, and
+dead and removed: in a battle at once (`Battle::rebuild_unit`, which a dispel calls, and
 a dispel that kills a unit reports `UnitDied`), overland after every command
 (`Game::remove_units_without_hit_points`, reported as a `UnitLost` with the cause `Wounds`).
 The figures of a unit only show its hit points, so the whole unit dies, not a figure. Entering a

@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 
 use crate::rules::effects::{Effect, SpellTag, Trigger};
 use crate::rules::exec::{eval, Facts};
-use crate::rules::stats::{compute, compute_half};
+use crate::rules::stats::compute;
 use crate::rules::{ModOp, Modifier, Rules, Source, SpellDef, Stat};
 use crate::wizard::magic::{is_crafting, is_summoning, Retort};
 use f4x_def::half_int::HalfInt;
@@ -59,35 +59,12 @@ pub fn stat_with(
     base: i32,
     facts: &Facts,
 ) -> i32 {
-    compute(stat, base, &stat_modifiers(rules, retorts, facts))
+    f4x_def::rules::retort_stat::stat_with(rules, retorts.iter().copied(), stat, base, facts)
 }
 
 /// [`stat`] over an amount in halves (the mana income).
 pub fn stat_half(rules: &Rules, retorts: &BTreeSet<Retort>, stat: Stat, base: HalfInt) -> HalfInt {
-    compute_half(
-        stat,
-        base,
-        &stat_modifiers(rules, retorts, &Facts::default()),
-    )
-}
-
-fn stat_modifiers(rules: &Rules, retorts: &BTreeSet<Retort>, facts: &Facts) -> Vec<Modifier> {
-    retorts
-        .iter()
-        .filter_map(|&r| rules.retorts.try_get(r).map(|row| (r, row)))
-        .flat_map(|(r, row)| {
-            row.effects
-                .iter()
-                .filter(|rule| rule.when == Trigger::Passive)
-                .filter(|rule| eval(&rule.condition, facts))
-                .filter_map(move |rule| match rule.effect {
-                    Effect::Modify {
-                        stat, op, value, ..
-                    } => Some(Modifier::amount(stat, op, value, Source::Retort(r))),
-                    _ => None,
-                })
-        })
-        .collect()
+    f4x_def::rules::retort_stat::stat_half(rules, retorts.iter().copied(), stat, base)
 }
 
 /// [`stat_with`] for a rule that asks nothing (its condition is `Always`).

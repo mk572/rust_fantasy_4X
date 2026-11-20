@@ -1734,9 +1734,9 @@ mod tests {
         assert_eq!(archer.ranged_kind, RangedKind::Missile);
         archer.id = 7;
         let mut spent = archer.clone();
-        spent.ammo = 0;
+        spent.set_ammo(0);
         let mut plain = archer.clone();
-        plain.ranged_kind = RangedKind::None;
+        plain.put_ranged_kind(RangedKind::None);
         let value = |u: &BattleUnit| {
             let enemies = [u];
             let scene = Scene {

@@ -377,6 +377,23 @@ pub struct UnitDef {
 }
 
 impl UnitDef {
+    /// Whether the unit's normal attacks count as magical by what it is: heroes, fantastic and
+    /// summoned creatures, and anything with the `magical_weapon` ability. Ships and catapults are
+    /// `Fantastic` in the data, as in the original, but they are not creatures: their blows and
+    /// boulders are stopped by weapon immunity (the Unofficial Patch fixes the original, where they
+    /// were not). What an item, a weapon quality or a spell adds comes on top.
+    pub fn innate_magical_weapon(&self) -> bool {
+        (self.kind != UnitKind::Normal
+            && !(self.kind == UnitKind::Fantastic
+                && (self.movement == MovementType::Sailing
+                    || self
+                        .abilities
+                        .contains(&Ability::new(70 /* wall_crusher */)))))
+            || self
+                .abilities
+                .contains(&Ability::new(41 /* magical_weapon */))
+    }
+
     /// The unit's base value of a stat as a number (0 for a stat it has none of).
     pub fn stat(&self, stat: Stat) -> f32 {
         self.stats.get(&stat).map_or(0.0, |v| v.as_f32())

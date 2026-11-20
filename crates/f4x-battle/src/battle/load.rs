@@ -70,13 +70,11 @@ fn check_unit_spells(
     for c in &casting.item_charges {
         check(c.spell)?;
     }
-    for l in &unit.lasting {
+    for l in unit.lasting() {
         check(l.spell)?;
     }
-    if let Some(base) = unit.base.as_ref() {
-        for &spell in &base.enchantments {
-            check(spell)?;
-        }
+    for &spell in &unit.sheet().enchantments {
+        check(spell)?;
     }
     Ok(())
 }

@@ -259,11 +259,11 @@ mod tests {
         };
         assert_eq!(image(&f, &mut ui, true, Some((5, 9))), RED_CROSS);
         let me = &mut f.battle.units[f.ours];
-        me.ranged_kind = RangedKind::Missile;
-        me.ranged = 3;
-        me.ammo = 4;
+        me.put_ranged_kind(RangedKind::Missile);
+        me.force(f4x_def::rules::stats::Stat::Ranged, 3);
+        me.set_ammo(4);
         assert_eq!(image(&f, &mut ui, true, Some((5, 9))), BOW);
-        f.battle.units[f.ours].ammo = 0;
+        f.battle.units[f.ours].set_ammo(0);
         assert_eq!(
             image(&f, &mut ui, true, Some((5, 9))),
             RED_CROSS,

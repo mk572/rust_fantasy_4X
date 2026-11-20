@@ -17,6 +17,6 @@ pub mod weapon;
 
 pub use side::Side;
 pub use unit::{
-    BaseStats, BattleUnit, Confusion, Fate, FieldBonus, ItemCharge, Lasting, Status, UnitCasting,
-    WarpKind, RANGED_ATTACK_COST,
+    BattleUnit, Confusion, Fate, FieldBonus, HeroSheet, ItemCharge, Lasting, Sheet, Stats, Status,
+    UnitCasting, WarpKind, WizardSheet, RANGED_ATTACK_COST,
 };

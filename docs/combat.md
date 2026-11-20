@@ -507,18 +507,25 @@ It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effec
   the attempt drains the reserve by five whether or not it works, and a stopped spell still
   costs its mana and the wizard's turn.
 - **Lasting spells** change the unit's numbers for the battle only: the original keeps them on
-  the battle unit and they are gone afterwards. A unit's numbers are a function of two things and
-  nothing else (`BattleUnit::recompute`): what it started the battle with (`base`, a `BaseStats`
-  kept from the first spell on) and its list of lasting spells (`lasting`, in the order cast; each
-  entry is a `Lasting` with the spell, its caster, what it does and the modifiers and abilities
-  it gives). A cast adds an entry, a **dispel** (`Game::dispel_battle_unit`) removes entries, and
-  both recompute, so taking one spell off never touches what another gave. A dispel works on the
-  spells cast in the battle and on the lasting spells of the overland unit the fighter was
-  copied from (those *are* taken off the overland unit), only those cast by another wizard; the
-  base is re-read from the overland unit if that changed. Life steal's extra hit points
-  (`extra_hits`) belong to no spell and stay through any dispel. Whenever the hit-point ceiling
-  falls, the damage taken is kept and a unit left with none dies (`settle_hit_points`,
-  `divergences.md` 45). A unit cannot be given a spell it has.
+  the battle unit and they are gone afterwards. A battle unit stores only what is real state, and
+  every number it shows (melee, defence, hit points, figures, moves left, mana, ammunition) is
+  worked out when it is asked for (`unit/stats.rs`, `Stats`, behind `Deref`; a memo that is never
+  saved is cleared by every write). The state is: the `Sheet` the game handed over (the base unit by
+  id, its modifiers with their sources, its experience, a hero's abilities and casting skill, the
+  enchantments it carries), the wizards' global enchantments and retorts by id (`WizardSheet`,
+  `Battle.wizards`), its list of lasting spells (`lasting`, in the order cast; each entry is a
+  `Lasting` with the spell, its caster and what it does), the field request, life steal's
+  `extra_hits`, and what it has lost: hit points (`lost`), moves (`moves_spent`), mana
+  (`mana_used`), ammunition (`ammo_used`). Level, Crusade, Warlord, Heroism, Holy Arms and the
+  rest of what a global enchantment gives are read from `f4x-def` when asked, as overland; the
+  game hands over nothing that has them baked in. A cast adds an entry, a **dispel**
+  (`Game::dispel_battle_unit`) removes entries (`Battle::rebuild_unit`), and nothing is ever
+  subtracted. A dispel works on the spells cast in the battle and on the lasting spells of the
+  overland unit the fighter was copied from (those *are* taken off the overland unit), only those
+  cast by another wizard; the sheet is re-read from the overland unit if that changed. Life
+  steal's extra hit points belong to no spell and stay through any dispel. Since the damage is
+  kept as `lost`, a spell that gave hit points leaves the unit with fewer when it goes, and a unit
+  left with none dies (`rebuild_unit`, `divergences.md` 45). A unit cannot be given a spell it has.
 - **Haste** doubles the unit's moves and grants the ability `hasted` (`BattleUnit::is_hasted`, `Fighter::hasted`). Its attack is doubled inside the one exchange, not as a second exchange (so the opponent does not get two chances to counter): a hasted attacker makes its thrown and breath attacks twice (with their touches), its melee blow twice, and a hasted defender counter-attacks twice. Gazes are made once, and fear is rolled once and holds for both blows. First strike covers only the first blow; the second blow is made together with the counter-attack, with the figures the attacker had before it (after a gaze and the first blow), so it is struck even when the counter-attack kills the attacker. A hasted shooter fires a second volley in the same shot while it has ammunition (or mana) and the target stands. Haste doubles the allowance, so a blow costs a hasted unit twice as much and the number of blows a turn stays the same. Sources: the wiki's Haste article and ReMoM `Combat.c`, `Battle_Unit_Attack`.
 - **Confusion** (`Battle::confusion`, `check_winner`): at the start of each turn of its side a confused unit does nothing, wanders to a random free square, is lent to the enemy for their next turn (it may strike its old friends, who may strike it back, and it goes home after), or acts as usual, a quarter each; it can still counter-attack when idle. When every unit a side has left is lent at once the side loses on the spot and those units are destroyed. Sources: the wiki's Confusion article. Not copied: the original's bugs there (the lent unit sometimes stays lent, the AI ignores the wandering).
 - **Summons** appear on a free square of the caster's half of the field, at most nine units a
@@ -564,7 +571,7 @@ target *Battlefield*; the battle knows what each does by the hook's argument (`F
 `SpellError::AlreadyUp`); they last the battle. What they ask of a unit is a `FieldBonus` request
 on it, worked out by `Battle::refresh_fields` (whenever a spell goes up or down, a unit changes or
 a lasting spell is cast on it, since the request depends on the unit's numbers) and put on the
-numbers by `BattleUnit::recompute` after the unit's base and its lasting spells. Nothing is
+numbers (`Stats::derive`) after the unit's sheet and its lasting spells. Nothing is
 subtracted when a field goes down, so the changes never pile up and never push a stat below
 nothing:
 

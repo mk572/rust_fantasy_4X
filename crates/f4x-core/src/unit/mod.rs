@@ -438,22 +438,25 @@ impl<'a> UnitView<'a> {
         mods
     }
 
-    fn compute_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
-        let rules = &self.content.rules;
+    /// The modifiers the unit has of its own: its abilities', its lasting spells', its items' and
+    /// the temporary ones. Not its level's, a hero's own abilities' or its owner's global
+    /// enchantments': a battle works those out from the unit's experience and the ids of the
+    /// wizard's enchantments (`f4x-battle`'s unit/stats.rs).
+    pub fn own_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
         if self.unit_def(unit).is_none() {
             return Vec::new();
         }
+        let mut mods = self.ability_modifiers(unit);
+        mods.extend(self.spell_modifiers(unit));
+        mods.extend(self.items().modifiers(unit));
+        mods.extend(self.temp_modifiers(unit));
+        mods
+    }
+
+    /// What the unit's lasting spells and the spells of its items do to its stats.
+    fn spell_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
+        let rules = &self.content.rules;
         let mut mods = Vec::new();
-        mods.extend(self.ability_modifiers(unit));
-        let level = self.unit_level(unit);
-        if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
-            let magic = crate::battle::game::ranged_kind_of(
-                &self.unit_abilities(unit),
-                &self.content.rules,
-            ) == crate::battle::RangedKind::Magic;
-            mods.extend(hero.abilities.modifiers(&self.content.rules, level, magic));
-        }
-        mods.extend(self.level_modifiers(unit, 0..level + 1));
         for (spell, _) in crate::spell::instance::Spells::new(self.world).unit_enchantments(unit) {
             if self.unit_spell_superseded(unit, spell) {
                 continue;
@@ -472,6 +475,26 @@ impl<'a> UnitView<'a> {
                 Source::Spell(spell),
             ));
         }
+        mods
+    }
+
+    fn compute_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
+        let _rules = &self.content.rules;
+        if self.unit_def(unit).is_none() {
+            return Vec::new();
+        }
+        let mut mods = Vec::new();
+        mods.extend(self.ability_modifiers(unit));
+        let level = self.unit_level(unit);
+        if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
+            let magic = crate::battle::game::ranged_kind_of(
+                &self.unit_abilities(unit),
+                &self.content.rules,
+            ) == crate::battle::RangedKind::Magic;
+            mods.extend(hero.abilities.modifiers(&self.content.rules, level, magic));
+        }
+        mods.extend(self.level_modifiers(unit, 0..level + 1));
+        mods.extend(self.spell_modifiers(unit));
         mods.extend(self.items().modifiers(unit));
         mods.extend(self.temp_modifiers(unit));
         mods.extend(self.global_unit_modifiers(unit));

@@ -22,14 +22,16 @@ use rand::RngCore;
 
 use super::caster::BattleCaster;
 use super::error::SpellError;
-use crate::attack::{kill_figure, spell_attack, unblockable, Combatant, Damage, Mode, Volley};
+use crate::attack::{
+    kill_figure, spell_attack, unblockable, Combatant, Damage, DefenderState, Mode, Volley,
+};
 use crate::battle::{Battle, BattleError, BattleEvent};
 use crate::map::Pos;
 use crate::side::Side;
-use crate::unit::{BaseStats, BattleUnit, Lasting, Status};
+use crate::unit::{BattleUnit, Lasting, Sheet, Status};
 
 /// A damage spell of `strength` on one unit (see [`Battle::spell_damage`]); the unit is changed
-/// in place. Overland spells that hurt units (`Game::process_chaos_rifts`) use it too.
+/// in place. Overland units are hit through [`damage_state_with_spell`] instead.
 pub fn damage_unit_with_spell(
     rules: &Rules,
     unit: &mut BattleUnit,
@@ -39,6 +41,23 @@ pub fn damage_unit_with_spell(
     rng: &mut dyn RngCore,
 ) -> Option<Damage> {
     let mut state = unit.defender_state(rules);
+    let dmg = damage_state_with_spell(rules, &mut state, strength, traits, nature, rng)?;
+    unit.set_from(&state);
+    unit.record(dmg);
+    Some(dmg)
+}
+
+/// A damage spell of `strength` on a defender: the figures and wounds in `state` are changed.
+/// Nothing is done to a defender that is immune. Overland units are hit with this too: the game
+/// builds the state from the unit it has, no battle unit needed.
+pub fn damage_state_with_spell(
+    rules: &Rules,
+    state: &mut DefenderState,
+    strength: i32,
+    traits: &DamageTraits,
+    nature: AttackNature,
+    rng: &mut dyn RngCore,
+) -> Option<Damage> {
     // A spell is a ranged attack: Righteousness, a type immunity or magic immunity turn it away.
     if state.immunities.has(DamageType::Magic)
         || state
@@ -65,10 +84,7 @@ pub fn damage_unit_with_spell(
         special: Default::default(),
         ..Combatant::default()
     };
-    let dmg = spell_attack(&rules.battle, &spell, volley, &mut state, rng);
-    unit.set_from(&state);
-    unit.record(dmg);
-    Some(dmg)
+    Some(spell_attack(&rules.battle, &spell, volley, state, rng))
 }
 
 impl Battle {
@@ -152,9 +168,11 @@ impl Battle {
         unit.cell = cell;
         unit.source = None;
         // It arrives ready to act.
-        unit.moves_left = unit.moves;
+        unit.refill_moves();
         unit.attacked = false;
         unit.status = Status::Active;
+        unit.bind(&self.content.arc());
+        unit.set_wizards(self.wizards.clone());
         self.units.push(unit);
         self.refresh_fields();
         id
@@ -282,7 +300,7 @@ impl Battle {
         }
         u.bound_from.get_or_insert(u.side);
         u.side = to;
-        u.moves_left = HalfInt::ZERO;
+        u.end_moves();
         u.attacked = true;
     }
 
@@ -291,7 +309,7 @@ impl Battle {
         let u = &mut self.units[target];
         if let Some(owner) = u.bound_from.take() {
             u.side = owner;
-            u.moves_left = HalfInt::ZERO;
+            u.end_moves();
             u.attacked = true;
         }
     }
@@ -316,34 +334,41 @@ impl Battle {
             unit.web_closes(web_hits);
             return;
         }
-        unit.keep_base();
         // Sleep ends the unit's turn.
         if effects.contains(UnitEffect::BlackSleep) {
             unit.attacked = true;
         }
-        unit.lasting.push(Lasting {
+        unit.lasting_mut().push(Lasting {
             spell,
             caster,
             mods: mods.to_vec(),
             grants: grants.to_vec(),
         });
-        unit.recompute(&self.content.rules);
         if webbing {
             unit.web_closes(web_hits);
         }
     }
 
-    /// Give a unit the numbers it starts the battle with (`base`, brought up to date by the game
-    /// when the unit it was made from changed) and the lasting spells it still has, `lasting`:
-    /// what a dispel leaves. Nothing but the list and the base decides the numbers.
-    pub fn rebuild_unit(&mut self, target: usize, base: BaseStats, lasting: Vec<Lasting>) {
+    /// Give a unit the sheet the game made of it (brought up to date when the unit it was made from
+    /// changed) and the lasting spells it still has, `lasting`: what a dispel leaves. Nothing but
+    /// the sheet and the list decides its numbers.
+    pub fn rebuild_unit(&mut self, target: usize, sheet: Sheet, lasting: Vec<Lasting>) {
         let unit = &mut self.units[target];
-        unit.base = Some(base);
-        unit.lasting = lasting;
-        unit.recompute(&self.content.rules);
-        // With no spell and no field left, nothing changes its numbers: it is as it was made.
-        if unit.lasting.is_empty() && unit.field == Default::default() {
-            unit.base = None;
+        unit.set_sheet(sheet);
+        *unit.lasting_mut() = lasting;
+        // A web that is gone has nothing left to break.
+        let rules = &self.content.rules;
+        let unit = &mut self.units[target];
+        if !unit
+            .effects(rules)
+            .contains(f4x_def::rules::unit_effect::UnitEffect::Web)
+        {
+            unit.web_hits = 0;
+        }
+        // Taking off hit points can leave a unit with none: it is dead (`divergences.md` 45).
+        if unit.hit_points() <= 0 && unit.is_active() {
+            unit.kill();
+            unit.status = crate::Status::Dead;
         }
     }
 

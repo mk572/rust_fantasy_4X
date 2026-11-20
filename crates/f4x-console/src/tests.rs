@@ -2020,7 +2020,7 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
             .expect("a battle is on")
             .unit(enemy)
             .expect("the unit is alive")
-            .lasting
+            .lasting()
             .is_empty()
         {
             removed = true;
@@ -2035,7 +2035,7 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
         .unit(enemy)
         .expect("the unit is alive");
     assert_eq!(u.melee, melee - 1);
-    assert!(u.enchantments.is_empty() && u.base.is_none());
+    assert!(u.enchantments.is_empty() && u.lasting().is_empty());
 }
 
 #[test]
@@ -2117,7 +2117,9 @@ fn a_bolt_hurts_by_its_strength_and_star_fires_only_burns_chaos_and_death() {
     {
         // A tough target, so the bolt does not overkill.
         let u = &mut g.battle.as_mut().expect("the value is there").battle.units[enemy];
-        (u.figures, u.hits, u.front_damage) = (1, 50, 0);
+        u.force(f4x_def::rules::stats::Stat::MaxHp, 50);
+        u.set_figures(1);
+        u.set_front_damage(0);
     }
     let before = g
         .battle()
@@ -2144,7 +2146,7 @@ fn a_bolt_hurts_by_its_strength_and_star_fires_only_burns_chaos_and_death() {
     assert!(!cast(&mut g, &format!("bcast star fires unit:{enemy}")).ok);
     // Healing: one's own units only, and it brings figures back.
     let mine = battle_units_of(&g, Side::Attacker)[0];
-    g.battle.as_mut().expect("the value is there").battle.units[mine].front_damage = 1;
+    g.battle.as_mut().expect("the value is there").battle.units[mine].set_front_damage(1);
     assert!(!cast(&mut g, &format!("bcast healing unit:{enemy}")).ok);
     let r = cast(&mut g, &format!("bcast healing unit:{mine}"));
     assert!(r.ok, "{}", r.text());
@@ -2169,9 +2171,9 @@ fn a_spell_that_kills_the_last_enemy_ends_the_battle() {
         for &e in &enemies[1..] {
             b.units[e].status = f4x_core::battle::Status::Dead;
         }
-        b.units[enemies[0]].figures = 1;
-        b.units[enemies[0]].hits = 3;
-        b.units[enemies[0]].front_damage = 0;
+        b.units[enemies[0]].force(f4x_def::rules::stats::Stat::MaxHp, 3);
+        b.units[enemies[0]].set_figures(1);
+        b.units[enemies[0]].set_front_damage(0);
     }
     let r = cast(&mut g, &format!("bcast doom bolt unit:{}", enemies[0]));
     assert!(r.ok, "{}", r.text());
@@ -2201,8 +2203,8 @@ fn a_unit_standing_on_hit_points_a_spell_added_is_dead_when_the_battle_is_over()
         let u = &mut g.battle.as_mut().expect("the value is there").battle.units[mine];
         assert!(u.hits > 1 && u.figures_start > 1, "{u:?}");
         // One figure left, and all its hit points are the spell's or less (divergence 45).
-        u.figures = 1;
-        let own = u.base.as_ref().expect("the spell kept a base").hits * u.figures_start as i32;
+        u.set_figures(1);
+        let own = u.max_hit_points_without_lasting();
         let spell_gave = u.max_hit_points() - own;
         assert!(u.hit_points() <= spell_gave, "{u:?}");
     }
@@ -2300,7 +2302,10 @@ fn flame_strike_hits_every_enemy_and_mass_healing_every_friend() {
     let enemies = battle_units_of(&g, Side::Defender);
     for &e in &enemies {
         let u = &mut g.battle.as_mut().expect("the value is there").battle.units[e];
-        (u.figures, u.hits, u.front_damage, u.defense) = (1, 100, 0, 0);
+        u.force(f4x_def::rules::stats::Stat::MaxHp, 100);
+        u.force(f4x_def::rules::stats::Stat::Defense, 0);
+        u.set_figures(1);
+        u.set_front_damage(0);
     }
     let r = cast(&mut g, "bcast flame strike");
     assert!(r.ok, "{}", r.text());
@@ -2318,7 +2323,7 @@ fn flame_strike_hits_every_enemy_and_mass_healing_every_friend() {
     assert!(hurt >= 1, "a strength-15 fire attack on each: {}", r.text());
     let mine = battle_units_of(&g, Side::Attacker);
     for &m in &mine {
-        g.battle.as_mut().expect("the value is there").battle.units[m].front_damage = 1;
+        g.battle.as_mut().expect("the value is there").battle.units[m].set_front_damage(1);
     }
     pass_turn(&mut g);
     let r = cast(&mut g, "bcast mass healing");
@@ -2344,7 +2349,7 @@ fn mass_healing_still_heals_under_true_light() {
     assert!(r.ok, "{}", r.text());
     let mine = battle_units_of(&g, Side::Attacker);
     for &m in &mine {
-        g.battle.as_mut().expect("the value is there").battle.units[m].front_damage = 1;
+        g.battle.as_mut().expect("the value is there").battle.units[m].set_front_damage(1);
     }
     pass_turn(&mut g);
     let r = cast(&mut g, "bcast mass healing");
@@ -2368,13 +2373,12 @@ fn death_spell_and_word_of_death_destroy_the_figures_that_cannot_resist() {
     let mut g = casting_siege(&[194 /* death_spell */, 192 /* word_of_death */]);
     let enemies = battle_units_of(&g, Side::Defender);
     for &e in &enemies {
-        g.battle.as_mut().expect("the value is there").battle.units[e].resistance = 0;
+        g.battle.as_mut().expect("the value is there").battle.units[e]
+            .force(f4x_def::rules::stats::Stat::Resistance, 0);
     }
     // One enemy that cannot fall keeps the battle going.
     let last = *enemies.last().expect("there is one");
-    g.battle.as_mut().expect("the value is there").battle.units[last]
-        .abilities
-        .push(Ability::new(16));
+    g.battle.as_mut().expect("the value is there").battle.units[last].grant(Ability::new(16));
     let r = cast(&mut g, "bcast death spell");
     assert!(r.ok, "{}", r.text());
     let b = g.battle().expect("a battle is on");
@@ -2407,7 +2411,8 @@ fn a_curse_can_be_resisted_and_banish_only_touches_fantastic_creatures() {
     // Banish needs a fantastic creature.
     assert!(!cast(&mut g, &format!("bcast banish unit:{enemy}")).ok);
     // A unit with no resistance cannot save against Weakness.
-    g.battle.as_mut().expect("the value is there").battle.units[enemy].resistance = 0;
+    g.battle.as_mut().expect("the value is there").battle.units[enemy]
+        .force(f4x_def::rules::stats::Stat::Resistance, 0);
     let melee = g
         .battle()
         .expect("a battle is on")
@@ -2433,9 +2438,7 @@ fn a_curse_can_be_resisted_and_banish_only_touches_fantastic_creatures() {
     assert!(weakened, "an unresisting unit is weakened soon enough");
     // Mind Storm: no save, and illusion immunity refuses it before it costs mana.
     let other = battle_units_of(&g, Side::Defender)[1];
-    g.battle.as_mut().expect("the value is there").battle.units[other]
-        .abilities
-        .push(Ability::new(31));
+    g.battle.as_mut().expect("the value is there").battle.units[other].grant(Ability::new(31));
     pass_turn(&mut g);
     let mana = g
         .player(f4x_core::player::PlayerId(0))
@@ -2460,11 +2463,14 @@ fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
     let [a, b] = [0, 1].map(|i| battle_units_of(&g, Side::Defender)[i]);
     {
         let units = &mut g.battle.as_mut().expect("the value is there").battle.units;
-        units[a].resistance = 0;
-        (units[a].melee, units[a].ranged, units[a].ranged_kind) = (5, 3, RangedKind::Missile);
-        units[a].ammo = 4;
-        units[b].resistance = 0;
-        (units[b].melee, units[b].defense) = (6, 4);
+        units[a].force(f4x_def::rules::stats::Stat::Resistance, 0);
+        units[a].force(f4x_def::rules::stats::Stat::Melee, 5);
+        units[a].force(f4x_def::rules::stats::Stat::Ranged, 3);
+        units[a].put_ranged_kind(RangedKind::Missile);
+        units[a].set_ammo(4);
+        units[b].force(f4x_def::rules::stats::Stat::Resistance, 0);
+        units[b].force(f4x_def::rules::stats::Stat::Melee, 6);
+        units[b].force(f4x_def::rules::stats::Stat::Defense, 4);
     }
     // Warp Wood takes the arrows, and refuses a unit that has none left.
     let r = cast(&mut g, &format!("bcast warp wood unit:{a}"));
@@ -2550,8 +2556,8 @@ fn creature_binding_and_possession_turn_a_unit_for_the_battle() {
         let (a, b) = (units[0], units[1]);
         {
             let units = &mut g.battle.as_mut().expect("the value is there").battle.units;
-            units[a].resistance = 0;
-            units[b].resistance = 0;
+            units[a].force(f4x_def::rules::stats::Stat::Resistance, 0);
+            units[b].force(f4x_def::rules::stats::Stat::Resistance, 0);
             (units[a].realm, units[b].realm) = (None, Some(Realm::Chaos));
         }
         let (target, spared) = ([a, b][turned], [a, b][other]);
@@ -2913,7 +2919,7 @@ fn blegal_lists_what_the_game_allows_and_the_listed_orders_work() {
 /// Strike one of the human side's units down by the given kinds of damage.
 fn fell(g: &mut Game, id: usize, kinds: [i32; 3]) {
     let u = &mut g.battle.as_mut().expect("the value is there").battle.units[id];
-    u.figures = 0;
+    u.set_figures(0);
     u.status = f4x_core::battle::Status::Dead;
     u.damage_kinds = kinds;
 }
@@ -2956,6 +2962,7 @@ fn raise_dead_brings_a_fallen_normal_unit_back_with_half_its_figures() {
     {
         let b = &mut g.battle.as_mut().expect("the value is there").battle;
         b.units[fallen]
+            .sheet_mut()
             .enchantments
             .push(f4x_def::rules::SpellId::new(121) /* bless */);
         b.units[fantastic].realm = Some(Realm::Chaos);
@@ -3042,7 +3049,7 @@ fn the_regeneration_spell_heals_a_hit_each_turn_in_battle() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&[31 /* regeneration */]);
     let mine = battle_units_of(&g, Side::Attacker)[0];
-    g.battle.as_mut().expect("the value is there").battle.units[mine].front_damage = 1;
+    g.battle.as_mut().expect("the value is there").battle.units[mine].set_front_damage(1);
     let r = cast(&mut g, &format!("bcast regeneration unit:{mine}"));
     assert!(r.ok, "{}", r.text());
     let before = g

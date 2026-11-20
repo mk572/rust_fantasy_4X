@@ -63,7 +63,7 @@ fn duel(attacker: u16, defender: u16, gap: i32) -> Battle {
             Side::Attacker => (5, 10),
             Side::Defender => (5 + gap, 10),
         };
-        u.moves_left = u.moves;
+        u.refill_moves();
     }
     b
 }
@@ -110,7 +110,7 @@ fn without(ability: u16) -> impl Fn(&mut Battle) {
     move |b: &mut Battle| {
         for u in &mut b.units {
             if u.side == Side::Attacker {
-                u.abilities.retain(|a| *a != Ability::new(ability));
+                u.strip(Ability::new(ability));
             }
         }
     }
@@ -120,7 +120,7 @@ fn immune(ability: u16) -> impl Fn(&mut Battle) {
     move |b: &mut Battle| {
         for u in &mut b.units {
             if u.side == Side::Defender {
-                u.abilities.push(Ability::new(ability));
+                u.grant(Ability::new(ability));
             }
         }
     }
@@ -163,8 +163,8 @@ fn the_chaos_spawns_gazes_each_work_alone() {
         without(53 /* poison_touch */)(b);
         for u in &mut b.units {
             if u.side == Side::Attacker {
-                u.melee = 0;
-                u.ranged = 0; // no dice of its own: the gazes still gaze
+                u.force(f4x_def::rules::stats::Stat::Melee, 0);
+                u.force(f4x_def::rules::stats::Stat::Ranged, 0); // no dice of its own: the gazes still gaze
             }
         }
     };
@@ -231,7 +231,7 @@ fn the_doom_gaze_gets_through_magic_immunity_only_with_the_exceptions_on() {
     // compare: a magic-immune unit loses nothing more to the death and stoning gazes.
     let no_thrown = |b: &mut Battle| {
         for u in b.units.iter_mut().filter(|u| u.side == Side::Attacker) {
-            u.ranged = 0;
+            u.force(f4x_def::rules::stats::Stat::Ranged, 0);
         }
     };
     let (gazing, _) = losses(&b, false, |b: &mut Battle| {
@@ -347,8 +347,8 @@ fn a_magical_weapon_hurts_what_normal_weapons_barely_scratch() {
         weapon_proof(b);
         for u in &mut b.units {
             if u.side == Side::Attacker {
-                u.abilities.push(Ability::new(41));
-                u.flags.insert(UnitFlag::MagicalWeapon);
+                u.grant(Ability::new(41));
+                u.put_flag(UnitFlag::MagicalWeapon);
             }
         }
     });
@@ -369,7 +369,7 @@ fn an_eldritch_weapon_takes_a_plus_off_the_defenders_blocks() {
     let (_, eldritch) = losses(&b, false, |b: &mut Battle| {
         for u in &mut b.units {
             if u.side == Side::Attacker {
-                u.abilities.push(Ability::new(19));
+                u.grant(Ability::new(19));
             }
         }
     });
@@ -463,7 +463,7 @@ fn magic_immunity_does_not_stop_a_poison_touch_or_a_thrown_attack() {
         immune(40 /* magic_immunity */)(b);
         for u in &mut b.units {
             if u.side == Side::Attacker {
-                u.ranged = 0; // nothing to throw
+                u.force(f4x_def::rules::stats::Stat::Ranged, 0); // nothing to throw
             }
         }
     });

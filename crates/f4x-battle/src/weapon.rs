@@ -27,3 +27,16 @@ pub fn caster_mana_of(abilities: &[Ability], rules: &Rules) -> i32 {
         .max()
         .unwrap_or(0)
 }
+
+/// The kind of ranged attack the abilities give: a missile weapon, a short-range one (breath, gaze)
+/// or magic, in that order of what the unit has; `None` for no ranged attack.
+pub fn ranged_kind_of(abilities: &[Ability], rules: &Rules) -> RangedKind {
+    let kinds = abilities
+        .iter()
+        .filter_map(|&a| rules.abilities.get(a).attack.as_ref())
+        .map(|attack| attack.kind);
+    [RangedKind::Missile, RangedKind::Short, RangedKind::Magic]
+        .into_iter()
+        .find(|k| kinds.clone().any(|have| have == *k))
+        .unwrap_or(RangedKind::None)
+}

@@ -285,7 +285,7 @@ mod tests {
         {
             let u = &mut env.game.battle.as_mut().unwrap().battle.units[fallen];
             u.status = Status::Dead;
-            u.figures = 0;
+            u.set_figures(0);
             u.damage_kinds = [3, 0, 0];
         }
         let o = spec.observe(&env.game, side, Brief::default()).unwrap();

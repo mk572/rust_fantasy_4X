@@ -550,8 +550,9 @@ mod tests {
             ],
             1,
         );
-        b.units[2].figures = 1;
-        b.units[2].front_damage = b.units[2].hits - 1;
+        b.units[2].set_figures(1);
+        let damage = b.units[2].per_figure() - 1;
+        b.units[2].set_front_damage(damage);
         assert_eq!(
             next_command(&b),
             BattleCommand::Attack { unit: 0, target: 2 }
@@ -577,7 +578,7 @@ mod tests {
         );
         b.units[1].side = Side::Attacker;
         b.units[1].turned_from = Some(Side::Defender);
-        b.units[0].moves_left = f4x_def::half_int::HalfInt::ZERO;
+        b.units[0].end_moves();
         b.units[0].attacked = true;
         let mut targets = Vec::new();
         for _ in 0..8 {
@@ -625,7 +626,7 @@ mod tests {
             &[(104 /* high_men_spearmen */, (12, 5))],
             1,
         );
-        b.units[0].ammo = 0;
+        b.units[0].set_ammo(0);
         assert!(matches!(
             next_command(&b),
             BattleCommand::Move { unit: 0, .. }
@@ -687,7 +688,7 @@ mod tests {
             0.0
         );
         let mut magic = a.clone();
-        magic.flags.insert(UnitFlag::MagicalWeapon);
+        magic.put_flag(UnitFlag::MagicalWeapon);
         assert!(expected_damage(&b.content.rules, &magic, stone, false, rule, false) > 0.0);
     }
 
@@ -738,8 +739,9 @@ mod tests {
             1,
         );
         assert_eq!(merge_order(&b), None, "whole: it fights");
-        b.units[0].figures = 1;
-        b.units[0].front_damage = b.units[0].hits - 1;
+        b.units[0].set_figures(1);
+        let damage = b.units[0].per_figure() - 1;
+        b.units[0].set_front_damage(damage);
         assert!(b.units[0].hit_points() * 2 < b.units[0].max_hit_points());
         assert_eq!(merge_order(&b), Some(BattleCommand::Merge { unit: 0 }));
         b.apply(BattleCommand::Merge { unit: 0 })
@@ -755,8 +757,9 @@ mod tests {
         };
         assert!(distance(to, (6, 5)) > 10, "{to:?}");
         // Whole, it comes up beside the enemy.
-        b.units[0].figures = b.units[0].figures_start;
-        b.units[0].front_damage = 0;
+        let whole = b.units[0].figures_start;
+        b.units[0].set_figures(whole);
+        b.units[0].set_front_damage(0);
         let Some(BattleCommand::Surface { unit: 0, to }) = surface_order(&b) else {
             return Err("no surfacing".into());
         };

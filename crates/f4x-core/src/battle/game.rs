@@ -8,7 +8,6 @@ use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::unit_flag::{UnitFlag, UnitFlags};
 use crate::rules::Ability;
-use crate::rules::SpellId;
 use crate::rules::{MovementType, Stat, UnitId};
 use crate::unit::Hurt;
 use f4x_def::half_int::HalfInt;
@@ -16,7 +15,9 @@ use f4x_def::half_int::HalfInt;
 use super::field::Field;
 use super::immunity::Realm;
 use super::map::{city_deployment, deployment, layout, BattleMap, Pos};
-use super::{Battle, BattleCommand, BattleError, BattleUnit, RangedKind, Side, Status};
+use super::{
+    Battle, BattleCommand, BattleError, BattleUnit, HeroSheet, Sheet, Side, Status, WizardSheet,
+};
 
 /// A battle in progress and the overland units its fighters were copied from.
 pub struct ActiveBattle {
@@ -86,20 +87,7 @@ impl BattleStartError {
     }
 }
 
-/// What kind of ranged attack the unit's abilities give it (`attack.kind` in `abilities.ron`): a
-/// missile weapon before a short-range attack before a magical one, when it has several.
-pub fn ranged_kind_of(abilities: &[Ability], rules: &crate::rules::Rules) -> RangedKind {
-    let kinds = abilities
-        .iter()
-        .filter_map(|&a| rules.abilities.get(a).attack.as_ref())
-        .map(|attack| attack.kind);
-    [RangedKind::Missile, RangedKind::Short, RangedKind::Magic]
-        .into_iter()
-        .find(|k| kinds.clone().any(|have| have == *k))
-        .unwrap_or(RangedKind::None)
-}
-
-pub use f4x_battle::weapon::{caster_mana_of, weapon_attack_of, weapon_shot_of};
+pub use f4x_battle::weapon::{caster_mana_of, ranged_kind_of, weapon_attack_of, weapon_shot_of};
 
 /// Something that plays a wizard's side of a battle: it is asked for one command at a time.
 /// The scripted player is `f4x_ai::battle`, set once with [`set_battle_ai`]; a learned one
@@ -198,11 +186,10 @@ impl Game {
         active.sources.get(index).copied()
     }
 
-    /// Copy an overland unit into battle form.
     /// What a unit can cast in a battle on its own: a hero's innate spells, the charges of its
     /// items' spells and its spell save, and the spells its abilities cast (once a battle).
     fn unit_casting(&self, unit: hecs::Entity, abilities: &[Ability]) -> super::UnitCasting {
-        let mut casting = super::UnitCasting::default();
+        let mut casting = super::UnitCasting::of_abilities(abilities, &self.content().rules);
         if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
             if hero.casting_skill > 0 {
                 casting.innate = hero.spells.clone();
@@ -221,22 +208,19 @@ impl Game {
                 }
             }
         }
-        casting.demons = abilities
-            .iter()
-            .map(|&a| self.content().rules.abilities.get(a).summons_per_battle)
-            .max()
-            .unwrap_or(0);
-        for ability in abilities {
-            let spell = match ability.num() {
-                4 => SpellId::new(104), /* doom_bolt */
-                5 => SpellId::new(96),  /* fireball */
-                6 => SpellId::new(125), /* healing */
-                7 => SpellId::new(5),   /* web */
-                _ => continue,
-            };
-            casting.abilities.push(spell);
-        }
         casting
+    }
+
+    /// Copy an overland unit into battle form: what it is, and nothing worked out from its level
+    /// or its owner's global enchantments, which the battle works out itself (`Sheet`).
+    /// What a battle knows of a player's wizard: its global enchantments and retorts, by id.
+    pub(super) fn wizard_sheet(&self, player: PlayerId) -> WizardSheet {
+        self.wizard(player)
+            .map(|m| WizardSheet {
+                globals: m.global(),
+                retorts: m.retorts().into_iter().collect(),
+            })
+            .unwrap_or_default()
     }
 
     pub(super) fn battle_unit_from(
@@ -245,126 +229,61 @@ impl Game {
         side: Side,
         index: usize,
     ) -> Option<BattleUnit> {
-        let def = self.units().unit_def(unit)?;
-        let hits = self.units().unit_stat(unit, Stat::MaxHp).max(1);
-        let figures = self.units().unit_stat(unit, Stat::Figures).max(1) as u32;
-        let total = hits * figures as i32;
-        let hurt = self
-            .world
-            .get::<&Hurt>(unit)
-            .map_or(0, |h| h.0 as i32)
-            .min(total - 1);
-        let current = total - hurt;
-        let alive = ((current + hits - 1) / hits) as u32;
-        let abilities = self.units().unit_abilities(unit);
-        // Flight and a magical weapon come from more than abilities (the movement type, items and
-        // spells); the abilities add theirs in `sync_abilities`.
+        let view = self.units();
+        let def = view.unit_def(unit)?;
+        let rules = &self.content().rules;
+        let abilities = view.unit_abilities(unit);
         let mut flags = UnitFlags::NONE;
         if def.movement == MovementType::Flying {
             flags.insert(UnitFlag::Flies);
         }
-        if self.units().unit_has_magical_weapon(unit) {
+        if view.unit_has_innate_magical_weapon(unit) {
             flags.insert(UnitFlag::MagicalWeapon);
         }
-        let has = |a: Ability| abilities.contains(&a);
-        // Mithril adds one and adamantium two to the attacks and the defence.
-        let quality = self.units().unit_weapon_quality(unit);
-        let extra = i32::from(quality.max(1)) - 1;
-        let ranged_kind = ranged_kind_of(&abilities, &self.content().rules);
-        let physical_shot = weapon_shot_of(&abilities, &self.content().rules).is_some();
-        let melee = self.units().unit_stat(unit, Stat::Melee);
-        let ranged = self.units().unit_stat(unit, Stat::Ranged);
-        // A spell caster has mana (`caster_mana` of its ability), and shoots its spells with it.
-        // A hero's mana comes from its casting skill and level, and its items.
-        let hero_mana = self.units().hero_mana(unit);
-        let mana = if hero_mana > 0 {
-            hero_mana
-        } else {
-            caster_mana_of(&abilities, &self.content().rules)
-        };
-        let lucky = i32::from(has(Ability::new(39 /* lucky */)));
         let hero = self.world.get::<&crate::hero::Hero>(unit).ok();
-        let level = self.units().unit_level(unit);
-        let mut ammo = self.units().unit_stat(unit, Stat::Ammo);
-        if ranged_kind == RangedKind::Magic && mana > 0 {
-            ammo = mana / self.content().rules.battle.shot_mana;
-        }
-        let formulas = &self.content().rules;
-        let mut built = BattleUnit {
-            id: 0,
-            side,
-            source: Some(index),
-            unit_id: Some(UnitId::new(def.num)),
-            cell: (0, 0),
-            melee: if melee > 0 { melee + extra } else { melee },
-            ranged: if ranged > 0 && physical_shot {
-                ranged + extra
-            } else {
-                ranged
-            },
-            defense: self.units().unit_stat(unit, Stat::Defense)
-                + if quality > 0 { extra } else { 0 },
-            resistance: self.units().unit_stat(unit, Stat::Resistance) + lucky,
-            to_hit: self.units().unit_stat(unit, Stat::ToHit) + lucky,
-            melee_plus: self.units().unit_stat(unit, Stat::MeleeToHit),
-            ranged_plus: self.units().unit_stat(unit, Stat::RangedToHit),
-            melee_parts: self.units().unit_typed_dice(unit, Stat::Melee),
-            // Only the arrows and stones carry such dice, not a spell shot (it gets no bonus).
-            ranged_parts: if physical_shot {
-                self.units().unit_typed_dice(unit, Stat::Ranged)
-            } else {
-                Vec::new()
-            },
-            to_block: lucky,
-            hits,
-            extra_hits: 0,
-            figures_start: figures,
-            figures: alive,
-            front_damage: alive as i32 * hits - current,
-            moves: self.units().unit_max_moves(unit),
-            moves_left: self.units().unit_max_moves(unit),
-            ammo,
-            mana,
-            hero_caster: hero_mana > 0,
-            hero_name: hero.as_ref().map(|h| h.name.clone()).unwrap_or_default(),
-            casting: self.unit_casting(unit, &abilities),
-            ranged_kind,
-            flags,
-            sails: def.movement == MovementType::Sailing,
-            swims: def.movement == MovementType::Swimming,
-            weapon_quality: quality,
-            special_level: self.units().unit_stat(unit, Stat::SpecialLevel),
-            leadership: hero.as_ref().map_or(0, |h| {
-                formulas.hero_value("leadership", h.abilities.leadership, level)
-            }),
-            prayermaster: hero.as_ref().map_or(0, |h| {
-                formulas.hero_value("prayermaster", h.abilities.prayermaster, level)
-            }),
-            // A unit held in Stasis cannot act: it is as if asleep.
-            warp: None,
-            enchantments: self.units().unit_enchantment_ids(unit),
-            in_stasis: self.unit_in_stasis(unit),
-            realm: self.units().unit_realm(unit).and_then(Realm::of),
-            undead: self.units().unit_counts_as_undead(unit),
-            abilities: abilities.clone(),
-            granted: self.units().unit_granted_abilities(unit),
-            status: Status::Active,
-            damage_kinds: [0; 3],
-            attacked: self.unit_in_stasis(unit),
-            revealed: false,
-            merged_this_turn: false,
-            surfaced: false,
-            slipped: false,
-            was_invisible: false,
-            lasting: Vec::new(),
-            base: None,
-            field: Default::default(),
-            seized: false,
-            turned_from: None,
-            bound_from: None,
-            web_hits: 0,
-        };
-        built.sync_abilities(formulas);
+        let mut sheet = Sheet::plain(side, def.stats.clone());
+        sheet.modifiers = view.own_modifiers(unit);
+        sheet.granted = view.unit_granted_abilities(unit);
+        sheet.enchantments = view.unit_enchantment_ids(unit);
+        sheet.ranged_kind = ranged_kind_of(&abilities, rules);
+        sheet.abilities = abilities;
+        sheet.flags = flags;
+        sheet.xp = view.unit_experience(unit);
+        sheet.hero = hero.as_ref().map(|h| HeroSheet {
+            abilities: h.abilities,
+            casting_skill: h.casting_skill,
+            item_spell_skill: view
+                .items()
+                .carried(unit)
+                .iter()
+                .map(|(_, i)| i.bonus.spell_skill)
+                .sum(),
+        });
+        // What the unit is made of overland, with all that its owner's wizard gives it: the figures
+        // it starts with, and the wounds it has, which cannot be all of its hit points.
+        let hits = view.unit_stat(unit, Stat::MaxHp).max(1);
+        let figures = view.unit_stat(unit, Stat::Figures).max(1) as u32;
+        let hurt = self
+            .world
+            .get::<&Hurt>(unit)
+            .map_or(0, |h| h.0 as i32)
+            .min(hits * figures as i32 - 1);
+        let mut built = BattleUnit::from_sheet(side, sheet, figures);
+        built.source = Some(index);
+        built.unit_id = Some(UnitId::new(def.num));
+        built.set_lost(hurt);
+        built.weapon_quality = view.unit_weapon_quality(unit);
+        built.hero_caster = hero.as_ref().is_some_and(|h| h.casting_skill > 0);
+        built.hero_name = hero.as_ref().map(|h| h.name.clone()).unwrap_or_default();
+        built.casting = self.unit_casting(unit, &built.sheet().abilities.clone());
+        built.sails = def.movement == MovementType::Sailing;
+        built.swims = def.movement == MovementType::Swimming;
+        built.in_stasis = self.unit_in_stasis(unit);
+        // A unit held in Stasis cannot act: it is as if asleep.
+        built.attacked = built.in_stasis;
+        built.realm = view.unit_realm(unit).and_then(Realm::of);
+        built.undead = view.unit_counts_as_undead(unit);
+        built.bind(&self.content);
         Some(built)
     }
 
@@ -379,24 +298,59 @@ impl Game {
         nature: super::immunity::AttackNature,
         rng: &mut dyn rand::RngCore,
     ) -> bool {
-        let Some(mut bu) = self.battle_unit_from(unit, Side::Defender, 0) else {
+        let Some(mut state) = self.overland_defender(unit) else {
             return false;
         };
-        let _ = super::casting::damage_unit_with_spell(
+        let _ = super::casting::damage_state_with_spell(
             &self.content.rules,
-            &mut bu,
+            &mut state,
             strength,
             traits,
             nature,
             rng,
         );
-        if bu.figures == 0 {
+        if state.figures == 0 {
             self.remove_unit(unit, crate::hero::Fate::Slain);
             return true;
         }
-        let hurt = (bu.max_hit_points() - bu.hit_points()).max(0);
-        self.put(unit, Hurt(hurt as u32));
+        let hurt = state.figures_max as i32 * state.hits - state.hit_points();
+        self.put(unit, Hurt(hurt.max(0) as u32));
         false
+    }
+
+    /// An overland unit as a defender: what its numbers are now, with the global enchantments of
+    /// its owner, and the wounds it has.
+    fn overland_defender(&self, unit: hecs::Entity) -> Option<super::attack::DefenderState> {
+        let view = self.units();
+        view.unit_def(unit)?;
+        let rules = &self.content.rules;
+        let abilities = view.unit_abilities(unit);
+        let enchantments = view.unit_enchantment_ids(unit);
+        let hits = view.unit_stat(unit, Stat::MaxHp).max(1);
+        let figures = view.unit_stat(unit, Stat::Figures).max(1) as u32;
+        let hurt = self
+            .world
+            .get::<&Hurt>(unit)
+            .map_or(0, |h| h.0 as i32)
+            .min(hits * figures as i32 - 1);
+        let lucky = abilities.contains(&Ability::new(39 /* lucky */));
+        let figures_left = ((hits * figures as i32 - hurt + hits - 1) / hits) as u32;
+        Some(super::attack::DefenderState {
+            hits,
+            extra_hits: 0,
+            defense: view.unit_stat(unit, Stat::Defense),
+            immunities: f4x_def::rules::immunity::Immunities::of(&abilities, &enchantments, rules),
+            resistance: view.unit_stat(unit, Stat::Resistance),
+            effects: view.unit_effects(unit),
+            realm: view.unit_realm(unit).and_then(Realm::of),
+            undead: view.unit_counts_as_undead(unit),
+            figures_max: figures,
+            to_block: i32::from(lucky),
+            figures: figures_left,
+            front_damage: figures_left as i32 * hits - (figures as i32 * hits - hurt),
+            lucky,
+            enchantments,
+        })
     }
 
     /// The units that fight when more than nine could, strongest first: heroes first; then units
@@ -605,7 +559,7 @@ impl Game {
                     .ok_or(BattleStartError::BadSides)?;
                 // Wind Walking carries the whole stack through the air.
                 if carried {
-                    bu.flags.insert(UnitFlag::Flies);
+                    bu.sheet_mut().flags.insert(UnitFlag::Flies);
                 }
                 bus.push(bu);
             }
@@ -620,8 +574,15 @@ impl Game {
                     continue;
                 };
                 bus[si].cell = cells[0];
-                bus[si].moves = HalfInt::ZERO;
-                bus[si].moves_left = HalfInt::ZERO;
+                bus[si]
+                    .sheet_mut()
+                    .modifiers
+                    .push(crate::rules::Modifier::new(
+                        Stat::Moves,
+                        crate::rules::ModOp::Set,
+                        0,
+                        crate::rules::Source::Other,
+                    ));
                 placed[si] = true;
                 taken.push(cells[0]);
                 let centre = (
@@ -686,6 +647,9 @@ impl Game {
         battle.magic_immunity_exceptions = self.settings.rules.magic_immunity_exceptions;
         battle.max_side = self.settings.rules.max_battle_side;
         (battle.node_aura, battle.node_site) = self.node_realms_at(site, city.is_none());
+        for (side, owner) in [(Side::Attacker, a_owner), (Side::Defender, d_owner)] {
+            battle.set_wizard(side, self.wizard_sheet(owner));
+        }
         battle.refresh_fields();
         battle.wall_of_fire = has_wall("fire");
         battle.wall_of_darkness = has_wall("darkness");
@@ -1058,10 +1022,7 @@ impl Game {
                 // stays: what is left is its hit points less what the spells gave, and a unit
                 // left with none is dead (`divergences.md` 45): the sweep after this command
                 // removes it, as it does when a spell like that is dispelled on the map.
-                let ceiling = match &u.base {
-                    Some(base) => base.hits * u.figures_start as i32,
-                    None => u.max_hit_points(),
-                };
+                let ceiling = u.max_hit_points_without_lasting();
                 let from_spells = u.max_hit_points() - ceiling;
                 let left = (u.hit_points() - from_spells).min(ceiling);
                 let hurt = (ceiling - left).max(0);

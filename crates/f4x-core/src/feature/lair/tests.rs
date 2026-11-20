@@ -430,7 +430,7 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() -> TestResult {
         let b = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle;
         for (id, kinds) in [(drained.0, [1, 5, 0]), (slain.0, [4, 0, 0])] {
             b.units[id].status = Status::Dead;
-            b.units[id].figures = 0;
+            b.units[id].set_figures(0);
             b.units[id].damage_kinds = kinds;
         }
         b.units[drained.0].realm = None;
@@ -495,7 +495,7 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() -> TestResult {
         // One struck down, one destroyed.
         for (i, (id, _)) in guards.iter().enumerate() {
             b.units[*id].status = Status::Dead;
-            b.units[*id].figures = 0;
+            b.units[*id].set_figures(0);
             b.units[*id].damage_kinds = if i == 0 { [4, 0, 0] } else { [0, 0, 1] };
             b.units[*id].realm = None;
         }
@@ -550,11 +550,10 @@ fn zombie_mastery_leaves_the_death_immune_dead() -> TestResult {
         let b = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle;
         let u = &mut b.units[guard.0];
         u.status = Status::Dead;
-        u.figures = 0;
+        u.set_figures(0);
         u.damage_kinds = [4, 0, 0];
         u.realm = None;
-        u.abilities
-            .push(crate::rules::Ability::new(16 /* death_immunity */));
+        u.grant(crate::rules::Ability::new(16 /* death_immunity */));
     }
     g.apply(Command::Battle(BattleCommand::EndTurn));
     assert!(!g.units().unit_is_undead(guard.1), "not raised");
@@ -591,7 +590,7 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() -
         let b = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle;
         for u in b.units.iter_mut().filter(|u| u.side == Side::Attacker) {
             u.status = Status::Dead;
-            u.figures = 0;
+            u.set_figures(0);
             u.damage_kinds = if u.source == Some(0) {
                 [1, 5, 0]
             } else {

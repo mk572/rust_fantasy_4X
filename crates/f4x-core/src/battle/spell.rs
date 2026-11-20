@@ -438,8 +438,9 @@ impl Game {
         };
         unit.id = id;
         unit.cell = cell;
-        unit.figures = unit.figures_start.div_ceil(2).max(1);
-        active.battle.units[id] = unit;
+        active.battle.put_unit(id, unit);
+        let half = active.battle.units[id].figures_start.div_ceil(2).max(1);
+        active.battle.units[id].set_figures(half);
         vec![BattleEvent::Raised { unit: id }]
     }
 
@@ -480,7 +481,7 @@ impl Game {
         };
         unit.id = id;
         unit.cell = cell;
-        active.battle.units[id] = unit;
+        active.battle.put_unit(id, unit);
         vec![BattleEvent::Raised { unit: id }]
     }
 
@@ -692,7 +693,7 @@ impl Game {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
-                active.battle.units[target].ammo = 0;
+                active.battle.units[target].set_ammo(0);
                 vec![BattleEvent::SpellEnchanted {
                     unit: target,
                     spell,
@@ -845,21 +846,8 @@ impl Game {
                 events
             }
             (SpellType::Summon(unit_id), SpellAim::Tile(cell)) => {
-                // Make the creature as the game would, copy it, and let the original go: the
-                // copy vanishes with the battle.
-                let site = self
-                    .battle()
-                    .and_then(|b| b.site)
-                    .or_else(|| self.summon_point(player));
-                let Some(site) = site else {
-                    return Vec::new();
-                };
-                let entity = self.spawn_unit(player, site, unit_id);
-                let copy = self.battle_unit_from(entity, side, 0);
-                let _ = self.world.despawn(entity);
-                let Some(unit) = copy else {
-                    return Vec::new();
-                };
+                // The creature exists only in this battle: it is made from its definition.
+                let unit = super::BattleUnit::from_def(&self.content.rules, unit_id, side);
                 let id = self
                     .battle
                     .as_mut()
@@ -1151,10 +1139,10 @@ impl Game {
         }
         // Rebuild the unit: from the overland unit as it is now, or from its saved numbers.
         let base = match entity {
-            Some(e) if overland_changed || unit.base.is_none() => self
+            Some(e) if overland_changed => self
                 .battle_unit_from(e, unit.side, unit.source.unwrap_or(0))
-                .map(|made| super::BaseStats::of(&made)),
-            _ => unit.base.clone(),
+                .map(|made| made.sheet().clone()),
+            _ => Some(unit.sheet().clone()),
         };
         let Some(base) = base else {
             return vec![event];
@@ -1196,7 +1184,7 @@ impl Game {
         &self,
         unit: &super::BattleUnit,
         kept: &[(SpellId, PlayerId)],
-        base: &super::BaseStats,
+        base: &super::Sheet,
         target: usize,
     ) -> Vec<super::Lasting> {
         let mut lasting: Vec<super::Lasting> = kept
@@ -1252,7 +1240,7 @@ impl Game {
         let Some(made) = self.battle_unit_from(entity, unit.side, index) else {
             return false;
         };
-        let base = super::BaseStats::of(&made);
+        let base = made.sheet().clone();
         let lasting = self.lasting_spells(&unit, &unit.combat_spells(), &base, target);
         let realm = made.realm;
         if let Some(active) = self.battle.as_mut() {

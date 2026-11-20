@@ -37,8 +37,8 @@ pub use crate::battlemagic::caster::{BattleCaster, SpellAim};
 pub use crate::battlemagic::error::SpellError;
 pub use crate::side::Side;
 pub use crate::unit::{
-    BaseStats, BattleUnit, Confusion, Fate, FieldBonus, ItemCharge, Lasting, Status, UnitCasting,
-    WarpKind, RANGED_ATTACK_COST,
+    BattleUnit, Confusion, Fate, FieldBonus, ItemCharge, Lasting, Status, UnitCasting, WarpKind,
+    WizardSheet, RANGED_ATTACK_COST,
 };
 pub use f4x_def::rules::damage_type::RangedKind;
 
@@ -435,6 +435,10 @@ pub struct Battle {
     #[serde(skip)]
     pub content: content_ref::ContentRef,
     pub rng: GameRng,
+    /// The global enchantments and retorts of each side's wizard, by id (`unit/stats.rs`): a unit
+    /// that joins the battle takes them.
+    #[serde(default)]
+    pub wizards: [WizardSheet; 2],
 }
 
 impl Battle {
@@ -516,10 +520,36 @@ impl Battle {
             max_side: default_side_limit(),
             content: content_ref::ContentRef::new(content),
             rng: GameRng::new(seed),
+            wizards: Default::default(),
         };
+        b.bind_units();
         let _ = b.begin_side_turn();
         b.check_winner();
         b
+    }
+
+    /// Give every unit the content and the wizards, so it can work its numbers out. A battle
+    /// that was loaded has to do it too: neither is saved with the units.
+    pub fn bind_units(&mut self) {
+        let content = self.content.arc();
+        for u in &mut self.units {
+            u.bind(&content);
+            u.set_wizards(self.wizards.clone());
+        }
+    }
+
+    /// Put a unit in the place of the one numbered `id` (a dead unit raised again).
+    pub fn put_unit(&mut self, id: usize, mut unit: BattleUnit) {
+        unit.bind(&self.content.arc());
+        unit.set_wizards(self.wizards.clone());
+        self.units[id] = unit;
+    }
+
+    /// The wizard of a side keeps these global enchantments and retorts: the units work their
+    /// numbers out with them, those that join the battle too.
+    pub fn set_wizard(&mut self, side: Side, wizard: WizardSheet) {
+        self.wizards[side.index()] = wizard;
+        self.bind_units();
     }
 
     pub fn player_of(&self, side: Side) -> PlayerId {
@@ -613,7 +643,7 @@ impl Battle {
             .iter_mut()
             .filter(|u| u.side == side && u.is_active())
         {
-            u.moves_left = u.moves;
+            u.refill_moves();
             u.attacked = false;
             u.revealed = false;
         }
@@ -653,7 +683,7 @@ impl Battle {
         if let Some(loser) = lost_to_confusion {
             for u in &mut self.units {
                 if u.is_active() && u.turned_from == Some(loser) {
-                    u.figures = 0;
+                    u.kill();
                     u.status = Status::Dead;
                 }
             }
@@ -697,7 +727,7 @@ impl Battle {
                     && u.effects(&self.content.rules)
                         .contains(f4x_def::rules::unit_effect::UnitEffect::CreatureBinding)
                 {
-                    u.figures = 0;
+                    u.kill();
                     u.status = Status::Dead;
                     u.damage_kinds[2] = u.damage_kinds[2].max(1);
                 }
@@ -828,7 +858,7 @@ impl Battle {
     /// immune to illusions.
     pub fn blur_penalty(&self, attacker: usize, hit: usize) -> i32 {
         i32::from(
-            self.units[hit].field.blur
+            self.units[hit].field().blur
                 && !self.units[attacker].has(Ability::new(31 /* illusion_immunity */))
                 && !self.field_spares(&self.units[attacker], Field::Blur),
         )
@@ -932,7 +962,7 @@ impl Battle {
                     let left = u.moves_left.saturating_sub(cost);
                     let u = &mut self.units[unit];
                     u.cell = to;
-                    u.moves_left = left;
+                    u.set_moves_left(left);
                     events.push(BattleEvent::Moved {
                         unit,
                         path: vec![to],
@@ -974,7 +1004,7 @@ impl Battle {
                     }
                     let u = &mut self.units[unit];
                     u.cell = path.last().copied().unwrap_or(u.cell);
-                    u.moves_left = left;
+                    u.set_moves_left(left);
                     if !stopped || !path.is_empty() {
                         events.push(BattleEvent::Moved { unit, path });
                     }
@@ -1051,7 +1081,7 @@ impl Battle {
                 let u = &mut self.units[unit];
                 u.status = Status::Merged;
                 u.merged_this_turn = true;
-                u.moves_left = HalfInt::ZERO;
+                u.end_moves();
                 events.push(BattleEvent::Merged { unit });
             }
             BattleCommand::Surface { unit, to } => {
@@ -1066,13 +1096,13 @@ impl Battle {
                 u.status = Status::Active;
                 u.cell = to;
                 u.surfaced = true;
-                u.moves_left = u.moves;
+                u.refill_moves();
                 u.attacked = false;
                 events.push(BattleEvent::Surfaced { unit, cell: to });
             }
             BattleCommand::Done { unit } => {
                 self.check_unit(unit)?;
-                self.units[unit].moves_left = HalfInt::ZERO;
+                self.units[unit].end_moves();
                 self.units[unit].attacked = true;
             }
             BattleCommand::MoveVortex { index, to } => {
@@ -1127,8 +1157,7 @@ impl Battle {
 
     /// Take the mana of a Power Drain off the unit, with the event when it had any to lose.
     pub fn power_drained(&mut self, unit: usize, amount: i32) -> Option<BattleEvent> {
-        let shot_mana = self.rules().shot_mana;
-        let lost = self.units[unit].drain_power(amount, shot_mana, &self.content.rules);
+        let lost = self.units[unit].drain_power(amount);
         (lost > 0).then_some(BattleEvent::PowerDrained { unit, amount: lost })
     }
 
