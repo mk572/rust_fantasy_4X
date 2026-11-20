@@ -502,7 +502,7 @@ impl Game {
             notice.city = Some(c);
             notice.city_name = self.city_name(c).unwrap_or_default();
             let people = self.world.get::<&Population>(c).map_or(0, |p| p.figures);
-            notice.city_size = city_size_class(people);
+            notice.city_size = city_size_class(&self.content.rules, people);
         }
         out.push(Event::RandomEvent(notice));
     }

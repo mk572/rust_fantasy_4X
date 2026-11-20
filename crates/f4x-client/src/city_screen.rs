@@ -816,18 +816,14 @@ impl App {
 
     /// The name of a city's size: outpost, hamlet up to city, and capital for a fortress city.
     pub(crate) fn size_term(&self, figures: u32, fortress: bool) -> f4x_lang::text::Term {
+        let words = crate::event_message::CITY_SIZE_WORDS;
+        let class = f4x_core::city::conquest::city_size_class(&self.game.content().rules, figures);
         let key = if figures == 0 {
-            "city_size.outpost"
+            words[0]
         } else if fortress {
-            "city_size.capital"
+            words[words.len() - 1]
         } else {
-            [
-                "city_size.hamlet",
-                "city_size.village",
-                "city_size.town",
-                "city_size.city",
-                "city_size.capital",
-            ][(figures.div_ceil(4).clamp(1, 5) - 1) as usize]
+            words[(class as usize).min(words.len() - 1)]
         };
         self.names.word(key)
     }
@@ -1903,8 +1899,15 @@ mod tests {
     use f4x_def::testdir::TestResult;
 
     #[test]
-    fn a_city_is_named_for_its_size_and_the_fortress_is_the_capital() -> TestResult {
+    fn a_city_is_named_by_the_size_row_its_citizens_reach_and_a_fortress_by_the_last_word(
+    ) -> TestResult {
         let mut app = App::for_test();
+        let words = crate::event_message::CITY_SIZE_WORDS;
+        let from = app.game.content().rules.config.city_size_from.clone();
+        // The rows of `rules.ron` and the words of the text files stay in step: one word for an
+        // outpost and one for each row.
+        assert_eq!(words.len(), from.len() + 1);
+        let word = |app: &App, class: usize| app.names.word(words[class]).text;
         let capital = app
             .game
             .economy()
@@ -1912,25 +1915,31 @@ mod tests {
             .first()
             .map(|c| c.0)
             .ok_or("the new game has no city")?;
-        assert_eq!(app.city_size_name(capital), "Capital");
+        assert_eq!(app.city_size_name(capital), word(&app, words.len() - 1));
         let at = app.city_position(capital);
         let at = Position { x: at.x + 3, ..at };
         let city = app
             .game
             .scenario_found_city(HUMAN, at, "Testville", None, 0);
-        for (figures, name) in [
-            (0, "Outpost"),
-            (1, "Hamlet"),
-            (4, "Hamlet"),
-            (5, "Village"),
-            (9, "Town"),
-            (13, "City"),
-            (17, "Capital"),
-            (30, "Capital"),
-        ] {
+        app.game.scenario_set_citizens(city, 0);
+        assert_eq!(app.city_size_name(city), word(&app, 0), "an outpost");
+        for (row, &figures) in from.iter().enumerate() {
             app.game.scenario_set_citizens(city, figures);
-            assert_eq!(app.city_size_name(city), name, "{figures} figures");
+            assert_eq!(
+                app.city_size_name(city),
+                word(&app, row + 1),
+                "{figures} figures"
+            );
+            app.game.scenario_set_citizens(city, figures - 1);
+            assert_eq!(
+                app.city_size_name(city),
+                word(&app, row),
+                "{figures} figures less one"
+            );
         }
+        let last = from.last().copied().ok_or("no size rows")?;
+        app.game.scenario_set_citizens(city, last + 20);
+        assert_eq!(app.city_size_name(city), word(&app, words.len() - 1));
         Ok(())
     }
 }

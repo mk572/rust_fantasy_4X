@@ -80,14 +80,6 @@ impl CitySpecials {
     }
 }
 
-impl CityReport {
-    /// The size class the screen names it by: 0 outpost, 1 hamlet up to 5 city (the capital
-    /// is named by its fortress, `fortress`).
-    pub fn size_class(&self) -> u32 {
-        crate::city::conquest::city_size_class(self.figures)
-    }
-}
-
 pub struct PlayerView<'a> {
     game: &'a Game,
     me: PlayerId,
@@ -1111,7 +1103,6 @@ mod tests {
         assert_eq!(report.position, at(20, 10));
         assert_eq!(report.figures, 3);
         assert_eq!(report.farmers + report.workers + report.rebels, 3);
-        assert_eq!(report.size_class(), 1);
         assert_eq!(report.buildings.last(), Some(&barracks));
         assert_eq!(report.garrison, vec![foe]);
         assert!(!report.fortress);

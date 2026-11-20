@@ -1529,6 +1529,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() -> TestResult {
     // The taker razes it: the size in fame is lost (the fighting leaves a size that
     // depends on the dice), and a tenth of each building's cost is looted.
     let size = f4x_core::city::conquest::city_size_class(
+        &g.content().rules,
         g.component::<f4x_core::city::economy::Population>(city)
             .expect("the entity has it")
             .figures,

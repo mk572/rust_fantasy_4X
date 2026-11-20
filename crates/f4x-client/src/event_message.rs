@@ -31,7 +31,7 @@ pub fn load(dir: &Path) -> Result<Vec<EventText>, String> {
 }
 
 /// The words (`name/word.ron`) of the city size classes, outpost to capital.
-const CITY_SIZE_WORDS: &[&str] = &[
+pub(crate) const CITY_SIZE_WORDS: &[&str] = &[
     "city_size.outpost",
     "city_size.hamlet",
     "city_size.village",

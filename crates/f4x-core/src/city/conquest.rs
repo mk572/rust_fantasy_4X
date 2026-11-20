@@ -34,10 +34,15 @@ use f4x_def::half_int::HalfInt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Conquered(pub hecs::Entity);
 
-/// A city's size class: 1 (hamlet) for up to four citizens, one more for each four, at most 5;
-/// 0 for an outpost.
-pub fn city_size_class(citizens: u32) -> u32 {
-    citizens.div_ceil(4).min(5)
+/// A city's size class: 0 for an outpost, then one more for each entry of `city_size_from`
+/// (`rules.ron`) its citizens have reached.
+pub fn city_size_class(rules: &crate::rules::Rules, citizens: u32) -> u32 {
+    rules
+        .config
+        .city_size_from
+        .iter()
+        .filter(|&&from| citizens >= from)
+        .count() as u32
 }
 
 /// The fame the loser loses and the winner gains when a city of size class `size` is kept:
@@ -190,7 +195,7 @@ impl Game {
             return events;
         }
         self.city_taken_relations(winner, loser);
-        let size = city_size_class(citizens) as i32;
+        let size = city_size_class(&self.content.rules, citizens) as i32;
         let (fame_lost, fame_gained) = fame_change(size);
         let loot = self.economy().conquest_loot(city);
         let loser_is_wizard = self.is_wizard(loser);
@@ -279,7 +284,7 @@ impl Game {
                 RazeError::NotJustTaken,
             ))];
         }
-        let size = city_size_class(self.economy().citizens(city)) as i32;
+        let size = city_size_class(&self.content.rules, self.economy().citizens(city)) as i32;
         let rules = &self.content.rules;
         let loot = self
             .world

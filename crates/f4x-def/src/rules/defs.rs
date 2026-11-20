@@ -904,6 +904,10 @@ pub struct RulesConfig {
     /// The fewest defenders a city wants: `(from figures, defenders)` pairs in rising order of
     /// figures; a city below the first has none.
     pub garrison_minimum: Vec<(u32, u32)>,
+    /// Where a city's size class starts: the citizens at which class 1, class 2 and so on begin, in
+    /// rising order; a city below the first (an outpost) is class 0, so a city's class is the number
+    /// of entries it has reached. The words for the classes are in the text files (`city_size.*`).
+    pub city_size_from: Vec<u32>,
     /// What a neutral city's population gives it: the building comes with `population - 2` at
     /// or above the number (a building its race cannot build is left out).
     pub starting_buildings: Vec<(u32, Id<BuildingDef>)>,
@@ -1603,6 +1607,7 @@ impl Default for RulesConfig {
             outpost: OutpostRules::default(),
             threat: ThreatRules::default(),
             garrison_minimum: Vec::new(),
+            city_size_from: Vec::new(),
             starting_buildings: Vec::new(),
             limited_ai_races: Vec::new(),
             event_ores: Vec::new(),

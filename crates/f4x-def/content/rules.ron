@@ -19,6 +19,8 @@
         sea_raid: (chance_percent: 25, ships: [(0, 35 /* trireme */), (120, 36 /* galley */)], parties: [(0, 0, 2, 2), (121, 1, 2, 4), (251, 2, 3, 0)] /* (from turn, base, dice sides, pool of cheapest units; 0 = all): 1d2 of the 2 cheapest, 1d2+1 of the 4 cheapest, 1d3+2 of all */, coast_rolls: 4)),
     // (from this many figures, at least this many defenders)
     garrison_minimum: [(1, 1), (3, 2), (6, 3), (9, 4)],
+    // The citizens from which a city is a hamlet, village, town, city and (the fifth) capital-sized; below the first it is an outpost.
+    city_size_from: [1, 5, 9, 13, 17],
     // (population - 2 at or above, building): barracks, smithy, builders hall, armory, granary, stables,
     // city walls, fighters guild, armorers guild, shrine
     starting_buildings: [(0, 3), (1, 8), (2, 32), (3, 4), (5, 29), (6, 9), (8, 35), (10, 5), (11, 6), (12, 22)],

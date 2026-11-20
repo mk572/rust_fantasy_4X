@@ -1,14 +1,21 @@
 use super::*;
 
 #[test]
-fn a_city_is_a_hamlet_up_to_four_citizens_and_a_metropolis_from_seventeen() {
-    assert_eq!(city_size_class(0), 0);
-    assert_eq!(city_size_class(1), 1);
-    assert_eq!(city_size_class(4), 1);
-    assert_eq!(city_size_class(5), 2);
-    assert_eq!(city_size_class(16), 4);
-    assert_eq!(city_size_class(17), 5);
-    assert_eq!(city_size_class(40), 5);
+fn a_city_has_the_size_class_of_the_size_rows_its_citizens_have_reached() {
+    let rules = crate::game::testutil::shipped().rules;
+    let from = &rules.config.city_size_from;
+    assert!(
+        from.first().is_some_and(|&first| first > 0),
+        "an outpost is below the first row"
+    );
+    assert!(from.windows(2).all(|w| w[0] < w[1]), "the rows rise");
+    assert_eq!(city_size_class(&rules, 0), 0);
+    for (row, &citizens) in from.iter().enumerate() {
+        assert_eq!(city_size_class(&rules, citizens), row as u32 + 1);
+        assert_eq!(city_size_class(&rules, citizens - 1), row as u32);
+    }
+    let last = from[from.len() - 1];
+    assert_eq!(city_size_class(&rules, last + 100), from.len() as u32);
 }
 
 #[test]
