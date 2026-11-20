@@ -372,11 +372,18 @@ impl App {
         });
         let question = format!("{title} {}", self.attack_line(&attack));
         let line = self.art.text_height(4) + 2.0;
-        let lines: Vec<(f32, String)> = self
+        let mut lines: Vec<(f32, String)> = self
             .bm_wrap(4, &question, 166.0)
             .into_iter()
             .map(|l| (0.0, l))
             .collect();
+        if let Some(forecast) = self.forecast_line(&attack) {
+            lines.extend(
+                self.bm_wrap(4, &forecast, 166.0)
+                    .into_iter()
+                    .map(|l| (0.0, l)),
+            );
+        }
         let paragraph = line * lines.len() as f32;
         let (x, y) = (
             68.0,
@@ -455,6 +462,22 @@ impl App {
         }
     }
 
+    /// How the sides compare, when the game's setting asks for it: "The enemy is slightly
+    /// stronger." (`Game::combat_forecast`, by the combat ratings; the sides are the units that
+    /// would fight, the human's the attackers or, when defending, the defenders).
+    fn forecast_line(&self, attack: &PendingAttack) -> Option<String> {
+        if !self.game.settings().rules.combat_forecast {
+            return None;
+        }
+        let (mine, theirs) = if attack.defending {
+            (&attack.defenders, &attack.attackers)
+        } else {
+            (&attack.attackers, &attack.defenders)
+        };
+        let forecast = self.game.combat_forecast(mine, theirs)?;
+        Some(self.text(forecast.text_key()))
+    }
+
     /// "Your 3 units attack 2 Spearmen and a Hero" in a few words.
     fn attack_line(&self, attack: &PendingAttack) -> String {
         let owner = attack
@@ -511,6 +534,38 @@ mod tests {
             defending,
             treaty_asked: false,
         })
+    }
+
+    #[test]
+    fn the_forecast_line_appears_only_when_the_setting_is_on() -> TestResult {
+        let mut app = App::for_test();
+        let rival = PlayerId(1);
+        let pending = attack(&app, rival, false)?;
+        assert_eq!(app.forecast_line(&pending), None, "off by default");
+        let mut snapshot = app.game.snapshot();
+        snapshot.settings.rules.combat_forecast = true;
+        app.game = snapshot.restore(app.game.content().clone())?;
+        // The units of the restored game are new entities.
+        let pending = attack(&app, rival, false)?;
+        let line = app
+            .forecast_line(&pending)
+            .ok_or("no forecast with the setting on")?;
+        let forecast = app
+            .game
+            .combat_forecast(&pending.attackers, &pending.defenders)
+            .ok_or("the sides have no worth")?;
+        assert_eq!(line, app.text(forecast.text_key()));
+        // Defending, the human's side is the defenders: the forecast is the other way round.
+        let defending = attack(&app, rival, true)?;
+        let reverse = app
+            .game
+            .combat_forecast(&defending.defenders, &defending.attackers)
+            .ok_or("the sides have no worth")?;
+        assert_eq!(
+            app.forecast_line(&defending),
+            Some(app.text(reverse.text_key()))
+        );
+        Ok(())
     }
 
     #[test]

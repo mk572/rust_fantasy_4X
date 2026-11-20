@@ -22,4 +22,11 @@
     "attack.line_monster": (count: "defenders",
         one: "{attackers} of your units attack 1 monster unit.",
         other: "{attackers} of your units attack {defenders} monster units."),
+    "attack.forecast_outmatched": "You are completely outmatched.",
+    "attack.forecast_much_weaker": "The enemy is much stronger.",
+    "attack.forecast_slightly_weaker": "The enemy is slightly stronger.",
+    "attack.forecast_even": "The enemy is evenly matched.",
+    "attack.forecast_slightly_stronger": "You are slightly stronger.",
+    "attack.forecast_much_stronger": "You are much stronger.",
+    "attack.forecast_other_outmatched": "The enemy is completely outmatched.",
 }

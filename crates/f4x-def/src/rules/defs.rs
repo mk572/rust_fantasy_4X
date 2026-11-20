@@ -891,6 +891,8 @@ pub struct RulesConfig {
     pub casting_range: CastingRange,
     /// What wizards ask for goods in a trade.
     pub trade: TradeRules,
+    /// How the combat forecast words how the sides compare.
+    pub forecast: ForecastRules,
     /// Relations, treaties and negotiations.
     pub diplomacy: DiplomacyRules,
     /// The offers of mercenaries and heroes.
@@ -1423,6 +1425,24 @@ impl Default for TradeRules {
     }
 }
 
+/// The combat forecast before an attack (setting `combat_forecast`, `Forecast` in core).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ForecastRules {
+    /// The shares of the other side's worth (percent, rising), below which a side is completely
+    /// outmatched, much weaker and slightly weaker; the same shares turned over (a side worth
+    /// 100 / share times the other) are the marks of being slightly stronger, much stronger and
+    /// the other side outmatched. Between the two inner marks the sides are even.
+    pub bands_pct: [u32; 3],
+}
+
+impl Default for ForecastRules {
+    fn default() -> Self {
+        Self {
+            bands_pct: [33, 60, 85],
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiplomacyRules {
     /// What Subversion takes off every other wizard's relation to its target.
@@ -1577,6 +1597,7 @@ impl Default for RulesConfig {
             autobuild_order: Vec::new(),
             casting_range: CastingRange::default(),
             trade: TradeRules::default(),
+            forecast: ForecastRules::default(),
             diplomacy: DiplomacyRules::default(),
             offer: OfferRules::default(),
             outpost: OutpostRules::default(),

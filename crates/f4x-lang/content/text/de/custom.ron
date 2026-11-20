@@ -108,6 +108,7 @@
     "custom.max_battle_side": "Meiste Einheiten einer Seite in einer Schlacht",
     "custom.monster_start": "Monster beginnen in Runde (ab Durchschnitt)",
     "custom.half_upkeep": "Halber Unterhalt für einfache Truppen",
+    "custom.combat_forecast": "Vor einem Angriff sagen, wie die Seiten zueinander stehen",
     "custom.arcane_cap": "Angebotene arkane Zauber, höchstens",
     "custom.trireme_capacity": "Trireme trägt",
     "custom.galley_capacity": "Galeere trägt",

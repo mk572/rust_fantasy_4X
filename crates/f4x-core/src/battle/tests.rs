@@ -8428,3 +8428,91 @@ fn an_item_gives_life_steal_no_extra_penalty() {
     assert_eq!(given.penalty, innate.penalty, "the same penalty");
     assert_eq!(given.penalty, level, "the unit's own level, nothing more");
 }
+
+mod forecast {
+    use super::*;
+    use crate::battle::forecast::Forecast;
+
+    /// `count` units of the shipped unit with this number for `owner`, on one square.
+    fn raise(g: &mut Game, owner: PlayerId, number: u16, count: usize) -> Vec<hecs::Entity> {
+        let kind = g
+            .content
+            .rules
+            .units
+            .id_numbered(number)
+            .expect("a unit of the content");
+        (0..count)
+            .map(|_| g.spawn_unit(owner, at(4, 4), kind))
+            .collect()
+    }
+
+    const SPEARMEN: u16 = 104;
+    const SKY_DRAKE: u16 = 196;
+
+    #[test]
+    fn equal_sides_are_even_and_a_far_stronger_one_outmatches_the_other() {
+        let mut g = game();
+        let ours = raise(&mut g, A, SPEARMEN, 2);
+        let theirs = raise(&mut g, D, SPEARMEN, 2);
+        assert_eq!(g.combat_forecast(&ours, &theirs), Some(Forecast::Even));
+        let drake = raise(&mut g, D, SKY_DRAKE, 1);
+        assert_eq!(
+            g.combat_forecast(&ours, &drake),
+            Some(Forecast::CompletelyOutmatched)
+        );
+        assert_eq!(
+            g.combat_forecast(&drake, &ours),
+            Some(Forecast::OtherOutmatched)
+        );
+    }
+
+    #[test]
+    fn more_units_never_make_the_forecast_worse() {
+        let mut g = game();
+        let theirs = raise(&mut g, D, SPEARMEN, 4);
+        let mut last = Forecast::CompletelyOutmatched;
+        for count in 1..=g.max_battle_side() {
+            let ours = raise(&mut g, A, SPEARMEN, count);
+            let now = g.combat_forecast(&ours, &theirs).expect("both have worth");
+            assert!(now >= last, "{count} spearmen: {now:?} after {last:?}");
+            last = now;
+        }
+        assert!(last > Forecast::Even, "nine against four: {last:?}");
+    }
+
+    #[test]
+    fn only_the_units_that_would_fight_count() {
+        let mut g = game();
+        let fighting = g.max_battle_side();
+        let ours = raise(&mut g, A, SPEARMEN, fighting + 3);
+        let theirs = raise(&mut g, D, SPEARMEN, fighting);
+        assert_eq!(g.combat_forecast(&ours, &theirs), Some(Forecast::Even));
+    }
+
+    #[test]
+    fn a_side_with_no_rated_unit_against_one_with_some_is_outmatched_and_two_empty_sides_have_no_forecast(
+    ) {
+        let mut g = game();
+        let theirs = raise(&mut g, D, SPEARMEN, 1);
+        assert_eq!(
+            g.combat_forecast(&[], &theirs),
+            Some(Forecast::CompletelyOutmatched)
+        );
+        assert_eq!(g.combat_forecast(&[], &[]), None);
+    }
+
+    #[test]
+    fn the_bands_split_the_ratio_the_same_way_both_ways() {
+        // Shares of 25, 50 and 80 percent, and so marks at 4, 2 and 1.25 times the other side.
+        let bands = [25, 50, 80];
+        let seen = |own: f32| Forecast::of_worths(own, 100.0, bands);
+        assert_eq!(seen(20.0), Some(Forecast::CompletelyOutmatched));
+        assert_eq!(seen(40.0), Some(Forecast::MuchWeaker));
+        assert_eq!(seen(70.0), Some(Forecast::SlightlyWeaker));
+        assert_eq!(seen(100.0), Some(Forecast::Even));
+        assert_eq!(seen(120.0), Some(Forecast::Even));
+        assert_eq!(seen(130.0), Some(Forecast::SlightlyStronger));
+        assert_eq!(seen(250.0), Some(Forecast::MuchStronger));
+        assert_eq!(seen(500.0), Some(Forecast::OtherOutmatched));
+    }
+}

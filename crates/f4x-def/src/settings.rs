@@ -408,6 +408,11 @@ pub struct RuleSettings {
     /// them). A new game takes the content's choice; it is saved with the game.
     #[serde(default = "fb_half_upkeep")]
     pub half_upkeep: bool,
+    /// The question before an attack says how the two sides compare by their combat ratings
+    /// ("The enemy is slightly stronger", `battle::forecast`). Off by default: it tells the
+    /// player more than the original does. Saved with the game.
+    #[serde(default = "fb_combat_forecast")]
+    pub combat_forecast: bool,
     /// Patch 1.40 of the original: at most this many arcane spells on offer at once while another
     /// realm has spells to research. 0 is off, as in the original game. A new game takes the
     /// content's choice; it is saved with the game.
@@ -631,6 +636,10 @@ fn fb_melee_vs_fliers() -> MeleeVsFliers {
 
 fn fb_half_upkeep() -> bool {
     fallback(|g| g.rules.half_upkeep, false)
+}
+
+fn fb_combat_forecast() -> bool {
+    fallback(|g| g.rules.combat_forecast, false)
 }
 
 fn fb_arcane_candidate_cap() -> u8 {

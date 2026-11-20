@@ -22,4 +22,11 @@
     "attack.line_monster": (count: "defenders",
         one: "{attackers} deiner Einheiten greifen 1 Monstereinheit an.",
         other: "{attackers} deiner Einheiten greifen {defenders} Monstereinheiten an."),
+    "attack.forecast_outmatched": "Du bist hoffnungslos unterlegen.",
+    "attack.forecast_much_weaker": "Der Feind ist viel stärker.",
+    "attack.forecast_slightly_weaker": "Der Feind ist etwas stärker.",
+    "attack.forecast_even": "Der Feind ist ebenbürtig.",
+    "attack.forecast_slightly_stronger": "Du bist etwas stärker.",
+    "attack.forecast_much_stronger": "Du bist viel stärker.",
+    "attack.forecast_other_outmatched": "Der Feind ist hoffnungslos unterlegen.",
 }

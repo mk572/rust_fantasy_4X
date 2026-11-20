@@ -15,6 +15,7 @@ pub mod attack;
 pub mod casting;
 pub mod content_ref;
 pub mod field;
+pub mod forecast;
 pub mod game;
 pub mod immunity;
 pub mod info;

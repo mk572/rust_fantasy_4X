@@ -661,6 +661,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.rules.half_upkeep.into(),
             |s, v| s.rules.half_upkeep = v != 0,
         ),
+        flag(
+            "custom.combat_forecast",
+            |s| s.rules.combat_forecast.into(),
+            |s, v| s.rules.combat_forecast = v != 0,
+        ),
         num(
             "custom.arcane_cap",
             (0, 20, 1),

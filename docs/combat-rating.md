@@ -60,6 +60,16 @@ more than all the levels before. And the cost curve is nearly linear for the pla
 0.25 spearmen a gold piece) with outliers worth looking at (the engineers and the Klackon
 engineers, a fighter bought at 80 for a rating of 0.5).
 
+## The combat forecast
+
+The first user of the rating in the game (20 November 2026): with the game setting `combat_forecast`
+(Custom screen, off by default) the question before an attack, and the question when a rival attacks the
+human, say how the sides compare: the sum of the ratings of the units each side would send (the strongest
+`max_battle_side`) against the other's, in seven steps from "You are completely outmatched" to "The enemy is
+completely outmatched" (`Game::combat_forecast`, `battle/forecast.rs`; the thresholds are `forecast.bands_pct`
+in `rules.ron`, [`game-settings.md`](game-settings.md)). It is as rough as the rating: walls, terrain, spells
+and the players' skill are not counted.
+
 ## The plan to wire it in
 
 The AI weighs units in many places, nearly all through two functions: `battle::power::unit_power`
