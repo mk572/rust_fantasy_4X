@@ -1355,6 +1355,27 @@ impl Battle {
         if self.winner.is_some() {
             return Vec::new();
         }
+        // A side whose every unit left is lent to the enemy at once loses on the spot, and those
+        // units are destroyed (wiki article "Confusion").
+        let all_lent = |s| {
+            let mut mine = self
+                .units
+                .iter()
+                .filter(|u| u.is_active() && u.turned_from.unwrap_or(u.side) == s);
+            let any = mine.clone().next().is_some();
+            any && mine.all(|u| u.turned_from.is_some())
+        };
+        let lost_to_confusion = [Side::Attacker, Side::Defender]
+            .into_iter()
+            .find(|&s| all_lent(s));
+        if let Some(loser) = lost_to_confusion {
+            for u in &mut self.units {
+                if u.is_active() && u.turned_from == Some(loser) {
+                    u.figures = 0;
+                    u.status = Status::Dead;
+                }
+            }
+        }
         // A unit lent to the enemy by confusion still counts for its owner.
         let alive = |s| {
             self.units

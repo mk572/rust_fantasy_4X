@@ -151,7 +151,7 @@ outliers (opponents against which the spell moves the win rate a lot), not the a
   spell has a fight to change (a one against one against a strong monster is 0 or 100 wins otherwise).
 - `--hurt PERCENT`: both units start with that share of their hit points lost (for healing).
 - `--count N`: N units a side; the spell goes to or from the first. Needed for the spells that need
-  allies (Confusion lends the unit to the enemy for a turn, which means nothing with no allies).
+  allies (Confusion lends the unit to the enemy for a turn).
 - `--trace OPPONENT`: the orders and events of the first fight against that opponent.
 
 What it showed (20 November 2026, reference units 47 and 101, the soak-out analysis in task 705):
@@ -160,9 +160,7 @@ What it showed (20 November 2026, reference units 47 and 101, the soak-out analy
   the longbowmen: a hasted archer shoots twice (win rate +13 to +16 points), Warp Wood on an archer
   takes its only weapon (the longbowmen win 0.62 without it, 0.15 with it), a confused archer loses
   most of its shots (+7 for us, -14 against). A melee unit's Haste is a second swing in the same exchange (after the counter-attack, which is not doubled); the figures below for a melee unit were measured before that change (a second exchange, the enemy striking first: a hasted swordsman won 30 of 100 against an equal one) and must be measured again.
-- **Confusion needs allies in the fight.** One against one the confused unit only defends, which is
-  the better side of a melee exchange (a confused swordsman wins more, not fewer): with two or three
-  a side the seized unit strikes its old allies (the AI orders it like one of its own units).
+- **Confusion:** a confused unit does nothing, wanders, is lent to the enemy for a turn or acts as usual, a quarter of the turns each. When every unit a side has left is lent at once, that side loses on the spot and the units are destroyed (wiki "Confusion"; `Battle::check_winner`). Before this rule one against one measured nothing (a swordsman 0.427 base, 0.422 with the enemy confused); now 0.77 against a lone unit, and 0.58 with three a side (task 705 run of 20 November 2026, reference unit 47).
 - **Healing** shows nothing in a fight between whole units; with `--hurt` the side with the healer
   wins nearly always (unlimited mana).
 

@@ -3310,13 +3310,12 @@ mod fields {
                 }
                 Some(Confusion::Seized) => {
                     seized += 1;
-                    assert!(b.units[1].attacked && b.units[1].seized);
-                    // The enemy commands it on their turn, and it goes home after.
+                    // The only unit its side has is lent to the enemy as their turn begins: the
+                    // battle is lost on the spot and the unit is destroyed (wiki article
+                    // "Confusion").
                     end_turns(&mut b, 1);
-                    assert_eq!(b.units[1].side, Side::Attacker);
-                    assert!(b.units[1].moves_left > 0 && !b.units[1].attacked);
-                    end_turns(&mut b, 1);
-                    assert_eq!(b.units[1].side, Side::Defender);
+                    assert_eq!(b.winner, Some(Side::Attacker));
+                    assert!(!b.units[1].is_active());
                 }
                 None => free += 1,
             }
@@ -3324,6 +3323,45 @@ mod fields {
         for n in [idle, wandered, seized, free] {
             assert!((25..=75).contains(&n), "{idle} {wandered} {seized} {free}");
         }
+    }
+
+    #[test]
+    fn a_seized_unit_acts_for_the_enemy_for_a_turn_and_goes_home_when_its_side_has_others() {
+        let mut seen = 0;
+        for seed in 0..200 {
+            let mut b = real_battle(
+                &[(105 /* high_men_swordsmen */, (3, 5))],
+                &[
+                    (104 /* high_men_spearmen */, (8, 5)),
+                    (104 /* high_men_spearmen */, (9, 5)),
+                ],
+                seed,
+            );
+            b.units[1].put_enchantment(SpellId::new(46 /* confusion */));
+            let events = end_turns(&mut b, 1);
+            let seized = events.iter().any(|e| {
+                matches!(
+                    e,
+                    BattleEvent::Confused {
+                        unit: 1,
+                        act: Confusion::Seized
+                    }
+                )
+            });
+            if !seized {
+                continue;
+            }
+            seen += 1;
+            assert!(b.winner.is_none(), "a side with another unit goes on");
+            assert!(b.units[1].attacked && b.units[1].seized);
+            // The enemy commands it on their turn, and it goes home after.
+            end_turns(&mut b, 1);
+            assert_eq!(b.units[1].side, Side::Attacker);
+            assert!(b.units[1].moves_left > 0 && !b.units[1].attacked);
+            end_turns(&mut b, 1);
+            assert_eq!(b.units[1].side, Side::Defender);
+        }
+        assert!(seen > 10, "{seen}");
     }
 
     #[test]
