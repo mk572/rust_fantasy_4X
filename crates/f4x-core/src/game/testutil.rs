@@ -21,7 +21,7 @@ pub fn battle_policy(game: &crate::game::Game) -> Option<crate::battle::BattleCo
     let battle = game.battle()?;
     let side = battle.active;
     for unit in battle.active_units(side) {
-        if unit.attacked && unit.moves_left == 0 {
+        if unit.moves_left == 0 {
             continue;
         }
         let Some(enemy) = battle
@@ -31,7 +31,7 @@ pub fn battle_policy(game: &crate::game::Game) -> Option<crate::battle::BattleCo
         else {
             return Some(BattleCommand::EndTurn);
         };
-        if !unit.attacked {
+        if unit.can_attack() {
             if distance(unit.cell, enemy.cell) == 1 {
                 return Some(BattleCommand::Attack {
                     unit: unit.id,

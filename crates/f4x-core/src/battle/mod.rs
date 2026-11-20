@@ -458,6 +458,19 @@ impl BattleUnit {
             && !self.surfaced
     }
 
+    /// Whether the unit may attack now: it has movement left and has not used its turn up (a
+    /// shot, a spell). Blows cost half its allowance and leave the rest to move or strike again
+    /// (see ReMoM `Combat.c`, `Battle_Unit_Attack`; wiki article "Melee Attack").
+    pub fn can_attack(&self) -> bool {
+        self.is_active() && !self.attacked && self.moves_left > 0
+    }
+
+    /// The blows of a melee attack use up half the allowance (rounded up to a half), or all that
+    /// is left when that is less.
+    fn spend_melee_moves(&mut self) {
+        self.moves_left = self.moves_left.saturating_sub(self.moves.half());
+    }
+
     /// Whether Haste is on the unit: its attack is doubled (a second swing in the exchange, a
     /// second volley of a shot).
     pub fn is_hasted(&self) -> bool {
@@ -1399,13 +1412,21 @@ impl Battle {
         Ok(u)
     }
 
+    fn check_can_attack(u: &BattleUnit) -> Result<(), BattleError> {
+        if u.attacked {
+            return Err(BattleError::AlreadyAttacked);
+        }
+        if u.moves_left == 0 {
+            return Err(BattleError::NoMovesLeft);
+        }
+        Ok(())
+    }
+
     /// A unit that may strike the wall section at `cell`: one of the attackers' wall crushers
     /// that has not attacked, with a standing wall there.
     fn check_wall_attacker(&self, unit: usize, cell: Pos) -> Result<&BattleUnit, BattleError> {
         let u = self.check_unit(unit)?;
-        if u.attacked {
-            return Err(BattleError::AlreadyAttacked);
-        }
+        Self::check_can_attack(u)?;
         if u.side != Side::Attacker || !u.has(Ability::new(70 /* wall_crusher */)) {
             return Err(BattleError::NotWallCrusher);
         }
@@ -1424,12 +1445,14 @@ impl Battle {
         }
         let shot_mana = self.rules().shot_mana;
         let u = &mut self.units[unit];
-        u.attacked = true;
         u.revealed = true;
         if ranged {
             u.spend_shot(shot_mana, &self.content.rules);
+            u.attacked = true;
+            u.moves_left = HalfInt::ZERO;
+        } else {
+            u.spend_melee_moves();
         }
-        u.moves_left = HalfInt::ZERO;
         vec![BattleEvent::WallAttacked {
             unit,
             cell,
@@ -1643,9 +1666,7 @@ impl Battle {
             }
             BattleCommand::Attack { unit, target } => {
                 let u = self.check_unit(unit)?;
-                if u.attacked {
-                    return Err(BattleError::AlreadyAttacked);
-                }
+                Self::check_can_attack(u)?;
                 let t = self.check_target(unit, target)?;
                 if distance(u.cell, t.cell) != 1 {
                     return Err(BattleError::NotAdjacent);
@@ -1665,9 +1686,7 @@ impl Battle {
             }
             BattleCommand::Shoot { unit, target } => {
                 let u = self.check_unit(unit)?;
-                if u.attacked {
-                    return Err(BattleError::AlreadyAttacked);
-                }
+                Self::check_can_attack(u)?;
                 if !matches!(u.ranged_kind, RangedKind::Missile | RangedKind::Magic)
                     || u.ranged <= 0
                 {
@@ -1844,9 +1863,8 @@ impl Battle {
         self.units[att].record(out.taken);
         self.units[att].heal_kinds(out.dealt.healed);
         self.units[def].heal_kinds(out.taken.healed);
-        self.units[att].attacked = true;
         self.units[att].revealed = true;
-        self.units[att].moves_left = HalfInt::ZERO;
+        self.units[att].spend_melee_moves();
         for (id, mana_lost) in [(def, out.dealt.mana_lost), (att, out.taken.mana_lost)] {
             events.extend(self.power_drained(id, mana_lost));
         }

@@ -468,7 +468,7 @@ pub(crate) fn realm_of_spells(ids: &[SpellId]) -> Option<usize> {
 }
 
 fn unfinished(u: &BattleUnit) -> bool {
-    u.is_active() && !(u.attacked && u.moves_left == 0)
+    u.is_active() && u.moves_left > 0
 }
 
 fn can_shoot(u: &BattleUnit) -> bool {
@@ -1483,7 +1483,7 @@ impl App {
                 ui.steering = None;
             }
             // Hit an enemy: in melee when next to it, otherwise shoot.
-            (Some((id, _)), Some(u)) if !u.attacked => {
+            (Some((id, _)), Some(u)) if u.can_attack() => {
                 let order = if distance(u.cell, cell) == 1 {
                     BattleCommand::Attack {
                         unit: u.id,
@@ -1505,7 +1505,7 @@ impl App {
                 if battle.map.has_wall(cell)
                     && u.has(Ability::new(70 /* wall_crusher */))
                     && u.side == Side::Attacker
-                    && !u.attacked =>
+                    && u.can_attack() =>
             {
                 let order = if distance(u.cell, cell) == 1 {
                     BattleCommand::AttackWall { unit: u.id, cell }
@@ -2204,7 +2204,7 @@ impl App {
             if my_turn {
                 if u.has(Ability::new(70 /* wall_crusher */))
                     && u.side == Side::Attacker
-                    && !u.attacked
+                    && u.can_attack()
                 {
                     for wall in battle.map.standing_walls() {
                         if distance(u.cell, wall) == 1 || can_shoot(u) {
@@ -2218,9 +2218,9 @@ impl App {
                     .filter(|e| battle.seen_by(u.side, e.id))
                 {
                     let hit = if distance(u.cell, e.cell) == 1 {
-                        !u.attacked
+                        u.can_attack()
                     } else {
-                        can_shoot(u) && !u.attacked
+                        can_shoot(u) && u.can_attack()
                     };
                     if hit {
                         let (ex, ey) = at(e.cell);

@@ -991,3 +991,7 @@ Changed so far:
 - **Which spells illusion immunity refuses is a setting (task 712).** The original refuses every Sorcery curse; here four spells name the illusion type in `spells.ron` (Confusion, Vertigo, Mind Storm, Creature Binding), and the rule setting **Illusion Immunity protects from sorcery battle spells** (`rules.illusion_immunity_protects`, on) switches all four. Off, the spells affect an illusion-immune unit; the immunity still sees through illusion attacks.
 
 Open and decided later: doom damage and Black Sleep (task 714) and which spells are illusions (task 712). Decided and still to come (task 708): magic immunity is defined as no damage from spells and from magical ranged attacks, plus 30 to the resistance against the enemy's spells (the edge cases are refined later); a magical weapon overcomes weapon immunity without being weak to magic immunity; the damage of a unit is kept in parts by source, so Holy Weapon and Eldritch Weapon follow the same way (Flame Blade and Flaming already do).
+
+## Battle moves and Wind Mastery
+
+A unit's battle allowance is its overland allowance with the same parts as `Battle_Unit_Moves2` in ReMoM `Combat.c`: the Flight spell's floor (3 moves), the floor of Chaos Channels wings (`wings_moves`), Endurance (+1) and Haste (x2) all work the same way. One difference: the original applies the Wind Mastery factor of a ship in combat before those floors and bonuses (the source marks it an original bug, and overland it comes last); ours applies it last, in `unit_max_moves`, in combat and overland alike.

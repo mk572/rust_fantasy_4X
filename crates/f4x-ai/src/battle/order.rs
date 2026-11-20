@@ -58,7 +58,7 @@ fn route(battle: &Battle, unit: &BattleUnit, to: Pos) -> Vec<Pos> {
 fn wall_order(battle: &Battle, unit: &BattleUnit, enemy: &BattleUnit) -> Option<BattleCommand> {
     if unit.side != Side::Attacker
         || !unit.has(Ability::new(70 /* wall_crusher */))
-        || unit.attacked
+        || !unit.can_attack()
     {
         return None;
     }
@@ -96,7 +96,7 @@ fn wall_order(battle: &Battle, unit: &BattleUnit, enemy: &BattleUnit) -> Option<
 pub fn baseline_command(battle: &Battle) -> BattleCommand {
     let side = battle.active;
     for unit in battle.active_units(side) {
-        if unit.attacked && unit.moves_left == 0 {
+        if unit.moves_left == 0 {
             continue;
         }
         let Some(enemy) = closest_enemy(battle, unit) else {
@@ -105,7 +105,7 @@ pub fn baseline_command(battle: &Battle) -> BattleCommand {
         if let Some(order) = wall_order(battle, unit, enemy) {
             return order;
         }
-        if !unit.attacked {
+        if unit.can_attack() {
             if distance(unit.cell, enemy.cell) == 1 {
                 return BattleCommand::Attack {
                     unit: unit.id,
@@ -350,7 +350,7 @@ pub fn retreat(battle: &Battle) -> Option<BattleCommand> {
 pub fn next_command(battle: &Battle) -> BattleCommand {
     let side = battle.active;
     for unit in battle.active_units(side) {
-        if unit.attacked && unit.moves_left == 0 {
+        if unit.moves_left == 0 {
             continue;
         }
         let enemies: Vec<&BattleUnit> = battle
@@ -368,7 +368,7 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
         }
         let shooter = can_shoot(unit);
         let adjacent = enemies.iter().any(|e| distance(unit.cell, e.cell) == 1);
-        if !unit.attacked {
+        if unit.can_attack() {
             let melee = enemies
                 .iter()
                 .filter(|e| distance(unit.cell, e.cell) == 1)
@@ -590,7 +590,11 @@ mod tests {
             }
             b.apply(command).map_err(|e| format!("{e:?}"))?;
         }
-        assert_eq!(targets, vec![2], "the seized paladin strikes its old ally");
+        assert!(!targets.is_empty(), "the seized paladin strikes");
+        assert!(
+            targets.iter().all(|&t| t == 2),
+            "the seized paladin strikes only its old ally: {targets:?}"
+        );
         Ok(())
     }
 

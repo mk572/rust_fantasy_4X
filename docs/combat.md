@@ -51,7 +51,7 @@ Everything is in `attack.rs` as pure functions over numbers and a random generat
   without first strike swings with the figures it still has.
 - **Ranged attacks** draw no reply. Arrows, slings and boulders take -1 to hit for every
   three squares of distance (at most -1 with long range) and use one ammunition; spell shots
-  take no distance penalty. One attack or shot per unit per turn.
+  take no distance penalty. A shot uses up all the unit's moves (see "Attacks cost moves" below).
 - A walking unit's melee against a **flying** unit follows the setting `rules.melee_vs_fliers`:
   `zero` (the default, the original: nothing), `half` (half strength, rounded up) or `full`. The
   flier still hits back at full strength; thrown and breath attacks are unchanged. Divergence 26.
@@ -243,8 +243,7 @@ good.
   in forest and swamp, rocks in mountains); the columns around the deployment edges stay open.
   Attackers stand on the west edge, defenders on the east, in blocks centred on the middle.
 - **Turns:** the attacker plays all its units, then the defender; a new turn starts when the
-  defender ends its turn. Each unit may move and make one attack per turn (a melee attack
-  uses up the rest of its moves). `Done` ends a unit's turn, `EndTurn` the side's.
+  defender ends its turn. **Attacks cost moves** (ReMoM `Combat.c`, `Battle_Unit_Attack`; wiki "Melee Attack"): a melee attack costs half the unit's move allowance (rounded up to a half; a hasted unit's allowance is doubled), a shot or a spell all the moves left. A unit may attack as long as it has any move left, even when less than the blow costs (it then spends what is left), and with none left it cannot attack. So a unit with 2 moves strikes twice, or moves and strikes once, and a unit with a lot of movement strikes more often (`BattleUnit::can_attack`). `Done` ends a unit's turn, `EndTurn` the side's.
 - **A side loses when it has no active unit.** `Flee` hands the battle to the other side
   (the losses of fleeing units are task 42). After **100 turns** the defender wins (the original: 50; divergence 29).
 - Casting is in section 8; battlefield spells are section 9. City walls and gates are in
@@ -407,7 +406,7 @@ mirrored, so the defenders are at the east and the city stands at x 12 to 15, y 
   non-corporeal pass over the walls (but not the towers). A fallen section (`Wall::Broken`) is open
   ground again.
 - **Wall crushers** (the attackers' units with `wall_crusher`) strike a standing section with
-  `AttackWall` from next to it (it falls half the time, and the blow uses up the unit's moves) or
+  `AttackWall` from next to it (it falls half the time, and the blow costs half the allowance like any melee attack) or
   `ShootWall` with a ranged attack (a quarter of the time, one shot). A wall crusher that hits a unit standing on
   a wall section may bring that section down too, by the same chances.
 - **Defence:** a unit in the city, hit by an attacker outside it, has +3 defence on a standing wall
@@ -511,7 +510,7 @@ It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effec
   (`extra_hits`) belong to no spell and stay through any dispel. Whenever the hit-point ceiling
   falls, the damage taken is kept and a unit left with none dies (`settle_hit_points`,
   `divergences.md` 45). A unit cannot be given a spell it has.
-- **Haste** doubles the unit's moves and grants the ability `hasted` (`BattleUnit::is_hasted`, `Fighter::hasted`). Its attack is doubled inside the one exchange, not as a second exchange (so the opponent does not get two chances to counter): a hasted attacker makes its thrown and breath attacks twice (with their touches), its melee blow twice, and a hasted defender counter-attacks twice. Gazes are made once, and fear is rolled once and holds for both blows. First strike covers only the first blow; the second blow is made together with the counter-attack, with the figures the attacker had before it (after a gaze and the first blow), so it is struck even when the counter-attack kills the attacker. A hasted shooter fires a second volley in the same shot while it has ammunition (or mana) and the target stands. A hasted unit still attacks once a turn, as every unit does here (in the original a melee attack costs half the unit's move allowance, ReMoM `Battle_Unit_Attack`, so a normal unit attacks twice and a hasted one four times; here every attack ends the unit's movement). Sources: the wiki's Haste article and ReMoM `Combat.c`, `Battle_Unit_Attack`.
+- **Haste** doubles the unit's moves and grants the ability `hasted` (`BattleUnit::is_hasted`, `Fighter::hasted`). Its attack is doubled inside the one exchange, not as a second exchange (so the opponent does not get two chances to counter): a hasted attacker makes its thrown and breath attacks twice (with their touches), its melee blow twice, and a hasted defender counter-attacks twice. Gazes are made once, and fear is rolled once and holds for both blows. First strike covers only the first blow; the second blow is made together with the counter-attack, with the figures the attacker had before it (after a gaze and the first blow), so it is struck even when the counter-attack kills the attacker. A hasted shooter fires a second volley in the same shot while it has ammunition (or mana) and the target stands. Haste doubles the allowance, so a blow costs a hasted unit twice as much and the number of blows a turn stays the same. Sources: the wiki's Haste article and ReMoM `Combat.c`, `Battle_Unit_Attack`.
 - **Summons** appear on a free square of the caster's half of the field, at most nine units a
   side, ready to act; they are made like any unit and the overland copy is dropped at once, so
   nothing is left on the map afterwards.

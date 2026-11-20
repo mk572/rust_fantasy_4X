@@ -26,7 +26,7 @@ impl Battle {
             if u.moves_left > 0 {
                 out.extend(moves.into_iter().map(|to| BattleCommand::Move { unit, to }));
             }
-            if !u.attacked {
+            if u.can_attack() {
                 let shoots = matches!(u.ranged_kind, RangedKind::Missile | RangedKind::Magic)
                     && u.ranged > 0
                     && u.ammo > 0;

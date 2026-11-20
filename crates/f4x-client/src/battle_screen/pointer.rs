@@ -56,7 +56,7 @@ impl App {
             .and_then(|i| battle.unit(i))
             .filter(|u| unfinished(u));
         let strike = |u: &BattleUnit| {
-            if u.attacked {
+            if !u.can_attack() {
                 RED_CROSS
             } else if distance(u.cell, cell) == 1 {
                 SWORDS

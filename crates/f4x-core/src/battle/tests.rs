@@ -198,7 +198,7 @@ fn bad_orders_are_refused() {
 }
 
 #[test]
-fn a_melee_attack_hurts_both_sides_and_uses_up_the_turn() -> TestResult {
+fn a_melee_attack_hurts_both_sides_and_costs_half_the_allowance() -> TestResult {
     let mut b = real_battle(
         &[(104 /* high_men_spearmen */, (9, 10))],
         &[(104 /* high_men_spearmen */, (10, 10))],
@@ -219,11 +219,21 @@ fn a_melee_attack_hurts_both_sides_and_uses_up_the_turn() -> TestResult {
         b.unit(0).ok_or("unit is missing")?.hit_points(),
         ours - taken
     );
-    assert!(b.unit(0).ok_or("unit is missing")?.attacked);
-    assert_eq!(b.unit(0).ok_or("unit is missing")?.moves_left, 0);
+    // The blow costs half the allowance; what is left may strike again, and with none left
+    // there is no attack (ReMoM `Battle_Unit_Attack`, wiki "Melee Attack").
+    let me = b.unit(0).ok_or("unit is missing")?;
+    assert!(!me.attacked);
+    assert_eq!(me.moves_left, me.moves - me.moves.half());
+    while b.unit(0).ok_or("unit is missing")?.moves_left > 0 {
+        b.apply(BattleCommand::Attack { unit: 0, target: 1 })
+            .map_err(|e| format!("{e:?}"))?;
+        if !b.unit(1).ok_or("unit is missing")?.is_active() {
+            return Ok(());
+        }
+    }
     assert_eq!(
         b.apply(BattleCommand::Attack { unit: 0, target: 1 }),
-        Err(BattleError::AlreadyAttacked)
+        Err(BattleError::NoMovesLeft)
     );
     Ok(())
 }
@@ -1749,9 +1759,10 @@ fn a_wall_crusher_brings_a_wall_down_half_the_time_in_melee() -> TestResult {
         };
         assert_eq!(destroyed, !b.map.has_wall((12, 11)));
         fell += i32::from(destroyed);
-        // The blow takes the unit's turn.
-        assert!(b.unit(0).ok_or("unit is missing")?.attacked);
-        assert_eq!(b.unit(0).ok_or("unit is missing")?.moves_left, 0);
+        // The blow costs half the allowance, as a blow on a unit does.
+        let me = b.unit(0).ok_or("unit is missing")?;
+        assert!(!me.attacked);
+        assert_eq!(me.moves_left, me.moves - me.moves.half());
     }
     assert!((150..250).contains(&fell), "{fell}");
     Ok(())
@@ -7443,7 +7454,7 @@ fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() ->
 }
 
 #[test]
-fn a_hasted_unit_attacks_once_a_turn_with_a_doubled_attack() -> TestResult {
+fn a_hasted_unit_has_the_moves_for_more_blows_than_an_unhasted_one() -> TestResult {
     let haste = 70;
     let mut g = wizard_battle(104 /* high_men_spearmen */, &[haste]);
     cast_on_first(&mut g, haste).map_err(|e| format!("{e:?}"))?;
@@ -7451,13 +7462,18 @@ fn a_hasted_unit_attacks_once_a_turn_with_a_doubled_attack() -> TestResult {
     b.units[0].cell = (9, 10);
     b.units[1].cell = (10, 10);
     assert!(b.unit(0).ok_or("unit is missing")?.is_hasted());
-    b.apply(BattleCommand::Attack { unit: 0, target: 1 })
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(b.unit(0).ok_or("unit is missing")?.attacked);
-    assert_eq!(
-        b.apply(BattleCommand::Attack { unit: 0, target: 1 }),
-        Err(BattleError::AlreadyAttacked)
-    );
+    // Haste doubles the allowance, so each blow costs twice as much and the unit has the same
+    // number of blows: two.
+    let mut blows = 0;
+    while b.unit(0).ok_or("unit is missing")?.can_attack() && blows < 10 {
+        b.apply(BattleCommand::Attack { unit: 0, target: 1 })
+            .map_err(|e| format!("{e:?}"))?;
+        blows += 1;
+        if !b.unit(1).ok_or("unit is missing")?.is_active() {
+            break;
+        }
+    }
+    assert!(blows >= 2, "{blows}");
     Ok(())
 }
 
