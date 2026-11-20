@@ -119,11 +119,10 @@ impl Mover {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BattleMap {
     cells: Vec<Cell>,
-    /// Half-moves (the raw count of a [`HalfInt`]) to enter each square on foot (`layout::INF`
-    /// for none).
-    costs: Vec<u8>,
-    /// Half-moves to enter each square by ship (`layout::INF` for none).
-    sail: Vec<u8>,
+    /// The moves to enter each square on foot (`None` for none).
+    costs: Vec<Option<HalfInt>>,
+    /// The moves to enter each square by ship (`None` for none).
+    sail: Vec<Option<HalfInt>>,
     /// What the screen draws, in the original's frame; `None` on a map made by hand.
     look: Option<Box<Look>>,
     /// The walls of the city, indexed by the square's place in the city area; `None` outside
@@ -144,8 +143,8 @@ impl BattleMap {
     pub fn open() -> Self {
         Self {
             cells: vec![Cell::Open; (GRID_W * GRID_H) as usize],
-            costs: vec![OPEN_COST.raw() as u8; (GRID_W * GRID_H) as usize],
-            sail: vec![layout::INF; (GRID_W * GRID_H) as usize],
+            costs: vec![Some(OPEN_COST); (GRID_W * GRID_H) as usize],
+            sail: vec![None; (GRID_W * GRID_H) as usize],
             look: None,
             walls: None,
             fortress: false,
@@ -296,17 +295,17 @@ impl BattleMap {
         for y in 0..GRID_H {
             for x in 0..GRID_W {
                 let (cgx, cgy) = (GRID_W - 1 - x, y);
-                let cost = layout.cost_at(cgx, cgy);
+                let cost = layout.walk_cost(cgx, cgy);
                 let i = Self::index((x, y));
                 map.costs[i] = cost;
-                map.sail[i] = layout.sail_at(cgx, cgy);
+                map.sail[i] = layout.sail_cost(cgx, cgy);
                 map.ship_deck[i] =
                     layout.look.roads[(cgy * layout::W + cgx) as usize] == layout::SHIP_DECK;
                 map.cells[i] = match cost {
                     _ if layout.is_void(cgx, cgy) => Cell::Void,
                     // Ocean: walkers cannot enter it, ships and fliers can.
-                    layout::INF => Cell::Blocked,
-                    c if c > OPEN_COST.raw() as u8 => Cell::Rough,
+                    None => Cell::Blocked,
+                    Some(c) if c > OPEN_COST => Cell::Rough,
                     _ => Cell::Open,
                 };
             }
@@ -348,11 +347,11 @@ impl BattleMap {
             let i = Self::index(pos);
             self.cells[i] = cell;
             self.costs[i] = match cell {
-                Cell::Open => OPEN_COST.raw() as u8,
-                Cell::Rough => ROUGH_COST.raw() as u8,
-                Cell::Blocked | Cell::Void => layout::INF,
+                Cell::Open => Some(OPEN_COST),
+                Cell::Rough => Some(ROUGH_COST),
+                Cell::Blocked | Cell::Void => None,
             };
-            self.sail[i] = layout::INF;
+            self.sail[i] = None;
         }
     }
 
@@ -363,7 +362,7 @@ impl BattleMap {
             (Cell::Void, _) => None,
             (_, true) => Some(OPEN_COST),
             (Cell::Blocked, false) => None,
-            _ => Some(HalfInt::from_raw(i32::from(self.costs[Self::index(pos)]))),
+            _ => self.costs[Self::index(pos)],
         }
     }
 
@@ -379,14 +378,14 @@ impl BattleMap {
         }
         let i = Self::index(pos);
         let (walk, sail) = (self.costs[i], self.sail[i]);
-        let cost = if mover.swims {
-            walk.min(sail)
+        if mover.swims {
+            // The lesser of the two ways; a way that is shut does not count.
+            [walk, sail].into_iter().flatten().min()
         } else if mover.sails {
             sail
         } else {
             walk
-        };
-        (cost != layout::INF).then_some(HalfInt::from_raw(i32::from(cost)))
+        }
     }
 
     /// Whether the walls of the city shut `pos` to a unit that starts its move `inside` the

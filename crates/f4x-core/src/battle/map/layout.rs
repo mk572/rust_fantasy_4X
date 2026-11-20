@@ -22,6 +22,7 @@
 //! land units on.
 
 use crate::game::rng::random;
+use f4x_def::half_int::HalfInt;
 use rand::Rng;
 
 pub const W: i32 = 21;
@@ -230,6 +231,21 @@ impl Layout {
         } else {
             INF
         }
+    }
+
+    /// The moves to enter the cell on foot, `None` where nobody can (the tables below count
+    /// half-moves; this is where they become amounts).
+    pub fn walk_cost(&self, cgx: i32, cgy: i32) -> Option<HalfInt> {
+        Self::amount(self.cost_at(cgx, cgy))
+    }
+
+    /// The moves for a ship to enter the cell, `None` where it cannot.
+    pub fn sail_cost(&self, cgx: i32, cgy: i32) -> Option<HalfInt> {
+        Self::amount(self.sail_at(cgx, cgy))
+    }
+
+    fn amount(half_moves: u8) -> Option<HalfInt> {
+        (half_moves != INF).then(|| HalfInt::from_raw(i32::from(half_moves)))
     }
 
     pub fn cost_at(&self, cgx: i32, cgy: i32) -> u8 {

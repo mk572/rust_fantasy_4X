@@ -236,7 +236,7 @@ impl Economy<'_> {
     ) -> Result<HalfInt, MoveError> {
         let straight = self.straight_step_cost(profile, from, to, traits)?;
         Ok(if self.diagonal_extra && from.x != to.x && from.y != to.y {
-            HalfInt::from_raw((straight.raw() * 3 + 1) / 2)
+            straight + straight.half()
         } else {
             straight
         })
