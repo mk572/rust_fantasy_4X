@@ -86,15 +86,16 @@ pub(crate) struct WarPlan {
 pub(crate) const MAX_FORCE: usize = 20;
 
 /// What the war asks of the army to take `target`: the strength that beats what is expected
-/// there with the margin a march demands. The march waits for it, the cities build towards it.
+/// there with the margin a march demands (`edge`, which follows the phase and the lead:
+/// `military::campaign_ratio`). The march waits for it, the cities build towards it.
 pub(crate) fn strength_wanted(
     view: &PlayerView,
     memory: &HashMap<Position, (f32, u32)>,
     turn: u32,
     target: Position,
+    edge: f32,
 ) -> f32 {
-    crate::military::expected_defence(view, memory, turn, target) * crate::military::attack_ratio()
-        + 1.0
+    crate::military::expected_defence(view, memory, turn, target) * edge + 1.0
 }
 
 /// How many average fighters a strength is, for the cities that build them: at least what a march
@@ -533,8 +534,8 @@ mod tests {
         let strong =
             HashMap::from([(target, (crate::military::average_strength(&view) * 30.0, 2))]);
         let (a, b) = (
-            strength_wanted(&view, &weak, 2, target),
-            strength_wanted(&view, &strong, 2, target),
+            strength_wanted(&view, &weak, 2, target, 1.5),
+            strength_wanted(&view, &strong, 2, target, 1.5),
         );
         assert!(b > a);
         assert_eq!(units_for(&view, a), crate::war::MIN_MARCH);

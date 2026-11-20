@@ -206,7 +206,9 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let wide = crate::phase::width(&PlayerView::new(game, me), room);
     let war_force = ai.campaign.map(|target| {
         let view = PlayerView::new(game, me);
-        let strength = crate::war_plan::strength_wanted(&view, &ai.city_memory, game.turn, target);
+        let edge = crate::military::campaign_ratio(game, me);
+        let strength =
+            crate::war_plan::strength_wanted(&view, &ai.city_memory, game.turn, target, edge);
         crate::war_plan::units_for(&view, strength)
     });
     let empire = Empire::of(&PlayerView::new(game, me));

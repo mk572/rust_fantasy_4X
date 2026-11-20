@@ -245,7 +245,9 @@ fn march_on(
             ai.roles.end_musters(crate::roles::MusterKind::Campaign);
             ai.march_target = Some(target);
         }
-        let wanted = crate::war_plan::strength_wanted(&view, &ai.city_memory, game.turn, target);
+        let edge = crate::military::campaign_ratio(game, me);
+        let wanted =
+            crate::war_plan::strength_wanted(&view, &ai.city_memory, game.turn, target, edge);
         // The army attacks as one stack from one square: the units on the rally square, the
         // strongest of them up to what a square holds. The rest of them stay available.
         let (mut at_rally, elsewhere): (Vec<_>, Vec<_>) = free
@@ -288,7 +290,14 @@ fn march_on(
     // rally and on its way is below what the march needs (and fewer than three). The others stay
     // where they are, available to the dispatcher's other jobs, as do the units of a town just
     // taken: nothing sends them anywhere.
-    let needed = wanted;
+    // In the win phase the wizard sends every free soldier it has, up to a full party: stacks that
+    // wait for more than the march needs while the rivals build theirs stall the late game
+    // (task 697). The march itself still leaves only when the force at the rally is strong enough.
+    let needed = if crate::phase::phase(&PlayerView::new(game, me)) == crate::phase::Phase::Win {
+        f32::INFINITY
+    } else {
+        wanted
+    };
     let mut elsewhere = elsewhere;
     let (mut have, mut have_units) = {
         let view = PlayerView::new(game, me);
@@ -960,6 +969,28 @@ mod tests {
         assert_eq!(pick(&g), Some(east));
     }
 
+    /// The same soldiers, the same target: a wizard that wins the game sends them all to the rally,
+    /// one that builds up only the few the march needs (task 697).
+    #[test]
+    fn in_the_win_phase_every_free_soldier_is_sent_to_the_rally_and_early_only_those_needed(
+    ) -> TestResult {
+        let sent = |turn: u32| -> Result<usize, Box<dyn std::error::Error>> {
+            let mut g = rival_with_a_seat((4, 4))?;
+            g.turn = turn;
+            spawn(&mut g, P0, at(5, 9), 113 /* high_men_paladins */, 9);
+            g.reveal_map(P0);
+            let mut ai = Ai::new(P0);
+            crate::roles::register(&mut ai, &g);
+            run(&mut ai, &mut g, &mut Vec::new());
+            let musters = ai.roles.musters();
+            Ok(musters.first().map_or(0, |(_, _, members)| members.len()))
+        };
+        let (early, late) = (sent(1)?, sent(400)?);
+        assert_eq!(early, MIN_MARCH);
+        assert!(late > early, "{late} against {early}");
+        Ok(())
+    }
+
     #[test]
     fn soldiers_gathering_for_the_campaign_hold_a_muster_until_the_march_leaves() -> TestResult {
         use crate::roles::Role;
@@ -1159,7 +1190,10 @@ mod tests {
         let weak = HashMap::from([(target, (1.0, 1))]);
         let strong = HashMap::from([(target, (average_strength(&view) * 9.0, 1))]);
         let wanted = |m: &HashMap<_, _>| {
-            crate::war_plan::units_for(&view, crate::war_plan::strength_wanted(&view, m, 2, target))
+            crate::war_plan::units_for(
+                &view,
+                crate::war_plan::strength_wanted(&view, m, 2, target, 1.5),
+            )
         };
         assert_eq!(wanted(&weak), 3, "a march needs three at least");
         assert!(wanted(&none) >= 3);
@@ -1634,7 +1668,15 @@ mod tests {
         g.treasury_mut(P0).ok_or("a treasury")?.gold = HalfInt::from_int(1_000_000);
         spawn(&mut g, P0, port, 36 /* galley */, 1);
         let keep = crate::view::garrison_wanted(&PlayerView::new(&g, P0), port);
-        spawn(&mut g, P0, port, 113 /* high_men_paladins */, 6 + keep);
+        // A full battle side of paladins: a wizard that is still building up asks a wide edge.
+        let side = g.max_battle_side();
+        spawn(
+            &mut g,
+            P0,
+            port,
+            113, /* high_men_paladins */
+            side + keep,
+        );
         let mut ai = Ai::new(P0);
         let mut landed = false;
         for _ in 0..60 {

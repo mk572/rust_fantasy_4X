@@ -442,3 +442,13 @@ fn neutral_races_take_part_too() -> TestResult {
     );
     Ok(())
 }
+
+#[test]
+fn the_lead_is_above_one_for_the_wizard_ahead_and_one_for_a_wizard_that_has_met_nobody(
+) -> TestResult {
+    let g = lopsided()?;
+    assert!(lead_of(&g, P0) > 1.0, "{}", lead_of(&g, P0));
+    let alone = game(COAST_CITY, 8 /* high_men */);
+    assert_eq!(lead_of(&alone, P0), 1.0);
+    Ok(())
+}

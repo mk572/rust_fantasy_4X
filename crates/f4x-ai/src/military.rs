@@ -17,6 +17,31 @@ use crate::Ai;
 pub(crate) fn attack_ratio() -> f32 {
     crate::knob("ATTACK", 1.4)
 }
+/// The edge over what it expects to meet that an army wants before it marches or strikes, by the
+/// phase of the game and the lead of the wizard (task 697). The numbers come from the ratings, not
+/// from soaks: in `duel teams` the side with the larger sum of unit ratings wins 74% of the time at
+/// 1.2 times the other's, 87% at 1.5 and 95% at 2 (`docs/combat-rating.md`, task 721). While it
+/// builds up the wizard marches only for a near-sure win; in the secure phase for a good one; in
+/// the win phase it takes the odds, and the more it leads the fewer it asks, down to a near-even
+/// fight at three times the best rival's power.
+pub(crate) fn edge(phase: crate::phase::Phase, lead: f32) -> f32 {
+    match phase {
+        crate::phase::Phase::Build => crate::knob("EDGE_BUILD", 2.0),
+        crate::phase::Phase::Secure => crate::knob("EDGE_SECURE", 1.5),
+        crate::phase::Phase::Win => {
+            let (first, last) = (crate::knob("EDGE_WIN", 1.3), crate::knob("EDGE_LEAD", 1.05));
+            let share = ((lead - 1.0) / 2.0).clamp(0.0, 1.0);
+            first + (last - first) * share
+        }
+    }
+}
+
+/// [`edge`] for this wizard now.
+pub(crate) fn campaign_ratio(game: &Game, me: f4x_core::player::PlayerId) -> f32 {
+    let phase = crate::phase::phase(&PlayerView::new(game, me));
+    edge(phase, crate::statecraft::lead_of(game, me))
+}
+
 /// An attack out of a city's garrison needs a much bigger edge.
 pub(crate) fn sortie_ratio() -> f32 {
     crate::knob("SORTIE", 2.5)
@@ -188,5 +213,55 @@ pub(crate) fn expected_defence(
         Some(&(s, seen)) if turn.saturating_sub(seen) <= MEMORY_TURNS => s * 1.3,
         // A guess of a few average units: only now is the average worked out.
         _ => crate::knob("GUESS", GUESS_DEFENDERS) * average_strength(view),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::phase::Phase;
+
+    /// The edge asked grows with caution: most while building up, least in the win phase.
+    #[test]
+    fn the_edge_asked_falls_from_the_build_phase_to_the_win_phase() {
+        let (build, secure, win) = (
+            edge(Phase::Build, 1.0),
+            edge(Phase::Secure, 1.0),
+            edge(Phase::Win, 1.0),
+        );
+        assert!(
+            build > secure && secure > win && win > 1.0,
+            "{build} {secure} {win}"
+        );
+    }
+
+    /// In the win phase a lead lowers the edge, never below even odds; the other phases do not read it.
+    #[test]
+    fn a_lead_lowers_the_edge_in_the_win_phase_only() {
+        let (level, ahead, far_ahead, beyond) = (
+            edge(Phase::Win, 1.0),
+            edge(Phase::Win, 2.0),
+            edge(Phase::Win, 3.0),
+            edge(Phase::Win, 30.0),
+        );
+        assert!(
+            level > ahead && ahead > far_ahead,
+            "{level} {ahead} {far_ahead}"
+        );
+        assert_eq!(far_ahead, beyond, "the fall stops");
+        assert!(far_ahead > 1.0);
+        assert_eq!(edge(Phase::Secure, 3.0), edge(Phase::Secure, 1.0));
+        assert_eq!(edge(Phase::Build, 3.0), edge(Phase::Build, 1.0));
+    }
+
+    /// The same game asks a bolder edge late than early.
+    #[test]
+    fn the_same_wizard_asks_a_smaller_edge_late_in_the_game_than_early() {
+        let mut g = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
+        g.turn = 1;
+        let early = campaign_ratio(&g, crate::testworld::P0);
+        g.turn = 400;
+        let late = campaign_ratio(&g, crate::testworld::P0);
+        assert!(late < early, "{late} against {early}");
     }
 }

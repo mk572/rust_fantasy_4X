@@ -18,7 +18,7 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::player::MONSTERS;
 
 use crate::military::{
-    attack_ratio, committed_ratio, engage, neighbours, sortie_ratio, stacks, THREAT_RADIUS,
+    campaign_ratio, committed_ratio, engage, neighbours, sortie_ratio, stacks, THREAT_RADIUS,
 };
 use crate::roles::{MusterKind, Role};
 use crate::view::{fighting_strength, party, stack_strength};
@@ -92,6 +92,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             || roles.is(s, Role::Reinforce)
             || roles.is(s, Role::Garrison)
     });
+    let edge = campaign_ratio(game, me);
     let stack_list = stacks(&PlayerView::new(game, me), fighters);
     for (pos, units) in stack_list {
         let at_city = own_cities.contains(&pos);
@@ -110,7 +111,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             } else if committed {
                 committed_ratio()
             } else {
-                attack_ratio()
+                edge
             };
             let sorties: Vec<(Position, Sortie)> = neighbours(&view, pos)
                 .into_iter()
