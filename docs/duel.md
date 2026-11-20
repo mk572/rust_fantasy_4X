@@ -114,7 +114,7 @@ seed of the fight, so four heroes of one type are four different heroes and a ru
 The heroes' tables are therefore of an average hero, not a floor. Heroes have the nine levels, so
 `--levels 1-9` and `--cross` over 1-9 include them; the normal units stop at 6 (the pairs of two units
 that are not heroes at levels 7 to 9 are those of level 6, copied from `ladder_6.csv`, which must be
-done first). `--cross` fights the units that gain levels (normal units, settlers and engineers, heroes).
+done first; the fit over all levels leaves out the pairs of a normal unit in the files of levels 7 to 9, its fights with heroes being in `cross_6_L`). `--cross` fights the units that gain levels (normal units, settlers and engineers, heroes).
 
 **Starting from an earlier run (`--prior DIR`).** A pair's ladder starts at the cell where the old
 run ended it (a wipeout at 1:9, a flip at its ratio) and walks up while the winner still wins and

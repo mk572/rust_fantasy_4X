@@ -1183,6 +1183,13 @@ fn combine_levels(
         for p in read(dir.join(format!("ladder_{la}.csv")))? {
             // Two creatures are the same fight at every level: only the first level's count.
             let both_fixed = !levels_up(content, p.a) && !levels_up(content, p.b);
+            // Past level 6 a normal unit is its level 6 self, whose fights with the heroes are
+            // in the cross files (`cross_6_L`) and with the others in `ladder_6.csv`: not a
+            // second node for it, and not the same fights twice.
+            let capped_normal = |n: u16| top_level(content, n) == 6;
+            if la > 6 && (capped_normal(p.a) || capped_normal(p.b)) {
+                continue;
+            }
             if set.contains(&p.a) && set.contains(&p.b) && (!both_fixed || la == range[0]) {
                 pairs.push(Pair {
                     a: node_at(content, p.a, la),
