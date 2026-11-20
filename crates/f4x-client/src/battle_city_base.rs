@@ -7,12 +7,15 @@
 //! and middle: the roads of the squares are the same strips whichever way they run, so every turn
 //! has an exact twin, found among the 16 pieces and their mirror images.
 //!
-//! The block's middle is the pixel (64, 31) (one up and right of the picture's middle), which puts
-//! every road pixel inside a square. Without the extracted pictures nothing is drawn turned.
+//! The block's middle is the left edge of pixel column 64 and the middle of pixel row 31: each road
+//! is 8 pixels wide across and 4 pixels of it lie on each side of a square's edge (found by
+//! measuring: about that point the roads are exactly 8 wide and centred on the squares' edges, and
+//! the picture's own half turn lies closest to itself). Without the extracted pictures nothing is
+//! drawn turned.
 
 /// The block's squares on a side.
 const SIDE: i32 = 4;
-/// The pixel the block is centred on, in the picture's own pixels.
+/// The block's middle: the edge between pixel columns 63 and 64, and the middle of pixel row 31.
 const CENTRE: (i32, i32) = (64, 31);
 /// The picture's size in its own pixels.
 const SIZE: (i32, i32) = (126, 64);
@@ -38,7 +41,7 @@ fn centre_of((i, j): Square) -> (i32, i32) {
 /// The square a pixel is in, or `None` outside the block.
 fn square_at(x: i32, y: i32) -> Option<Square> {
     // Twice the pixel's middle, from the block's middle.
-    let (dx, dy) = (2 * x + 1 - 2 * CENTRE.0, 2 * y + 1 - 2 * CENTRE.1);
+    let (dx, dy) = (2 * x + 1 - 2 * CENTRE.0, 2 * (y - CENTRE.1));
     let (u, v) = (dx + 2 * dy + 128, 2 * dy - dx + 128);
     let (i, j) = (u.div_euclid(64), v.div_euclid(64));
     ((0..SIDE).contains(&i) && (0..SIDE).contains(&j) && u >= 0 && v >= 0).then_some((i, j))
@@ -47,7 +50,7 @@ fn square_at(x: i32, y: i32) -> Option<Square> {
 /// A pixel's place in its square, 0 to 1 across (`u`, towards the south-east) and down (`v`,
 /// towards the south-west), from its offset to the square's middle pixel.
 fn place_in_square(offset: (i32, i32)) -> (f64, f64) {
-    let (rx, ry) = (f64::from(offset.0) + 0.5, f64::from(offset.1) + 0.5);
+    let (rx, ry) = (f64::from(offset.0) + 0.5, f64::from(offset.1));
     ((rx + 2.0 * ry) / 32.0 + 0.5, (2.0 * ry - rx) / 32.0 + 0.5)
 }
 
@@ -90,7 +93,7 @@ fn turned_shape(shape: Shape, quarters: u8) -> Shape {
 fn mirrored(offset: (i32, i32), (across, down): (bool, bool)) -> (i32, i32) {
     (
         if across { -1 - offset.0 } else { offset.0 },
-        if down { -1 - offset.1 } else { offset.1 },
+        if down { -offset.1 } else { offset.1 },
     )
 }
 
@@ -115,7 +118,7 @@ pub(crate) fn pieces(
     let roads_of = |square: Square| -> Vec<(i32, i32)> {
         let (cx, cy) = centre_of(square);
         (-16..16)
-            .flat_map(|dx| (-8..8).map(move |dy| (dx, dy)))
+            .flat_map(|dx| (-8..=8).map(move |dy| (dx, dy)))
             .filter(|&(dx, dy)| square_at(cx + dx, cy + dy) == Some(square))
             .filter(|&(dx, dy)| road(cx + dx, cy + dy))
             .collect()
@@ -207,10 +210,10 @@ pub(crate) fn turned(
 /// The picture turned by half a turn: a pixel map about the block's middle, so exact (the
 /// squares' pieces are only the same to a pixel, as the lattice is not painted symmetric).
 fn half_turned(bytes: &[u8], w: usize, h: usize, scale: usize) -> Vec<u8> {
-    // The pixel (x, y) goes to (2 * CENTRE.0 - 1 - x, 2 * CENTRE.1 - 1 - y), at the art scale.
+    // The pixel (x, y) goes to (2 * CENTRE.0 - 1 - x, 2 * CENTRE.1 - y), at the art scale.
     let (mx, my) = (
         2 * CENTRE.0 as usize * scale - 1,
-        2 * CENTRE.1 as usize * scale - 1,
+        (2 * CENTRE.1 as usize + 1) * scale - 1,
     );
     let mut out = vec![0u8; bytes.len()];
     for y in 0..h {
@@ -292,7 +295,7 @@ mod tests {
                     let (cx, cy) = centre_of(square);
                     shape_of(
                         (-16..16)
-                            .flat_map(|dx| (-8..8).map(move |dy| (dx, dy)))
+                            .flat_map(|dx| (-8..=8).map(move |dy| (dx, dy)))
                             .filter(|&(dx, dy)| square_at(cx + dx, cy + dy) == Some(square))
                             .filter(|&(dx, dy)| alpha(cx + dx, cy + dy))
                             .map(|o| mirrored(o, MIRRORS[m])),
@@ -343,7 +346,7 @@ mod tests {
         let alpha = |b: &[u8], x: i32, y: i32| b[(y as usize * w + x as usize) * 4 + 3] > 0;
         for y in 0..h as i32 {
             for x in 0..w as i32 {
-                let (tx, ty) = (2 * CENTRE.0 - 1 - x, 2 * CENTRE.1 - 1 - y);
+                let (tx, ty) = (2 * CENTRE.0 - 1 - x, 2 * CENTRE.1 - y);
                 if (0..w as i32).contains(&tx) && (0..h as i32).contains(&ty) {
                     assert_eq!(alpha(&bytes, x, y), alpha(&out, tx, ty));
                 }
