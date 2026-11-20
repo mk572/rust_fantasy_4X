@@ -539,9 +539,9 @@ pub struct Fighter {
     pub thrown: Option<Combatant>,
     pub first_strike: bool,
     pub negate_first_strike: bool,
-    /// A second swing in the same exchange (Haste). Only the attacker's counts: a hasted
-    /// defender still strikes back once.
-    pub extra_swing: bool,
+    /// Haste: the attacker's thrown and breath attacks and its melee blows are made twice in
+    /// the one exchange, and a hasted defender strikes back twice. Gazes and fear are made once.
+    pub hasted: bool,
     pub state: DefenderState,
 }
 
@@ -563,11 +563,22 @@ pub fn melee_exchange(
     rng: &mut dyn RngCore,
 ) -> Exchange {
     let mut out = Exchange::default();
-    // Thrown weapons and breath go first, with every figure the attacker has.
+    // Thrown weapons and breath go first, with every figure the attacker has. Haste does them
+    // twice (and the touches that go with them); a gaze is only ever made once.
     if let Some(thrown) = &att.thrown {
-        let d = process_attack(rules, thrown, att.state.figures, &mut def.state, rng);
-        att.state.heal_overflow(d.healed);
-        out.dealt += d;
+        let times = if att.hasted && !thrown.special.has_gaze() {
+            2
+        } else {
+            1
+        };
+        for _ in 0..times {
+            if def.state.figures == 0 {
+                break;
+            }
+            let d = process_attack(rules, thrown, att.state.figures, &mut def.state, rng);
+            att.state.heal_overflow(d.healed);
+            out.dealt += d;
+        }
     }
     // A defender with a gaze gazes back before the blows, with the figures it has left.
     if let Some(gaze) = def.thrown.as_ref().filter(|t| t.special.has_gaze()) {
@@ -577,47 +588,72 @@ pub fn melee_exchange(
             out.taken += d;
         }
     }
+    // Fear is rolled once for each side, and holds for both blows of a hasted unit.
+    let mut att_feared = None;
+    let mut def_feared = None;
     let first_strike = att.first_strike && !def.negate_first_strike;
     if first_strike && def.state.figures > 0 {
-        let figures = att
-            .state
-            .figures
-            .saturating_sub(feared_figures(&def.melee, &att.state, rng));
+        let figures = att.state.figures.saturating_sub(feared_once(
+            &mut att_feared,
+            &def.melee,
+            &att.state,
+            rng,
+        ));
         let d = process_attack(rules, &att.melee, figures, &mut def.state, rng);
         att.state.heal_overflow(d.healed);
         out.dealt += d;
     }
-    // The defender strikes back with the figures it has left, less those the attacker frightens.
-    if def.state.figures > 0 && att.state.figures > 0 {
-        let figures = def
-            .state
-            .figures
-            .saturating_sub(feared_figures(&att.melee, &def.state, rng));
-        let d = process_attack(rules, &def.melee, figures, &mut att.state, rng);
-        def.state.heal_overflow(d.healed);
-        out.taken += d;
+    // The defender strikes back with the figures it has left, less those the attacker frightens;
+    // a hasted defender strikes back twice.
+    let counters = if def.hasted { 2 } else { 1 };
+    for _ in 0..counters {
+        if def.state.figures > 0 && att.state.figures > 0 {
+            let figures = def.state.figures.saturating_sub(feared_once(
+                &mut def_feared,
+                &att.melee,
+                &def.state,
+                rng,
+            ));
+            let d = process_attack(rules, &def.melee, figures, &mut att.state, rng);
+            def.state.heal_overflow(d.healed);
+            out.taken += d;
+        }
     }
-    // An attacker without first strike now swings with the figures that survived.
-    if !first_strike && att.state.figures > 0 && def.state.figures > 0 {
-        let figures = att
-            .state
-            .figures
-            .saturating_sub(feared_figures(&def.melee, &att.state, rng));
-        let d = process_attack(rules, &att.melee, figures, &mut def.state, rng);
-        att.state.heal_overflow(d.healed);
-        out.dealt += d;
-    }
-    // Haste: one more swing, with the figures that are left (ReMoM `Combat.c`, `Battle_Unit_Attack`).
-    if att.extra_swing && att.state.figures > 0 && def.state.figures > 0 {
-        let figures = att
-            .state
-            .figures
-            .saturating_sub(feared_figures(&def.melee, &att.state, rng));
-        let d = process_attack(rules, &att.melee, figures, &mut def.state, rng);
-        att.state.heal_overflow(d.healed);
-        out.dealt += d;
+    // An attacker without first strike now swings with the figures that survived. A hasted one
+    // swings once more: the first strike only ever covers the first blow.
+    let swings = if att.hasted && first_strike {
+        1
+    } else if att.hasted {
+        2
+    } else if first_strike {
+        0
+    } else {
+        1
+    };
+    for _ in 0..swings {
+        if att.state.figures > 0 && def.state.figures > 0 {
+            let figures = att.state.figures.saturating_sub(feared_once(
+                &mut att_feared,
+                &def.melee,
+                &att.state,
+                rng,
+            ));
+            let d = process_attack(rules, &att.melee, figures, &mut def.state, rng);
+            att.state.heal_overflow(d.healed);
+            out.dealt += d;
+        }
     }
     out
+}
+
+/// [`feared_figures`], rolled the first time it is asked for and kept after.
+fn feared_once(
+    cache: &mut Option<u32>,
+    attacker: &Combatant,
+    def: &DefenderState,
+    rng: &mut dyn RngCore,
+) -> u32 {
+    *cache.get_or_insert_with(|| feared_figures(attacker, def, rng))
 }
 
 /// How many of `def`'s figures `attacker` frightens: each rolls a death resistance check, and

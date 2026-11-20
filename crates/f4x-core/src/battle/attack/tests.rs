@@ -129,7 +129,7 @@ fn the_same_seed_gives_the_same_battle() {
             thrown: None,
             first_strike: false,
             negate_first_strike: false,
-            extra_swing: false,
+            hasted: false,
             state: def(4, 3, 3),
         };
         let mut b = a.clone();
@@ -160,7 +160,7 @@ fn fighter(figures: u32, hits: i32, melee: Combatant) -> Fighter {
         thrown: None,
         first_strike: false,
         negate_first_strike: false,
-        extra_swing: false,
+        hasted: false,
         state: def(figures, hits, 0),
     }
 }
@@ -577,7 +577,7 @@ fn a_melee_exchange_heals_a_life_stealer() {
         thrown: None,
         first_strike: false,
         negate_first_strike: false,
-        extra_swing: false,
+        hasted: false,
         state: DefenderState {
             front_damage: 3,
             ..soft(1, 8, 4)
@@ -588,7 +588,7 @@ fn a_melee_exchange_heals_a_life_stealer() {
         thrown: None,
         first_strike: false,
         negate_first_strike: false,
-        extra_swing: false,
+        hasted: false,
         state: soft(50, 100, 4),
     };
     let mut healed_any = false;
@@ -819,7 +819,7 @@ fn fear_keeps_figures_from_striking_back() {
         thrown: None,
         first_strike: false,
         negate_first_strike: false,
-        extra_swing: false,
+        hasted: false,
         state: def(6, 100, 0),
     };
     let mut r = rng(13);
@@ -862,7 +862,7 @@ fn a_fearsome_defender_frightens_the_attackers_figures_too() {
         thrown: None,
         first_strike: false,
         negate_first_strike: false,
-        extra_swing: false,
+        hasted: false,
         state: def(6, 100, 0),
     };
     let mut r = rng(15);
@@ -960,12 +960,12 @@ fn fire_dice_do_nothing_to_a_defender_immune_to_fire() {
 
 #[test]
 fn a_hasted_attacker_swings_twice_and_is_countered_once() {
-    let total = |extra: bool| {
+    let total = |hasted: bool| {
         let (mut dealt, mut taken) = (0, 0);
         for seed in 0..200 {
             let mut att = fighter(4, 3, combatant(4, 0));
             let mut def_ = fighter(4, 3, combatant(4, 0));
-            att.extra_swing = extra;
+            att.hasted = hasted;
             let ex = melee_exchange(&rules(), &mut att, &mut def_, &mut rng(seed));
             dealt += ex.dealt.points;
             taken += ex.taken.points;
@@ -980,23 +980,55 @@ fn a_hasted_attacker_swings_twice_and_is_countered_once() {
     );
     assert_eq!(
         fast_taken, plain_taken,
-        "the counter-attack comes before the extra swing and is not doubled"
+        "the counter-attack comes before the extra swing and is made once"
     );
 }
 
 #[test]
-fn a_hasted_defender_strikes_back_once() {
-    let total = |extra: bool| {
+fn a_hasted_defender_strikes_back_twice() {
+    let total = |hasted: bool| {
         (0..200)
             .map(|seed| {
                 let mut att = fighter(4, 3, combatant(4, 0));
                 let mut def_ = fighter(4, 3, combatant(4, 0));
-                def_.extra_swing = extra;
+                def_.hasted = hasted;
                 melee_exchange(&rules(), &mut att, &mut def_, &mut rng(seed))
                     .taken
                     .points
             })
             .sum::<i32>()
     };
-    assert_eq!(total(true), total(false));
+    assert!(total(true) > total(false));
+}
+
+#[test]
+fn a_hasted_attackers_thrown_attack_is_made_twice() {
+    let total = |hasted: bool| {
+        (0..200)
+            .map(|seed| {
+                let mut att = fighter(4, 3, combatant(0, 0));
+                att.thrown = Some(combatant(4, 0));
+                att.hasted = hasted;
+                let mut def_ = fighter(4, 3, combatant(0, 0));
+                melee_exchange(&rules(), &mut att, &mut def_, &mut rng(seed))
+                    .dealt
+                    .points
+            })
+            .sum::<i32>()
+    };
+    assert!(total(true) > total(false));
+}
+
+#[test]
+fn fear_is_rolled_once_and_kept_for_the_second_blow() {
+    let mut scary = combatant(3, 0);
+    scary.fear = true;
+    let state = def(8, 3, 0);
+    for seed in 0..50 {
+        let mut r = rng(seed);
+        let mut cache = None;
+        let first = feared_once(&mut cache, &scary, &state, &mut r);
+        let second = feared_once(&mut cache, &scary, &state, &mut r);
+        assert_eq!(first, second);
+    }
 }

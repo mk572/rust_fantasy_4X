@@ -1784,7 +1784,7 @@ impl Battle {
             thrown: u.thrown_combatant(rules, self.magic_immunity_exceptions),
             first_strike: u.flag(UnitFlag::FirstStrike),
             negate_first_strike: u.flag(UnitFlag::NegatesFirstStrike),
-            extra_swing: false,
+            hasted: u.is_hasted(),
             state: u.defender_state(rules),
         }
     }
@@ -1800,7 +1800,6 @@ impl Battle {
         let reach_blocked =
             self.units[def].flag(UnitFlag::Flies) && !self.units[att].flag(UnitFlag::Flies);
         let mut a = self.fighter(att, reach_blocked);
-        a.extra_swing = self.units[att].is_hasted();
         let mut d = self.fighter(def, false);
         a.state.defense += self.city_defense_bonus(att, def);
         d.state.defense += self.city_defense_bonus(def, att);
