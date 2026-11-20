@@ -144,7 +144,7 @@ impl Economy<'_> {
         let figures = eco.figures;
         let ctx = self.square_ctx(city)?;
         let land = self.land_of(city, at, ctx)?;
-        let terrain_food = HalfInt::from_raw(land.terrain_food_x2 / 2);
+        let terrain_food = land.terrain_food.floor_half();
         let (farmers, workers, rebels) = (eco.farmers, eco.workers, eco.rebels);
 
         let per_worker = self.worker_production(race);

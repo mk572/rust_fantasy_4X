@@ -1323,7 +1323,7 @@ impl App {
                         draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.5, 0.0, 0.1, 0.35));
                         continue;
                     }
-                    // Food as stacked bread, half a loaf cut across the diagonal; production
+                    // Food as stacked bread, a part of a loaf in quarters like a clock face; production
                     // as one hammer for each percent; a mine's gold or mana (never both) as
                     // a third row, which squeezes the rows closer.
                     let special = if sq.gold > HalfInt::ZERO {
@@ -1338,22 +1338,22 @@ impl App {
                     } else {
                         (1.0, 9.0, 0.0)
                     };
-                    let food = sq.food();
+                    let food = sq.terrain_food + sq.wild_food;
                     self.draw_icon_stack(
                         lay,
                         40,
                         food.floor(),
-                        !food.is_whole(),
+                        food.raw().rem_euclid(4),
                         cx + 1.0,
                         cy + food_y,
                     );
-                    self.draw_icon_stack(lay, 41, sq.production, false, cx + 1.0, cy + prod_y);
+                    self.draw_icon_stack(lay, 41, sq.production, 0, cx + 1.0, cy + prod_y);
                     if let Some((entry, amount)) = special {
                         self.draw_icon_stack(
                             lay,
                             entry,
                             amount.floor(),
-                            !amount.is_whole(),
+                            if amount.is_whole() { 0 } else { 2 },
                             cx + 1.0,
                             cy + special_y,
                         );
@@ -1543,9 +1543,21 @@ impl App {
         }
     }
 
-    /// A `backgrnd` icon cut along its diagonal, the triangle above it from the top right: half a
-    /// food, half a loaf.
+    /// Half of a `backgrnd` icon: its right half (half a food, half a loaf).
     pub(crate) fn draw_half_icon(&mut self, entry: usize, screen: (f32, f32), scale: f32) {
+        self.draw_part_icon(entry, screen, scale, 2);
+    }
+
+    /// A part of a `backgrnd` icon, cut like a clock face and never along a diagonal, so that the
+    /// pixels stay square: 1 quarter is the top right quarter, 2 the right half, 3 all but the
+    /// top left quarter. The cuts fall on whole pixels.
+    pub(crate) fn draw_part_icon(
+        &mut self,
+        entry: usize,
+        screen: (f32, f32),
+        scale: f32,
+        quarters: i32,
+    ) {
         let Some(tex) = self.art.picture("backgrnd", entry, 0).cloned() else {
             return;
         };
@@ -1553,35 +1565,61 @@ impl App {
             crate::resolution::logical_w(&tex) * scale,
             crate::resolution::logical_h(&tex) * scale,
         );
-        let corner = |dx: f32, dy: f32, u: f32, v: f32| {
-            Vertex::new(screen.0 + dx, screen.1 + dy, 0.0, u, v, WHITE)
-        };
-        draw_mesh(&Mesh {
-            vertices: vec![
-                corner(0.0, 0.0, 0.0, 0.0),
-                corner(w, 0.0, 1.0, 0.0),
-                corner(0.0, h, 0.0, 1.0),
-            ],
-            indices: vec![0, 1, 2],
-            texture: Some(tex),
-        });
+        let (tw, th) = (tex.width(), tex.height());
+        let (mid_x, mid_y) = ((tw / 2.0).round(), (th / 2.0).round());
+        let (dest_mid_x, dest_mid_y) = ((w * mid_x / tw).round(), (h * mid_y / th).round());
+        // The quadrants in the order they fill: top right, bottom right, bottom left.
+        let quadrants = [(true, false), (true, true), (false, true)];
+        for &(right, bottom) in quadrants.iter().take(quarters.clamp(0, 3) as usize) {
+            let (sx, sw) = if right {
+                (mid_x, tw - mid_x)
+            } else {
+                (0.0, mid_x)
+            };
+            let (sy, sh) = if bottom {
+                (mid_y, th - mid_y)
+            } else {
+                (0.0, mid_y)
+            };
+            let (dx, dw) = if right {
+                (dest_mid_x, w - dest_mid_x)
+            } else {
+                (0.0, dest_mid_x)
+            };
+            let (dy, dh) = if bottom {
+                (dest_mid_y, h - dest_mid_y)
+            } else {
+                (0.0, dest_mid_y)
+            };
+            draw_texture_ex(
+                &tex,
+                screen.0 + dx,
+                screen.1 + dy,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(dw, dh)),
+                    source: Some(Rect::new(sx, sy, sw, sh)),
+                    ..Default::default()
+                },
+            );
+        }
     }
 
     /// `whole` icons of `backgrnd` entry `entry` in a row that overlaps as far as it must to fit
-    /// the 18 pixels of a square, and a half icon (cut along its diagonal) after them.
+    /// the 18 pixels of a square, and a part icon (`quarters` of 0 to 3 quarters, `draw_part_icon`) after them.
     fn draw_icon_stack(
         &mut self,
         lay: Layout,
         entry: usize,
         whole: i32,
-        half: bool,
+        quarters: i32,
         x: f32,
         y: f32,
     ) {
         let Some(tex) = self.art.picture("backgrnd", entry, 0).cloned() else {
             return;
         };
-        let slots = whole.max(0) + i32::from(half);
+        let slots = whole.max(0) + i32::from(quarters > 0);
         if slots == 0 {
             return;
         }
@@ -1597,9 +1635,9 @@ impl App {
                 crate::resolution::logical_w(&tex) * lay.scale,
                 crate::resolution::logical_h(&tex) * lay.scale,
             );
-            if half && k == slots - 1 {
+            if quarters > 0 && k == slots - 1 {
                 let screen = lay.rect(x + k as f32 * step, y, 0.0, 0.0);
-                self.draw_half_icon(entry, (screen.x, screen.y), lay.scale);
+                self.draw_part_icon(entry, (screen.x, screen.y), lay.scale, quarters);
             } else {
                 draw_texture_ex(
                     &tex,

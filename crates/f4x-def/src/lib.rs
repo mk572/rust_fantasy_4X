@@ -18,6 +18,7 @@ pub mod hero;
 pub mod load;
 pub mod map;
 pub mod names;
+pub mod quarter_int;
 pub mod rules;
 pub mod settings;
 pub mod table;

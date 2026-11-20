@@ -4,6 +4,10 @@
     "surveyor.title": "Surveyor",
     "surveyor.needs_pictures": "The Surveyor needs the extracted pictures",
     // Half-food units: "1/2 food", "1 food", "1 1/2 food". `n` is the whole units.
+    "surveyor.food_quarter": "1/4 food",
+    "surveyor.food_three_quarters": "3/4 food",
+    "surveyor.food_and_quarter": "{n} 1/4 food",
+    "surveyor.food_and_three_quarters": "{n} 3/4 food",
     "surveyor.food_half": "1/2 food",
     "surveyor.food": "{n} food",
     "surveyor.food_and_half": "{n} 1/2 food",

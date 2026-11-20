@@ -7,6 +7,7 @@ use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
 use crate::rules::{Ability, RealmId};
 use f4x_def::half_int::HalfInt;
+use f4x_def::quarter_int::QuarterInt;
 use f4x_def::testdir::TestResult;
 
 use crate::game::Command;
@@ -1628,7 +1629,7 @@ fn a_squares_yield_counts_its_mineral_and_the_blight_and_the_city_adds_them_up()
     assert_eq!(wild.wild_food, HalfInt::from_int(2));
     assert_eq!(
         wild.food(),
-        HalfInt::from_int(2) + HalfInt::from_raw(wild.food_x2 / 2)
+        HalfInt::from_int(2) + wild.terrain_food.floor_half()
     );
     let gold = eco.square_yield(grid, 11, 8, false, ctx);
     assert!(gold.gold > HalfInt::ZERO);
@@ -1646,7 +1647,7 @@ fn a_squares_yield_counts_its_mineral_and_the_blight_and_the_city_adds_them_up()
     let spoiled = eco.square_yield(grid, 11, 8, false, ctx);
     assert!(spoiled.spoiled);
     assert_eq!(spoiled.gold, HalfInt::ZERO);
-    assert_eq!(spoiled.food_x2, 0);
+    assert_eq!(spoiled.terrain_food, QuarterInt::ZERO);
     // A blight-proof owner keeps the square's yield.
     let proof = eco.square_yield(
         grid,

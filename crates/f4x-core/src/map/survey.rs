@@ -10,6 +10,7 @@ use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::PlayerId;
 use f4x_def::half_int::HalfInt;
+use f4x_def::quarter_int::QuarterInt;
 
 /// What a city founded on a square would have to work with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,7 +42,7 @@ impl Game {
             return survey;
         };
         let grid = map.plane(at.plane);
-        let (mut food_x2, mut wild_food) = (0i32, HalfInt::ZERO);
+        let (mut food, mut wild_food) = (QuarterInt::ZERO, HalfInt::ZERO);
         for (p, shared) in self.economy().city_area(at) {
             if !self.is_explored(player, p) {
                 survey.unexplored = true;
@@ -54,12 +55,12 @@ impl Game {
                 shared,
                 crate::city::economy::SquareCtx::SITE,
             );
-            food_x2 += sq.food_x2;
+            food += sq.terrain_food;
             wild_food += sq.wild_food;
             survey.production_percent += sq.production;
         }
-        survey.max_size = ((HalfInt::from_raw(food_x2 / 2) + wild_food).floor().max(0) as u32)
-            .min(self.economy().max_city_size());
+        survey.max_size =
+            ((food + wild_food).floor().max(0) as u32).min(self.economy().max_city_size());
         let coast = (-1i32..=1).any(|dy| {
             (-1i32..=1).any(|dx| {
                 (dx != 0 || dy != 0)

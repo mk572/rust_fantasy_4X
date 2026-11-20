@@ -12,6 +12,7 @@ use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_def::feature::FeatureKind;
 use f4x_def::half_int::HalfInt;
+use f4x_def::quarter_int::QuarterInt;
 use macroquad::prelude::*;
 
 use crate::action_button_art::Action;
@@ -36,14 +37,21 @@ pub(crate) struct SquareText {
     pub blocked: Option<String>,
 }
 
-pub(crate) fn food_text(texts: &Texts, food: HalfInt) -> String {
-    let whole = Args::new().count("n", food.floor().max(0));
-    match (food.floor().max(0), food.is_whole()) {
-        (0, true) => String::new(),
-        (0, false) => texts.get("surveyor.food_half", &whole),
-        (_, true) => texts.get("surveyor.food", &whole),
-        (_, false) => texts.get("surveyor.food_and_half", &whole),
-    }
+/// The food as words, in quarters: `1/4 food`, `1/2 food`, `1 3/4 food`; nothing for none.
+pub(crate) fn food_text(texts: &Texts, food: QuarterInt) -> String {
+    let whole = food.floor().max(0);
+    let args = Args::new().count("n", whole);
+    let key = match (whole == 0, food.raw().rem_euclid(4)) {
+        (true, 0) => return String::new(),
+        (false, 0) => "surveyor.food",
+        (true, 1) => "surveyor.food_quarter",
+        (true, 2) => "surveyor.food_half",
+        (true, _) => "surveyor.food_three_quarters",
+        (false, 1) => "surveyor.food_and_quarter",
+        (false, 2) => "surveyor.food_and_half",
+        (false, _) => "surveyor.food_and_three_quarters",
+    };
+    texts.get(key, &args)
 }
 
 impl App {
@@ -78,7 +86,7 @@ impl App {
             .game
             .economy()
             .square_food(grid, pos.x as i32, pos.y as i32);
-        text.effects[0] = food_text(self.texts(), food.max(HalfInt::ZERO));
+        text.effects[0] = food_text(self.texts(), QuarterInt::from_half(food.max(HalfInt::ZERO)));
         let production =
             self.game
                 .economy()
@@ -370,12 +378,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn food_reads_in_halves() {
+    fn food_reads_in_quarters() {
         let t = crate::test_app::shipped::texts();
-        assert_eq!(food_text(t, HalfInt::ZERO), "");
-        assert_eq!(food_text(t, HalfInt::from_raw(1)), "1/2 food");
-        assert_eq!(food_text(t, HalfInt::from_raw(2)), "1 food");
-        assert_eq!(food_text(t, HalfInt::from_raw(3)), "1 1/2 food");
-        assert_eq!(food_text(t, HalfInt::from_raw(4)), "2 food");
+        let q = QuarterInt::from_raw;
+        for (raw, text) in [
+            (0, ""),
+            (1, "1/4 food"),
+            (2, "1/2 food"),
+            (3, "3/4 food"),
+            (4, "1 food"),
+            (5, "1 1/4 food"),
+            (6, "1 1/2 food"),
+            (7, "1 3/4 food"),
+            (8, "2 food"),
+        ] {
+            assert_eq!(food_text(t, q(raw)), text, "{raw}");
+        }
     }
 }

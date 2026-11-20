@@ -312,7 +312,7 @@ impl App {
                     x += 8.0;
                 }
             }
-            // A half food is half a loaf, cut along its diagonal.
+            // A half food is half a loaf, its right half.
             if !up.food.is_whole() {
                 self.draw_half_icon(
                     40,

@@ -14,6 +14,7 @@
 use crate::spell::city::CityEffect;
 use crate::spell::global_enchantment::GlobalEffect;
 use f4x_def::half_int::HalfInt;
+use f4x_def::quarter_int::QuarterInt;
 use std::collections::{HashSet, VecDeque};
 
 use hecs::World;
@@ -43,8 +44,8 @@ pub struct Population {
 /// What the squares of a city's area give, summed.
 struct Land {
     blighted: i32,
-    /// The food of the land in halves of a half (twice the food), with Gaia's Blessing.
-    terrain_food_x2: i32,
+    /// The food of the land in quarters, with Gaia's Blessing.
+    terrain_food: QuarterInt,
     production_percent: i32,
     mine_mana: HalfInt,
     mine_gold: HalfInt,
@@ -119,8 +120,8 @@ pub struct SquareCtx {
 /// What one square gives a city that works it, from `Economy::square_yield`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SquareYield {
-    /// The terrain's food in quarters of a food (halves doubled), so a shared square stays exact.
-    pub food_x2: i32,
+    /// The terrain's food, in quarters so that a shared square stays exact.
+    pub terrain_food: QuarterInt,
     /// The wild game's food, in halves.
     pub wild_food: HalfInt,
     /// Percent added to the production.
@@ -149,7 +150,7 @@ impl SquareCtx {
 impl SquareYield {
     /// The food shown for the square: the terrain's and the wild game's.
     pub fn food(&self) -> HalfInt {
-        HalfInt::from_raw(self.food_x2 / 2) + self.wild_food
+        self.terrain_food.floor_half() + self.wild_food
     }
 }
 
@@ -800,10 +801,10 @@ impl<'a> Economy<'a> {
         if out.spoiled {
             return out;
         }
-        out.food_x2 = self.square_food(grid, x, y).raw() * 2;
+        out.terrain_food = QuarterInt::from_half(self.square_food(grid, x, y));
         out.production = self.square_production(grid, x, y, ctx.gaia);
         if shared {
-            out.food_x2 /= 2;
+            out.terrain_food = QuarterInt::half_of(self.square_food(grid, x, y));
             out.production /= 2;
         }
         if let Some(f) = grid
@@ -875,13 +876,13 @@ impl<'a> Economy<'a> {
         };
         let grid = map.plane(at.plane);
         let ctx = SquareCtx::SITE;
-        let (mut food_x2, mut wild_food) = (0i32, HalfInt::ZERO);
+        let (mut food, mut wild_food) = (QuarterInt::ZERO, HalfInt::ZERO);
         for (p, shared) in self.city_area(at) {
             let sq = self.square_yield(grid, p.x as i32, p.y as i32, shared, ctx);
-            food_x2 += sq.food_x2;
+            food += sq.terrain_food;
             wild_food += sq.wild_food;
         }
-        ((HalfInt::from_raw(food_x2 / 2) + wild_food).floor().max(0) as u32).min(self.max_city_size)
+        ((food + wild_food).floor().max(0) as u32).min(self.max_city_size)
     }
 
     /// Citizens needed on farms so the city feeds itself (all of them if it cannot). The food of
@@ -963,14 +964,14 @@ impl<'a> Economy<'a> {
         let grid = map.plane(at.plane);
         let area = self.city_area(at);
         let mut blighted = 0i32;
-        let (mut terrain_food_x2, mut production_percent) = (0i32, 0i32);
+        let (mut terrain_food, mut production_percent) = (QuarterInt::ZERO, 0i32);
         let (mut mine_mana, mut cost_reduction) = (HalfInt::ZERO, 0);
         let mut mine_gold = HalfInt::ZERO;
         let mut wild_food = HalfInt::ZERO;
         for &(p, shared) in &area {
             let sq = self.square_yield(grid, p.x as i32, p.y as i32, shared, ctx);
             blighted += i32::from(sq.corrupted);
-            terrain_food_x2 += sq.food_x2;
+            terrain_food += sq.terrain_food;
             production_percent += sq.production;
             mine_gold += sq.gold;
             mine_mana += sq.mana;
@@ -978,13 +979,13 @@ impl<'a> Economy<'a> {
             cost_reduction += sq.cost_reduction;
         }
         if self.city_has_effect(city, CityEffect::GaiasBlessing) {
-            terrain_food_x2 = terrain_food_x2 * 3 / 2;
+            terrain_food = terrain_food.percent(150);
         }
         // The land's food in quarters of a food to start with (a tile's halves doubled), so a
         // shared tile's half stays exact: 18 is 4.5 food.
         Some(Land {
             blighted,
-            terrain_food_x2,
+            terrain_food,
             production_percent,
             mine_mana,
             mine_gold,
@@ -1107,7 +1108,7 @@ impl<'a> Economy<'a> {
             rebels,
             mods,
             race_id,
-            terrain_food: HalfInt::from_raw(land.terrain_food_x2 / 2),
+            terrain_food: land.terrain_food.floor_half(),
             wild_food: land.wild_food,
             food_bonus: crate::player::component::<crate::player::Bonus>(self.world, owner)
                 .map_or_else(crate::player::Bonus::default, |b| *b)
@@ -1162,14 +1163,14 @@ impl<'a> Economy<'a> {
         // Worked tiles: food, production bonus, mines.
         let Land {
             blighted,
-            terrain_food_x2,
+            terrain_food,
             production_percent,
             mine_mana,
             mine_gold,
             wild_food,
             cost_reduction,
         } = self.land_of(city, at, ctx)?;
-        let terrain_food = HalfInt::from_raw(terrain_food_x2 / 2);
+        let terrain_food = terrain_food.floor_half();
 
         // Rebels.
         let tax_rate = crate::player::component::<crate::player::Tax>(self.world, owner)

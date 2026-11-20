@@ -3,6 +3,10 @@
 {
     "surveyor.title": "Landvermesser",
     "surveyor.needs_pictures": "Der Landvermesser braucht die entpackten Bilder",
+    "surveyor.food_quarter": "1/4 Nahrung",
+    "surveyor.food_three_quarters": "3/4 Nahrung",
+    "surveyor.food_and_quarter": "{n} 1/4 Nahrung",
+    "surveyor.food_and_three_quarters": "{n} 3/4 Nahrung",
     "surveyor.food_half": "1/2 Nahrung",
     "surveyor.food": "{n} Nahrung",
     "surveyor.food_and_half": "{n} 1/2 Nahrung",
