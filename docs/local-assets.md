@@ -131,3 +131,10 @@ sheet, `crates/f4x-client/assets/gem/frame.sheet.png` (`scripts/make_gem_frames.
 (`gem.rs`), which turns the hue for the five newer colours and puts a wizard's portrait on the diamond. They are
 the original's art, kept in the repository at the project owner's choice (17 November 2026). The portraits
 (`art/wizards/<id>/face`) stay local-only, like every other wizard picture.
+
+## Exception: the city grid's tiles
+
+The road lattice under a city in a battle (`cmbtcity` 0, 126 x 64: 4 x 4 squares) is committed as one sprite sheet of
+its 16 squares, `crates/f4x-client/assets/combat/city_grid.sheet.png` (`scripts/make_city_grid_tiles.py`; each tile is
+32 x 17 pixels, `grid_<column>_<row>`), the start of the tile pack of task 733 (a grid of random tiles, as large as
+the city). They are the original's art, kept in the repository at the project owner's choice (20 November 2026).

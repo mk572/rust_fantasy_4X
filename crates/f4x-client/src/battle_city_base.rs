@@ -355,6 +355,39 @@ mod tests {
     }
 
     #[test]
+    fn the_shipped_grid_tiles_put_together_make_the_original_base_picture() {
+        let Some((bytes, w, _)) = base() else { return };
+        let sheet_png = include_bytes!("../assets/combat/city_grid.sheet.png");
+        let sheet = f4x_extract::pack::Sheet::parse(sheet_png).expect("the sheet's chunk reads");
+        assert_eq!(sheet.pictures.len(), 16);
+        let image = Image::from_file_with_format(sheet_png, Some(ImageFormat::Png)).unwrap();
+        let sheet_w = usize::from(image.width);
+        let mut put_together = vec![false; bytes.len() / 4];
+        for (n, (name, tile_w, tile_h)) in sheet.pictures.iter().enumerate() {
+            let (i, j): (i32, i32) = {
+                let mut parts = name.trim_end_matches(".png").split('_').skip(1);
+                (
+                    parts.next().unwrap().parse().unwrap(),
+                    parts.next().unwrap().parse().unwrap(),
+                )
+            };
+            let (x0, y0, ..) = sheet.rect(n).unwrap();
+            let (cx, cy) = centre_of((i, j));
+            for ty in 0..*tile_h {
+                for tx in 0..*tile_w {
+                    if image.bytes[((y0 + ty) * sheet_w + x0 + tx) * 4 + 3] > 0 {
+                        let (x, y) = (cx - 16 + tx as i32, cy - 8 + ty as i32);
+                        assert_eq!(square_at(x, y), Some((i, j)), "{name} stays in its square");
+                        put_together[y as usize * w + x as usize] = true;
+                    }
+                }
+            }
+        }
+        let original: Vec<bool> = bytes.chunks(4).map(|p| p[3] > 0).collect();
+        assert_eq!(put_together, original);
+    }
+
+    #[test]
     fn a_picture_at_a_finer_scale_is_turned_the_same_way() {
         let Some((bytes, w, h)) = base() else { return };
         let fine: Vec<u8> = (0..h * 2)
