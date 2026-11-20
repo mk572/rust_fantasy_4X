@@ -26,386 +26,28 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
 use super::casting::{BattleCaster, SpellAim, SpellError};
-use super::field::{Field, BATTLEFIELD};
+use super::field::Field;
 use super::immunity::{AttackNature, Immunities, Realm};
 use super::WarpKind;
 use super::{Battle, BattleError, BattleEvent, RangedKind, Side};
 use crate::game::{DispelSite, Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
-use crate::rules::defs::{CastContext, Duration, SpellDef, SpellSave, SpellTarget};
-use crate::rules::effects::{Condition, DamageTraits, Effect, SlayOnly, TargetSel, Trigger};
-use crate::rules::stats::{ModOp, Modifier, Source, Stat};
-use crate::rules::{SpellId, UnitId};
+use crate::rules::defs::{CastContext, SpellDef, SpellSave, SpellTarget};
+use crate::rules::effects::DamageTraits;
+use crate::rules::stats::Modifier;
+use crate::rules::SpellId;
 use crate::spell::target_error::TargetError;
-use crate::spell::unit_effect::{UnitEffect, UNIT_EFFECT};
+use crate::spell::unit_effect::UnitEffect;
+use f4x_battle::battlemagic::spell_type::{only_against, undead_penalty, warp_mods};
+pub use f4x_battle::battlemagic::spell_type::{
+    slay_allows, BattleEffect, BattleSpell, CityWall, DamageOdds, LegalCast, SpellType,
+    BATTLE_EFFECT,
+};
 use f4x_def::half_int::HalfInt;
 
 mod unit_cast;
 pub use unit_cast::{SpellSource, UnitSpell};
-
-/// The changes of one of Warp Creature's three results.
-fn warp_mods(kind: WarpKind, spell: SpellId) -> Vec<Modifier> {
-    let source = Source::Spell(spell);
-    match kind {
-        WarpKind::Attack => vec![
-            Modifier::new(Stat::Melee, ModOp::Percent, -50, source),
-            Modifier::new(Stat::Ranged, ModOp::Percent, -50, source),
-        ],
-        WarpKind::Defense => vec![Modifier::new(Stat::Defense, ModOp::Percent, -50, source)],
-        WarpKind::Resistance => vec![Modifier::new(Stat::Resistance, ModOp::Set, 0, source)],
-    }
-}
-
-/// The walls a defender can raise at its city in a battle (`Wall_Rise`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CityWall {
-    Stone,
-    Fire,
-    Darkness,
-}
-
-/// What a spell does in a battle, from its effects.
-#[derive(Debug, Clone, PartialEq)]
-enum Kind {
-    Damage {
-        strength: i32,
-        types: DamageTypes,
-        traits: DamageTraits,
-        /// Every enemy unit, not one chosen.
-        all: bool,
-    },
-    Heal {
-        points: i32,
-        /// Every unit of the caster's, not one chosen.
-        all: bool,
-        /// Creatures of this realm are not healed (Mass Healing does not help the dead).
-        except: Option<Realm>,
-    },
-    Summon(UnitId),
-    /// A lasting spell on one unit; a curse has a save.
-    Enchant {
-        mods: Vec<Modifier>,
-        grants: Vec<Ability>,
-        save: Option<SpellSave>,
-    },
-    /// A dispel of this strength for each mana put in.
-    Dispel(u32),
-    CounterMagic,
-    /// Figures that fail a resistance check are destroyed.
-    Slay {
-        realm: Realm,
-        modifier: i32,
-        types: Vec<DamageType>,
-        only: SlayOnly,
-        below: Option<i32>,
-        mana_per_step: u32,
-        all: bool,
-    },
-    /// A battlefield enchantment.
-    Field(Field),
-    CallChaos,
-    /// Raise one of the wizard's own dead units as undead (Animate Dead).
-    Animate,
-    /// Bring a fallen normal unit of the wizard's back with half its figures (Raise Dead).
-    Raise,
-    /// Destroy a missile unit's ammunition (Warp Wood).
-    WarpWood,
-    /// Take one of the wizard's units off the field to the summoning circle: only a hero for
-    /// Recall Hero, any unit for Word of Recall.
-    Recall {
-        anyone: bool,
-    },
-    /// A Magic Vortex on a free square.
-    Vortex,
-    /// Mud on a 5 by 5 area (Earth to Mud).
-    EarthToMud,
-    /// A fissure on a square (Cracks Call).
-    CracksCall,
-    /// A section of the city wall is destroyed (Disrupt).
-    Disrupt,
-    /// The defender raises a wall at its city for the battle: stone, fire or darkness.
-    CityWall(CityWall),
-    /// Life from the target to the caster (Life Drain); extra mana makes it harder to resist.
-    LifeDrain,
-    /// A unit changes sides after a resistance check: for good until a dispel (Creature
-    /// Binding, fantastic creatures) or just for the battle (Possession, normal units).
-    Turn {
-        bind: bool,
-        save: Option<SpellSave>,
-    },
-    /// A normal unit becomes a creature of chaos with a random mutation, for good (Chaos
-    /// Channels): the same change as overland.
-    Channel,
-    /// After a resistance check, one of three lasting harms to a normal unit (Warp Creature).
-    Warp {
-        save: Option<SpellSave>,
-    },
-}
-
-impl Kind {
-    /// What the spell does in a battle, or `None` if it cannot be cast there (yet).
-    pub(super) fn of(spell: SpellId, def: &SpellDef) -> Option<Kind> {
-        if !def.contexts.contains(&CastContext::Battle) {
-            return None;
-        }
-        if let [r] = def.effects.as_slice() {
-            // Creature Binding or Possession.
-            let own = UnitEffect::of(def).filter(
-                |_| matches!(&r.effect, Effect::Custom { name, .. } if name == UNIT_EFFECT),
-            );
-            let bind = own == Some(UnitEffect::CreatureBinding);
-            if bind || own == Some(UnitEffect::Possession) {
-                return Some(Kind::Turn {
-                    bind,
-                    save: def.save.clone(),
-                });
-            }
-        }
-        // A lasting spell on one unit: every rule is a plain modifier or granted ability.
-        if matches!(def.target, SpellTarget::OwnUnit | SpellTarget::EnemyUnit)
-            && def.duration != Duration::Instant
-        {
-            let mut mods = Vec::new();
-            let mut grants = Vec::new();
-            for r in &def.effects {
-                if r.when != Trigger::Passive || r.condition != Condition::Always {
-                    return None;
-                }
-                match &r.effect {
-                    Effect::Modify {
-                        stat,
-                        op,
-                        value,
-                        types,
-                    } => {
-                        mods.push(
-                            Modifier::amount(*stat, *op, *value, Source::Spell(spell))
-                                .of_types(*types),
-                        );
-                    }
-                    Effect::GrantAbility(a) => {
-                        grants.push(*a);
-                    }
-                    // Heroism's tag: the level it gives is read where the unit's level is.
-                    Effect::Custom { name, .. } if name == crate::unit::HEROISM => {}
-                    // What the engine reads from the spell by its effect.
-                    Effect::Custom { name, .. } if name == UNIT_EFFECT => {}
-                    _ => return None,
-                }
-            }
-            // A spell with no rules is read by its name where it matters (Bless, Righteousness,
-            // the resistance spells, Spell Lock, Heroism): the unit just carries it.
-            return Some(Kind::Enchant {
-                mods,
-                grants,
-                save: def.save.clone(),
-            });
-        }
-        let [rule] = def.effects.as_slice() else {
-            return None;
-        };
-        if rule.when != Trigger::OnCast {
-            return None;
-        }
-        let all_enemies = rule.target == TargetSel::AllEnemyUnits;
-        match &rule.effect {
-            Effect::Damage {
-                amount,
-                types,
-                traits,
-                ..
-            } => Some(Kind::Damage {
-                strength: *amount,
-                types: DamageTypes::of(types),
-                traits: *traits,
-                all: all_enemies,
-            }),
-            Effect::Heal(n) => Some(Kind::Heal {
-                points: *n,
-                all: rule.target == TargetSel::AllOwnUnits,
-                except: match &rule.condition {
-                    Condition::Not(c) => match &**c {
-                        Condition::RealmIs(r) => Realm::of(*r),
-                        _ => None,
-                    },
-                    _ => None,
-                },
-            }),
-            Effect::Summon { unit, .. } => Some(Kind::Summon(*unit)),
-            Effect::Custom { name, .. } if name == crate::spell::dispel::COUNTER_EFFECT => {
-                match crate::spell::dispel::CounterEffect::of(def) {
-                    Some((crate::spell::dispel::CounterEffect::Dispel, strength)) => {
-                        Some(Kind::Dispel(strength / def.cost.max(1)))
-                    }
-                    Some((crate::spell::dispel::CounterEffect::CounterMagic, _)) => {
-                        Some(Kind::CounterMagic)
-                    }
-                    _ => None,
-                }
-            }
-            Effect::Slay {
-                realm,
-                modifier,
-                types,
-                only,
-                below,
-                mana_per_step,
-            } => Some(Kind::Slay {
-                realm: Realm::of(*realm)?,
-                modifier: *modifier,
-                types: types.clone(),
-                only: *only,
-                below: *below,
-                mana_per_step: *mana_per_step,
-                all: all_enemies,
-            }),
-            Effect::Custom { name, .. } if name == BATTLEFIELD => Field::of(def).map(Kind::Field),
-            Effect::Custom { name, .. } if name == BATTLE_EFFECT => {
-                BattleEffect::of(def).map(BattleEffect::kind)
-            }
-            Effect::Custom { name, .. } if name == UNIT_EFFECT => match UnitEffect::of(def) {
-                Some(UnitEffect::ChaosChannels) => Some(Kind::Channel),
-                Some(UnitEffect::WarpCreature) => Some(Kind::Warp {
-                    save: def.save.clone(),
-                }),
-                _ => None,
-            },
-            Effect::Custom { name, args } if name == crate::spell::special::RECALL => {
-                match args.first().map(String::as_str) {
-                    Some(crate::spell::special::RECALL_ANYONE) => {
-                        Some(Kind::Recall { anyone: true })
-                    }
-                    Some(crate::spell::special::RECALL_HERO) => {
-                        Some(Kind::Recall { anyone: false })
-                    }
-                    _ => None,
-                }
-            }
-            Effect::Custom { name, args } if name == crate::hook::WALL => {
-                match args.first().map(String::as_str) {
-                    Some("stone") => Some(Kind::CityWall(CityWall::Stone)),
-                    Some("fire") => Some(Kind::CityWall(CityWall::Fire)),
-                    Some("darkness") => Some(Kind::CityWall(CityWall::Darkness)),
-                    _ => None,
-                }
-            }
-            _ => None,
-        }
-    }
-
-    /// Whether extra mana makes the spell stronger.
-    fn takes_extra_mana(&self) -> bool {
-        match self {
-            Kind::Damage { traits, .. } => traits.mana_per_point > 0,
-            Kind::Slay { mana_per_step, .. } => *mana_per_step > 0,
-            Kind::Dispel(_) | Kind::CounterMagic | Kind::LifeDrain => true,
-            _ => false,
-        }
-    }
-}
-
-/// A spell the wizard could cast in the battle, for a menu.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BattleSpell {
-    pub spell: SpellId,
-    /// Casting skill it costs at least.
-    pub cost: i32,
-    /// More mana can be put in to make it stronger.
-    pub takes_extra_mana: bool,
-    /// What it must be aimed at.
-    pub target: SpellTarget,
-    /// Whether the wizard can cast it now (skill, reserve, and the one spell a turn).
-    pub castable: bool,
-}
-
-/// What a damage spell would do to a unit (see `Game::preview_spell_damage`).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct DamageOdds {
-    /// Hit points taken on average.
-    pub mean: f32,
-    /// The share of tries in which the unit is destroyed.
-    pub kill_chance: f32,
-}
-
-/// A spell the wizard may cast now, with where it may be aimed and how much mana may go in.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalCast {
-    pub spell: SpellId,
-    /// Every aim the spell accepts: `None` for a spell with no target, a unit, or a square.
-    pub aims: Vec<SpellAim>,
-    /// The mana the spell takes at least (its cost) and at most (what the wizard can afford).
-    /// They are equal for a spell that takes no extra mana. Any amount between is legal; `0`
-    /// asks for the least.
-    pub least_mana: u32,
-    pub most_mana: u32,
-}
-
-/// The hook of the battle spells that act in a way of their own.
-pub const BATTLE_EFFECT: &str = "battle_effect";
-
-crate::hook::effect_enum! {
-    /// What a spell with the `battle_effect` hook does in a battle: the argument of the hook
-    /// (`Custom(name: "battle_effect", args: ["earth_to_mud"])`).
-    pub enum BattleEffect in BATTLE_EFFECT;
-    CallChaos = "call_chaos",
-    Animate = "animate",
-    Raise = "raise",
-    WarpWood = "warp_wood",
-    EarthToMud = "earth_to_mud",
-    CracksCall = "cracks_call",
-    Vortex = "vortex",
-    Disrupt = "disrupt",
-    LifeDrain = "life_drain",
-}
-
-impl BattleEffect {
-    /// The effect a spell's definition gives, if it has the hook.
-    pub fn of(def: &SpellDef) -> Option<BattleEffect> {
-        BattleEffect::named(def.hook_args(BATTLE_EFFECT)?.first()?)
-    }
-
-    fn kind(self) -> Kind {
-        match self {
-            BattleEffect::CallChaos => Kind::CallChaos,
-            BattleEffect::Animate => Kind::Animate,
-            BattleEffect::Raise => Kind::Raise,
-            BattleEffect::WarpWood => Kind::WarpWood,
-            BattleEffect::EarthToMud => Kind::EarthToMud,
-            BattleEffect::CracksCall => Kind::CracksCall,
-            BattleEffect::Vortex => Kind::Vortex,
-            BattleEffect::Disrupt => Kind::Disrupt,
-            BattleEffect::LifeDrain => Kind::LifeDrain,
-        }
-    }
-}
-
-/// Creatures a spell may only be thrown at, by realm: Star Fires burns chaos and death
-/// creatures and nothing else.
-fn only_against(spell: SpellId) -> Option<&'static [Realm]> {
-    match spell.num() {
-        122 /* star_fires */ => Some(&[Realm::Chaos, Realm::Death]),
-        _ => None,
-    }
-}
-
-/// How much harder the undead find it to resist a spell, on top of its own modifier: Dispel Evil
-/// and Holy Word (the help's "much more difficult time").
-fn undead_penalty(spell: SpellId) -> i32 {
-    match spell.num() {
-        134 /* dispel_evil */ | 150 /* holy_word */ => 5,
-        _ => 0,
-    }
-}
-
-/// Whether a slaying spell of this kind can destroy the unit.
-pub fn slay_allows(only: SlayOnly, unit: &super::BattleUnit) -> bool {
-    match only {
-        SlayOnly::Any => true,
-        SlayOnly::Fantastic => unit.is_fantastic(),
-        SlayOnly::ChaosOrDeath => matches!(unit.realm, Some(Realm::Chaos | Realm::Death)),
-    }
-}
 
 impl Game {
     /// The wizard of `player` in the battle, if one is on.
@@ -426,7 +68,7 @@ impl Game {
             .iter()
             .filter_map(|&spell| {
                 let def = self.content.rules.spells.get(spell);
-                let kind = Kind::of(spell, def)?;
+                let kind = SpellType::of(spell, def)?;
                 let cost = self.casting_cost(player, spell, true);
                 Some(BattleSpell {
                     spell,
@@ -453,7 +95,7 @@ impl Game {
         mana: u32,
     ) -> Result<(i32, i32), SpellError> {
         let def = self.content.rules.spells.get(spell);
-        let kind = Kind::of(spell, def).ok_or(SpellError::Unsupported)?;
+        let kind = SpellType::of(spell, def).ok_or(SpellError::Unsupported)?;
         let least = self.casting_cost(player, spell, true);
         if !kind.takes_extra_mana() {
             return Ok((least, def.cost as i32));
@@ -564,7 +206,7 @@ impl Game {
         spell: SpellId,
         aim: SpellAim,
         mana: u32,
-    ) -> Result<(SpellDef, Kind, i32, i32), BattleError> {
+    ) -> Result<(SpellDef, SpellType, i32, i32), BattleError> {
         let (def, kind, skill, pool) = self.check_spell(spell, mana)?;
         let battle = &self.battle.as_ref().ok_or(BattleError::Over)?.battle;
         self.check_aim(battle, battle.active, spell, &def, &kind, aim)
@@ -578,7 +220,7 @@ impl Game {
         &self,
         spell: SpellId,
         mana: u32,
-    ) -> Result<(SpellDef, Kind, i32, i32), BattleError> {
+    ) -> Result<(SpellDef, SpellType, i32, i32), BattleError> {
         let err = BattleError::Spell;
         let battle = &self.battle.as_ref().ok_or(BattleError::Over)?.battle;
         let caster = battle.check_caster()?;
@@ -591,7 +233,7 @@ impl Game {
         if !def.contexts.contains(&CastContext::Battle) {
             return Err(err(SpellError::NotForBattle));
         }
-        let kind = Kind::of(spell, &def).ok_or(err(SpellError::Unsupported))?;
+        let kind = SpellType::of(spell, &def).ok_or(err(SpellError::Unsupported))?;
         let (skill, pool) = self.battle_spell_price(player, spell, mana).map_err(err)?;
         if skill > caster.affordable() {
             return Err(err(SpellError::TooExpensive));
@@ -734,7 +376,7 @@ impl Game {
         side: Side,
         spell: SpellId,
         def: &SpellDef,
-        kind: &Kind,
+        kind: &SpellType,
         aim: SpellAim,
     ) -> Result<(), SpellError> {
         match (def.target, aim) {
@@ -747,12 +389,12 @@ impl Game {
                         .any(|u| u.is_active() && u.side != side && ok(u))
                 };
                 match kind {
-                    Kind::Slay {
+                    SpellType::Slay {
                         only, all: true, ..
                     } if !hits(&|u| slay_allows(*only, u)) => {
                         return Err(SpellError::Target(TargetError::NothingToHit));
                     }
-                    Kind::Damage { all: true, .. }
+                    SpellType::Damage { all: true, .. }
                         if only_against(spell).is_some_and(|realms| {
                             !hits(&|u| u.realm.is_some_and(|r| realms.contains(&r)))
                         }) =>
@@ -761,7 +403,7 @@ impl Game {
                     }
                     _ => {}
                 }
-                if let Kind::Field(f) = kind {
+                if let SpellType::Field(f) = kind {
                     if battle.has_field(side, *f) {
                         return Err(SpellError::AlreadyUp);
                     }
@@ -770,7 +412,7 @@ impl Game {
             }
             (SpellTarget::OwnCity, SpellAim::None) => match kind {
                 // Only the defender, at its own city, and not what already stands.
-                Kind::CityWall(wall) if side == Side::Defender && battle.map.is_city() => {
+                SpellType::CityWall(wall) if side == Side::Defender && battle.map.is_city() => {
                     let up = match wall {
                         CityWall::Stone => battle.map.is_fully_walled(),
                         CityWall::Fire => battle.wall_of_fire,
@@ -784,14 +426,14 @@ impl Game {
                 }
                 _ => Err(SpellError::Unsupported),
             },
-            (SpellTarget::Tile, SpellAim::Tile(cell)) if matches!(kind, Kind::Disrupt) => {
+            (SpellTarget::Tile, SpellAim::Tile(cell)) if matches!(kind, SpellType::Disrupt) => {
                 if battle.map.has_wall(cell) {
                     Ok(())
                 } else {
                     Err(SpellError::Target(TargetError::NoWall))
                 }
             }
-            (SpellTarget::Tile, SpellAim::Tile(cell)) if matches!(kind, Kind::Vortex) => {
+            (SpellTarget::Tile, SpellAim::Tile(cell)) if matches!(kind, SpellType::Vortex) => {
                 if battle.can_make_vortex(cell) {
                     Ok(())
                 } else {
@@ -799,7 +441,7 @@ impl Game {
                 }
             }
             (SpellTarget::Tile, SpellAim::Tile(cell))
-                if matches!(kind, Kind::EarthToMud | Kind::CracksCall) =>
+                if matches!(kind, SpellType::EarthToMud | SpellType::CracksCall) =>
             {
                 if battle.map.is_playable(cell) {
                     Ok(())
@@ -815,7 +457,7 @@ impl Game {
                 }
                 Ok(())
             }
-            (SpellTarget::AnyUnit, SpellAim::Unit(id)) if matches!(kind, Kind::Raise) => {
+            (SpellTarget::AnyUnit, SpellAim::Unit(id)) if matches!(kind, SpellType::Raise) => {
                 if battle.active_units(side).count() >= battle.max_side
                     || battle.first_summon_square(side).is_none()
                 {
@@ -827,7 +469,7 @@ impl Game {
                     Err(SpellError::Target(TargetError::NothingToRaise))
                 }
             }
-            (SpellTarget::AnyUnit, SpellAim::Unit(id)) if matches!(kind, Kind::Animate) => {
+            (SpellTarget::AnyUnit, SpellAim::Unit(id)) if matches!(kind, SpellType::Animate) => {
                 if battle.active_units(side).count() >= battle.max_side
                     || battle.first_summon_square(side).is_none()
                 {
@@ -859,10 +501,12 @@ impl Game {
                     return Err(SpellError::Target(TargetError::Unseen));
                 }
                 // Death creatures, born so or undead, cannot be healed.
-                if matches!(kind, Kind::Heal { all: false, .. }) && u.realm == Some(Realm::Death) {
+                if matches!(kind, SpellType::Heal { all: false, .. })
+                    && u.realm == Some(Realm::Death)
+                {
                     return Err(SpellError::Target(TargetError::Deathly));
                 }
-                if let Kind::Turn { bind, .. } = kind {
+                if let SpellType::Turn { bind, .. } = kind {
                     // Binding takes fantastic creatures, Possession normal units and heroes.
                     if *bind && !u.is_fantastic() {
                         return Err(SpellError::Target(TargetError::CannotBind));
@@ -878,7 +522,7 @@ impl Game {
                     }
                 }
                 // Recall Hero takes one of the wizard's own heroes, and needs a place to send it.
-                if let Kind::Recall { anyone } = kind {
+                if let SpellType::Recall { anyone } = kind {
                     if !own {
                         return Err(SpellError::Target(TargetError::NotYourUnit));
                     }
@@ -893,7 +537,7 @@ impl Game {
                         return Err(SpellError::Target(TargetError::CircleHere));
                     }
                 }
-                if matches!(kind, Kind::Channel) {
+                if matches!(kind, SpellType::Channel) {
                     let entity = u.source.and_then(|i| self.battle_source(i));
                     match entity.map(|e| self.check_mutate(e)) {
                         Some(Ok(())) => {}
@@ -902,11 +546,13 @@ impl Game {
                     }
                 }
                 if battle.spares(u, spell) {
-                    return Err(SpellError::Target(if matches!(kind, Kind::LifeDrain) {
-                        TargetError::Deathly
-                    } else {
-                        TargetError::NotAffected
-                    }));
+                    return Err(SpellError::Target(
+                        if matches!(kind, SpellType::LifeDrain) {
+                            TargetError::Deathly
+                        } else {
+                            TargetError::NotAffected
+                        },
+                    ));
                 }
                 // A curse the target is immune to is refused before it costs anything
                 // (`Combat_Spell_Target_Screen`); the types it is stopped by are in the spell's
@@ -916,7 +562,7 @@ impl Game {
                         return Err(SpellError::Target(TargetError::NotAffected));
                     }
                 }
-                if matches!(kind, Kind::Enchant { .. }) {
+                if matches!(kind, SpellType::Enchant { .. }) {
                     // A unit made in the battle has no source: a conjured creature.
                     let source = u
                         .source
@@ -939,12 +585,12 @@ impl Game {
                     return Err(SpellError::Target(TargetError::NonCorporeal));
                 }
                 // Warp Wood needs a missile unit, whatever its kind, and a unit is warped once.
-                if matches!(kind, Kind::WarpWood)
+                if matches!(kind, SpellType::WarpWood)
                     && (u.ranged_kind != RangedKind::Missile || u.ammo <= 0)
                 {
                     return Err(SpellError::Target(TargetError::NeedsMissile));
                 }
-                if matches!(kind, Kind::Warp { .. }) && u.warp.is_some() {
+                if matches!(kind, SpellType::Warp { .. }) && u.warp.is_some() {
                     return Err(SpellError::Target(TargetError::AlreadyWarped));
                 }
                 if let Some(realms) = only_against(spell) {
@@ -952,7 +598,7 @@ impl Game {
                         return Err(SpellError::Target(TargetError::NotAffected));
                     }
                 }
-                if let Kind::Slay {
+                if let SpellType::Slay {
                     only, all: false, ..
                 } = kind
                 {
@@ -1176,7 +822,7 @@ impl Game {
         &mut self,
         spell: SpellId,
         def: &SpellDef,
-        kind: Kind,
+        kind: SpellType,
         side: Side,
         player: PlayerId,
         aim: SpellAim,
@@ -1184,7 +830,7 @@ impl Game {
     ) -> Vec<BattleEvent> {
         match (kind, aim) {
             (
-                Kind::Damage {
+                SpellType::Damage {
                     strength,
                     types,
                     traits,
@@ -1207,7 +853,7 @@ impl Game {
                 })
             }
             (
-                Kind::Heal {
+                SpellType::Heal {
                     points,
                     all,
                     except,
@@ -1233,7 +879,7 @@ impl Game {
                 }
                 events
             }
-            (Kind::CounterMagic, _) => {
+            (SpellType::CounterMagic, _) => {
                 if let Some(active) = self.battle.as_mut() {
                     active.battle.cast_counter_magic(side, pool as u32);
                 }
@@ -1242,27 +888,27 @@ impl Game {
                     strength: pool as u32,
                 }]
             }
-            (Kind::Field(field), _) => {
+            (SpellType::Field(field), _) => {
                 if let Some(active) = self.battle.as_mut() {
                     active.battle.raise_field(side, field, spell);
                 }
                 vec![BattleEvent::FieldRaised { side, spell }]
             }
-            (Kind::CallChaos, _) => self.call_chaos(side, player),
-            (Kind::Vortex, SpellAim::Tile(cell)) => {
+            (SpellType::CallChaos, _) => self.call_chaos(side, player),
+            (SpellType::Vortex, SpellAim::Tile(cell)) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
                 vec![active.battle.make_vortex(side, cell)]
             }
-            (Kind::EarthToMud, SpellAim::Tile(cell)) => {
+            (SpellType::EarthToMud, SpellAim::Tile(cell)) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
                 active.battle.spread_mud(cell);
                 vec![BattleEvent::MudMade { cell }]
             }
-            (Kind::CityWall(wall), _) => {
+            (SpellType::CityWall(wall), _) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1276,14 +922,14 @@ impl Game {
                 }
                 vec![BattleEvent::WallRaised { side, spell }]
             }
-            (Kind::Disrupt, SpellAim::Tile(cell)) => {
+            (SpellType::Disrupt, SpellAim::Tile(cell)) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
                 active.battle.map.break_wall(cell);
                 vec![BattleEvent::WallDestroyed { cell }]
             }
-            (Kind::CracksCall, SpellAim::Tile(cell)) => {
+            (SpellType::CracksCall, SpellAim::Tile(cell)) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1317,7 +963,7 @@ impl Game {
                 }
                 events
             }
-            (Kind::LifeDrain, SpellAim::Unit(target)) => {
+            (SpellType::LifeDrain, SpellAim::Unit(target)) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1350,14 +996,14 @@ impl Game {
                 self.sync_battle_mana();
                 events
             }
-            (Kind::Recall { .. }, SpellAim::Unit(target)) => {
+            (SpellType::Recall { .. }, SpellAim::Unit(target)) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
                 active.battle.units[target].status = super::Status::Recalled;
                 vec![BattleEvent::HeroRecalled { unit: target }]
             }
-            (Kind::WarpWood, SpellAim::Unit(target)) => {
+            (SpellType::WarpWood, SpellAim::Unit(target)) => {
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1367,7 +1013,7 @@ impl Game {
                     spell,
                 }]
             }
-            (Kind::Turn { bind, save }, SpellAim::Unit(target)) => {
+            (SpellType::Turn { bind, save }, SpellAim::Unit(target)) => {
                 let immune_types = save
                     .as_ref()
                     .map(|s| self.save_types(s))
@@ -1397,7 +1043,7 @@ impl Game {
                     spell,
                 }]
             }
-            (Kind::Channel, SpellAim::Unit(target)) => {
+            (SpellType::Channel, SpellAim::Unit(target)) => {
                 if self.channel_battle_unit(target) {
                     vec![BattleEvent::SpellEnchanted {
                         unit: target,
@@ -1407,12 +1053,12 @@ impl Game {
                     Vec::new()
                 }
             }
-            (Kind::Warp { save }, SpellAim::Unit(target)) => {
+            (SpellType::Warp { save }, SpellAim::Unit(target)) => {
                 self.warp_creature(spell, def, target, player, save.as_ref())
             }
-            (Kind::Animate, SpellAim::Unit(target)) => self.animate_dead(side, target),
-            (Kind::Raise, SpellAim::Unit(target)) => self.raise_dead(side, target),
-            (Kind::Enchant { mods, grants, save }, SpellAim::Unit(target)) => {
+            (SpellType::Animate, SpellAim::Unit(target)) => self.animate_dead(side, target),
+            (SpellType::Raise, SpellAim::Unit(target)) => self.raise_dead(side, target),
+            (SpellType::Enchant { mods, grants, save }, SpellAim::Unit(target)) => {
                 let present = self
                     .battle
                     .as_ref()
@@ -1449,7 +1095,7 @@ impl Game {
                 }]
             }
             (
-                Kind::Slay {
+                SpellType::Slay {
                     realm,
                     modifier,
                     types,
@@ -1513,7 +1159,7 @@ impl Game {
                 }
                 events
             }
-            (Kind::Summon(unit_id), SpellAim::Tile(cell)) => {
+            (SpellType::Summon(unit_id), SpellAim::Tile(cell)) => {
                 // Make the creature as the game would, copy it, and let the original go: the
                 // copy vanishes with the battle.
                 let site = self
@@ -1535,7 +1181,7 @@ impl Game {
                     .map_or(0, |a| a.battle.add_summoned(side, unit, cell));
                 vec![BattleEvent::Summoned { unit: id }]
             }
-            (Kind::Dispel(per_mana), SpellAim::Unit(target)) => {
+            (SpellType::Dispel(per_mana), SpellAim::Unit(target)) => {
                 let strength = pool as u32 * per_mana * self.dispel_power(player);
                 let mut events = self.dispel_battle_unit(target, strength, player);
                 events.extend(self.dispel_battle_fields(strength, player));
@@ -1872,11 +1518,11 @@ impl Game {
             .iter()
             .filter_map(|&(spell, caster)| {
                 let def = self.content.rules.spells.get(spell);
-                let (mods, grants) = match Kind::of(spell, def)? {
-                    Kind::Enchant { mods, grants, .. } => (mods, grants),
-                    Kind::Turn { bind: true, .. } => (Vec::new(), Vec::new()),
+                let (mods, grants) = match SpellType::of(spell, def)? {
+                    SpellType::Enchant { mods, grants, .. } => (mods, grants),
+                    SpellType::Turn { bind: true, .. } => (Vec::new(), Vec::new()),
                     // The warp it got is kept among the unit's enchantment ids.
-                    Kind::Warp { .. } => (warp_mods(unit.warp?, spell), Vec::new()),
+                    SpellType::Warp { .. } => (warp_mods(unit.warp?, spell), Vec::new()),
                     _ => return None,
                 };
                 Some(super::Lasting {
@@ -1936,8 +1582,8 @@ impl Game {
 impl Battle {
     /// The damage a spell does, by its id: strength, its types and traits.
     pub(super) fn damage_of(&self, spell: SpellId) -> Option<(i32, DamageTypes, DamageTraits)> {
-        match Kind::of(spell, self.content.rules.spells.get(spell))? {
-            Kind::Damage {
+        match SpellType::of(spell, self.content.rules.spells.get(spell))? {
+            SpellType::Damage {
                 strength,
                 types,
                 traits,

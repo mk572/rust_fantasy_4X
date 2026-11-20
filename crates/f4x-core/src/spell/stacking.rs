@@ -3,6 +3,7 @@
 //! already, one it is not cumulative with, and one the unit's own ability makes pointless.
 //!
 //! Tests: in spell/stacking/tests.rs.
+use crate::battle::SpellError;
 use crate::game::Game;
 use crate::rules::exec::Target;
 use crate::rules::{AbilityId, SpellDef};
@@ -131,6 +132,16 @@ impl Game {
                 Err(MagicError::AlreadyEnchanted)
             }
             _ => Ok(()),
+        }
+    }
+}
+
+impl From<Stacking> for SpellError {
+    fn from(why: Stacking) -> Self {
+        match why {
+            Stacking::AlreadyEnchanted => Self::AlreadyEnchanted,
+            Stacking::NotCumulative => Self::NotCumulative,
+            Stacking::AlreadyAble => Self::AlreadyAble,
         }
     }
 }

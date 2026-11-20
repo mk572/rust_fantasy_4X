@@ -4,6 +4,7 @@
 //! Tests: none, because it only declares modules.
 
 pub mod attack;
+pub mod battlemagic;
 pub mod map;
 pub mod resistance;
 pub mod rng;
