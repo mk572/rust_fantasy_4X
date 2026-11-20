@@ -780,6 +780,12 @@ impl<'a> PlayerView<'a> {
         self.game.max_tile()
     }
 
+    /// Whether the unit keeps order in a city it stands in: only normal units and heroes do
+    /// (half a rebel each; fantastic creatures defend but do not police).
+    pub fn is_garrison(&self, unit: hecs::Entity) -> bool {
+        self.game.units().is_garrison(unit)
+    }
+
     /// Most units one side fights with in a battle in this game.
     pub fn max_battle_side(&self) -> usize {
         self.game.max_battle_side()

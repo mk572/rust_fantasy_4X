@@ -88,16 +88,28 @@ pub fn wanted_share(view: &PlayerView, at: Position) -> f32 {
 /// The soldiers of `at` that are its garrison (`Role::Garrison`): the slow, defensive units
 /// first, a hero or a fast unit only when nothing else makes the strength wanted. The others of
 /// the city are free for the dispatcher's jobs (task 645).
+///
+/// A city with rebels keeps its police first (task 730): only normal units and heroes keep order,
+/// half a rebel each (`UnitView::is_garrison`), so the normal units that stand in it stay (up to
+/// what a battle side holds, the most that calms it) and a fantastic creature, however strong,
+/// does not take their place. Heroes keep order too but are the first to be sent off.
 pub fn post(view: &PlayerView, at: Position, soldiers: &[hecs::Entity]) -> Vec<hecs::Entity> {
     let wanted = wanted_strength(view, at);
     let hero = |u: hecs::Entity| {
         view.unit_def(u)
             .is_some_and(|d| d.kind == f4x_def::rules::UnitKind::Hero)
     };
+    let rebels = view
+        .city_at(at)
+        .and_then(|c| view.city_economy(c))
+        .is_some_and(|e| e.rebels > 0);
+    // The units the city's order needs: the normal units, while it has rebels.
+    let police = |u: hecs::Entity| rebels && view.is_garrison(u) && !hero(u);
     let mut order: Vec<hecs::Entity> = soldiers.to_vec();
     order.sort_by(|&a, &b| {
         let key = |u: hecs::Entity| {
             (
+                !police(u),
                 hero(u),
                 view.unit_stat(u, f4x_def::rules::Stat::Moves) >= FAST,
             )
@@ -109,11 +121,14 @@ pub fn post(view: &PlayerView, at: Position, soldiers: &[hecs::Entity]) -> Vec<h
     });
     let mut kept = Vec::new();
     let mut strength = 0.0;
+    let mut policing = 0;
     for u in order {
-        if strength >= wanted {
+        let needed_for_order = police(u) && policing < view.max_battle_side();
+        if strength >= wanted && !needed_for_order {
             break;
         }
         strength += unit_strength(view, u);
+        policing += usize::from(needed_for_order);
         kept.push(u);
     }
     kept
@@ -238,6 +253,45 @@ mod tests {
         ai.threatened = vec![coast];
         thin_out(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(held(&g, coast), 6);
+        Ok(())
+    }
+
+    /// The rate of tax that stirs the most unrest, whatever the rules table holds.
+    fn harshest_tax(g: &Game) -> u8 {
+        (g.content().rules.config.tax_unrest_percent.len() - 1) as u8
+    }
+
+    #[test]
+    fn a_city_with_rebels_keeps_all_its_normal_units_and_one_without_only_what_defence_wants(
+    ) -> TestResult {
+        let mut g = two_cities()?;
+        let inland = at(INLAND_CITY.0, INLAND_CITY.1);
+        let spearmen = spawn(&mut g, P0, inland, 104 /* high_men_spearmen */, 6);
+        let paladin = spawn(&mut g, P0, inland, 113 /* high_men_paladins */, 1)[0];
+        g.turn = 250;
+        let all: Vec<hecs::Entity> = spearmen.iter().copied().chain([paladin]).collect();
+        let kept = |g: &Game| post(&PlayerView::new(g, P0), inland, &all);
+        let rebels = |g: &Game| -> Result<u32, Box<dyn std::error::Error>> {
+            let view = PlayerView::new(g, P0);
+            let city = view.city_at(inland).ok_or("no city")?;
+            Ok(view.city_economy(city).ok_or("no economy")?.rebels)
+        };
+        // On the gentlest tax nothing stirs, and the garrison is what defence wants: not everyone.
+        g.apply(Command::SetTaxRate {
+            player: P0,
+            rate: 0,
+        });
+        assert_eq!(rebels(&g)?, 0);
+        assert!(kept(&g).len() < all.len(), "{:?}", kept(&g));
+        // With rebels the normal units stay: they keep order, half a rebel each.
+        let rate = harshest_tax(&g);
+        g.apply(Command::SetTaxRate { player: P0, rate });
+        assert!(rebels(&g)? > 0, "the harshest tax stirs no unrest");
+        let with_rebels = kept(&g);
+        assert!(
+            all.iter().all(|u| with_rebels.contains(u)),
+            "{with_rebels:?}"
+        );
         Ok(())
     }
 
