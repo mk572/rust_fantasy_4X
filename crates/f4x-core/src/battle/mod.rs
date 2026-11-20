@@ -73,6 +73,9 @@ impl Side {
 
 pub use crate::rules::damage_type::RangedKind;
 
+/// The moves a shot costs (see `BattleUnit::spend_ranged_moves`).
+pub const RANGED_ATTACK_COST: HalfInt = HalfInt::from_int(10);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Status {
     Active,
@@ -463,6 +466,13 @@ impl BattleUnit {
     /// (see ReMoM `Combat.c`, `Battle_Unit_Attack`; wiki article "Melee Attack").
     pub fn can_attack(&self) -> bool {
         self.is_active() && !self.attacked && self.moves_left > 0
+    }
+
+    /// A shot costs ten moves, or all that is left (ReMoM `Combat.c`, `Battle_Unit_Attack`: 20
+    /// half-moves; wiki article "Ranged Attack"). Only a unit with a great allowance, a Hasted
+    /// one or a hero with items, has moves left after it.
+    fn spend_ranged_moves(&mut self) {
+        self.moves_left = self.moves_left.saturating_sub(RANGED_ATTACK_COST);
     }
 
     /// The blows of a melee attack use up half the allowance (rounded up to a half), or all that
@@ -1448,8 +1458,7 @@ impl Battle {
         u.revealed = true;
         if ranged {
             u.spend_shot(shot_mana, &self.content.rules);
-            u.attacked = true;
-            u.moves_left = HalfInt::ZERO;
+            u.spend_ranged_moves();
         } else {
             u.spend_melee_moves();
         }
@@ -1933,10 +1942,8 @@ impl Battle {
             dmg += d;
         }
         let a = &mut self.units[att];
-        a.attacked = true;
         a.revealed = true;
-        // A ranged attack uses up the rest of the movement, as blows do (1.50 note 747).
-        a.moves_left = HalfInt::ZERO;
+        a.spend_ranged_moves();
         let mut events = vec![BattleEvent::Shot {
             attacker: att,
             defender: def,

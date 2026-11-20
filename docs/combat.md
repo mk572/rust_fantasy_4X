@@ -51,7 +51,7 @@ Everything is in `attack.rs` as pure functions over numbers and a random generat
   without first strike swings with the figures it still has.
 - **Ranged attacks** draw no reply. Arrows, slings and boulders take -1 to hit for every
   three squares of distance (at most -1 with long range) and use one ammunition; spell shots
-  take no distance penalty. A shot uses up all the unit's moves (see "Attacks cost moves" below).
+  take no distance penalty. A shot costs ten moves, or all that is left (see "Attacks cost moves" below).
 - A walking unit's melee against a **flying** unit follows the setting `rules.melee_vs_fliers`:
   `zero` (the default, the original: nothing), `half` (half strength, rounded up) or `full`. The
   flier still hits back at full strength; thrown and breath attacks are unchanged. Divergence 26.
@@ -243,7 +243,7 @@ good.
   in forest and swamp, rocks in mountains); the columns around the deployment edges stay open.
   Attackers stand on the west edge, defenders on the east, in blocks centred on the middle.
 - **Turns:** the attacker plays all its units, then the defender; a new turn starts when the
-  defender ends its turn. **Attacks cost moves** (ReMoM `Combat.c`, `Battle_Unit_Attack`; wiki "Melee Attack"): a melee attack costs half the unit's move allowance (rounded up to a half; a hasted unit's allowance is doubled), a shot or a spell all the moves left. A unit may attack as long as it has any move left, even when less than the blow costs (it then spends what is left), and with none left it cannot attack. So a unit with 2 moves strikes twice, or moves and strikes once, and a unit with a lot of movement strikes more often (`BattleUnit::can_attack`). `Done` ends a unit's turn, `EndTurn` the side's.
+  defender ends its turn. **Attacks cost moves** (ReMoM `Combat.c`, `Battle_Unit_Attack`; wiki "Melee Attack"): a melee attack costs half the unit's move allowance (rounded up to a half; a hasted unit's allowance is doubled), a shot ten moves (all of them for almost every unit; a Hasted or heavily equipped unit may keep some), a spell all the moves left. Sources: ReMoM `Battle_Unit_Attack` (20 half-moves for a shot) and wiki "Ranged Attack". A unit may attack as long as it has any move left, even when less than the blow costs (it then spends what is left), and with none left it cannot attack. So a unit with 2 moves strikes twice, or moves and strikes once, and a unit with a lot of movement strikes more often (`BattleUnit::can_attack`). `Done` ends a unit's turn, `EndTurn` the side's.
 - **A side loses when it has no active unit.** `Flee` hands the battle to the other side
   (the losses of fleeing units are task 42). After **100 turns** the defender wins (the original: 50; divergence 29).
 - Casting is in section 8; battlefield spells are section 9. City walls and gates are in
