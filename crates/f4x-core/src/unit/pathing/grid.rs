@@ -14,14 +14,9 @@ use crate::city::economy::Economy;
 use crate::fast::FastSet;
 use crate::game::Game;
 use crate::map::{Plane, Position};
-use crate::path_grid::{Costs, PathGrid, Road, Searcher, Square, BLOCKED};
+use crate::path_grid::{Costs, PathGrid, Road, Searcher, Square};
 use crate::player::PlayerId;
 use crate::unit::movement::{MoveError, StackTraits, StepEntry, StepProfile, ROAD_MOVE};
-
-/// A cost in the half moves of a grid; never the value of a blocked square.
-fn half_moves(cost: HalfInt) -> u8 {
-    u8::try_from(cost.raw().max(0)).map_or(BLOCKED - 1, |c| c.min(BLOCKED - 1))
-}
 
 impl Economy<'_> {
     /// The grid of one unit on `plane`, with what its stack gives it (`traits`). It holds the
@@ -52,16 +47,11 @@ impl Economy<'_> {
                 });
                 let (enter, by_road, by_enchanted_road) =
                     match self.step_entry(profile, Position { plane, x, y }, traits) {
-                        Ok(StepEntry::Flat(cost)) => {
-                            let c = half_moves(cost);
-                            (c, c, c)
+                        Ok(StepEntry::Flat(cost)) => (Some(cost), Some(cost), Some(cost)),
+                        Ok(StepEntry::Land(cost)) => {
+                            (Some(cost), Some(ROAD_MOVE), Some(HalfInt::ZERO))
                         }
-                        Ok(StepEntry::Land(cost)) => (
-                            half_moves(cost),
-                            half_moves(ROAD_MOVE),
-                            half_moves(HalfInt::ZERO),
-                        ),
-                        Err(_) => (BLOCKED, BLOCKED, BLOCKED),
+                        Err(_) => (None, None, None),
                     };
                 costs.enter.push(enter);
                 costs.by_road.push(by_road);
@@ -340,17 +330,15 @@ mod tests {
         Ok(())
     }
 
-    /// A step's cost in half moves, or `None` where the stack cannot take it.
+    /// A step's cost in moves, or `None` where the stack cannot take it.
     fn rule_cost(
         economy: &Economy,
         profiles: &[StepProfile],
         traits: StackTraits,
         from: Position,
         to: Position,
-    ) -> Option<u32> {
-        economy
-            .stack_step_cost(profiles, from, to, traits)
-            .map(|c| c.raw() as u32)
+    ) -> Option<HalfInt> {
+        economy.stack_step_cost(profiles, from, to, traits)
     }
 
     #[test]

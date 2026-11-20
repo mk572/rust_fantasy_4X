@@ -5,14 +5,13 @@
 //!
 //! Tests: random grids against a plain Dijkstra, at the bottom of this file.
 
+use f4x_def::half_int::HalfInt;
+
 /// A square of the grid: `y * width + x`.
 pub type Square = u32;
 
-/// A cost in half moves.
-pub type Cost = u32;
-
-/// The entry cost of a square nothing can enter.
-pub const BLOCKED: u8 = u8::MAX;
+/// A cost in moves.
+pub type Cost = HalfInt;
 
 /// What a square's road lets a step cost.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -51,28 +50,23 @@ pub enum PathGridError {
     Mismatch,
 }
 
-/// What it costs a walker, in half moves, to enter each square (row by row, `BLOCKED` where it
+/// What it costs a walker, in moves, to enter each square (row by row, `None` where it
 /// cannot), and to enter it along a road: from a square with a road, or two with enchanted roads.
 /// A road bears on a step only when both squares have one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Costs {
-    pub enter: Vec<u8>,
-    pub by_road: Vec<u8>,
-    pub by_enchanted_road: Vec<u8>,
+    pub enter: Vec<Option<Cost>>,
+    pub by_road: Vec<Option<Cost>>,
+    pub by_enchanted_road: Vec<Option<Cost>>,
 }
 
 impl Costs {
     /// The costs of a walker for whom a road step costs half a move and an enchanted one nothing.
-    pub fn with_ordinary_roads(enter: Vec<u8>) -> Self {
-        let by = |cost: u8| {
-            enter
-                .iter()
-                .map(|&e| if e == BLOCKED { BLOCKED } else { cost })
-                .collect()
-        };
+    pub fn with_ordinary_roads(enter: Vec<Option<Cost>>) -> Self {
+        let by = |cost: Cost| enter.iter().map(|e| e.map(|_| cost)).collect();
         Self {
-            by_road: by(1),
-            by_enchanted_road: by(0),
+            by_road: by(Cost::HALF),
+            by_enchanted_road: by(Cost::ZERO),
             enter,
         }
     }
@@ -118,7 +112,7 @@ impl Eq for PathGrid {}
 
 impl PathGrid {
     /// `costs` and `roads` have one entry per square, row by row. With `diagonal_extra` a
-    /// diagonal step costs one and a half times as much, rounded up.
+    /// diagonal step costs one and a half times as much, rounded up to a half.
     pub fn new(
         width: u32,
         height: u32,
@@ -147,8 +141,8 @@ impl PathGrid {
             roads,
             diagonal_extra,
             region: std::cell::OnceCell::new(),
-            min_step: 0,
-            max_step: 0,
+            min_step: Cost::ZERO,
+            max_step: Cost::ZERO,
         };
         grid.measure();
         Ok(grid)
@@ -175,7 +169,7 @@ impl PathGrid {
     }
 
     pub fn is_blocked(&self, square: Square) -> bool {
-        self.costs.enter[square as usize] == BLOCKED
+        self.costs.enter[square as usize].is_none()
     }
 
     /// The cost of the step from `from` to the square next to it, `None` when it cannot be
@@ -187,16 +181,14 @@ impl PathGrid {
 
     fn step(&self, from: Square, to: Square, diagonal: bool) -> Option<Cost> {
         let i = to as usize;
-        if self.costs.enter[i] == BLOCKED {
-            return None;
-        }
-        let cost = Cost::from(match (self.roads[from as usize], self.roads[i]) {
+        self.costs.enter[i]?;
+        let cost = match (self.roads[from as usize], self.roads[i]) {
             (Road::None, _) | (_, Road::None) => self.costs.enter[i],
             (Road::Enchanted, Road::Enchanted) => self.costs.by_enchanted_road[i],
             _ => self.costs.by_road[i],
-        });
+        }?;
         Some(if diagonal && self.diagonal_extra {
-            (cost * 3).div_ceil(2)
+            cost + cost.half()
         } else {
             cost
         })
@@ -222,13 +214,15 @@ impl PathGrid {
     }
 
     fn measure(&mut self) {
-        let (mut min, mut max) = (Cost::MAX, 0);
-        let mut note = |cost: u8| {
-            min = min.min(Cost::from(cost));
-            max = max.max(Cost::from(cost));
+        let (mut min, mut max) = (Cost::MAX, Cost::ZERO);
+        let mut note = |cost: Option<Cost>| {
+            if let Some(cost) = cost {
+                min = min.min(cost);
+                max = max.max(cost);
+            }
         };
         for (i, &enter) in self.costs.enter.iter().enumerate() {
-            if enter == BLOCKED {
+            if enter.is_none() {
                 continue;
             }
             note(enter);
@@ -243,11 +237,11 @@ impl PathGrid {
             }
         }
         if min == Cost::MAX {
-            min = 0;
+            min = Cost::ZERO;
         }
         self.min_step = min;
         self.max_step = if self.diagonal_extra {
-            (max * 3).div_ceil(2)
+            max + max.half()
         } else {
             max
         };
@@ -274,7 +268,8 @@ impl PathGrid {
                 (&mut costs.by_enchanted_road, &part.costs.by_enchanted_road),
             ] {
                 for (m, &t) in mine.iter_mut().zip(theirs) {
-                    *m = (*m).max(t);
+                    // A square either part cannot enter is shut; otherwise the dearer cost.
+                    *m = m.zip(t).map(|(a, b)| a.max(b));
                 }
             }
         }
@@ -331,13 +326,13 @@ impl PathGrid {
     fn estimate(&self, from: Square, to: (u32, u32)) -> Cost {
         let (x, y) = self.xy(from);
         let dx = x.abs_diff(to.0);
-        dx.min(self.width - dx).max(y.abs_diff(to.1)) * self.min_step
+        self.min_step * dx.min(self.width - dx).max(y.abs_diff(to.1)) as i32
     }
 }
 
-/// The queue of a search whose costs are small whole numbers: one list for each cost, in a ring
-/// as long as the greatest jump from one cost to the next, so a push and a pop take no
-/// searching.
+/// The queue of a search whose costs are few: one list for each cost (a bucket for each half
+/// move), in a ring as long as the greatest jump from one cost to the next, so a push and a pop
+/// take no searching. The bucket numbers are the only place a cost is counted in halves.
 #[derive(Default)]
 struct Buckets {
     ring: Vec<Vec<(Square, Cost)>>,
@@ -346,7 +341,13 @@ struct Buckets {
 }
 
 impl Buckets {
-    fn reset(&mut self, size: usize) {
+    fn bucket(cost: Cost) -> u32 {
+        cost.raw().max(0) as u32
+    }
+
+    /// Empty, with room for jumps of up to `jump`.
+    fn reset(&mut self, jump: Cost) {
+        let size = Self::bucket(jump) as usize + 1;
         if self.ring.len() == size {
             self.ring.iter_mut().for_each(Vec::clear);
         } else {
@@ -356,8 +357,8 @@ impl Buckets {
         self.len = 0;
     }
 
-    fn push(&mut self, key: u32, entry: (Square, Cost)) {
-        let key = key.max(self.key);
+    fn push(&mut self, key: Cost, entry: (Square, Cost)) {
+        let key = Self::bucket(key).max(self.key);
         let size = self.ring.len();
         self.ring[key as usize % size].push(entry);
         self.len += 1;
@@ -411,7 +412,7 @@ impl Searcher {
         let squares = grid.squares();
         if self.mark.len() != squares {
             self.mark = vec![0; squares];
-            self.cost = vec![0; squares];
+            self.cost = vec![Cost::ZERO; squares];
             self.came = vec![NONE; squares];
             self.stop_mark = vec![0; squares];
             self.stop = vec![false; squares];
@@ -424,8 +425,7 @@ impl Searcher {
             self.stamp = 1;
         }
         self.settled.clear();
-        self.queue
-            .reset((grid.max_step + grid.min_step) as usize + 1);
+        self.queue.reset(grid.max_step + grid.min_step);
     }
 
     fn known(&self, square: Square) -> Option<Cost> {
@@ -527,9 +527,9 @@ impl Searcher {
             Goal::Square(to) => Some(grid.xy(*to)),
             _ => None,
         };
-        let guess = |square: Square| aim.map_or(0, |to| grid.estimate(square, to));
-        self.set(from, 0, NONE);
-        self.queue.push(guess(from), (from, 0));
+        let guess = |square: Square| aim.map_or(Cost::ZERO, |to| grid.estimate(square, to));
+        self.set(from, Cost::ZERO, NONE);
+        self.queue.push(guess(from), (from, Cost::ZERO));
         while let Some((here, spent)) = self.queue.pop() {
             if self.known(here).is_some_and(|best| spent > best) {
                 continue;
@@ -578,8 +578,8 @@ impl Searcher {
     ) {
         self.begin(grid);
         for &t in targets {
-            self.set(t, 0, NONE);
-            self.queue.push(0, (t, 0));
+            self.set(t, Cost::ZERO, NONE);
+            self.queue.push(Cost::ZERO, (t, Cost::ZERO));
         }
         while let Some((here, spent)) = self.queue.pop() {
             if self.known(here).is_some_and(|best| spent > best) {
@@ -616,7 +616,7 @@ mod tests {
     use std::cmp::Reverse;
     use std::collections::{BinaryHeap, HashSet};
 
-    /// A random plane: costs 1 to 8 half moves, some water that nothing enters, roads on some
+    /// A random plane: costs from half a move to four moves, some water that nothing enters, roads on some
     /// squares, some of them enchanted.
     struct Plane {
         grid: PathGrid,
@@ -644,19 +644,15 @@ mod tests {
     fn random_costs(rng: &mut Pcg64Mcg, n: usize) -> Costs {
         let blocked = rng.gen_range(0..40);
         let mut costs = Costs {
-            enter: vec![0; n],
-            by_road: vec![0; n],
-            by_enchanted_road: vec![0; n],
+            enter: vec![None; n],
+            by_road: vec![None; n],
+            by_enchanted_road: vec![None; n],
         };
         for i in 0..n {
-            if rng.gen_range(0..100) < blocked {
-                costs.enter[i] = BLOCKED;
-                costs.by_road[i] = BLOCKED;
-                costs.by_enchanted_road[i] = BLOCKED;
-            } else {
-                costs.enter[i] = rng.gen_range(1..=8) * if rng.gen_bool(0.5) { 2 } else { 1 };
-                costs.by_road[i] = rng.gen_range(0..=3);
-                costs.by_enchanted_road[i] = rng.gen_range(0..=2);
+            if rng.gen_range(0..100) >= blocked {
+                costs.enter[i] = Some(Cost::HALF * rng.gen_range(1..=8));
+                costs.by_road[i] = Some(Cost::HALF * rng.gen_range(0..=3));
+                costs.by_enchanted_road[i] = Some(Cost::HALF * rng.gen_range(0..=2));
             }
         }
         costs
@@ -693,21 +689,17 @@ mod tests {
                 return None;
             }
             let to_i = to as usize;
-            if self.costs.enter[to_i] == BLOCKED {
-                return None;
-            }
+            self.costs.enter[to_i]?;
             let (road_from, road_to) = (self.roads[from as usize], self.roads[to_i]);
-            let cost = u32::from(
-                if road_from == Road::Enchanted && road_to == Road::Enchanted {
-                    self.costs.by_enchanted_road[to_i]
-                } else if road_from != Road::None && road_to != Road::None {
-                    self.costs.by_road[to_i]
-                } else {
-                    self.costs.enter[to_i]
-                },
-            );
+            let cost = if road_from == Road::Enchanted && road_to == Road::Enchanted {
+                self.costs.by_enchanted_road[to_i]
+            } else if road_from != Road::None && road_to != Road::None {
+                self.costs.by_road[to_i]
+            } else {
+                self.costs.enter[to_i]
+            }?;
             Some(if self.diagonal_extra && dx == 1 && dy == 1 {
-                (cost * 3).div_ceil(2)
+                cost + cost.half()
             } else {
                 cost
             })
@@ -719,8 +711,8 @@ mod tests {
             let n = self.grid.squares();
             let mut best: Vec<Option<Cost>> = vec![None; n];
             let mut open = BinaryHeap::new();
-            best[from as usize] = Some(0);
-            open.push(Reverse((0, from)));
+            best[from as usize] = Some(Cost::ZERO);
+            open.push(Reverse((Cost::ZERO, from)));
             while let Some(Reverse((cost, here))) = open.pop() {
                 if best[here as usize] != Some(cost) {
                     continue;
@@ -742,7 +734,7 @@ mod tests {
 
         fn cost_of(&self, from: Square, path: &[Square]) -> Cost {
             let mut at = from;
-            let mut sum = 0;
+            let mut sum = Cost::ZERO;
             for &next in path {
                 sum += self
                     .step(at, next)
@@ -865,7 +857,7 @@ mod tests {
             field.distance_field(&plane.grid, &[target], |s| plane.stops.contains(&s));
             for from in 0..n {
                 if from == target {
-                    assert_eq!(field.distance(from), Some(0));
+                    assert_eq!(field.distance(from), Some(Cost::ZERO));
                     continue;
                 }
                 let found = forward
@@ -917,7 +909,7 @@ mod tests {
                     let each: Option<Vec<Cost>> = planes.iter().map(|p| p.step(from, to)).collect();
                     assert_eq!(
                         group.step_cost(from, to),
-                        each.map(|c| c.into_iter().max().unwrap_or(0)),
+                        each.map(|c| c.into_iter().max().unwrap_or(Cost::ZERO)),
                         "from {from} to {to}"
                     );
                 }
@@ -940,7 +932,7 @@ mod tests {
         let small = PathGrid::new(
             2,
             2,
-            Costs::with_ordinary_roads(vec![2; 4]),
+            Costs::with_ordinary_roads(vec![Some(Cost::from_int(1)); 4]),
             vec![Road::None; 4],
             false,
         )
@@ -948,7 +940,7 @@ mod tests {
         let big = PathGrid::new(
             3,
             2,
-            Costs::with_ordinary_roads(vec![2; 6]),
+            Costs::with_ordinary_roads(vec![Some(Cost::from_int(1)); 6]),
             vec![Road::None; 6],
             false,
         )
@@ -966,7 +958,7 @@ mod tests {
             PathGrid::new(
                 3,
                 2,
-                Costs::with_ordinary_roads(vec![1; 5]),
+                Costs::with_ordinary_roads(vec![Some(Cost::HALF); 5]),
                 vec![Road::None; 6],
                 false
             )
@@ -987,7 +979,7 @@ mod tests {
         let grid = PathGrid::new(
             5,
             3,
-            Costs::with_ordinary_roads(vec![2; 15]),
+            Costs::with_ordinary_roads(vec![Some(Cost::from_int(1)); 15]),
             vec![Road::None; 15],
             false,
         )
@@ -1017,8 +1009,8 @@ mod tests {
         let grid = &plane.grid;
         let mut best: Vec<Option<Cost>> = vec![None; grid.squares()];
         let mut open = BinaryHeap::new();
-        best[from as usize] = Some(0);
-        open.push(Reverse((0, 0, from)));
+        best[from as usize] = Some(Cost::ZERO);
+        open.push(Reverse((Cost::ZERO, Cost::ZERO, from)));
         while let Some(Reverse((_, cost, here))) = open.pop() {
             if here == to {
                 return Some(cost);
