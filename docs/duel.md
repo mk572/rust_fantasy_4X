@@ -120,7 +120,7 @@ done first; the fit over all levels leaves out the pairs of a normal unit in the
 run ended it (a wipeout at 1:9, a flip at its ratio) and walks up while the winner still wins and
 down while it does not, so a result that held costs one step, or two with the cell before it. The
 first step of a wipeout or a stalemate ends after two fights (each side attacking once) that both
-end as the old result says; a changed result plays the whole step. A pair that changed order (the
+end as the old result says; a changed result plays the whole step. Any step ends as soon as one side has more than half of its fights (the verdict cannot change). A pair that changed order (the
 old winner does not win at 4:4) is laddered anew. Levels above 6 start from level 6.
 
 **`scripts/ladder_run.py`** runs the whole ladder as brackets (one table each: a level, or a pair

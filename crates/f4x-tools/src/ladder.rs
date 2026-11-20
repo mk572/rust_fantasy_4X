@@ -319,6 +319,10 @@ fn step(
                 break;
             }
         }
+        // A side with more than half the fights has won the step whatever the rest bring.
+        if u64::from(s.a.max(s.b)) * 2 > seeds {
+            break;
+        }
         let seed = mix(&[
             levels.0 as u64 * 16 + levels.1 as u64,
             u64::from(a),
@@ -1642,6 +1646,30 @@ mod tests {
         let one = fight(&c, (hero, 4), (hero, 4), (3, 3), true, 7);
         assert!(one.is_ok(), "{one:?}");
         assert_eq!(one, fight(&c, (hero, 4), (hero, 4), (3, 3), true, 7));
+    }
+
+    /// Action: a step is played with the stop at a majority. Outcome: its verdict is the one of all
+    /// the fights of the step played out (the stop only saves fights).
+    #[test]
+    fn a_step_that_stops_at_a_majority_has_the_verdict_of_the_whole_step() {
+        let c = content();
+        let (set, _) = unit_set(&c, &[], false);
+        let a = set[0];
+        for &b in set.iter().step_by(set.len() / 8 + 1) {
+            let mut errors = Vec::new();
+            let short = step(&c, (a, 4), (b, 4), (1, 1), 10, None, &mut errors);
+            let mut whole = Step::default();
+            for i in 0..10u64 {
+                let seed = mix(&[17, u64::from(a), u64::from(b), 4, 4, i]);
+                match fight(&c, (a, 4), (b, 4), (1, 1), i % 2 == 0, seed) {
+                    Ok(Outcome::A) => whole.a += 1,
+                    Ok(Outcome::B) => whole.b += 1,
+                    _ => whole.draws += 1,
+                }
+            }
+            assert!(errors.is_empty(), "{errors:?}");
+            assert_eq!(short.verdict(), whole.verdict(), "units {a} and {b}");
+        }
     }
 
     /// Action: a pair seen from either side. Outcome: the two views agree on the exchange rate.
