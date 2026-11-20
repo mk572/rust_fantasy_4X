@@ -186,13 +186,13 @@ costs and bonuses, so the game keeps both and tells them apart:
 | Original name | Items in `crates/f4x-def/content/items.ron` | What differs |
 |---|---|---|
 | White Lightning | `white_lightning_i`, `white_lightning_ii` | I: a sword, 2200 gold, +3 to hit and +2 defence. II: a wand, 1450 gold, +1 attack, spell skill 5, spell save 2. |
-| The Resistor | `the_resistor_i`, `the_resistor_ii` | I: an axe, 950 gold, +5 attack. II: a shield, 1900 gold, +3 defence, 4 half-moves and +6 resistance. |
+| The Resistor | `the_resistor_i`, `the_resistor_ii` | I: an axe, 950 gold, +5 attack. II: a shield, 1900 gold, +3 defence, 4 moves and +6 resistance. |
 
 The numbering follows the original's table order. The original shows the plain name in both
 places, so a player cannot tell them apart there; in ours the names carry I and II.
 
 Two other points about the item data that are not departures but are easy to mistake for bugs:
-movement bonuses of items are whole moves (`Moves`, as the original's data file holds them; the movement left of a unit and the cost of a step are `HalfInt`s, and a save keeps them as half-moves), and
+movement bonuses of items are whole moves (`Moves`, as the original's data file holds them; the moves of a unit, its moves left, the cost of a step, the battle map's costs and the pathfinder's are all `HalfInt` amounts: 1 is one move), and
 to-hit bonuses are in pluses (1 to 3), the same as the units' to hit everywhere in the content.
 The power table's "+6 Defense" row stores 5 in its bonus byte while its name says 6; we import 6.
 
@@ -387,7 +387,7 @@ the original's ways. Kept there; listed so this file is a complete index.
 - **A cast by a unit costs the spell's plain cost** in the unit's mana, as the original's does; the
   original's check that a unit has "at least 5 mana to cast anything" is not kept (the spell button
   needs only the mana of the spell).
-- **Earth to Mud** follows the original's 12 half-moves to enter (the help says "all its movement
+- **Earth to Mud** follows the original's 12 half-moves (6 moves) to enter (the help says "all its movement
   points"), and turns open ground only, where the original tests the terrain group (grass and dirt).
 - **Cracks Call** works on the one square aimed at (as `Apply_Cracks_Call` does); the help's
   "fissure" suggests more. It never swallows a unit with Merging (patch IW106; the original lets

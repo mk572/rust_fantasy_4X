@@ -39,7 +39,7 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 ### 2.1 Items
 
 - **Record.** `s_ITEM`, 50 bytes (`MOM_DAT.h`): name[30], icon (`ITEMS.LBX` entry), slot type, item type,
-  cost, attack, to hit, defense, moves in half-moves, resistance, spell skill, spell save, embedded
+  cost, attack, to hit, defense, moves, resistance, spell skill, spell save, embedded
   spell and its charges, a 32-bit power mask. `ITEMDATA.LBX` has 250 of them, each followed by six
   bytes and a flag. The five bytes are the book need of each power of the item in a scrambled position, not a need per realm (task 244: 137 of the 159 items with bytes carry exactly the needs of their powers, none in a realm order). `Make_Item` compares them per realm with the wizard's books, which is a bug: books limit only what a wizard may craft. Ours drops the bytes and ignores books when an item is made (`divergences.md` section 10). The flag (`Make_Item` leaves flagged records out of the Enchant Item grade and unflagged ones out of the Create Artifact grade).
 - **Types** (10): sword, mace, axe, bow, staff, wand, misc, shield, chainmail, platemail. **Slot
@@ -171,7 +171,7 @@ pub enum ItemKind { Sword, Mace, Axe, Bow, Staff, Wand, Misc, Shield, Chainmail,
 pub enum SlotKind { Sword, Bow, SwordOrStaff, Staff, Armor, Misc }      // the six slot types
 pub struct Item {                       // an instance: crafted items are not in the content
     pub name: String, pub kind: ItemKind, pub icon: u16, pub cost: u32,
-    pub bonus: ItemBonus,               // attack, to_hit, defense, moves (half-moves), resistance,
+    pub bonus: ItemBonus,               // attack, to_hit, defense, moves, resistance,
                                         // spell_skill, spell_save
     pub powers: Vec<PowerId>,           // special powers (ids into the content's power table)
     pub charges: Option<(SpellId, u8)>,

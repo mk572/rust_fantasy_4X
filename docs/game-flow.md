@@ -75,24 +75,25 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 ## 3. Movement
 
 ### 3.1 Rules
-- **Half-moves.** A unit's `Moves` stat is whole moves; the game counts half-moves (twice
-  the stat), because roads and pathfinding cost half a move. Moves are refilled at turn start.
+- **Moves are `HalfInt` amounts.** A unit's moves, its moves left and the cost of a step are
+  counted in moves, with halves (1, 1.5, a road half a move): no doubled counts, in the rules, the
+  battle map or the pathfinder (`path_grid.rs`). Moves are refilled at turn start.
 - **A step is always allowed with any moves left**, even if it costs more than remains; the
   unit ends the turn with none. A unit with none cannot move (`NoMovesLeft`).
-- **Cost of entering a tile** (`step_cost`, in half-moves):
+- **Cost of entering a tile** (`step_cost`, in moves):
 
 | Mover | Cost |
 |---|---|
-| Non-corporeal (a ship made so too, which then also crosses land), onto any tile, water included | 1 |
-| Flying, or in a stack carried by a wind-walker | 2 on any tile, water included |
-| Sailing | 2 on ocean or on a city of its owner; otherwise impossible |
-| Swimming | 2 on ocean; on land as walking |
-| Walking | terrain `move_cost` x 2; impossible on ocean or non-walkable terrain |
-| Walking, between two road tiles | 1 |
-| Pathfinding ability | at most 1 |
-| A diagonal step (both x and y change), with the setting `diagonal_extra_cost` (off by default) | one and a half times the cost above, rounded up (3 on open ground) |
-| Forester ability, onto forest | at most 2 |
-| Mountaineer ability, onto hills or mountains | at most 2 |
+| Non-corporeal (a ship made so too, which then also crosses land), onto any tile, water included | 0.5 |
+| Flying, or in a stack carried by a wind-walker | 1 on any tile, water included |
+| Sailing | 1 on ocean or on a city of its owner; otherwise impossible |
+| Swimming | 1 on ocean; on land as walking |
+| Walking | terrain `move_cost`; impossible on ocean or non-walkable terrain |
+| Walking, between two road tiles | 0.5 |
+| Pathfinding ability | at most 0.5 |
+| A diagonal step (both x and y change), with the setting `diagonal_extra_cost` (off by default) | one and a half times the cost above, rounded up to a half (1.5 on open ground) |
+| Forester ability, onto forest | at most 1 |
+| Mountaineer ability, onto hills or mountains | at most 1 |
 
 - **A stack** is units on one tile of one owner, at most nine per tile. All units in a move
   must be on the same tile and have moves left; each pays its own cost; the move fails if any

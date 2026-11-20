@@ -222,7 +222,7 @@ good.
 
 - The grid is **21 by 22** squares (the original's size). A square is open, rough (forest,
   swamp, rubble: two moves to enter), or blocked (trees, rocks: walkers cannot enter). Flying
-  units pay one move everywhere. Moves are in half-moves like the overland map; a unit with
+  units pay one move everywhere. Moves are `HalfInt` amounts (1 move, 1.5, a road half a move) like the overland map; a unit with
   any move left may take a last step that costs more. **A diagonal step costs half a move more**
   than a straight one, for walkers, swimmers, ships and fliers alike (wiki "Movement Type";
   `DIAGONAL_EXTRA`); mud, which takes all the moves left, stays as it is. One search gives both the
@@ -292,8 +292,8 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 - **The field** (`battle/map/layout.rs`, in the original's frame; tasks 110 and 131) is built from
   the square: terrain set, roads on it and its eight neighbours, the city with its houses and
   walls. Rough ground, dirt, roads, trees and rocks are laid as the original lays them; walking
-  costs are grass and dirt 2 half-moves, rough 4, road 1, plus 1 for each tree or rock on the
-  square (to 4); the corners outside the band and the structure square (an outpost's, a lair's,
+  costs are grass and dirt 1 move, rough 2, road half a move, plus half a move for each tree or rock on the
+  square (to 2); the corners outside the band and the structure square (an outpost's, a lair's,
   a tower's, a node's, a wizard's fortress) are shut to everyone. The seed comes from the
   square (`x * y * (plane + 5) + 10039`), as in the original, so a fight on one square is
   fought on the same ground.
@@ -302,8 +302,8 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   citizens, below that as many as the citizens) and the defenders' deployment skips it.
 - **Rivers** (task 255): the original has `Carve_River_Terrain` and never calls it. Ours does: a
   battle on plains with a river on the overland square (and its neighbours deciding which way it
-  runs) has a river walked across the field. A river square costs a walker 4 half-moves and a
-  ship 2; a road over it is a bridge (1); trees, rocks and the city's ground keep off it. The
+  runs) has a river walked across the field. A river square costs a walker 2 moves and a
+  ship 1; a road over it is a bridge (half a move); trees, rocks and the city's ground keep off it. The
   files hold only six of the twelve river pictures (`cmbtcity` 103 to 108; 97 to 102 and all of
   Myrror's `chriver` 0 to 11 are empty, which is why the original never shows one), so both
   planes use those six, which are saved as PNG files in `crates/f4x-client/assets/rivers/`
@@ -315,7 +315,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   the band's top edge, because the original's start squares lie outside the playable band (or
   end after one step).
 - **Water battles** (tasks 254, 233, 235, 352): a fight on a sea square is all ocean. Walkers cannot
-  enter it, ships sail it (2 half-moves a square), swimmers take the cheaper way, fliers cross it.
+  enter it, ships sail it (1 move a square), swimmers take the cheaper way, fliers cross it.
   **Ships are decks** (our own rule; the original has no such thing: it keeps the land units out
   of a sea fight unless a Floating Island or Wind Walking carries them). Each ship of a side that
   has a deck (`deck` in `units.ron`, width by length: trireme 3 by 7, galley 4 by 8, warship 5 by 9,
@@ -327,7 +327,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   that does not fit sails as a unit. The ship (and the island, which is a ship here) is a fighter
   that stays at its bow and cannot sail off; the land units it carries stand on the rest of the
   deck and fight. A walker on a deck may **jump** the single square of water to another deck
-  (diagonals too) for two moves (4 half-moves), always possible with any move left, as with rough
+  (diagonals too) for two moves, always possible with any move left, as with rough
   ground (`BattleMap::reachable_as`, `JUMP_COST`). A ship in a city or on land (a fight that is not on the sea) sits out unless it has Flight or
   Wraith Form (1.50 note 458). Land units not aboard a ship that has a deck
   sit the fight out and go down with their side if it loses (`ActiveBattle::left_out`); Wind
@@ -544,7 +544,7 @@ using the wizard's skill or reserve, and not the wizard's one cast a turn:
 
 `Game::battle_unit_spells(unit)` lists them, `legal_unit_casts()` the legal casts for the AI and the
 console (`uspells`, `ucast`, `blegal`). Spells of the other kinds added with it: Earth to Mud (a 5 by 5
-area of open ground; walkers pay 12 half-moves to enter, fliers and the bodiless do not), Cracks Call
+area of open ground; walkers pay 6 moves to enter, fliers and the bodiless do not), Cracks Call
 (one square: a walker or crawler there is destroyed one time in four, a wall on it falls), Disrupt
 (one wall section), Life Drain and Word of Recall (any of the wizard's units, not only a hero).
 
