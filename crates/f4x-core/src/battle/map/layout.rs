@@ -16,11 +16,12 @@
 //! the river flags it passes down). Ours fills the flags from the overland square and its
 //! neighbours, so a battle on a river square, on plains, has a river walked across it.
 //!
-//! Water battles (`Set::Water`) are all ocean: nobody can walk on it, ships sail it for two
-//! half-moves a square, fliers cross it. A side with a Floating Island has its deck (a block of
+//! Water battles (`Set::Water`) are all ocean: nobody can walk on it, ships sail it for one
+//! move a square, fliers cross it. A side with a Floating Island has its deck (a block of
 //! squares marked `0x80` in the road layer, with `0x81` where the island's picture hangs) to stand
 //! land units on.
 
+use super::{OPEN_COST, ROUGH_COST};
 use crate::game::rng::random;
 use f4x_def::half_int::HalfInt;
 use rand::Rng;
@@ -29,9 +30,7 @@ pub const W: i32 = 21;
 pub const H: i32 = 22;
 
 /// Half-moves for a cell nobody can enter (outside the band, or a lair's structure).
-pub const INF: u8 = 255;
-/// Half-moves for a ship to sail a square of ocean or river.
-pub const SAIL_COST: u8 = 2;
+pub const SAIL_COST: HalfInt = HalfInt::from_int(1);
 /// The road-layer value of a floating island's deck, and of the square its picture hangs from
 /// (which stays ocean).
 pub const DECK: u8 = 0x80;
@@ -211,10 +210,10 @@ pub struct Look {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Layout {
     pub look: Look,
-    /// Half-moves to enter each cell on foot (`INF` for none), `cgy * 21 + cgx`.
-    pub cost: Vec<u8>,
-    /// Half-moves to enter each cell by ship (`INF` for none).
-    pub sail: Vec<u8>,
+    /// The moves to enter each cell on foot (`None` for none), `cgy * 21 + cgx`.
+    pub cost: Vec<Option<HalfInt>>,
+    /// The moves to enter each cell by ship (`None` for none).
+    pub sail: Vec<Option<HalfInt>>,
 }
 
 impl Layout {
@@ -225,34 +224,21 @@ impl Layout {
                 && (self.look.site == Site::Outpost || self.look.structure == Structure::Fortress))
     }
 
-    pub fn sail_at(&self, cgx: i32, cgy: i32) -> u8 {
+    /// The moves for a ship to enter the cell, `None` where it cannot.
+    pub fn sail_at(&self, cgx: i32, cgy: i32) -> Option<HalfInt> {
         if inside(cgx, cgy) {
             self.sail[at(cgx, cgy)]
         } else {
-            INF
+            None
         }
     }
 
-    /// The moves to enter the cell on foot, `None` where nobody can (the tables below count
-    /// half-moves; this is where they become amounts).
-    pub fn walk_cost(&self, cgx: i32, cgy: i32) -> Option<HalfInt> {
-        Self::amount(self.cost_at(cgx, cgy))
-    }
-
-    /// The moves for a ship to enter the cell, `None` where it cannot.
-    pub fn sail_cost(&self, cgx: i32, cgy: i32) -> Option<HalfInt> {
-        Self::amount(self.sail_at(cgx, cgy))
-    }
-
-    fn amount(half_moves: u8) -> Option<HalfInt> {
-        (half_moves != INF).then(|| HalfInt::from_raw(i32::from(half_moves)))
-    }
-
-    pub fn cost_at(&self, cgx: i32, cgy: i32) -> u8 {
+    /// The moves to enter the cell on foot, `None` where nobody can.
+    pub fn cost_at(&self, cgx: i32, cgy: i32) -> Option<HalfInt> {
         if (0..W).contains(&cgx) && (0..H).contains(&cgy) {
             self.cost[(cgy * W + cgx) as usize]
         } else {
-            INF
+            None
         }
     }
 }
@@ -936,8 +922,8 @@ fn tile_types(group: &[u8], rng: &mut impl Rng) -> Vec<u8> {
     tiles
 }
 
-/// `Set_Movement_Cost_Maps`: the walkers' map (grass and dirt 2, rough ground and rivers 4,
-/// roads 1, ocean none) and the ships' (ocean and rivers 2, nothing on land or a road), with the
+/// `Set_Movement_Cost_Maps`: the walkers' map (grass and dirt 1 move, rough ground and rivers 2,
+/// roads half a move, ocean none) and the ships' (ocean and rivers 1, nothing on land or a road), with the
 /// corners outside the band and the structure of a lair shut on both. A floating island's deck
 /// walks like a road.
 fn movement_costs(
@@ -945,41 +931,41 @@ fn movement_costs(
     roads: &[u8],
     site: Site,
     structure: Structure,
-) -> (Vec<u8>, Vec<u8>) {
+) -> (Vec<Option<HalfInt>>, Vec<Option<HalfInt>>) {
     let n = (W * H) as usize;
-    let mut cost = vec![2u8; n];
-    let mut sail = vec![INF; n];
+    let mut cost = vec![Some(OPEN_COST); n];
+    let mut sail = vec![None; n];
     for y in 0..H {
         for x in 0..W {
             let i = at(x, y);
             match group[i] {
-                ROUGH => cost[i] = 4,
+                ROUGH => cost[i] = Some(ROUGH_COST),
                 RIVER => {
-                    cost[i] = 4;
-                    sail[i] = SAIL_COST;
+                    cost[i] = Some(ROUGH_COST);
+                    sail[i] = Some(SAIL_COST);
                 }
                 OCEAN => {
-                    cost[i] = INF;
-                    sail[i] = SAIL_COST;
+                    cost[i] = None;
+                    sail[i] = Some(SAIL_COST);
                 }
                 _ => {}
             }
             if roads[i] == SHIP_DECK {
-                cost[i] = 2;
-                sail[i] = INF;
+                cost[i] = Some(OPEN_COST);
+                sail[i] = None;
             } else if roads[i] != 0 && roads[i] != DECK_PICTURE {
-                cost[i] = 1;
-                sail[i] = INF;
+                cost[i] = Some(HalfInt::HALF);
+                sail[i] = None;
             }
             if !in_band(x, y) {
-                cost[i] = INF;
-                sail[i] = INF;
+                cost[i] = None;
+                sail[i] = None;
             }
         }
     }
     if site == Site::Outpost || structure == Structure::Fortress {
-        cost[at(STRUCTURE.0, STRUCTURE.1)] = INF;
-        sail[at(STRUCTURE.0, STRUCTURE.1)] = INF;
+        cost[at(STRUCTURE.0, STRUCTURE.1)] = None;
+        sail[at(STRUCTURE.0, STRUCTURE.1)] = None;
     }
     (cost, sail)
 }
@@ -1022,7 +1008,7 @@ fn scatter_trees(
     site: Site,
     group: &[u8],
     roads: &[u8],
-    cost: &mut [u8],
+    cost: &mut [Option<HalfInt>],
     rng: &mut impl Rng,
 ) -> Vec<Prop> {
     let tree_count = match set {
@@ -1047,7 +1033,7 @@ fn scatter_trees(
                 return trees;
             }
             let (px, py) = (random(rng, W) - 1, random(rng, H) - 1);
-            if roads[at(px, py)] != 0 || group[at(px, py)] != GRASS || cost[at(px, py)] == INF {
+            if roads[at(px, py)] != 0 || group[at(px, py)] != GRASS || cost[at(px, py)].is_none() {
                 continue;
             }
             break (px, py);
@@ -1060,14 +1046,11 @@ fn scatter_trees(
             if !illegal {
                 illegal = roads[at(tx, ty)] != 0
                     || group[at(tx, ty)] != GRASS
-                    || cost[at(tx, ty)] == INF
+                    || cost[at(tx, ty)].is_none()
                     || forbidden(site, tx, ty, false);
             }
             if !illegal && on_screen(tx, ty, sub) {
-                let c = &mut cost[at(tx, ty)];
-                if *c < 4 {
-                    *c += 1;
-                }
+                dearer(&mut cost[at(tx, ty)]);
                 trees.push(Prop {
                     cell: (tx, ty),
                     sub: (sub.0 as u8, sub.1 as u8),
@@ -1085,13 +1068,20 @@ fn scatter_trees(
     trees
 }
 
+/// A tree or a rock makes the square half a move dearer, up to the cost of rough ground.
+fn dearer(cost: &mut Option<HalfInt>) {
+    if let Some(c) = cost.as_mut().filter(|c| **c < ROUGH_COST) {
+        *c += HalfInt::HALF;
+    }
+}
+
 /// `Scatter_Rock_Scenery`.
 fn scatter_rocks(
     set: Set,
     site: Site,
     group: &[u8],
     roads: &[u8],
-    cost: &mut [u8],
+    cost: &mut [Option<HalfInt>],
     rng: &mut impl Rng,
 ) -> Vec<Prop> {
     let rock_count = match set {
@@ -1111,14 +1101,11 @@ fn scatter_rocks(
         let sub = (random(rng, 2) + 3, random(rng, 2) + 3);
         let ok = roads[at(rx, ry)] == 0
             && group[at(rx, ry)] == GRASS
-            && cost[at(rx, ry)] != INF
+            && cost[at(rx, ry)].is_some()
             && !forbidden(site, rx, ry, true)
             && on_screen(rx, ry, sub);
         if ok {
-            let c = &mut cost[at(rx, ry)];
-            if *c < 4 {
-                *c += 1;
-            }
+            dearer(&mut cost[at(rx, ry)]);
             rocks.push(Prop {
                 cell: (rx, ry),
                 sub: (sub.0 as u8, sub.1 as u8),
@@ -1315,7 +1302,7 @@ mod tests {
         assert_ne!(a.look.tiles, c.look.tiles);
         for y in 0..H {
             for x in 0..W {
-                assert_eq!(a.cost_at(x, y) == INF, !in_band(x, y), "({x},{y})");
+                assert_eq!(a.cost_at(x, y).is_none(), !in_band(x, y), "({x},{y})");
             }
         }
     }
@@ -1324,11 +1311,20 @@ mod tests {
     fn the_ground_costs_two_rough_ground_four_and_trees_add_one() {
         for seed in 0..40 {
             let l = generate(&Spec::open(Set::Mountains), &mut rng(seed));
-            let costs: std::collections::HashSet<u8> =
-                l.cost.iter().copied().filter(|&c| c != INF).collect();
-            assert!(costs.iter().all(|c| (1..=4).contains(c)), "{costs:?}");
+            let costs: std::collections::HashSet<HalfInt> =
+                l.cost.iter().flatten().copied().collect();
+            assert!(
+                costs
+                    .iter()
+                    .all(|c| (HalfInt::HALF..=ROUGH_COST).contains(c)),
+                "{costs:?}"
+            );
             for t in l.look.trees.iter().chain(&l.look.rocks) {
-                assert!(l.cost_at(t.cell.0, t.cell.1) >= 3 || l.look.set == Set::Water);
+                assert!(
+                    l.cost_at(t.cell.0, t.cell.1)
+                        .is_none_or(|c| c >= OPEN_COST + HalfInt::HALF)
+                        || l.look.set == Set::Water
+                );
                 assert_eq!(l.look.roads[at(t.cell.0, t.cell.1)], 0, "no prop on a road");
             }
         }
@@ -1421,7 +1417,7 @@ mod tests {
             "sixteen squares less four corners and the fortress"
         );
         assert!(full.look.houses.iter().all(|h| h.cell != STRUCTURE));
-        assert_eq!(full.cost_at(STRUCTURE.0, STRUCTURE.1), INF);
+        assert_eq!(full.cost_at(STRUCTURE.0, STRUCTURE.1), None);
         // Few citizens: as many houses as citizens, never on the fortress's cell.
         for seed in 0..20 {
             let small = Spec {
@@ -1435,10 +1431,9 @@ mod tests {
         }
         // A plain city leaves the square open.
         spec.structure = Structure::Outpost;
-        assert_ne!(
-            generate(&spec, &mut rng(1)).cost_at(STRUCTURE.0, STRUCTURE.1),
-            INF
-        );
+        assert!(generate(&spec, &mut rng(1))
+            .cost_at(STRUCTURE.0, STRUCTURE.1)
+            .is_some());
     }
 
     #[test]
@@ -1446,7 +1441,7 @@ mod tests {
         let mut spec = Spec::open(Set::Plains);
         spec.site = Site::Outpost;
         let l = generate(&spec, &mut rng(1));
-        assert_eq!(l.cost_at(STRUCTURE.0, STRUCTURE.1), INF);
+        assert_eq!(l.cost_at(STRUCTURE.0, STRUCTURE.1), None);
         assert!(l.look.houses.is_empty());
     }
 
@@ -1454,9 +1449,9 @@ mod tests {
     fn water_is_bare_ocean_for_ships_and_fliers_only() {
         let l = generate(&Spec::open(Set::Water), &mut rng(1));
         assert!(l.look.trees.is_empty() && l.look.rocks.is_empty());
-        assert_eq!(l.cost_at(10, 10), INF, "nobody walks on the sea");
-        assert_eq!(l.sail_at(10, 10), SAIL_COST);
-        assert_eq!(l.sail_at(0, 0), INF, "the corners are shut to ships too");
+        assert_eq!(l.cost_at(10, 10), None, "nobody walks on the sea");
+        assert_eq!(l.sail_at(10, 10), Some(SAIL_COST));
+        assert_eq!(l.sail_at(0, 0), None, "the corners are shut to ships too");
         assert!(!l.is_void(10, 10) && l.is_void(0, 0));
         assert!(l.look.tiles.iter().all(|&t| (48..52).contains(&t)));
     }
@@ -1470,13 +1465,17 @@ mod tests {
         assert_eq!(decks.defenders.len(), 9);
         for &(x, y) in &decks.defenders {
             assert_eq!(l.look.roads[at(x, y)], DECK);
-            assert_eq!(l.cost_at(x, y), 1, "a deck walks like a road");
-            assert_eq!(l.sail_at(x, y), INF);
+            assert_eq!(
+                l.cost_at(x, y),
+                Some(HalfInt::HALF),
+                "a deck walks like a road"
+            );
+            assert_eq!(l.sail_at(x, y), None);
         }
         let (px, py) = decks.pictures[0];
         assert_eq!(l.look.roads[at(px, py)], DECK_PICTURE);
-        assert_eq!(l.cost_at(px, py), INF);
-        assert_eq!(l.sail_at(px, py), SAIL_COST);
+        assert_eq!(l.cost_at(px, py), None);
+        assert_eq!(l.sail_at(px, py), Some(SAIL_COST));
         // Both sides: the attackers' island is in the middle, and nothing overlaps.
         let both = island_decks(true, true);
         assert!(both.attackers.len() == 10 && both.pictures.len() == 2);
@@ -1513,9 +1512,9 @@ mod tests {
                     for x in 0..W {
                         let i = at(x, y);
                         if l.look.tiles[i] >= RIVER_TILE && l.look.roads[i] == 0 {
-                            assert_eq!(l.cost_at(x, y), if in_band(x, y) { 4 } else { INF });
+                            assert_eq!(l.cost_at(x, y), in_band(x, y).then_some(ROUGH_COST));
                             if in_band(x, y) {
-                                assert_eq!(l.sail_at(x, y), SAIL_COST);
+                                assert_eq!(l.sail_at(x, y), Some(SAIL_COST));
                             }
                         }
                     }
@@ -1556,7 +1555,7 @@ mod tests {
             }
             // Every cell a unit may deploy on can be entered on foot.
             for (x, y) in [(14, 12), (15, 11), (16, 13), (8, 12), (7, 11)] {
-                assert_ne!(l.cost_at(x, y), INF, "seed {seed} ({x},{y})");
+                assert!(l.cost_at(x, y).is_some(), "seed {seed} ({x},{y})");
             }
         }
     }

@@ -20,6 +20,9 @@ impl HalfInt {
     /// The value zero.
     pub const ZERO: Self = Self(0);
 
+    /// One half.
+    pub const HALF: Self = Self(1);
+
     /// The largest value (the "not reached yet" of a search).
     pub const MAX: Self = Self(i32::MAX);
 

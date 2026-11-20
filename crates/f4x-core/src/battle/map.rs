@@ -25,7 +25,7 @@ use rand::Rng;
 pub const JUMP_COST: HalfInt = HalfInt::from_int(2);
 
 /// What a diagonal step costs beyond the square's own cost: half a move.
-pub const DIAGONAL_EXTRA: HalfInt = HalfInt::from_raw(1);
+pub const DIAGONAL_EXTRA: HalfInt = HalfInt::HALF;
 pub const GRID_W: i32 = 21;
 pub const GRID_H: i32 = 22;
 
@@ -33,7 +33,7 @@ pub const GRID_H: i32 = 22;
 pub const OPEN_COST: HalfInt = HalfInt::from_int(1);
 /// Moves to enter rough ground.
 pub const ROUGH_COST: HalfInt = HalfInt::from_int(2);
-/// Moves to enter mud (Earth to Mud): 12 half-moves, which is more than any unit has.
+/// Moves to enter mud (Earth to Mud): 6, which is more than any unit has.
 pub const MUD_COST: HalfInt = HalfInt::from_int(6);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -295,10 +295,10 @@ impl BattleMap {
         for y in 0..GRID_H {
             for x in 0..GRID_W {
                 let (cgx, cgy) = (GRID_W - 1 - x, y);
-                let cost = layout.walk_cost(cgx, cgy);
+                let cost = layout.cost_at(cgx, cgy);
                 let i = Self::index((x, y));
                 map.costs[i] = cost;
-                map.sail[i] = layout.sail_cost(cgx, cgy);
+                map.sail[i] = layout.sail_at(cgx, cgy);
                 map.ship_deck[i] =
                     layout.look.roads[(cgy * layout::W + cgx) as usize] == layout::SHIP_DECK;
                 map.cells[i] = match cost {
