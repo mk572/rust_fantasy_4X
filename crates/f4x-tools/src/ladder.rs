@@ -390,6 +390,45 @@ impl Pair {
         (self.kind != Kind::Stalemate).then(|| (f64::from(self.nb) / f64::from(self.na)).ln())
     }
 
+    /// Who wins at the cell of the pair: `a` or `b`, `even` (a tie), `draw` (a stalemate). A flip is
+    /// won by the side that lost the 4 against 4; a wipeout by the side that won it.
+    pub fn winner_at_cell(&self) -> &'static str {
+        let (first_a, first_b) = (self.first == Verdict::A, self.first == Verdict::B);
+        match self.kind {
+            Kind::Stalemate => "draw",
+            Kind::Even => "even",
+            Kind::Flip if first_a => "b",
+            Kind::Flip if first_b => "a",
+            Kind::Wipeout if first_a => "a",
+            Kind::Wipeout if first_b => "b",
+            _ => "even",
+        }
+    }
+
+    /// The last cell where the first winner still won, as `A:B` (empty when the 4 against 4 itself
+    /// ended it): the exchange rate lies between it and the cell. A wipeout's is its own cell.
+    pub fn held_cell(&self) -> String {
+        let (first_a, first_b) = (self.first == Verdict::A, self.first == Verdict::B);
+        if !(first_a || first_b) || matches!(self.kind, Kind::Stalemate) {
+            return String::new();
+        }
+        let (w, l) = if first_a {
+            (self.na, self.nb)
+        } else {
+            (self.nb, self.na)
+        };
+        let held = match CELLS.iter().position(|&c| c == (w, l)) {
+            Some(i) if self.kind != Kind::Wipeout => i.checked_sub(1).map(|i| CELLS[i]),
+            Some(_) => Some((w, l)),
+            None => None,
+        };
+        match held {
+            Some((w, l)) if first_a => format!("{w}:{l}"),
+            Some((w, l)) => format!("{l}:{w}"),
+            None => String::new(),
+        }
+    }
+
     /// The text of a table cell: `4:5` (four of A are worth five of B), `1:9+` for a wipeout.
     pub fn cell(&self) -> String {
         match self.kind {
@@ -878,10 +917,12 @@ fn kind_label(k: Kind) -> &'static str {
 
 /// The CSV of every pair.
 pub fn pairs_csv(content: &Content, pairs: &[Pair]) -> String {
-    let mut out = String::from("a,b,a_name,b_name,first_winner,result,a_count,b_count,cell\n");
+    let mut out = String::from(
+        "a,b,a_name,b_name,first_winner,result,a_count,b_count,cell,winner_at_cell,held_cell\n",
+    );
     for p in pairs {
         out += &format!(
-            "{},{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{},{},{}\n",
             p.a,
             p.b,
             name(content, p.a),
@@ -890,7 +931,9 @@ pub fn pairs_csv(content: &Content, pairs: &[Pair]) -> String {
             kind_label(p.kind),
             p.na,
             p.nb,
-            p.cell()
+            p.cell(),
+            p.winner_at_cell(),
+            p.held_cell()
         );
     }
     out
@@ -1513,6 +1556,21 @@ pub fn run(args: &[String]) -> Result<(), String> {
             out.display()
         );
     }
+    if report {
+        // The cross-level files are written again too, with every column of the current format.
+        for entry in std::fs::read_dir(&out)
+            .map_err(|e| e.to_string())?
+            .flatten()
+        {
+            let file = entry.file_name().to_string_lossy().into_owned();
+            if file.starts_with("cross_") && file.ends_with(".csv") {
+                let text = std::fs::read_to_string(entry.path()).map_err(|e| e.to_string())?;
+                let pairs = read_pairs(&text)?;
+                std::fs::write(entry.path(), pairs_csv(&content, &pairs))
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+    }
     if let Some(range) = &cross {
         // Every normal unit at one level against every normal unit at a higher one; a file of
         // an earlier run is kept, so that a run that stopped goes on where it left off.
@@ -1670,6 +1728,53 @@ mod tests {
             assert!(errors.is_empty(), "{errors:?}");
             assert_eq!(short.verdict(), whole.verdict(), "units {a} and {b}");
         }
+    }
+
+    /// Action: the rows of a flip won by the weaker side and of a wipeout. Outcome: the winner at the
+    /// cell and the last cell the first winner held are written, from either side of the pair.
+    #[test]
+    fn a_pair_row_names_the_winner_at_its_cell_and_the_cell_before() {
+        let flip = Pair {
+            a: 1,
+            b: 2,
+            kind: Kind::Flip,
+            first: Verdict::A,
+            na: 3,
+            nb: 5,
+        };
+        assert_eq!(
+            (flip.winner_at_cell(), flip.held_cell().as_str()),
+            ("b", "4:5")
+        );
+        let seen_from_b = flip.flipped();
+        assert_eq!(
+            (
+                seen_from_b.winner_at_cell(),
+                seen_from_b.held_cell().as_str()
+            ),
+            ("a", "5:4")
+        );
+        let wipeout = Pair {
+            kind: Kind::Wipeout,
+            na: 1,
+            nb: 9,
+            ..flip
+        };
+        assert_eq!(
+            (wipeout.winner_at_cell(), wipeout.held_cell().as_str()),
+            ("a", "1:9")
+        );
+        let opening = Pair {
+            kind: Kind::Even,
+            na: 4,
+            nb: 4,
+            first: Verdict::Even,
+            ..flip
+        };
+        assert_eq!(
+            (opening.winner_at_cell(), opening.held_cell().as_str()),
+            ("even", "")
+        );
     }
 
     /// Action: a pair seen from either side. Outcome: the two views agree on the exchange rate.

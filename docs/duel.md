@@ -79,6 +79,13 @@ Champion again) and a fantastic or summoned creature none (it enters with its ba
 gives a normal unit up to Elite; Ultra-Elite and Champion are given the way the game gives them, by
 the Warlord retort and the Crusade spell on the player (`Game::scenario_level_bonus`).
 
+**Reading a row.** `first_winner` is who won the 4:4; `cell` is the first cell where that side stops
+winning, `winner_at_cell` who wins there (`a`, `b`, `even`, `draw`; after a flip it is the weaker
+unit, with more units) and `held_cell` the last cell where the first winner still won, so the
+exchange rate lies between `held_cell` and `cell` (a wipeout's `held_cell` is its own cell). The
+fit uses `cell`. `--report` writes every `ladder_L.csv` and `cross_A_B.csv` of `--out` again with
+these columns.
+
 **Output** in `--out` (default `target/ladder`), per level L: `ladder_L.csv` (every pair: who won at
 4:4, the result, the counts), `ladder_L_rank.csv` (the strength fitted over all the pairs: `worth`
 is how many of the weakest unit one of this is worth), `ladder_L.html` (the table of who beats whom,
