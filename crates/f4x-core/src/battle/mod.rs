@@ -20,6 +20,7 @@ pub mod game;
 pub mod immunity;
 pub mod info;
 pub mod legal;
+pub mod load;
 pub use f4x_battle::map;
 pub mod power;
 pub mod save;
