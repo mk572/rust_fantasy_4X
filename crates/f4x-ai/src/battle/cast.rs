@@ -1495,6 +1495,68 @@ mod tests {
         Ok(())
     }
 
+    /// A hero that knows Healing, with a cavalry friend hurt by `hurt`, against one enemy cavalry.
+    fn healer_hero_battle(hurt: u32) -> Result<Game, Box<dyn std::error::Error>> {
+        use f4x_core::hero::{Hero, HeroAbilities};
+        let rules = &shipped().rules;
+        let healing = rules.spells.id_numbered(125).ok_or("no healing")?;
+        let kind = rules
+            .units
+            .defs()
+            .iter()
+            .find_map(|d| d.hero.as_ref().map(|_| d.num))
+            .ok_or("no hero")? as usize;
+        let mut g = game(COAST_CITY, 7);
+        g.scenario_make_hero(Hero {
+            kind,
+            name: "Ann".into(),
+            abilities: HeroAbilities::default(),
+            casting_skill: 200,
+            spells: vec![healing],
+        });
+        let hero = g
+            .spawn_hero(P0, at(4, 4), kind)
+            .map_err(|e| format!("{e:?}"))?;
+        let walker = rules.units.id_numbered(107).ok_or("no cavalry")?;
+        let friend = g.spawn_unit(P0, at(4, 4), walker);
+        g.scenario_set_hurt(friend, hurt);
+        let foe = g.spawn_unit(P1, at(5, 4), walker);
+        g.apply(Command::BeginBattle {
+            attackers: vec![hero, friend],
+            defenders: vec![foe],
+        });
+        Ok(g)
+    }
+
+    #[test]
+    fn a_unit_that_knows_healing_heals_a_friend_down_to_half_but_not_a_scratched_one() -> TestResult
+    {
+        let hits = cavalry_hit_points()?;
+        let g = healer_hero_battle(hits.div_ceil(2) - 1)?;
+        let b = g.battle().ok_or("no battle")?;
+        assert!(
+            !matches!(
+                unit_cast_choice(&g, b),
+                Some(BattleCommand::UnitCast { spell, .. }) if spell == shipped().rules.spells.id_numbered(125).ok_or("no healing")?
+            ),
+            "a friend above half health is left alone"
+        );
+        let g = healer_hero_battle(hits.div_ceil(2))?;
+        let b = g.battle().ok_or("no battle")?;
+        let chosen = unit_cast_choice(&g, b);
+        assert!(
+            matches!(
+                chosen,
+                Some(BattleCommand::UnitCast {
+                    aim: SpellAim::Unit(1),
+                    ..
+                })
+            ),
+            "the hero should heal the hurt friend: {chosen:?}"
+        );
+        Ok(())
+    }
+
     #[test]
     fn a_dispel_is_worth_something_only_against_a_lasting_spell_on_an_enemy() -> TestResult {
         let bless = shipped().rules.spells.id_numbered(121).ok_or("no bless")?;
