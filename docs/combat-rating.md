@@ -98,7 +98,7 @@ the combat factor in these combinations and leaves the others where they are.
   AI's `worth`, count the hit points left themselves). `def_power(def, rules)` is the rating at the
   first level; a unit with no row keeps the old formula (`def_formula`).
 - **The scale.** The AI's thresholds were tuned to the old numbers, and mostly compare a strength with a
-  strength, so `power_scale` (69.2 in `unit_ratings.ron`, written by the `--combine` run: the median of
+  strength, so `power_scale` (105 in `unit_ratings.ron` after the run of 20 November, 69.2 before it, written by the `--combine` run: the median of
   the old formula over the level 1 rating of the units that are not heroes) puts a typical unit where
   it was and the thresholds (`attack_ratio`, `sortie_ratio`, `GUESS_DEFENDERS`, `strength_wanted`, the
   raid yardsticks) stay as they are. The ratings change the *ratios between* units, which is the point
