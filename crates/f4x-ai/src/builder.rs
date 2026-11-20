@@ -167,6 +167,36 @@ fn best_soldier(view: &PlayerView, pool: &[UnitId], elite: bool, walks: bool) ->
         .map(|(u, _)| u)
 }
 
+/// What a recruit of this kind is worth in a fight for what it costs to keep (task 730): its
+/// combat rating at the first level over the cost in `unit_efficiency.ron` (the base cost and
+/// the upkeep of 100 turns, gold, food and mana counting alike). Not the file's `per_100`, which
+/// averages the levels: a garrison unit is built as a recruit and fights little. `None` for a
+/// unit with no rating or no row.
+fn recruit_efficiency(rules: &f4x_def::rules::Rules, d: &UnitDef) -> Option<f32> {
+    let cost = rules.efficiency.row(d.num)?.cost;
+    (cost > 0.0).then(|| rules.combat_rating(d, 0).map(|r| r / cost))?
+}
+
+/// The unit a garrison is built from: the most efficient of the normal units the city may build
+/// (a creature of the fantastic kind keeps no order and costs mana: not for a garrison), the one
+/// with the most strength for the resources it eats. Falls back to [`best_soldier`] when the pool
+/// has no rated normal unit.
+fn best_garrison_soldier(view: &PlayerView, pool: &[UnitId]) -> Option<UnitId> {
+    let rules = &view.content().rules;
+    pool.iter()
+        .copied()
+        .filter_map(|u| {
+            let d = rules.units.get(u);
+            (d.kind == f4x_def::rules::UnitKind::Normal)
+                .then(|| recruit_efficiency(rules, d))
+                .flatten()
+                .map(|e| (u, e))
+        })
+        .max_by(|a, b| a.1.total_cmp(&b.1).then(b.0.cmp(&a.0)))
+        .map(|(u, _)| u)
+        .or_else(|| best_soldier(view, pool, false, false))
+}
+
 /// The cheapest settlers the city may build. They are not held to the food rule of the soldiers:
 /// they leave to found a city (`plan_for` builds them only with food to spare).
 fn cheapest_settler(view: &PlayerView, city: hecs::Entity) -> Option<UnitId> {
@@ -301,7 +331,7 @@ pub fn next_item(
         }
     }
     if units_ok && defenders < minimum {
-        if let Some(u) = best_soldier(view, &pool, false, false) {
+        if let Some(u) = best_garrison_soldier(view, &pool) {
             return ProductionItem::Unit(u);
         }
     }
@@ -506,6 +536,45 @@ mod tests {
                 HalfInt::ZERO,
                 "a unit that eats was chosen"
             );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_city_with_no_defender_builds_the_most_efficient_normal_unit_it_may() -> TestResult {
+        let g = game(COAST_CITY, 8 /* high_men */);
+        let city = g
+            .economy()
+            .city_at(at(COAST_CITY.0, COAST_CITY.1))
+            .ok_or("a city on the coast")?;
+        let view = PlayerView::new(&g, P0);
+        let need = Need {
+            net_gold: HalfInt::from_int(5),
+            rival_near: false,
+            garrison_cap: u32::MAX,
+            settler_first: false,
+            spare_food: HalfInt::from_int(10),
+        };
+        let ProductionItem::Unit(chosen) = next_item(&view, city, &BuildPlan::default(), need, 0)
+        else {
+            return Err("a soldier was expected in a city with no defender".into());
+        };
+        let rules = &view.content().rules;
+        let value = |u: UnitId| recruit_efficiency(rules, rules.units.get(u));
+        let best = value(chosen).ok_or("the chosen unit has no efficiency")?;
+        assert_eq!(
+            rules.units.get(chosen).kind,
+            f4x_def::rules::UnitKind::Normal
+        );
+        for u in soldiers(&view, city, need) {
+            if rules.units.get(u).kind == f4x_def::rules::UnitKind::Normal {
+                assert!(
+                    value(u).is_none_or(|v| v <= best),
+                    "{} is more efficient than {}",
+                    rules.units.get(u).id,
+                    rules.units.get(chosen).id
+                );
+            }
         }
         Ok(())
     }
