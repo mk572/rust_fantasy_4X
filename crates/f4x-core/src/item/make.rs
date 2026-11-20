@@ -1,13 +1,8 @@
-//! Random and prefab items: the original's `Make_Item` and `Create_Random_Item`
-//! (`ItemMake.c`). The merchant, a lair's treasure and the events ask for an item of a grade, a
-//! value, and get one of the 250 prefab items or, when none suits, one rolled from the plain
-//! bonuses. The wizard's books play no part: they only limit what a wizard may craft.
-//!
-//! Where the original is wrong this follows its evident intent (`docs/divergences.md`, section
-//! 10): the value test accepts a prefab item whose cost is in range (the original's only ever
-//! rejects), the books are not looked at (the original compares scrambled bytes with the wizard's
-//! books) and a random item's power count follows the kind that was drawn (the
-//! original reads a variable not yet set, so always allows four).
+//! Random and prefab items: the original's `Make_Item` and `Create_Random_Item` (`ItemMake.c`).
+//! The merchant, a lair's treasure and the events ask for an item of a grade, a value, and get one
+//! of the 250 prefab items or, when none suits, one rolled from the plain bonuses. The wizard's
+//! books play no part: they only limit what a wizard may craft. Where this differs from the
+//! original (the value test, the books, the power count): `docs/divergences.md`, section 10.
 
 use super::crafting::{self, ItemDesign};
 use super::Item;

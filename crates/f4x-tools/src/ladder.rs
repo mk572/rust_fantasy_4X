@@ -2,16 +2,8 @@
 //!
 //! For every pair of units (A, B) at one experience level the ladder fights real battles on open
 //! ground with the 1.3 rules (`settings`), played by the battle AI with the units' own spells (no
-//! wizard casts), and finds how many of A are worth how many of B:
-//!
-//! - it starts at 4 against 4; the side that wins more of the fights is the winner W, the other L;
-//! - L gets a unit; if L now wins (or the fight is even) the ladder ends there with that ratio;
-//!   else W loses one; then L gets another, and so on: 4:5, 3:5, 3:6, 2:6, 2:7, 1:7, 1:8, 1:9;
-//! - W still winning at 1 against 9 is a wipeout;
-//! - 4 against 4 that never ends in 100 turns (the engine's turn limit) is a stalemate.
-//!
-//! A step is `--seeds` fights (default 6) in which each side moves first half the time, and the
-//! side with more wins wins the step. Documented in `docs/duel.md`; tests below.
+//! wizard casts), and finds how many of A are worth how many of B, from 4 against 4 down to a
+//! wipeout or a stalemate. The steps and the ratio notation are in `docs/duel.md`; tests below.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

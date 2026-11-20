@@ -6,10 +6,7 @@
 //! not answered by the next turn change lapses.
 //!
 //! The chances, the prices and the AI's answers are plain functions, so they are tested without
-//! a game. Where the original is wrong this follows its evident intent (`docs/divergences.md`,
-//! section 11): the computer wizards meet the merchant too, every wizard's chances use their own fame, the price is tested after the
-//! Charismatic discount, a mercenary company can be of level 2 and the AI's hero test reads as
-//! its comment says.
+//! a game. Where this differs from the original: `docs/divergences.md`, section 11.
 //!
 //! Tests: in player/offer/tests.rs.
 
