@@ -22,6 +22,7 @@ png = { version = "0.17", default-features = false }
 # Bitmap font renderer (BMFont text format); pinned to a commit so builds stay reproducible.
 macroquad_bitmap_font_engine = { git = "https://github.com/mk572/macroquad_bitmap_font_engine", rev = "5996cfdab2545f34e862d2dbb5194b6b5b4a4d91" }
 f4x-def = { path = "crates/f4x-def" }
+f4x-battle = { path = "crates/f4x-battle" }
 f4x-core = { path = "crates/f4x-core" }
 f4x-master = { path = "crates/f4x-master" }
 f4x-ai = { path = "crates/f4x-ai" }

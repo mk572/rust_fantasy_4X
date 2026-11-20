@@ -1,5 +1,5 @@
 use super::*;
-use crate::rules::damage_type::DamageType;
+use crate::rules::damage_type::{DamageType, DamageTypes};
 use crate::rules::SpellId;
 use rand::SeedableRng;
 

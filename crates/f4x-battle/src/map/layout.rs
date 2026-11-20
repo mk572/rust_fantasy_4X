@@ -22,7 +22,7 @@
 //! land units on.
 
 use super::{GRID_H, GRID_W, OPEN_COST, ROUGH_COST};
-use crate::game::rng::random;
+use crate::rng::random;
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::SceneryRules;
 use rand::{Rng, SeedableRng};

@@ -29,16 +29,7 @@ use super::immunity::{
 };
 use super::special::SpecialAttacks;
 
-/// How an attack is delivered.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Mode {
-    #[default]
-    Melee,
-    /// A thrown weapon or breath, used just before melee.
-    ThrownOrBreath,
-    /// Arrows, boulders or spell shots from a distance.
-    Ranged,
-}
+pub use super::immunity::Mode;
 
 /// The numbers an attacker brings to one attack.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

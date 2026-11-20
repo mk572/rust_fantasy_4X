@@ -293,7 +293,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   mirrored (`x = 20 - cgx`), so a square is drawn where the original draws the mirrored one and
   the picture is the original's (the city and the defenders at the upper left). Like the
   original it draws only the band of 200 squares it plays on, scaled to fit the window.
-- **The field** (`battle/map/layout.rs`, in the original's frame; tasks 110 and 131) is built from
+- **The field** (`f4x-battle/src/map/layout.rs`, in the original's frame; tasks 110 and 131) is built from
   the square: terrain set, roads on it and its eight neighbours, the city with its houses and
   walls. Rough ground, dirt, roads, trees and rocks are laid as the original lays them; walking
   costs are grass and dirt 1 move, rough 2, road half a move, plus half a move for each tree or rock on the
@@ -393,7 +393,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 
 ## 7. City sieges (task 41)
 
-Code: `battle/map.rs` (the city and its walls), `battle/mod.rs` (wall attacks, the defence bonus,
+Code: `f4x-battle/src/map.rs` (the city and its walls), `battle/mod.rs` (wall attacks, the defence bonus,
 city damage), `battle/game.rs` (starting a city battle), `city/conquest.rs` (what a fallen city
 costs). The numbers are the original's (`Generate_Combat_Map`, `Deploy_Battle_Units`,
 `Update_Move_Map_City_Area_Restrictions`, `Battle_Unit_Attack`, `End_Of_Combat`); the field is
@@ -404,7 +404,7 @@ tests read the rules from it and never carry a coordinate, a count or a chance o
 - **A fight at a city or outpost is a city battle**: the city area is open ground, six by six squares
   (the original's four by four houses and the ring of squares round them, task 733). A city with the City
   Walls building has its wall on the twenty squares round the edge of the area; the sixteen inside are
-  the city. Outposts have no walls. The wall's shape is today in the constants of `battle/map.rs`
+  the city. Outposts have no walls. The wall's shape is today in the constants of `f4x-battle/src/map.rs`
   (`CITY_X0`, `CITY_SIZE`); the gate (a feature of the wall, `city_wall.gate`), the towers and the rest
   of what the walls do are the `city_wall` rules.
 - **Deployment** is `deployment` of `battle.ron`: four blocks of columns and rows, for the units of a

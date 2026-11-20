@@ -183,7 +183,7 @@ fn a_city_has_wall_sites_round_its_inner_squares() {
 /// section is open to everyone.
 #[test]
 fn a_standing_wall_section_is_entered_as_the_battle_rules_say() {
-    let rule = crate::game::testutil::shipped().rules.battle.city_wall;
+    let rule = f4x_def::testdir::shipped().rules.battle.city_wall;
     let teleporter = Mover {
         through_walls: true,
         ..Mover::default()
@@ -260,7 +260,7 @@ fn a_broken_wall_can_be_walked_over() {
 /// `city_wall.tower_enterable` says so; a broken one is always open.
 #[test]
 fn a_standing_tower_is_entered_as_the_battle_rules_say() {
-    let rule = crate::game::testutil::shipped().rules.battle.city_wall;
+    let rule = f4x_def::testdir::shipped().rules.battle.city_wall;
     let teleporter = Mover {
         through_walls: true,
         ..Mover::default()

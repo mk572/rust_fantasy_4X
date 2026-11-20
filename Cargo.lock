@@ -2666,6 +2666,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "f4x-battle"
+version = "0.0.7"
+dependencies = [
+ "f4x-def",
+ "rand 0.8.8",
+ "rand_pcg",
+ "serde",
+]
+
+[[package]]
 name = "f4x-client"
 version = "0.0.7"
 dependencies = [
@@ -2702,6 +2712,7 @@ dependencies = [
 name = "f4x-core"
 version = "0.0.7"
 dependencies = [
+ "f4x-battle",
  "f4x-core",
  "f4x-def",
  "hecs",

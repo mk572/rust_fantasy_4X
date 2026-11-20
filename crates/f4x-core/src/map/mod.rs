@@ -11,26 +11,7 @@ pub mod vision;
 use crate::feature::entity::FeatureIndex;
 use serde::{Deserialize, Serialize};
 
-/// Where an entity stands. Components on map objects such as cities and units.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Position {
-    pub plane: Plane,
-    pub x: u32,
-    pub y: u32,
-}
-
-impl Position {
-    /// The same square on the other plane.
-    pub fn on_other_plane(self) -> Self {
-        Self {
-            plane: match self.plane {
-                Plane::Arcanus => Plane::Myrror,
-                Plane::Myrror => Plane::Arcanus,
-            },
-            ..self
-        }
-    }
-}
+pub use f4x_def::map::Position;
 
 pub use f4x_def::map::{FeatureId, Plane, TerrainId};
 

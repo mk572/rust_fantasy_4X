@@ -14,7 +14,7 @@ number is deleted (the hash replaces it). The moves are the tasks named in the l
 
 | Where | What | Why |
 |---|---|---|
-| `f4x-core/battle/map.rs`, `map/layout.rs` | grid size (`GRID_W`, `GRID_H`, `W`, `H`), terrain codes, deck codes, step tables, `STRUCTURE`, city box, gate, `SAIL_COST` | the shape of the battlefield and the encoding of its map, not a tunable rule |
+| `f4x-battle/map.rs`, `map/layout.rs` | grid size (`GRID_W`, `GRID_H`, `W`, `H`), terrain codes, deck codes, step tables, `STRUCTURE`, city box, gate, `SAIL_COST` | the shape of the battlefield and the encoding of its map, not a tunable rule |
 | `path_grid.rs`, `unit/pathing/*`, `map/fog.rs` | `NONE`, `AROUND`, fog bit masks and corner tables | engine encoding |
 | `hook.rs`, `battle/field.rs`, `spell/*` (`*_EFFECT`, `RECALL`, `GATE`, ...), `item/crafting.rs` `CRAFT_ITEM` | names of hooks and effect kinds | the keys that tie a `.ron` row to the code that handles it |
 | `game/save.rs`, `game/undo.rs`, `game/replay.rs`, `unit/kept.rs`, `unit/crowding.rs`, `finance.rs`, `vision.rs` | save versions, undo depth, thread-local caches, `OnceLock` switches | engine internals |

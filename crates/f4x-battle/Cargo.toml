@@ -1,0 +1,18 @@
+[package]
+name = "f4x-battle"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+f4x-def.workspace = true
+rand_pcg.workspace = true
+rand.workspace = true
+serde.workspace = true
+
+[features]
+# Forwarded to f4x-def (a folder of its own for a test); for tests only.
+testutil = ["f4x-def/testutil"]
+
+[dev-dependencies]
+f4x-def = { workspace = true, features = ["testutil"] }

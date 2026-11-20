@@ -9,10 +9,7 @@
 
 use crate::game::Game;
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
-)]
-pub struct Serial(pub u64);
+pub use f4x_def::id::Serial;
 
 impl Game {
     /// The next creation number.

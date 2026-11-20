@@ -11,12 +11,8 @@ pub mod upkeep;
 pub mod view;
 
 use f4x_def::half_int::HalfInt;
-use serde::{Deserialize, Serialize};
 
-/// Who a player is outside the world (fog, diplomacy, map owners, saves, commands). A component of
-/// the player entity; never reused.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct PlayerId(pub u8);
+pub use f4x_def::id::PlayerId;
 
 /// On the player: the wizard entity it plays as. Absent on the monsters' owner and on an
 /// independent city's player.

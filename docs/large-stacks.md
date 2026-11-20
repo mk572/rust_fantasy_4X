@@ -25,7 +25,7 @@ What is checked and what is not is marked. Where a line says "to check", I have 
 
 Checked:
 
-- **Battle deployment** (`battle/map.rs::deployment`): three columns of nine squares each per side,
+- **Battle deployment** (`f4x-battle/src/map.rs::deployment`): three columns of nine squares each per side,
   so up to **27** units fit, with the index arithmetic `i / 9 % 3` and `i % 9`. A side above 27
   would wrap onto squares already used. A **city defence** layout (`city_deployment` in the same
   file) has twelve slots (three columns of four) and is cut with `truncate(count)`, so a defender

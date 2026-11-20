@@ -20,7 +20,8 @@ Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer),
 ## 2. Workspace layout
 ```
 crates/f4x-def/      the static definitions, their loaders and cross-reference validation (RON); `content/` is the shipped rules data
-crates/f4x-core/     the simulation (reads f4x-def): no I/O but save files, no rendering, never depends on the client
+crates/f4x-battle/   the tactical battle (reads f4x-def): the rules and the field of a fight; core builds on it, and the elements of the battle move down from core into it step by step
+crates/f4x-core/     the simulation (reads f4x-def and f4x-battle): no I/O but save files, no rendering, never depends on the client
 crates/f4x-newgame/  what runs once per game: map generator, placement of nodes, lairs and neutral cities, the wizards and their start (uses f4x-core's public API)
 crates/f4x-lang/     the words of the game: messages by key, names, name lists (`text.md`)
 crates/f4x-ai/       the AI players: they see what a player sees and answer with `Command`s (`ai-design.md`)

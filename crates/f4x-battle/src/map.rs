@@ -13,7 +13,7 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
-use crate::map::terrain::TerrainClass;
+use f4x_def::map::TerrainClass;
 
 pub mod layout;
 

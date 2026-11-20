@@ -20,7 +20,7 @@ pub mod game;
 pub mod immunity;
 pub mod info;
 pub mod legal;
-pub mod map;
+pub use f4x_battle::map;
 pub mod power;
 pub mod save;
 pub mod special;
@@ -50,27 +50,7 @@ use special::SpecialAttacks;
 
 pub use casting::{BaseStats, BattleCaster, Lasting, SpellAim, SpellError};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum Side {
-    Attacker,
-    Defender,
-}
-
-impl Side {
-    pub fn index(self) -> usize {
-        match self {
-            Side::Attacker => 0,
-            Side::Defender => 1,
-        }
-    }
-
-    pub fn other(self) -> Side {
-        match self {
-            Side::Attacker => Side::Defender,
-            Side::Defender => Side::Attacker,
-        }
-    }
-}
+pub use f4x_battle::Side;
 
 pub use crate::rules::damage_type::RangedKind;
 
