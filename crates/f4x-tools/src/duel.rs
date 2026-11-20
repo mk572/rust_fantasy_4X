@@ -51,6 +51,19 @@ pub struct Report {
     pub violations: Vec<String>,
     /// Per unit number: fights and wins.
     pub by_unit: BTreeMap<u16, (u32, u32)>,
+    /// What each group battle of `teams` came to, for the table of how well the sum of the unit
+    /// ratings (and, beside it, the old formula) tells the winner (task 721).
+    pub groups: Vec<GroupFight>,
+}
+
+/// One battle of two groups: what each side is worth by the unit combat ratings and by the old
+/// formula (`battle::power`), and who won.
+#[derive(Debug, Clone, Copy)]
+pub struct GroupFight {
+    /// Attacker's and defender's worth by the ratings (`None` when a unit has no row).
+    pub rating: Option<(f32, f32)>,
+    pub formula: (f32, f32),
+    pub winner: Option<Side>,
 }
 
 /// A small deterministic generator for the teams (no dependency for it).
@@ -400,9 +413,19 @@ pub fn teams(
     max_commands: usize,
 ) -> Report {
     let mut r = Report::default();
+    // A hero's rating is of a hero with rolled abilities, which a plain battle does not give it:
+    // the groups are of the other units.
+    let is_hero = |n: u16| {
+        content
+            .rules
+            .units
+            .iter()
+            .any(|(_, u)| u.num == n && u.kind == f4x_def::rules::UnitKind::Hero)
+    };
     let set: Vec<u16> = set
         .iter()
         .copied()
+        .filter(|&n| !is_hero(n))
         .filter(|&n| make_battle(content, &[(n, (WEST_X, 10))], &[(n, (6, 10))], 1).is_ok())
         .collect();
     if set.is_empty() {
@@ -426,8 +449,94 @@ pub fn teams(
             theirs.iter().map(|x| x.0).collect(),
         );
         credit(&mut r, &o, &t, b.winner);
+        r.groups.push(group_fight(content, &o, &t, b.winner));
     }
     r
+}
+
+/// The worth of a group of recruits by the ratings (the strongest `max_battle_side` of them
+/// added, as the game's forecast does) and by the old formula.
+fn group_fight(
+    content: &Content,
+    ours: &[u16],
+    theirs: &[u16],
+    winner: Option<Side>,
+) -> GroupFight {
+    let rules = &content.rules;
+    let max = f4x_def::settings::MAX_STACK;
+    let worth = |list: &[u16], rated: bool| -> Option<f32> {
+        let mut v: Vec<f32> = list
+            .iter()
+            .map(|&n| {
+                let d = rules.units.iter().find(|(_, u)| u.num == n)?.1;
+                if rated {
+                    rules.combat_rating(d, 0)
+                } else {
+                    Some(f4x_core::battle::power::def_formula(d))
+                }
+            })
+            .collect::<Option<Vec<f32>>>()?;
+        v.sort_by(|a, b| b.total_cmp(a));
+        Some(v.iter().take(max).sum())
+    };
+    GroupFight {
+        rating: worth(ours, true).zip(worth(theirs, true)),
+        formula: (
+            worth(ours, false).unwrap_or(0.0),
+            worth(theirs, false).unwrap_or(0.0),
+        ),
+        winner,
+    }
+}
+
+/// The share of group battles the side with the larger sum wins, by the ratings and by the old
+/// formula, and by how much larger the sum is (task 721).
+fn print_groups(r: &Report) {
+    if r.groups.is_empty() {
+        return;
+    }
+    // (larger side won, smaller side won, draw) over the battles with a larger side.
+    let tally = |worth: &dyn Fn(&GroupFight) -> Option<(f32, f32)>, from: f32, to: f32| {
+        let mut t = [0u32; 3];
+        for g in &r.groups {
+            let Some((a, d)) = worth(g) else { continue };
+            let (hi, lo) = (a.max(d), a.min(d));
+            if lo <= 0.0 || a == d || hi / lo < from || hi / lo >= to {
+                continue;
+            }
+            let larger = if a > d {
+                Side::Attacker
+            } else {
+                Side::Defender
+            };
+            match g.winner {
+                Some(w) if w == larger => t[0] += 1,
+                Some(_) => t[1] += 1,
+                None => t[2] += 1,
+            }
+        }
+        t
+    };
+    let by_rating = |g: &GroupFight| g.rating;
+    let by_formula = |g: &GroupFight| Some(g.formula);
+    let line = |name: &str, t: [u32; 3]| {
+        let n = t.iter().sum::<u32>().max(1);
+        println!(
+            "  {name:<8} {:>6} battles: larger sum wins {:>5.1}%, smaller {:>5.1}%, draw {:>4.1}%",
+            t.iter().sum::<u32>(),
+            100.0 * f64::from(t[0]) / f64::from(n),
+            100.0 * f64::from(t[1]) / f64::from(n),
+            100.0 * f64::from(t[2]) / f64::from(n),
+        );
+    };
+    println!("group battles: the side with the larger sum of ratings, and of the old formula:");
+    line("ratings", tally(&by_rating, 0.0, f32::INFINITY));
+    line("formula", tally(&by_formula, 0.0, f32::INFINITY));
+    println!("by how much larger the sum of the ratings is (larger over smaller):");
+    let edges = [1.0, 1.2, 1.5, 2.0, 3.0, 5.0, f32::INFINITY];
+    for w in edges.windows(2) {
+        line(&format!("{}-{}", w[0], w[1]), tally(&by_rating, w[0], w[1]));
+    }
 }
 
 fn unit_name(content: &Content, num: u16) -> String {
@@ -494,6 +603,7 @@ fn print_report(content: &Content, r: &Report) {
     } else {
         show("win rate", &table);
     }
+    print_groups(r);
     for v in &r.violations {
         println!("VIOLATION {v}");
     }
@@ -506,6 +616,22 @@ mod tests {
 
     fn content() -> Arc<Content> {
         Arc::new(shipped().clone())
+    }
+
+    #[test]
+    fn a_team_run_keeps_the_worth_of_both_sides_of_every_group_battle() {
+        let c = content();
+        let set = unit_set(&c, false);
+        let r = teams(&c, &set, 30, 3, 1, 3000);
+        assert_eq!(r.groups.len() as u32, r.fights);
+        assert!(r
+            .groups
+            .iter()
+            .any(|g| g.rating.is_some_and(|(a, d)| a > 0.0 && d > 0.0)));
+        assert!(r
+            .groups
+            .iter()
+            .all(|g| g.formula.0 > 0.0 && g.formula.1 > 0.0));
     }
 
     #[test]

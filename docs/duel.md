@@ -21,6 +21,9 @@ target/release/f4x-tools duel spells [--unit N] [--level 1-6 | --balance] [--spe
   each (default 1). The unit on the west side is the attacker. About 16,000 fights take a second.
 - `teams`: `--battles` (default 6000) random groups of 1 to `--max-team` (default 4) units against
   each other, drawn from the set with a small generator seeded by `--seed`.
+  Heroes are left out (a plain battle gives them no rolled abilities). The report ends with the share of
+  battles the side with the larger sum of unit ratings wins, beside the old formula's, and by how much
+  larger the sum is (task 721; `docs/combat-rating.md`).
 - The set: `--units` (content numbers, comma separated), `--all`, or by default the units that have
   an ability with an `attack` or a `defence` rule in `abilities.ron` (read from the data, no ability
   numbers in the harness). Units that cannot fight in a plain battle (the galley, the warship and the

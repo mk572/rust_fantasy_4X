@@ -107,6 +107,11 @@ the combat factor in these combinations and leaves the others where they are.
 
 ### Step 2: groups (task 721)
 
+- **Measured (task 721, 20 November 2026; `duel teams --battles 20000`, groups of 1 to 4 recruits):** the side
+  with the larger sum of ratings wins 92.7% of the battles, the old formula 80.3%. By how much larger the
+  sum is: below 1.2 times 60%, 1.2 to 1.5 74%, 1.5 to 2 87%, 2 to 3 95%, 3 to 5 99%, above 5 99.9%. These
+  are the bands of the combat forecast.
+
 - A group is the sum of the best `max_battle_side` ratings (as `fighting_strength` does), and the
   harness already tests it: `duel teams` plays random groups, and the share of battles the larger
   sum wins is the number to report (with the old formula beside it): a report of the harness, run by
