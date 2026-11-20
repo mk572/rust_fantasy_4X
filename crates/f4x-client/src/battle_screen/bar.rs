@@ -16,6 +16,10 @@ const BAR_Y: f32 = 164.0;
 const BUTTONS_Y: f32 = 168.0;
 const LEFT_BUTTONS_X: f32 = 144.0;
 const RIGHT_BUTTONS_X: f32 = 170.0;
+/// The Turn button over the map's bottom left corner (a gold button is 26 by 10): each press
+/// turns the view of the field a quarter turn (task 450). The top right is the box of a unit's
+/// abilities, the top left the log.
+const TURN_BUTTON: (f32, f32, f32, f32) = (3.0, 152.0, 26.0, 10.0);
 /// The window of the unit under the pointer (`x1, y1`).
 const SCAN: (f32, f32, f32, f32) = (156.0, 4.0, 68.0, 39.0);
 
@@ -126,6 +130,12 @@ impl App {
             .rect((0.0, 0.0, crate::resolution::DESIGN_W, BAR_Y))
             .contains(point)
             && !ui.box_rect.is_some_and(|r| r.contains(point))
+            && !Self::turn_button_rect().contains(point)
+    }
+
+    /// Where the Turn button is, on the window.
+    pub(super) fn turn_button_rect() -> Rect {
+        Layout::new().rect((TURN_BUTTON.0, TURN_BUTTON.1, TURN_BUTTON.2, TURN_BUTTON.3))
     }
 
     /// Text in the panel's font colours: light, with a dark shadow down and to the right.
@@ -281,6 +291,19 @@ impl App {
             ui.spell_list = false;
             ui.spell_unit = None;
             ui.fallen_list = None;
+        }
+        // Turn (or the R key) turns the view of the field a quarter turn clockwise; Shift+R turns
+        // it back. The turn is only a view.
+        if self.battle_button(
+            &lay,
+            "battle.button_turn",
+            (TURN_BUTTON.0, TURN_BUTTON.1),
+            true,
+            input,
+        ) || input.key_pressed(KeyCode::R)
+        {
+            let back = input.key_down(KeyCode::LeftShift) || input.key_down(KeyCode::RightShift);
+            ui.turn = ui.turn.step(back);
         }
         // Info lists the effects in force.
         let has_info = self

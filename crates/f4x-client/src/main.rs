@@ -16,6 +16,7 @@ mod battle_anim;
 mod battle_ground;
 mod battle_info;
 mod battle_screen;
+mod battle_turn;
 mod bigbook;
 mod built_popup;
 mod cast_anyway;

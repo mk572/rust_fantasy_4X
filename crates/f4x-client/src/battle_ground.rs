@@ -15,6 +15,7 @@ use f4x_core::battle::Battle;
 use f4x_core::map::Plane;
 use macroquad::prelude::*;
 
+use crate::battle_turn::Turn;
 use crate::view::App;
 
 /// Native size of a cell.
@@ -131,24 +132,56 @@ fn core_pos(cgx: i32, cgy: i32) -> Pos {
     (GRID_W - 1 - cgx, cgy)
 }
 
-fn origin(cgx: i32, cgy: i32) -> (f32, f32) {
-    ((cgx - cgy) as f32 * 16.0, (cgx + cgy) as f32 * 8.0)
+/// The top-left of a cell of the original's frame, where the view draws it (`turn`).
+fn origin(turn: Turn, cgx: i32, cgy: i32) -> (f32, f32) {
+    let (x, y) = turn.cg((cgx, cgy));
+    turned_origin(x, y)
+}
+
+/// The top-left of a cell that is already the turned one.
+fn turned_origin(x: i32, y: i32) -> (f32, f32) {
+    ((x - y) as f32 * 16.0, (x + y) as f32 * 8.0)
 }
 
 /// The point the original's `Combat_Grid_Screen_Coordinates` gives, offset inside the cell by
-/// `sub`.
-fn point(cgx: i32, cgy: i32, sub: (i32, i32)) -> (f32, f32) {
-    let (x, y) = origin(cgx, cgy);
+/// `sub` (a tree's or a rock's offset is turned with the cell: `Turn::sub`).
+fn point(turn: Turn, cgx: i32, cgy: i32, sub: (i32, i32)) -> (f32, f32) {
+    let (x, y) = origin(turn, cgx, cgy);
+    point_in(x, y, sub)
+}
+
+fn point_in(x: f32, y: f32, sub: (i32, i32)) -> (f32, f32) {
     (
         x + 14.0 + ((sub.0 - sub.1) * 2) as f32,
         y + (sub.0 + sub.1) as f32,
     )
 }
 
+/// The cell of the ring of the city's wall sites (in the original's place) that the turned cell
+/// `at` stands for: the picture of a wall square is the one of the same place of the ring.
+fn ring_site(turn: Turn, at: (i32, i32)) -> (i32, i32) {
+    turn.ring_cell(at)
+}
+
+/// The point of a section of a magic wall: its cell is one of the ring of the city, in the ring's
+/// turned place (the pictures of the ring are the same from every side).
+fn magic_point(turn: Turn, cgx: i32, cgy: i32) -> (f32, f32) {
+    let (dx, dy) = turn.ring_shift();
+    let (x, y) = turned_origin(cgx + dx, cgy + dy);
+    point_in(x, y, (0, 0))
+}
+
 /// Which of the twelve wall pictures stands on a wall site (in the original's frame) and how it
 /// is placed: the point's offset, and the anchor's shift from the picture's top-left (`None`
 /// for half the picture's width).
 type WallSprite = (usize, (f32, f32), (Option<f32>, f32));
+
+/// The wall picture of the cell `(cgx, cgy)` of the original's frame in the view `turn`: the
+/// picture of the same place of the ring that the turned cell has in the turned ring.
+fn turned_wall_sprite(turn: Turn, cgx: i32, cgy: i32) -> Option<WallSprite> {
+    let (x, y) = ring_site(turn, turn.cg((cgx, cgy)));
+    wall_sprite(x, y)
+}
 
 fn wall_sprite(cgx: i32, cgy: i32) -> Option<WallSprite> {
     use layout::{MAX_CGX_CITY as X1, MAX_CGY_CITY as Y1, MIN_CGX_CITY as X0, MIN_CGY_CITY as Y0};
@@ -185,11 +218,22 @@ pub(crate) fn order_of((px, py): (f32, f32)) -> i32 {
 impl App {
     /// The ground of every playable square, the roads over it, and what stands flat on it (the
     /// city's base, an outpost's dirt). `view` is the grid's `(origin x, origin y, scale)`.
-    pub(crate) fn draw_ground(&mut self, battle: &Battle, plane: Plane, view: (f32, f32, f32)) {
+    pub(crate) fn draw_ground(
+        &mut self,
+        battle: &Battle,
+        plane: Plane,
+        view: (f32, f32, f32),
+        turn: Turn,
+    ) {
         let (ox, oy, scale) = view;
         let anim = (get_time() * 6.0) as usize % 5;
         let at = |cgx: i32, cgy: i32| {
-            let (x, y) = origin(cgx, cgy);
+            let (x, y) = origin(turn, cgx, cgy);
+            (ox + x * scale, oy + y * scale)
+        };
+        // A cell that is already the turned one.
+        let at_turned = |x: i32, y: i32| {
+            let (x, y) = turned_origin(x, y);
             (ox + x * scale, oy + y * scale)
         };
         let look = battle.map.look();
@@ -200,6 +244,8 @@ impl App {
                 let size = Some(vec2(CELL_W * scale, CELL_H * scale));
                 let tile = look.map_or(0, |l| l.tiles[(cgy * W + cgx) as usize]) as usize;
                 let water = look.is_some_and(|l| l.set == Set::Water);
+                // The pictures that name where the dirt, the rough ground or the river goes.
+                let tile = if water { tile } else { turn.ground(tile) };
                 let river = !water && tile >= layout::RIVER_TILE as usize;
                 // A floating island's deck: its picture in the files (`cmbtcity` 117) is blank,
                 // so the deck is shown as grass.
@@ -296,7 +342,7 @@ impl App {
                         let (sx, sy) = at(cgx, cgy);
                         self.draw_native(
                             "cmbtcity",
-                            ROAD_GRID + k + base + worn,
+                            ROAD_GRID + turn.piece(k) + base + worn,
                             anim,
                             (sx, sy),
                             scale,
@@ -333,7 +379,11 @@ impl App {
             Site::City => {
                 // The city's base (or the cloud under a flying fortress), anchored to the cell
                 // at its far corner.
-                let (sx, sy) = at(layout::MAX_CGX_CITY, layout::MAX_CGY_CITY);
+                let (shift_x, shift_y) = turn.ring_shift();
+                let (sx, sy) = at_turned(
+                    layout::MAX_CGX_CITY + shift_x,
+                    layout::MAX_CGY_CITY + shift_y,
+                );
                 let entry = if battle.map.is_flying_fortress() {
                     FORTRESS_CLOUD
                 } else {
@@ -408,26 +458,29 @@ impl App {
         &self,
         battle: &Battle,
         rising: Option<(u8, usize)>,
+        turn: Turn,
     ) -> Vec<(i32, Piece)> {
         let mut out = Vec::new();
         if let Some(look) = battle.map.look() {
             for (i, t) in look.trees.iter().enumerate() {
-                let (px, py) = point(t.cell.0, t.cell.1, (i32::from(t.sub.0), i32::from(t.sub.1)));
+                let sub = turn.sub((i32::from(t.sub.0), i32::from(t.sub.1)));
+                let (px, py) = point(turn, t.cell.0, t.cell.1, sub);
                 out.push((order_of((px - 5.0, py)), Piece::Tree(i)));
             }
             for (i, r) in look.rocks.iter().enumerate() {
-                let (px, py) = point(r.cell.0, r.cell.1, (i32::from(r.sub.0), i32::from(r.sub.1)));
+                let sub = turn.sub((i32::from(r.sub.0), i32::from(r.sub.1)));
+                let (px, py) = point(turn, r.cell.0, r.cell.1, sub);
                 out.push((order_of((px - 5.0, py)), Piece::Rock(i)));
             }
             for (i, h) in look.houses.iter().enumerate() {
-                let (px, py) = point(h.cell.0, h.cell.1, (0, 0));
+                let (px, py) = point(turn, h.cell.0, h.cell.1, (0, 0));
                 out.push((order_of((px, py + 2.0)), Piece::House(i)));
             }
             let has_building = matches!(look.site, Site::Outpost)
                 || (look.site == Site::City && look.structure == Structure::Fortress);
             if has_building && structure_entry(look.structure).is_some() {
                 let (x, y) = layout::STRUCTURE;
-                out.push((order_of(point(x, y, (0, 0))), Piece::Structure));
+                out.push((order_of(point(turn, x, y, (0, 0))), Piece::Structure));
             }
         }
         for cgy in 0..H {
@@ -436,12 +489,12 @@ impl App {
                 if battle.map.wall(pos) == Wall::None {
                     continue;
                 }
-                if let Some((_, (dx, dy), _)) = wall_sprite(cgx, cgy) {
+                if let Some((_, (dx, dy), _)) = turned_wall_sprite(turn, cgx, cgy) {
                     let piece = match rising.filter(|&(k, _)| k == STONE) {
                         Some((_, frame)) => Piece::RisingStone(pos, frame),
                         None => Piece::Wall(pos),
                     };
-                    let (px, py) = point(cgx, cgy, (0, 0));
+                    let (px, py) = point(turn, cgx, cgy, (0, 0));
                     out.push((order_of((px + dx, py + dy)), piece));
                 }
             }
@@ -464,7 +517,7 @@ impl App {
                     Some(frame) => Piece::RisingWall(kind, itr, frame),
                     None => Piece::MagicWall(kind, itr),
                 };
-                let (px, py) = point(cgx, cgy, (0, 0));
+                let (px, py) = magic_point(turn, cgx, cgy);
                 out.push((order_of((px + dx, py + dy)), piece));
             }
         }
@@ -473,9 +526,15 @@ impl App {
 
     /// Whether the wall's picture is not there (the art is not extracted), so the caller draws
     /// a plain block instead.
-    pub(crate) fn wall_picture_missing(&mut self, battle: &Battle, plane: Plane, pos: Pos) -> bool {
+    pub(crate) fn wall_picture_missing(
+        &mut self,
+        battle: &Battle,
+        plane: Plane,
+        pos: Pos,
+        turn: Turn,
+    ) -> bool {
         let (cgx, cgy) = (GRID_W - 1 - pos.0, pos.1);
-        let Some((itr, _, _)) = wall_sprite(cgx, cgy) else {
+        let Some((itr, _, _)) = turned_wall_sprite(turn, cgx, cgy) else {
             return true;
         };
         let entry = usize::from(plane == Plane::Myrror) * 12 + itr;
@@ -490,6 +549,7 @@ impl App {
         plane: Plane,
         piece: Piece,
         (ox, oy, scale): (f32, f32, f32),
+        turn: Turn,
     ) {
         let Some(look) = battle.map.look() else {
             return;
@@ -499,7 +559,8 @@ impl App {
         let (lbx, entry, frame, (x, y)): (&str, usize, usize, (f32, f32)) = match piece {
             Piece::Tree(i) => {
                 let t = look.trees[i];
-                let (px, py) = point(t.cell.0, t.cell.1, (i32::from(t.sub.0), i32::from(t.sub.1)));
+                let sub = turn.sub((i32::from(t.sub.0), i32::from(t.sub.1)));
+                let (px, py) = point(turn, t.cell.0, t.cell.1, sub);
                 (
                     file,
                     48 + usize::from(t.variant),
@@ -509,7 +570,8 @@ impl App {
             }
             Piece::Rock(i) => {
                 let r = look.rocks[i];
-                let (px, py) = point(r.cell.0, r.cell.1, (i32::from(r.sub.0), i32::from(r.sub.1)));
+                let sub = turn.sub((i32::from(r.sub.0), i32::from(r.sub.1)));
+                let (px, py) = point(turn, r.cell.0, r.cell.1, sub);
                 (
                     file,
                     53 + usize::from(r.variant),
@@ -519,7 +581,7 @@ impl App {
             }
             Piece::House(i) => {
                 let h = look.houses[i];
-                let (px, py) = point(h.cell.0, h.cell.1, (0, 0));
+                let (px, py) = point(turn, h.cell.0, h.cell.1, (0, 0));
                 let entry = HOUSES + usize::from(h.variant);
                 let Some(size) = self
                     .art
@@ -536,7 +598,7 @@ impl App {
                 )
             }
             Piece::Structure => {
-                let (px, py) = point(layout::STRUCTURE.0, layout::STRUCTURE.1, (0, 0));
+                let (px, py) = point(turn, layout::STRUCTURE.0, layout::STRUCTURE.1, (0, 0));
                 let structure = battle
                     .map
                     .look()
@@ -561,7 +623,8 @@ impl App {
             }
             Piece::Wall(pos) | Piece::RisingStone(pos, _) => {
                 let (cgx, cgy) = (GRID_W - 1 - pos.0, pos.1);
-                let Some((itr, (dx, dy), (shift_x, shift_y))) = wall_sprite(cgx, cgy) else {
+                let Some((itr, (dx, dy), (shift_x, shift_y))) = turned_wall_sprite(turn, cgx, cgy)
+                else {
                     return;
                 };
                 let bank = usize::from(plane == Plane::Myrror);
@@ -574,7 +637,7 @@ impl App {
                 else {
                     return;
                 };
-                let (px, py) = point(cgx, cgy, (0, 0));
+                let (px, py) = point(turn, cgx, cgy, (0, 0));
                 (
                     "citywall",
                     entry,
@@ -593,7 +656,7 @@ impl App {
                 else {
                     return;
                 };
-                let (px, py) = point(cgx, cgy, (0, 0));
+                let (px, py) = magic_point(turn, cgx, cgy);
                 (
                     "citywall",
                     entry,
@@ -612,7 +675,7 @@ impl App {
                 else {
                     return;
                 };
-                let (px, py) = point(cgx, cgy, (0, 0));
+                let (px, py) = magic_point(turn, cgx, cgy);
                 (
                     "wallrise",
                     entry,
@@ -682,24 +745,59 @@ mod tests {
     }
 
     #[test]
+    fn in_every_turn_the_twelve_wall_sites_show_the_twelve_pictures_of_the_ring() {
+        use layout::{MAX_CGX_CITY, MAX_CGY_CITY, MIN_CGX_CITY, MIN_CGY_CITY};
+        for quarters in 0..4 {
+            let turn = (0..quarters).fold(Turn::NONE, |t, _| t.step(false));
+            let mut pictures = Vec::new();
+            let mut places = Vec::new();
+            for cgy in MIN_CGY_CITY..=MAX_CGY_CITY {
+                for cgx in MIN_CGX_CITY..=MAX_CGX_CITY {
+                    if wall_sprite(cgx, cgy).is_none() {
+                        continue;
+                    }
+                    let sprite = turned_wall_sprite(turn, cgx, cgy)
+                        .expect("every wall site has a picture in every turn");
+                    pictures.push(sprite.0);
+                    places.push(turn.cg((cgx, cgy)));
+                }
+            }
+            pictures.sort();
+            pictures.dedup();
+            places.sort();
+            places.dedup();
+            assert_eq!((pictures.len(), places.len()), (12, 12), "turn {quarters}");
+        }
+    }
+
+    #[test]
     fn the_draw_order_runs_row_by_row_then_column_by_column() {
         // `cgy * 8000 + cgx * 320` for the corner of a cell (`Combat_Grid_Entity_Create`).
         for (cgx, cgy) in [(0, 0), (6, 5), (13, 2), (3, 17)] {
-            assert_eq!(order_of(point(cgx, cgy, (0, 0))), cgy * 8000 + cgx * 320);
+            assert_eq!(
+                order_of(point(Turn::NONE, cgx, cgy, (0, 0))),
+                cgy * 8000 + cgx * 320
+            );
         }
         // A cell of a later row is drawn over every cell of an earlier one, even one lower on the
         // screen.
-        assert!(order_of(point(0, 6, (0, 0))) > order_of(point(15, 5, (0, 0))));
+        assert!(
+            order_of(point(Turn::NONE, 0, 6, (0, 0))) > order_of(point(Turn::NONE, 15, 5, (0, 0)))
+        );
         // Inside a cell, the offsets order the pictures: a figure further along `x` or `y`
         // is drawn later.
-        assert!(order_of(point(6, 5, (4, 0))) > order_of(point(6, 5, (0, 0))));
-        assert!(order_of(point(6, 5, (0, 4))) > order_of(point(6, 5, (0, 0))));
+        assert!(
+            order_of(point(Turn::NONE, 6, 5, (4, 0))) > order_of(point(Turn::NONE, 6, 5, (0, 0)))
+        );
+        assert!(
+            order_of(point(Turn::NONE, 6, 5, (0, 4))) > order_of(point(Turn::NONE, 6, 5, (0, 0)))
+        );
     }
 
     #[test]
     fn a_point_is_fourteen_across_the_cells_corner() {
-        assert_eq!(point(5, 5, (0, 0)), (14.0, 80.0));
-        assert_eq!(point(6, 5, (0, 0)), (30.0, 88.0));
-        assert_eq!(point(5, 5, (3, 1)), (18.0, 84.0));
+        assert_eq!(point(Turn::NONE, 5, 5, (0, 0)), (14.0, 80.0));
+        assert_eq!(point(Turn::NONE, 6, 5, (0, 0)), (30.0, 88.0));
+        assert_eq!(point(Turn::NONE, 5, 5, (3, 1)), (18.0, 84.0));
     }
 }

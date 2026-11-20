@@ -157,8 +157,8 @@ impl App {
 
     /// The point on the screen (in the grid's native pixels) of a square for the pictures of
     /// spells (`Combat_Grid_Screen_Coordinates` with an offset of 4 and 4).
-    fn spell_point(pos: Pos) -> (f32, f32) {
-        let (x, y) = cell_origin(pos);
+    fn spell_point(pos: Pos, turn: Turn) -> (f32, f32) {
+        let (x, y) = cell_origin(pos, turn);
         (x + 14.0, y + 8.0)
     }
 
@@ -198,7 +198,7 @@ impl App {
                     if frame < 0 || frame as usize >= frames {
                         continue;
                     }
-                    let (px, py) = Self::spell_point(pos);
+                    let (px, py) = Self::spell_point(pos, ui.turn);
                     let from = if big { (28.0, 30.0) } else { (14.0, 25.0) };
                     place(
                         self,
@@ -214,7 +214,7 @@ impl App {
                 let frame = (t / (2.0 * SPELL_FRAME)) as usize;
                 if frame < frames {
                     for (pos, _) in cells {
-                        let (x, y) = cell_origin(pos);
+                        let (x, y) = cell_origin(pos, ui.turn);
                         place(self, &lbx, entry, frame, (x, y - 18.0));
                     }
                 }
@@ -230,7 +230,7 @@ impl App {
                     if frame < 0 {
                         continue;
                     }
-                    let (px, py) = Self::spell_point(pos);
+                    let (px, py) = Self::spell_point(pos, ui.turn);
                     let from = if big { (28.0, 30.0) } else { (14.0, 25.0) };
                     place(
                         self,
@@ -245,7 +245,7 @@ impl App {
                 let Some(&(pos, _)) = cells.first() else {
                     return;
                 };
-                let (px, py) = Self::spell_point(pos);
+                let (px, py) = Self::spell_point(pos, ui.turn);
                 let (rest, start, step) = bolt.path();
                 let rest = (px + rest.0, py + rest.1);
                 // Eleven quick frames of flight, then the burst where it landed.
@@ -280,7 +280,7 @@ impl App {
                 };
                 // A pause, two flickering frames of the stroke, a pause.
                 if (0.28..0.5).contains(&t) {
-                    let (px, py) = Self::spell_point(pos);
+                    let (px, py) = Self::spell_point(pos, ui.turn);
                     let frame = (t * 20.0) as usize % 4;
                     if let Some((lbx, entry)) =
                         self.art.spell_picture("call_lightning", &Role::Cast)

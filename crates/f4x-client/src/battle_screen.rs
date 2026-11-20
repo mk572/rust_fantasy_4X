@@ -31,6 +31,7 @@ use macroquad::prelude::*;
 use crate::art::FigureEffect;
 use crate::battle_anim::{self, Anim, Visual};
 use crate::battle_ground::{self, Piece};
+use crate::battle_turn::Turn;
 use crate::frame::{Align, Layout};
 use crate::ui::{self, bar, GOLD};
 use crate::view::{App, Screen, HUMAN};
@@ -100,6 +101,8 @@ pub(crate) struct BattleUi {
     placing: Option<usize>,
     /// The information window (the Info button) is open.
     info_open: bool,
+    /// How far the view of the field is turned (the Turn button, the R key); kept for the battle.
+    turn: Turn,
 }
 
 /// A spell the player has picked.
@@ -148,31 +151,33 @@ fn original_origin(cgx: f32, cgy: f32) -> (f32, f32) {
     ((cgx - cgy) * STEP_X, (cgx + cgy) * STEP_Y)
 }
 
-/// Top-left of a square's cell, relative to the grid's origin, in native pixels.
-pub(crate) fn cell_origin(pos: Pos) -> (f32, f32) {
-    cell_origin_f((pos.0 as f32, pos.1 as f32))
+/// Top-left of a square's cell, relative to the grid's origin, in native pixels, in the view
+/// `turn`.
+pub(crate) fn cell_origin(pos: Pos, turn: Turn) -> (f32, f32) {
+    cell_origin_f((pos.0 as f32, pos.1 as f32), turn)
 }
 
 /// The same for a position between squares.
-pub(crate) fn cell_origin_f(pos: (f32, f32)) -> (f32, f32) {
-    original_origin((GRID_W - 1) as f32 - pos.0, pos.1)
+pub(crate) fn cell_origin_f(pos: (f32, f32), turn: Turn) -> (f32, f32) {
+    let (x, y) = turn.of_core(pos);
+    original_origin(x, y)
 }
 
-/// The square under a native point (relative to the grid's origin), if any. Where cells of
-/// tall scenery would overlap the one nearer the viewer wins.
-pub(crate) fn cell_at(x: f32, y: f32) -> Option<Pos> {
-    let mut found = None;
+/// The square under a native point (relative to the grid's origin), if any, in the view `turn`.
+/// Where cells of tall scenery would overlap the one nearer the viewer (lower on the screen) wins.
+pub(crate) fn cell_at(x: f32, y: f32, turn: Turn) -> Option<Pos> {
+    let mut found: Option<(Pos, f32)> = None;
     for gy in 0..GRID_H {
         for gx in 0..GRID_W {
-            let (ox, oy) = cell_origin((gx, gy));
+            let (ox, oy) = cell_origin((gx, gy), turn);
             let dx = (x - (ox + CELL_W / 2.0)).abs() / (CELL_W / 2.0);
             let dy = (y - (oy + CELL_H / 2.0)).abs() / (CELL_H / 2.0);
-            if dx + dy <= 1.0 {
-                found = Some((gx, gy));
+            if dx + dy <= 1.0 && found.is_none_or(|(_, low)| oy >= low) {
+                found = Some(((gx, gy), oy));
             }
         }
     }
-    found
+    found.map(|(pos, _)| pos)
 }
 
 /// Tell what a battle event did, in one line.
@@ -659,6 +664,16 @@ impl App {
     /// After the test battle has begun: the walls of fire and darkness round the city, and
     /// mud over the middle of the field.
     pub fn set_test_effects(&mut self, kind: &str) {
+        // `KIND@N` turns the view N quarter turns as well.
+        let (kind, turn) = kind
+            .split_once('@')
+            .map_or((kind, None), |(k, n)| (k, Some(n)));
+        if let Some(n) = turn {
+            self.with_page(|page, app| page.test_effect(app, &["turn-", n].concat()));
+        }
+        if kind.is_empty() {
+            return;
+        }
         if kind.starts_with("fx-")
             || kind.starts_with("sheet-")
             || matches!(kind, "spell-book" | "shot")
@@ -1348,8 +1363,9 @@ impl App {
         // Where the pointer is.
         let (scale, ox, oy) = Self::battle_view();
         let mouse: Vec2 = input.mouse_position().into();
-        let hovered = cell_at((mouse.x - ox) / scale, (mouse.y - oy) / scale)
-            .filter(|&p| battle.map.is_playable(p));
+        let hovered = cell_at((mouse.x - ox) / scale, (mouse.y - oy) / scale, ui.turn)
+            .filter(|&p| battle.map.is_playable(p))
+            .filter(|_| !Self::turn_button_rect().contains(mouse));
 
         if my_turn && !ui.info_open {
             self.battle_input(ui, &battle, hovered, input);
@@ -1952,7 +1968,7 @@ impl App {
             for gx in 0..GRID_W {
                 let cell = (gx, gy);
                 if self.spell_aim_ok(battle, &aim, cell) {
-                    let (x, y) = cell_origin(cell);
+                    let (x, y) = cell_origin(cell, ui.turn);
                     let hot = hovered == Some(cell);
                     let color = if hot {
                         Color::new(0.9, 0.4, 1.0, 1.0)
@@ -2021,15 +2037,19 @@ impl App {
         let mut gl = unsafe { get_internal_gl() };
         gl.flush();
         let dpi = screen_dpi_scale();
-        let clip = Layout::new().rect((0.0, 0.0, crate::resolution::DESIGN_W, 164.0));
+        // The field is drawn over the whole width of the window: a turned field is wider than the
+        // original's 320 pixels, and a window wider than that has room for it.
+        let mut clip = Layout::new().rect((0.0, 0.0, crate::resolution::DESIGN_W, 164.0));
+        (clip.x, clip.w) = (0.0, screen_width());
         gl.quad_gl.scissor(Some((
             (clip.x * dpi) as i32,
             (clip.y * dpi) as i32,
             (clip.w * dpi) as i32,
             (clip.h * dpi) as i32,
         )));
+        let turn = ui.turn;
         let at = |pos: Pos| -> (f32, f32) {
-            let (x, y) = cell_origin(pos);
+            let (x, y) = cell_origin(pos, turn);
             (ox + x * scale, oy + y * scale)
         };
         let plane = battle.site.map_or(Plane::Arcanus, |site| site.plane);
@@ -2047,7 +2067,7 @@ impl App {
             Vec::new()
         };
         // Ground and roads, then reach markers.
-        self.draw_ground(battle, plane, (ox, oy, scale));
+        self.draw_ground(battle, plane, (ox, oy, scale), turn);
         for gy in 0..GRID_H {
             for gx in 0..GRID_W {
                 let pos = (gx, gy);
@@ -2081,7 +2101,7 @@ impl App {
         let after = rising
             .filter(|&(kind, _)| kind == battle_ground::STONE)
             .and_then(|_| self.game.battle().cloned());
-        let mut items = self.scenery_pieces(after.as_ref().unwrap_or(battle), rising);
+        let mut items = self.scenery_pieces(after.as_ref().unwrap_or(battle), rising, turn);
         let mut looks: HashMap<(usize, bool), Visual> = HashMap::new();
         let viewer = Self::human_side(battle);
         // A merged unit that is coming up is not active in the battle shown, but is drawn.
@@ -2111,7 +2131,7 @@ impl App {
             }
             let count = u.figures_start as usize;
             for (twin, at) in shown {
-                let (x, y) = cell_origin_f(at);
+                let (x, y) = cell_origin_f(at, turn);
                 for i in 0..(u.figures as usize).max(1) {
                     let (fx, fy) = battle_anim::figure_offset(count, i);
                     let anchor = (x + 14.0 + fx as f32, y + fy as f32);
@@ -2127,7 +2147,7 @@ impl App {
         let mut keys: Vec<(usize, bool)> = looks.keys().copied().collect();
         keys.sort();
         for &key in &keys {
-            self.draw_unit_base(battle, key.0, looks[&key], (ox, oy, scale));
+            self.draw_unit_base(battle, key.0, looks[&key], (ox, oy, scale), turn);
         }
         for i in order {
             match items[i].1 {
@@ -2144,14 +2164,14 @@ impl App {
                         my_turn,
                     );
                 }
-                Piece::Wall(pos) if self.wall_picture_missing(battle, plane, pos) => {
+                Piece::Wall(pos) if self.wall_picture_missing(battle, plane, pos, turn) => {
                     draw_wall(battle.map.wall(pos), at(pos), scale);
                 }
-                piece => self.draw_piece(battle, plane, piece, (ox, oy, scale)),
+                piece => self.draw_piece(battle, plane, piece, (ox, oy, scale), turn),
             }
         }
         for &key in &keys {
-            self.draw_unit_overlay(battle, key.0, looks[&key], (ox, oy, scale));
+            self.draw_unit_overlay(battle, key.0, looks[&key], (ox, oy, scale), turn);
         }
         self.draw_missile(ui, battle, (ox, oy, scale));
         self.draw_spell_fx(ui, (ox, oy, scale));
@@ -2277,11 +2297,12 @@ impl App {
         id: usize,
         vis: Visual,
         (ox, oy, scale): (f32, f32, f32),
+        turn: Turn,
     ) {
         let Some(u) = battle.unit(id) else {
             return;
         };
-        let (x, y) = cell_origin_f(vis.at);
+        let (x, y) = cell_origin_f(vis.at, turn);
         let (sx, sy) = (ox + x * scale, oy + y * scale);
         let banner = self.banner_color(battle.player_of(u.side).0);
         let fade = vis.alpha;
@@ -2314,7 +2335,7 @@ impl App {
         let Some(u) = battle.unit(id) else {
             return;
         };
-        let (x, y) = cell_origin_f(vis.at);
+        let (x, y) = cell_origin_f(vis.at, ui.turn);
         let (sx, sy) = (ox + x * scale, oy + y * scale);
         let owner = battle.player_of(u.side).0;
         let banner = self.banner_color(owner);
@@ -2352,7 +2373,7 @@ impl App {
             let gone = bleeding.is_some_and(|(_, f)| f == 3);
             let glow = enchantment_realm(u, &ids);
             let step = (get_time() * 8.0) as usize;
-            let figure = (ty, vis.facing, frame, banner_index);
+            let figure = (ty, ui.turn.facing(vis.facing), frame, banner_index);
             // Black Sleep greys a figure, Warp Creature turns it red and inside out.
             let effects = u.effects(&self.game.content().rules);
             let effect = if u.is_invisible() {
@@ -2367,7 +2388,10 @@ impl App {
             let tex = match (effect, glow) {
                 (Some(effect), _) => self.art.affected_figure(figure, effect),
                 (None, Some(realm)) => self.art.glowing_figure(figure, realm, step),
-                (None, None) => self.art.figure(ty, vis.facing, frame, banner_index),
+                (None, None) => {
+                    self.art
+                        .figure(ty, ui.turn.facing(vis.facing), frame, banner_index)
+                }
             };
             has_art = tex.is_some() && index < u.figures as usize;
             if let Some(tex) = tex.filter(|_| !gone && index < u.figures as usize) {
@@ -2447,11 +2471,12 @@ impl App {
         id: usize,
         vis: Visual,
         (ox, oy, scale): (f32, f32, f32),
+        turn: Turn,
     ) {
         let Some(u) = battle.unit(id) else {
             return;
         };
-        let (x, y) = cell_origin_f(vis.at);
+        let (x, y) = cell_origin_f(vis.at, turn);
         let (sx, sy) = (ox + x * scale, oy + y * scale);
         let fade = vis.alpha;
         let cx = sx + CELL_W * scale / 2.0;
@@ -2527,7 +2552,7 @@ impl App {
         let percent = 10.0 + 90.0 * progress;
         let frame = (get_time() * 12.0) as usize % 3;
         let spot = |cell: Pos, (fx, fy): (i32, i32)| {
-            let (x, y) = cell_origin(cell);
+            let (x, y) = cell_origin(cell, ui.turn);
             (x + 14.0 + fx as f32, y + fy as f32)
         };
         for i in 0..count {
@@ -2668,6 +2693,14 @@ impl Page for BattleUi {
             }
             return;
         }
+        // `turn-N`: the view turned N quarter turns.
+        if let Some(n) = kind
+            .strip_prefix("turn-")
+            .and_then(|n| n.parse::<u8>().ok())
+        {
+            self.turn = (0..n % 4).fold(Turn::NONE, |t, _| t.step(false));
+            return;
+        }
         match kind {
             "spell-book" => self.spell_list = true,
             "info" => self.info_open = true,
@@ -2706,23 +2739,95 @@ mod tests {
     #[test]
     fn a_square_is_found_by_its_centre() {
         for pos in [(0, 0), (10, 11), (20, 21), (3, 18)] {
-            let (x, y) = cell_origin(pos);
-            assert_eq!(cell_at(x + CELL_W / 2.0, y + CELL_H / 2.0), Some(pos));
+            let (x, y) = cell_origin(pos, Turn::NONE);
+            assert_eq!(
+                cell_at(x + CELL_W / 2.0, y + CELL_H / 2.0, Turn::NONE),
+                Some(pos)
+            );
+        }
+    }
+
+    /// A real battle (a fight with a monster outside any city) and a unit of the human's in it.
+    fn real_battle() -> Result<(App, Battle), Box<dyn std::error::Error>> {
+        let mut app = App::for_test();
+        let attackers = app.game.units().player_units(crate::view::HUMAN);
+        let pos = attackers
+            .first()
+            .and_then(|&u| app.game.units().unit_position(u))
+            .ok_or("the human has no unit")?;
+        let kind = app
+            .game
+            .content()
+            .rules
+            .units
+            .id_numbered(39)
+            .ok_or("barbarian_spearmen is not in the content")?;
+        let defenders = vec![app.game.spawn_unit(f4x_core::player::MONSTERS, pos, kind)];
+        app.game.apply(Command::BeginBattle {
+            attackers,
+            defenders,
+        });
+        let battle = app.game.battle().ok_or("no battle began")?.clone();
+        Ok((app, battle))
+    }
+
+    #[test]
+    fn in_every_turn_a_click_on_a_squares_centre_picks_that_square_and_no_two_share_a_place(
+    ) -> f4x_def::testdir::TestResult {
+        let (_app, battle) = real_battle()?;
+        for quarters in 0..4 {
+            let turn = (0..quarters).fold(Turn::NONE, |t, _| t.step(false));
+            let mut places = std::collections::HashSet::new();
+            for y in 0..GRID_H {
+                for x in 0..GRID_W {
+                    let pos = (x, y);
+                    if !battle.map.is_playable(pos) {
+                        continue;
+                    }
+                    let (ox, oy) = cell_origin(pos, turn);
+                    assert_eq!(
+                        cell_at(ox + CELL_W / 2.0, oy + CELL_H / 2.0, turn),
+                        Some(pos),
+                        "turn {quarters}"
+                    );
+                    assert!(places.insert((ox as i32, oy as i32)), "turn {quarters}");
+                    // The field is at most 336 pixels wide, 16 beyond the original's 320.
+                    assert!((-160.0..=160.0).contains(&(ox - 0.0)), "turn {quarters}");
+                    // A unit standing there is drawn where the square is.
+                    assert_eq!(cell_origin_f((x as f32, y as f32), turn), (ox, oy));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_unit_between_squares_is_drawn_between_their_places_in_every_turn() {
+        for quarters in 0..4 {
+            let turn = (0..quarters).fold(Turn::NONE, |t, _| t.step(false));
+            let (a, b) = (cell_origin((5, 5), turn), cell_origin((6, 5), turn));
+            let middle = cell_origin_f((5.5, 5.0), turn);
+            assert_eq!(
+                middle,
+                ((a.0 + b.0) / 2.0, (a.1 + b.1) / 2.0),
+                "turn {quarters}"
+            );
         }
     }
 
     #[test]
     fn nothing_is_found_off_the_grid() {
-        assert_eq!(cell_at(-1000.0, 10.0), None);
-        assert_eq!(cell_at(0.0, -50.0), None);
+        assert_eq!(cell_at(-1000.0, 10.0, Turn::NONE), None);
+        assert_eq!(cell_at(0.0, -50.0, Turn::NONE), None);
     }
 
     #[test]
     fn neighbours_step_by_the_original_amounts() {
-        let (x0, y0) = cell_origin((5, 5));
-        assert_eq!(cell_origin((6, 5)), (x0 - 16.0, y0 - 8.0));
-        assert_eq!(cell_origin((5, 6)), (x0 - 16.0, y0 + 8.0));
-        assert_eq!(cell_origin((4, 5)), (x0 + 16.0, y0 + 8.0));
+        let origin = |p: Pos| cell_origin(p, Turn::NONE);
+        let (x0, y0) = origin((5, 5));
+        assert_eq!(origin((6, 5)), (x0 - 16.0, y0 - 8.0));
+        assert_eq!(origin((5, 6)), (x0 - 16.0, y0 + 8.0));
+        assert_eq!(origin((4, 5)), (x0 + 16.0, y0 + 8.0));
     }
 
     #[test]

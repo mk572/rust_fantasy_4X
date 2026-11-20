@@ -243,11 +243,12 @@ impl Layout {
     }
 }
 
-const GRASS: u8 = 0;
-const ROUGH: u8 = 1;
-const DIRT: u8 = 2;
-const RIVER: u8 = 3;
-const OCEAN: u8 = 4;
+/// The kinds of ground a cell has before it gets its picture (`tile_types`).
+pub const GRASS: u8 = 0;
+pub const ROUGH: u8 = 1;
+pub const DIRT: u8 = 2;
+pub const RIVER: u8 = 3;
+pub const OCEAN: u8 = 4;
 
 /// The ground picture of a river cell's tile is one of these (`56 + 6 * variant + shape`), over
 /// grass picture `(cgx + cgy) & 3`.
@@ -826,7 +827,7 @@ fn merge_dirt(group: &mut [u8]) {
 }
 
 /// `Set_Terrain_Tile_Types`: the picture of every cell. Cells outside the grid count as grass.
-fn tile_types(group: &[u8], rng: &mut impl Rng) -> Vec<u8> {
+pub fn tile_types(group: &[u8], rng: &mut impl Rng) -> Vec<u8> {
     let mut tiles = vec![0u8; (W * H) as usize];
     for y in 0..H {
         for x in 0..W {

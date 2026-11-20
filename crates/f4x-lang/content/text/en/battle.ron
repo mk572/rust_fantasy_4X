@@ -116,6 +116,7 @@
     "battle.button_spell": "SPELL",
     "battle.button_info": "INFO",
     "battle.button_auto": "AUTO",
+    "battle.button_turn": "TURN",
     "battle.button_flee": "FLEE",
     "battle.flee_question": "Do you wish to flee?",
     "battle.hits_label": "Hits",
