@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sprite editor</title>
+<style>
+  :root {
+    --bg: #1d1f24; --panel: #272a31; --line: #3a3e48; --text: #e6e6e6; --dim: #9aa0ab;
+    --accent: #6ea8ff; --good: #7bd88f; --bad: #ff7b7b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 12px;
+           background: var(--panel); border-bottom: 1px solid var(--line); }
+  header label { color: var(--dim); }
+  input[type=text] { background: var(--bg); color: var(--text); border: 1px solid var(--line);
+                     border-radius: 4px; padding: 4px 6px; }
+  input[type=number] { width: 64px; background: var(--bg); color: var(--text);
+                       border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
+  button { background: var(--line); color: var(--text); border: 1px solid #50556a; border-radius: 4px;
+           padding: 4px 10px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.on { background: var(--accent); color: #000; }
+  main { display: grid; grid-template-columns: 220px 1fr 300px; gap: 12px; padding: 12px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; }
+  h2 { margin: 0 0 8px; font-size: 13px; color: var(--dim); font-weight: 600; text-transform: uppercase; }
+  #files { max-height: 60vh; overflow: auto; }
+  #files div { padding: 2px 6px; cursor: pointer; border-radius: 3px; }
+  #files div:hover { background: var(--line); }
+  #files div.current { background: var(--accent); color: #000; }
+  #stage { overflow: auto; max-height: 78vh; background: var(--bg); border: 1px solid var(--line); }
+  canvas { display: block; image-rendering: pixelated; cursor: crosshair; }
+  #palette { display: grid; grid-template-columns: repeat(16, 1fr); gap: 1px; }
+  #palette div { aspect-ratio: 1; cursor: pointer; border: 1px solid transparent; }
+  #palette div.chosen { outline: 2px solid #fff; outline-offset: -2px; z-index: 1; }
+  .checker { background: conic-gradient(#888 25%, #bbb 0 50%, #888 0 75%, #bbb 0) 0 0 / 8px 8px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+  #message { min-height: 1.4em; }
+  .good { color: var(--good); } .bad { color: var(--bad); }
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line);
+           border-radius: 8px; width: min(560px, 92vw); }
+  dialog::backdrop { background: #0008; }
+  #dirs div { padding: 2px 6px; cursor: pointer; }
+  #dirs div:hover { background: var(--line); }
+  .editor { display: flex; gap: 10px; align-items: flex-start; }
+  .editor #stage { flex: 1; min-width: 0; }
+  .pad { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .pad button { width: 34px; }
+  .pad label { margin-top: 6px; }
+  select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 3px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <label>Source folder <input type="text" id="source" size="46"></label>
+  <button id="browseSource">Browse…</button>
+  <label>Target folder <input type="text" id="folder" size="46"></label>
+  <button id="browse">Browse…</button>
+  <label>File <input type="text" id="name" size="16" value="tile.png"></label>
+  <button id="save" title="Ctrl+S">Save</button>
+  <span id="message"></span>
+</header>
+<main>
+  <section>
+    <h2>Pictures in the source folder</h2>
+    <div id="files"></div>
+    <div class="row"><button id="reload">Refresh</button></div>
+    <h2 style="margin-top:12px">Sheets</h2>
+    <div id="sheets"></div>
+    <div class="row"><small style="color:var(--dim)">A sheet of the source folder is cut into one PNG per picture in the target folder.</small></div>
+  </section>
+  <section>
+    <div class="row">
+      <label>Zoom <input type="range" id="zoom" min="2" max="48" value="16"></label>
+      <span id="zoomText"></span>
+      <label>Width <input type="number" id="w" min="1" max="512" value="32"></label>
+      <label>Height <input type="number" id="h" min="1" max="512" value="17"></label>
+      <button id="resize" title="Resize the canvas; pixels keep their place from the top left">Resize</button>
+      <button id="clear">Clear</button>
+    </div>
+    <div class="row">
+      <button data-tool="pencil" class="on">Pencil</button>
+      <button data-tool="erase">Erase</button>
+      <button data-tool="fill">Fill</button>
+      <button data-tool="pick">Pick</button>
+      <button data-tool="select" title="Drag a rectangle; drag inside it to move it">Select</button>
+      <button id="cutSel" title="Ctrl+X">Cut</button>
+      <button id="copySel" title="Ctrl+C">Copy</button>
+      <button id="pasteSel" title="Ctrl+V">Paste</button>
+      <button id="selectAll" title="Ctrl+A">Select all</button>
+      <button id="undo" title="Ctrl+Z">Undo</button>
+      <button id="redo" title="Ctrl+Y">Redo</button>
+      <label><input type="checkbox" id="grid" checked> Grid</label>
+      <label><input type="checkbox" id="diamond"> Diamond guide</label>
+      <label><input type="checkbox" id="mirror"> Mirror left-right</label>
+    </div>
+    <div class="editor">
+      <div id="stage"><canvas id="canvas"></canvas></div>
+      <div class="pad" title="Move the selection, or the whole picture when nothing is selected (arrow keys too; Shift: 8)">
+        <button id="up">↑</button>
+        <div><button id="left">←</button> <button id="right">→</button></div>
+        <button id="down">↓</button>
+        <label>Step <input type="number" id="step" min="1" max="64" value="1"></label>
+      </div>
+    </div>
+    <div class="row"><span id="where" style="color:var(--dim)"></span></div>
+    <h2 style="margin-top:10px">On the combat grid</h2>
+    <div class="row">
+      <label>View <input type="range" id="viewZoom" min="1" max="24" value="8"></label>
+      <span id="viewZoomText"></span>
+      <label><input type="checkbox" id="repeat"> Same sprite on every square</label>
+      <label><input type="checkbox" id="gridLines" checked> Square outlines</label>
+    </div>
+    <div class="row">
+      <button id="crop" title="Clear every pixel that lies outside the square in its lower half">Crop bottom</button>
+    </div>
+    <div id="viewStage" style="overflow:auto;border:1px solid var(--line)"><canvas id="view"></canvas></div>
+    <div class="row"><small style="color:var(--dim)">A square is the 32 x 16 diamond of the combat grid; the picture stands on the square's bottom, centred across it (the original's city walls, `citywall_NNN_FF.png`, are where the game draws them). The red
+      guide on the canvas is the square at that place. Crop bottom clears what hangs over the square's lower edges.</small></div>
+  </section>
+  <section>
+    <h2>Palette (256 colours)</h2>
+    <div id="palette"></div>
+    <div class="row">
+      <div id="swatch" style="width:32px;height:32px;border:1px solid var(--line)"></div>
+      <span id="swatchText"></span>
+    </div>
+    <div class="row"><small style="color:var(--dim)">Index 0 is transparent. Right-click a pixel to pick its colour.
+      Indexes 224 to 255 are black in the base palette: the original's screens fill them.</small></div>
+  </section>
+</main>
+<dialog id="dialog">
+  <h2>Choose the folder</h2>
+  <div id="dirPath" style="margin-bottom:6px;color:var(--dim)"></div>
+  <div id="dirs" style="max-height:50vh;overflow:auto"></div>
+  <div class="row" style="justify-content:flex-end">
+    <button id="dirCancel">Cancel</button>
+    <button id="dirUse" class="on">Use this folder</button>
+  </div>
+</dialog>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+let palette = [], root = "";
+let w = 32, h = 17, pixels = new Uint8Array(w * h);
+let colour = 1, tool = "pencil";
+let undoStack = [], redoStack = [];
+let browsing = "";
+let sel = null;        // the selected rectangle {x, y, w, h} of the canvas
+let floating = null;   // the pixels lifted out of the selection, moved with it until put down
+let clipboard = null;  // {w, h, pixels}
+let dragging = null;   // the mouse drag under way: a new rectangle or a move
+const CELL_W = 32, CELL_H = 16, SPAN = 1;
+const view = $("view"), vctx = view.getContext("2d");
+const sprite = document.createElement("canvas"), sctx = sprite.getContext("2d");
+const field = document.createElement("canvas"), fctx = field.getContext("2d");
+
+const canvas = $("canvas"), ctx = canvas.getContext("2d");
+
+function say(text, kind = "") {
+  $("message").textContent = text;
+  $("message").className = kind;
+}
+
+async function api(path, body) {
+  const response = await fetch(path, body === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || response.statusText);
+  return data;
+}
+
+const rgb = (i) => `rgb(${palette[i].join(",")})`;
+const zoom = () => Number($("zoom").value);
+
+// Whether the pixel (x, y) of a square's picture (32 wide, its middle row 8) belongs to the square: the
+// same rule that cuts the city base into its squares (`scripts/make_city_grid_tiles.py`).
+function inSquare(x, y) {
+  const dx = 2 * x - 31, dy = 2 * y - 16;
+  return x >= 0 && x < CELL_W && y >= 0 && y <= CELL_H
+    && dx + 2 * dy >= -32 && dx + 2 * dy < 32 && 2 * dy - dx >= -32 && 2 * dy - dx < 32;
+}
+
+// The outline of the square's pixels as a path on `context`, its top left at pixel (ox, oy), `z` per pixel.
+function outlineSquare(context, ox, oy, z) {
+  context.beginPath();
+  for (let ty = -1; ty <= CELL_H + 1; ty++) for (let tx = -1; tx <= CELL_W; tx++) {
+    if (!inSquare(tx, ty)) continue;
+    const x0 = (ox + tx) * z, y0 = (oy + ty) * z, x1 = x0 + z, y1 = y0 + z;
+    if (!inSquare(tx, ty - 1)) { context.moveTo(x0, y0); context.lineTo(x1, y0); }
+    if (!inSquare(tx, ty + 1)) { context.moveTo(x0, y1); context.lineTo(x1, y1); }
+    if (!inSquare(tx - 1, ty)) { context.moveTo(x0, y0); context.lineTo(x0, y1); }
+    if (!inSquare(tx + 1, ty)) { context.moveTo(x1, y0); context.lineTo(x1, y1); }
+  }
+  context.stroke();
+}
+
+// Where the picture's top left is from the square's top left: the picture stands on the square's
+// bottom (the square's pixel rows are 0 to CELL_H, so a 17 high tile lies exactly on its square) and is
+// centred across it.
+function place() {
+  // The original's city walls (`citywall_NNN_FF.png`, 0 to 11 Arcanus, 12 to 23 Myrror) are placed by hand,
+  // by `wall_sprite` in crates/f4x-client/src/battle_ground.rs: the point 14 across the square's corner, plus
+  // each piece's offset, less its anchor. That comes to two pixels left of the square's corner for every piece, and
+  // 17 above the corner for the pieces 0, 4, 5 and 6 (the north-west corner and the north side) and 16 for the rest.
+  const wall = /^citywall_(\d+)_\d+\.png$/.exec($("name").value);
+  if (wall && Number(wall[1]) < 24) {
+    return [-2, [0, 4, 5, 6].includes(Number(wall[1]) % 12) ? -17 : -16];
+  }
+  return [Math.round((CELL_W - w) / 2), CELL_H + 1 - h];
+}
+
+// Clear what hangs over the square's two lower edges: every pixel of the picture that, at its place on
+// the square, lies in the lower half (from the middle row) and outside the square.
+function cropBottom() {
+  putDown();
+  remember();
+  let cut = 0;
+  const [ox, oy] = place();
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const sx = x + ox, sy = y + oy;
+    if (pixels[y * w + x] && sy >= CELL_H / 2 && !inSquare(sx, sy)) { pixels[y * w + x] = 0; cut++; }
+  }
+  draw();
+  say(cut ? `cut ${cut} pixels below the square's edges` : "nothing hangs over the bottom edges", cut ? "good" : "");
+}
+
+// The picture and some squares of the combat grid at the game's own pixel size, then scaled up whole.
+function drawView() {
+  sprite.width = w; sprite.height = h;
+  const image = sctx.createImageData(w, h);
+  const now = shown();
+  for (let i = 0; i < w * h; i++) {
+    const p = now[i];
+    if (p) image.data.set([...palette[p], 255], i * 4);
+  }
+  sctx.putImageData(image, 0, 0);
+  const cols = 2 * SPAN + 1, width = (cols + 1) * CELL_W / 2 * 2, height = (cols + 1) * CELL_H;
+  field.width = width; field.height = height;
+  fctx.fillStyle = "#2b3a2b"; fctx.fillRect(0, 0, width, height);
+  // Square (i, j) of the grid has its top left at ((i - j) * 16, (i + j) * 8); (0, 0) is in the middle.
+  const middle = [width / 2 - CELL_W / 2, height / 2 - CELL_H / 2];
+  const origin = (i, j) => [middle[0] + (i - j) * CELL_W / 2, middle[1] + (i + j) * CELL_H / 2];
+  const squares = [];
+  for (let j = -SPAN; j <= SPAN; j++) for (let i = -SPAN; i <= SPAN; i++) {
+    const [x, y] = origin(i, j);
+    if (x > -CELL_W && y > -CELL_H && x < width && y < height) squares.push([i, j, x, y]);
+  }
+  squares.sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]) || a[0] - b[0]);
+  // A square is painted pixel by pixel by the same rule as the outline (`inSquare`), so the squares
+  // tile exactly and their edge pixels, darker, are the pixels the yellow outline runs along.
+  for (const [i, j, x, y] of squares) {
+    for (let ty = 0; ty <= CELL_H; ty++) for (let tx = 0; tx < CELL_W; tx++) {
+      if (!inSquare(tx, ty)) continue;
+      const edge = !inSquare(tx - 1, ty) || !inSquare(tx + 1, ty) || !inSquare(tx, ty - 1) || !inSquare(tx, ty + 1);
+      fctx.fillStyle = edge && $("gridLines").checked ? "#1c271f" : (i + j) % 2 ? "#33463a" : "#2f4034";
+      fctx.fillRect(x + tx, y + ty, 1, 1);
+    }
+  }
+  for (const [i, j, x, y] of squares) {
+    if ($("repeat").checked || (i === 0 && j === 0)) fctx.drawImage(sprite, x + place()[0], y + place()[1]);
+  }
+  const z = Number($("viewZoom").value);
+  view.width = width * z; view.height = height * z;
+  vctx.imageSmoothingEnabled = false;
+  vctx.drawImage(field, 0, 0, width * z, height * z);
+  // The middle square's outline along its pixels, over the sprite, a quarter of a pixel wide.
+  vctx.strokeStyle = "rgba(255,220,80,1)"; vctx.lineWidth = z / 4;
+  outlineSquare(vctx, middle[0], middle[1], z);
+  $("viewZoomText").textContent = `${z}x`;
+}
+
+function draw() {
+  drawView();
+  const z = zoom();
+  canvas.width = w * z; canvas.height = h * z;
+  const now = shown();
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = now[y * w + x];
+      if (i === 0) {
+        ctx.fillStyle = (x + y) % 2 ? "#aaa" : "#777";
+      } else {
+        ctx.fillStyle = rgb(i);
+      }
+      ctx.fillRect(x * z, y * z, z, z);
+    }
+  }
+  if ($("grid").checked && z >= 6) {
+    ctx.strokeStyle = "rgba(0,0,0,.35)"; ctx.lineWidth = 1; ctx.beginPath();
+    for (let x = 0; x <= w; x++) { ctx.moveTo(x * z + .5, 0); ctx.lineTo(x * z + .5, h * z); }
+    for (let y = 0; y <= h; y++) { ctx.moveTo(0, y * z + .5); ctx.lineTo(w * z, y * z + .5); }
+    ctx.stroke();
+  }
+  if ($("diamond").checked) {
+    ctx.strokeStyle = "rgba(255,80,80,.95)"; ctx.lineWidth = Math.max(1.5, z / 4);
+    outlineSquare(ctx, -place()[0], -place()[1], z);
+  }
+  if (sel) {
+    ctx.lineWidth = 1; ctx.setLineDash([]); ctx.strokeStyle = "#000";
+    ctx.strokeRect(sel.x * z + .5, sel.y * z + .5, sel.w * z - 1, sel.h * z - 1);
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = "#fff";
+    ctx.strokeRect(sel.x * z + .5, sel.y * z + .5, sel.w * z - 1, sel.h * z - 1);
+    ctx.setLineDash([]);
+  }
+  $("zoomText").textContent = `${z}x`;
+}
+
+function buildPalette() {
+  const box = $("palette"); box.innerHTML = "";
+  palette.forEach((c, i) => {
+    const cell = document.createElement("div");
+    if (i === 0) cell.className = "checker"; else cell.style.background = rgb(i);
+    cell.title = `${i}: ${c.join(", ")}`;
+    cell.onclick = () => choose(i);
+    box.appendChild(cell);
+  });
+  choose(colour);
+}
+
+function choose(i) {
+  colour = i;
+  [...$("palette").children].forEach((c, k) => c.classList.toggle("chosen", k === i));
+  const swatch = $("swatch");
+  swatch.className = i === 0 ? "checker" : ""; swatch.style.background = i === 0 ? "" : rgb(i);
+  const c = palette[i];
+  $("swatchText").textContent = i === 0 ? "0: transparent"
+    : `${i}: ${c.join(", ")}  #${c.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+// The selection is kept in `sel`; `floating` holds its pixels once they are lifted out to be moved.
+function extract(r) {
+  const out = new Uint8Array(r.w * r.h);
+  for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+    const px = r.x + x, py = r.y + y;
+    if (px >= 0 && py >= 0 && px < w && py < h) out[y * r.w + x] = pixels[py * w + px];
+  }
+  return out;
+}
+function stamp(target, source, r) {
+  for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+    const v = source[y * r.w + x], px = r.x + x, py = r.y + y;
+    if (v && px >= 0 && py >= 0 && px < w && py < h) target[py * w + px] = v;
+  }
+}
+function shown() {
+  if (!floating) return pixels;
+  const out = pixels.slice(); stamp(out, floating, sel); return out;
+}
+// Put the lifted pixels down where the selection is (transparent ones leave what is under them).
+function putDown() {
+  if (floating) { stamp(pixels, floating, sel); floating = null; }
+}
+function lift() {
+  if (!sel || floating) return;
+  remember();
+  floating = extract(sel);
+  for (let y = 0; y < sel.h; y++) for (let x = 0; x < sel.w; x++) {
+    const px = sel.x + x, py = sel.y + y;
+    if (px >= 0 && py >= 0 && px < w && py < h) pixels[py * w + px] = 0;
+  }
+}
+function deselect() { putDown(); sel = null; }
+
+function copySel(cutOut) {
+  if (!sel) { say("nothing is selected"); return; }
+  clipboard = { w: sel.w, h: sel.h, pixels: floating ? floating.slice() : extract(sel) };
+  if (cutOut) { lift(); floating = null; sel = null; }
+  draw();
+  say(cutOut ? "cut" : "copied", "good");
+}
+function pasteSel() {
+  if (!clipboard) { say("nothing was copied"); return; }
+  putDown(); remember();
+  sel = { x: 0, y: 0, w: clipboard.w, h: clipboard.h }; floating = clipboard.pixels.slice();
+  setTool("select"); draw();
+}
+function selectAll() { deselect(); sel = { x: 0, y: 0, w, h }; setTool("select"); draw(); }
+function clearSel() {
+  if (!sel) return;
+  if (floating) { floating = null; sel = null; } else { lift(); floating = null; }
+  draw();
+}
+
+// The arrows move the selection, or the whole picture when nothing is selected.
+function nudge(dx, dy) {
+  if (sel) { lift(); sel.x += dx; sel.y += dy; draw(); return; }
+  remember();
+  const next = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const nx = x + dx, ny = y + dy;
+    if (nx >= 0 && ny >= 0 && nx < w && ny < h) next[ny * w + nx] = pixels[y * w + x];
+  }
+  pixels = next; draw();
+}
+
+function remember() {
+  undoStack.push(pixels.slice()); if (undoStack.length > 200) undoStack.shift();
+  redoStack = [];
+}
+function undo() { floating = null; sel = null; if (undoStack.length) { redoStack.push(pixels.slice()); pixels = undoStack.pop(); } draw(); }
+function redo() { floating = null; sel = null; if (redoStack.length) { undoStack.push(pixels.slice()); pixels = redoStack.pop(); } draw(); }
+
+function cellAt(event) {
+  const r = canvas.getBoundingClientRect(), z = zoom();
+  const x = Math.floor((event.clientX - r.left) / z), y = Math.floor((event.clientY - r.top) / z);
+  return x >= 0 && y >= 0 && x < w && y < h ? [x, y] : null;
+}
+
+function put(x, y, value) {
+  pixels[y * w + x] = value;
+  if ($("mirror").checked) pixels[y * w + (w - 1 - x)] = value;
+}
+
+function flood(x, y, value) {
+  const was = pixels[y * w + x];
+  if (was === value) return;
+  const stack = [[x, y]];
+  while (stack.length) {
+    const [cx, cy] = stack.pop();
+    if (cx < 0 || cy < 0 || cx >= w || cy >= h || pixels[cy * w + cx] !== was) continue;
+    pixels[cy * w + cx] = value;
+    stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+  }
+}
+
+let painting = false;
+function apply(event) {
+  const at = cellAt(event); if (!at) return;
+  const [x, y] = at;
+  if (tool === "pick") { choose(pixels[y * w + x]); return; }
+  if (tool === "fill") flood(x, y, colour);
+  else put(x, y, tool === "erase" ? 0 : colour);
+  draw();
+}
+const rawCell = (event) => {
+  const r = canvas.getBoundingClientRect(), z = zoom();
+  return [Math.floor((event.clientX - r.left) / z), Math.floor((event.clientY - r.top) / z)];
+};
+const clampCell = ([x, y]) => [Math.min(w - 1, Math.max(0, x)), Math.min(h - 1, Math.max(0, y))];
+const inside = (r, [x, y]) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
+
+canvas.addEventListener("pointerdown", (event) => {
+  if (event.button === 2) { const at = cellAt(event); if (at) choose(pixels[at[1] * w + at[0]]); return; }
+  if (tool === "select") {
+    const at = rawCell(event);
+    canvas.setPointerCapture(event.pointerId);
+    if (sel && inside(sel, at)) { dragging = { move: true, last: at }; return; }
+    deselect(); const start = clampCell(at);
+    dragging = { move: false, start }; sel = { x: start[0], y: start[1], w: 1, h: 1 }; draw();
+    return;
+  }
+  deselect(); remember(); painting = true; canvas.setPointerCapture(event.pointerId); apply(event);
+});
+canvas.addEventListener("pointermove", (event) => {
+  const at = cellAt(event);
+  $("where").textContent = at ? `x ${at[0]}, y ${at[1]}, index ${shown()[at[1] * w + at[0]]}` : "";
+  if (dragging) {
+    const now = rawCell(event);
+    if (dragging.move) {
+      const dx = now[0] - dragging.last[0], dy = now[1] - dragging.last[1];
+      if (dx || dy) { lift(); sel.x += dx; sel.y += dy; dragging.last = now; draw(); }
+    } else {
+      const [cx, cy] = clampCell(now), [sx, sy] = dragging.start;
+      sel = { x: Math.min(sx, cx), y: Math.min(sy, cy), w: Math.abs(cx - sx) + 1, h: Math.abs(cy - sy) + 1 };
+      dragging.moved = dragging.moved || cx !== sx || cy !== sy; draw();
+    }
+    return;
+  }
+  if (painting && tool !== "fill" && tool !== "pick") apply(event);
+});
+canvas.addEventListener("pointerup", () => {
+  if (dragging && !dragging.move && !dragging.moved) { sel = null; draw(); }
+  dragging = null; painting = false;
+});
+canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+
+function resize(nw, nh) {
+  deselect(); remember();
+  const next = new Uint8Array(nw * nh);
+  for (let y = 0; y < Math.min(h, nh); y++) for (let x = 0; x < Math.min(w, nw); x++) next[y * nw + x] = pixels[y * w + x];
+  w = nw; h = nh; pixels = next;
+  $("w").value = w; $("h").value = h; draw();
+}
+
+async function listFolder() {
+  const data = await api(`/api/folder?scope=source&path=${encodeURIComponent($("source").value)}`);
+  $("source").value = data.path;
+  const files = $("files"); files.innerHTML = "";
+  for (const name of data.pngs) {
+    const row = document.createElement("div"); row.textContent = name;
+    row.classList.toggle("current", name === $("name").value);
+    row.onclick = () => openPicture(name);
+    files.appendChild(row);
+  }
+  if (!data.pngs.length) files.textContent = "(no pictures yet)";
+  const sheets = $("sheets"); sheets.innerHTML = "";
+  for (const name of data.sheets) {
+    const row = document.createElement("div"); row.textContent = name;
+    const cut = document.createElement("button"); cut.textContent = "Cut into pictures"; cut.style.marginLeft = "6px";
+    cut.onclick = async () => {
+      try {
+        const done = await api("/api/cut", { sheet: `${data.path}/${name}`, folder: $("folder").value });
+        say(`cut ${done.written.length} pictures into the target folder`, "good");
+      } catch (error) { say(error.message, "bad"); }
+    };
+    row.appendChild(cut); sheets.appendChild(row);
+  }
+}
+
+async function openPicture(name) {
+  try {
+    const data = await api(`/api/picture?path=${encodeURIComponent($("source").value + "/" + name)}`);
+    deselect(); remember(); w = data.w; h = data.h; pixels = Uint8Array.from(data.pixels);
+    $("w").value = w; $("h").value = h; $("name").value = name; draw(); listFolder();
+    say(data.inexact ? `${name}: ${data.inexact} pixels were not exact palette colours` : `${name} opened`, data.inexact ? "bad" : "good");
+  } catch (error) { say(error.message, "bad"); }
+}
+
+async function save() {
+  putDown(); draw();
+  try {
+    const done = await api("/api/save", { folder: $("folder").value, name: $("name").value, w, h, pixels: [...pixels] });
+    say(`saved ${done.saved}`, "good");
+    if ($("source").value === $("folder").value) listFolder();
+  } catch (error) { say(error.message, "bad"); }
+}
+
+async function browse(path, scope) {
+  const data = await api(`/api/folder?scope=${scope}&path=${encodeURIComponent(path)}`);
+  browsing = data.path; $("dirPath").textContent = data.path;
+  const box = $("dirs"); box.innerHTML = "";
+  const add = (label, target) => {
+    const row = document.createElement("div"); row.textContent = label; row.onclick = () => browse(target, scope); box.appendChild(row);
+  };
+  if (data.parent) add("⬆ ..", data.parent);
+  data.dirs.forEach((d) => add(`📁 ${d}`, `${data.path}/${d}`));
+}
+
+let choosing = $("folder");
+const chooser = (field) => async () => {
+  choosing = field;
+  try { await browse(field.value, field === $("source") ? "source" : "target"); $("dialog").showModal(); } catch (error) { say(error.message, "bad"); }
+};
+$("browse").onclick = chooser($("folder"));
+$("browseSource").onclick = chooser($("source"));
+$("dirCancel").onclick = () => $("dialog").close();
+$("dirUse").onclick = () => {
+  choosing.value = browsing; $("dialog").close();
+  if (choosing === $("source")) listFolder().catch((e) => say(e.message, "bad"));
+};
+$("source").onchange = () => listFolder().catch((e) => say(e.message, "bad"));
+$("reload").onclick = () => listFolder().catch((e) => say(e.message, "bad"));
+$("save").onclick = save;
+$("undo").onclick = undo; $("redo").onclick = redo;
+$("up").onclick = () => nudge(0, -Number($("step").value));
+$("down").onclick = () => nudge(0, Number($("step").value));
+$("left").onclick = () => nudge(-Number($("step").value), 0);
+$("right").onclick = () => nudge(Number($("step").value), 0);
+$("crop").onclick = cropBottom;
+$("viewZoom").oninput = drawView; $("repeat").onchange = drawView; $("gridLines").onchange = drawView;
+$("name").onchange = draw;
+$("zoom").oninput = draw; $("grid").onchange = draw; $("diamond").onchange = draw;
+$("resize").onclick = () => resize(Math.min(512, Math.max(1, +$("w").value)), Math.min(512, Math.max(1, +$("h").value)));
+$("clear").onclick = () => { deselect(); remember(); pixels.fill(0); draw(); };
+function setTool(name) {
+  if (name !== "select") deselect();
+  tool = name;
+  document.querySelectorAll("[data-tool]").forEach((o) => o.classList.toggle("on", o.dataset.tool === name));
+  draw();
+}
+document.querySelectorAll("[data-tool]").forEach((b) => b.onclick = () => setTool(b.dataset.tool));
+$("cutSel").onclick = () => copySel(true); $("copySel").onclick = () => copySel(false);
+$("pasteSel").onclick = pasteSel; $("selectAll").onclick = selectAll;
+document.addEventListener("keydown", (event) => {
+  if (event.target.tagName === "INPUT") return;
+  const mod = event.ctrlKey || event.metaKey;
+  if (mod && event.key === "s") { event.preventDefault(); save(); }
+  else if (mod && event.key === "z") { event.preventDefault(); event.shiftKey ? redo() : undo(); }
+  else if (mod && event.key === "y") { event.preventDefault(); redo(); }
+  else if (mod && event.key === "c") { event.preventDefault(); copySel(false); }
+  else if (mod && event.key === "x") { event.preventDefault(); copySel(true); }
+  else if (mod && event.key === "v") { event.preventDefault(); pasteSel(); }
+  else if (mod && event.key === "a") { event.preventDefault(); selectAll(); }
+  else if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); clearSel(); }
+  else if (event.key === "Escape") { deselect(); draw(); }
+  else if (event.key.startsWith("Arrow")) {
+    event.preventDefault();
+    const n = event.shiftKey ? 8 : Number($("step").value);
+    nudge(...{ ArrowUp: [0, -n], ArrowDown: [0, n], ArrowLeft: [-n, 0], ArrowRight: [n, 0] }[event.key]);
+  }
+});
+
+(async () => {
+  try {
+    const start = await api("/api/start");
+    palette = start.palette; root = start.root;
+    $("folder").value = start.folder; $("source").value = start.source;
+    buildPalette(); draw(); await listFolder();
+  } catch (error) { say(error.message, "bad"); }
+})();
+</script>
+</body>
+</html>
