@@ -11,6 +11,7 @@ pub const SHIPPED_CONTENT: &str = "crates/f4x-def/content";
 pub mod content;
 #[cfg(any(test, feature = "testutil"))]
 pub mod content_hash;
+pub mod effect_enum;
 pub mod feature;
 pub mod half_int;
 pub mod help;

@@ -14,6 +14,7 @@ pub mod lair;
 pub mod realm;
 pub mod registry;
 pub mod stats;
+pub mod unit_effect;
 pub mod unit_flag;
 
 pub use defs::*;
