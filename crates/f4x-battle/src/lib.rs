@@ -3,9 +3,17 @@
 //!
 //! Tests: none, because it only declares modules.
 
+pub mod attack;
 pub mod map;
 pub mod resistance;
 pub mod rng;
 pub mod side;
+pub mod special;
+pub mod unit;
+pub mod weapon;
 
 pub use side::Side;
+pub use unit::{
+    BaseStats, BattleUnit, Confusion, Fate, FieldBonus, ItemCharge, Lasting, Status, UnitCasting,
+    WarpKind, RANGED_ATTACK_COST,
+};

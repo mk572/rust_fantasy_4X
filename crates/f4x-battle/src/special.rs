@@ -23,7 +23,7 @@
 //!
 //! Tests: in battle/tests.rs.
 
-use crate::rules::Ability;
+use f4x_def::rules::Ability;
 
 /// The special attacks a unit has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

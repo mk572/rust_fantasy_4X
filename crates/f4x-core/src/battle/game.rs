@@ -99,35 +99,7 @@ pub fn ranged_kind_of(abilities: &[Ability], rules: &crate::rules::Rules) -> Ran
         .unwrap_or(RangedKind::None)
 }
 
-/// The kind of the weapon shot the abilities give (a bow, sling, boulder or thrown weapon: a ranged
-/// attack of the mundane weapon type), `None` for no such shot. A breath, gaze or bolt is not one.
-pub fn weapon_shot_of(abilities: &[Ability], rules: &crate::rules::Rules) -> Option<RangedKind> {
-    weapon_attack_of(abilities, rules).map(|attack| attack.kind)
-}
-
-/// The attack of that weapon shot.
-pub fn weapon_attack_of<'a>(
-    abilities: &[Ability],
-    rules: &'a crate::rules::Rules,
-) -> Option<&'a crate::rules::damage_type::AbilityAttack> {
-    abilities
-        .iter()
-        .filter_map(|&a| rules.abilities.get(a).attack.as_ref())
-        .find(|attack| {
-            attack
-                .types
-                .contains(&crate::rules::damage_type::DamageType::MundaneWeapon)
-        })
-}
-
-/// The mana the abilities make a spell caster of: the most any of them gives, 0 for none.
-pub fn caster_mana_of(abilities: &[Ability], rules: &crate::rules::Rules) -> i32 {
-    abilities
-        .iter()
-        .map(|&a| rules.abilities.get(a).caster_mana)
-        .max()
-        .unwrap_or(0)
-}
+pub use f4x_battle::weapon::{caster_mana_of, weapon_attack_of, weapon_shot_of};
 
 /// Something that plays a wizard's side of a battle: it is asked for one command at a time.
 /// The scripted player is `f4x_ai::battle`, set once with [`set_battle_ai`]; a learned one

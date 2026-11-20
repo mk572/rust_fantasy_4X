@@ -1,11 +1,15 @@
+use super::attack::DefenderState;
 use super::game::BattleStartError;
-use super::map::{distance, Cell, GRID_H, GRID_W};
+use super::map::{distance, Cell, Mover, GRID_H, GRID_W, OPEN_COST};
+use super::special::SpecialAttacks;
 use super::spell::SpellSource;
 use super::*;
 use crate::game::rng::GameRng;
 use crate::game::save::Snapshot;
 use crate::game::testutil::shipped;
+use crate::rules::damage_type::DamageTypes;
 use crate::rules::unit_flag::UnitFlag;
+use crate::rules::UnitId;
 
 use crate::game::{Command, Event, Game, Rejection};
 use crate::map::{Grid, Map, Plane};

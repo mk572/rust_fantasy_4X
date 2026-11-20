@@ -2,8 +2,8 @@ use super::*;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
-fn rules() -> crate::rules::BattleRules {
-    crate::game::testutil::shipped().rules.battle
+fn rules() -> f4x_def::rules::BattleRules {
+    f4x_def::testdir::shipped().rules.battle.clone()
 }
 
 fn rng(seed: u64) -> Pcg64Mcg {
@@ -237,7 +237,8 @@ fn shooting_draws_no_reply_and_range_costs_accuracy() {
 
 #[test]
 fn a_defender_rolls_the_defense_its_immunities_give_it() {
-    use crate::battle::immunity::{AttackNature, Immunities};
+    use f4x_def::rules::attack_nature::AttackNature;
+    use f4x_def::rules::immunity::Immunities;
     let golem = Immunities::of_numbers(&[72]);
     let armoured = |immunities| DefenderState {
         immunities,
@@ -707,9 +708,9 @@ fn a_sleeper_takes_every_blow_at_full_strength() {
 /// of types the rule does not list lands with its full strength through the defence.
 #[test]
 fn a_rule_that_turns_damage_into_doom_is_applied_as_the_data_says() {
-    use crate::rules::damage_type::DefenceEffect;
+    use f4x_def::rules::damage_type::DefenceEffect;
     use strum::IntoEnumIterator;
-    let content = crate::game::testutil::shipped();
+    let content = f4x_def::testdir::shipped();
     let mut found = 0;
     for (id, spell) in content.rules.spells.iter() {
         for rule in &spell.defence {
@@ -934,7 +935,7 @@ fn stoning_and_dispel_evil_leave_nothing_to_heal() {
 
 #[test]
 fn fire_dice_do_nothing_to_a_defender_immune_to_fire() {
-    use crate::battle::immunity::Immunities;
+    use f4x_def::rules::immunity::Immunities;
     let fire = DamageTypes::of(&[DamageType::Fire]);
     let blade = Combatant {
         parts: vec![(2, fire)],

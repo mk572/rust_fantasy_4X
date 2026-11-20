@@ -17,19 +17,18 @@
 //!
 //! Tests: in battle/attack/tests.rs.
 
-use crate::rules::damage_type::{DamageType, DamageTypes};
-use crate::rules::BattleRules;
-use crate::rules::SpellId;
-use crate::spell::unit_effect::UnitEffect;
+pub use f4x_def::rules::attack_nature::Mode;
+use f4x_def::rules::attack_nature::{delivery, AttackNature};
+use f4x_def::rules::damage_type::{DamageType, DamageTypes};
+use f4x_def::rules::immunity::{effective_defense, effective_resistance, Immunities};
+use f4x_def::rules::realm::Realm;
+use f4x_def::rules::unit_effect::{UnitEffect, UnitEffects};
+use f4x_def::rules::BattleRules;
+use f4x_def::rules::SpellId;
 use rand::{Rng, RngCore};
 
-use super::immunity::{
-    delivery, effective_defense, effective_resistance, resistance_failure, AttackNature,
-    Immunities, Realm,
-};
-use super::special::SpecialAttacks;
-
-pub use super::immunity::Mode;
+use crate::resistance::resistance_failure;
+use crate::special::SpecialAttacks;
 
 /// The numbers an attacker brings to one attack.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -68,7 +67,7 @@ pub struct DefenderState {
     /// special attacks.
     pub resistance: i32,
     pub enchantments: Vec<SpellId>,
-    pub effects: crate::spell::unit_effect::UnitEffects,
+    pub effects: UnitEffects,
     /// The realm of the creature, for dispel evil (chaos and death creatures); the undead.
     pub realm: Option<Realm>,
     pub undead: bool,
@@ -84,17 +83,14 @@ pub struct DefenderState {
     pub lucky: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testutil"))]
 impl DefenderState {
     /// For tests: put a lasting spell on the defender, with what the shipped rules say it does.
-    pub(crate) fn put_enchantment(&mut self, spell: SpellId) {
-        let rules = crate::game::testutil::shipped().rules;
+    pub fn put_enchantment(&mut self, spell: SpellId) {
+        let rules = &f4x_def::testdir::shipped().rules;
         self.enchantments.push(spell);
-        self.immunities.add_spell(spell, &rules);
-        self.effects
-            .union(crate::spell::unit_effect::UnitEffects::of(
-                rules.spells.get(spell),
-            ));
+        self.immunities.add_spell(spell, rules);
+        self.effects.union(UnitEffects::of(rules.spells.get(spell)));
     }
 }
 

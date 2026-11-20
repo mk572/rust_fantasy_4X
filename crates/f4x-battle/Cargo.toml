@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 f4x-def.workspace = true
 rand_pcg.workspace = true
+hecs.workspace = true
 rand.workspace = true
 serde.workspace = true
 
@@ -16,3 +17,4 @@ testutil = ["f4x-def/testutil"]
 
 [dev-dependencies]
 f4x-def = { workspace = true, features = ["testutil"] }
+strum.workspace = true
