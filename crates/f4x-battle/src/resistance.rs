@@ -1,4 +1,4 @@
-//! The resistance check of the rules: one ten-sided die against a resistance.
+//! The dice of resistance and dispelling.
 
 use rand::{Rng, RngCore};
 
@@ -8,6 +8,16 @@ use rand::{Rng, RngCore};
 pub fn resistance_failure(resistance: i32, modifier: i32, rng: &mut dyn RngCore) -> i32 {
     let roll = rng.gen_range(1..=10);
     (roll - (resistance + modifier)).max(0)
+}
+
+/// Whether a dispel of `strength` beats something of `difficulty`: a roll of 1 to 250 at or
+/// under `250 * strength / (strength + difficulty)`.
+pub fn dispel_roll(strength: u32, difficulty: u32, rng: &mut dyn RngCore) -> bool {
+    if strength == 0 {
+        return false;
+    }
+    let chance = 250 * u64::from(strength) / u64::from(strength + difficulty);
+    rng.next_u64() % 250 < chance
 }
 
 #[cfg(test)]

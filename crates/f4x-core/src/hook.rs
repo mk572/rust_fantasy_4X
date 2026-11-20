@@ -19,8 +19,7 @@ pub struct Hook {
     pub number: bool,
 }
 
-/// The name of the hook of the city walls, and its arguments.
-pub const WALL: &str = "wall";
+pub use f4x_def::rules::hook_name::WALL;
 
 const fn plain(name: &'static str) -> Hook {
     Hook {

@@ -58,8 +58,7 @@ pub struct Experience(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct WeaponQuality(pub u8);
 
-/// The hook of the spell that does it (`spells.ron`).
-pub(crate) const HEROISM: &str = "heroism";
+pub(crate) use f4x_def::rules::hook_name::HEROISM;
 
 pub const WEAPON_MAGIC: u8 = 1;
 pub const WEAPON_MITHRIL: u8 = 2;

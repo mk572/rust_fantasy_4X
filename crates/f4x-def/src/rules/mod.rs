@@ -5,15 +5,18 @@
 
 pub mod ai_site;
 pub mod attack_nature;
+pub mod counter_effect;
 pub mod damage_type;
 pub mod defs;
 pub mod effects;
+pub mod hook_name;
 pub mod ids;
 pub mod immunity;
 pub mod lair;
 pub mod realm;
 pub mod registry;
 pub mod stats;
+pub mod target_error;
 pub mod unit_effect;
 pub mod unit_flag;
 

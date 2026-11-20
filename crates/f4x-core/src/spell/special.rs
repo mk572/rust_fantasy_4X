@@ -8,11 +8,7 @@ use crate::game::{Event, Game};
 use crate::spell::target_error::TargetError;
 use crate::unit::Hurt;
 
-/// The hook of Word of Recall and Recall Hero. Its argument says whom the spell takes: `anyone`
-/// (any unit of the wizard) or `hero`. Overland only `anyone` is cast; in a battle both are.
-pub const RECALL: &str = "recall";
-pub const RECALL_ANYONE: &str = "anyone";
-pub const RECALL_HERO: &str = "hero";
+pub use f4x_def::rules::hook_name::{RECALL, RECALL_ANYONE, RECALL_HERO};
 /// The hook of the Spell of Mastery, which wins the game when the casting is done.
 pub const SPELL_OF_MASTERY: &str = "spell_of_mastery";
 /// The hook of the Spell of Return, which brings a banished wizard home.
