@@ -29,7 +29,7 @@ use super::casting::{BattleCaster, SpellAim, SpellError};
 use super::field::Field;
 use super::immunity::Realm;
 use super::WarpKind;
-use super::{Battle, BattleError, BattleEvent, RangedKind, Side};
+use super::{Battle, BattleError, BattleEvent, Side};
 use crate::game::{DispelSite, Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
@@ -38,11 +38,12 @@ use crate::rules::stats::Modifier;
 use crate::rules::SpellId;
 use crate::spell::target_error::TargetError;
 use crate::spell::unit_effect::UnitEffect;
-use f4x_battle::battlemagic::spell_type::{only_against, undead_penalty, warp_mods};
+use f4x_battle::battlemagic::aim::{save_types, AimWorld};
 pub use f4x_battle::battlemagic::spell_type::{
     slay_allows, BattleEffect, BattleSpell, CityWall, DamageOdds, LegalCast, SpellType,
     BATTLE_EFFECT,
 };
+use f4x_battle::battlemagic::spell_type::{undead_penalty, warp_mods};
 use f4x_def::half_int::HalfInt;
 
 mod unit_cast;
@@ -208,7 +209,8 @@ impl Game {
     ) -> Result<(SpellDef, SpellType, i32, i32), BattleError> {
         let (def, kind, skill, pool) = self.check_spell(spell, mana)?;
         let battle = &self.battle.as_ref().ok_or(BattleError::Over)?.battle;
-        self.check_aim(battle, battle.active, spell, &def, &kind, aim)
+        battle
+            .check_aim(self, battle.active, spell, &def, &kind, aim)
             .map_err(BattleError::Spell)?;
         Ok((def, kind, skill, pool))
     }
@@ -279,7 +281,8 @@ impl Game {
             let aims: Vec<SpellAim> = candidates
                 .into_iter()
                 .filter(|&aim| {
-                    self.check_aim(battle, battle.active, s.spell, &def, &kind, aim)
+                    battle
+                        .check_aim(self, battle.active, s.spell, &def, &kind, aim)
                         .is_ok()
                 })
                 .collect();
@@ -368,285 +371,9 @@ impl Game {
         Ok(out)
     }
 
-    /// Whether the spell may be aimed here.
-    fn check_aim(
-        &self,
-        battle: &Battle,
-        side: Side,
-        spell: SpellId,
-        def: &SpellDef,
-        kind: &SpellType,
-        aim: SpellAim,
-    ) -> Result<(), SpellError> {
-        match (def.target, aim) {
-            (SpellTarget::None | SpellTarget::Battlefield, SpellAim::None) => {
-                // A spell on every enemy needs one it can touch.
-                let hits = |ok: &dyn Fn(&super::BattleUnit) -> bool| {
-                    battle
-                        .units
-                        .iter()
-                        .any(|u| u.is_active() && u.side != side && ok(u))
-                };
-                match kind {
-                    SpellType::Slay {
-                        only, all: true, ..
-                    } if !hits(&|u| slay_allows(*only, u)) => {
-                        return Err(SpellError::Target(TargetError::NothingToHit));
-                    }
-                    SpellType::Damage { all: true, .. }
-                        if only_against(spell).is_some_and(|realms| {
-                            !hits(&|u| u.realm.is_some_and(|r| realms.contains(&r)))
-                        }) =>
-                    {
-                        return Err(SpellError::Target(TargetError::NothingToHit));
-                    }
-                    _ => {}
-                }
-                if let SpellType::Field(f) = kind {
-                    if battle.has_field(side, *f) {
-                        return Err(SpellError::AlreadyUp);
-                    }
-                }
-                Ok(())
-            }
-            (SpellTarget::OwnCity, SpellAim::None) => match kind {
-                // Only the defender, at its own city, and not what already stands.
-                SpellType::CityWall(wall) if side == Side::Defender && battle.map.is_city() => {
-                    let up = match wall {
-                        CityWall::Stone => battle.map.is_fully_walled(),
-                        CityWall::Fire => battle.wall_of_fire,
-                        CityWall::Darkness => battle.wall_of_darkness,
-                    };
-                    if up {
-                        Err(SpellError::AlreadyUp)
-                    } else {
-                        Ok(())
-                    }
-                }
-                _ => Err(SpellError::Unsupported),
-            },
-            (SpellTarget::Tile, SpellAim::Tile(cell)) if matches!(kind, SpellType::Disrupt) => {
-                if battle.map.has_wall(cell) {
-                    Ok(())
-                } else {
-                    Err(SpellError::Target(TargetError::NoWall))
-                }
-            }
-            (SpellTarget::Tile, SpellAim::Tile(cell)) if matches!(kind, SpellType::Vortex) => {
-                if battle.can_make_vortex(cell) {
-                    Ok(())
-                } else {
-                    Err(SpellError::Target(TargetError::NoVortexRoom))
-                }
-            }
-            (SpellTarget::Tile, SpellAim::Tile(cell))
-                if matches!(kind, SpellType::EarthToMud | SpellType::CracksCall) =>
-            {
-                if battle.map.is_playable(cell) {
-                    Ok(())
-                } else {
-                    Err(SpellError::Target(TargetError::BadSquare))
-                }
-            }
-            (SpellTarget::Tile, SpellAim::Tile(cell)) => {
-                if battle.active_units(side).count() >= battle.max_side
-                    || !battle.is_summon_square(side, cell)
-                {
-                    return Err(SpellError::NoRoom);
-                }
-                Ok(())
-            }
-            (SpellTarget::AnyUnit, SpellAim::Unit(id)) if matches!(kind, SpellType::Raise) => {
-                if battle.active_units(side).count() >= battle.max_side
-                    || battle.first_summon_square(side).is_none()
-                {
-                    return Err(SpellError::NoRoom);
-                }
-                if self.can_raise(battle, side, id) {
-                    Ok(())
-                } else {
-                    Err(SpellError::Target(TargetError::NothingToRaise))
-                }
-            }
-            (SpellTarget::AnyUnit, SpellAim::Unit(id)) if matches!(kind, SpellType::Animate) => {
-                if battle.active_units(side).count() >= battle.max_side
-                    || battle.first_summon_square(side).is_none()
-                {
-                    return Err(SpellError::NoRoom);
-                }
-                if self.can_animate(battle, side, id) {
-                    Ok(())
-                } else {
-                    Err(SpellError::Target(TargetError::NothingToAnimate))
-                }
-            }
-            (
-                target @ (SpellTarget::OwnUnit | SpellTarget::EnemyUnit | SpellTarget::AnyUnit),
-                SpellAim::Unit(id),
-            ) => {
-                let u = battle
-                    .unit(id)
-                    .filter(|u| u.is_active())
-                    .ok_or(SpellError::Target(TargetError::NotInBattle))?;
-                let own = u.side == side;
-                if target == SpellTarget::OwnUnit && !own {
-                    return Err(SpellError::Target(TargetError::NotYourUnit));
-                }
-                if target == SpellTarget::EnemyUnit && own {
-                    return Err(SpellError::Target(TargetError::NotEnemyUnit));
-                }
-                // An invisible enemy that cannot be seen cannot be picked.
-                if !battle.seen_by(side, id) {
-                    return Err(SpellError::Target(TargetError::Unseen));
-                }
-                // Death creatures, born so or undead, cannot be healed.
-                if matches!(kind, SpellType::Heal { all: false, .. })
-                    && u.realm == Some(Realm::Death)
-                {
-                    return Err(SpellError::Target(TargetError::Deathly));
-                }
-                if let SpellType::Turn { bind, .. } = kind {
-                    // Binding takes fantastic creatures, Possession normal units and heroes.
-                    if *bind && !u.is_fantastic() {
-                        return Err(SpellError::Target(TargetError::CannotBind));
-                    }
-                    if !*bind && u.is_fantastic() {
-                        return Err(SpellError::Target(TargetError::NotNormalUnit));
-                    }
-                    if u.bound_from.is_some() {
-                        return Err(SpellError::Target(TargetError::AlreadyBound));
-                    }
-                    if battle.active_units(side).count() >= battle.max_side {
-                        return Err(SpellError::NoRoom);
-                    }
-                }
-                // Recall Hero takes one of the wizard's own heroes, and needs a place to send it.
-                if let SpellType::Recall { anyone } = kind {
-                    if !own {
-                        return Err(SpellError::Target(TargetError::NotYourUnit));
-                    }
-                    if !anyone && !self.battle_unit_is_hero(u) {
-                        return Err(SpellError::Target(TargetError::RecallOnlyHeroes));
-                    }
-                    let Some(circle) = self.summon_point(battle.player_of(side)) else {
-                        return Err(SpellError::Target(TargetError::NoCircle));
-                    };
-                    // A fight at the circle itself has nowhere to recall to (1.50 note 704).
-                    if battle.site == Some(circle) {
-                        return Err(SpellError::Target(TargetError::CircleHere));
-                    }
-                }
-                if matches!(kind, SpellType::Channel) {
-                    let entity = u.source.and_then(|i| self.battle_source(i));
-                    match entity.map(|e| self.check_mutate(e)) {
-                        Some(Ok(())) => {}
-                        Some(Err(e)) => return Err(SpellError::Target(e)),
-                        None => return Err(SpellError::Target(TargetError::NotNormalUnit)),
-                    }
-                }
-                if battle.spares(u, spell) {
-                    return Err(SpellError::Target(
-                        if matches!(kind, SpellType::LifeDrain) {
-                            TargetError::Deathly
-                        } else {
-                            TargetError::NotAffected
-                        },
-                    ));
-                }
-                // A curse the target is immune to is refused before it costs anything
-                // (`Combat_Spell_Target_Screen`); the types it is stopped by are in the spell's
-                // data (`save` in `spells.ron`: illusion for Sorcery, death for Death).
-                if let Some(save) = &def.save {
-                    if u.is_immune_to(&self.save_types(save), &self.content.rules) {
-                        return Err(SpellError::Target(TargetError::NotAffected));
-                    }
-                }
-                if matches!(kind, SpellType::Enchant { .. }) {
-                    // A unit made in the battle has no source: a conjured creature.
-                    let source = u
-                        .source
-                        .and_then(|i| self.battle_source(i))
-                        .and_then(|e| self.units().unit_def(e).map(|d| (e, d.kind)));
-                    let (unit_kind, undead) = match source {
-                        Some((e, k)) => (k, self.units().unit_counts_as_undead(e)),
-                        None => (crate::rules::UnitKind::Summoned, false),
-                    };
-                    if let Some(why) = crate::spell::stacking::unit_only_refusal(
-                        def.unit_only,
-                        unit_kind,
-                        undead || u.undead,
-                    ) {
-                        return Err(SpellError::Target(why));
-                    }
-                    self.check_stacking_in_battle(battle.player_of(side), spell, def, u)?;
-                }
-                if UnitEffect::Web.is_in(def) && u.flag(UnitFlag::NonCorporeal) {
-                    return Err(SpellError::Target(TargetError::NonCorporeal));
-                }
-                // Warp Wood needs a missile unit, whatever its kind, and a unit is warped once.
-                if matches!(kind, SpellType::WarpWood)
-                    && (u.ranged_kind != RangedKind::Missile || u.ammo <= 0)
-                {
-                    return Err(SpellError::Target(TargetError::NeedsMissile));
-                }
-                if matches!(kind, SpellType::Warp { .. }) && u.warp.is_some() {
-                    return Err(SpellError::Target(TargetError::AlreadyWarped));
-                }
-                if let Some(realms) = only_against(spell) {
-                    if !u.realm.is_some_and(|r| realms.contains(&r)) {
-                        return Err(SpellError::Target(TargetError::NotAffected));
-                    }
-                }
-                if let SpellType::Slay {
-                    only, all: false, ..
-                } = kind
-                {
-                    if !slay_allows(*only, u) {
-                        return Err(SpellError::Target(TargetError::NotAffected));
-                    }
-                }
-                Ok(())
-            }
-            _ => Err(SpellError::Target(TargetError::WrongTarget)),
-        }
-    }
-
-    /// The damage types a curse's save is stopped by: those in its data, less the illusion type
-    /// when the rule `illusion_immunity_protects` is off.
+    /// The damage types a curse's target may be immune to (the spell's `save`).
     pub(super) fn save_types(&self, save: &SpellSave) -> Vec<DamageType> {
-        let protects = self.settings.rules.illusion_immunity_protects;
-        save.types
-            .iter()
-            .copied()
-            .filter(|t| protects || *t != DamageType::Illusion)
-            .collect()
-    }
-
-    /// The refusals for a lasting spell on a unit that cannot take it: it has the spell
-    /// already, one the spell is not cumulative with, or the ability by its nature
-    /// (`spell/stacking.rs` has the same rules for the map).
-    fn check_stacking_in_battle(
-        &self,
-        player: PlayerId,
-        spell: SpellId,
-        def: &SpellDef,
-        unit: &super::BattleUnit,
-    ) -> Result<(), SpellError> {
-        // A web that has been broken may be cast again; the curse that is left changes nothing.
-        if UnitEffect::Web.is_in(def) && !unit.held_by_web(&self.content.rules) {
-            return Ok(());
-        }
-        let carrier = crate::spell::stacking::Carrier {
-            has_spell: &|id| unit.enchantments.contains(&id),
-            has_ability: &|a| unit.has(a),
-            effects: unit.effects(&self.content.rules),
-        };
-        match crate::spell::stacking::stacking_refusal(spell, def, &carrier, &|id| {
-            self.has_global(player, id)
-        }) {
-            Some(why) if !(why.is_pointless() && self.confirmed) => Err(why.into()),
-            _ => Ok(()),
-        }
+        save_types(save, self.settings.rules.illusion_immunity_protects)
     }
 
     /// What a lasting spell with no rules of its own gives a unit of the battle: Heroism raises it
@@ -680,47 +407,6 @@ impl Game {
             .iter()
             .flat_map(|&other| spells.get(other).bonuses_given_up_for(spell))
             .collect()
-    }
-
-    /// Whether the unit of the battle is a hero, from the overland unit it was copied from.
-    fn battle_unit_is_hero(&self, u: &super::BattleUnit) -> bool {
-        let Some(active) = self.battle.as_ref() else {
-            return false;
-        };
-        u.source
-            .and_then(|i| active.sources.get(i).copied())
-            .and_then(|e| self.units().unit_def(e))
-            .is_some_and(|d| d.kind == crate::rules::UnitKind::Hero)
-    }
-
-    /// Whether `id` is a dead unit of `side` that Animate Dead can raise: a unit of the wizard's
-    /// army (not one summoned in the battle, and not a hero) that was not destroyed outright.
-    fn can_animate(&self, battle: &Battle, side: Side, id: usize) -> bool {
-        use crate::rules::UnitKind;
-        let Some(u) = battle.unit(id) else {
-            return false;
-        };
-        let Some(entity) = u.source.and_then(|i| self.battle_source(i)) else {
-            return false;
-        };
-        u.side == side
-            && u.status == super::Status::Dead
-            && u.fate() != super::Fate::Gone
-            // Death Immunity keeps a unit from rising as undead (1.50 notes 496, 498).
-            && !u.is_immune_to(&[DamageType::Death], &self.content.rules)
-            && self
-                .units()
-                .unit_def(entity)
-                .is_some_and(|d| d.kind != UnitKind::Hero)
-    }
-
-    /// Whether `id` is a dead normal unit of `side` that Raise Dead can bring back: from the
-    /// wizard's army, not a hero, a fantastic creature or one destroyed outright.
-    fn can_raise(&self, battle: &Battle, side: Side, id: usize) -> bool {
-        battle
-            .unit(id)
-            .is_some_and(|u| !u.is_fantastic() && !u.undead)
-            && self.can_animate(battle, side, id)
     }
 
     /// Raise Dead: the dead unit returns on a free square of its side's half of the field,
@@ -1575,6 +1261,38 @@ impl Game {
             active.battle.refresh_fields();
         }
         true
+    }
+}
+
+impl AimWorld for Game {
+    fn source_kind(&self, unit: &super::BattleUnit) -> Option<(crate::rules::UnitKind, bool)> {
+        let entity = unit.source.and_then(|i| self.battle_source(i))?;
+        let units = self.units();
+        let kind = units.unit_def(entity)?.kind;
+        Some((kind, units.unit_counts_as_undead(entity)))
+    }
+
+    fn mutation_refusal(&self, unit: &super::BattleUnit) -> Option<TargetError> {
+        match unit.source.and_then(|i| self.battle_source(i)) {
+            Some(entity) => self.check_mutate(entity).err(),
+            None => Some(TargetError::NotNormalUnit),
+        }
+    }
+
+    fn summon_point(&self, player: PlayerId) -> Option<Position> {
+        Game::summon_point(self, player)
+    }
+
+    fn caster_has_global(&self, player: PlayerId, spell: SpellId) -> bool {
+        self.has_global(player, spell)
+    }
+
+    fn confirmed(&self) -> bool {
+        self.confirmed
+    }
+
+    fn illusion_immunity_protects(&self) -> bool {
+        self.settings.rules.illusion_immunity_protects
     }
 }
 

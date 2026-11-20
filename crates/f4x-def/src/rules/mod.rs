@@ -15,6 +15,7 @@ pub mod immunity;
 pub mod lair;
 pub mod realm;
 pub mod registry;
+pub mod stacking;
 pub mod stats;
 pub mod target_error;
 pub mod unit_effect;

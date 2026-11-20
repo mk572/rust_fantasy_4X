@@ -3,7 +3,8 @@ use crate::game::testutil::shipped;
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
-use crate::rules::Stat;
+use crate::rules::{Stat, UnitKind, UnitOnly};
+use crate::spell::target_error::TargetError;
 use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);

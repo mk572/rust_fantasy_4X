@@ -4,6 +4,7 @@
 //!
 //! Tests: none, because it only declares modules.
 
+pub mod aim;
 pub mod caster;
 pub mod casting;
 pub mod error;

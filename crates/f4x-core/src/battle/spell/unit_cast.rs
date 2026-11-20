@@ -174,7 +174,8 @@ impl Game {
         if battle.ward_stops(u.side, Some(def.realm)) {
             return Err(err(SpellError::Warded));
         }
-        self.check_aim(battle, u.side, spell, &def, &kind, aim)
+        battle
+            .check_aim(self, u.side, spell, &def, &kind, aim)
             .map_err(err)?;
         Ok((def, kind, source, paid, pool))
     }
