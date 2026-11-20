@@ -1324,15 +1324,19 @@ fn combine_levels(
         scales.sort_by(f64::total_cmp);
         let power_scale = scales.get(scales.len() / 2).copied().unwrap_or(1.0);
         let mut ron = format!(
-            "// What a unit is worth in a fight, in High Men spearmen (a recruit High Men spearman is 1): the\n// fit of `f4x-tools duel ladder` over real battles (task 655, `docs/duel.md`). `levels` is the worth at\n// experience level 1, 2, ... as far as it was measured ({} for a unit that levels up, one number for a\n// creature, which does not level); a higher level takes the last number. It is a rough guide, a\n// few percent either way: two units of 100 are worth one of 200, and rock-paper-scissors cases\n// (immunities, special attacks) can overturn it. A hero's numbers are those of the hero without the\n// random abilities, spells and items the game rolls, and `hero_factor` stands in for them.\n// Written by `f4x-tools duel ladder --combine {}-{} --ratings FILE`; no unit of the settler kind.\n(\n    hero_factor: 1.5,\n    // What one spearman is in the numbers the AI's thresholds were tuned to: the median of the old formula\n    // (`battle::power`) over the worth at level 1 of the units that are not heroes.\n    power_scale: {},\n    units: [\n",
-            range.len(),
+            "// What a unit is worth in a fight, in High Men spearmen (a recruit High Men spearman is 1): the\n// fit of `f4x-tools duel ladder` over real battles (task 655, `docs/duel.md`). `levels` is the worth at\n// experience level 1, 2, ... as far as it was measured (6 for a normal unit, 9 for a hero, one number for a\n// creature, which does not level); a higher level takes the last number. It is a rough guide, a\n// few percent either way: two units of 100 are worth one of 200, and rock-paper-scissors cases\n// (immunities, special attacks) can overturn it. A hero was fought with the abilities and spells the\n// game rolls for a hero (no items), so `hero_factor` is 1.\n// Written by `f4x-tools duel ladder --combine {}-{} --ratings FILE`; no unit of the settler kind.\n(\n    hero_factor: 1.0,\n    // What one spearman is in the numbers the AI's thresholds were tuned to: the median of the old formula\n    // (`battle::power`) over the worth at level 1 of the units that are not heroes.\n    power_scale: {},\n    units: [\n",
             range[0],
             range[range.len() - 1],
             sig3(power_scale)
         );
         for u in sorted {
             let values: Vec<String> = if levels_up(content, u) {
-                range.iter().map(|&l| sig3(worth(u, l))).collect()
+                // Past its top level a unit has no data of its own (a normal unit stops at 6).
+                range
+                    .iter()
+                    .filter(|&&l| l <= top_level(content, u))
+                    .map(|&l| sig3(worth(u, l)))
+                    .collect()
             } else {
                 vec![sig3(worth(u, range[0]))]
             };

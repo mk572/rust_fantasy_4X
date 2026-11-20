@@ -30,17 +30,17 @@ The outcome tables of the runs are archived in `duel-out/` (local, not committed
   `Rules::combat_rating(unit_def, level)` returns the row's number for the experience level (from
   0, as `UnitView::unit_level`), a level past the last number taking the last, and a hero's times
   `hero_factor`; `None` for a unit with no row (callers fall back to `battle::power`).
-- `levels` holds levels 1 to 4 for normal units and heroes (Recruit to Elite; Ultra-Elite and
-  Champion need the Warlord retort or the Crusade spell and were not measured), one number for a
-  creature, which does not level.
-- **Heroes** are the base heroes: the stats, the innate abilities and the level bonuses, with no
-  rolled skills, no spells and no items. `hero_factor` (1.5 for now) stands in for what a real hero
-  has beyond that. The one against one table of heroes with rolled abilities at level 5
-  (`duel heroes`, `heroes_5_rank.csv`) shows how much that matters: the casters, which cast nothing
-  in the base table, rise most.
+- `levels` holds levels 1 to 6 for a normal unit (Recruit to Champion) and 1 to 9 for a hero, one
+  number for a creature, which does not level (the run of 20 November 2026, `duel-out/2026-11-20-ladder-2`,
+  archived in `reference/ladder-2026-11-20.zip`; cross-level fights fit one scale over all levels).
+- **Heroes** were fought with the abilities and spells the game rolls for a hero (rolled afresh before each
+  fight, `hero::kind::roll_one`), with no items, so `hero_factor` is 1 (the field stays for rule sets
+  that want one). Heroes show their levels most: a healer is worth 2.7 at level 1 and 114 at level 9; the
+  fighters stay ahead of the casters (level 6: chosen 445, paladin 142, magician 71, healer 56). Wizard
+  spells were off in the fights; unit spells on.
 - Regenerate after a change of the units, abilities, spells or battle rules: run the ladder
-  (`duel ladder --levels 1-4`, `--normal --cross 1-4`), then
-  `duel ladder --combine 1-4 --ratings crates/f4x-def/content/unit_ratings.ron`, and
+  (`scripts/ladder_run.py`, or `duel ladder --levels 1-9`, `--cross 1-9`), then
+  `duel ladder --combine 1-9 --ratings crates/f4x-def/content/unit_ratings.ron`, and
   `python3 scripts/ron_hashes.py --update`. The tables themselves (`target/ladder/`) are local and not
   committed. A full run takes about three hours on four threads (`scripts/cool_run.sh`).
 
@@ -50,7 +50,7 @@ The outcome tables of the runs are archived in `duel-out/` (local, not committed
   base cost plus 100 turns of upkeep with gold, food and mana counting alike (the half-upkeep setting is
   not applied); `per_100` is rating per 100 resources and `relative` that over a High Men spearman's
   (1.71). Regenerate with `duel ladder --efficiency crates/f4x-def/content/unit_efficiency.ron` after the
-  ratings. **Garrison caveat:** only normal units and heroes calm unrest (half a rebel each, as in the
+  ratings (without `--levels`, or it fights the ladder again into `--out`). **Garrison caveat:** only normal units and heroes calm unrest (half a rebel each, as in the
   original); fantastic units defend but do not police, so a garrison chosen for unrest cannot use them.
 
 What the numbers show that the old formula did not: the level jump. High Men spearmen are worth
