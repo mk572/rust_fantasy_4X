@@ -40,7 +40,7 @@ const INFO_EDGE: Color = rgb(0x14, 0x0C, 0x08);
 const STAFF_X: &[f32] = &[29.0, 75.0, 122.0];
 /// The picture entries of each staff: empty, full, locked (`magic.lbx`).
 const STAFF_ART: &[(usize, usize, usize)] = &[(7, 8, 15), (9, 10, 16), (11, 12, 17)];
-/// Where each staff's picture goes (empty, full, lock), in the original's pixels.
+/// Where each staff's picture goes (empty, full, lock).
 const STAFF_AT: &[[(f32, f32); 3]] = &[
     [(29.0, 83.0), (32.0, 102.0), (27.0, 81.0)],
     [(75.0, 85.0), (79.0, 102.0), (74.0, 81.0)],
@@ -61,7 +61,6 @@ pub(crate) fn staff_adjust(pos: [i32; 3], locked: [bool; 3], changed: usize, new
     if locked[changed] {
         return pos;
     }
-    // The original works out the other two in this order: skill, research, mana.
     let mut others: Vec<usize> = [2usize, 1, 0]
         .into_iter()
         .filter(|&i| i != changed)
@@ -168,7 +167,7 @@ impl App {
         self.open_page(Screen::Magic, ui);
     }
 
-    /// Every overland enchantment in play, with its wizard: the original lists all of them.
+    /// Every overland enchantment in play, with its wizard.
     fn overland_enchantments(&self) -> Vec<(SpellId, f4x_core::player::PlayerId)> {
         self.game
             .player_ids()
@@ -433,12 +432,10 @@ impl MagicUi {
     }
 
     /// The four headings over the staves and the enchantment list. The background picture has them
-    /// in English; the lettering is covered with the bar's own brown and drawn from the keys, in the
-    /// blackletter, as the original had it: its colour, a light edge on the top and left and a dark
-    /// one on the bottom and right (measured from the picture).
+    /// in English.
     fn magic_headings(&self, app: &mut App, lay: &Layout, view: (f32, f32, f32)) {
         /// A bar: where it starts, its width, the key, the font style, the left edge of the
-        /// lettering, the width the original's lettering had and its colour.
+        /// lettering.
         struct Bar(f32, f32, &'static str, usize, f32, f32, (u8, u8, u8), usize);
         const BARS: [Bar; 4] = [
             Bar(
@@ -729,9 +726,7 @@ impl Page for MagicUi {
         self.magic_text(app, &lay, view);
         self.magic_enchantments(app, &lay, view, !modal, input);
 
-        // The Alchemy and OK buttons (drawn while a box is open, but not clickable). They sit two
-        // pixels right and down of the original's code positions (232, 181) and (291, 181), where the
-        // background picture's recess for them is (the recess is the original's, measured).
+        // The Alchemy and OK buttons (drawn while a box is open, but not clickable).
         let alchemy = app.panel_button(
             &lay,
             Panel::BlueAlchemy,

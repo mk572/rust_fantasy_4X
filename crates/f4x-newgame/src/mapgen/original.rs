@@ -42,8 +42,8 @@ pub struct Terrain {
 const DX: &[i32] = &[0, -1, 0, 1, 0];
 const DY: &[i32] = &[1, 0, -1, 0, 0];
 
-/// Steps of one arm for the land size: the original's small (6 to 15), medium (11 to 20) and
-/// large (21 to 30), chosen by the land share its three sizes have (15, 20 and 30 percent).
+/// Steps of one arm for the land size: small (6 to 15), medium (11 to 20) and large (21 to 30),
+/// chosen by the land share the three sizes have (15, 20 and 30 percent).
 fn arm_steps(rng: &mut Pcg64Mcg, land_percent: u8) -> i32 {
     let base = match land_percent {
         0..=17 => 5,

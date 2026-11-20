@@ -1,10 +1,10 @@
 //! Creating a wizard: the pick budget, retort prerequisites and starting spells.
 //!
-//! The rules follow the original's custom-wizard screen: eleven picks buy spell books (one
-//! each) and retorts (one each; two for Warlord, Channeler, Divine Power, Famous and Infernal
-//! Power; three for Myrran), at most six retorts, and some retorts need books first. A realm
-//! with `n` books lets the wizard choose `n - 1` common spells to start with; with eleven
-//! (all the picks) it knows all ten common spells and chooses two uncommon and one rare.
+//! The rules: eleven picks buy spell books (one each) and retorts (one each; two for Warlord,
+//! Channeler, Divine Power, Famous and Infernal Power; three for Myrran), at most six retorts, and
+//! some retorts need books first. A realm with `n` books lets the wizard choose `n - 1` common
+//! spells to start with; with eleven (all the picks) it knows all ten common spells and chooses two
+//! uncommon and one rare.
 //!
 //! Tests: in wizard/tests.rs.
 
@@ -50,8 +50,7 @@ pub struct WizardBuild {
     /// The wizard picture chosen (0 to 13); `None` keeps the player's default. A ready-made
     /// wizard has the picture of its place in the rules' list, which is the original's order.
     pub portrait: Option<u8>,
-    /// A ready-made wizard: exempt from the pick budget and retort prerequisites (the
-    /// original's own Lo Pan spends twelve picks).
+    /// A ready-made wizard: exempt from the pick budget and retort prerequisites.
     pub preset: bool,
 }
 
@@ -82,8 +81,8 @@ pub fn retort_cost(rules: &Rules, retort: Retort) -> u8 {
     rules.retorts.get(retort).cost
 }
 
-/// Every retort, in numeric order (the original's list): the creation screen, the AI and every
-/// loop over the retorts go in this order.
+/// Every retort, in numeric order: the creation screen, the AI and every loop over the retorts go
+/// in this order.
 pub fn all_retorts(rules: &Rules) -> impl Iterator<Item = Retort> + '_ {
     rules.retorts.iter().map(|(id, _)| id)
 }

@@ -27,7 +27,6 @@ const PANEL: (f32, f32) = (45.0, 10.0);
 const PANEL_SIZE: (f32, f32) = (166.0, 181.0);
 const SLOT: (f32, f32) = (69.0, 47.0);
 const SLOT_STEP: (f32, f32) = (77.0, 61.0);
-/// Slots across, and rows in view: four in all, as the original's.
 const ACROSS: usize = 2;
 const ROWS_IN_VIEW: usize = 2;
 const SLOTS: usize = ACROSS * ROWS_IN_VIEW;
@@ -175,7 +174,6 @@ impl App {
         self.open_wizard_pick(spell, false);
     }
 
-    /// The panel, or a plain box the same size when the original's picture is not there.
     fn draw_target_panel(&mut self, lay: &Layout, blast: bool) {
         let entry = if blast { 72 } else { 0 };
         if self
@@ -300,7 +298,7 @@ impl Modal for WizardPick {
                 picked = Some(id);
             }
         }
-        // A slot with no wizard in it shows the broken gem, as the original's four always do.
+        // A slot with no wizard in it shows the broken gem.
         for slot in in_view(&window, rivals.len()).len()..SLOTS {
             let at = slot_at(slot);
             app.draw_pic(&lay, "magic", 51, 0, at.0, at.1);

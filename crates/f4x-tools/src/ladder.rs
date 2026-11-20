@@ -85,6 +85,39 @@ pub fn path_index(content: &Content, num: u16, level: usize) -> Option<usize> {
     Some((level.max(1) - 1).min(path.level_count().saturating_sub(1)))
 }
 
+/// Give a unit the experience level the ladder calls `level` (1 to 9): the experience of that level
+/// of its path, and for the levels past the experience ones (Ultra-Elite and Champion) the bonus
+/// levels the game gives its owner (the Warlord retort and the Crusade spell). A unit that does not
+/// level is left as it is.
+pub fn give_level(
+    game: &mut Game,
+    content: &Content,
+    unit: f4x_core::Entity,
+    owner: PlayerId,
+    num: u16,
+    level: usize,
+) {
+    let Some(index) = path_index(content, num, level) else {
+        return;
+    };
+    let Some(def) = content
+        .rules
+        .units
+        .iter()
+        .map(|(_, d)| d)
+        .find(|d| d.num == num)
+    else {
+        return;
+    };
+    let Some(path) = def.level_path.map(|p| content.rules.level_paths.get(p)) else {
+        return;
+    };
+    let top = path.levels.len().saturating_sub(1);
+    let xp = path.levels[index.min(top)].xp;
+    game.scenario_set_experience(unit, xp);
+    game.scenario_level_bonus(owner, index.saturating_sub(top));
+}
+
 /// A small game on open ground for a duel: two islands, a city of each of two players (the
 /// attacker P0 in the west, the defender P1 in the east), the 1.3 rules (`settings`). The dice
 /// come from `seed`.
@@ -149,28 +182,6 @@ pub fn fight(
             .units
             .id_numbered(num)
             .ok_or(format!("no unit {num}"))?;
-        let index = path_index(content, num, level);
-        let xp_of = |i: usize| -> u32 {
-            let def = content.rules.units.get(id);
-            def.level_path.map_or(0, |p| {
-                let levels = &content.rules.level_paths.get(p).levels;
-                levels[i.min(levels.len() - 1)].xp
-            })
-        };
-        let mut bonus = 0;
-        if let Some(index) = index {
-            let def = content.rules.units.get(id);
-            let top = def.level_path.map_or(0, |p| {
-                content
-                    .rules
-                    .level_paths
-                    .get(p)
-                    .levels
-                    .len()
-                    .saturating_sub(1)
-            });
-            bonus = index.saturating_sub(top);
-        }
         for _ in 0..count {
             let unit = game.spawn_unit(
                 owner,
@@ -181,12 +192,9 @@ pub fn fight(
                 },
                 id,
             );
-            if let Some(index) = index {
-                game.scenario_set_experience(unit, xp_of(index));
-            }
+            give_level(&mut game, content, unit, owner, num, level);
             sides[i].push(unit);
         }
-        game.scenario_level_bonus(owner, bonus);
     }
     let [attackers, defenders] = sides;
     game.apply(Command::BeginBattle {

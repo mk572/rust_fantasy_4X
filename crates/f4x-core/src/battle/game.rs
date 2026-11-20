@@ -379,7 +379,6 @@ impl Game {
             status: Status::Active,
             damage_kinds: [0; 3],
             attacked: self.unit_in_stasis(unit),
-            extra_attack: false,
             revealed: false,
             merged_this_turn: false,
             surfaced: false,
@@ -680,8 +679,8 @@ impl Game {
             }
         }
         let seed = self.next_u64();
-        // The field is built from the square alone, as the original seeds it from the square's
-        // place, so a fight on the same square is fought on the same ground.
+        // The field is built from the square alone, so a fight on the same square is fought on the
+        // same ground.
         let mut map = self.battle_field(site, city, walled, &decks.cells());
         let has = |effect: crate::spell::city::CityEffect| {
             city.is_some_and(|c| self.economy().city_has_effect(c, effect))
@@ -1176,8 +1175,8 @@ impl Game {
                 && kind.is_some_and(|k| k != UnitKind::Hero))
     }
 
-    /// The winner's unit that made the undead: one with Life Steal or Create Undead, the
-    /// costliest of them (the original takes the highest upkeep).
+    /// The winner's unit that made the undead: one with Life Steal or Create Undead, the costliest
+    /// of them.
     fn undead_creator(&self, battle: &Battle, sources: &[hecs::Entity]) -> Option<UnitId> {
         let winner = battle.winner?;
         battle
@@ -1212,7 +1211,7 @@ impl Game {
             return Vec::new();
         };
         self.units().sort_by_serial(&mut dead);
-        // As in the original, the winner's units that stand count against the stack's nine.
+        // The winner's units that stand count against the stack's nine.
         let side_room = battle
             .max_side
             .saturating_sub(battle.active_units(side).count());
@@ -1379,8 +1378,7 @@ impl Game {
         events
     }
 
-    /// Fight a battle to the end with the battle AI playing both sides (the original's
-    /// strategic combat, and what an AI player uses against another player's stack).
+    /// Fight a battle to the end with the battle AI playing both sides.
     pub fn auto_resolve(
         &mut self,
         attackers: &[hecs::Entity],
@@ -1469,8 +1467,7 @@ pub(super) fn deployment_order(units: &[BattleUnit]) -> Vec<usize> {
             if melee.len() >= 4 {
                 break;
             }
-            // The original looks the strongest up in the wrong list; this takes it from the
-            // shooters, as meant. The first of equals goes.
+            // The strongest is taken from the shooters. The first of equals goes.
             let best = (0..ranged.len())
                 .max_by_key(|&k| (units[ranged[k]].melee, std::cmp::Reverse(k)))
                 .unwrap_or(0);

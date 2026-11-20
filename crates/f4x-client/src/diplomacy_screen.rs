@@ -1263,8 +1263,6 @@ impl Page for DiploUi {
                         ry,
                     );
                 } else {
-                    // The set the original dims them with is too dark to read on this background:
-                    // the enabled colours, greyed.
                     app.draw_styled(
                         view,
                         &Style::flat(MENU_STYLE, MENU_OFF_TINT),

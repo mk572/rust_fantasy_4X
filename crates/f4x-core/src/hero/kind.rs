@@ -101,8 +101,7 @@ pub fn roll_one(
         }
     }
     while warrior > 0 || mage > 0 {
-        // Each branch is one case of the original's switch; a pick that does not apply is
-        // simply drawn again.
+        // Each branch is one case of the switch; a pick that does not apply is simply drawn again.
         let drawn = rng.roll(14) - 1;
         let mut spent = false;
         match drawn {
@@ -126,8 +125,7 @@ pub fn roll_one(
                 }
             }
             6 => {
-                // Arcane Power adds to a magic ranged attack, so a hero without one skips the
-                // draw (the original gives it to anyone but the Knight).
+                // Arcane Power adds to a magic ranged attack, so a hero without one skips the draw.
                 if abilities.arcane_power != Tier::Super
                     && mage > 0
                     && rules
@@ -172,8 +170,6 @@ pub fn roll_one(
             mage -= 1;
         }
     }
-    // The original gives a hero a name for each of the five wizards' games; there is one hero
-    // here, so it has the first.
     let unit = rules.units.get(t.unit);
     let name = names.hero(unit.num, &unit.id);
     Hero {
@@ -235,7 +231,7 @@ pub fn pick(
     let mut class = class;
     let mut attempts = 0;
     loop {
-        // The original's loop body always runs once, even when the attempts are used up.
+        // The loop body always runs once, even when the attempts are used up.
         loop {
             attempts += 1;
             let kind = match class {

@@ -1,11 +1,3 @@
-//! The overland screen's frame, laid out like the original's 320 by 200 main screen.
-//!
-//! Everything is placed in the original's pixel coordinates and scaled by one factor so the
-//! screen keeps its shape in any window: the map window (12 by 10 tiles at 240 by 180), the
-//! menu bar above it, and the right-hand column with the minimap, gold and mana boxes, the
-//! resource panels and the Next Turn button. The original pictures come from the local art
-//! set; without it the same layout is drawn in flat colours.
-
 use crate::action_button_art::Action;
 use crate::font::Style;
 use crate::input::Input;
@@ -19,7 +11,6 @@ use crate::view::{App, HUMAN};
 
 pub use crate::resolution::{DESIGN_H as ORIGINAL_H, DESIGN_W as ORIGINAL_W};
 
-/// Where the original's elements sit, in its 320 by 200 pixels.
 pub mod spot {
     /// The window onto the map.
     pub const MAP: (f32, f32, f32, f32) = (0.0, 20.0, 240.0, 180.0);
@@ -35,7 +26,6 @@ pub mod spot {
     pub const MENU_X: &[f32] = &[7.0, 47.0, 89.0, 140.0, 184.0, 226.0, 270.0];
 }
 
-/// Scale and offset that fit the original screen into the window.
 #[derive(Debug, Clone, Copy)]
 pub struct Layout {
     pub scale: f32,
@@ -47,7 +37,6 @@ pub struct Layout {
 pub(crate) enum Disabled {
     /// The picture faded to this opacity.
     Fade(f32),
-    /// This frame of the picture (the original's greyed second frame).
     Frame(usize),
 }
 
@@ -83,7 +72,6 @@ impl Layout {
         }
     }
 
-    /// A rectangle given in the original's pixels, in window pixels.
     pub fn rect(&self, (x, y, w, h): (f32, f32, f32, f32)) -> Rect {
         Rect::new(
             self.origin.x + x * self.scale,
@@ -125,7 +113,6 @@ impl App {
         self.art.picture(lbx, entry, frame).cloned()
     }
 
-    /// Draw a picture whose top-left is at the original's `(x, y)`.
     pub(crate) fn draw_pic(
         &mut self,
         lay: &Layout,
@@ -586,7 +573,7 @@ impl App {
             }
         }
         // Pressing the minimap centres the map there, and so does holding the button while the
-        // pointer moves over it (the original's grid field answers every frame the button is down).
+        // pointer moves over it.
         let mouse: Vec2 = input.mouse_position().into();
         if ui::hit(r, true, input).held() {
             let (i, j) = (

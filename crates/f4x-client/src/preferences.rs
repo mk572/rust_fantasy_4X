@@ -1,13 +1,11 @@
-//! The player's preferences: the original's Settings screen, `MAGIC.SET`, and two of
-//! ours (Left Click Moves Units; off: a right click moves; Play Intro; Dim Behind Boxes; Edge Scrolling;
-//! Open Finished Cities).
-//! Twenty-one switches that change how the game is shown or asked about, not its rules. They live outside
-//! the saves, in `settings/preferences.txt`, one `name=0|1` line each, so every game shares them.
+//! Off: a right click moves; Play Intro; Dim Behind Boxes; Edge Scrolling; Open Finished Cities).
+//! Twenty-one switches that change how the game is shown or asked about, not its rules. They live
+//! outside the saves, in `settings/preferences.txt`, one `name=0|1` line each, so every game shares
+//! them.
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
-/// The switches in the order of the original's file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Pref {
     SoundEffects,
@@ -126,8 +124,7 @@ pub(crate) const FILE: &str = "settings/preferences.txt";
 pub(crate) struct Preferences {
     /// Whether each preference is on, by `Pref` number (as long as `PREFS`).
     on: Vec<bool>,
-    /// The music and effect volumes, 0 to 100 (the Settings screen's sliders; not in the
-    /// original).
+    /// The music and effect volumes, 0 to 100 (the Settings screen's sliders).
     pub music_volume: u8,
     pub effects_volume: u8,
     /// The scale of the art (1, 2 or 4; `crate::resolution`): 320x200, 640x400 or 1280x800

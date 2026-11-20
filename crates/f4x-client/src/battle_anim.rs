@@ -17,12 +17,11 @@ const SHOT_TIME: f32 = 0.9;
 /// The part of a shot's time its missile is in the air; the blow lands after it.
 pub const SHOT_FLIGHT: f32 = 0.5;
 const DEATH_TIME: f32 = 0.5;
-/// Seconds of one frame of a teleport or a tunnel (two ticks of the original's clock).
+/// Seconds of one frame of a teleport or a tunnel.
 pub const INSTANT_FRAME: f32 = 2.0 / 18.2;
 /// How many frames a teleport lasts (the fade runs from 150 in steps of 20), and a tunnel (four
 /// down, five up).
 const TELEPORT_FRAMES: usize = 8;
-/// The frames of the sinking: the original's tunnelling goes down in the first four.
 const SINK_FRAMES: usize = 4;
 /// The frames of the rising: the last five of the tunnelling.
 const RISE_FRAMES: usize = 5;
@@ -192,7 +191,6 @@ impl Visual {
 /// right and y to the lower left). Facing nowhere gives 2, as the original does.
 pub fn facing(from: Pos, to: Pos) -> u8 {
     use std::cmp::Ordering::*;
-    // The core's x is the original's mirrored, so the comparison on x is turned round.
     match (to.0.cmp(&from.0), from.1.cmp(&to.1)) {
         (Greater, Greater) => 0,
         (Equal, Greater) => 1,
@@ -433,8 +431,6 @@ mod tests {
 
     #[test]
     fn facing_follows_the_original_table() {
-        // The table is the original's; the squares are given in the original's frame and
-        // mirrored into the core's.
         let m = |p: Pos| (20 - p.0, p.1);
         let f = |a: Pos, b: Pos| facing(m(a), m(b));
         assert_eq!(f((5, 5), (4, 4)), 0);
@@ -472,7 +468,7 @@ mod tests {
         let v = visual_in(&anim, STEP_TIME * 0.5, 3, (4, 5), 2)
             .expect("the unit has a place on screen");
         assert!((v.at.0 - 4.5).abs() < 1e-4 && (v.at.1 - 5.0).abs() < 1e-4);
-        assert_eq!(v.facing, 7); // east in the core is west on the original's screen
+        assert_eq!(v.facing, 7);
         let v = visual_in(&anim, STEP_TIME * 1.5, 3, (4, 5), 2)
             .expect("the unit has a place on screen");
         assert!((v.at.0 - 5.5).abs() < 1e-4);

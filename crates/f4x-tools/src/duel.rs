@@ -71,6 +71,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     if mode == "ladder" {
         return crate::ladder::run(&args[1..]);
     }
+    if mode == "spells" {
+        return crate::spell_duel::run(&args[1..]);
+    }
     if mode == "heroes" {
         return crate::hero_duel::run(&args[1..]);
     }

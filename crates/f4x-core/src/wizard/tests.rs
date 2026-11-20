@@ -97,8 +97,8 @@ fn a_retort_costs_the_picks_of_its_row() {
 fn a_build_may_hold_as_many_books_in_a_realm_as_the_game_allows() {
     let life = RealmId::new(3);
     let mut g = game();
-    // 12 books are over the original's 11 and under what a game set to 13 allows; the picks
-    // rule does not apply to a ready-made build, so only the books are checked.
+    // 12 books are over 11 and under what a game set to 13 allows; the picks rule does not apply to
+    // a ready-made build, so only the books are checked.
     let mut b = build(&[(life, 12)], &[]);
     b.preset = true;
     assert_eq!(
@@ -479,7 +479,7 @@ fn presets_come_from_the_rules() -> TestResult {
         game().settings.wizards.picks.human,
     );
     g.create_wizard(P0, &b).map_err(|e| format!("{e:?}"))?;
-    // His picture is his place in the list, as in the original.
+    // His picture is his place in the list.
     let place = g
         .content
         .rules
@@ -697,7 +697,7 @@ fn of_kind(
 
 #[test]
 fn a_realm_starts_with_the_first_default_commons_known() -> TestResult {
-    // The original: n books, n - 1 commons known, taken from the realm's default list.
+    // n books, n - 1 commons known, taken from the realm's default list.
     let mut g = game();
     g.create_wizard(P0, &preset(&[(RealmId::new(0 /* nature */), 3)], &[]))
         .map_err(|e| format!("{e:?}"))?;
@@ -737,7 +737,7 @@ fn one_book_knows_no_spell_but_opens_three_commons_and_an_uncommon() -> TestResu
 
 #[test]
 fn the_books_open_more_of_the_realm_as_in_the_tables() -> TestResult {
-    // (books, researchable commons, uncommons, rares, very rares) in the original's tables.
+    // (books, researchable commons, uncommons, rares, very rares) in the tables.
     for (books, expect) in [
         (2, (5, 2, 1, 0)),
         (5, (8, 5, 4, 3)),

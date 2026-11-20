@@ -15,7 +15,6 @@ use macroquad::prelude::*;
 
 /// Where the portrait goes (as in the diplomacy room).
 const PORTRAIT_AT: (f32, f32) = (107.0, 13.0);
-/// Two ticks of the original's 55 ms timer a stage.
 const STAGE: f64 = 0.11;
 /// The picture plays at least this many stages.
 const MIN_STAGES: usize = 12;

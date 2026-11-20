@@ -13,7 +13,6 @@ use serde::Deserialize;
 /// top left corner; the gem is 41 x 43, the portrait 33 x 35).
 pub const DEFAULT_FACE_AT: (usize, usize) = (4, 5);
 
-/// The entries of one wizard, one for each place the original draws or plays it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(default)]
 pub struct WizardPictures {
@@ -39,7 +38,6 @@ pub struct WizardPictures {
     pub hall: usize,
     /// `spellscr`: the summon scene.
     pub summon: usize,
-    /// The wizard's place in the original's music order.
     pub music: u16,
     /// `win`: the arms rising.
     pub win: usize,

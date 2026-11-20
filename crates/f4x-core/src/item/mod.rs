@@ -37,8 +37,7 @@ use crate::rules::{ItemDef, ItemKind, ItemPowerDef, ModOp, Rules, SlotKind, Spel
 use crate::unit::UnitView;
 use hecs::World;
 
-/// The plain bonuses of an item (the original's record: attack, to hit, defence, movement,
-/// resistance, spell skill and spell save).
+/// The plain bonuses of an item.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemBonus {
     pub attack: i32,

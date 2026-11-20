@@ -500,9 +500,8 @@ impl<'a> UnitView<'a> {
     /// Full movement allowance.
     pub fn unit_max_moves(&self, unit: hecs::Entity) -> HalfInt {
         let moves = HalfInt::from_int(self.unit_stat(unit, Stat::Moves).max(0));
-        // Wind Mastery (our rule, not the original's): ships and fliers of a wizard who keeps it
-        // go half as far again; those of a wizard without it, while anyone else keeps it, go
-        // half as far. Nothing stacks.
+        // Wind Mastery (our rule): ships and fliers of a wizard who keeps it go half as far again;
+        // those of a wizard without it, while anyone else keeps it, go half as far. Nothing stacks.
         if self.is_ship_or_flier(unit) {
             if let Some(owner) = self.unit_owner(unit) {
                 if self.has_global_effect(
@@ -638,6 +637,57 @@ impl<'a> UnitView<'a> {
         } else {
             rated
         }
+    }
+
+    /// What the unit would add to a battle with `spell` lasting on it, at full health: its
+    /// [`UnitView::unit_power`] times what the formula of `battle::power` makes of its stats and
+    /// abilities with the spell's modifiers and granted abilities added over what it has now. A
+    /// spell that adds nothing (an ability the unit has already) gives its present power. This is
+    /// the effect of the spell on this unit, for the AI to weigh a buff against another buff or
+    /// another unit.
+    pub fn unit_power_with_spell(&self, unit: hecs::Entity, spell: crate::rules::SpellId) -> f32 {
+        let now = self.unit_power(unit);
+        let Some(def) = self.unit_def(unit) else {
+            return now;
+        };
+        let spell_def = self.content.rules.spells.get(spell);
+        // Heroism lifts the level: what it adds is the rating of the higher level over the
+        // present one's (a unit already as high gains nothing).
+        if spell_def.has_hook(HEROISM) {
+            let level = self.unit_level(unit);
+            let lifted = self.level_with(unit, true);
+            let rules = &self.content.rules;
+            return match (
+                rules.combat_power(def, level),
+                rules.combat_power(def, lifted),
+            ) {
+                (Some(now_rated), Some(lifted_rated)) if lifted > level && now_rated > 0.0 => {
+                    now * lifted_rated / now_rated
+                }
+                _ => now,
+            };
+        }
+        let effects = &spell_def.effects;
+        let mut mods = (*self.modifiers_shared(unit)).clone();
+        mods.extend(passive_modifiers(effects, Source::Spell(spell)));
+        let granted: Vec<Ability> = effects
+            .iter()
+            .filter_map(|r| match r.effect {
+                f4x_def::rules::effects::Effect::GrantAbility(a) => Some(a),
+                _ => None,
+            })
+            .collect();
+        let formula = |mods: &[Modifier], extra: &[Ability]| {
+            crate::battle::power::unit_power(
+                |s| compute(s, def.stats.get(&s).map_or(0, |v| v.floor()), mods),
+                |a| self.unit_has_ability(unit, a) || extra.contains(&a),
+            )
+        };
+        let before = formula(&self.modifiers_shared(unit), &[]);
+        if before <= 0.0 {
+            return now;
+        }
+        now * formula(&mods, &granted) / before
     }
 
     /// Units standing on `pos`, in a stable order.

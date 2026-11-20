@@ -806,9 +806,11 @@ fn rule_value(
                 SLAY_SHARE * worth(u) * chance
             })
             .sum(),
+        // Healing is kept for a unit that has lost half its hit points or more: a cast for a
+        // scratch wastes the mana.
         Effect::Heal(points) => on
             .iter()
-            .filter(|u| ours(u))
+            .filter(|u| ours(u) && u.hit_points() * 2 <= u.max_hit_points())
             .map(|u| {
                 let missing = (u.max_hit_points() - u.hit_points()).max(0) as f32;
                 (missing.min(*points as f32) / u.max_hit_points().max(1) as f32) * worth(u)
@@ -1004,13 +1006,20 @@ mod tests {
     }
 
     #[test]
-    fn the_scripted_wizard_heals_a_hurt_unit_but_not_a_whole_one() -> TestResult {
+    fn the_scripted_wizard_heals_a_unit_down_to_half_but_not_a_whole_or_scratched_one() -> TestResult
+    {
         let g = spell_duel(125 /* healing */, 1, 50, 50)?;
         assert!(
             !matches!(next_command(&g), Some(BattleCommand::Cast { .. })),
             "nothing is hurt"
         );
-        let g = spell_duel_hurt(125 /* healing */, 1, 50, 50, 5)?;
+        let hits = cavalry_hit_points()?;
+        let g = spell_duel_hurt(125 /* healing */, 1, 50, 50, hits.div_ceil(2) - 1)?;
+        assert!(
+            !matches!(next_command(&g), Some(BattleCommand::Cast { .. })),
+            "a unit above half health is left alone"
+        );
+        let g = spell_duel_hurt(125 /* healing */, 1, 50, 50, hits.div_ceil(2))?;
         let Some(BattleCommand::Cast { aim, .. }) = next_command(&g) else {
             return Err("the wizard did not heal".into());
         };
@@ -1255,6 +1264,13 @@ mod tests {
         Ok(())
     }
 
+    /// The hit points of the cavalry over all its figures.
+    fn cavalry_hit_points() -> Result<u32, Box<dyn std::error::Error>> {
+        let def = shipped().rules.units.get(cavalry()?);
+        let stat = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor()).max(1) as u32;
+        Ok(stat(Stat::MaxHp) * stat(Stat::Figures))
+    }
+
     fn cavalry() -> Result<f4x_core::rules::UnitId, Box<dyn std::error::Error>> {
         Ok(shipped().rules.units.id_numbered(107).ok_or("no cavalry")?)
     }
@@ -1459,9 +1475,22 @@ mod tests {
     }
 
     #[test]
-    fn healing_is_worth_something_only_for_a_hurt_unit_of_ours() -> TestResult {
+    fn healing_is_worth_something_only_for_a_unit_of_ours_down_to_half_its_hit_points() -> TestResult
+    {
+        let hits = cavalry_hit_points()?;
+        let half = hits.div_ceil(2);
         for spell in [125 /* healing */, 149 /* mass_healing */] {
-            needs(spell, cavalry()?, |g, ours, _| g.scenario_set_hurt(ours, 3))?;
+            needs(spell, cavalry()?, |g, ours, _| {
+                g.scenario_set_hurt(ours, half)
+            })?;
+            // A scratch, or a unit with more than half its hit points, is not worth the mana.
+            let scratched = best_worth(
+                &duel_prepared(&[], cavalry()?, |g, ours, _| {
+                    g.scenario_set_hurt(ours, half - 1)
+                })?,
+                spell,
+            )?;
+            assert_eq!(scratched, 0.0, "spell {spell} for a unit above half health");
         }
         Ok(())
     }

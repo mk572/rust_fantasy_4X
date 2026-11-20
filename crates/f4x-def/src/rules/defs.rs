@@ -23,8 +23,7 @@ pub struct PlaneWeight {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RaceDef {
-    /// The original's race number, the id the game passes around (and the row of the
-    /// racial unrest matrix).
+    /// The race number, the id the game passes around (and the row of the racial unrest matrix).
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
@@ -134,7 +133,7 @@ pub enum HeroKind {
     Mage,
 }
 
-/// What a hero's item slot takes (the original's six item slot types).
+/// What a hero's item slot takes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SlotKind {
     /// Sword, mace or axe.
@@ -340,7 +339,7 @@ pub struct HeroTemplate {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnitDef {
-    /// The original's unit type number, the id the game passes around.
+    /// The unit type number, the id the game passes around.
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
@@ -403,8 +402,7 @@ impl UnitDef {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AbilityDef {
-    /// The ability's number, the id the game passes around: the original has no table of
-    /// abilities, so they are our own, counted from 1 and frozen.
+    /// The ability's number, the id the game passes around: counted from 1 and frozen.
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
@@ -453,7 +451,7 @@ impl PerLevel {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BuildingDef {
-    /// The original's building number, the id the game passes around.
+    /// The building number, the id the game passes around.
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
@@ -487,7 +485,7 @@ pub struct BuildingDef {
 /// A school of magic. Data, so the set of realms is not hard-coded.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RealmDef {
-    /// The original's realm number, the id the game passes around.
+    /// The realm number, the id the game passes around.
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
@@ -523,8 +521,8 @@ pub enum RetortNeed {
 /// A retort: a special ability of a wizard, picked at the creation screen or won as loot.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RetortDef {
-    /// The retort's place in the original's wizard record, the id the game passes around and the
-    /// saved game writes.
+    /// The retort's place in the wizard record, the id the game passes around and the saved game
+    /// writes.
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
@@ -559,7 +557,7 @@ impl RetortDef {
 /// description that the local texts file fills in.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WizardDef {
-    /// The wizard's place in the original's list, the id the game passes around.
+    /// The wizard's place in the list, the id the game passes around.
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
@@ -616,10 +614,9 @@ pub enum UnitOnly {
     /// Any unit.
     #[default]
     Any,
-    /// A normal unit or a hero, not a fantastic creature and not undead (the original's
-    /// "Unit Enchantment, Normal Only" spells: Heroism, Holy Armor, Holy Weapon, Eldritch Weapon,
-    /// Flame Blade). A unit that is several things at once, as Torin is a hero and a Life
-    /// creature, is a valid target when any one of them is.
+    /// A normal unit or a hero, not a fantastic creature and not undead. A unit that is several
+    /// things at once, as Torin is a hero and a Life creature, is a valid target when any one of
+    /// them is.
     NormalOrHero,
 }
 
@@ -638,9 +635,8 @@ pub struct SpellDef {
     pub cost: u32,
     pub research_cost: u32,
     pub contexts: Vec<CastContext>,
-    /// A spell that can also be cast in battle costs five times as much on the map (the
-    /// original's eligibility 0, 2 and 3; the spells it sells only for the map, or for
-    /// battle, are not dearer).
+    /// A spell that can also be cast in battle costs five times as much on the map (a spell sold
+    /// only for the map, or only for battle, is not dearer).
     #[serde(default)]
     pub overland_x5: bool,
     pub target: SpellTarget,
@@ -700,12 +696,12 @@ pub struct SpellSave {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemDef {
-    /// The original's item number, the id the game passes around.
+    /// The item number, the id the game passes around.
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
     pub slot: ItemSlot,
-    /// The original's item type; it fixes the slot (see [`ItemKind::slot`]).
+    /// The item type; it fixes the slot (see [`ItemKind::slot`]).
     pub kind: ItemKind,
     pub cost: u32,
     /// The plain bonuses: attack, to hit, defence, movement, resistance.
@@ -713,7 +709,7 @@ pub struct ItemDef {
     /// Added to the hero's mana in battle.
     #[serde(default)]
     pub spell_skill: i32,
-    /// The size of the resistance penalty put on what the hero's spells hit, as the original stores it.
+    /// The size of the resistance penalty put on what the hero's spells hit.
     #[serde(default)]
     pub spell_save: i32,
     /// Special powers (ids in `item_powers.ron`).
@@ -728,7 +724,7 @@ pub struct ItemDef {
     pub flag: bool,
 }
 
-/// The ten item types of the original, in its order.
+/// The ten item types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ItemKind {
     Sword,
@@ -777,7 +773,7 @@ impl ItemKind {
 /// can carry, with what it costs to put on one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemPowerDef {
-    /// The original's item power number, the id the game passes around.
+    /// The item power number, the id the game passes around.
     pub num: u16,
     /// The alias for human editing.
     pub id: String,

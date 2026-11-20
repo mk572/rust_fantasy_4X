@@ -130,7 +130,6 @@ pub fn extract_fonts(
                 px: px.clone(),
             })
             .collect();
-        // The original's fonts are ASCII only: the other European letters are drawn from them.
         if style < LETTER_STYLES {
             bm_glyphs.extend(extra_glyphs(&bm_glyphs, if height > 12 { 2 } else { 1 }));
         }

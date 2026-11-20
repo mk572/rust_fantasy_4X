@@ -62,7 +62,7 @@ pub enum Stage {
     Established,
 }
 
-/// What moved a relation (the original's reaction types).
+/// What moved a relation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Action {
     /// A treaty growing, a gift, the Aura of Majesty.
@@ -90,8 +90,8 @@ pub enum Action {
 }
 
 impl Action {
-    /// The reaction events the original ranks before the talks: a negative one is ignored
-    /// between wizards at war.
+    /// The reaction events ranked before the talks: a negative one is ignored between wizards at
+    /// war.
     fn is_reaction(self) -> bool {
         self != Action::Trespass
     }
@@ -413,11 +413,10 @@ pub fn relation_key(relation: i32) -> &'static str {
     RELATION_KEYS[relation_level(relation)]
 }
 
-/// The squares of a plane of the original's medium map, which the city allowance below is
-/// counted for.
+/// The squares of a plane of a medium map, which the city allowance below is counted for.
 const ORIGINAL_PLANE_SQUARES: i32 = 60 * 40;
 
-/// The land size of the game as the original counts it: 0 small, 1 medium, 2 large.
+/// The land size of the game: 0 small, 1 medium, 2 large.
 fn land_size(view: &Game) -> i32 {
     let land = view.settings.basic.land_percent;
     if land <= crate::game::setting::LAND_SMALL {
@@ -429,8 +428,8 @@ fn land_size(view: &Game) -> i32 {
     }
 }
 
-/// The cities a wizard may hold before the others take it amiss (`(landsize + 1) * 3` on the
-/// original's medium map, more on a larger one, in step with its land).
+/// The cities a wizard may hold before the others take it amiss (`(landsize + 1) * 3` on a medium
+/// map, more on a larger one, in step with its land).
 fn city_allowance(view: &Game) -> i32 {
     let basic = &view.settings.basic;
     let squares = i32::from(basic.map_width) * i32::from(basic.map_height);
@@ -468,7 +467,7 @@ fn owners(sightings: Vec<crate::game::view::Sighting>) -> Vec<PlayerId> {
     met
 }
 
-/// The total cost of a wizard's units, the original's army strength.
+/// The total cost of a wizard's units.
 pub fn army_strength(view: &Game, player: PlayerId) -> i32 {
     view.units_of(player).iter().map(|u| u.cost as i32).sum()
 }
@@ -780,8 +779,8 @@ impl Diplomacy {
         let at_war = self.treaty(defender, attacker) == Treaty::War;
         let mut applied = v;
         if at_war && action.is_reaction() && v < 0 {
-            // Wars are not made worse by what one does in them; a quarter wears down the
-            // peace patience (of any attacker: the original does it for the human only).
+            // Wars are not made worse by what one does in them; a quarter wears down the peace
+            // patience (of any attacker).
             self.stance_mut(defender, attacker).peace_patience += v / 4;
             self.stance_mut(attacker, defender).peace_patience -= v / 4;
             applied = 0;
@@ -1142,9 +1141,8 @@ impl Diplomacy {
             return Err(DiplomacyError::NotAllowed);
         }
         let proposal = self.proposals.remove(at);
-        // Asking wears down the receiver's patience with the asker, whoever answers and
-        // whatever the answer is (the original does it inside the AI's rating, and not for a
-        // spell swap, which it grants unrated).
+        // Asking wears down the receiver's patience with the asker, whoever answers and whatever
+        // the answer is.
         match proposal.kind {
             ProposalKind::Trade { .. } | ProposalKind::Demand { .. } => {}
             ProposalKind::Threat => {}
@@ -1219,8 +1217,7 @@ impl Diplomacy {
                 Self::hand_over(ctx, p.from, p.to, give);
                 Self::hand_over(ctx, p.to, p.from, get);
                 // Whoever gets the better deal, by its own worth of what it gets and gives, likes
-                // its partner more (the original's spell swap does it for the one who is
-                // overpaid; here it goes both ways, and a fair trade pleases neither).
+                // its partner more.
                 let worth = |holder, goods| trade::worth(ctx.view, holder, goods);
                 let proposer_gain = worth(p.from, get) - worth(p.from, give);
                 let receiver_gain = worth(p.to, give) - worth(p.to, get);
@@ -1277,8 +1274,8 @@ impl Diplomacy {
         {
             return Err(DiplomacyError::NotEnoughGold);
         }
-        // The original offers a quarter, half, three quarters or all of the receiver's gold: the
-        // larger the share, the warmer the thanks.
+        // A quarter, half, three quarters or all of the receiver's gold is offered: the larger the
+        // share, the warmer the thanks.
         let reserve = ctx
             .view
             .player(to)
@@ -1532,8 +1529,7 @@ impl Diplomacy {
         }
     }
 
-    /// Attacking a wizard one has a treaty with breaks it first; the attacker is the breaker
-    /// (the original has the victim break it, a mistake of the decompiled code).
+    /// Attacking a wizard one has a treaty with breaks it first; the attacker is the breaker.
     pub(crate) fn attack_relations(
         &mut self,
         ctx: &mut DiplomacyCtx<'_>,
@@ -2097,7 +2093,7 @@ impl Game {
         self.with_diplomacy(|d, ctx| d.declare_peace(ctx, a, b));
     }
 
-    /// The total cost of a wizard's units, the original's army strength.
+    /// The total cost of a wizard's units.
     pub fn army_strength(&self, player: PlayerId) -> i32 {
         army_strength(self, player)
     }

@@ -15,7 +15,7 @@ use f4x_core::game::Game;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
 
-/// The most passes with smaller distances before giving up (the original loops for ever).
+/// The most passes with smaller distances before giving up.
 const MAX_PASSES: u32 = 60;
 
 /// One site for each wizard, in order, `planes[k]` being wizard `k`'s plane. `None` if no pass

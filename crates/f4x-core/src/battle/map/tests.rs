@@ -86,7 +86,6 @@ fn the_generated_map_is_the_original_band_mirrored_and_follows_the_terrain() {
         let mut dear = 0;
         for y in 0..GRID_H {
             for x in 0..GRID_W {
-                // The rules' frame is the original's mirrored.
                 assert_eq!(
                     m.is_playable((x, y)),
                     layout::in_band(GRID_W - 1 - x, y),

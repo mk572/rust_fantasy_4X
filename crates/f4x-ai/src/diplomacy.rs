@@ -60,13 +60,13 @@ pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Verdict {
     Refused,
-    /// A counter-offer would be due; the original has none.
+    /// A counter-offer would be due.
     Counter,
     Maybe,
     Accepted,
 }
 
-/// How a threat weighs: the asker's army against the judge's, as the original rates it.
+/// How a threat weighs: the asker's army against the judge's.
 pub(crate) fn threat_modifier(game: &Game, asker: PlayerId, judge: PlayerId) -> i32 {
     let (mine, theirs) = (army_strength(game, asker), army_strength(game, judge));
     if theirs < mine {
@@ -173,8 +173,7 @@ pub(crate) fn rate(
 }
 
 /// A wizard declares war on a rival who is casting the Spell of Mastery when a roll of 1 to 100
-/// comes out below this, each turn it is cast (the original rolls it when the rival's relation
-/// drops).
+/// comes out below this, each turn it is cast.
 const MASTERY_WAR_BELOW: u32 = 11;
 
 /// A wizard that has met a rival casting the Spell of Mastery may declare war on it, on its own

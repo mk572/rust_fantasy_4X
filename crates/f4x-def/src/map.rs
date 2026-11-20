@@ -96,7 +96,7 @@ pub const REQUIRED_CLASSES: &[TerrainClass] = &[
 pub struct TerrainDef {
     pub id: String,
     /// The terrain's number, the id the game passes around (ours: counted from 1 in the
-    /// alphabetical order of the ids; the original has no table of terrain types by name).
+    /// alphabetical order of the ids).
     pub num: u16,
     pub class: TerrainClass,
     pub walkable: bool,

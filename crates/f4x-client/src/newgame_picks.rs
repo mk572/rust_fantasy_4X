@@ -39,8 +39,6 @@ fn realm_colour(realm: RealmId) -> u8 {
     }
 }
 
-/// What a retort needs, in the words of the original's refusal ("To select X you need: ..."):
-/// each need of its row in `retorts.ron`, joined by commas.
 pub(crate) fn prerequisite_text(
     names: &crate::names::Names,
     content: &Content,
@@ -206,7 +204,7 @@ impl CreateState {
         self.build.picks_left(rules) - extra
     }
 
-    /// Take or drop a retort, with the original's refusals.
+    /// Take or drop a retort.
     fn click_retort(&mut self, app: &mut App, retort: Retort) {
         if self.build.retorts.remove(&retort) {
             return;
@@ -362,7 +360,7 @@ impl CreateState {
     pub(crate) fn next_spells(&mut self, app: &mut App, from: usize) {
         for (i, &realm) in REALM_ORDER.iter().enumerate().skip(from) {
             if !self.spell_sections(app, realm).is_empty() {
-                // The original starts each realm with its default spells chosen.
+                // Each realm starts with its default spells chosen.
                 let sections = self.spell_sections(app, realm);
                 self.build
                     .spells
@@ -445,8 +443,6 @@ impl CreateState {
                 167.0,
                 26.0 + 51.0 * s as f32,
             );
-            // The commons are listed in the original's order (the realm's default list), the rest in the
-            // order of the rules.
             let pool = if rarity == Rarity::Common {
                 f4x_core::wizard::magic::default_spells(app.game.content(), realm, rarity)
             } else {

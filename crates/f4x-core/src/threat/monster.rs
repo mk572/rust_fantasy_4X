@@ -93,8 +93,8 @@ impl Game {
             return Vec::new();
         };
         let mut budget = ((self.roll(d + 1) + self.roll(d + 1)) * self.turn / 5) as i32;
-        // On a landmass that holds a computer wizard's cities and none of the human's the
-        // budget is halved (the original's "AI home continent").
+        // On a landmass that holds a computer wizard's cities and none of the human's the budget is
+        // halved.
         let land = self.landmass_at(&lands, zone.pos);
         let human = self.human();
         let on_land = |p: Position| self.landmass_at(&lands, p) == land;
@@ -258,7 +258,7 @@ impl Game {
             .get::<&crate::city::economy::Buildings>(city)
             .map(|b| b.0.clone())
             .unwrap_or_default();
-        // A rampage is hard on a city: the original adds 50 percent to the losses of both kinds.
+        // A rampage is hard on a city: 50 percent are added to the losses of both kinds.
         let toll = crate::city::conquest::fighting_toll(
             citizens,
             city_damage + self.content.rules.config.threat.rampage_damage,

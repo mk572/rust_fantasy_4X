@@ -11,7 +11,6 @@ use crate::input::Input;
 use crate::page::Page;
 use crate::view::{App, Screen};
 
-/// The height of the screen in the original's pixels.
 const HEIGHT: f32 = 200.0;
 /// The pixels the roll rises in a second.
 const SPEED: f32 = 18.0;

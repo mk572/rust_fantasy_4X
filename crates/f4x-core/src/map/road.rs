@@ -68,7 +68,7 @@ impl Game {
             TerrainClass::SorceryNode => 4,
             TerrainClass::NatureNode | TerrainClass::ChaosNode => 5,
         };
-        // A river needs a bridge: two turns more (the original's river square takes 5).
+        // A river needs a bridge: two turns more.
         let bridge = if grid.has_river(at.x as i32, at.y as i32) {
             RIVER_BRIDGE_TURNS
         } else {

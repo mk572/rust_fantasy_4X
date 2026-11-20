@@ -1,7 +1,6 @@
-//! The new game screens' wooden OK and Cancel without their lettering:
-//! the screen's blank wooden plate (`assets/button/wood_64.png` for the wide ones, `wood_30.png`, cut from
-//! it, for the small OK of the creation steps; `scripts/button_text_free.py`). The label is a text key drawn by the font
-//! engine in style 4 in the original's dark brown with a light edge down and to the right.
+//! The new game screens' wooden OK and Cancel without their lettering: the screen's blank wooden
+//! plate (`assets/button/wood_64.png` for the wide ones, `wood_30.png`, cut from it, for the small
+//! OK of the creation steps; `scripts/button_text_free.py`).
 
 use macroquad::prelude::*;
 use std::cell::RefCell;
@@ -28,7 +27,6 @@ impl Board {
         }
     }
 
-    /// How far up and left of the original's OK picture the plate starts (it is a pixel bigger).
     fn offset(self) -> (f32, f32) {
         match self {
             Board::Wide => (1.0, 1.0),
@@ -36,8 +34,6 @@ impl Board {
         }
     }
 
-    /// Where the label's middle and top are, from the original OK picture's top left. A pixel higher
-    /// than the original's own lettering for the wide buttons, whose plate has an extra row on top.
     fn label_at(self, width: f32) -> (f32, f32) {
         match self {
             Board::Wide => (width / 2.0 + 1.0, 2.0),

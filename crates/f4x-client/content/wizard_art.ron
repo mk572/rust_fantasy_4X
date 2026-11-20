@@ -1,11 +1,11 @@
 // Which pictures each ready-made wizard uses, in the order of `wizards.ron` (a wizard's place is the
-// slot the game saves as its portrait). Each number is an entry of the original's file named in the
+// slot the game saves as its portrait). Each number is an entry of the file named in the
 // comment; the client picks the file by the role. Read by the client; the rules do not know it.
 //   portrait  wizards (the new-game picker)      mirror  moodwiz (diplomacy room, spell animations)
 //   talk      diplomac (the wizard talking)      lab     wizlab (the wizard in the lab)
 //   face      magic (the portrait that goes in the gem; face_at is where, in the gem's 41x43 pixels)
 //   appear    diplomac (the wizard fading into the mirror)   hall    halofam (the hall of fame)
-//   summon    spellscr (the summon scene)        music   the wizard's place in the original's music order
+//   summon    spellscr (the summon scene)        music   the wizard's place in the music order
 //   win       win (arms rising)  hands  win (the hands held up)   lose  lose (the fall into limbo)
 //   sphere, sphere_figure  spellose (Spell of Mastery lost)
 //   stand, pieces, seize   conquest (a wizard destroyed)

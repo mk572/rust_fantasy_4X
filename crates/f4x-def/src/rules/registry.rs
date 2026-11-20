@@ -4,8 +4,7 @@
 
 use super::ids::Id;
 
-/// A definition with a unique string id (its alias for human editing) and the original game's
-/// number.
+/// A definition with a unique string id (its alias for human editing) and its number.
 pub trait Def {
     fn id(&self) -> &str;
 

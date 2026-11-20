@@ -49,7 +49,6 @@ fn extract_cursors(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<usize,
         let Some(raw) = entry.get(at..at + SIZE * SIZE) else {
             break;
         };
-        // The original stores the picture column by column.
         let pixels: Vec<u8> = (0..SIZE * SIZE)
             .map(|k| raw[(k % SIZE) * SIZE + k / SIZE])
             .collect();

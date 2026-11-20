@@ -316,7 +316,6 @@ impl Page for CartographerPage {
             let Some((banner, name)) = app.game.wizard(id).map(|w| (w.banner(), w.name())) else {
                 continue;
             };
-            // The original's flags for its five colours; a flat one for the new colours.
             if banner < 5 {
                 app.draw_pic(
                     &lay,

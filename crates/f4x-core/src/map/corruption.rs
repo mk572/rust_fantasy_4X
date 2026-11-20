@@ -49,8 +49,8 @@ impl Game {
             .is_some_and(|m| m.plane(at.plane).is_corrupted(at.x as i32, at.y as i32))
     }
 
-    /// Corruption works on any land square that is not already corrupted, and never on a
-    /// magic node (message 41 of the original).
+    /// Corruption works on any land square that is not already corrupted, and never on a magic
+    /// node.
     pub fn check_corrupt(&self, at: Position) -> Result<(), TargetError> {
         match self.economy().terrain_class_at(at) {
             None => Err(TargetError::OffMap),

@@ -64,7 +64,7 @@ pub struct Options {
     /// (none: the rule set's). The games have no human wizard, so "human" is nobody.
     pub mastery: Option<f4x_def::settings::SpellAccess>,
     pub spell_return: Option<f4x_def::settings::SpellAccess>,
-    /// The rules the games are played with; 1.31, the original's, unless asked otherwise.
+    /// The rules the games are played with; 1.31 unless asked otherwise.
     pub rules: f4x_def::settings::RuleSet,
 }
 

@@ -11,7 +11,6 @@ use crate::input::Input;
 use crate::ui;
 use crate::view::App;
 
-/// The space between the words of the title, in the original's pixels.
 const WORD_GAP: f32 = 3.0;
 
 fn load(bytes: &[u8]) -> Texture2D {
@@ -57,8 +56,6 @@ impl App {
                 ..Default::default()
             },
         );
-        // Embossed as the original: a gold shadow down and to the right, a brown one up and to the
-        // left. The original's words are set closer than the font's space.
         let title = self.text(title_key);
         let font = crate::menu_bar_art::label_font();
         let words: Vec<&str> = title.split(' ').collect();

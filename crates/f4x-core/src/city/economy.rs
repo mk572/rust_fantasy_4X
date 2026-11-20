@@ -527,7 +527,7 @@ impl<'a> Economy<'a> {
         if let Ok(buildings) = self.world.get::<&Buildings>(city) {
             let evil = self.evil_presence_active(city);
             // Divine and Infernal Power add half again to the power and the pacifying of the
-            // religious buildings: the original adds the buildings up, then takes 150 percent.
+            // religious buildings.
             let owner = self.city_owner(city);
             let devout = owner.and_then(|o| self.wizard(o)).map_or(100, |m| {
                 m.stat(&self.content.rules, Stat::ReligiousPercent, 100)
@@ -539,8 +539,7 @@ impl<'a> Economy<'a> {
             for &b in &buildings.0 {
                 let def = rules.buildings.get(b);
                 let mut found = passive_modifiers(&def.effects, Source::Building(b));
-                // Evil Presence destroys the magic power of the religious buildings (the help;
-                // the original's code stops their pacifying instead, B22).
+                // Evil Presence destroys the magic power of the religious buildings.
                 if evil
                     && rules
                         .config
@@ -566,8 +565,7 @@ impl<'a> Economy<'a> {
                 }
                 mods.extend(found);
             }
-            // Great Wasting adds one (the original's code sets the pacifying to minus one, the
-            // same bug as Armageddon's minus two; Armageddon's is the larger).
+            // Great Wasting adds one.
             if armageddon || wasting {
                 mods.push(Modifier::new(
                     Stat::CityUnrest,
@@ -733,9 +731,9 @@ impl<'a> Economy<'a> {
                     shore += 1;
                 }
             }
-            // Where a river runs into a lake, or into the sea at a shore with at most three
-            // other land squares around it, the water gives two food. A shore hemmed in by
-            // four or more takes the plain shore's half food (the original's tile sets).
+            // Where a river runs into a lake, or into the sea at a shore with at most three other
+            // land squares around it, the water gives two food. A shore hemmed in by four or more
+            // takes the plain shore's half food.
             if river_in && (grid.is_lake(x, y) || shore <= 3) {
                 return food.max(HalfInt::from_int(2));
             }
@@ -1071,8 +1069,7 @@ impl<'a> Economy<'a> {
                 .min(self.max_battle_side()) as i32;
             pacify += police / 2;
         }
-        // Stream of Life: the citizens are so pleased that unrest disappears (the original's
-        // code reads the owner's table instead of the city's, see B8).
+        // Stream of Life: the citizens are so pleased that unrest disappears (see B8).
         if self.city_has_effect(city, CityEffect::StreamOfLife) {
             0
         } else {

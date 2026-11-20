@@ -88,9 +88,8 @@ impl Budget {
         t.noble_gold =
             HalfInt::from_int(10 * troops.iter().filter(|u| u.noble_hero).count() as i32);
         t.food_upkeep = troops.iter().map(|u| u.food).sum();
-        // The empire's spare food is sold at two for one gold once the army has eaten: the original
-        // rounded each city and the army down on their own, here only the total is rounded (to a
-        // half gold).
+        // The empire's spare food is sold at two for one gold once the army has eaten: only the
+        // total is rounded (to a half gold).
         t.food_gold = HalfInt::from_raw(((t.food_surplus - t.food_upkeep).raw() / 2).max(0));
         t.unit_upkeep = (troops.iter().map(|u| u.gold).sum::<HalfInt>() - HalfInt::from_int(fame))
             .max(HalfInt::ZERO);

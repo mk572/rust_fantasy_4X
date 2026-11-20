@@ -1,8 +1,8 @@
-//! Starting a game without the client: a map, the wizards, a fortress for each spread round
-//! the map and a few starting units. The client's new-game screen, the console, the AI soak
-//! runs and tests all start games here.
+//! Starting a game without the client: a map, the wizards, a fortress for each spread round the map
+//! and a few starting units. The client's new-game screen, the console, the AI soak runs and tests
+//! all start games here.
 //!
-//! Tests: below, and in setup/original.rs for the original's fortress sites.
+//! Tests: below, and in setup/original.rs for the rolled fortress sites.
 
 /// The least maximum population of a fortress's land, kept through every pass but the last.
 const MIN_START_SIZE: u32 = 5;
@@ -339,7 +339,6 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                 *want
             }
             None => {
-                // The original's limit: above Normal an Arcanus computer wizard has one of five races.
                 let limited =
                     settings.rules.limit_ai_races && !myrran && settings.basic.difficulty > 2;
                 let all: Vec<u16> = race_defs

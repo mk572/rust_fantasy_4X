@@ -615,7 +615,7 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() -> TestResult {
         }
     }
     // The payments are as many as the skill goes into the cost, but the last is borrowed from the
-    // next turn's skill, as in the original.
+    // next turn's skill.
     assert_eq!(ready_after, Some((cost + skill - 1) / skill - 1));
     assert_eq!(
         g.player(P0).ok_or("player is missing")?.treasury().mana,
@@ -1007,7 +1007,7 @@ fn a_conjurer_pays_three_quarters_of_a_units_mana_upkeep_rounded_up() -> TestRes
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
         .insert(Retort::new(15) /* conjurer */);
-    // 14 -> 10.5 -> 11, 12 -> 9, 1 -> 0.75 -> 1: the original's (upkeep * 3 + 3) / 4.
+    // 14 -> 10.5 -> 11, 12 -> 9, 1 -> 0.75 -> 1: (upkeep * 3 + 3) / 4.
     assert_eq!(upkeep(&g), 11 + 9 + 1);
     Ok(())
 }

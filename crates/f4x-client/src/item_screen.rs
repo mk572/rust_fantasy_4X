@@ -84,7 +84,6 @@ pub(crate) fn hero_square(slot: usize) -> (f32, f32) {
     )
 }
 
-/// The key of the text the original prints for a refused move; empty when it prints none.
 pub(crate) fn refusal(error: ItemError) -> &'static str {
     match error {
         ItemError::WrongSlot => "item.wrong_slot",
@@ -198,9 +197,9 @@ impl ItemUi {
     }
 
     fn try_move(&mut self, app: &mut App, from: ItemSpot, to: ItemSpot, pay: bool) {
-        // An item put in the vault that comes from the award list leaves the list shorter; an
-        // item in the hand stays there while the swapped one is picked up in its place (the
-        // original's exchange), which the core does as a swap.
+        // An item put in the vault that comes from the award list leaves the list shorter; an item
+        // in the hand stays there while the swapped one is picked up in its place, which the core
+        // does as a swap.
         let before = app.item_at(to);
         let events = app.game.apply(Command::MoveItem {
             player: HUMAN,

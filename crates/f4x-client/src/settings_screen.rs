@@ -18,9 +18,8 @@ use crate::preferences::{Pref, FILE};
 use crate::ui::{self, GOLD};
 use crate::view::{App, Screen};
 
-/// Where a switch sits, in the original's pixels: the check box's left edge and top.
-/// Left column x=31, right column x=192; the label starts 16 pixels right of the box and
-/// 2 below its top. The gaps between groups are the original's.
+/// Where a switch sits. Left column x=31, right column x=192; the label starts 16 pixels right of
+/// the box and 2 below its top.
 const ROWS: &[(Pref, f32, f32)] = &[
     (Pref::SoundEffects, 31.0, 52.0),
     (Pref::BackgroundMusic, 31.0, 63.0),
@@ -45,9 +44,6 @@ const ROWS: &[(Pref, f32, f32)] = &[
     (Pref::OpenFinishedCities, 192.0, 174.0),
 ];
 
-/// The help topic of a switch: the original's topics (`settings Help` in `help_screens.ron`)
-/// and 807 to 811 for the switches it has not got. The area table of the original is not used
-/// on this screen, because our rows sit elsewhere.
 pub(crate) fn help_topic(pref: Pref) -> u16 {
     match pref {
         Pref::SoundEffects => 675,
@@ -91,7 +87,7 @@ const HEADINGS: &[(&str, f32, f32)] = &[
     ("settings.display", 192.0, 92.0),
 ];
 
-/// The volume sliders (not in the original): label x, bar x and width, and the row's top.
+/// The volume sliders: label x, bar x and width, and the row's top.
 const SLIDERS: &[(&str, f32, f32, f32)] = &[
     ("settings.music_volume", 100.0, 126.0, 40.0),
     ("settings.effects_volume", 172.0, 209.0, 46.0),
@@ -196,7 +192,6 @@ impl Page for SettingsPage {
             1.0,
         );
         app.volume_sliders(&lay, view, mouse, input);
-        // The game's own settings, which the original keeps on the new-game screen.
         let defaults_label = app.text("settings.default_game");
         if app.red_button_sized(&lay, &defaults_label, 148.0, 166.0, 114.0, input) {
             app.save_preferences();

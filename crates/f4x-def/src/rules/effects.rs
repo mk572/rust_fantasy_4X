@@ -54,8 +54,8 @@ pub enum Trigger {
     OnCast,
 }
 
-/// How a damage spell is dealt in a battle (the original's attack attributes). None of it
-/// matters overland, where the damage is a flat number.
+/// How a damage spell is dealt in a battle. None of it matters overland, where the damage is a flat
+/// number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DamageTraits {

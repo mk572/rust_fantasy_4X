@@ -1,6 +1,4 @@
-//! Loads the locally extracted original art (`assets-local/art`) on demand.
-//! Everything is optional: a missing file just means the caller draws a flat
-//! placeholder, so the game runs and CI passes without the original assets.
+//! Everything is optional: a missing file just means the caller draws a flat placeholder.
 
 use crate::icon_art::IconArt;
 use std::collections::HashMap;
@@ -15,15 +13,11 @@ use macroquad_bitmap_font_engine::{self as bm, BmFont, FontData};
 pub const TILE_W: f32 = 20.0;
 pub const TILE_H: f32 = 18.0;
 
-/// Terrain type numbers in the original's tile table.
 pub mod terrain_type {
     /// Myrror's types follow Arcanus's.
     pub const MYRROR_OFFSET: usize = 762;
 }
 
-/// What the original's minimap is painted with (`f4x-extract art` writes `minimap.tsv`): a colour
-/// for each terrain type, and for the cities of each banner and of the neutral ones, the box
-/// round the map window and the mark on the selected stack.
 #[derive(Default)]
 pub struct MinimapColours {
     terrain: Vec<Color>,
@@ -99,8 +93,6 @@ impl MinimapColours {
     }
 }
 
-/// The eight bitmap fonts of the original as BMFonts (`.fnt` text and atlas PNG, sixteen colour
-/// sets in each atlas), embedded in the client; the index is the font style.
 const FONTS: &[(&str, &[u8])] = &[
     (
         include_str!("../assets/fonts/style0.fnt"),
@@ -384,7 +376,6 @@ impl Art {
         self.icons.battle_info(key)
     }
 
-    /// The `(file, entry)` of a unit's picture in the original's unit files, by the unit's id.
     pub fn unit_entry(&self, unit: &str) -> Option<(String, usize)> {
         self.units.get(unit)?.art.clone()
     }
@@ -459,7 +450,6 @@ impl Art {
         self.font_data[style].layout(text).width()
     }
 
-    /// Height of a font style in the original's pixels.
     pub fn text_height(&self, style: usize) -> f32 {
         self.font_data[style].base
     }
@@ -636,7 +626,6 @@ impl Art {
         self.unit_glows.get(&key).and_then(Option::as_ref)
     }
 
-    /// A figure under a spell's effect, recoloured pixel by pixel as the original does.
     pub fn affected_figure(
         &mut self,
         figure: FigureKey,
@@ -898,7 +887,6 @@ impl Art {
         let frame = crate::gem::frame(banner)?;
         let scale = usize::from(crate::resolution::art_scale());
         let big = self.pixels("magic", pictures.face, 0)?;
-        // The portrait comes at the art scale; the diamond is made at the original's size.
         let face = crate::gem::shrunk(big, scale);
         let gem = crate::gem::compose(&frame, &face, pictures.face_origin());
         let tex = Texture2D::from_image(&enlarged(gem, scale));
@@ -975,10 +963,7 @@ fn picture_base(
     }
 }
 
-/// A picture file as an image at the art scale in use (`crate::resolution`): the finer art in
-/// `x2/` or `x4/` beside the originals when it has the file, otherwise the original enlarged by
-/// whole pixels, so an image is always the art scale times the size of its picture on the design
-/// grid.
+/// A picture file as an image at the art scale in use (`crate::resolution`).
 fn read_image(dir: &Path, relative: &Path) -> Option<Image> {
     trace_read(relative);
     let scale = crate::resolution::art_scale();
@@ -1001,7 +986,7 @@ fn read_image(dir: &Path, relative: &Path) -> Option<Image> {
     Some(enlarged(image, usize::from(scale)))
 }
 
-/// A picture as it is stored, from a sprite pack or else the loose file, at the original's size.
+/// A picture as it is stored, from a sprite pack or else the loose file.
 fn read_image_at_one_scale(dir: &Path, relative: &Path) -> Option<Image> {
     if let Some(image) = crate::pack_set::read(dir, relative) {
         return Some(image);
@@ -1097,7 +1082,6 @@ pub fn paint_banner(rgba: &mut [u8], mask: &[u8], shades: &[[u8; 3]; 5]) {
     }
 }
 
-/// Colours to use before the original's banners are extracted.
 fn default_banner_color(banner: u8) -> Color {
     match banner {
         0 => Color::new(0.33, 0.33, 0.65, 1.0),

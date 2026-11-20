@@ -69,7 +69,7 @@ quiver is full again after every fight. A spell caster (`spellcaster` 20 mana, `
 `shoots_with_mana`; shots = mana / 3). Mana Leak takes 5 mana from each unit and one shot from a
 unit with spell shots but no mana. Heroes' mana waits for task 51.
 
-Not yet: haste, fear.
+Not yet: fear.
 
 ### After the battle (task 42, `battle/spoils.rs`)
 
@@ -511,7 +511,7 @@ It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effec
   (`extra_hits`) belong to no spell and stay through any dispel. Whenever the hit-point ceiling
   falls, the damage taken is kept and a unit left with none dies (`settle_hit_points`,
   `divergences.md` 45). A unit cannot be given a spell it has.
-- **Haste** doubles the unit's moves and grants the ability `hasted`: a hasted unit has a second attack or shot each turn (`BattleUnit::extra_attack`, spent by `used_attack`; the second shot uses a second round of ammunition).
+- **Haste** doubles the unit's moves and grants the ability `hasted` (`BattleUnit::is_hasted`): its attack is doubled. In melee the attacker makes one more swing at the end of the same exchange (`Fighter::extra_swing`, after the defender's counter-attack, with the figures left); a hasted defender still counter-attacks once. A hasted shooter fires a second volley in the same shot while it has ammunition (or mana) and the target stands. A hasted unit attacks once a turn. Source: ReMoM `Combat.c`, `Battle_Unit_Attack` (the original's hasted defender is not given a second counter-attack here, by decision of the project owner).
 - **Summons** appear on a free square of the caster's half of the field, at most nine units a
   side, ready to act; they are made like any unit and the overland copy is dropped at once, so
   nothing is left on the map afterwards.

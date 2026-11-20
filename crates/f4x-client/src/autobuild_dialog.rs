@@ -21,7 +21,6 @@ pub(crate) struct AutoDialog {
 }
 
 const MIXES: &[Mix] = &[Mix::Both, Mix::Buildings, Mix::Units];
-/// Row height of the dialog's list, in the original's pixels.
 const ROW: f32 = 10.0;
 const POPULATIONS: std::ops::RangeInclusive<u32> = 2..=12;
 

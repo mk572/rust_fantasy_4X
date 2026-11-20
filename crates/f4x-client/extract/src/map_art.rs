@@ -125,7 +125,6 @@ fn recolor(pixels: &[u8], from: u8, to: [u8; 5]) -> Vec<u8> {
         .iter()
         .map(|&p| {
             if (from..from + 5).contains(&p) {
-                // The original subtracts one from the table value when it recolours cities.
                 to[usize::from(p - from)].saturating_sub(1).max(1)
             } else {
                 p

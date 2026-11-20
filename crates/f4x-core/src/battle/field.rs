@@ -491,8 +491,7 @@ impl Battle {
                     events.push(BattleEvent::Terrified { unit: id });
                 }
             }
-            // Entangle holds only walkers with a body: the help says so, and the original's code,
-            // which takes the move from every unit, is taken to be a bug.
+            // Entangle holds only walkers with a body: the help says so.
             if entangle
                 && !self.field_spares(&self.units[id], Field::Entangle)
                 && !self.units[id].flag(UnitFlag::Flies)
@@ -508,7 +507,6 @@ impl Battle {
                 u.web_hits -= dealt;
                 u.moves_left = HalfInt::ZERO;
                 u.attacked = true;
-                u.extra_attack = false;
                 events.push(BattleEvent::WebStruck {
                     unit: id,
                     dealt,

@@ -1,6 +1,3 @@
-//! Drawing one overland map square the way the original does: ground, river, corruption,
-//! the thing standing on it (mineral, site, tower, node), roads, and the owner's node aura.
-
 use f4x_core::game::Game;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Grid, Plane};
@@ -204,7 +201,6 @@ pub fn draw_square(
 const NODE_W: usize = 20;
 const NODE_H: usize = 18;
 
-/// How often the warped node's picture changes: the original redraws the screen this often.
 const WARP_STEPS_PER_SECOND: f64 = 18.0;
 
 /// The warped node's square as the original draws it (`Draw_Map_Nodes`): what is on the screen
@@ -281,8 +277,7 @@ fn draw_warped_node(art: &mut Art, sx: f32, sy: f32, k: f32) {
     draw_pic(&tex, sx, sy, k);
 }
 
-/// Which city picture frame fits a population (in thousands): the original's `(pop - 1) / 4`,
-/// at most four.
+/// Which city picture frame fits a population (in thousands).
 pub fn city_frame(figures: u32) -> usize {
     (figures.saturating_sub(1) / 4).min(4) as usize
 }

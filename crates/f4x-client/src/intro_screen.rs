@@ -23,7 +23,6 @@ use crate::view::{App, Screen};
 /// Frames of each scene (`IntroAnim_FrameCounts`).
 const FRAMES: &[usize] = &[15, 12, 30, 18, 25, 32, 24, 32, 30, 37, 30, 11, 32];
 
-/// One timer tick of the original's: the BIOS clock, 55 ms.
 const TICK: f64 = 0.055;
 
 /// A frame takes three ticks.
@@ -38,7 +37,6 @@ const LIGHTNING: u16 = 27;
 const UNKNOWN_118: u16 = 118;
 const INTRO_T3: u16 = 3;
 
-/// The original's palette fades: the darkness in percent at each step, 55 ms apart.
 fn fade_out_steps(scene: usize) -> Vec<u8> {
     let (first, step) = match scene {
         1 | 3 => (5, 5),

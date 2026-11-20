@@ -1,5 +1,3 @@
-//! Finding the original game's folder and checking that it is the right one.
-
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -51,7 +49,6 @@ impl Check {
     }
 }
 
-/// Why no folder of the original was found.
 #[derive(Debug, PartialEq, Eq)]
 pub enum FindError {
     NotAFolder(PathBuf),
@@ -106,9 +103,6 @@ fn entries(dir: &Path) -> Result<Vec<(String, PathBuf)>, FindError> {
         .collect())
 }
 
-/// Find the folder with the original's files: `dir` itself, or the first folder directly inside it
-/// that has them (the Steam download has the files one level down, in
-/// `Master of Magic Official Release`).
 pub fn find(dir: &Path) -> Result<PathBuf, FindError> {
     if !dir.is_dir() {
         return Err(FindError::NotAFolder(dir.to_path_buf()));

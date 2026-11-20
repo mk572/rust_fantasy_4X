@@ -25,7 +25,7 @@ pub const MOVE_BUILDING: &str = "move_building";
 pub const MOVE_FORTRESS: &str = "fortress";
 pub const MOVE_CIRCLE: &str = "summoning_circle";
 
-/// The block Earth Lore reveals, in tiles: the original's map window.
+/// The block Earth Lore reveals, in tiles.
 const LORE_WIDTH: u32 = 12;
 const LORE_HEIGHT: u32 = 10;
 

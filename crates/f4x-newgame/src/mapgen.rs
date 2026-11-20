@@ -32,7 +32,7 @@ pub struct GenParams {
     pub land_percent: u8,
     /// Towers placed at identical coordinates on both planes.
     pub tower_count: u8,
-    /// Strong and weak random encounter sites, on either plane (the original's 25 and 32).
+    /// Strong and weak random encounter sites, on either plane.
     pub strong_sites: u32,
     pub weak_sites: u32,
     /// The game's difficulty, 0 (intro) to 5 (impossible), as `Game::with_generated_map` records
@@ -46,8 +46,8 @@ pub struct GenParams {
     pub lair_style: f4x_core::rules::lair::LairStyle,
     /// The game's node setting, 0 weak to 2 powerful.
     pub magic_strength: u8,
-    /// Make the land with the original's random-walk generator (`mapgen/original.rs`) instead of
-    /// the noise-based one.
+    /// Make the land with the random-walk generator (`mapgen/original.rs`) instead of the
+    /// noise-based one.
     pub original_generator: bool,
     /// Build out the land mass of every tower and node to `island::MIN_LAND` squares
     /// (`rules.extend_tiny_islands`).
@@ -86,8 +86,8 @@ impl Default for GenParams {
     }
 }
 
-/// How the noise generator shares out the land it keeps off the polar caps, in thousandths: the
-/// original's mix, a little under (`f4x-tools mapgen-stats` compares).
+/// How the noise generator shares out the land it keeps off the polar caps, in thousandths
+/// (`f4x-tools mapgen-stats` compares it with the random-walk generator).
 const MOUNTAIN_SHARE: u32 = 165;
 const HILL_SHARE: u32 = 165;
 const DESERT_SHARE: u32 = 110;

@@ -131,8 +131,8 @@ impl CreateState {
         self.build.spells = spells;
     }
 
-    /// The name a wizard has when none is typed: the name of the portrait picked (the original
-    /// copies the preset's name into the field), else the text `create.default_name`.
+    /// The name a wizard has when none is typed: the name of the portrait picked, else the text
+    /// `create.default_name`.
     pub(crate) fn default_name(&self, app: &App) -> String {
         self.build
             .portrait

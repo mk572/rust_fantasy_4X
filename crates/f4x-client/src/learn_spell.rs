@@ -20,11 +20,10 @@ use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 
-/// One loop of the original waits two ticks of the PC timer (55 ms each).
 const LAB_STEP: f64 = 0.11;
 /// The lab scene runs 60 loops unless a key or click ends it.
 const LAB_LOOPS: f64 = 60.0;
-/// The decoding runs 45 stages; the original does not wait between them, so this is our pace.
+/// The decoding runs 45 stages; the pace between them is our own.
 const DECODE_STEP: f64 = 0.08;
 const DECODE_STAGES: usize = 45;
 /// The window that opens on the real entry from stage 22 to 27 (`g_spell_decode_x_r` and

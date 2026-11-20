@@ -474,7 +474,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 };
             }
             "difficulty" => {
-                // A level brings the original's figures for it; the other basic choices stay.
+                // A level brings its figures for it; the other basic choices stay.
                 let level = parse_choice(v, "difficulty", DIFFICULTY, 0, 5)?;
                 let basic = spec.settings.basic;
                 spec.settings = f4x_core::game::setting::GameSettings::for_difficulty(

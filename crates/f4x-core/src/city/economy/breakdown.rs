@@ -1,8 +1,8 @@
 //! Where a city's food, production, gold, power and research come from: the lines that add up to
-//! the figure on the city screen (the original's resource window, which lists them).
+//! the figure on the city screen.
 //!
-//! A line is a source and the amount it brings. The lines are worked out from the same inputs
-//! as [`Economy::city_economy_with`] and each modifier is applied in turn, its line being what it
+//! A line is a source and the amount it brings. The lines are worked out from the same inputs as
+//! [`Economy::city_economy_with`] and each modifier is applied in turn, its line being what it
 //! added, so the lines always sum to the figure; what no line explains (a computer wizard's
 //! difficulty bonus, a cap) is the last line, [`Item::Adjustment`].
 //!

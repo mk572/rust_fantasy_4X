@@ -2,7 +2,6 @@
 //!
 //! The numbers are entries of the original's sound files, which the client plays from
 //! `assets-local/audio` when they are there (`docs/sound.md`). The file is optional.
-
 use std::collections::BTreeMap;
 use std::path::Path;
 

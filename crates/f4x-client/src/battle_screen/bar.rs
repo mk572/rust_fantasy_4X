@@ -3,7 +3,6 @@
 //! `Draw_Combat_Unit_Display` in `Combat.c`): the two wizards' names, the casting skill, mana and
 //! range, the selected unit with its attacks, moves and damage bar, the six buttons, and a small
 //! window with the stats of the unit under the pointer.
-
 use super::*;
 use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
@@ -72,7 +71,6 @@ fn damage_bar(u: &BattleUnit) -> Option<(i32, &'static str)> {
 /// (`combat_enchantment_icon_segs`): the battlefield spells, and Counter Magic's 15.
 fn enchantment_icons(battle: &Battle, side: Side) -> Vec<usize> {
     use f4x_core::battle::field::Field;
-    // (order in the original's table, picture)
     let mut icons: Vec<(usize, usize)> = battle
         .fields()
         .filter(|&(s, _, _)| s == side)
@@ -110,8 +108,6 @@ fn range_text(tenths: i32) -> String {
 }
 
 impl App {
-    /// The window pixels per original pixel and the screen position of the grid's native origin,
-    /// with the original's map window at the top left of the 320 by 200 screen.
     pub(super) fn battle_view() -> (f32, f32, f32) {
         let lay = Layout::new();
         // The window's first row shows the cells whose origins are 144 pixels left of the grid's
@@ -123,8 +119,8 @@ impl App {
         )
     }
 
-    /// Whether a window point is on the map (the original's map window), not on the panel or
-    /// the box of the selected unit's spells.
+    /// Whether a window point is on the map, not on the panel or the box of the selected unit's
+    /// spells.
     pub(super) fn on_map(&self, ui: &mut BattleUi, point: Vec2) -> bool {
         Layout::new()
             .rect((0.0, 0.0, crate::resolution::DESIGN_W, BAR_Y))
@@ -286,7 +282,7 @@ impl App {
             ui.spell_unit = None;
             ui.fallen_list = None;
         }
-        // Info lists the effects in force; the original locks it when there are none.
+        // Info lists the effects in force.
         let has_info = self
             .game
             .battle_info(HUMAN)
@@ -455,8 +451,6 @@ impl App {
         draw_rectangle(r.x, r.y, r.w, r.h, colour);
     }
 
-    /// The dark box with a light edge above and left and a dark one below and right, as the
-    /// original draws its small windows over the map; returns the dark edge's colour.
     pub(super) fn draw_hud_box(lay: &Layout, rect: (f32, f32, f32, f32)) -> Color {
         let r = lay.rect(rect);
         draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.09, 0.12, 0.92));

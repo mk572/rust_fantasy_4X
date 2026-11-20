@@ -17,7 +17,6 @@ use crate::city_screen::CityPage;
 use crate::frame::Layout;
 use crate::view::{App, Screen, HUMAN};
 
-/// Rows a column shows (the original's lists are cut to fit).
 const ROWS: usize = 12;
 const ROW_HEIGHT: f32 = 14.0;
 /// The shadow of a production list item: `Set_Outline_Color(PAL_TURQUOISE_LIGHT)`, 244 of the unit view's palette.
@@ -80,7 +79,7 @@ impl App {
         let (units, mut buildings): (Vec<_>, Vec<_>) = items
             .into_iter()
             .partition(|i| matches!(i, ProductionItem::Unit(_)));
-        // The two specials lead the buildings, as buildings 1 and 2 do in the original.
+        // The two specials lead the buildings.
         buildings.sort_by_key(|i| match i {
             ProductionItem::TradeGoods => 0,
             ProductionItem::Housing => 1,

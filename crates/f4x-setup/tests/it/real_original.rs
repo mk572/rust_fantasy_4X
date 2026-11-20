@@ -1,6 +1,5 @@
-//! The setup on the author's real copy of the original (`reference/mom-classic`). Takes about half
-//! a minute, so it is ignored by default; CI has no original, and the test says so and passes.
-//! Run: `cargo test -p f4x-setup --test it real_original -- --ignored`.
+//! Takes about half a minute, so it is ignored by default. Run: `cargo test -p f4x-setup --test it
+//! real_original -- --ignored`.
 
 use std::fs;
 use std::path::{Path, PathBuf};

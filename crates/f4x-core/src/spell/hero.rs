@@ -71,7 +71,7 @@ impl UnitView<'_> {
             .collect()
     }
 
-    /// The hero a computer wizard raises: the last of the raisable ones, as the original does.
+    /// The hero a computer wizard raises: the last of the raisable ones.
     pub fn ai_resurrection_pick(&self) -> Option<usize> {
         self.raisable_heroes().last().copied()
     }

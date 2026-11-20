@@ -25,7 +25,6 @@ use macroquad::prelude::*;
 const MIRROR: (f32, f32) = (58.0, 33.0);
 /// The paragraph's left edge, top and width (`Print_Paragraph(45, 166, 152, ...)`).
 const PARAGRAPH: (f32, f32, f32) = (45.0, 166.0, 152.0);
-/// Two ticks of the original's 55 ms timer a stage.
 const STAGE: f64 = 0.11;
 /// The scene ends by itself after 120 stages; the first 16 shake.
 const STAGES: usize = 120;
@@ -53,8 +52,7 @@ impl Modal for WrathScene {
     }
 }
 
-/// How far the frame is pushed at a shaking stage: one to four across and one to three down
-/// (the original copies the screen at a random offset of that size).
+/// How far the frame is pushed at a shaking stage: one to four across and one to three down.
 fn shake(stage: usize) -> (f32, f32) {
     if stage >= SHAKING {
         return (0.0, 0.0);

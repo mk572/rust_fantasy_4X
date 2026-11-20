@@ -36,7 +36,6 @@ pub(crate) struct SquareText {
     pub blocked: Option<String>,
 }
 
-/// Half-food units as the original writes them: "1/2 food", "1 1/2 food", "2 food".
 pub(crate) fn food_text(texts: &Texts, food: HalfInt) -> String {
     let whole = Args::new().count("n", food.floor().max(0));
     match (food.floor().max(0), food.is_whole()) {

@@ -16,7 +16,6 @@ use crate::unit_sheet::special_picture;
 use crate::view::App;
 use macroquad::prelude::*;
 
-/// The panel on the original's 320 by 200 screen.
 const LEFT: f32 = 12.0;
 const WIDTH: f32 = 296.0;
 const TOP: f32 = 8.0;

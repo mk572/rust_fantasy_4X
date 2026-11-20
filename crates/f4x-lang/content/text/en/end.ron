@@ -20,7 +20,7 @@
     // The raiders destroying a wizard: the fortress when the wizard has other cities.
     "end.raiders_fortress": "Raiders destroy {loser}'s fortress.",
     "end.raiders": "Raiders destroy {loser}.",
-    // A wizard destroying another (a scene of our own: the original shows none).
+    // A wizard destroying another (a scene of our own).
     "end.conquers_fortress": "{winner} destroys {loser}'s fortress.",
     "end.conquers": "{winner} destroys {loser}.",
     "end.returns": "{wizard} begins casting the Spell Of Return.",

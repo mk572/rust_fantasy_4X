@@ -1,5 +1,5 @@
 //! The map-content settings (tasks 590 and 594): what the generator is asked for follows the
-//! settings, and the defaults are the original's numbers for a 60 by 40 map, scaled by the area.
+//! settings, and the defaults are numbers for a 60 by 40 map, scaled by the area.
 
 use f4x_core::game::setting::GameSettings;
 use f4x_def::testdir::TestResult;

@@ -316,7 +316,6 @@ struct Options {
     sheet_ask: bool,
     /// With `--shot`, end this many turns first.
     turns: u32,
-    /// Where the original's sounds are (`f4x-extract audio`); none are played with `--shot`.
     audio: PathBuf,
     /// Play no sound.
     mute: bool,

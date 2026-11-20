@@ -503,8 +503,6 @@ impl App {
         })
     }
 
-    /// The wizard's number in the original's music order (`crates/f4x-client/content/wizard_art.ron`), when it is
-    /// one of the ready-made wizards.
     pub(crate) fn wizard_tracks_of(&self, player: PlayerId) -> Option<u16> {
         let slot = self.game.wizard(player)?.portrait();
         self.art

@@ -27,7 +27,7 @@
     "ui.menu_magic": "Magic",
     "ui.menu_info": "Info",
     "ui.menu_plane": "Plane",
-    // The labels of the unit window's buttons: capitals, as the original's pictures are lettered.
+    // The labels of the unit window's buttons: capitals.
     "ui.button_done": "DONE",
     "ui.button_cancel": "CANCEL",
     "ui.button_patrol": "PATROL",

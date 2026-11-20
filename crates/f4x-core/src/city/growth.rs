@@ -188,10 +188,9 @@ impl Game {
 }
 
 impl Economy<'_> {
-    /// The chance (percent) that an outpost gains people this turn: the land's food, the race,
-    /// the minerals and wild game in reach, and Gaia's Blessing and Stream of Life. The
-    /// original added a difficulty modifier here and ignored wild game's food; we do neither
-    /// (the computer wizards' bonus is applied at the end).
+    /// The chance (percent) that an outpost gains people this turn: the land's food, the race, the
+    /// minerals and wild game in reach, and Gaia's Blessing and Stream of Life. The computer
+    /// wizards' bonus is applied at the end.
     pub(crate) fn outpost_growth_chance(&self, city: hecs::Entity) -> i32 {
         let Some(at) = self.world.get::<&Position>(city).ok().map(|p| *p) else {
             return 0;
@@ -221,7 +220,7 @@ impl Economy<'_> {
         if enchanted(CityEffect::StreamOfLife) {
             grow += 10;
         }
-        // A computer wizard's difficulty bonus (the original applied it here, too).
+        // A computer wizard's difficulty bonus.
         let owner = self.city_owner(city);
         let bonus = owner
             .and_then(|o| crate::player::component::<crate::player::Bonus>(self.world, o))

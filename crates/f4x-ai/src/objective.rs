@@ -145,9 +145,9 @@ const TEMPERS: &[Personality] = &[
     Personality::Maniacal,
 ];
 
-/// How many steps the difficulty slides every AI's temper towards Maniacal: none up to
-/// Normal, one on Hard, two on Extreme, three on Impossible. The AI always plays its best; this only makes it
-/// fiercer. Ours, the original has no such thing.
+/// How many steps the difficulty slides every AI's temper towards Maniacal: none up to Normal, one
+/// on Hard, two on Extreme, three on Impossible. The AI always plays its best; this only makes it
+/// fiercer.
 pub fn aggression_steps(difficulty: u8) -> i32 {
     i32::from(difficulty.saturating_sub(2))
 }
@@ -168,7 +168,6 @@ pub fn temper(personality: Personality, difficulty: u8) -> Personality {
 
 /// Fighters a temper adds to (or takes from) the strike army: the cruel keep more, the peaceful
 /// fewer, and a temper already at the top keeps one more per step the difficulty slides it past.
-/// The original uses personality only in diplomacy; this is ours.
 pub fn army_bias(personality: Personality, difficulty: u8) -> i32 {
     let (shown, over) = slid(personality, difficulty);
     let base = match shown {

@@ -73,8 +73,9 @@ impl Score {
     }
 }
 
-/// The original's difficulty scaling of the final score: Intro halves it, Easy takes three
-/// quarters, Normal leaves it, Hard doubles and Impossible triples it; Extreme (level 4) is in between at two and a half times (as `scoring.score_percent` says).
+/// The difficulty scaling of the final score: Intro halves it, Easy takes three quarters, Normal
+/// leaves it, Hard doubles and Impossible triples it; Extreme (level 4) is in between at two and a
+/// half times (as `scoring.score_percent` says).
 pub fn scale_for_difficulty(score: i32, level: u8) -> i32 {
     match level {
         0 => score / 2,
@@ -241,9 +242,9 @@ impl Game {
     /// units go, their enchantments come off every city and unit, their spells stop, their
     /// nodes are freed, and (the conqueror's loot is `Game::take_loot`, taken in `defeat`).
     pub(crate) fn aftermath(&mut self, loser: PlayerId) {
-        // A defeated wizard has no city left, so none of their units is garrisoned: they are
-        // all dismissed (the original turns garrisoned normal units neutral first). A hero that
-        // served them is free again, with its experience, for the others to hire.
+        // A defeated wizard has no city left, so none of their units is garrisoned: they are all
+        // dismissed. A hero that served them is free again, with its experience, for the others to
+        // hire.
         for u in self.units().player_units(loser) {
             self.remove_unit(u, crate::hero::Fate::Released);
         }

@@ -15,7 +15,6 @@ use crate::font::{rgb, Effect, Style};
 use crate::frame::Layout;
 use crate::view::{App, Screen};
 
-/// The pictures of `cursors/NN.png` (the original's `crsr_*`).
 pub(crate) const FINGER: usize = 1;
 pub(crate) const WAND: usize = 2;
 pub(crate) const RED_CROSS: usize = 3;

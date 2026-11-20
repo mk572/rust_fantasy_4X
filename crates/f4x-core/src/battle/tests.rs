@@ -421,7 +421,8 @@ fn a_walkers_melee_against_a_flier_follows_the_setting_and_the_flier_hits_back()
         b.melee_vs_fliers = rule;
         assert_eq!(b.fighter(0, true).melee.strength, strength, "{rule:?}");
     }
-    // The original's rule: the walker deals nothing, and the flier answers at full strength.
+    // Setting `melee_vs_fliers` `zero`: the walker deals nothing, and the flier answers at full
+    // strength.
     b.melee_vs_fliers = MeleeVsFliers::Zero;
     let e = b
         .apply(BattleCommand::Attack { unit: 0, target: 1 })
@@ -2473,7 +2474,7 @@ mod fields {
         let mut b = g.battle().ok_or("no battle")?.clone();
         let plain = b.units[0].clone();
         assert_eq!(plain.realm, Some(Realm::Life));
-        // Torin is immune to magic: the darkness reaches him as the original's exception.
+        // Torin is immune to magic: the darkness reaches him as an exception.
         b.magic_immunity_exceptions = true;
         b.raise_field(Side::Defender, Field::Darkness, spell_for(Field::Darkness));
         assert_eq!(b.units[0].defense, plain.defense - 1);
@@ -4600,7 +4601,7 @@ fn life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune(
         refused,
         Err(BattleError::Spell(SpellError::Target(TargetError::Deathly)))
     );
-    // The original's exception (the rule setting) lets Life Drain reach it.
+    // The magic immunity exception (the rule setting) lets Life Drain reach it.
     g.battle
         .as_mut()
         .ok_or("as_mut is missing")?
@@ -6441,7 +6442,7 @@ fn numbers(u: &BattleUnit) -> Numbers {
             u.flag(UnitFlag::NegatesFirstStrike),
             u.flag(UnitFlag::LongRange),
             u.flag(UnitFlag::MagicalWeapon),
-            u.extra_attack,
+            u.is_hasted(),
         ],
         special_level: u.special_level,
         abilities: sorted(&u.abilities),
@@ -6846,20 +6847,16 @@ fn life_steal_extras_stay_and_lionheart_goes_when_it_is_dispelled() -> TestResul
 fn a_dispelled_haste_takes_the_second_attack_with_it() -> TestResult {
     let mut g = wizard_battle(107 /* high_men_cavalry */, &[70 /* haste */]);
     cast_on_first(&mut g, 70).map_err(|e| format!("{e:?}"))?;
-    assert!(
-        g.battle()
-            .ok_or("no battle")?
-            .unit(0)
-            .ok_or("no unit")?
-            .extra_attack
-    );
+    assert!(g
+        .battle()
+        .ok_or("no battle")?
+        .unit(0)
+        .ok_or("no unit")?
+        .is_hasted());
     g.dispel_battle_unit(0, 10_000, D);
     let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
     assert!(!u.has(Ability::new(26)));
-    assert!(
-        !u.extra_attack,
-        "the haste is gone, the second attack is not"
-    );
+    assert!(!u.is_hasted());
     Ok(())
 }
 
@@ -7446,20 +7443,14 @@ fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() ->
 }
 
 #[test]
-fn a_hasted_unit_attacks_twice_in_a_turn() -> TestResult {
+fn a_hasted_unit_attacks_once_a_turn_with_a_doubled_attack() -> TestResult {
     let haste = 70;
     let mut g = wizard_battle(104 /* high_men_spearmen */, &[haste]);
     cast_on_first(&mut g, haste).map_err(|e| format!("{e:?}"))?;
     let mut b = g.battle().ok_or("no battle")?.clone();
     b.units[0].cell = (9, 10);
     b.units[1].cell = (10, 10);
-    assert!(b.unit(0).ok_or("unit is missing")?.extra_attack);
-    b.apply(BattleCommand::Attack { unit: 0, target: 1 })
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(
-        !b.unit(0).ok_or("unit is missing")?.attacked,
-        "one attack is left"
-    );
+    assert!(b.unit(0).ok_or("unit is missing")?.is_hasted());
     b.apply(BattleCommand::Attack { unit: 0, target: 1 })
         .map_err(|e| format!("{e:?}"))?;
     assert!(b.unit(0).ok_or("unit is missing")?.attacked);

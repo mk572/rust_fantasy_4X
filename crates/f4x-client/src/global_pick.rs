@@ -21,7 +21,6 @@ use f4x_core::rules::exec::Target;
 use f4x_def::rules::SpellId;
 use macroquad::prelude::*;
 
-/// The panel's left edge, and its height: the original's picture is 210 x 200.
 const X: f32 = 50.0;
 const PANEL_W: f32 = 210.0;
 /// The rows of rivals in view at most, and the height of one.

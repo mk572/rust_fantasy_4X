@@ -159,8 +159,8 @@ impl Game {
         self.balance_taxes(owner);
         let (melee, ranged) = self.best_garrison_units(city);
         let count = (population / 4).min(self.max_battle_side() as u32);
-        // A race without a ranged soldier doubles its melee ones (and the original's dark elves,
-        // with no melee ones, get half a garrison).
+        // A race without a ranged soldier doubles its melee ones (and dark elves, with no melee
+        // ones, get half a garrison).
         let wanted = (0..count)
             .filter_map(|_| melee)
             .chain((0..count).filter_map(|_| ranged.or(melee)));

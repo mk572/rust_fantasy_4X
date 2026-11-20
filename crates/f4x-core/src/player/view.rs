@@ -460,6 +460,11 @@ impl<'a> PlayerView<'a> {
         self.game.units().unit_power(unit)
     }
 
+    /// What the unit would add to a battle with the spell lasting on it (`UnitView::unit_power_with_spell`).
+    pub fn unit_power_with_spell(&self, unit: hecs::Entity, spell: SpellId) -> f32 {
+        self.game.units().unit_power_with_spell(unit, spell)
+    }
+
     /// Is the unit walking a path it was ordered to?
     pub fn unit_has_order(&self, unit: hecs::Entity) -> bool {
         self.game.unit_has_order(unit)

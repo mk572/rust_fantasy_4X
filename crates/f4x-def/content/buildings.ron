@@ -1,5 +1,4 @@
-// Kept by hand (the importer no longer writes this file). In the original's building
-// order: `num` is its building number, `id` an alias for editing, not a second numbering.
+// Kept by hand (the importer no longer writes this file). `num` is the building number, `id` an alias for editing, not a second numbering.
 [
     (num: 3, id: "barracks", help: Some(2303), cost: 30, shape: 2, races: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]),
     (num: 4, id: "armory", help: Some(2304), cost: 80, upkeep_gold: 2, requires: [8, 3], replaces: Some(3), races: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]),

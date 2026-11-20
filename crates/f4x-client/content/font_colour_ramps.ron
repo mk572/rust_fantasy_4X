@@ -1,4 +1,4 @@
-// Colour sets of the original's screens (Set_Font_Colors_15), appended after the 16 of the fonts.
+// Colour sets, appended after the 16 of the fonts.
 // Written by scripts/font_ramps.py. colours: glyph colour indexes 1 to 15 as (r, g, b).
 (
     ramps: [

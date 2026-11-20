@@ -16,7 +16,6 @@ use macroquad::prelude::*;
 
 /// Where the picture goes (`start_x`, `y_start`).
 const FRAME: (f32, f32) = (70.0, 14.0);
-/// Two ticks of the original's 55 ms timer a stage.
 const STAGE: f64 = 0.11;
 /// The figure rises for this many stages; the scene lasts 100.
 const RISE: usize = 40;

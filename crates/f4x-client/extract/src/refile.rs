@@ -1,6 +1,6 @@
-//! `f4x-extract refile`: move the pictures `f4x-extract art` already wrote to where its current rules put
-//! them, so a change of the rules (a new spell folder, a screen) does not need the original game
-//! files read again. Only a picture whose place changed is touched; `index.tsv` is rewritten.
+//! `f4x-extract refile`: move the pictures `f4x-extract art` already wrote to where its current
+//! rules put them, so a change of the rules (a new spell folder. Only a picture whose place changed
+//! is touched; `index.tsv` is rewritten.
 
 use std::collections::BTreeMap;
 use std::fs;

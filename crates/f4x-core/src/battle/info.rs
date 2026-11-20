@@ -41,7 +41,7 @@ pub struct BattleInfo {
 }
 
 impl BattleInfo {
-    /// Nothing to show: the original then leaves the Info button locked.
+    /// Nothing to show.
     pub fn is_empty(&self) -> bool {
         self.common.is_empty() && self.opponent.is_empty() && self.viewer.is_empty()
     }
@@ -70,7 +70,7 @@ pub const CLOUD_OF_DARKNESS: InfoItem = item("battle_info.cloud_of_darkness", 61
 pub const HOLY_LIGHT: InfoItem = item("battle_info.holy_light", 619);
 pub const CHAOS_SURGE: InfoItem = item("battle_info.chaos_surge", 620);
 pub const ETERNAL_NIGHT: InfoItem = item("battle_info.eternal_night", 621);
-/// Not in the original's window; the help is the spell's own topic (198).
+/// The help is the spell's own topic (198).
 pub const EVIL_OMENS: InfoItem = item("battle_info.evil_omens", 198);
 
 /// Every line the window can show; the client's `icon_art.ron` has a picture for each it draws one for.
@@ -92,7 +92,7 @@ pub const ALL: &[InfoItem] = &[
     EVIL_OMENS,
 ];
 
-/// The wizard spells the window lists for one side, in the original's order.
+/// The wizard spells the window lists for one side.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct WizardSpells {
     pub crusade: bool,

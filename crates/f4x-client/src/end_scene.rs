@@ -6,7 +6,6 @@
 //! scene ends after its last stage, and a click or Esc ends it at once. The pictures are the
 //! original's (`win`, `lose`, `conquest`, `wizlab`, `vortex`, `cmbtfx`); without them a scene shows
 //! its caption on black and runs as long.
-
 use crate::font::{rgb, Effect, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
@@ -19,7 +18,6 @@ use crate::audio::Track;
 use crate::frame::Layout;
 use crate::view::{App, HUMAN};
 
-/// Ticks of the original's clock in a second.
 const TICKS_PER_SECOND: f64 = 18.2;
 
 /// What is shown.
@@ -237,9 +235,8 @@ impl App {
             usize::from(loser.portrait()),
             loser.gender() == Gender::Feminine,
         );
-        // The original shows the zap only when the raiders are on one side of it and returns
-        // early for a wizard who banishes or defeats another: our own addition is that scene,
-        // with the conquering wizard in the raiders' place.
+        // This scene, with the conquering wizard in the raiders' place, is our own addition for a
+        // wizard who banishes or defeats another.
         let conqueror = by.filter(|&b| self.game.is_wizard(b));
         let winner = conqueror.and_then(|b| self.game.wizard(b).map(|w| usize::from(w.portrait())));
         let key = match (winner.is_some(), banished) {
@@ -649,7 +646,6 @@ impl App {
     }
 }
 
-/// Keep the drawing inside the original's 320 by 200 screen, as its pictures are clipped.
 fn clip_to_screen(lay: &Layout, on: bool) {
     let mut gl = unsafe { get_internal_gl() };
     gl.flush();

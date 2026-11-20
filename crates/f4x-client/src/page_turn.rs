@@ -10,8 +10,7 @@ use macroquad::prelude::*;
 use crate::frame::Layout;
 use crate::view::App;
 
-/// How long one of the four stages shows. The original flips the pages as fast as it can; this
-/// is slow enough to see.
+/// How long one of the four stages shows. It is slow enough to see.
 const STAGE_SECONDS: f64 = 0.07;
 
 /// A turn in progress.

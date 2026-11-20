@@ -131,7 +131,7 @@ pub fn objective_weights(books: impl Fn(RealmId) -> i32, has: impl Fn(Retort) ->
     w
 }
 
-/// The original's weighted pick: a roll of `1..=total` walks down the weights.
+/// A weighted pick: a roll of `1..=total` walks down the weights.
 pub fn pick_objective(weights: &[i32; 5], roll: i32) -> Objective {
     let mut left = roll - weights[0];
     let mut picked = 0;
@@ -144,8 +144,8 @@ pub fn pick_objective(weights: &[i32; 5], roll: i32) -> Objective {
         .unwrap_or(Objective::Pragmatist)
 }
 
-/// Draw a personality, then an objective, for every wizard but the human, in turn order, as
-/// the original does. Called when a game starts.
+/// Draw a personality, then an objective, for every wizard but the human, in turn order. Called
+/// when a game starts.
 pub fn assign_temperaments(game: &mut Game) {
     for id in game.player_ids() {
         if game.human() == Some(id) {

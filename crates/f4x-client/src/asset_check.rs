@@ -140,7 +140,6 @@ pub fn check_icon_art(art: &IconArt, rules: &Rules) -> Vec<String> {
     }
     for (def, item) in rules.items.defs().iter().zip(&art.items) {
         let (first, last) = def.kind.icon_range();
-        // The original draws its "White Lightning I" sword with a mace's picture.
         if def.id != "white_lightning_i" && !(first..=last).contains(&item.icon) {
             problems.push(format!(
                 "icon_art: {} ({:?}) has picture {}, its type has {first} to {last}",

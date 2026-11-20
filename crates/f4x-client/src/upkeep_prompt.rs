@@ -18,7 +18,6 @@ use crate::modal::{keep, kind, Modal};
 use crate::ui;
 use crate::view::{App, HUMAN};
 
-/// Row height and the most rows shown, in the original's pixels (the screen is 320 by 200).
 const ROW: f32 = 10.0;
 const SHOWN: usize = 11;
 

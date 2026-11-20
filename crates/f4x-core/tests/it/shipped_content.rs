@@ -130,7 +130,6 @@ fn rolled_heroes_follow_init_heroes() -> TestResult {
                 }
                 PickType::Any => {}
             }
-            // The original's exclusions.
             // Arcane Power only goes to a hero with a magic ranged attack.
             let unit = rules.units.get(t.unit);
             if !unit

@@ -45,7 +45,7 @@ crate::hook::effect_enum! {
     SpellWard = "spell_ward",
 }
 
-/// The realms a Spell Ward can be set against, in the original's order.
+/// The realms a Spell Ward can be set against.
 pub const WARD_REALMS: &[RealmId] = crate::rules::BOOK_REALMS;
 
 /// The realms a city has Spell Wards against (the ward spell itself, with its caster and its
@@ -83,10 +83,9 @@ impl Game {
         }]
     }
 
-    /// Chaos Rift: every turn each unit inside the city sustains five Lightning Bolts of strength
-    /// 8 (armour piercing, stopped by magic immunity), and there is a 5 percent chance that a
-    /// building falls (one that no other building needs). The original's code for it is a stub, so
-    /// this is the help text's rule.
+    /// Chaos Rift: every turn each unit inside the city sustains five Lightning Bolts of strength 8
+    /// (armour piercing, stopped by magic immunity), and there is a 5 percent chance that a
+    /// building falls (one that no other building needs). This is the help text's rule.
     pub(crate) fn process_chaos_rifts(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
         use crate::battle::immunity::{AttackNature, Realm};
         use crate::rules::effects::DamageTraits;
@@ -288,8 +287,7 @@ impl Economy<'_> {
             })
     }
 
-    /// Evil Presence does nothing to a city whose owner can use death magic, and the original
-    /// refuses to cast it there.
+    /// Evil Presence does nothing to a city whose owner can use death magic.
     pub fn evil_presence_is_wasted_on(&self, city: hecs::Entity) -> bool {
         self.city_owner(city)
             .and_then(|o| self.wizard(o))
@@ -338,7 +336,7 @@ impl Economy<'_> {
 
     /// Whether a Spell Ward on the city keeps the unit out: it is a fantastic creature (or a
     /// summoned one) of a realm the city is warded against. The help says "any": the owner's own
-    /// creatures too. (Not in the original's code, which never reads the wards for movement.)
+    /// creatures too.
     pub fn ward_bars_creature(&self, city: hecs::Entity, unit: hecs::Entity) -> bool {
         use crate::rules::UnitKind;
         let Some(def) = self.units().unit_def(unit) else {

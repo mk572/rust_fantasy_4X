@@ -308,8 +308,7 @@ const LAKE_RIVER_N: usize = 0xC6;
 const LAKE_RIVER_E: usize = 0xC7;
 const LAKE_RIVER_S: usize = 0xC8;
 
-/// The terrain type of a square on Arcanus (add 762 for Myrror). `table(t, mask)` is one of
-/// the original's autotile tables.
+/// The terrain type of a square on Arcanus (add 762 for Myrror).
 pub fn ground_type(
     grid: &Grid,
     content: &Content,

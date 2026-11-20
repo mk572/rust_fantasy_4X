@@ -286,7 +286,7 @@ fn a_loaded_ship_and_its_passengers_all_stand_on_the_ships_square() -> TestResul
 
 #[test]
 fn the_ship_buildings_can_only_be_built_in_a_coastal_city() -> TestResult {
-    // As in the original. The inland city has every other requirement met.
+    // The inland city has every other requirement met.
     let mut g = game(INLAND_CITY, 8 /* high_men */);
     let inland = at(INLAND_CITY.0, INLAND_CITY.1);
     build(&mut g, inland, &[15 /* sawmill */, 4 /* armory */]);

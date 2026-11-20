@@ -1,9 +1,8 @@
-//! The text-free blue and stone buttons: the army list's Items and Ok, the item and magic
-//! screens' Alchemy and Ok. The pictures are the originals cleaned by `scripts/button_text_free.py`
-//! (one blank per family and width). The army list's gold labels are style 4 in the colour set
+//! The text-free blue and stone buttons: the army list's Items and Ok, the item and magic screens'
+//! Alchemy and Ok. The army list's gold labels are style 4 in the colour set
 //! `font_ramp::PANEL_WORD` with a black shadow. The lavender ones have a metallic sheen (diagonal
-//! bands across the whole word) and an emboss, which a font cannot do: the text is drawn in white off
-//! screen for its shape, and each pixel of it takes its colour from a sheen picture; the pixels
+//! bands across the whole word) and an emboss, which a font cannot do: the text is drawn in white
+//! off screen for its shape, and each pixel of it takes its colour from a sheen picture; the pixels
 //! beside it form the light and dark edges. That picture is kept per text.
 
 use macroquad::prelude::*;
@@ -94,10 +93,8 @@ thread_local! {
     static LABELS: RefCell<Vec<(Panel, String, Texture2D)>> = const { RefCell::new(Vec::new()) };
 }
 
-/// The lettering of a sheen label as a picture the size of its button: the text drawn in white
-/// off screen at the original's pixels gives the shape; each pixel of it takes its colour from
-/// the sheen picture, and the pixels diagonally beside it are the emboss: a light one up and to
-/// the left, a dark one down and to the right.
+/// Each pixel of it takes its colour from the sheen picture, and the pixels diagonally beside it
+/// are the emboss: a light one up and to the left, a dark one down and to the right.
 fn sheen_label(app: &mut App, panel: Panel, sheen: &[u8], label: &str, size: Vec2) -> Texture2D {
     sheen_text(
         app,
@@ -169,7 +166,7 @@ pub(crate) fn sheen_text(
 }
 
 /// The emboss of a sheen label: the colours of its edges. A deep one (the plaque title) has an
-/// opaque black shadow one pixel thick down and to the right, as the original's lettering.
+/// opaque black shadow one pixel thick down and to the right.
 #[derive(Clone, Copy)]
 pub(crate) struct Emboss {
     light: Color,

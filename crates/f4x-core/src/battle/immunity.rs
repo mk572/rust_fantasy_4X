@@ -40,7 +40,6 @@ pub enum Realm {
 }
 
 impl Realm {
-    /// The realm with this number in `realms.ron` (the original's `sbr_*` numbers).
     pub fn from_num(num: u16) -> Option<Realm> {
         Some(match num {
             0 => Realm::Nature,
@@ -302,8 +301,8 @@ impl AttackNature {
             nature.armor_piercing |= attack.armor_piercing;
             exception |= attack.magic_immunity_exception;
         }
-        // The original's exceptions to magic immunity (the rule setting): such an attack is not
-        // of the magic type.
+        // The exceptions to magic immunity (the rule setting): such an attack is not of the magic
+        // type.
         if magic_exceptions && exception {
             nature.types = nature.types.without(DamageType::Magic);
         }

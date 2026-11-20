@@ -842,7 +842,6 @@ impl App {
 /// Rows in a column, and rows in view (two columns).
 const COLUMN: usize = 15;
 const VISIBLE: usize = 2 * COLUMN;
-/// Row height in the original's pixels.
 const ROW: f32 = 9.0;
 /// Height of the two boxes: the title, the rows and the buttons under them.
 const BOX_HEIGHT: f32 = 29.0 + COLUMN as f32 * ROW + 8.0 + 12.0 + 14.0;

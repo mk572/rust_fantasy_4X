@@ -14,7 +14,6 @@ use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
 use macroquad::prelude::*;
 
-/// How long the fade lasts. The original takes 21 page flips.
 const DURATION: f64 = 0.8;
 
 #[derive(Debug, Clone)]

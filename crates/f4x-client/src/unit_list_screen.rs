@@ -229,7 +229,6 @@ impl App {
     }
 }
 
-/// The window's area on the original's screen.
 fn lay_area(top: f32, height: f32) -> (f32, f32, f32, f32) {
     (LEFT, top, WIDTH, height)
 }
@@ -240,7 +239,6 @@ mod tests {
 
     #[test]
     fn the_window_is_centred_on_row_97() {
-        // The original's own examples: 76 for one unit, 57 for three, 47 for four.
         assert_eq!(window_top(1) as i32, 76);
         assert_eq!(window_top(3) as i32, 57);
         assert_eq!(window_top(4) as i32, 47);

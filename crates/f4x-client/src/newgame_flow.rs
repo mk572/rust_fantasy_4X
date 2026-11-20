@@ -29,7 +29,7 @@ pub(crate) fn ng_ink(font: usize, colour: u8) -> Style {
     Style::inked(font, Ink::Set(crate::font_ramp::flat(colour)))
 }
 
-/// The Arcanian and Myrran races of the race step, by id, in the original's order.
+/// The Arcanian and Myrran races of the race step, by id.
 const ARCANIAN: &[&str] = &[
     "barbarian",
     "gnoll",
@@ -193,8 +193,7 @@ impl Page for CreateState {
 impl CreateState {
     /// The books on the shelf at `(36, 135)`, eight pixels each, realms in the given order.
     ///
-    /// The books are drawn over the realm titles on the right of the picks screen ("Life" shows
-    /// as "ife"): this overlap is part of the original game, not a bug; do not "fix" it.
+    /// Do not "fix" it.
     pub(crate) fn ng_shelf(
         &mut self,
         app: &mut App,
@@ -219,7 +218,6 @@ impl CreateState {
         }
     }
 
-    /// The retorts of the build as the original writes them: "Alchemy, Warlord and Famous.".
     pub(crate) fn ng_abilities_text(&self, app: &App) -> String {
         let names: Vec<String> = self
             .build
@@ -459,7 +457,6 @@ impl CreateState {
             app.ng_name(lay, &defs[shown].1);
             if !picture {
                 if let Some(build) = app.game.preset_build(defs[shown].0) {
-                    // The first two realms with books, in the original's order.
                     let shelf: Vec<RealmId> = SHELF_ORDER
                         .iter()
                         .copied()
@@ -691,9 +688,7 @@ impl CreateState {
         }
     }
 
-    /// Screen 7: ten small flags in two columns, the original's five and five more colours made
-    /// from them (`scripts/make_banner_flags.py`); a click on one takes the banner and starts the
-    /// game.
+    /// A click on one takes the banner and starts the game.
     fn step_banner(&mut self, app: &mut App, lay: &Layout, input: &Input) {
         let portrait = self.build.portrait.map(usize::from);
         let title = app.text("create.select_banner");

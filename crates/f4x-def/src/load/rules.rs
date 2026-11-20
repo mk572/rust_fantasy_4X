@@ -94,7 +94,7 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         } else {
             crate::rules::UnitEfficiencies::default()
         },
-        // The lair rules, also optional: a rule set without the file uses the original's.
+        // The lair rules, also optional: a rule set may leave the file out.
         lairs: if find(dir, "lairs.ron").is_some() {
             parse::<crate::rules::lair::LairRules>(dir, "lairs.ron")?
         } else {

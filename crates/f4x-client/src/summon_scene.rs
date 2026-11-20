@@ -25,7 +25,6 @@ use macroquad::prelude::*;
 
 /// Where the frame goes (`start_x`, `start_y`).
 const FRAME: (f32, f32) = (30.0, 42.0);
-/// Two ticks of the original's 55 ms timer a stage.
 const STAGE: f64 = 0.11;
 /// The stages with Spell Animations on and off.
 const STAGES_ANIMATED: usize = 130;

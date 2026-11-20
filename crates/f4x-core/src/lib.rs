@@ -5,6 +5,10 @@
 //!
 //! Tests: none, because it only declares modules.
 
+/// The handle of a unit or a city in the world (`hecs::Entity`), for callers that hold one without
+/// depending on `hecs`.
+pub use hecs::Entity;
+
 pub mod battle;
 pub mod city;
 pub mod diplomacy;

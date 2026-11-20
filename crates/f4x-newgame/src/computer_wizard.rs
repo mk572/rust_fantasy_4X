@@ -23,11 +23,9 @@ const CHAOS: RealmId = RealmId::new(2) /* chaos */;
 const LIFE: RealmId = RealmId::new(3) /* life */;
 const DEATH: RealmId = RealmId::new(4) /* death */;
 
-/// The realms in the order the original's loops go.
 const REALMS: &[RealmId] = &[LIFE, DEATH, CHAOS, NATURE, SORCERY];
 
-/// The realm pairs the original merges, in its order: the first named is the one that may take
-/// the other's books.
+/// The realm pairs that may be merged: the first named is the one that may take the other's books.
 const OPPOSED: &[(RealmId, RealmId)] = &[
     (DEATH, CHAOS),
     (DEATH, NATURE),
@@ -250,8 +248,6 @@ pub(crate) fn fit_books_and_refill(game: &mut Game, b: &mut WizardBuild) {
     }
 }
 
-/// The original's refill loop: five rolls in eight add two to five books to a realm, three in
-/// eight add a retort.
 fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8, ban: bool) {
     let cap = book_cap(game);
     for _ in 0..500 {
@@ -265,7 +261,6 @@ fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8, ban: bool) {
         if value + used > picks {
             value = picks - used;
         }
-        // The refill stops at the most books in all (the original's twelve).
         let all_books = game.settings().wizards.max_books_total;
         if value + book_count > all_books {
             value = all_books.saturating_sub(book_count);
@@ -372,7 +367,6 @@ fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
             }
             chosen
         }
-        // The two-pick retorts need two picks to spare, as in the original.
         _ if two_pick => {
             if u16::from(picks) <= u16::from(used) + 1 {
                 return;

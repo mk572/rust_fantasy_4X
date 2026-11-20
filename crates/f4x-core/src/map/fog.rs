@@ -1,6 +1,6 @@
-//! What each player has explored, as the original keeps it: four corner bits per square.
-//! Visibility is derived on demand from where units and cities stand; exploration is
-//! remembered, for every player (the AI's too) and plane apart.
+//! What each player has explored: four corner bits per square. Visibility is derived on demand from
+//! where units and cities stand; exploration is remembered, for every player (the AI's too) and
+//! plane apart.
 
 use std::collections::BTreeMap;
 

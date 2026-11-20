@@ -36,7 +36,6 @@ pub enum Screen {
     Map,
     City(hecs::Entity),
     Magic,
-    /// One wizard's sheet (the original's Mirror).
     Wizard,
     /// Talking to another wizard.
     Diplomacy,
@@ -54,7 +53,6 @@ pub enum Screen {
     Create,
     /// The new-game options (difficulty, opponents, land size, magic power).
     Options,
-    /// The player's preferences: the original's Settings screen, opened from the save slots.
     Settings,
     /// The settings of the game being played (read-only), or the options for the next game when
     /// there is none; opened from the Settings screen's Game button.
@@ -69,7 +67,6 @@ pub enum Screen {
     Console,
     /// The start menu: Continue, Load Game, New Game, Hall of Fame, Quit.
     MainMenu,
-    /// The original's opening movie (`intro_screen.rs`).
     Intro,
     /// The save slots: load, save, and leave the game.
     Slots,
@@ -2245,8 +2242,7 @@ impl App {
     fn overworld_input(&mut self, input: &Input) {
         let step = 12.0 * get_frame_time();
         let mut pan = Vec2::ZERO;
-        // The arrow keys move the selected stack, as in the original; they scroll the map when
-        // nothing is selected, or with Shift held.
+        // They scroll the map when nothing is selected, or with Shift held.
         let shift = input.key_down(KeyCode::LeftShift) || input.key_down(KeyCode::RightShift);
         // A stack on the other plane than the one in view does not take the keys either
         // (patch 1.52 note 796): they scroll the map.
@@ -2529,7 +2525,6 @@ impl App {
             .any(|&u| self.game.units().unit_owner(u) != Some(HUMAN))
     }
 
-    /// The special button of the original (Build, Meld or Purify), by what the selection can do.
     pub(crate) fn special_button(&mut self) {
         use crate::unit_window::Special;
         match self.special_action() {
@@ -2688,7 +2683,6 @@ impl App {
             }
             let at = screen_of(pos.x, pos.y);
             crate::map_draw::draw_city(&self.game, &mut self.art, *entity, at.x, at.y, t);
-            // The name under the city, in the original's small font.
             let k = t.x / TILE_W;
             let name = city.name.clone();
             let (cx, cy) = ((at.x + t.x / 2.0) / k, (at.y + t.y) / k - 2.0);
@@ -2899,7 +2893,6 @@ impl App {
         }
     }
 
-    /// One line of the overlay on the map, in the original's small font, and the next row.
     fn overlay_line(&mut self, view: (f32, f32, f32), y: &mut f32, text: &str, color: Color) {
         let at = (spot::MAP.0 + 4.0, spot::MAP.1 + *y);
         self.draw_styled(view, &Style::flat(1, color).shadow(), text, at.0, at.1);

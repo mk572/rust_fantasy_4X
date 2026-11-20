@@ -228,7 +228,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
         "life and death exclude each other"
     );
     // A temple gives a life book, up to the limit (a wizard with twelve may still find a
-    // thirteenth, as in the original).
+    // thirteenth).
     let l = info(3 /* ancient_temple */, Some(3 /* life */));
     let mut books = 0;
     for _ in 0..40 {
@@ -940,7 +940,7 @@ fn the_limits_of_six_retorts_and_thirteen_books_decide_between_a_book_and_a_reto
         assert!(loot.retorts.is_empty());
     }
     assert_eq!(magic.view().retorts().len(), 6);
-    // Twelve books: one more can come (the original refuses a book only above twelve).
+    // Twelve books: one more can come.
     let (mut world, e) = sheet(&[(RealmId::new(0 /* nature */), 12)], &[]);
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     let mut found = false;

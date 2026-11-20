@@ -19,7 +19,7 @@
                                     // true: it costs 50% more (3 half-moves instead of 2),
                                     // for movement and for sight
         original_map_generator: false, // false: this game's noise-based land;
-                                       // true: the original's random-walk continents
+                                       // true: random-walk continents
     ),
 
     // Half the upkeep for the basic troops of every race, a divergence inspired by the Caster of
@@ -45,8 +45,8 @@
     ],
 
     // The map sizes of the options step, smallest first: an id and the squares across and down
-    // of each plane (the original's is 60 by 40, the "Medium"), the towers of wisdom (both planes
-    // share them) and the most neutral cities on each plane. The original's 6 and 15 are for 2400
+    // of each plane (60 by 40 is the "Medium"), the towers of wisdom (both planes
+    // share them) and the most neutral cities on each plane. The 6 and 15 are for 2400
     // squares; the others follow the area. The counts of magic nodes and encounter sites follow
     // the area too. The tested range is 45 to 90 across and 30 to 60 down.
     map_sizes: [
@@ -378,9 +378,7 @@
         // nothing else is left to research; Spell of Return is known.)
         arcane_closed: [213, 214],
         // A computer wizard also knows this spell of its main realm (the realm with most books;
-        // the first of the realms on a tie). The original's code names Water Walking, Counter
-        // Magic, Fire Bolt, True Light and Black Sleep here, but its table is off by one spell
-        // and really gives these. Leave it empty for no such spell.
+        // the first of the realms on a tie). Leave it empty for no such spell.
         ai_main_realm_known: {
             0: 9,
             1: 49,

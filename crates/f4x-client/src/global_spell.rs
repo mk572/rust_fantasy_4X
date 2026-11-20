@@ -21,7 +21,6 @@ use crate::view::App;
 /// Where the mirror's frame goes (`start_x`, `start_y`); the face sits 12 in, the spell's
 /// picture 10 and 8 in.
 const MIRROR: (f32, f32) = (58.0, 28.0);
-/// Two ticks of the original's 55 ms timer a stage.
 const STAGE: f64 = 0.11;
 /// The animation ends by itself after 120 stages.
 const STAGES: usize = 120;

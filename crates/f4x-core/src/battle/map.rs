@@ -33,8 +33,7 @@ pub const GRID_H: i32 = 22;
 pub const OPEN_COST: HalfInt = HalfInt::from_int(1);
 /// Moves to enter rough ground.
 pub const ROUGH_COST: HalfInt = HalfInt::from_int(2);
-/// Moves to enter mud (Earth to Mud): the original's 12 half-moves, which is more than any unit
-/// has.
+/// Moves to enter mud (Earth to Mud): 12 half-moves, which is more than any unit has.
 pub const MUD_COST: HalfInt = HalfInt::from_int(6);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -44,15 +43,15 @@ pub enum Cell {
     Rough,
     /// An obstacle walkers cannot enter but fliers pass (made by hand, in tests).
     Blocked,
-    /// Outside the band the original plays on, or a lair's structure: nobody can enter.
+    /// Outside the band the battle is played on, or a lair's structure: nobody can enter.
     Void,
 }
 
 pub type Pos = (i32, i32);
 
-/// The city in a city battle stands on a square of four by four squares, defended end of the
-/// field, mirrored from the original's (which has the defenders on the west). The twelve squares
-/// round the edge are the walls when the city has them; the middle four are the inside.
+/// The city in a city battle stands on a square of four by four squares, defended end of the field.
+/// The twelve squares round the edge are the walls when the city has them; the middle four are the
+/// inside.
 pub const CITY_X0: i32 = 12;
 pub const CITY_Y0: i32 = 10;
 pub const CITY_SIZE: i32 = 4;
@@ -170,8 +169,8 @@ impl BattleMap {
         Self::in_bounds(pos) && self.mud[Self::index(pos)]
     }
 
-    /// Turn the square to mud if it is open ground (grass or dirt in the original; forest,
-    /// rocks and the like stay as they are). Returns whether it changed.
+    /// Turn the square to mud if it is open ground (grass or dirt; forest, rocks and the like stay
+    /// as they are). Returns whether it changed.
     pub fn make_mud(&mut self, pos: Pos) -> bool {
         if self.get(pos) == Some(Cell::Open) && !self.is_mud(pos) {
             self.mud[Self::index(pos)] = true;
@@ -253,8 +252,8 @@ impl BattleMap {
         })
     }
 
-    /// Raise a wall on every wall site (Wall of Stone), whole or broken before. A unit that
-    /// stands on a site stays there, as in the original.
+    /// Raise a wall on every wall site (Wall of Stone), whole or broken before. A unit that stands
+    /// on a site stays there.
     pub fn raise_walls(&mut self) {
         let Some(walls) = self.walls.as_mut() else {
             return;
@@ -290,8 +289,8 @@ impl BattleMap {
         out
     }
 
-    /// The map for a field built by [`layout::generate`]. The layout is in the original's frame;
-    /// the rules use the mirrored one (`x = 20 - cgx`).
+    /// The map for a field built by [`layout::generate`]. The rules use the mirrored one (`x = 20 -
+    /// cgx`).
     pub fn from_layout(layout: Layout) -> Self {
         let mut map = Self::open();
         for y in 0..GRID_H {
@@ -327,8 +326,7 @@ impl BattleMap {
         self.look.as_deref()
     }
 
-    /// Whether a square is in the band the original plays on (always true on a map made by
-    /// hand).
+    /// Whether a square is in the band the battle is played on (always true on a map made by hand).
     pub fn is_playable(&self, pos: Pos) -> bool {
         self.get(pos).is_some_and(|c| c != Cell::Void)
     }
@@ -554,8 +552,8 @@ impl BattleMap {
     }
 }
 
-/// The original's combat terrain set for an overland terrain class: swamp and grassland are
-/// plains, and open water has no ground of its own.
+/// The combat terrain set for an overland terrain class: swamp and grassland are plains, and open
+/// water has no ground of its own.
 pub fn set_of(terrain: Option<TerrainClass>) -> Set {
     match terrain {
         Some(TerrainClass::Forest | TerrainClass::NatureNode) => Set::Forest,
@@ -576,7 +574,7 @@ pub fn set_of(terrain: Option<TerrainClass>) -> Set {
 /// three columns of four outside. At a wizard's fortress the defenders also keep off the square
 /// the fortress stands on. The first `count` places in order.
 pub fn city_deployment(attacker: bool, count: usize, walled: bool, fortress: bool) -> Vec<Pos> {
-    // Rows from the front column back, and within a column the original's order of rows.
+    // Rows from the front column back.
     let (columns, rows): ([i32; 3], [i32; 4]) = if attacker {
         ([6, 5, 4], [12, 11, 13, 10])
     } else {

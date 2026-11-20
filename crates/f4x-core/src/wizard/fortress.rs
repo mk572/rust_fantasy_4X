@@ -1,9 +1,8 @@
 //! The wizard's fortress and summoning circle, banishment and return.
 //!
-//! In the original the fortress is a special building in the wizard's capital; here it is a
-//! location on the wizard (the city standing there is the fortress city). The summoning
-//! circle is where summoned creatures appear; it starts in the fortress city and can be moved
-//! by a spell. When the fortress city is taken the wizard is banished and starts casting the
+//! The fortress is a location on the wizard (the city standing there is the fortress city). The
+//! summoning circle is where summoned creatures appear; it starts in the fortress city and can be
+//! moved by a spell. When the fortress city is taken the wizard is banished and starts casting the
 //! Spell of Return, which puts the fortress in a city of their choice.
 //!
 //! Tests: in wizard/fortress/tests.rs.
@@ -533,11 +532,10 @@ impl Game {
     }
 
     /// A city that the rules have decided is gone (an outpost that is lost, a city taken with no
-    /// citizens, one a monster horde razes): [`Game::destroy_city`], and what to do when it
-    /// says no. A wizard's fortress city survives with a citizen, as in the original, so no
-    /// event. A city that has no owner or no square cannot be destroyed by the book and is
-    /// removed all the same, so that none is left standing as a ghost; the event is there when
-    /// it had a square to name.
+    /// citizens, one a monster horde razes): [`Game::destroy_city`], and what to do when it says
+    /// no. A wizard's fortress city survives with a citizen, so no event. A city that has no owner
+    /// or no square cannot be destroyed by the book and is removed all the same, so that none is
+    /// left standing as a ghost; the event is there when it had a square to name.
     pub(crate) fn remove_city(&mut self, city: hecs::Entity) -> Vec<Event> {
         match self.destroy_city(city) {
             Ok(events) => events,
@@ -552,8 +550,7 @@ impl Game {
         }
     }
 
-    /// Raze a city. A fortress city cannot be destroyed: it survives with at least one
-    /// citizen, as in the original.
+    /// Raze a city. A fortress city cannot be destroyed: it survives with at least one citizen.
     pub fn destroy_city(&mut self, city: hecs::Entity) -> Result<Vec<Event>, FortressError> {
         let owner = self
             .economy()

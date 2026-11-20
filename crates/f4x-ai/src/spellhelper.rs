@@ -42,9 +42,38 @@ fn summoned_strength(view: &PlayerView, def: &SpellDef) -> f32 {
         .sum()
 }
 
+/// The unit a lasting spell on one unit does most for, with what it is worth: the strength it adds
+/// to that unit (`PlayerView::unit_power_with_spell`) for each point of mana it costs, the casting
+/// cost and the upkeep weighed as for a summon. Only a fighter that does not carry the spell yet
+/// and that the game lets it be cast on counts, and a spell that adds nothing to any of them
+/// (an ability the units have, a stat it does not read) is worth nothing and has no unit.
+pub(crate) fn best_buff(view: &PlayerView, spell: SpellId) -> Option<(hecs::Entity, f32)> {
+    let def = view.spell(spell);
+    let mana =
+        (view.casting_cost(spell).max(1) as f32 + def.upkeep as f32 * upkeep_weight()).max(1.0);
+    let mut units: Vec<hecs::Entity> = view
+        .my_units()
+        .into_iter()
+        .filter(|&u| is_fighter(view, u) && !view.unit_enchantments(u).contains(&spell))
+        .collect();
+    view.sort_by_serial(&mut units);
+    let mut rated: Vec<(f32, hecs::Entity)> = units
+        .into_iter()
+        .map(|u| (view.unit_power_with_spell(u, spell) - view.unit_power(u), u))
+        .filter(|&(gain, _)| gain > 0.0)
+        .collect();
+    // The first of equals in serial order wins: the sort is stable.
+    rated.sort_by(|a, b| b.0.total_cmp(&a.0));
+    rated
+        .into_iter()
+        .find(|&(_, u)| view.can_aim(spell, Some(f4x_core::rules::exec::Target::Unit(u))))
+        .map(|(gain, u)| (u, gain / mana))
+}
+
 /// How good the spell is for its intent: higher is better. Summons are rated by the strength they
 /// bring for each point of mana they cost (the casting cost and the upkeep over twenty turns);
-/// every other spell by its cost, a dear spell being the stronger, less its upkeep.
+/// a lasting spell on a unit by what it adds to the unit it does most for, over its mana
+/// ([`best_buff`]); every other spell by its cost, a dear spell being the stronger, less its upkeep.
 pub fn rate(view: &PlayerView, spell: SpellId, kind: Kind) -> f32 {
     let def = view.spell(spell);
     let cost = view.casting_cost(spell).max(1) as f32;
@@ -55,6 +84,7 @@ pub fn rate(view: &PlayerView, spell: SpellId, kind: Kind) -> f32 {
         // unit given up, one for one: a summon of the same strength and cost is better, as it
         // costs no unit.
         Kind::Lycanthropy => crate::wizardry::lycanthropy_target(view, spell).map_or(0.0, |t| t.2),
+        Kind::UnitBuff => best_buff(view, spell).map_or(0.0, |b| b.1),
         _ => cost / (1.0 + upkeep),
     };
     let affinity = view.wizard().map_or(1.0, |w| {

@@ -21,9 +21,7 @@ use macroquad::prelude::*;
 /// Where the scroll goes, and the cityscape inside it.
 const FRAME: (f32, f32) = (53.0, 38.0);
 const CITYSCAPE: (f32, f32) = (58.0, 65.0);
-/// Two ticks of the original's 55 ms timer a stage.
 const STAGE: f64 = 0.11;
-/// The animated scroll stays this many stages (the original waits for a click after eight).
 const STAGES_ANIMATED: usize = 40;
 const STAGES_PLAIN: usize = 12;
 /// `MUSIC.LBX`: the good tunes of arcane, chaos, death, life, nature and sorcery; the bad ones

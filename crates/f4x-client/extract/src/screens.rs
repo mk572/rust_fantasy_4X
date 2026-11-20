@@ -47,7 +47,6 @@ const ABILITY_ICONS_IN_SPECIAL2: usize = 34;
 /// The placement of every picture that has a special place.
 pub struct Placer {
     rules: Vec<Rule>,
-    /// Original unit type number -> unit id.
     types: HashMap<usize, String>,
     /// `PORTRAIT.LBX` entry -> hero unit id.
     portraits: HashMap<usize, String>,
@@ -536,8 +535,6 @@ mod tests {
             p.place("magic", 60).as_deref(),
             Some("screens/diplomacy/icons/magic_060")
         );
-        // The original's finished gems and the five base diamonds (the client has its own copy of
-        // those) are not drawn: they go to `assets-unused/`.
         assert!(p.is_unused("lilwiz", 3) && p.is_unused("lilwiz", 107));
         assert_eq!(
             p.place("lilwiz", 3).as_deref(),

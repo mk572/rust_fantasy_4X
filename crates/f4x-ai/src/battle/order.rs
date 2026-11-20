@@ -564,6 +564,37 @@ mod tests {
     }
 
     #[test]
+    fn a_unit_seized_by_confusion_is_ordered_against_its_own_side() -> TestResult {
+        // Unit 0 is ours; units 1 and 2 are the enemy's, and unit 1 is seized: it stands on our
+        // side for this turn (as `side_turn_effects` leaves it) next to unit 2, its old ally.
+        let mut b = real_battle(
+            &[(105 /* high_men_swordsmen */, (3, 5))],
+            &[
+                (113 /* high_men_paladins */, (8, 5)),
+                (104 /* high_men_spearmen */, (9, 5)),
+            ],
+            1,
+        );
+        b.units[1].side = Side::Attacker;
+        b.units[1].turned_from = Some(Side::Defender);
+        b.units[0].moves_left = f4x_def::half_int::HalfInt::ZERO;
+        b.units[0].attacked = true;
+        let mut targets = Vec::new();
+        for _ in 0..8 {
+            let command = next_command(&b);
+            if let BattleCommand::Attack { unit: 1, target } = command {
+                targets.push(target);
+            }
+            if matches!(command, BattleCommand::EndTurn) {
+                break;
+            }
+            b.apply(command).map_err(|e| format!("{e:?}"))?;
+        }
+        assert_eq!(targets, vec![2], "the seized paladin strikes its old ally");
+        Ok(())
+    }
+
+    #[test]
     fn a_shooter_with_shots_left_stays_put_instead_of_walking_into_melee() -> TestResult {
         let mut b = real_battle(
             &[(101 /* high_elf_longbowmen */, (3, 5))],

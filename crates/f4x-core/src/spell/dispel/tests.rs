@@ -121,7 +121,7 @@ fn the_chance_is_strength_over_strength_plus_difficulty() {
     assert_eq!(hits(0, 10), 0);
     assert!((900..1100).contains(&hits(10, 30)), "a quarter");
     assert!((1900..2100).contains(&hits(30, 30)), "a half");
-    // The original's roll of 250 never beats 249: even overwhelming strength fails 1 in 250.
+    // A roll of 250 never beats 249: even overwhelming strength fails 1 in 250.
     assert!(hits(100_000, 1) > 3900);
 }
 

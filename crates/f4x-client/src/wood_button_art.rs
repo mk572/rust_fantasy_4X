@@ -1,8 +1,7 @@
 //! The city screen's wooden buttons (Buy, Change and OK) without their labels: 30 or 36 by 10
 //! pictures (`scripts/button_text_free.py`, files `assets/button/city_<name>.png`). The label is a
-//! text key drawn over the picture by the font engine in the 5 px font (style 1), in the
-//! original's lavender grey. The pressed look is the up picture moved a pixel
-//! (`menu_bar_art::draw_button`); a disabled button fades as the original's does.
+//! text key drawn over the picture by the font engine in the 5 px font (style 1). The pressed look
+//! is the up picture moved a pixel (`menu_bar_art::draw_button`).
 
 use macroquad::prelude::*;
 use macroquad_bitmap_font_engine as bm;
@@ -38,8 +37,7 @@ impl Wood {
         }
     }
 
-    /// Where the label's middle sits against the picture's, in pixels: the original rounds the
-    /// start of the lettering down, which the font engine's centring rounds up for OK.
+    /// Where the label's middle sits against the picture's, in pixels.
     fn nudge(self) -> f32 {
         match self {
             Wood::Change => 0.0,
@@ -72,8 +70,6 @@ fn texture(which: Wood) -> Texture2D {
     })
 }
 
-/// The font of the labels: style 1 with the original's own letters for BUY, CHANGE and OK, the
-/// tailed Y and the darker corner pixels of the A and G (`scripts/button_label_font.py`).
 fn label_font() -> Rc<bm::BmFont> {
     thread_local! {
         static FACE: RefCell<Option<Rc<bm::BmFont>>> = const { RefCell::new(None) };

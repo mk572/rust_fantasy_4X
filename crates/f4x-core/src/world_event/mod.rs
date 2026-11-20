@@ -40,7 +40,7 @@ pub enum EventKind {
 }
 
 impl EventKind {
-    /// Every kind, in the original's order.
+    /// Every kind.
     pub fn all() -> impl Iterator<Item = EventKind> {
         <EventKind as strum::IntoEnumIterator>::iter()
     }
@@ -50,7 +50,7 @@ impl EventKind {
         EventKind::all().count() as u32
     }
 
-    /// The kind of a roll from 1 to [`EventKind::count`], in the original's order.
+    /// The kind of a roll from 1 to [`EventKind::count`].
     pub fn from_roll(roll: u32) -> Option<EventKind> {
         EventKind::all().nth((roll as usize).checked_sub(1)?)
     }

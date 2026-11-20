@@ -1,4 +1,4 @@
-// Kept by hand (the importer no longer writes this file). In the order of the original's unit
+// Kept by hand (the importer no longer writes this file). In the order of the unit
 // type numbers (`num`; `id` is the alias for editing, not a second numbering).
 [
     (num: 0, id: "dwarf", kind: Hero, cost: 100, upkeep: (gold: 2), stats: {Melee: 5, Defense: 4, Resistance: 10, MaxHp: 10, Figures: 1, Moves: 2, Sight: 1.5}, movement: Walking, abilities: [9, 45], level_path: Some(1), hero: Some((kind: Warrior, hire_cost: 100))),

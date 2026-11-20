@@ -1,7 +1,7 @@
-//! Stasis: every enemy unit on a map square is paralysed. The unit cannot move or, in a battle,
-//! act (it is treated as asleep, as under Black Sleep) for at least the turn that follows the
-//! cast. After that, each turn it rolls a resistance check at -5 and is freed if it resists
-//! (the original frees it on the same roll; help topic 554 says -3).
+//! Stasis: every enemy unit on a map square is paralysed. The unit cannot move or, in a battle, act
+//! (it is treated as asleep, as under Black Sleep) for at least the turn that follows the cast.
+//! After that, each turn it rolls a resistance check at -5 and is freed if it resists (help topic
+//! 554 says -3).
 //!
 //! Tests: in spell/wizard/tests.rs.
 

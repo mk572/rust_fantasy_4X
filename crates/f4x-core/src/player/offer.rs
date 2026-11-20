@@ -134,9 +134,8 @@ pub fn hero_chance(
     chance / ((heroes as i32 + 1) / 2 + 1)
 }
 
-/// The level of a mercenary company from a `Random(100)` roll: above 90 (with fame added) level
-/// 3, above 60 level 2, else level 1. The original tests "above 90" twice, so it never offers
-/// level 2.
+/// The level of a mercenary company from a `Random(100)` roll: above 90 (with fame added) level 3,
+/// above 60 level 2, else level 1.
 pub fn mercenary_level(roll: i32, fame: i32) -> u8 {
     match roll + fame {
         91.. => 3,
@@ -304,7 +303,7 @@ impl Game {
             .map(|(e, _)| e)
     }
 
-    /// One wizard's offers this turn, in the original's order: item, mercenaries, hero.
+    /// One wizard's offers this turn: item, mercenaries, hero.
     fn offers_for(&mut self, player: PlayerId) -> Vec<Offer> {
         let mut offers = Vec::new();
         if !self.can_be_offered(player) {

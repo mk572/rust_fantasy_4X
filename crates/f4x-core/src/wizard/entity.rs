@@ -15,8 +15,8 @@ use crate::wizard::sheet::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Name(pub String);
 
-/// Which of the original's fourteen wizard pictures (0 to 13) shows the wizard: the portrait of
-/// the creation screen, the gem on the magic screen and the diplomacy screen.
+/// Which of the fourteen wizard pictures (0 to 13) shows the wizard: the portrait of the creation
+/// screen, the gem on the magic screen and the diplomacy screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Portrait(pub u8);
 

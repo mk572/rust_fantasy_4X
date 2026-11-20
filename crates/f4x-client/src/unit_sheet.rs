@@ -5,7 +5,6 @@
 //! `Thing_View_Draw`, `UV_Draw_Stat_Icons`, `UV_Draw_Hits_Icons`; `UnitView.c`
 //! `USW_Build_Effect_List`). The numbers in the tables below are picture indexes into the
 //! original's `special.lbx` (and `special2.lbx` from 111 on), not art.
-
 use crate::text::{Args, Term, Texts};
 use f4x_core::battle::{Battle, BattleUnit, RangedKind};
 use f4x_core::rules::unit_flag::UnitFlag;
@@ -201,7 +200,6 @@ pub(crate) fn quiver_name(texts: &Texts, abilities: &[Ability], ammo: i32) -> Op
     Some(texts.get(key, &Args::new().count("n", ammo)))
 }
 
-/// Abilities the list shows, in the original's order, with their picture.
 const LISTED: &[(Ability, usize)] = &[
     // Movement and special unit abilities (`USW_Abilities`).
     (Ability::new(68 /* teleport */), 0),
@@ -452,8 +450,6 @@ fn hero_abilities(input: &SpecialsInput, level: usize, out: &mut Vec<Special>) {
     }
 }
 
-/// The abilities list in the original's order: level, quiver, to hit, construction, the listed
-/// abilities, then the lasting spells.
 pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
     let mut out = Vec::new();
     let plain = |name: String, icon: Option<usize>| Special {
@@ -495,7 +491,6 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         out.push(plain(input.texts.get("unit.carries", &args), None));
     }
     let has = |a: Ability| input.abilities.contains(&a);
-    // Merging, with the picture of the item power (the original shows it before Teleporting).
     if has(Ability::new(43 /* merging */)) {
         out.push(Special {
             help: (input.ability_help)(Ability::new(43 /* merging */)),
@@ -1098,7 +1093,7 @@ mod tests {
             curse_picture(&[s(5) /* web */, s(53) /* vertigo */]),
             Some(16)
         );
-        // Black Sleep only greys the figure, as in the original.
+        // Black Sleep only greys the figure.
         assert_eq!(curse_picture(&[s(165) /* black_sleep */]), None);
         assert_eq!(
             curse_picture(&[s(165) /* black_sleep */, s(162) /* weakness */]),
@@ -1279,7 +1274,7 @@ mod tests {
             n => format!("ability {n}"),
         };
         let no_help = |_: Ability| None;
-        // Life steal, destruction, death touch, power drain and doom damage, in the original's order.
+        // Life steal, destruction, death touch, power drain and doom damage.
         let abilities = [
             Ability::new(103 /* power_drain */),
             Ability::new(99 /* death_touch */),
@@ -1377,7 +1372,6 @@ mod tests {
                 "ability 96"
             ]
         );
-        // Charmed and Noble have the original's pictures, and Lucky is not listed twice.
         assert_eq!(list[5].icon, Some(59));
         assert_eq!(list[6].icon, Some(60));
         // A unit that is no hero lists none of them (they are not its abilities).

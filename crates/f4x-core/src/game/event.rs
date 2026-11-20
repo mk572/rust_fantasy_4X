@@ -329,8 +329,8 @@ pub enum Event {
         units_lost: u32,
         buildings_lost: u32,
     },
-    /// A wizard has started casting the Spell of Mastery (`Game::mastery_casters`): every
-    /// wizard is told (the original shows "<name> has started casting the Spell of Mastery").
+    /// A wizard has started casting the Spell of Mastery (`Game::mastery_casters`): every wizard is
+    /// told.
     MasteryStarted {
         caster: player::PlayerId,
     },

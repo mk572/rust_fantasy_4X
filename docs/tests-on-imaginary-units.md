@@ -15,18 +15,28 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 28 tests. Part 2: 5 tests. Of 2522 in all.**
+**Part 1: 31 tests. Part 2: 6 tests. Of 2610 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
 | File | Tests |
 |---|---|
-| `crates/f4x-def/src/load/rules.rs` | 12 |
+| `crates/f4x-def/src/load/rules.rs` | 13 |
 | `crates/f4x-def/src/rules/stats.rs` | 7 |
 | `crates/f4x-def/src/rules/registry.rs` | 4 |
+| `crates/f4x-core/src/game/save/tests.rs` | 2 |
 | `crates/f4x-core/src/hook.rs` | 2 |
 | `crates/f4x-def/src/settings/tests.rs` | 2 |
 | `crates/f4x-core/src/map/vision.rs` | 1 |
+
+## `crates/f4x-core/src/game/save/tests.rs` (2)
+
+`rust_coding_rules.md` names this file as allowed to build its own content: a save naming a unit the content lacks.
+
+| Test | Line | What is made up | Through | Decision |
+|---|---|---|---|---|
+| `an_empty_game_round_trips` | 407 | empty content (`Content::default`) | itself | |
+| `a_save_with_out_of_range_settings_is_brought_into_range` | 588 | empty content (`Content::default`) | itself | |
 
 ## `crates/f4x-core/src/hook.rs` (2)
 
@@ -41,51 +51,52 @@ The `Decision` column is for the walk through the list.
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `oracle_walls_and_natures_eye_widen_a_citys_sight` | 420 | hand-made spell modifier (`Modifier::new`) | itself | |
+| `oracle_walls_and_natures_eye_widen_a_citys_sight` | 421 | hand-made spell modifier (`Modifier::new`) | itself | |
 
-## `crates/f4x-def/src/load/rules.rs` (12)
+## `crates/f4x-def/src/load/rules.rs` (13)
 
-Helpers that make things up: `problems` (line 902), `problems_after` (line 875), `rules_with` (line 813).
+Helpers that make things up: `problems` (line 986), `problems_after` (line 959), `rules_with` (line 895).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `bad_hero_formulas_are_refused` | 911 | hand-built registry (`Registry::new`) | `problems` | |
-| `the_shipped_site_weights_are_the_default_and_bad_ones_are_refused` | 927 | hand-built registry (`Registry::new`) | `rules_with`, `problems` | |
-| `the_shipped_lair_table_is_the_default_and_bad_ones_are_refused` | 947 | hand-built registry (`Registry::new`) | `rules_with`, `problems` | |
-| `shipped_rules_are_valid` | 971 | hand-built registry (`Registry::new`) | `problems` | |
-| `catches_item_problems` | 996 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `catches_unknown_references` | 1013 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `catches_hero_template_problems` | 1035 | hand-built registry (`Registry::new`) | `rules_with` | |
-| `catches_unit_rule_violations` | 1068 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `catches_a_building_replacing_nothing` | 1085 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `catches_building_problems` | 1094 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `catches_spell_and_effect_problems` | 1119 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `catches_bad_level_paths` | 1138 | hand-built registry (`Registry::new`) | `problems_after` | |
+| `bad_hero_formulas_are_refused` | 995 | hand-built registry (`Registry::new`) | `problems` | |
+| `a_race_in_a_buildings_list_that_cannot_build_what_it_needs_is_refused` | 1011 | hand-built registry (`Registry::new`) | `problems` | |
+| `the_shipped_site_weights_are_the_default_and_bad_ones_are_refused` | 1024 | hand-built registry (`Registry::new`) | `rules_with`, `problems` | |
+| `the_shipped_lair_table_is_the_default_and_bad_ones_are_refused` | 1044 | hand-built registry (`Registry::new`) | `rules_with`, `problems` | |
+| `shipped_rules_are_valid` | 1068 | hand-built registry (`Registry::new`) | `problems` | |
+| `catches_item_problems` | 1093 | hand-built registry (`Registry::new`) | `problems_after` | |
+| `catches_unknown_references` | 1110 | hand-built registry (`Registry::new`) | `problems_after` | |
+| `catches_hero_template_problems` | 1132 | hand-built registry (`Registry::new`) | `rules_with` | |
+| `catches_unit_rule_violations` | 1165 | hand-built registry (`Registry::new`) | `problems_after` | |
+| `catches_a_building_replacing_nothing` | 1182 | hand-built registry (`Registry::new`) | `problems_after` | |
+| `catches_building_problems` | 1191 | hand-built registry (`Registry::new`) | `problems_after` | |
+| `catches_spell_and_effect_problems` | 1216 | hand-built registry (`Registry::new`) | `problems_after` | |
+| `catches_bad_level_paths` | 1235 | hand-built registry (`Registry::new`) | `problems_after` | |
 
 ## `crates/f4x-def/src/rules/registry.rs` (4)
 
-Helpers that make things up: `table` (line 151).
+Helpers that make things up: `table` (line 150).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_definition_is_found_by_number` | 156 | hand-built registry (`Registry::new`) | `table` | |
-| `a_number_the_table_lacks_is_none` | 167 | hand-built registry (`Registry::new`) | `table` | |
-| `numbers_out_of_order_are_refused` | 187 | hand-built registry (`Registry::new`) | itself | |
-| `a_repeated_alias_is_refused_in_tests` | 193 | hand-built registry (`Registry::new`) | itself | |
+| `a_definition_is_found_by_number` | 155 | hand-built registry (`Registry::new`) | `table` | |
+| `a_number_the_table_lacks_is_none` | 166 | hand-built registry (`Registry::new`) | `table` | |
+| `numbers_out_of_order_are_refused` | 186 | hand-built registry (`Registry::new`) | itself | |
+| `a_repeated_alias_is_refused_in_tests` | 192 | hand-built registry (`Registry::new`) | itself | |
 
 ## `crates/f4x-def/src/rules/stats.rs` (7)
 
-Helpers that make things up: `m` (line 286).
+Helpers that make things up: `m` (line 299).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `adds_then_percent` | 291 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `order_of_modifiers_does_not_matter` | 300 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `percent_rounds_down_including_negatives` | 311 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `bounds_and_set` | 325 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `floors_apply_only_where_defined` | 354 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `other_stats_are_ignored_and_contributions_filter` | 366 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `extreme_values_do_not_overflow` | 376 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `adds_then_percent` | 304 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `order_of_modifiers_does_not_matter` | 313 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `percent_rounds_down_including_negatives` | 324 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `bounds_and_set` | 338 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `floors_apply_only_where_defined` | 367 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `other_stats_are_ignored_and_contributions_filter` | 379 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `extreme_values_do_not_overflow` | 389 | hand-made spell modifier (`Modifier::new`) | `m` | |
 
 ## `crates/f4x-def/src/settings/tests.rs` (2)
 
@@ -98,16 +109,19 @@ Helpers that make things up: `m` (line 286).
 
 | File | Tests |
 |---|---|
-| `crates/f4x-core/src/city/economy.rs` | 2 |
+| `crates/f4x-core/src/city/economy.rs` | 3 |
 | `crates/f4x-core/src/wizard/magic_command/tests.rs` | 2 |
 | `crates/f4x-core/src/game/tests.rs` | 1 |
 
-## `crates/f4x-core/src/city/economy.rs` (2)
+## `crates/f4x-core/src/city/economy.rs` (3)
+
+Helpers that make things up: `production_of` (line 1576).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_cities_yields_come_from_a_world_a_map_and_the_content_alone` | 1474 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `a_computer_wizards_bonuses_multiply_its_cities_and_nobody_elses` | 1528 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `a_cities_yields_come_from_a_world_a_map_and_the_content_alone` | 1522 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `the_base_of_a_farmer_and_a_worker_is_the_setting_and_a_races_own_value_wins` | 1623 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `production_of` | |
+| `a_computer_wizards_bonuses_multiply_its_cities_and_nobody_elses` | 1663 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
 
 ## `crates/f4x-core/src/game/tests.rs` (1)
 

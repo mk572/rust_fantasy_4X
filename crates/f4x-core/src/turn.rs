@@ -108,11 +108,10 @@ impl Game {
         events
     }
 
-    /// The end of one player's turn: income, bills and production, as the original's turn
-    /// change does them, so a defender finished now defends against the rivals' turns and a
-    /// shortage costs its units now. Raze windows shut; farmers are kept on the farms; the treasury settles (gold and food income,
-    /// upkeep); the wizard's magic runs (mana income, research points, mana upkeep, casting);
-    /// the cities build.
+    /// The end of one player's turn: income, bills and production, so a defender finished now
+    /// defends against the rivals' turns and a shortage costs its units now. Raze windows shut;
+    /// farmers are kept on the farms; the treasury settles (gold and food income, upkeep); the
+    /// wizard's magic runs (mana income, research points, mana upkeep, casting); the cities build.
     pub fn end_player_turn(&mut self, player: PlayerId) -> Vec<Event> {
         self.close_raze_windows(player);
         let mut events = Vec::new();
@@ -252,8 +251,7 @@ impl Game {
             return events;
         };
         let (before, mut after) = self.apply_growth(city, eco.growth_tens);
-        // Pestilence: each citizen has a tenth of a chance to die, but the last one is spared
-        // (the original kills one when the city has more people than a roll of 1 to 10).
+        // Pestilence: each citizen has a tenth of a chance to die, but the last one is spared.
         if self
             .economy()
             .city_has_effect(city, crate::spell::city::CityEffect::Pestilence)

@@ -77,8 +77,7 @@ pub struct Research {
 pub struct KnownSpells {
     pub known: BTreeSet<SpellId>,
     pub researchable: BTreeSet<SpellId>,
-    /// The spells the wizard started with (the original sets them directly, without the gain
-    /// that lowers the Spell of Mastery's cost, so they do not count towards it).
+    /// The spells the wizard started with (they do not count towards the Spell of Mastery's cost).
     pub starting: BTreeSet<SpellId>,
 }
 

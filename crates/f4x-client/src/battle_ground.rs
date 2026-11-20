@@ -127,12 +127,10 @@ fn file_grass(plane: Plane) -> &'static str {
     ground_file(Set::Plains, plane)
 }
 
-/// The core's square for a cell of the original's frame.
 fn core_pos(cgx: i32, cgy: i32) -> Pos {
     (GRID_W - 1 - cgx, cgy)
 }
 
-/// Top-left of a cell of the original's frame, relative to the grid's origin.
 fn origin(cgx: i32, cgy: i32) -> (f32, f32) {
     ((cgx - cgy) as f32 * 16.0, (cgx + cgy) as f32 * 8.0)
 }
@@ -432,9 +430,6 @@ impl App {
                 out.push((order_of(point(x, y, (0, 0))), Piece::Structure));
             }
         }
-        // Walls: each section sorts by the point the original puts it at (the corner of its
-        // square and the section's offset), so a figure standing on a square near the wall is
-        // drawn over or under it by its own anchor.
         for cgy in 0..H {
             for cgx in 0..W {
                 let pos = core_pos(cgx, cgy);
@@ -692,8 +687,8 @@ mod tests {
         for (cgx, cgy) in [(0, 0), (6, 5), (13, 2), (3, 17)] {
             assert_eq!(order_of(point(cgx, cgy, (0, 0))), cgy * 8000 + cgx * 320);
         }
-        // A cell of a later row is drawn over every cell of an earlier one, even one lower on
-        // the screen (the original does not sort along the diagonals).
+        // A cell of a later row is drawn over every cell of an earlier one, even one lower on the
+        // screen.
         assert!(order_of(point(0, 6, (0, 0))) > order_of(point(15, 5, (0, 0))));
         // Inside a cell, the offsets order the pictures: a figure further along `x` or `y`
         // is drawn later.

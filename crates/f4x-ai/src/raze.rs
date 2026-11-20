@@ -25,8 +25,7 @@ fn score(view: &PlayerView, at: Position, from: PlayerId) -> i32 {
     let mut score = match temper {
         Some(Personality::Maniacal) => 25,
         Some(Personality::Ruthless) => 10,
-        // The original asks whether the hidden relation is not zero, which is a slip for being
-        // at war: a lawful wizard razes only the cities of a wizard it fights.
+        // A lawful wizard razes only the cities of a wizard it fights.
         Some(Personality::Lawful) => {
             if view.treaty_with(from) == Treaty::War {
                 25

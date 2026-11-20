@@ -1,7 +1,7 @@
-//! Road-building mode: the original's topics 510-512. B with engineers selected opens
-//! the mode; a click on the map picks the far end, the squares between are marked (blue where
-//! a road can be built, red where it cannot) with the turns each takes, and OK builds the whole
-//! path with `Command::BuildRoad`. Cancel, Escape or a right-click leave the mode.
+//! Road-building mode. B with engineers selected opens the mode; a click on the map picks the far
+//! end, the squares between are marked (blue where a road can be built, red where it cannot) with
+//! the turns each takes, and OK builds the whole path with `Command::BuildRoad`. Cancel, Escape or
+//! a right-click leave the mode.
 
 use crate::font::Style;
 use crate::input::Input;
@@ -29,7 +29,6 @@ pub struct RoadPlan {
 /// The most turns a plan may add up to; the path is cut short before it passes this.
 const MAX_TURNS: u32 = 120;
 
-/// The buttons' places in the original's pixels: OK and Cancel on the side panel.
 const OK_AT: (f32, f32) = (246.0, 181.0);
 const CANCEL_AT: (f32, f32) = (280.0, 181.0);
 /// Both buttons are 33 by 9.
@@ -109,8 +108,8 @@ impl App {
             return;
         };
         let sum = self.road_summary(&plan);
-        // The original does nothing when there is no time to spend (nothing picked, or only
-        // squares that have their road already) or the way is blocked.
+        // Nothing is done when there is no time to spend (nothing picked, or only squares that have
+        // their road already) or the way is blocked.
         if sum.turns == 0 || sum.blocked {
             self.road_plan = Some(plan);
             return;

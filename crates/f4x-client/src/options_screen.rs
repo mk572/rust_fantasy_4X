@@ -23,7 +23,6 @@ pub(crate) const DIFFICULTIES: &[&str] = &[
     "options.extreme",
     "options.impossible",
 ];
-/// The names on the original's options buttons.
 const OPTION_DIFFICULTIES: &[&str] = &[
     "options.intro",
     "options.easy",
@@ -58,7 +57,7 @@ pub(crate) struct OptionsState {
     pub magic: u8,
     /// Index into `settings.map_sizes`.
     pub map: u8,
-    /// Make the land with the original's generator.
+    /// Make the land with the random-walk generator.
     pub original_generator: bool,
     /// The settings of the Custom screen, when the player kept some: they replace the level's
     /// figures for the new game.
@@ -214,7 +213,7 @@ impl App {
 /// under them. Positions are the original's.
 pub(crate) struct OptionsPage;
 
-/// Where the Custom button is, in the dark square under the picture, above the gargoyles (the original's pixels).
+/// Where the Custom button is, in the dark square under the picture, above the gargoyles.
 const CUSTOM_AT: (f32, f32) = (50.0, 139.0);
 
 impl Page for OptionsPage {
@@ -327,9 +326,6 @@ fn cycled(current: usize, count: usize, back: bool) -> usize {
 }
 
 impl Page for GameSettingsPage {
-    /// A stone box like the original's confirmation boxes: from the start menu a row for each
-    /// choice (left-click the value for the next one, right-click for the previous one), in a
-    /// game the lines of what it is played with.
     fn frame(&mut self, app: &mut App, input: &Input) {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let lay = Layout::new();
@@ -507,7 +503,6 @@ impl Page for GameSettingsPage {
     }
 }
 
-/// Row height of the game settings box, in the original's pixels.
 const SETTINGS_ROW: f32 = 10.0;
 /// Rows of the game settings box in view at once; a longer list scrolls.
 const SETTINGS_VISIBLE: usize = 12;

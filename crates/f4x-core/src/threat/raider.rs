@@ -49,7 +49,6 @@ impl Game {
         }
         let sources = self.raider_sources();
         if sources.is_empty() {
-            // The original lets a failed raid feed the monsters' clock instead.
             self.threat.monster_clock += 15;
             return Vec::new();
         }

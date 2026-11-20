@@ -150,11 +150,10 @@ impl Game {
         events
     }
 
-    /// One wizard's magic at the end of their turn: income (mana, research points, skill),
-    /// mana upkeep, casting (the original does each step for all wizards in turn; the turn is
-    /// now the player's own). The research is learned at the next turn's start
-    /// ([`Game::process_research`]); the temporary effects, global spells and experience that
-    /// used to start here are the round's (`turn.rs`).
+    /// One wizard's magic at the end of their turn: income (mana, research points, skill), mana
+    /// upkeep, casting. The research is learned at the next turn's start
+    /// ([`Game::process_research`]); the temporary effects, global spells and experience that used
+    /// to start here are the round's (`turn.rs`).
     pub(crate) fn process_magic(&mut self, player: PlayerId) -> Vec<Event> {
         let mut events = Vec::new();
         // While Time Stop lasts, its wizard has no income and only the others' time is stopped

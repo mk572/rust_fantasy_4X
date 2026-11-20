@@ -389,9 +389,8 @@ fn only_against(spell: SpellId) -> Option<&'static [Realm]> {
     }
 }
 
-/// How much harder the undead find it to resist a spell, on top of its own modifier: Dispel
-/// Evil and Holy Word (the help's "much more difficult time"; the original's Holy Word code
-/// has it the wrong way round).
+/// How much harder the undead find it to resist a spell, on top of its own modifier: Dispel Evil
+/// and Holy Word (the help's "much more difficult time").
 fn undead_penalty(spell: SpellId) -> i32 {
     match spell.num() {
         134 /* dispel_evil */ | 150 /* holy_word */ => 5,
@@ -1475,7 +1474,7 @@ impl Game {
                     return Vec::new();
                 };
                 let battle = &mut active.battle;
-                // Word of Death is the original's exception: with the rule on, nothing stops it.
+                // Word of Death has `death_immunity_exception`: with the rule on, nothing stops it.
                 let immune_types =
                     if def.death_immunity_exception && battle.death_immunity_exceptions {
                         Vec::new()

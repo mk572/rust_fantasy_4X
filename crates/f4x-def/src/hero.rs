@@ -17,8 +17,8 @@ pub enum Tier {
     Super,
 }
 
-/// The abilities one hero type has in one wizard's game (the original's `HSA_*` flags): rolled
-/// when the game starts and copied to the unit when the hero is hired.
+/// The abilities one hero type has in one wizard's game: rolled when the game starts and copied to
+/// the unit when the hero is hired.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct HeroAbilities {
     pub leadership: Tier,

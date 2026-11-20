@@ -539,6 +539,9 @@ pub struct Fighter {
     pub thrown: Option<Combatant>,
     pub first_strike: bool,
     pub negate_first_strike: bool,
+    /// A second swing in the same exchange (Haste). Only the attacker's counts: a hasted
+    /// defender still strikes back once.
+    pub extra_swing: bool,
     pub state: DefenderState,
 }
 
@@ -549,8 +552,10 @@ pub struct Exchange {
     pub taken: Damage,
 }
 
-/// A melee attack and the defender's reply, in the original's order. Both fighters' states
-/// are updated. Life stolen heals the thief at once.
+/// A melee attack and the defender's reply. Both fighters' states are updated. Life stolen heals
+/// the thief at once. The order of the blows (thrown or breath, first strike, the defender's
+/// counter-attack, the attacker's swing) and Haste's extra swing in the same exchange: see ReMoM
+/// `Combat.c`, `Battle_Unit_Attack`.
 pub fn melee_exchange(
     rules: &BattleRules,
     att: &mut Fighter,
@@ -594,6 +599,16 @@ pub fn melee_exchange(
     }
     // An attacker without first strike now swings with the figures that survived.
     if !first_strike && att.state.figures > 0 && def.state.figures > 0 {
+        let figures = att
+            .state
+            .figures
+            .saturating_sub(feared_figures(&def.melee, &att.state, rng));
+        let d = process_attack(rules, &att.melee, figures, &mut def.state, rng);
+        att.state.heal_overflow(d.healed);
+        out.dealt += d;
+    }
+    // Haste: one more swing, with the figures that are left (ReMoM `Combat.c`, `Battle_Unit_Attack`).
+    if att.extra_swing && att.state.figures > 0 && def.state.figures > 0 {
         let figures = att
             .state
             .figures

@@ -77,7 +77,7 @@ const UP: &[&[u8]] = &[
     include_bytes!("../assets/button/purify.png"),
 ];
 
-/// The locked pictures: Done, Patrol, Wait and Build (the original has no locked Meld).
+/// The locked pictures: Done, Patrol, Wait and Build.
 const LOCKED: &[&[u8]] = &[
     include_bytes!("../assets/button/done_locked.png"),
     include_bytes!("../assets/button/patrol_locked.png"),
@@ -171,8 +171,6 @@ fn label_font(action: Action) -> Rc<bm::BmFont> {
     })
 }
 
-/// The ink of the label: the original's black, or a dim brown on a locked button, with the
-/// lighter gold copy a pixel to the lower right that its picture carries.
 fn label_style(look: Look) -> Style {
     match look {
         Look::Locked => Style::flat(0, rgb(121, 85, 36)),
@@ -307,8 +305,6 @@ impl App {
     }
 }
 
-/// The font of the battle buttons' labels: style 0 with the original's own I, W, N, S, F and O
-/// (`scripts/button_label_font.py`).
 fn battle_font() -> Rc<bm::BmFont> {
     thread_local! {
         static FONT: RefCell<Option<Rc<bm::BmFont>>> = const { RefCell::new(None) };

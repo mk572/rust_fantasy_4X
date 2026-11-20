@@ -20,7 +20,7 @@ pub struct Sighting {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnitInfo {
     pub pos: Position,
-    /// What the unit cost to make (the original's measure of its strength).
+    /// What the unit cost to make.
     pub cost: u32,
 }
 

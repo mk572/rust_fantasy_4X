@@ -14,7 +14,6 @@ use f4x_def::rules::{SpellId, SpellTarget};
 use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 
-/// Two ticks of the original's 55 ms timer a stage.
 const STAGE: f64 = 0.11;
 /// The picture plays at least this many stages.
 const MIN_STAGES: usize = 12;
@@ -134,7 +133,6 @@ impl App {
             .picture(&anim.picture.0, anim.picture.1, stage % frames)
             .cloned();
         if let Some(tex) = tex {
-            // The original draws it 20 pixels left of and 18 above the square's corner.
             let k = t.x / 20.0;
             draw_texture_ex(
                 &tex,

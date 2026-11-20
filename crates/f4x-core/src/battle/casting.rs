@@ -349,7 +349,7 @@ impl Battle {
         unit.side = side;
         unit.cell = cell;
         unit.source = None;
-        // It arrives ready to act, as the original's summons do.
+        // It arrives ready to act.
         unit.moves_left = unit.moves;
         unit.attacked = false;
         unit.status = Status::Active;
@@ -582,7 +582,6 @@ impl BattleUnit {
         self.web_hits = web_hits;
         self.moves_left = HalfInt::ZERO;
         self.attacked = true;
-        self.extra_attack = false;
     }
 
     /// The lasting spells of the battle on the unit, and who cast each, in the order cast.
@@ -611,7 +610,6 @@ impl BattleUnit {
         };
         let (ceiling, hit_points) = (self.hit_point_ceiling(), self.hit_points());
         let moves_before = self.moves;
-        let hasted_before = self.has(Ability::new(26 /* hasted */));
         self.melee = base.melee;
         self.ranged = base.ranged;
         self.defense = base.defense;
@@ -638,13 +636,6 @@ impl BattleUnit {
             self.moves_left += self.moves - moves_before;
         } else {
             self.moves_left = self.moves_left.min(self.moves);
-        }
-        // Haste: a unit that has not attacked yet may attack twice the turn it gets it; without
-        // it, never.
-        if !self.has(Ability::new(26 /* hasted */)) {
-            self.extra_attack = false;
-        } else if !hasted_before && !self.attacked {
-            self.extra_attack = true;
         }
         self.sync_abilities(rules);
         // A web that is gone is gone with its hit points.

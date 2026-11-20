@@ -14,6 +14,7 @@ target/release/f4x-tools duel pairs  [--units N,N,..|--all] [--seeds N] [--max-c
 target/release/f4x-tools duel teams  [--units N,N,..|--all] [--battles N] [--max-team N] [--seed N] [--csv FILE]
 target/release/f4x-tools duel ladder [--levels 1-9] [--units N,N,..] [--seeds 6] [--jobs 4] [--out DIR]
 target/release/f4x-tools duel heroes [--level 1-9] [--seeds 10] [--jobs 4] [--out DIR]
+target/release/f4x-tools duel spells [--unit N] [--level 1-6 | --balance] [--spells N,.. | --all] [--against N,..] [--hurt PERCENT] [--count N] [--seeds 20] [--jobs 4] [--out DIR]
 ```
 
 - `pairs`: every unit of the set against every unit of the set, one against one, `--seeds` fights
@@ -132,6 +133,38 @@ Units with no attack, and those that cannot enter a plain battle, are left out a
 16,000 pairs a level take a few minutes on four threads: run it through `scripts/cool_run.sh`.
 Reading it for the unit strength measure (`battle::power`): compare `worth` with `unit_power`; a
 wipeout or a stalemate bounds the ratio, it does not measure it.
+
+## Spell effects (`duel spells`, task 705)
+
+What a spell on one unit does to a fight. One reference unit (`--unit`, default 47, the Beastmen
+swordsmen) fights every other unit (or `--against`) one against one on open ground, `--seeds` fights
+each, with the same dice in three variants: `base` (nothing cast), `ours` (the reference side gains
+from the spell) and `theirs` (the opponent's side does). A spell for one's own unit that lasts is on
+the unit before the battle (as an overland cast would be); a spell for an enemy unit is cast on the
+first turn by the side that gains from it; a healing spell (instant, own unit) is known by the wizard
+of that side, who has 1000 mana, and the battle AI casts it when it sees fit. The CSV of a spell
+(`spell_N_ID.csv`) has a row per opponent with its features and the three win counts. We look for the
+outliers (opponents against which the spell moves the win rate a lot), not the average.
+
+- `--level 1-6`: the reference unit's experience level (5 and 6 get the Warlord bonus, as the ladder
+  does); `--balance` picks per opponent the level whose base fight is nearest to even, so that a
+  spell has a fight to change (a one against one against a strong monster is 0 or 100 wins otherwise).
+- `--hurt PERCENT`: both units start with that share of their hit points lost (for healing).
+- `--count N`: N units a side; the spell goes to or from the first. Needed for the spells that need
+  allies (Confusion lends the unit to the enemy for a turn, which means nothing with no allies).
+- `--trace OPPONENT`: the orders and events of the first fight against that opponent.
+
+What it showed (20 November 2026, reference units 47 and 101, the soak-out analysis in task 705):
+
+- **The first unit decides.** Haste, Confusion and Warp Wood do little for the swordsmen and a lot for
+  the longbowmen: a hasted archer shoots twice (win rate +13 to +16 points), Warp Wood on an archer
+  takes its only weapon (the longbowmen win 0.62 without it, 0.15 with it), a confused archer loses
+  most of its shots (+7 for us, -14 against). A melee unit's Haste is a second swing in the same exchange (after the counter-attack, which is not doubled); the figures below for a melee unit were measured before that change (a second exchange, the enemy striking first: a hasted swordsman won 30 of 100 against an equal one) and must be measured again.
+- **Confusion needs allies in the fight.** One against one the confused unit only defends, which is
+  the better side of a melee exchange (a confused swordsman wins more, not fewer): with two or three
+  a side the seized unit strikes its old allies (the AI orders it like one of its own units).
+- **Healing** shows nothing in a fight between whole units; with `--hurt` the side with the healer
+  wins nearly always (unlimited mana).
 
 ## Extending it (task 655 and others)
 

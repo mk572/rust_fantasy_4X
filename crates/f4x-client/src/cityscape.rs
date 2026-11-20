@@ -7,7 +7,6 @@
 //! magic buildings in fixed places. The layout is seeded by the city's position, so a city
 //! looks the same every time it is opened.
 
-// The loops follow the original's row and column indexes, which reads best as written.
 #![allow(clippy::needless_range_loop)]
 
 use f4x_core::game::rng::random;
@@ -54,7 +53,6 @@ fn footprint(shape: u8) -> (usize, usize) {
 pub struct CityInfo {
     /// Citizens in thousands.
     pub population: u32,
-    /// Ordinary buildings present, as `(original building index, shape)`.
     pub buildings: Vec<(i16, u8)>,
     /// Magic buildings present (indexes 100 to 106 other than the fortress).
     pub magic: Vec<i16>,
@@ -63,7 +61,6 @@ pub struct CityInfo {
     pub many_trees: bool,
     /// Mountain or hills under the city: many rocks.
     pub many_rocks: bool,
-    /// Seed: the original uses `0x2895 + x * y`.
     pub seed: u64,
 }
 
@@ -250,7 +247,7 @@ pub fn make_layout(info: &CityInfo) -> Grid {
                 rnd_loc += 1;
             }
             if random(&mut rng, 4) == 1 {
-                h += 1; // gives up on this one now and then, as the original does
+                h += 1; // gives up on this one now and then
             }
         }
     }
@@ -357,7 +354,6 @@ pub fn sprite_of(idx: i16) -> Option<(usize, f32)> {
     }
 }
 
-/// How often the city screen draws in the original, which counts its animations in draws.
 pub const DRAWS_PER_SECOND: f64 = 18.0;
 
 /// The animation counter after `draws` draws (`cityscape_bldg_anim_ctr` and the others): the
@@ -526,8 +522,8 @@ mod tests {
             .iter()
             .map(|&i| (i, (i % 4) as u8))
             .collect();
-        // Every building at once is more than the grid holds, as in the original: the
-        // placer gives up on what does not fit.
+        // Every building at once is more than the grid holds: the placer gives up on what does not
+        // fit.
         let all: Vec<(i16, u8)> = (3..=34)
             .filter(|i| !(12..=14).contains(i))
             .map(|i| (i, (i % 4) as u8))

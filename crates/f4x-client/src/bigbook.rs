@@ -118,8 +118,8 @@ impl App {
         self.open_page(Screen::Research, book);
     }
 
-    /// At the start of a turn with nothing being researched and spells on offer (and the game
-    /// past its first turn, as the original has it), ask what to research.
+    /// At the start of a turn with nothing being researched and spells on offer (and the game past
+    /// its first turn), ask what to research.
     pub(crate) fn maybe_ask_for_research(&mut self) {
         if !matches!(self.screen, Screen::Map) || self.game.in_battle() || self.game.turn <= 1 {
             return;
@@ -378,7 +378,6 @@ impl Modal for MasteryNotice {
     }
 }
 
-/// Two ticks of the original's 55 ms timer a stage.
 const MASTERY_STAGE: f64 = 0.11;
 /// `Cast_Spell_Of_Mastery` runs 200 stages.
 const MASTERY_STAGES: usize = 200;

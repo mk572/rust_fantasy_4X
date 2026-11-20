@@ -109,7 +109,6 @@ fn the_computer_wizards_answer_by_gold_and_turn() {
         91,
         f4x_def::half_int::HalfInt::from_int(100)
     ));
-    // The original's arithmetic would have taken a price a ninth over the gold.
     assert!(!ai_accepts_hero(
         110,
         f4x_def::half_int::HalfInt::from_int(100)

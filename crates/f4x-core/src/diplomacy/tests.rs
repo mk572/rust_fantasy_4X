@@ -131,7 +131,7 @@ fn the_colour_wheel_allies_and_opposes_the_realms() -> TestResult {
             assert_eq!(start(&mut g, realm, other)?, -6, "{realm} opposes {other}");
         }
     }
-    // Off, it is the original's formula: life against death.
+    // Off, life stands against death.
     g.settings.rules.color_wheel_relations = false;
     assert_eq!(start(&mut g, 3, 4)?, -20);
     Ok(())
@@ -497,7 +497,7 @@ fn breaking_a_treaty_costs_trust_with_everyone() -> TestResult {
     let default = g.diplomacy.pair(P1, P2).ok_or("pair is missing")?.default;
     g.break_treaties(P1, P2);
     assert_eq!(g.treaty(P1, P2), Treaty::None);
-    // The victim's core reaction to the oath breaker falls (the original raises it by mistake).
+    // The victim's core reaction to the oath breaker falls.
     assert_eq!(
         g.diplomacy
             .stance(P1, P2)
@@ -505,7 +505,7 @@ fn breaking_a_treaty_costs_trust_with_everyone() -> TestResult {
             .hidden,
         -20
     );
-    // Everyone else thinks less of the oath breaker (the original lowers their record of the victim).
+    // Everyone else thinks less of the oath breaker.
     assert_eq!(
         g.diplomacy
             .stance(P1, P0)
@@ -566,8 +566,7 @@ fn ending_no_treaty_costs_the_breaker_nothing() {
     g.break_treaties(P1, P2);
     assert_eq!(g.diplomacy.stance(P1, P2).map_or(0, |s| s.hidden), 0);
     assert_eq!(g.diplomacy.stance(P2, P1).and_then(|s| s.broken), None);
-    // No treaty was broken, so nobody thinks less of the breaker (the original lowers the
-    // others' record of the victim all the same).
+    // No treaty was broken, so nobody thinks less of the breaker.
     assert_eq!(g.diplomacy.stance(P1, P0).map_or(0, |s| s.hidden), 0);
     assert_eq!(g.diplomacy.stance(P0, P2).map_or(0, |s| s.hidden), 0);
 }

@@ -106,7 +106,7 @@ impl App {
             }
             _ => None,
         });
-        // The undead that rose are shown before the result, as the original does.
+        // The undead that rose are shown before the result.
         if ended.is_some() {
             for e in events {
                 if let Event::UndeadRaised {

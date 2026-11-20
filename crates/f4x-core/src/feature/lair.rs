@@ -82,8 +82,8 @@ pub(crate) fn reroll_hoard(rng: &mut impl Rng, value: i32, items: usize) -> (u32
     (gold, mana, made)
 }
 
-/// What a guarded site holds: its guards and its treasure. Towers, magic nodes and the
-/// encounter sites each have one (the original's "lair" table), a component of their entity.
+/// What a guarded site holds: its guards and its treasure. Towers, magic nodes and the encounter
+/// sites each have one, a component of their entity.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Lair {
     /// False once cleared.
@@ -229,8 +229,8 @@ pub(crate) fn award_special(
         Some(realm) => realm,
         None => crate::rules::BOOK_REALMS[rng.roll(5) as usize - 1],
     };
-    // Three times in four a book; the original turns to the other kind when the wizard is at
-    // the limit of six retorts or more than twelve books.
+    // Three times in four a book; it turns to the other kind when the wizard is at the limit of six
+    // retorts or more than twelve books.
     let wants_retort = if wizard.view().retorts().len() >= rules.config.wizard.max_retorts {
         false
     } else if wizard.view().total_books() > books_limit {

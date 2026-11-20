@@ -751,7 +751,7 @@ fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() -> T
         let b = g.battle().ok_or("battle is missing")?;
         assert_eq!((b.node_aura, b.node_site), (aura, site), "at x = {x}");
         if site.is_some() {
-            // A chaos node's ground is mountains, as in the original.
+            // A chaos node's ground is mountains.
             let set = b.map.look().ok_or("look is missing")?.set;
             assert_eq!(set, crate::battle::map::layout::Set::Mountains);
         }

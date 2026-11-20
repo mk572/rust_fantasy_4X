@@ -129,6 +129,7 @@ fn the_same_seed_gives_the_same_battle() {
             thrown: None,
             first_strike: false,
             negate_first_strike: false,
+            extra_swing: false,
             state: def(4, 3, 3),
         };
         let mut b = a.clone();
@@ -159,6 +160,7 @@ fn fighter(figures: u32, hits: i32, melee: Combatant) -> Fighter {
         thrown: None,
         first_strike: false,
         negate_first_strike: false,
+        extra_swing: false,
         state: def(figures, hits, 0),
     }
 }
@@ -575,6 +577,7 @@ fn a_melee_exchange_heals_a_life_stealer() {
         thrown: None,
         first_strike: false,
         negate_first_strike: false,
+        extra_swing: false,
         state: DefenderState {
             front_damage: 3,
             ..soft(1, 8, 4)
@@ -585,6 +588,7 @@ fn a_melee_exchange_heals_a_life_stealer() {
         thrown: None,
         first_strike: false,
         negate_first_strike: false,
+        extra_swing: false,
         state: soft(50, 100, 4),
     };
     let mut healed_any = false;
@@ -815,6 +819,7 @@ fn fear_keeps_figures_from_striking_back() {
         thrown: None,
         first_strike: false,
         negate_first_strike: false,
+        extra_swing: false,
         state: def(6, 100, 0),
     };
     let mut r = rng(13);
@@ -857,6 +862,7 @@ fn a_fearsome_defender_frightens_the_attackers_figures_too() {
         thrown: None,
         first_strike: false,
         negate_first_strike: false,
+        extra_swing: false,
         state: def(6, 100, 0),
     };
     let mut r = rng(15);
@@ -950,4 +956,47 @@ fn fire_dice_do_nothing_to_a_defender_immune_to_fire() {
     };
     assert_eq!(both.strength_against(&Immunities::of_numbers(&[10])), 3);
     assert_eq!(both.strength_against(&Immunities::of_numbers(&[21])), 3);
+}
+
+#[test]
+fn a_hasted_attacker_swings_twice_and_is_countered_once() {
+    let total = |extra: bool| {
+        let (mut dealt, mut taken) = (0, 0);
+        for seed in 0..200 {
+            let mut att = fighter(4, 3, combatant(4, 0));
+            let mut def_ = fighter(4, 3, combatant(4, 0));
+            att.extra_swing = extra;
+            let ex = melee_exchange(&rules(), &mut att, &mut def_, &mut rng(seed));
+            dealt += ex.dealt.points;
+            taken += ex.taken.points;
+        }
+        (dealt, taken)
+    };
+    let (plain_dealt, plain_taken) = total(false);
+    let (fast_dealt, fast_taken) = total(true);
+    assert!(
+        fast_dealt > plain_dealt,
+        "{fast_dealt} against {plain_dealt}"
+    );
+    assert_eq!(
+        fast_taken, plain_taken,
+        "the counter-attack comes before the extra swing and is not doubled"
+    );
+}
+
+#[test]
+fn a_hasted_defender_strikes_back_once() {
+    let total = |extra: bool| {
+        (0..200)
+            .map(|seed| {
+                let mut att = fighter(4, 3, combatant(4, 0));
+                let mut def_ = fighter(4, 3, combatant(4, 0));
+                def_.extra_swing = extra;
+                melee_exchange(&rules(), &mut att, &mut def_, &mut rng(seed))
+                    .taken
+                    .points
+            })
+            .sum::<i32>()
+    };
+    assert_eq!(total(true), total(false));
 }

@@ -198,7 +198,7 @@ pub enum Command {
         city: hecs::Entity,
         plan: Option<city::autobuild::BuildPlan>,
     },
-    /// A banished wizard gives up (the "Do you wish to resign?" of the original).
+    /// A banished wizard gives up ("Do you wish to resign?").
     Resign {
         player: player::PlayerId,
     },

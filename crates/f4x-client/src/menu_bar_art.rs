@@ -1,7 +1,6 @@
 //! The seven buttons of the main screen's menu bar (Game, Spells, Armies, Cities, Magic, Info,
-//! Plane) without their labels: the marbled gold of the original's pictures with the lettering
-//! taken out (`scripts/button_text_free.py`, files `assets/button/<name>.png`). The label is a text key, drawn over the picture by the font engine, so the
-//! menu bar can be translated.
+//! Plane) without their labels. The label is a text key, drawn over the picture by the font engine,
+//! so the menu bar can be translated.
 
 use macroquad::prelude::*;
 use macroquad_bitmap_font_engine as bm;
@@ -122,8 +121,6 @@ pub(crate) fn label_font() -> Rc<bm::BmFont> {
     })
 }
 
-/// How the label looks: the original's blackletter (style 4) in its black colour set, with the
-/// lighter gold copy a pixel to the lower right that its picture carries.
 pub(crate) fn label_style() -> Style {
     Style::set(4, 1).shadow().edge(rgb(255, 174, 12)).center()
 }

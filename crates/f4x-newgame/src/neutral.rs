@@ -74,13 +74,13 @@ const SITE_CLEARANCE: u32 = 4;
 
 /// The row scan of the custom generator keeps a little more room: squares between two cities,
 /// between a city and a fortress, and between a city and a node, tower or lair, so that the 15
-/// cities of a plane do not crowd it. The original's random placement keeps the original's.
+/// cities of a plane do not crowd it.
 const STRICT_CITY_CLEARANCE: u32 = 6;
 const STRICT_FORTRESS_CLEARANCE: u32 = 6;
 const STRICT_SITE_CLEARANCE: u32 = 5;
 
-/// Placement attempts of the original's random placement on a plane of 60 by 40 squares (its
-/// 1000); a bigger map gets more, a smaller one the same.
+/// Placement attempts of the random placement on a plane of 60 by 40 squares; a bigger map gets
+/// more, a smaller one the same.
 const MAX_TRIES: u32 = 1000;
 
 /// Squares between a neutral city and a wizard's fortress.
@@ -256,11 +256,9 @@ fn choose_sites(game: &mut Game, plane: Plane, target: u32) -> Vec<Position> {
     };
     let (w, h) = (map.width(), map.height());
     let mut chosen: Vec<Position> = Vec::new();
-    // The original rolls squares at random, 1000 tries for a plane of 60 by 40, 3 to 56
-    // across and 3 to 36 down; the custom generator's land is searched row by row from the
-    // equator outward, a row south and then a row north, each from west to east: a city goes
-    // on the first square that will do, or a better one within two squares of it. The polar
-    // rows are left out.
+    // The land of the custom generator is searched row by row from the equator outward, a row south
+    // and then a row north, each from west to east: a city goes on the first square that will do,
+    // or a better one within two squares of it. The polar rows are left out.
     let original = game.settings().basic.original_map_generator;
     let max_tries = crate::mapgen::scaled_count(MAX_TRIES, w, h).max(MAX_TRIES);
     let rows = scan_rows(h);

@@ -66,7 +66,7 @@ Task 600. Step 1 and 2 (14 November 2026): every spell with a Battle context in 
 | 121 | bless | Life | 5 | OwnUnit | partial | lasting unit spell: flat 25% of the target's worth; no notion of what it does |
 | 122 | star_fires | Life | 5 | EnemyUnit | covered | damage by the game's own odds, kill first |
 | 124 | holy_weapon | Life | 10 | OwnUnit | partial | stat change or ability: flat 25% of worth, by the sign of the change; an ability on an enemy counts 0 |
-| 125 | healing | Life | 15 | OwnUnit | covered | heal: share of hit points restored |
+| 125 | healing | Life | 15 | OwnUnit | covered | heal: share of hit points restored, for a unit at half its hit points or less |
 | 126 | holy_armor | Life | 18 | OwnUnit | partial | stat change or ability: flat 25% of worth, by the sign of the change; an ability on an enemy counts 0 |
 | 128 | true_light | Life | 20 | Battlefield | none | battlefield true_light: value 0, never cast |
 | 130 | heroism | Life | 20 | OwnUnit | none | heroism: value 0, never cast |
@@ -77,7 +77,7 @@ Task 600. Step 1 and 2 (14 November 2026): every spell with a Battle context in 
 | 141 | lionheart | Life | 40 | OwnUnit | partial | stat change or ability: flat 25% of worth, by the sign of the change; an ability on an enemy counts 0 |
 | 143 | invulnerability | Life | 40 | OwnUnit | partial | lasting unit spell: flat 25% of the target's worth; no notion of what it does |
 | 144 | righteousness | Life | 40 | OwnUnit | partial | lasting unit spell: flat 25% of the target's worth; no notion of what it does |
-| 149 | mass_healing | Life | 50 | Battlefield | covered | heal: share of hit points restored |
+| 149 | mass_healing | Life | 50 | Battlefield | covered | heal: share of hit points restored, for units at half their hit points or less |
 | 150 | holy_word | Life | 60 | Battlefield | partial | slay: flat 35% of worth of each non-immune enemy; ignores its save, the realm limit and the spell's odds |
 | 151 | high_prayer | Life | 60 | Battlefield | none | battlefield high_prayer: value 0, never cast |
 | 162 | weakness | Death | 5 | EnemyUnit | partial | stat change or ability: flat 25% of worth, by the sign of the change; an ability on an enemy counts 0 |

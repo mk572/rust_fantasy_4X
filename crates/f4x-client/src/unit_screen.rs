@@ -595,8 +595,7 @@ impl SheetUi {
         }
     }
 
-    /// Ask whether to dismiss the unit (the original's confirmation box); Yes sends the
-    /// command and leaves.
+    /// Ask whether to dismiss the unit; Yes sends the command and leaves.
     fn dismiss_confirmation(&mut self, app: &mut App, lay: &Layout, sheet: &Sheet, input: &Input) {
         let text = match &sheet.hero {
             Some(hero) => app.text_with("unit.dismiss_hero", &Args::new().text("hero", &hero.name)),
@@ -620,8 +619,7 @@ impl SheetUi {
         }
     }
 
-    /// Ask whether to turn off a lasting spell of the wizard's; Yes sends the command. The
-    /// question and the warning are the original's words.
+    /// Ask whether to turn off a lasting spell of the wizard's; Yes sends the command.
     fn turn_off_confirmation(&mut self, app: &mut App, lay: &Layout, sheet: &Sheet, input: &Input) {
         let (Some(ask), Source::Overland(unit)) = (self.panel.turn_off.clone(), sheet.source)
         else {

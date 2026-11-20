@@ -14,7 +14,7 @@ use crate::rules::{Id, RealmId, RetortDef, SpellId};
 /// A retort, by number.
 pub type Retort = Id<RetortDef>;
 
-/// The area the original's counts are for: 60 by 40 squares.
+/// The area the default counts are for: 60 by 40 squares.
 pub const REFERENCE_AREA: u32 = 60 * 40;
 
 /// `base` per [`REFERENCE_AREA`] squares, for a map of `width` by `height`, rounded.
@@ -35,7 +35,7 @@ pub const MAX_CITY_SIZE_RANGE: std::ops::RangeInclusive<u8> = 5..=40;
 /// and the range of the `min_city_distance` setting.
 pub const DEFAULT_MIN_CITY_DISTANCE: u8 = 4;
 pub const MIN_CITY_DISTANCE_RANGE: std::ops::RangeInclusive<u8> = 1..=8;
-/// The first turn on which a random event may happen: the original waits five turns.
+/// The first turn on which a random event may happen.
 pub const DEFAULT_EVENT_START_TURN: u8 = 6;
 pub const EVENT_START_TURN_RANGE: std::ops::RangeInclusive<u8> = 1..=50;
 /// Magic nodes on a plane of [`REFERENCE_AREA`] squares: Arcanus, Myrror (the original's).
@@ -60,14 +60,14 @@ pub const PICKS: u8 = 11;
 /// setting (nine in every rule set). Read the game's own limit with `Game::max_battle_side()`.
 pub const MAX_STACK: usize = 9;
 
-/// Land as a share of each plane's tiles for the original's three sizes.
+/// Land as a share of each plane's tiles for the three sizes.
 pub const LAND_SMALL: u8 = 15;
 pub const LAND_MEDIUM: u8 = 20;
 pub const LAND_LARGE: u8 = 30;
 
 /// The difficulty a game gets when nothing says otherwise ("Average").
 pub const DEFAULT_DIFFICULTY: u8 = 2;
-/// The map a game gets when nothing says otherwise: the original's 60 by 40 squares.
+/// The map a game gets when nothing says otherwise: 60 by 40 squares.
 pub const MAP_WIDTH: u16 = 60;
 pub const MAP_HEIGHT: u16 = 40;
 /// The sizes the map generator and the rest of the game are tested on: from 45 by 30
@@ -96,7 +96,7 @@ fn fallback<T>(get: impl Fn(&GameSettings) -> T, builtin: T) -> T {
     FALLBACK.with(|f| f.get()).map_or(builtin, |g| get(&g))
 }
 
-/// The original's options step: difficulty, opponents, land size and magic power.
+/// The options step: difficulty, opponents, land size and magic power.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BasicSettings {
     /// 0 intro, 1 easy, 2 average, 3 hard, 4 extreme, 5 impossible.
@@ -125,9 +125,9 @@ pub struct BasicSettings {
     /// squares, the original's); the options step sets the number of the chosen map size.
     #[serde(default)]
     pub neutral_cities: Option<u8>,
-    /// A diagonal step on the overland map costs half as much again as a straight one (3
-    /// half-moves on open ground); off, it costs the same (the original's rule). The same goes for
-    /// sight: a square seen along a diagonal costs half as much again to see, or no more.
+    /// A diagonal step on the overland map costs half as much again as a straight one (3 half-moves
+    /// on open ground); off, it costs the same. The same goes for sight: a square seen along a
+    /// diagonal costs half as much again to see, or no more.
     #[serde(default = "fb_diagonal_extra_cost")]
     pub diagonal_extra_cost: bool,
     /// Make the land with the original's generator (random-walk continents, `NEWG_CreateLands`)
@@ -247,31 +247,30 @@ impl<T: Copy> Split<T> {
 /// What a wizard starts with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WizardSettings {
-    /// Gold at the start: the original gives the human `(5 - difficulty) * 25` and every
-    /// computer wizard 150.
+    /// Gold at the start: `(5 - difficulty) * 25` for the human, 150 for every computer wizard.
     pub starting_gold: Split<i32>,
-    /// Mana in the treasury at the start (the original: none).
+    /// Mana in the treasury at the start.
     pub starting_mana: Split<i32>,
     /// Picks for books and retorts. The human's creation screen still spends 11 (it reads this
     /// in stage 3); the computer wizards' is read when they are made.
     pub picks: Split<u8>,
-    /// The most books a wizard may start with in one realm, 5 to 13 (two realms and a retort fit in the picks), the same for every wizard
-    /// (the original: 11, which the 11 picks already limit). A ready-made wizard with more in
-    /// a realm loses the surplus, and its picks are spent again. The spell library's rows stop
-    /// at 11 books, so 12 and 13 start with the spells of 11.
+    /// The most books a wizard may start with in one realm, 5 to 13 (two realms and a retort fit in
+    /// the picks), the same for every wizard. A ready-made wizard with more in a realm loses the
+    /// surplus, and its picks are spent again. The spell library's rows stop at 11 books, so 12 and
+    /// 13 start with the spells of 11.
     #[serde(default = "fb_max_books_per_realm")]
     pub max_books_per_realm: u8,
-    /// The most books a wizard has in all realms, 12 to 65 (5 realms of 13). Computer wizards
-    /// are filled up to it and no more, and a ready-made wizard over it loses books. Treasure
-    /// is the original's rule: a wizard with more books than this finds no more (it turns the
-    /// reward into a retort), so a wizard reaches one over it. The original: 12.
+    /// The most books a wizard has in all realms, 12 to 65 (5 realms of 13). Computer wizards are
+    /// filled up to it and no more, and a ready-made wizard over it loses books. Treasure: a wizard
+    /// with more books than this finds no more (it turns the reward into a retort), so a wizard
+    /// reaches one over it.
     #[serde(default = "fb_max_books_total")]
     pub max_books_total: u8,
 }
 
-/// The most books in one realm the original allows, and the setting's default.
+/// The most books in one realm, and the setting's default.
 pub const DEFAULT_MAX_BOOKS_PER_REALM: u8 = 11;
-/// The most books in all realms in the original, and the setting's default.
+/// The most books in all realms, and the setting's default.
 pub const DEFAULT_MAX_BOOKS_TOTAL: u8 = 12;
 /// The range of `WizardSettings::max_books_total`: five realms of the most books each.
 pub const BOOKS_TOTAL_RANGE: std::ops::RangeInclusive<u8> = 12..=65;
@@ -296,18 +295,18 @@ pub struct AiWizardSettings {
     /// Draw ready-made wizards at random and fill their picks up to `picks.ai`; off takes the
     /// next free ready-made wizard as it is.
     pub randomise: bool,
-    /// Chance (percent) that an AI wizard's opposed realms are merged (Death with Chaos, Nature
-    /// or Sorcery; Life with Chaos, Nature or Sorcery): the original does it above Normal.
+    /// Chance (percent) that an AI wizard's opposed realms are merged (Death with Chaos, Nature or
+    /// Sorcery; Life with Chaos, Nature or Sorcery).
     pub consolidate_percent: u8,
     /// "Erasure dice": the number of dice and their sides. Each pip rolled takes a book or the
     /// retorts away from an AI wizard.
     pub erasure_dice: (u8, u8),
-    /// With four or more wizards, one or two AI wizards are made Myrran (three books become
-    /// the retort) when none is: the original does it above Normal.
+    /// With four or more wizards, one or two AI wizards are made Myrran (three books become the
+    /// retort) when none is.
     pub myrran_rule: bool,
     /// An AI wizard knows a common summoning spell of its main realm from the start
-    /// (`SpellLibraryDef::ai_main_realm_known`), even when erased books left the realm with
-    /// one; the original does it on every level. The human wizard never gets it.
+    /// (`SpellLibraryDef::ai_main_realm_known`), even when erased books left the realm with one.
+    /// The human wizard never gets it.
     pub guaranteed_summoning_spell: bool,
 }
 
@@ -365,7 +364,7 @@ pub struct WorldSettings {
     /// Whether monsters now and then leave their lair to settle in another and to attack cities
     /// (`threat/monster.rs`).
     pub monsters_enabled: bool,
-    /// How big a party is, as a percent of the troops in the city (the original's `d / 6`).
+    /// How big a party is, as a percent of the troops in the city.
     pub raider_percent: u16,
     /// The turn from which monsters leave their lairs on Average and harder: 30, 40 or 50 (the
     /// original: 50; patch 1.40 sets 40). Intro and Easy stay at 50.
@@ -380,10 +379,10 @@ pub struct WorldSettings {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuleSettings {
-    /// A fleeing side loses nobody (the original: the player on turn, Intro and Easy).
+    /// A fleeing side loses nobody.
     pub safe_flee: Split<bool>,
-    /// Building Settlers costs a citizen. On (the original's rule): a city needs two citizens to
-    /// build Settlers and loses one when they are finished. Off: Settlers cost production only.
+    /// Building Settlers costs a citizen. On: a city needs two citizens to build Settlers and loses
+    /// one when they are finished. Off: Settlers cost production only.
     #[serde(default = "yes")]
     pub settlers_cost_citizen: bool,
     /// How hard a walking unit hits a flying one in melee.
@@ -397,7 +396,7 @@ pub struct RuleSettings {
     /// the growth tables and the art to cope: see `docs/game-settings.md`.
     #[serde(default = "fb_max_city_size")]
     pub max_city_size: u8,
-    /// The least distance between two cities, 1 to 8 (4, the original's: three squares between).
+    /// The least distance between two cities, 1 to 8 (the default is 4: three squares between).
     #[serde(default = "fb_min_city_distance")]
     pub min_city_distance: u8,
     /// Most units one side fights with in a battle, from 1 to `MAX_STACK` (nine in every rule
@@ -440,9 +439,8 @@ pub struct RuleSettings {
     #[serde(default = "fb_magic_immunity_exceptions")]
     pub magic_immunity_exceptions: bool,
     /// Illusion immunity protects from the Sorcery battle spells that name the illusion type
-    /// (Confusion, Vertigo, Mind Storm and Creature Binding: `types: [Illusion]` in
-    /// `spells.ron`), as it does in the original. Off: they affect an illusion-immune unit; the
-    /// immunity still sees through illusion attacks.
+    /// (Confusion, Vertigo, Mind Storm and Creature Binding: `types: [Illusion]` in `spells.ron`).
+    /// Off: they affect an illusion-immune unit; the immunity still sees through illusion attacks.
     #[serde(default = "yes")]
     pub illusion_immunity_protects: bool,
     /// The food each farmer grows (the original: 2). A race that names its own `farmer_food` in
@@ -494,10 +492,9 @@ pub struct RuleSettings {
     /// plane it belongs to).
     #[serde(default = "fb_mix_neutral_races")]
     pub mix_neutral_races: bool,
-    /// Tiny islands. Off (the original, and v1.31 and v1.6): the map and the start towns stay as
-    /// the generator leaves them, so a wizard, a tower or a node can stand on a speck of land. On:
-    /// the land mass of every start town, tower and node is built out to a dozen squares
-    /// (`f4x-newgame/src/island.rs`).
+    /// Tiny islands. Off: the map and the start towns stay as the generator leaves them, so a
+    /// wizard, a tower or a node can stand on a speck of land. On: the land mass of every start
+    /// town, tower and node is built out to a dozen squares (`f4x-newgame/src/island.rs`).
     #[serde(default = "fb_extend_tiny_islands")]
     pub extend_tiny_islands: bool,
     /// Community patch, 2-Pick Myrran. Off (the original): the Myrran retort costs three picks
@@ -527,9 +524,9 @@ pub struct RuleSettings {
     /// (our choice; the original has it on).
     #[serde(default = "fb_limit_ai_races")]
     pub limit_ai_races: bool,
-    /// The original's rule that a wizard does not combine Life and Death books: on, the new-wizard
-    /// screen refuses the second realm and the computer wizards are never given both; off, both
-    /// are allowed. On in v1.31 and v1.6.
+    /// A wizard does not combine Life and Death books: on, the new-wizard screen refuses the second
+    /// realm and the computer wizards are never given both; off, both are allowed. On in v1.31 and
+    /// v1.6.
     #[serde(default = "fb_ban_life_and_death")]
     pub ban_life_and_death: bool,
     /// Monsters in lairs (the guards of towers, nodes and encounter sites) are fully healed after a
@@ -540,13 +537,12 @@ pub struct RuleSettings {
     #[serde(default = "fb_lair_full_heal")]
     pub lair_full_heal: bool,
     /// Who may research and cast the Spell of Mastery (the spell that wins the game). All: every
-    /// wizard (the original). Human only: the AI wizards never get it. Off: nobody does, and a
-    /// game is won by conquest only.
+    /// wizard. Human only: the AI wizards never get it. Off: nobody does, and a game is won by
+    /// conquest only.
     #[serde(default = "fb_spell_of_mastery")]
     pub spell_of_mastery: SpellAccess,
-    /// Who may cast the Spell of Return after the fortress falls. All: every banished wizard
-    /// (the original). Human only: an AI wizard is defeated when banished. Off: banishment is
-    /// final for everyone.
+    /// Who may cast the Spell of Return after the fortress falls. All: every banished wizard. Human
+    /// only: an AI wizard is defeated when banished. Off: banishment is final for everyone.
     #[serde(default = "fb_spell_of_return")]
     pub spell_of_return: SpellAccess,
 }
@@ -555,7 +551,7 @@ pub struct RuleSettings {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SpellAccess {
-    /// Every wizard (the original's rule).
+    /// Every wizard.
     #[default]
     All,
     /// The human wizard only.
@@ -590,14 +586,13 @@ fn fb_limit_ai_races() -> bool {
 // The Arcanus races a computer wizard may have above Normal difficulty when
 // `RuleSettings::limit_ai_races` is on are `limited_ai_races` of `rules.ron`.
 
-/// The original's Trireme capacity, and the unit number of the Trireme.
+/// Trireme capacity, and the unit number of the Trireme.
 pub const TRIREME_CAPACITY: u8 = 2;
-/// The original's Galley capacity.
 pub const GALLEY_CAPACITY: u8 = 5;
 /// The most a Trireme or Galley may carry.
 pub const MAX_SHIP_CAPACITY: u8 = 8;
 
-/// The original's first turn for monsters leaving their lairs.
+/// The first turn for monsters leaving their lairs.
 pub const MONSTER_START_TURN: u8 = 50;
 /// The earliest turn a game may be set to start the monsters.
 pub const MONSTER_START_EARLIEST: u8 = 30;
@@ -646,9 +641,9 @@ fn fb_ban_life_and_death() -> bool {
     fallback(|g| g.rules.ban_life_and_death, true)
 }
 
-/// The base food of a farmer when nothing says otherwise (the original's).
+/// The base food of a farmer when nothing says otherwise.
 pub const DEFAULT_FARMER_FOOD: HalfInt = HalfInt::from_int(2);
-/// The base production of a worker when nothing says otherwise (the original's).
+/// The base production of a worker when nothing says otherwise.
 pub const DEFAULT_WORKER_PRODUCTION: HalfInt = HalfInt::from_int(2);
 /// The most a farmer may grow or a worker make as a base value.
 pub const FARMER_WORKER_MOST: HalfInt = HalfInt::from_int(10);
@@ -764,7 +759,7 @@ fn yes() -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MeleeVsFliers {
-    /// The walker's blows do nothing (the original's rule).
+    /// The walker's blows do nothing.
     #[default]
     Zero,
     /// Half strength, rounded up (a planned mod).
@@ -784,7 +779,7 @@ impl MeleeVsFliers {
     }
 }
 
-/// How often the random events fire, as a multiplier on the original's chance.
+/// How often the random events fire, as a multiplier on the base chance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum EventFrequency {
     Half,
@@ -795,24 +790,21 @@ pub enum EventFrequency {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventSettings {
-    /// The original switches events off on Intro.
     pub random_events: bool,
-    /// The percent of the turns waited since the last event that count as pressure: the chance
-    /// of an event in a turn is the pressure over 512 (`world_event::scaled_pressure`). The
-    /// original's figure by level: 50, 66, 75, 80, 100.
+    /// The percent of the turns waited since the last event that count as pressure: the chance of
+    /// an event in a turn is the pressure over 512 (`world_event::scaled_pressure`).
     pub pressure_percent: u16,
     #[serde(default = "fb_frequency")]
     pub frequency: EventFrequency,
-    /// The first turn on which an event may happen, 1 to 50 (6: the original lets five turns
-    /// pass). The wait is counted in turns with events on, and starts again after each event, as
-    /// the original's counter does.
+    /// The first turn on which an event may happen, 1 to 50. The wait is counted in turns with
+    /// events on, and starts again after each event.
     #[serde(default = "fb_event_start_turn")]
     pub start_turn: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScoreSettings {
-    /// The final score as a percent: 50, 75, 100, 200, 300 by level in the original.
+    /// The final score as a percent: 50, 75, 100, 200, 300 by level.
     pub score_percent: u16,
 }
 
@@ -973,8 +965,7 @@ pub struct MapSize {
     pub neutral_cities: u8,
 }
 
-/// How many opponents the game offers at most (the original: four). Nine opponents are ten
-/// wizards on a 90 by 60 map, 2.25 times the original's biggest map for twice its wizards.
+/// How many opponents the game offers at most. Nine opponents are ten wizards on a 90 by 60 map.
 pub const MAX_OPPONENTS: u8 = 9;
 
 /// The least land a wizard should have to expand into, in squares of both planes together
@@ -1024,7 +1015,7 @@ pub struct SettingsDef {
     pub map_sizes: Vec<MapSize>,
     /// Intro, Easy, Average, Hard, Extreme, Impossible; empty or exactly [`LEVELS`].
     pub levels: Vec<LevelDef>,
-    /// The spells a new wizard knows and may research (the original's spell library set-up).
+    /// The spells a new wizard knows and may research.
     pub spell_library: SpellLibraryDef,
 }
 
@@ -1110,7 +1101,6 @@ impl SpellLibraryDef {
 }
 
 impl Default for SpellLibraryDef {
-    /// The original's numbers.
     fn default() -> Self {
         let r = |common, uncommon, rare, very_rare| Rarities {
             common,
@@ -1177,7 +1167,7 @@ impl Default for SpellLibraryDef {
 }
 
 impl Default for SettingsDef {
-    /// Content without a `rules_settings.ron`: the original's three land sizes and four opponents.
+    /// Content without a `rules_settings.ron`: three land sizes and four opponents.
     fn default() -> Self {
         let size = |id: &str, land_percent| LandSize {
             id: id.into(),
@@ -1291,8 +1281,8 @@ impl SettingsDef {
 }
 
 impl GameSettings {
-    /// The magic nodes of a plane (0 Arcanus, 1 Myrror): the setting, or the original's number
-    /// for a map of this area.
+    /// The magic nodes of a plane (0 Arcanus, 1 Myrror): the setting, or the default number for a
+    /// map of this area.
     pub fn node_count(&self, plane: usize) -> u8 {
         let (set, per) = match plane {
             0 => (self.world.nodes_arcanus, NODES_PER_REFERENCE_AREA[0]),
@@ -1369,8 +1359,8 @@ impl GameSettings {
         self
     }
 
-    /// Whether every value the original's difficulty fills in is the level's own (the advanced
-    /// screen shows "Custom" when it is not).
+    /// Whether every value the difficulty fills in is the level's own (the advanced screen shows
+    /// "Custom" when it is not).
     pub fn is_level(&self, def: &SettingsDef) -> bool {
         let level = Self::for_difficulty(def, self.basic.difficulty);
         self.wizards == level.wizards

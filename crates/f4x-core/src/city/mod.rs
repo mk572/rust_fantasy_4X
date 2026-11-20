@@ -14,7 +14,7 @@ use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
 
-/// The longest a city's name can be (the original's name field holds twelve characters).
+/// The longest a city's name can be.
 pub const NAME_LEN: usize = 12;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -269,7 +269,6 @@ mod tests {
             g.can_found_city(at(Plane::Arcanus, 12, 8)),
             Err(FoundCityError::TooCloseToCity)
         );
-        // The original needs at least four squares between cities.
         assert_eq!(
             g.can_found_city(at(Plane::Arcanus, 13, 6)),
             Err(FoundCityError::TooCloseToCity)

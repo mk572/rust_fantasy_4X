@@ -39,7 +39,6 @@ pub const DECK_PICTURE: u8 = 0x81;
 /// from the island's only in that a walker may jump the single square of water between decks.
 pub const SHIP_DECK: u8 = 0x82;
 
-/// The original's city area, in its own frame.
 pub const MIN_CGX_CITY: i32 = 5;
 pub const MAX_CGX_CITY: i32 = 8;
 pub const MIN_CGY_CITY: i32 = 10;
@@ -65,7 +64,6 @@ pub fn screen_of(cgx: i32, cgy: i32, sub_x: i32, sub_y: i32) -> (i32, i32) {
     )
 }
 
-/// The original's combat terrain sets (`cts_*`) that have ground to fight on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Set {
     Plains,
@@ -86,9 +84,8 @@ pub enum Site {
     City,
 }
 
-/// What stands on the structure square of a field with a [`Site::Outpost`] (`CS_*` of the
-/// original): an outpost, or the building of a lair, tower or node; or, at a [`Site::City`], the
-/// wizard's fortress.
+/// What stands on the structure square of a field with a [`Site::Outpost`]: an outpost, or the
+/// building of a lair, tower or node; or, at a [`Site::City`], the wizard's fortress.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Structure {
     Outpost,
@@ -147,7 +144,7 @@ pub struct Spec {
     /// A Floating Island under the attackers, and under the defenders (water battles).
     pub attacker_island: bool,
     pub defender_island: bool,
-    /// The squares of the ships' decks (water battles), in the original's frame.
+    /// The squares of the ships' decks (water battles).
     pub ship_decks: Vec<(i32, i32)>,
 }
 
@@ -192,7 +189,6 @@ pub struct Prop {
     pub variant: u8,
 }
 
-/// What the battle screen draws, in the original's frame.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Look {
     pub set: Set,
@@ -462,8 +458,8 @@ fn build_roads(site: Site, roads_in: &[bool; 9], rng: &mut impl Rng) -> Vec<u8> 
             }
         }
     }
-    // The pieces each road cell needs, from which of its neighbours are road. The edges count
-    // as road, except below the last row, where the original reads past its array.
+    // The pieces each road cell needs, from which of its neighbours are road. The edges count as
+    // road, except below the last row.
     let plain = roads.clone();
     let road_or_edge = |x: i32, y: i32| -> bool {
         if !(0..W).contains(&x) || y < 0 {
@@ -574,9 +570,8 @@ fn carve_river(group: &mut [u8], rivers: &[bool; 9], rng: &mut impl Rng) {
     }
 }
 
-/// The squares a Floating Island's deck covers, in the original's frame, for the defenders and
-/// for the attackers, and the square each island's picture hangs from. When both sides have one
-/// the attackers' sits in the middle, with one more square towards the defenders.
+/// The squares a Floating Island's deck covers. When both sides have one the attackers' sits in the
+/// middle, with one more square towards the defenders.
 pub fn island_decks(attacker: bool, defender: bool) -> IslandDecks {
     let mut decks = IslandDecks::default();
     let block = |x0: i32, y0: i32| -> Vec<(i32, i32)> {
@@ -903,7 +898,6 @@ fn tile_types(group: &[u8], rng: &mut impl Rng) -> Vec<u8> {
                     let r = |dx: i32, dy: i32| !inside(x + dx, y + dy) || g(dx, dy) == RIVER;
                     let (u, d, l, rt) = (r(0, -1), r(0, 1), r(-1, 0), r(1, 0));
                     let variant = ((random(rng, 2) - 1) * 6) as u8;
-                    // The original tests the shapes in turn and the last that fits wins.
                     let shape = if l && d {
                         5
                     } else if d && rt {
@@ -992,7 +986,6 @@ fn forbidden(site: Site, x: i32, y: i32, rock: bool) -> bool {
     }
     if rock {
         no |= site == Site::City && x == MAX_CGX_CITY && y == MIN_CGY_CITY;
-        // The original keeps rocks off the east and south walls even on an open field.
         no |= x == MAX_CGX_CITY && range(MIN_CGY_CITY + 1, MAX_CGY_CITY, y);
         no |= y == MAX_CGY_CITY && range(MIN_CGX_CITY, MAX_CGX_CITY, x);
     } else if site == Site::City {
@@ -1094,7 +1087,7 @@ fn scatter_rocks(
     };
     let mut rocks = Vec::new();
     let mut placed = 0;
-    // The original has no limit on its attempts; this one stops a field with no room at all.
+    // A limit on the attempts stops a field with no room at all.
     let mut attempts = 0;
     while placed < rock_count && attempts < 5000 {
         attempts += 1;
@@ -1129,7 +1122,6 @@ fn houses_of(spec: &Spec, rng: &mut impl Rng) -> Vec<House> {
     if spec.site != Site::City {
         return houses;
     }
-    // The original swaps the tree and mound styles when it picks the pictures.
     let style = match spec.house_style {
         1 => 2,
         2 => 1,

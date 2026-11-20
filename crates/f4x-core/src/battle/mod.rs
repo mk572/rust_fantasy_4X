@@ -41,7 +41,7 @@ use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::{SpellId, UnitId};
 
-use attack::{Combatant, DefenderState, Fighter, Mode};
+use attack::{Combatant, Damage, DefenderState, Fighter, Mode};
 use field::{Field, FieldBonus};
 use immunity::{AttackNature, Immunities, Realm};
 use map::{distance, in_city_area, BattleMap, Mover, Pos, OPEN_COST};
@@ -215,8 +215,6 @@ pub struct BattleUnit {
     pub damage_kinds: [i32; 3],
     /// Has attacked or shot this turn.
     pub attacked: bool,
-    /// A hasted unit's second attack or shot this turn, not used yet.
-    pub extra_attack: bool,
     /// An invisible unit that gave itself away by attacking or casting: the other side sees it
     /// until its own next turn begins.
     pub revealed: bool,
@@ -352,7 +350,6 @@ impl BattleUnit {
             status: Status::Active,
             damage_kinds: [0; 3],
             attacked: false,
-            extra_attack: false,
             revealed: false,
             merged_this_turn: false,
             surfaced: false,
@@ -414,8 +411,8 @@ impl BattleUnit {
         self.hit_points() - before
     }
 
-    /// How the unit died, by the kind of damage that did most of it (as the original does:
-    /// ties go to the kind that destroys, then to drain). Meaningful once the unit is dead.
+    /// How the unit died, by the kind of damage that did most of it (ties go to the kind that
+    /// destroys, then to drain). Meaningful once the unit is dead.
     pub fn fate(&self) -> Fate {
         let [normal, drained, gone] = self.damage_kinds;
         if gone > 0 && gone >= drained && gone >= normal {
@@ -461,13 +458,10 @@ impl BattleUnit {
             && !self.surfaced
     }
 
-    /// An attack or shot is used up: a hasted unit has a second one before it is spent.
-    pub fn used_attack(&mut self) {
-        if self.extra_attack {
-            self.extra_attack = false;
-        } else {
-            self.attacked = true;
-        }
+    /// Whether Haste is on the unit: its attack is doubled (a second swing in the exchange, a
+    /// second volley of a shot).
+    pub fn is_hasted(&self) -> bool {
+        self.has(Ability::new(26 /* hasted */))
     }
 
     pub fn is_active(&self) -> bool {
@@ -588,7 +582,7 @@ impl BattleUnit {
     }
 
     /// Whether the unit's spell shots are paid for with its mana: a spell caster with a magical
-    /// ranged attack (the original's rule for casters and heroes).
+    /// ranged attack.
     pub fn shoots_with_mana(&self, rules: &Rules) -> bool {
         self.ranged_kind == RangedKind::Magic && (self.hero_caster || self.is_caster(rules))
     }
@@ -1098,8 +1092,8 @@ pub struct Battle {
     pub wall_of_fire: bool,
     /// The city has a Wall of Darkness: see [`BattleError::WallOfDarkness`].
     pub wall_of_darkness: bool,
-    /// The realms (ids) a Spell Ward guards the city against: the attackers cannot cast spells
-    /// of them. (The help says "including combat spells"; the original's code does not check.)
+    /// The realms (ids) a Spell Ward guards the city against: the attackers cannot cast spells of
+    /// them.
     pub warded_realms: Vec<crate::rules::RealmId>,
     /// The realm of the magic node whose aura the battle is fought in: its creatures fight with
     /// +2 to attack, defence and resistance (`Battle_Unit_Special_Stats`).
@@ -1120,10 +1114,10 @@ pub struct Battle {
     /// Everyone inside a walled city gets the wall's +3 defence (`RuleSettings::walls_cover_city`).
     #[serde(default)]
     pub walls_cover_city: bool,
-    /// The original's exceptions to death immunity (`RuleSettings::death_immunity_exceptions`).
+    /// The exceptions to death immunity (`RuleSettings::death_immunity_exceptions`).
     #[serde(default)]
     pub death_immunity_exceptions: bool,
-    /// The original's exceptions to magic immunity (`RuleSettings::magic_immunity_exceptions`).
+    /// The exceptions to magic immunity (`RuleSettings::magic_immunity_exceptions`).
     #[serde(default)]
     pub magic_immunity_exceptions: bool,
     /// Most units a side can have in the battle: summoning stops here
@@ -1316,7 +1310,6 @@ impl Battle {
         {
             u.moves_left = u.moves;
             u.attacked = false;
-            u.extra_attack = u.has(Ability::new(26 /* hasted */));
             u.revealed = false;
         }
         if let Some(caster) = &mut self.casters[side.index()] {
@@ -1543,8 +1536,7 @@ impl Battle {
         !u.flag(UnitFlag::Flies) && !u.moves_instantly()
     }
 
-    /// A Wall of Fire's attack on a unit: strength 5, area, fire (the original casts a Fireball
-    /// of its base strength).
+    /// A Wall of Fire's attack on a unit: strength 5, area, fire.
     fn burn(&mut self, unit: usize) -> Vec<BattleEvent> {
         let traits = crate::rules::effects::DamageTraits {
             area: true,
@@ -1734,14 +1726,12 @@ impl Battle {
                 if !self.free_squares().contains(&to) {
                     return Err(BattleError::Unreachable);
                 }
-                let haste = u.has(Ability::new(26 /* hasted */));
                 let u = &mut self.units[unit];
                 u.status = Status::Active;
                 u.cell = to;
                 u.surfaced = true;
                 u.moves_left = u.moves;
                 u.attacked = false;
-                u.extra_attack = haste;
                 events.push(BattleEvent::Surfaced { unit, cell: to });
             }
             BattleCommand::Done { unit } => {
@@ -1794,6 +1784,7 @@ impl Battle {
             thrown: u.thrown_combatant(rules, self.magic_immunity_exceptions),
             first_strike: u.flag(UnitFlag::FirstStrike),
             negate_first_strike: u.flag(UnitFlag::NegatesFirstStrike),
+            extra_swing: false,
             state: u.defender_state(rules),
         }
     }
@@ -1809,6 +1800,7 @@ impl Battle {
         let reach_blocked =
             self.units[def].flag(UnitFlag::Flies) && !self.units[att].flag(UnitFlag::Flies);
         let mut a = self.fighter(att, reach_blocked);
+        a.extra_swing = self.units[att].is_hasted();
         let mut d = self.fighter(def, false);
         a.state.defense += self.city_defense_bonus(att, def);
         d.state.defense += self.city_defense_bonus(def, att);
@@ -1853,7 +1845,7 @@ impl Battle {
         self.units[att].record(out.taken);
         self.units[att].heal_kinds(out.dealt.healed);
         self.units[def].heal_kinds(out.taken.healed);
-        self.units[att].used_attack();
+        self.units[att].attacked = true;
         self.units[att].revealed = true;
         self.units[att].moves_left = HalfInt::ZERO;
         for (id, mana_lost) in [(def, out.dealt.mana_lost), (att, out.taken.mana_lost)] {
@@ -1895,26 +1887,36 @@ impl Battle {
             self.magic_immunity_exceptions,
         );
         let figures = a.figures;
+        let volleys = if a.is_hasted() { 2 } else { 1 };
+        let shot_mana = self.rules().shot_mana;
         let mut state = self.units[def].defender_state(&self.content.rules);
         state.defense += self.city_defense_bonus(def, att);
         let stopped = state.immunities.stopped_by(shooter.types());
-        let rng: &mut dyn RngCore = &mut self.rng;
-        let dmg = attack::ranged_attack(
-            &self.content.rules.config.battle,
-            &shooter,
-            figures,
-            &mut state,
-            rng,
-        );
-        self.units[def].set_from(&state);
-        self.units[def].record(dmg);
-        let shot_mana = self.rules().shot_mana;
-        let a = &mut self.units[att];
-        if dmg.healed > 0 {
-            a.heal_points(dmg.healed, true);
+        let mut dmg = Damage::default();
+        // Haste: a second volley while there is ammunition (or mana) for it and the target stands.
+        for volley in 0..volleys {
+            if volley > 0 && (self.units[att].ammo <= 0 || state.figures == 0) {
+                break;
+            }
+            let rng: &mut dyn RngCore = &mut self.rng;
+            let d = attack::ranged_attack(
+                &self.content.rules.config.battle,
+                &shooter,
+                figures,
+                &mut state,
+                rng,
+            );
+            self.units[def].set_from(&state);
+            self.units[def].record(d);
+            let a = &mut self.units[att];
+            if d.healed > 0 {
+                a.heal_points(d.healed, true);
+            }
+            a.spend_shot(shot_mana, &self.content.rules);
+            dmg += d;
         }
-        a.spend_shot(shot_mana, &self.content.rules);
-        a.used_attack();
+        let a = &mut self.units[att];
+        a.attacked = true;
         a.revealed = true;
         // A ranged attack uses up the rest of the movement, as blows do (1.50 note 747).
         a.moves_left = HalfInt::ZERO;

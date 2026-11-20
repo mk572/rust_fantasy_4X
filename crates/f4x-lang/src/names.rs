@@ -437,8 +437,8 @@ impl Names {
         Term::plain(self.item_name(item, texts))
     }
 
-    /// The default name of an item made without one, in the language of the texts, at most
-    /// thirty letters (the original's buffer).
+    /// The default name of an item made without one, in the language of the texts, at most thirty
+    /// letters.
     pub fn made_name(&self, made: &MadeName, texts: &Texts) -> String {
         let kind = texts.get(made.kind.key(), &Args::new());
         let mut name = match made.bonus {

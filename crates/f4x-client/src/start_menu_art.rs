@@ -34,8 +34,6 @@ fn word_font() -> Rc<bm::BmFont> {
     })
 }
 
-/// Where the middle of a word is in the original's pixels: its pictures are 82 wide from x = 123, and
-/// the lettering in them is not on one centre line (each is set a pixel or two off).
 fn centre(key: &str) -> f32 {
     match key {
         "menu.continue" => 163.5,

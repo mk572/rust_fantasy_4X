@@ -27,12 +27,9 @@ use macroquad::prelude::{Image, ImageFormat};
 pub const FACE_WIDTH: usize = 33;
 pub const FACE_HEIGHT: usize = 35;
 
-/// The pack of the five original diamonds, in the order of the banners.
 const FRAME_PACK: &[u8] = include_bytes!("../assets/gem/frame.sheet.png");
 const ORIGINAL_FRAMES: usize = 5;
 
-/// The newer banner colours (5 to 9): the original colour each is made from, the turn in degrees
-/// and the brightness (`make_banner_colours.py`: pink, brown, turquoise, dark blue, orange).
 const TURNS: [(usize, f32, f32); 5] = [
     (1, 210.0, 1.0),
     (0, 150.0, 0.78),
@@ -41,8 +38,8 @@ const TURNS: [(usize, f32, f32); 5] = [
     (4, -18.0, 1.0),
 ];
 
-/// How much of the portrait shows 0, 1 and 2 pixels from its edge (from 3 pixels in, all of it),
-/// at the left, right, top and bottom edge: what the original's gems show.
+/// How much of the portrait shows 0, 1 and 2 pixels from its edge (from 3 pixels in, all of it), at
+/// the left, right, top and bottom edge.
 const RAMP_SIDE: [f32; 3] = [0.1, 0.45, 0.8];
 const RAMP_TOP: [f32; 3] = [0.0, 0.6, 0.85];
 const RAMP_BOTTOM: [f32; 3] = [0.1, 0.4, 0.7];
@@ -51,7 +48,6 @@ const RAMP_BOTTOM: [f32; 3] = [0.1, 0.4, 0.7];
 const MIDDLE: [f32; 3] = [0.5, 1.0, 1.0];
 const EASE: f32 = 3.0;
 
-/// The five original diamonds, decoded once.
 fn originals() -> &'static [Image] {
     static FRAMES: OnceLock<Vec<Image>> = OnceLock::new();
     FRAMES.get_or_init(|| {
@@ -245,7 +241,7 @@ mod tests {
     const WIDTH: usize = 41;
     const HEIGHT: usize = 43;
 
-    /// A portrait of one colour with the corners cut, like the original's.
+    /// A portrait of one colour with the corners cut.
     fn portrait(colour: [u8; 3]) -> Image {
         let mut bytes = Vec::new();
         for y in 0..FACE_HEIGHT {

@@ -40,8 +40,7 @@ impl Personality {
     }
 }
 
-/// What an AI wizard is after (the original's `AI_OBJ_*`, in its order). On a wizard; the human
-/// has none.
+/// What an AI wizard is after. On a wizard; the human has none.
 #[derive(
     Debug,
     Clone,
@@ -64,7 +63,7 @@ pub enum Objective {
 }
 
 impl Objective {
-    /// Every objective, in the original's order.
+    /// Every objective.
     pub fn all() -> impl Iterator<Item = Objective> {
         <Objective as strum::IntoEnumIterator>::iter()
     }

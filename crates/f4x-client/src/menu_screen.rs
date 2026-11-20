@@ -247,7 +247,6 @@ impl Page for MainMenuPage {
         // The entries: the original puts them 12 pixels apart from y = 141; the words are drawn by
         // the font engine (`start_menu_art.rs`) in the place of the original's `vortex.lbx` pictures.
         let mut chosen = None;
-        // The last row (Quit) stays where the original has it; the others move up for a new one.
         let top = 141.0 + 12.0 * (5.0 - rows.len() as f32);
         for (i, &entry) in rows.iter().enumerate() {
             let (label, hotkey) = match entry {
@@ -362,7 +361,6 @@ impl Page for SlotsPage {
             let r = lay.rect((43.0, y, 229.0, 12.0));
             let picked = app.menu.selected == Some(n);
             if slot != Slot::Empty {
-                // The original lays a text-field picture behind a filled slot.
                 if app.draw_pic(&lay, "load", 9, 0, 43.0, y).is_none() {
                     draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.2, 0.15, 0.1, 1.0));
                 }
@@ -399,7 +397,7 @@ impl Page for SlotsPage {
         let in_game = !app.menu.from_menu;
         let can_save = in_game && selected.is_some() && app.game.game_over.is_none();
 
-        // Buttons along y = 171: Quit, Load, Save, Settings, OK (the original's positions).
+        // Buttons along y = 171: Quit, Load, Save, Settings, OK.
         let quit_key = if app.menu.from_menu {
             "ui.back"
         } else {

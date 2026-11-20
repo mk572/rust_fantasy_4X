@@ -72,7 +72,6 @@ const SITES: &[(u16, &str, &str)] = &[
     ),
 ];
 
-/// The site's place in the original's table; a site it does not know is a lair.
 pub(crate) fn site_type(site: u16) -> usize {
     SITES.iter().position(|s| s.0 == site).unwrap_or(8)
 }
@@ -81,7 +80,7 @@ pub(crate) fn site_type(site: u16) -> usize {
 /// (`notify_color_slide` in the original's `Lair_Confirm`).
 const NODES: std::ops::RangeInclusive<usize> = 1..=3;
 
-/// How many steps of the slide a second shows: our own pace, the original's depends on its frame.
+/// How many steps of the slide a second shows: our own pace.
 const SLIDE_PER_SECOND: f64 = 8.0;
 
 /// One box waiting to be shown.

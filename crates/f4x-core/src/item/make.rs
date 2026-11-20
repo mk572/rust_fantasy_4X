@@ -28,7 +28,7 @@ pub enum Grade {
     Artifact,
 }
 
-/// The item kinds in the original's order, for the random item's draw.
+/// The item kinds, for the random item's draw.
 const KINDS: &[ItemKind] = &[
     ItemKind::Sword,
     ItemKind::Mace,

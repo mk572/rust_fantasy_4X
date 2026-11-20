@@ -94,7 +94,7 @@ const RECALL_PERCENT: u32 = 50;
 const STASIS_RADIUS: i32 = 3;
 /// Turns of net mana income within which a summon that cannot be paid yet is saved for.
 const SAVING_TURNS: i32 = 15;
-/// Mana kept in the reserve before the AI starts a global enchantment (the original's gate).
+/// Mana kept in the reserve before the AI starts a global enchantment.
 const GLOBAL_RESERVE: i32 = 200;
 /// How many times the strength of a unit a werewolf must be for Lycanthropy to be worth it: only
 /// the obsolete (spearmen next to werewolves) are turned.
@@ -427,7 +427,7 @@ fn alchemy(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 /// A banished wizard pays the Spell of Return from its mana reserve and has no income. When the
 /// reserve does not cover this turn's payment it turns as much gold as it needs into mana, and no
-/// more (a choice of the script, not a rule: the original does it inside the rules).
+/// more (a choice of the script, not a rule).
 fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let gold = {
@@ -636,8 +636,8 @@ fn category(def: &SpellDef) -> (Kind, bool) {
     (kind(def), battle_harm)
 }
 
-/// Turns of research a candidate costs, with the original's adjustments (cheaper when the AI has
-/// no spell of its sort yet and the sort wins battles or fights, dearer when it has one).
+/// Turns of research a candidate costs, with adjustments (cheaper when the AI has no spell of its
+/// sort yet and the sort wins battles or fights, dearer when it has one).
 fn research_score(
     view: &PlayerView,
     spell: SpellId,
@@ -797,20 +797,7 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
     let def = view.spell(spell);
     match kind(def) {
-        Kind::UnitBuff => {
-            let mut units: Vec<hecs::Entity> = view
-                .my_units()
-                .into_iter()
-                .filter(|&u| is_fighter(view, u) && !view.unit_enchantments(u).contains(&spell))
-                .collect();
-            view.sort_by_serial(&mut units);
-            units
-                .into_iter()
-                .map(|u| (unit_strength(view, u), u))
-                .filter(|&(_, u)| view.can_aim(spell, Some(Target::Unit(u))))
-                .max_by(|a, b| a.0.total_cmp(&b.0))
-                .map(|(_, u)| Target::Unit(u))
-        }
+        Kind::UnitBuff => crate::spellhelper::best_buff(view, spell).map(|(u, _)| Target::Unit(u)),
         Kind::CityBuff => {
             // A city with an enemy stack by it first, then the fortress.
             let fortress = view.fortress();
@@ -1350,7 +1337,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             {
                 saving = true;
             }
-            // The original's check: not more than fifty turns of what the AI can put towards it.
+            // Not more than fifty turns of what the AI can put towards it.
             let per_turn = mana / 10 + income.split.mana.floor();
             if wanted
                 && (k == Kind::Mastery
@@ -2349,6 +2336,87 @@ mod tests {
             cast_rank(Kind::Lycanthropy, &traits),
             cast_rank(Kind::Summon, &traits),
             "rated against the summons"
+        );
+        Ok(())
+    }
+
+    /// A lasting spell on one unit is rated by what it adds to the unit it is cast on: Iron Skin
+    /// does more for a great drake (30 hit points) than for a spearman, so the drake is the aim, and
+    /// the spell's rating is the drake's.
+    #[test]
+    fn a_unit_buff_is_aimed_at_the_unit_it_adds_most_to() -> TestResult {
+        let mut g = fresh_game()?;
+        let iron_skin = spell(24)?;
+        g.cheat_learn_spell(P1, iron_skin);
+        let circle = g
+            .wizard(P1)
+            .ok_or("player 1 is a wizard")?
+            .summon_at()
+            .ok_or("a summoning circle")?;
+        let spearmen = spawn(&mut g, P1, circle, 104 /* high_men_spearmen */, 1);
+        let drake = spawn(&mut g, P1, circle, 164 /* great_drake */, 1);
+        let view = PlayerView::new(&g, P1);
+        let gain = |u| view.unit_power_with_spell(u, iron_skin) - view.unit_power(u);
+        assert!(
+            gain(spearmen[0]) > 0.0,
+            "a defence of five adds to a spearman"
+        );
+        assert!(gain(drake[0]) > gain(spearmen[0]));
+        let (aimed, value) = crate::spellhelper::best_buff(&view, iron_skin).ok_or("an aim")?;
+        assert_eq!(aimed, drake[0]);
+        assert!(value > 0.0);
+        assert!(crate::spellhelper::rate(&view, iron_skin, Kind::UnitBuff) > 0.0);
+        Ok(())
+    }
+
+    /// Heroism adds the rating of Elite over the unit's own level: a recruit gains a lot, and a
+    /// unit that is Elite already gains nothing.
+    #[test]
+    fn heroism_is_worth_the_levels_it_lifts() -> TestResult {
+        let mut g = fresh_game()?;
+        let heroism = spell(130 /* heroism */)?;
+        g.cheat_learn_spell(P1, heroism);
+        let circle = g
+            .wizard(P1)
+            .ok_or("player 1 is a wizard")?
+            .summon_at()
+            .ok_or("a summoning circle")?;
+        let recruit = spawn(&mut g, P1, circle, 104 /* high_men_spearmen */, 1)[0];
+        let gain = |g: &Game, u| {
+            let view = PlayerView::new(g, P1);
+            view.unit_power_with_spell(u, heroism) - view.unit_power(u)
+        };
+        assert!(gain(&g, recruit) > 0.0);
+        g.scenario_enchant_unit(recruit, heroism, P1);
+        assert_eq!(gain(&g, recruit), 0.0, "an Elite unit gains nothing");
+        Ok(())
+    }
+
+    /// A buff that adds nothing to any unit is not rated and has no aim: Regeneration on a troll,
+    /// which regenerates already.
+    #[test]
+    fn a_unit_buff_with_nothing_to_add_has_no_aim() -> TestResult {
+        let mut g = fresh_game()?;
+        let regeneration = spell(31)?;
+        g.cheat_learn_spell(P1, regeneration);
+        let circle = g
+            .wizard(P1)
+            .ok_or("player 1 is a wizard")?
+            .summon_at()
+            .ok_or("a summoning circle")?;
+        let view = PlayerView::new(&g, P1);
+        let others: Vec<_> = view.my_units();
+        drop(view);
+        for u in others {
+            g.scenario_set_hurt(u, 0);
+        }
+        let trolls = spawn(&mut g, P1, circle, 147 /* troll_spearmen */, 1);
+        let view = PlayerView::new(&g, P1);
+        let gain = view.unit_power_with_spell(trolls[0], regeneration) - view.unit_power(trolls[0]);
+        assert_eq!(gain, 0.0, "a troll regenerates already");
+        assert_ne!(
+            crate::spellhelper::best_buff(&view, regeneration).map(|b| b.0),
+            Some(trolls[0])
         );
         Ok(())
     }

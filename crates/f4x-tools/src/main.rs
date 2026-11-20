@@ -15,6 +15,7 @@ mod metrics;
 mod queries;
 mod report;
 mod soak;
+mod spell_duel;
 #[cfg(test)]
 mod testutil;
 mod versus;

@@ -24,7 +24,6 @@ pub(crate) enum Ink {
     Flat(Color),
 }
 
-/// An 8-bit colour, for the palette entries the original names by number.
 pub(crate) const fn rgb(r: u8, g: u8, b: u8) -> Color {
     Color::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0)
 }
@@ -166,7 +165,6 @@ impl Style {
         Style::new(font, Ink::Flat(color))
     }
 
-    /// White with a black outline, as the original's gold, mana and income figures.
     pub(crate) fn outlined(font: usize) -> Style {
         Style::nearest(font, WHITE).effect(Effect::Outline)
     }
@@ -229,8 +227,6 @@ pub(crate) fn shared_font(style: usize) -> Rc<bm::BmFont> {
     })
 }
 
-/// The font style of the text that is not in the original's layout (the options screen, the
-/// prompts of the battle and the road planner, the plain buttons).
 const PLAIN_STYLE: usize = 5;
 
 /// The scale of the plain font that comes closest to a text `size` in window pixels.

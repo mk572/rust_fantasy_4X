@@ -11,7 +11,7 @@ use macroquad::prelude::*;
 
 use crate::view::App;
 
-/// The window's left edge, and the cell columns, in the original's 320 by 200 pixels.
+/// The window's left edge, and the cell columns.
 const LEFT: f32 = 50.0;
 const COLUMN: f32 = 112.0;
 /// The picture's width (`compix.lbx` 56 to 58).
@@ -101,7 +101,7 @@ impl App {
         let at = |x: f32, y: f32| (ox + x * s, oy + y * s);
         let lay = Layout::new(info);
 
-        // The three strips, each cut off where the next begins (the original clips them).
+        // The three strips, each cut off where the next begins.
         let strip = |app: &mut App, entry: usize, y: f32, height: f32| {
             let Some(tex) = app.art.picture("compix", entry, 0).cloned() else {
                 return;

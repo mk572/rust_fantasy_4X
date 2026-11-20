@@ -244,7 +244,6 @@ impl Page for OutpostUi {
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
         let ui = self.clone();
 
-        // The map stays under the window, as the original's does.
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         app.draw_map();
         // The window without its headings (`scripts/city_headings_text_free.py`).

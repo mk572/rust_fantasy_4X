@@ -198,9 +198,8 @@ impl Game {
             .any(|e| e.target == crate::rules::effects::TargetSel::UnitsOnChosenSquare)
     }
 
-    /// Whether Lycanthropy may be cast on the unit: a normal land unit that is not undead.
-    /// (The original refuses heroes, fantastic creatures and the mutated; ships are refused
-    /// here too, which its test does not do.)
+    /// Whether Lycanthropy may be cast on the unit: a normal land unit that is not undead. (Ships
+    /// are refused too.)
     pub fn check_become_werewolf(&self, unit: hecs::Entity) -> Result<(), TargetError> {
         let units = self.units();
         let def = units.unit_def(unit).ok_or(TargetError::WrongTarget)?;

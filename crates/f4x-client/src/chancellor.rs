@@ -31,7 +31,6 @@ pub(crate) struct Chancellor {
     pub sections: Vec<Section>,
     /// When it began to unroll, in seconds of the clock.
     pub opened: f64,
-    /// How far the text is scrolled up, in the original's pixels.
     pub scrolled: f32,
 }
 
@@ -44,7 +43,7 @@ impl Modal for Chancellor {
     }
 }
 
-/// The paper's place and size, and the text's start inside it (the original's pixels).
+/// The paper's place and size, and the text's start inside it.
 const PAPER: (f32, f32, f32, f32) = (62.0, 29.0, 196.0, 148.0);
 /// The window the text is read through when the scroll is fully open.
 const WINDOW_HEIGHT: f32 = 127.0;

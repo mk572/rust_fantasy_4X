@@ -1,6 +1,5 @@
 //! A window of rows over a longer list, for the spell screens that choose among the other wizards
-//! (`wizard_pick.rs`, `global_pick.rs`): the original shows four opponents, the game can have more,
-//! so the list scrolls by a row with two arrows, the mouse wheel and the keys.
+//! (`wizard_pick.rs`, `global_pick.rs`).
 
 /// `shown` rows of `total`, the first of them `first`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

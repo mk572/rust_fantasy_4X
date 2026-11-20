@@ -63,7 +63,7 @@ pub(crate) fn scrolled(first: usize, delta: i32, count: usize) -> usize {
         first.saturating_sub(SCROLL)
     } else if delta > 0 {
         if first + ROWS < count {
-            // The original moves five rows, or one when five would pass the end.
+            // Moves five rows, or one when five would pass the end.
             if first + ROWS + SCROLL < count {
                 first + SCROLL
             } else {

@@ -86,9 +86,9 @@ fn merchant_answer(buy: bool, reject: bool, affordable: bool, input: &Input) -> 
     (buy && !reject, reject)
 }
 
-/// What the hire box answers, given the buttons. H hires (the original's hotkey; A accepts a
-/// freed prisoner); while naming Enter ends the name and the letter keys are text. Returns
-/// (hire, reject); Esc rejects, and a rejection wins.
+/// What the hire box answers, given the buttons. H hires (A accepts a freed prisoner); while naming
+/// Enter ends the name and the letter keys are text. Returns (hire, reject); Esc rejects, and a
+/// rejection wins.
 fn hire_answer(
     hire: bool,
     reject: bool,

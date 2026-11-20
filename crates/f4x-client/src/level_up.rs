@@ -160,7 +160,7 @@ impl App {
             ("levelup.resistance", bx + 47.0, by + 34.0),
             ("levelup.attack", bx + 139.0, by + 24.0),
         ];
-        // The levels the original gives a point of defense at: its 1, 3, 5 and 7th, counting from 1.
+        // The levels that give a point of defense: the 1, 3, 5 and 7th, counting from 1.
         let defense = (1..=7).contains(&level) && (level - 1).is_multiple_of(2);
         if defense {
             gains.push(("levelup.defense", bx + 139.0, by + 34.0));

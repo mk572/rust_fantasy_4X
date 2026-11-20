@@ -123,7 +123,6 @@ impl App {
     }
 }
 
-/// The step of the glow's colours (the original moves it every other screen flip).
 pub(crate) fn glow_step() -> usize {
     (get_time() * 8.0) as usize
 }

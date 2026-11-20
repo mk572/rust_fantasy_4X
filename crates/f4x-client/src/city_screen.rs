@@ -1,5 +1,4 @@
-//! The city screen: economy, buildings, worked area and the production list, drawn on
-//! the original screen layout (320x200) when the art is available.
+//! The city screen: economy, buildings, worked area and the production list.
 
 use crate::font::{rgb, Effect, Style};
 use crate::frame::Disabled;
@@ -265,7 +264,6 @@ impl App {
             return;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        // The original's panels are see-through cut-outs: back them with white, as the game did.
         let full = lay.rect(
             0.0,
             0.0,
@@ -315,7 +313,6 @@ impl App {
         (lay.ox, lay.oy, lay.scale)
     }
 
-    /// A picture from the local art at the original's `(x, y)`; false if it is missing.
     pub(crate) fn city_pic(
         &mut self,
         lay: Layout,
@@ -442,8 +439,8 @@ impl App {
         }
     }
 
-    /// The box for a new name for the city (the original's name box); Enter keeps what is typed,
-    /// an empty name keeps the old one.
+    /// The box for a new name for the city; Enter keeps what is typed, an empty name keeps the old
+    /// one.
     fn draw_rename_box(&mut self, page: &mut CityPage, input: &Input) {
         let city = page.city;
         let Some(mut name) = page.naming.take() else {
@@ -469,7 +466,6 @@ impl App {
     fn draw_city_headings(&mut self, lay: Layout) {
         let view = Self::view(lay);
         let style = heading_style();
-        // The top left of each heading's lettering, in the original's pixels.
         for (key, x, y) in [
             ("city.heading_resources", 6.0, 43.0),
             ("city.heading_enchantments", 140.0, 43.0),
@@ -956,7 +952,6 @@ impl App {
         let myrror = at.plane == f4x_core::map::Plane::Myrror;
         let data = self.city_data(city);
         let enchanted = |spell: u16| data.enchantments.iter().any(|s| s.num() == spell);
-        // The original counts its animations in draws of the screen.
         let draws = (get_time() * cs::DRAWS_PER_SECOND) as u64;
         let building_counter = cs::anim_counter(draws, 60);
         let water_counter = cs::anim_counter(draws, 84);
@@ -1196,8 +1191,7 @@ impl App {
                 self.city_pic(lay, "cityscap", entry, 0, x0 + left, y0 + cs::WARD_ROW);
             }
         }
-        // Wall of Darkness is drawn with the air wall's picture, as in the original; Wall of
-        // Stone is not drawn (it makes the city walls).
+        // Wall of Stone is not drawn (it makes the city walls).
         for (spell, entry) in [
             (178 /* wall_of_darkness */, 79),
             (87 /* wall_of_fire */, 77),
@@ -1703,7 +1697,7 @@ impl App {
         match prod.item {
             Some(item) => {
                 let name = self.item_name(item);
-                // The name wraps in 44 pixels and its last line is at y 179, as in the original.
+                // The name wraps in 44 pixels and its last line is at y 179.
                 let lines = self.bm_wrap(1, &name, 44.0);
                 let top = 179.0 - 6.0 * lines.len().saturating_sub(1) as f32;
                 for (i, line) in lines.iter().enumerate() {
@@ -1721,8 +1715,6 @@ impl App {
                         - prod.progress)
                         .max(f4x_def::half_int::HalfInt::ZERO);
                     if eco.production > f4x_def::half_int::HalfInt::ZERO {
-                        // "N Turns" as the original prints it: the number right-aligned at 286,
-                        // the word after it.
                         let turns = (remaining.raw() as u32).div_ceil(eco.production.raw() as u32);
                         self.draw_styled(
                             view,

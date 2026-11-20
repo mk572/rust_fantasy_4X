@@ -1,5 +1,3 @@
-//! Extracting the pictures of the original into the player's data folder.
-
 use std::fs;
 use std::path::{Path, PathBuf};
 

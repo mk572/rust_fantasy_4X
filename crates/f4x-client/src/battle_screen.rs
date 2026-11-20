@@ -6,7 +6,6 @@
 //! original's mirrored (`x = 20 - cgx`), so a square is drawn where the original draws the
 //! mirrored one, and the picture comes out as the original's. Like the original this draws only
 //! the band of 200 squares it plays on (the field generator shuts the rest).
-
 use f4x_core::spell::unit_effect::UnitEffect;
 use f4x_def::rules::Ability;
 use std::collections::{HashMap, VecDeque};
@@ -36,7 +35,7 @@ use crate::frame::{Align, Layout};
 use crate::ui::{self, bar, GOLD};
 use crate::view::{App, Screen, HUMAN};
 
-/// Row height and the most rows of the list of the fallen, in the original's pixels.
+/// Row height and the most rows of the list of the fallen.
 const FALLEN_ROW: f32 = 10.0;
 const FALLEN_SHOWN: usize = 10;
 
@@ -145,7 +144,6 @@ fn cast_order(unit: Option<usize>, spell: SpellId, aim: SpellAim, mana: u32) -> 
     }
 }
 
-/// Top-left of a cell of the original's frame (`cgx`, `cgy`), relative to the grid's origin.
 fn original_origin(cgx: f32, cgy: f32) -> (f32, f32) {
     ((cgx - cgy) * STEP_X, (cgx + cgy) * STEP_Y)
 }
@@ -428,8 +426,6 @@ fn enchantment_realm(u: &BattleUnit, ids: &[SpellId]) -> Option<usize> {
     realm_of_spells(ids)
 }
 
-/// The realm of the first of these lasting spells in the original's order (0 chaos, 1 death,
-/// 2 life, 3 nature, 4 sorcery): the colour of the glow round the unit.
 pub(crate) fn realm_of_spells(ids: &[SpellId]) -> Option<usize> {
     const ORDER: &[(u16, usize)] = &[
         (31 /* regeneration */, 3),
@@ -562,7 +558,7 @@ impl App {
                 .active_units(battle.active)
                 .find(|u| unfinished(u))
                 .map(|u| u.id);
-            // The attackers (at the original's high x) look towards low x, the defenders the other way.
+            // The attackers look towards low x, the defenders the other way.
             for u in &battle.units {
                 let look = if u.side == Side::Attacker { 7 } else { 3 };
                 ui.facing.insert(u.id, look);
@@ -1137,7 +1133,6 @@ impl App {
             .and_then(|b| b.unit(id))
     }
 
-    /// What the original's table says the unit sounds like.
     fn unit_sound(&self, ui: &mut BattleUi, id: usize) -> Option<f4x_extract::sound::UnitSound> {
         let unit = self.shown_unit(ui, id)?;
         let def = self.game.content().rules.units.get(unit.unit_id?);
@@ -2023,7 +2018,6 @@ impl App {
     ) {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let (scale, ox, oy) = Self::battle_view();
-        // The map window is clipped, as the original's is: figures stand taller than a cell.
         let mut gl = unsafe { get_internal_gl() };
         gl.flush();
         let dpi = screen_dpi_scale();
@@ -2161,8 +2155,6 @@ impl App {
         }
         self.draw_missile(ui, battle, (ox, oy, scale));
         self.draw_spell_fx(ui, (ox, oy, scale));
-        // Magic vortices: the original's whirlwind (without the art, a swirl of rings), the
-        // steered one marked.
         let vortex_art = self
             .art
             .spell_picture("magic_vortex", &f4x_extract::spell_art::Role::Vortex);
@@ -2465,8 +2457,6 @@ impl App {
         let cx = sx + CELL_W * scale / 2.0;
         let ids = self.unit_spell_ids(u);
         if let Some(entry) = crate::unit_sheet::curse_picture(&ids) {
-            // Over the square, as the original's curse entity: 13 across and 15 down from the
-            // cell's point.
             let frame = (get_time() * 8.0) as usize % 8;
             if let Some(tex) = self.art.picture("chriver", entry, frame) {
                 draw_texture_ex(
@@ -2730,7 +2720,6 @@ mod tests {
     #[test]
     fn neighbours_step_by_the_original_amounts() {
         let (x0, y0) = cell_origin((5, 5));
-        // The core's x runs the other way from the original's.
         assert_eq!(cell_origin((6, 5)), (x0 - 16.0, y0 - 8.0));
         assert_eq!(cell_origin((5, 6)), (x0 - 16.0, y0 + 8.0));
         assert_eq!(cell_origin((4, 5)), (x0 + 16.0, y0 + 8.0));
