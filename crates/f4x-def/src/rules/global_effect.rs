@@ -6,6 +6,13 @@
 /// running anything when they are cast.
 pub const GLOBAL_EFFECT: &str = "global_effect";
 
+/// A quarter more hits for every figure, rounded down but at least one more. It comes after every
+/// other bonus to the hits (experience, Lionheart, Constitution), so it is not a modifier among
+/// them: whoever works the hits out applies it last, for a unit of a wizard with Charm of Life.
+pub fn charm_of_life_hits(hits: i32) -> i32 {
+    hits + (hits / 4).max(1)
+}
+
 crate::effect_enum! {
     /// The effects the engine reads from a wizard's global spells: the arguments of the
     /// `global_effect` hook (`Custom(name: "global_effect", args: ["crusade"])`). A spell carries

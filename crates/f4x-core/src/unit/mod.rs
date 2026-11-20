@@ -509,7 +509,19 @@ impl<'a> UnitView<'a> {
             .unit_def(unit)
             .and_then(|d| d.stats.get(&stat).map(|v| v.floor()))
             .unwrap_or(0);
-        compute(stat, base, &self.modifiers_shared(unit))
+        let value = compute(stat, base, &self.modifiers_shared(unit));
+        // Charm of Life comes last, on the hits with all the other bonuses in.
+        if stat == Stat::MaxHp
+            && self.unit_owner(unit).is_some_and(|o| {
+                self.has_global_effect(
+                    o,
+                    crate::spell::global_enchantment::GlobalEffect::CharmOfLife,
+                )
+            })
+        {
+            return f4x_def::rules::global_effect::charm_of_life_hits(value);
+        }
+        value
     }
 
     /// The dice of an attack stat that are made of damage types (what a Flame Blade or a Flaming

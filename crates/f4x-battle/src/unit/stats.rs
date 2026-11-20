@@ -20,7 +20,7 @@ use f4x_def::half_int::HalfInt;
 use f4x_def::rules::damage_type::{DamageTypes, RangedKind};
 use f4x_def::rules::effects::{Effect, Trigger};
 use f4x_def::rules::facts::{eval, Facts};
-use f4x_def::rules::global_effect::GlobalEffect;
+use f4x_def::rules::global_effect::{charm_of_life_hits, GlobalEffect};
 use f4x_def::rules::hook_name::HEROISM;
 use f4x_def::rules::retort_stat::stat_with;
 use f4x_def::rules::stats::{
@@ -224,7 +224,7 @@ impl BattleUnit {
     }
 
     /// What the owner's global enchantments do to the unit: the passive rules whose condition it
-    /// meets, and Charm of Life's hit points.
+    /// meets.
     fn global_modifiers(&self, rules: &Rules, def: Option<&UnitDef>) -> Vec<Modifier> {
         let owner = self.owner();
         if owner.globals.is_empty() {
@@ -260,17 +260,6 @@ impl BattleUnit {
                     mods.push(
                         Modifier::amount(stat, op, value, Source::Spell(spell)).of_types(types),
                     );
-                }
-            }
-            if spell_def.id == "charm_of_life" {
-                let hp = def.map_or(0, |d| d.stats.get(&Stat::MaxHp).map_or(0, |v| v.floor()));
-                if hp > 0 {
-                    mods.push(Modifier::new(
-                        Stat::MaxHp,
-                        ModOp::Add,
-                        (hp / 4).max(1),
-                        Source::Spell(spell),
-                    ));
                 }
             }
         }
@@ -411,6 +400,12 @@ impl BattleUnit {
         for l in &self.lasting {
             s.enchantments.push(l.spell);
             s.apply(&l.mods, &l.grants);
+        }
+        // Charm of Life comes last, on the hits with all the other bonuses in.
+        if let Some(rules) = rules {
+            if self.owner_has(rules, GlobalEffect::CharmOfLife) {
+                s.hits = charm_of_life_hits(s.hits);
+            }
         }
         let wanted = self.field;
         s.melee = (s.melee + wanted.melee).max(0);

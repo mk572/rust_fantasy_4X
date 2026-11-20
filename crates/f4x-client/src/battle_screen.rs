@@ -2583,10 +2583,9 @@ impl App {
             return;
         }
         // Health bar and figure count under the feet.
-        let max = u.max_hit_points().max(1) as f32;
         let (bw, bh) = (CELL_W * scale * 0.6, (2.0 * scale).max(2.0));
         let bar_rect = Rect::new(cx - bw / 2.0, sy + (CELL_H + 1.0) * scale, bw, bh);
-        let frac = u.hit_points() as f32 / max;
+        let frac = u.health();
         let color = if frac > 0.5 {
             Color::new(0.2, 0.8, 0.2, 1.0)
         } else if frac > 0.25 {

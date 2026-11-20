@@ -1019,14 +1019,10 @@ impl Game {
             } else {
                 // The hit points a lasting spell cast in the battle gave (Lionheart) end with
                 // it, and the extras of life steal were never the unit's. The damage it took
-                // stays: what is left is its hit points less what the spells gave, and a unit
-                // left with none is dead (`divergences.md` 45): the sweep after this command
-                // removes it, as it does when a spell like that is dispelled on the map.
-                let ceiling = u.max_hit_points_without_lasting();
-                let from_spells = u.max_hit_points() - ceiling;
-                let left = (u.hit_points() - from_spells).min(ceiling);
-                let hurt = (ceiling - left).max(0);
-                self.put(entity, Hurt(hurt as u32));
+                // stays, and a unit that cannot stand it without them is dead
+                // (`divergences.md` 45): the sweep after this command removes it, as it does
+                // when a spell like that is dispelled on the map.
+                self.put(entity, Hurt(u.lost().max(0) as u32));
             }
         }
         // A unit that stood on hit points a spell of the battle gave is dead now.

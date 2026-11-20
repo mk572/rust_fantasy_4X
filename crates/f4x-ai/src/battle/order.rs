@@ -256,7 +256,7 @@ pub fn merge_order(battle: &Battle) -> Option<BattleCommand> {
         .active_units(side)
         .filter(|u| u.can_merge())
         .find(|u| {
-            let left = u.hit_points().max(0) as f32 / u.max_hit_points().max(1) as f32;
+            let left = u.health();
             let threatened = battle.active_units(side.other()).any(|e| {
                 distance(u.cell, e.cell) <= 3
                     && expected_damage(
@@ -284,7 +284,7 @@ pub fn surface_order(battle: &Battle) -> Option<BattleCommand> {
     })?;
     let enemies: Vec<&BattleUnit> = battle.active_units(side.other()).collect();
     let free = battle.free_squares();
-    let hurt = unit.hit_points() * 2 < unit.max_hit_points();
+    let hurt = unit.health() < 0.5;
     let to = if hurt || enemies.is_empty() {
         free.iter().copied().max_by_key(|&p| {
             (

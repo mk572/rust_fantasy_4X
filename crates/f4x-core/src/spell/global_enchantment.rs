@@ -8,7 +8,7 @@ use crate::game::Game;
 use crate::player::PlayerId;
 use crate::rules::effects::{Effect, Trigger};
 use crate::rules::exec::{eval, Facts};
-use crate::rules::{Modifier, Source, SpellId, Stat};
+use crate::rules::{Modifier, Source, SpellId};
 use crate::spell::instance::SpellTarget;
 use crate::unit::{Hurt, UnitView};
 use crate::wizard::magic::MagicError;
@@ -262,17 +262,6 @@ impl UnitView<'_> {
                     );
                 }
             }
-            if sdef.id == "charm_of_life" {
-                let hp = def.stats.get(&Stat::MaxHp).map_or(0, |v| v.floor());
-                if hp > 0 {
-                    mods.push(Modifier::new(
-                        Stat::MaxHp,
-                        crate::rules::ModOp::Add,
-                        (hp / 4).max(1),
-                        Source::Spell(spell),
-                    ));
-                }
-            }
         }
         mods
     }
@@ -285,6 +274,7 @@ mod tests {
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::RealmId;
+    use crate::rules::Stat;
     use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
@@ -495,6 +485,31 @@ mod tests {
         assert_eq!(
             g.units().unit_stat(u, Stat::MaxHp),
             before + (before / 4).max(1)
+        );
+        Ok(())
+    }
+
+    /// A quarter of the hits comes after the other bonuses: a unit made Elite by experience gets
+    /// its quarter of the higher number (wiki, Hit Points: Charm of Life "applied after all of
+    /// the above").
+    #[test]
+    fn charm_of_life_comes_after_the_hits_experience_gave() -> TestResult {
+        let mut g = world();
+        let walker = g
+            .content
+            .rules
+            .units
+            .id_numbered(107)
+            .ok_or("high_men_cavalry is not in the content")?;
+        let u = g.spawn_unit(P0, at(5, 5), walker);
+        g.put(u, crate::unit::Experience(10_000));
+        let before = g.units().unit_stat(u, Stat::MaxHp);
+        let base = g.units().unit_def(u).ok_or("no def")?.stats[&Stat::MaxHp].floor();
+        assert!(before > base, "experience raised the hits");
+        grant(&mut g, P0, 160 /* charm_of_life */);
+        assert_eq!(
+            g.units().unit_stat(u, Stat::MaxHp),
+            f4x_def::rules::global_effect::charm_of_life_hits(before)
         );
         Ok(())
     }

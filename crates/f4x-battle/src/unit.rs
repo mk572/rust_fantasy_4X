@@ -294,6 +294,13 @@ impl BattleUnit {
         self.sheet_mut().abilities.retain(|a| *a != ability);
     }
 
+    /// The most hit points the unit has without the lasting spells cast on it in the battle.
+    pub fn max_hit_points_without_lasting(&self) -> i32 {
+        let mut bare = self.clone();
+        bare.lasting_mut().clear();
+        bare.max_hit_points()
+    }
+
     /// The front figure has this much damage on it.
     pub fn set_front_damage(&mut self, damage: i32) {
         let lost = self.figures_start as i32 * self.per_figure()
@@ -506,7 +513,7 @@ impl BattleUnit {
 
     /// The hit points healing can still bring back: all it has lost but what was destroyed.
     pub fn healable(&self) -> i32 {
-        (self.max_hit_points() - self.hit_points() - self.damage_kinds[2]).max(0)
+        (self.lost - self.damage_kinds[2]).max(0)
     }
 
     /// Heal the unit by `amount` hit points (`Battle_Unit_Heal`): the front figure, then dead
@@ -615,16 +622,14 @@ impl BattleUnit {
         self.body_state().hit_points()
     }
 
-    /// The most hit points the unit has without the lasting spells cast on it in the battle.
-    pub fn max_hit_points_without_lasting(&self) -> i32 {
-        let mut bare = self.clone();
-        bare.lasting_mut().clear();
-        bare.max_hit_points()
-    }
-
     /// What each figure can stand: its hits and the extra ones life steal gave it.
     pub fn per_figure(&self) -> i32 {
         self.hits + self.extra_hits
+    }
+
+    /// How much of its hit points the unit has left: 1 when whole (more with life steal's extras).
+    pub fn health(&self) -> f32 {
+        self.hit_points().max(0) as f32 / self.max_hit_points().max(1) as f32
     }
 
     /// The unit's hit points when whole, not counting the extra ones life steal gave.

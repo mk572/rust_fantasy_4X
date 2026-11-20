@@ -2371,10 +2371,7 @@ mod casting {
         cast_on_first(&mut g, 141).map_err(|e| format!("{e:?}"))?;
         let (normal, max) = {
             let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
-            (
-                (u.sheet().clone(), u.max_hit_points_without_lasting()).1,
-                u.max_hit_points(),
-            )
+            (u.max_hit_points_without_lasting(), u.max_hit_points())
         };
         assert!(max > normal, "lionheart gave hit points");
         {
@@ -3765,6 +3762,8 @@ fn a_unit_with_its_wizards_global_enchantments_has_the_numbers_it_has_overland()
         .ok_or("high_men_cavalry is not in the content")?;
     let entity = g.spawn_unit(A, at(4, 4), id);
     g.put(entity, crate::unit::Hurt(7));
+    // Experience first, Charm of Life on top of it, in the battle as overland.
+    g.put(entity, crate::unit::Experience(10_000));
     let overland_hits = g.units().unit_stat(entity, crate::rules::Stat::MaxHp);
     let mut bu = g
         .battle_unit_from(entity, Side::Attacker, 0)
@@ -7046,7 +7045,7 @@ fn a_lionheart_cast_in_the_battle_ends_with_it_and_the_damage_stays() -> TestRes
         let (base, max, ours) = {
             let a = g.battle.as_ref().ok_or("no battle")?;
             let u = a.battle.unit(0).ok_or("no unit")?;
-            let base = (u.sheet().clone(), u.max_hit_points_without_lasting()).1;
+            let base = u.max_hit_points_without_lasting();
             (base, u.max_hit_points(), a.sources[0])
         };
         assert!(max > base, "lionheart gave hit points: {max} over {base}");
@@ -7083,7 +7082,7 @@ fn life_steal_extras_stay_and_lionheart_goes_when_it_is_dispelled() -> TestResul
     let mut g = wizard_battle(107 /* high_men_cavalry */, &[141 /* lionheart */]);
     cast_on_first(&mut g, 141).map_err(|e| format!("{e:?}"))?;
     let u = g.battle().ok_or("no battle")?.unit(0).ok_or("no unit")?;
-    let base_max = (u.sheet().clone(), u.max_hit_points_without_lasting()).1;
+    let base_max = u.max_hit_points_without_lasting();
     let with_spell = u.max_hit_points();
     // Hurt by three, then healed past the maximum by life steal.
     {

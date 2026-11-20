@@ -608,7 +608,7 @@ impl Scene<'_> {
                 // fight whole.
                 Effect::Custom { name, .. } if name == "recall" => {
                     let v = aimed.filter(|u| u.side == self.side).map_or(0.0, |u| {
-                        let left = u.hit_points().max(0) as f32 / u.max_hit_points().max(1) as f32;
+                        let left = u.health();
                         if left < 0.4 {
                             RECALL_SHARE * (1.0 - left) * worth(u)
                         } else {
@@ -810,9 +810,9 @@ fn rule_value(
         // scratch wastes the mana.
         Effect::Heal(points) => on
             .iter()
-            .filter(|u| ours(u) && u.hit_points() * 2 <= u.max_hit_points())
+            .filter(|u| ours(u) && u.health() <= 0.5)
             .map(|u| {
-                let missing = (u.max_hit_points() - u.hit_points()).max(0) as f32;
+                let missing = u.lost().max(0) as f32;
                 (missing.min(*points as f32) / u.max_hit_points().max(1) as f32) * worth(u)
             })
             .sum(),
