@@ -604,7 +604,10 @@ pub fn melee_exchange(
         out.dealt += d;
     }
     // The defender strikes back with the figures it has left, less those the attacker frightens;
-    // a hasted defender strikes back twice.
+    // a hasted defender strikes back twice. What the attacker has left before this is what a
+    // hasted attacker with first strike swings with the second time: that blow is made while the
+    // counter-attack is, so it does not lose figures to it.
+    let before_counter = att.state.figures;
     let counters = if def.hasted { 2 } else { 1 };
     for _ in 0..counters {
         if def.state.figures > 0 && att.state.figures > 0 {
@@ -619,29 +622,31 @@ pub fn melee_exchange(
             out.taken += d;
         }
     }
-    // An attacker without first strike now swings with the figures that survived. A hasted one
-    // swings once more: the first strike only ever covers the first blow.
-    let swings = if att.hasted && first_strike {
-        1
-    } else if att.hasted {
-        2
-    } else if first_strike {
-        0
-    } else {
-        1
-    };
-    for _ in 0..swings {
-        if att.state.figures > 0 && def.state.figures > 0 {
-            let figures = att.state.figures.saturating_sub(feared_once(
-                &mut att_feared,
-                &def.melee,
-                &att.state,
-                rng,
-            ));
+    // An attacker without first strike now swings with the figures that survived; a hasted one
+    // swings once more with the same figures. With first strike the first blow was struck
+    // already and the hasted second one goes with the counter-attack.
+    if !first_strike && att.state.figures > 0 && def.state.figures > 0 {
+        let figures = att.state.figures.saturating_sub(feared_once(
+            &mut att_feared,
+            &def.melee,
+            &att.state,
+            rng,
+        ));
+        for _ in 0..if att.hasted { 2 } else { 1 } {
             let d = process_attack(rules, &att.melee, figures, &mut def.state, rng);
             att.state.heal_overflow(d.healed);
             out.dealt += d;
         }
+    } else if first_strike && att.hasted && def.state.figures > 0 {
+        let figures = before_counter.saturating_sub(feared_once(
+            &mut att_feared,
+            &def.melee,
+            &att.state,
+            rng,
+        ));
+        let d = process_attack(rules, &att.melee, figures, &mut def.state, rng);
+        att.state.heal_overflow(d.healed);
+        out.dealt += d;
     }
     out
 }

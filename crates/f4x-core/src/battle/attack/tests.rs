@@ -1032,3 +1032,21 @@ fn fear_is_rolled_once_and_kept_for_the_second_blow() {
         assert_eq!(first, second);
     }
 }
+
+#[test]
+fn a_hasted_first_striker_makes_its_second_blow_while_the_counter_kills_it() {
+    let total = |hasted: bool| {
+        (0..300)
+            .map(|seed| {
+                let mut att = fighter(1, 2, combatant(6, 0));
+                att.first_strike = true;
+                att.hasted = hasted;
+                let mut def_ = fighter(6, 10, combatant(30, 0));
+                melee_exchange(&rules(), &mut att, &mut def_, &mut rng(seed))
+                    .dealt
+                    .points
+            })
+            .sum::<i32>()
+    };
+    assert!(total(true) > total(false));
+}
