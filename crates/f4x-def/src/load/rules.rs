@@ -94,6 +94,12 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         } else {
             crate::rules::UnitEfficiencies::default()
         },
+        // The rules of the battle, also optional: without the file the original's numbers.
+        battle: if find(dir, "battle.ron").is_some() {
+            parse::<crate::rules::BattleRules>(dir, "battle.ron")?
+        } else {
+            crate::rules::BattleRules::default()
+        },
         // The lair rules, also optional: a rule set may leave the file out.
         lairs: if find(dir, "lairs.ron").is_some() {
             parse::<crate::rules::lair::LairRules>(dir, "lairs.ron")?
@@ -931,6 +937,7 @@ mod tests {
             hero_templates,
             ratings: Default::default(),
             efficiency: Default::default(),
+            battle: shipped("battle.ron", edits),
             lairs: shipped("lairs.ron", edits),
             ai_sites: shipped("ai_sites.ron", edits),
         }

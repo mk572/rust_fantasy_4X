@@ -17,7 +17,7 @@ use rand::RngCore;
 
 use super::attack::{kill_figure, spell_attack, unblockable, Combatant, Damage, Mode, Volley};
 use super::immunity::{effective_resistance, AttackNature, Realm};
-use super::map::{is_wall_corner, Pos};
+use super::map::Pos;
 use super::{Battle, BattleEvent, BattleUnit, RangedKind, Side, Status};
 use crate::player::PlayerId;
 use crate::rules::effects::DamageTraits;
@@ -61,7 +61,7 @@ pub(crate) fn damage_unit_with_spell(
         special: Default::default(),
         ..Combatant::default()
     };
-    let dmg = spell_attack(&rules.config.battle, &spell, volley, &mut state, rng);
+    let dmg = spell_attack(&rules.battle, &spell, volley, &mut state, rng);
     unit.set_from(&state);
     unit.record(dmg);
     Some(dmg)
@@ -324,7 +324,7 @@ impl Battle {
         };
         own_half
             && self.map.enter_cost(cell, false).is_some()
-            && !(is_wall_corner(cell) && self.map.has_wall(cell))
+            && !self.map.is_shut_tower(cell)
             && self.unit_at(cell).is_none()
     }
 

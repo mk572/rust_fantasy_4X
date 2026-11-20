@@ -200,7 +200,10 @@ const EDGE_TURNED: [usize; 12] = [3, 5, 4, 6, 7, 8, 9, 10, 11, 0, 2, 1];
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::battle::map::layout::{self, DIRT, GRASS, H, ROUGH as ROUGH_GROUND};
+    use f4x_core::battle::map::layout::{
+        self, DIRT, GRASS, H, MAX_CGX_WALL, MAX_CGY_WALL, MIN_CGX_WALL, MIN_CGY_WALL,
+        ROUGH as ROUGH_GROUND,
+    };
     use rand::{Rng, SeedableRng};
 
     #[test]
@@ -304,20 +307,23 @@ mod tests {
             let turn = Turn(turn);
             let (dx, dy) = turn.ring_shift();
             let mut cells: Vec<(i32, i32)> = Vec::new();
-            for y in MIN_CGY_CITY..=MAX_CGY_CITY {
-                for x in MIN_CGX_CITY..=MAX_CGX_CITY {
+            for y in MIN_CGY_WALL..=MAX_CGY_WALL {
+                for x in MIN_CGX_WALL..=MAX_CGX_WALL {
                     let at = turn.cg((x, y));
                     cells.push(at);
                     // The same place of the ring, in the original's place.
                     let home = turn.ring_cell(at);
-                    assert!((MIN_CGX_CITY..=MAX_CGX_CITY).contains(&home.0));
-                    assert!((MIN_CGY_CITY..=MAX_CGY_CITY).contains(&home.1));
+                    assert!((MIN_CGX_WALL..=MAX_CGX_WALL).contains(&home.0));
+                    assert!((MIN_CGY_WALL..=MAX_CGY_WALL).contains(&home.1));
                     assert_eq!((at.0 - dx, at.1 - dy), home);
                 }
             }
             cells.sort();
             cells.dedup();
-            assert_eq!(cells.len(), 16);
+            assert_eq!(
+                cells.len() as i32,
+                (MAX_CGX_WALL - MIN_CGX_WALL + 1) * (MAX_CGY_WALL - MIN_CGY_WALL + 1)
+            );
         }
     }
 

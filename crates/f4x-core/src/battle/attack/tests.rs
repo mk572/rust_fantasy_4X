@@ -3,7 +3,7 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
 fn rules() -> crate::rules::BattleRules {
-    crate::game::testutil::shipped().rules.config.battle
+    crate::game::testutil::shipped().rules.battle
 }
 
 fn rng(seed: u64) -> Pcg64Mcg {

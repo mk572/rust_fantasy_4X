@@ -24,7 +24,7 @@ const D: PlayerId = PlayerId(1);
 /// (`BeginBattle`), so the units have their real numbers, rules and owners; only the squares are
 /// chosen, on open ground, so that the squares a test names are free. The dice start from `seed`.
 fn rules() -> crate::rules::BattleRules {
-    crate::game::testutil::shipped().rules.config.battle
+    crate::game::testutil::shipped().rules.battle
 }
 
 fn real_battle(ours: &[(u16, Pos)], theirs: &[(u16, Pos)], seed: u64) -> Battle {
@@ -1737,101 +1737,160 @@ fn siege(ours: &[(u16, Pos)], theirs: &[(u16, Pos)], walled: bool, seed: u64) ->
     b
 }
 
+/// Squares round one section of a city's wall, asked from the map: a wall section that is neither a
+/// tower nor the gate, the square outside it, the squares behind it (inside the city area) and a
+/// square far outside, in line. Nothing here knows where the city stands or how big it is.
+struct WallSpot {
+    wall: Pos,
+    outside: Pos,
+    behind: Pos,
+    deeper: Pos,
+    two_out: Pos,
+    distant: Pos,
+}
+
+fn wall_spot() -> WallSpot {
+    use super::map::{in_city_area, is_wall_corner, is_wall_site};
+    let m = BattleMap::open().with_city(true);
+    let wall = (0..map::GRID_H)
+        .flat_map(|y| (0..map::GRID_W).map(move |x| (x, y)))
+        .find(|&p| is_wall_site(p) && !is_wall_corner(p) && !m.is_gate(p))
+        .expect("a wall has a plain section");
+    let (outside, dir) = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        .into_iter()
+        .map(|d| ((wall.0 + d.0, wall.1 + d.1), d))
+        .find(|&(p, _)| !in_city_area(p))
+        .expect("a section has an outside");
+    let step = |n: i32| (wall.0 - n * dir.0, wall.1 - n * dir.1);
+    let spot = WallSpot {
+        wall,
+        outside,
+        behind: step(1),
+        deeper: step(2),
+        two_out: step(-2),
+        distant: step(-4),
+    };
+    for p in [spot.behind, spot.deeper] {
+        assert!(in_city_area(p) && !m.has_wall(p), "{p:?} is inside");
+    }
+    assert!(BattleMap::in_bounds(spot.distant) && !in_city_area(spot.distant));
+    spot
+}
+
+/// Whether `count` successes in `tries` fit a chance of `percent`, give or take five standard deviations.
+fn fits_percent(count: i32, tries: i32, percent: u32) -> bool {
+    let p = f64::from(percent) / 100.0;
+    let n = f64::from(tries);
+    (f64::from(count) - n * p).abs() <= 5.0 * (n * p * (1.0 - p)).sqrt()
+}
+
 #[test]
-fn a_wall_crusher_brings_a_wall_down_half_the_time_in_melee() -> TestResult {
+fn a_wall_crusher_brings_a_wall_down_as_often_as_the_rules_say_in_melee() -> TestResult {
+    let (spot, chance) = (wall_spot(), rules().city_wall.crush_melee_percent);
     let mut fell = 0;
     for seed in 0..400 {
         let mut b = siege(
-            &[(153 /* troll_war_mammoths */, (11, 11))],
-            &[(104 /* high_men_spearmen */, (14, 11))],
+            &[(153 /* troll_war_mammoths */, spot.outside)],
+            &[(104 /* high_men_spearmen */, spot.deeper)],
             true,
             seed,
         );
         let events = b
             .apply(BattleCommand::AttackWall {
                 unit: 0,
-                cell: (12, 11),
+                cell: spot.wall,
             })
             .map_err(|e| format!("{e:?}"))?;
         let BattleEvent::WallAttacked { destroyed, .. } = events[0] else {
             panic!("{events:?}")
         };
-        assert_eq!(destroyed, !b.map.has_wall((12, 11)));
+        assert_eq!(destroyed, !b.map.has_wall(spot.wall));
         fell += i32::from(destroyed);
         // The blow costs half the allowance, as a blow on a unit does.
         let me = b.unit(0).ok_or("unit is missing")?;
         assert!(!me.attacked);
         assert_eq!(me.moves_left, me.moves - me.moves.half());
     }
-    assert!((150..250).contains(&fell), "{fell}");
+    assert!(
+        fits_percent(fell, 400, chance),
+        "{fell} of 400 at {chance}%"
+    );
     Ok(())
 }
 
 #[test]
-fn shooting_a_wall_works_a_quarter_of_the_time_and_costs_a_shot() -> TestResult {
+fn shooting_a_wall_brings_it_down_as_often_as_the_rules_say_and_costs_a_shot() -> TestResult {
+    let (spot, chance) = (wall_spot(), rules().city_wall.crush_ranged_percent);
     let mut fell = 0;
     for seed in 0..400 {
         let mut b = siege(
-            &[(37 /* catapult */, (8, 11))],
-            &[(104 /* high_men_spearmen */, (14, 11))],
+            &[(37 /* catapult */, spot.distant)],
+            &[(104 /* high_men_spearmen */, spot.deeper)],
             true,
             seed,
         );
         let shots = b.units[0].ammo;
         b.apply(BattleCommand::ShootWall {
             unit: 0,
-            cell: (12, 11),
+            cell: spot.wall,
         })
         .map_err(|e| format!("{e:?}"))?;
         assert_eq!(b.unit(0).ok_or("unit is missing")?.ammo, shots - 1);
-        fell += i32::from(!b.map.has_wall((12, 11)));
+        fell += i32::from(!b.map.has_wall(spot.wall));
     }
-    assert!((60..140).contains(&fell), "{fell}");
+    assert!(
+        fits_percent(fell, 400, chance),
+        "{fell} of 400 at {chance}%"
+    );
     Ok(())
 }
 
 #[test]
 fn only_attacking_wall_crushers_may_strike_a_standing_wall() -> TestResult {
+    let spot = wall_spot();
     let mut b = siege(
         &[
-            (105 /* high_men_swordsmen */, (11, 11)),
-            (110 /* high_men_engineers */, (11, 13)),
+            (105 /* high_men_swordsmen */, spot.outside),
+            (110 /* high_men_engineers */, spot.distant),
         ],
-        &[(104 /* high_men_spearmen */, (14, 11))],
+        &[(104 /* high_men_spearmen */, spot.deeper)],
         true,
         1,
     );
-    let cell = (12, 11);
     assert_eq!(
-        b.apply(BattleCommand::AttackWall { unit: 0, cell }),
+        b.apply(BattleCommand::AttackWall {
+            unit: 0,
+            cell: spot.wall
+        }),
         Err(BattleError::NotWallCrusher)
     );
-    // Not next to the wall, and no wall there.
+    // Not next to the wall.
     assert_eq!(
         b.apply(BattleCommand::AttackWall {
             unit: 1,
-            cell: (12, 10)
+            cell: spot.wall
         }),
         Err(BattleError::NotAdjacent)
     );
+    // No wall on the square.
     assert_eq!(
         b.apply(BattleCommand::AttackWall {
             unit: 1,
-            cell: (11, 12)
+            cell: spot.distant
         }),
         Err(BattleError::NoWall)
     );
     assert_eq!(
         b.apply(BattleCommand::ShootWall {
             unit: 1,
-            cell: (12, 12)
+            cell: spot.wall
         }),
         Err(BattleError::NoRangedAttack)
     );
     // Once the defenders' turn comes, a defending crusher is no wall breaker.
     let mut b2 = siege(
-        &[(104 /* high_men_spearmen */, (3, 3))],
-        &[(110 /* high_men_engineers */, (13, 11))],
+        &[(104 /* high_men_spearmen */, spot.distant)],
+        &[(110 /* high_men_engineers */, spot.behind)],
         true,
         1,
     );
@@ -1840,21 +1899,21 @@ fn only_attacking_wall_crushers_may_strike_a_standing_wall() -> TestResult {
     assert_eq!(
         b2.apply(BattleCommand::AttackWall {
             unit: 1,
-            cell: (12, 11)
+            cell: spot.wall
         }),
         Err(BattleError::NotWallCrusher)
     );
     // And a city without walls has none to strike.
     let mut open = siege(
-        &[(110 /* high_men_engineers */, (11, 11))],
-        &[(104 /* high_men_spearmen */, (14, 11))],
+        &[(110 /* high_men_engineers */, spot.outside)],
+        &[(104 /* high_men_spearmen */, spot.deeper)],
         false,
         1,
     );
     assert_eq!(
         open.apply(BattleCommand::AttackWall {
             unit: 0,
-            cell: (12, 11)
+            cell: spot.wall
         }),
         Err(BattleError::NoWall)
     );
@@ -1865,16 +1924,17 @@ fn only_attacking_wall_crushers_may_strike_a_standing_wall() -> TestResult {
 /// the wall has its own target path, not the one of a unit hit.
 #[test]
 fn a_wall_crusher_strikes_a_wall_with_a_defender_standing_behind_it() -> TestResult {
+    let spot = wall_spot();
     let mut b = siege(
-        &[(110 /* high_men_engineers */, (11, 11))],
-        &[(104 /* high_men_spearmen */, (13, 11))],
+        &[(110 /* high_men_engineers */, spot.outside)],
+        &[(104 /* high_men_spearmen */, spot.behind)],
         true,
         1,
     );
     let events = b
         .apply(BattleCommand::AttackWall {
             unit: 0,
-            cell: (12, 11),
+            cell: spot.wall,
         })
         .map_err(|e| format!("{e:?}"))?;
     assert!(matches!(
@@ -1893,35 +1953,34 @@ fn a_wall_crusher_strikes_a_wall_with_a_defender_standing_behind_it() -> TestRes
 
 #[test]
 fn a_wall_crusher_hitting_a_unit_on_the_wall_may_bring_the_wall_down_too() -> TestResult {
+    let (spot, chance) = (wall_spot(), rules().city_wall.crush_melee_percent);
     let mut fell = 0;
     for seed in 0..300 {
         let mut b = siege(
-            &[(153 /* troll_war_mammoths */, (11, 11))],
-            &[(104 /* high_men_spearmen */, (12, 11))],
+            &[(153 /* troll_war_mammoths */, spot.outside)],
+            &[(104 /* high_men_spearmen */, spot.wall)],
             true,
             seed,
         );
         b.apply(BattleCommand::Attack { unit: 0, target: 1 })
             .map_err(|e| format!("{e:?}"))?;
-        fell += i32::from(!b.map.has_wall((12, 11)));
+        fell += i32::from(!b.map.has_wall(spot.wall));
     }
-    assert!((110..190).contains(&fell), "{fell}");
+    assert!(
+        fits_percent(fell, 300, chance),
+        "{fell} of 300 at {chance}%"
+    );
     Ok(())
 }
 
 #[test]
-fn walls_add_three_to_the_defense_on_the_wall_and_one_behind_it_against_attackers_outside(
+fn walls_lower_the_damage_a_unit_on_them_takes_from_attackers_outside_and_nothing_else(
 ) -> TestResult {
-    // Hit points a unit of the defenders loses over many fights: swordsmen strike it from the
-    // square beside it, outside the city or (`from_inside`) from behind.
-    let lost = |target: Pos, walled: bool, from_inside: bool| {
+    let spot = wall_spot();
+    // Hit points a defender loses over many fights against swordsmen that stand at `from`.
+    let lost = |target: Pos, from: Pos, walled: bool| {
         let mut total = 0;
         for seed in 0..300 {
-            let from = if from_inside {
-                (14, 11)
-            } else {
-                (11, target.1)
-            };
             let mut b = siege(
                 &[(105 /* high_men_swordsmen */, from)],
                 &[(79 /* dwarven_hammerhands */, target)],
@@ -1934,52 +1993,51 @@ fn walls_add_three_to_the_defense_on_the_wall_and_one_behind_it_against_attacker
         }
         total
     };
-    let bare = lost((13, 11), false, false);
-    let behind = lost((13, 11), true, false);
-    // The target is on a wall square: (12, 11) is a ring square; the attacker is next to it.
-    let on_wall = lost((12, 11), true, false);
-    let on_open_ring = lost((12, 11), false, false);
-    // Against an attacker already inside the city area, the walls give nothing.
-    let inside_attacker = lost((13, 11), true, true);
-    assert!(
-        on_wall * 3 < on_open_ring * 2,
-        "{on_wall} vs {on_open_ring}"
+    // A defender on the wall, struck from outside: the walls help it by what the rules give.
+    let on_wall = lost(spot.wall, spot.outside, true);
+    let on_open_ground = lost(spot.wall, spot.outside, false);
+    assert_eq!(
+        on_wall < on_open_ground,
+        rules().wall_defence > 0,
+        "{on_wall} vs {on_open_ground}"
     );
-    assert!(
-        bare == 0 && behind == 0,
-        "an attacker two squares away cannot strike"
+    // Struck by an attacker that is inside the city area too, the walls give nothing.
+    assert_eq!(
+        lost(spot.behind, spot.deeper, true),
+        lost(spot.behind, spot.deeper, false)
     );
-    assert!(inside_attacker > 0);
     Ok(())
 }
 
 #[test]
-fn with_walls_covering_the_city_a_unit_behind_the_wall_gets_three_not_one() {
-    // An attacker outside the city area, a target on the wall ring (12, 11) and one behind it.
+fn the_defence_the_walls_give_follows_the_rules_for_the_wall_and_behind_it() {
+    let (spot, rules) = (wall_spot(), rules());
+    let (wall, city) = (rules.wall_defence, rules.city_defence);
+    // An attacker outside the city area, a target on the wall and one behind it.
     let mut b = siege(
-        &[(105 /* high_men_swordsmen */, (10, 11))],
+        &[(105 /* high_men_swordsmen */, spot.outside)],
         &[
-            (104 /* high_men_spearmen */, (12, 11)),
-            (104 /* high_men_spearmen */, (13, 11)),
+            (104 /* high_men_spearmen */, spot.wall),
+            (104 /* high_men_spearmen */, spot.behind),
         ],
         true,
         1,
     );
     assert_eq!(
         (b.city_defense_bonus(1, 0), b.city_defense_bonus(2, 0)),
-        (3, 1)
+        (wall, city)
     );
     b.walls_cover_city = true;
     assert_eq!(
         (b.city_defense_bonus(1, 0), b.city_defense_bonus(2, 0)),
-        (3, 3)
+        (wall, wall)
     );
     // Still nothing against an attacker inside, or without walls.
-    b.units[0].cell = (14, 11);
+    b.units[0].cell = spot.deeper;
     assert_eq!(b.city_defense_bonus(2, 0), 0);
     let mut open = siege(
-        &[(105 /* high_men_swordsmen */, (10, 11))],
-        &[(104 /* high_men_spearmen */, (13, 11))],
+        &[(105 /* high_men_swordsmen */, spot.outside)],
+        &[(104 /* high_men_spearmen */, spot.behind)],
         false,
         1,
     );
@@ -1989,9 +2047,13 @@ fn with_walls_covering_the_city_a_unit_behind_the_wall_gets_three_not_one() {
 
 #[test]
 fn attackers_inside_the_city_hurt_it_each_turn() -> TestResult {
+    let spot = wall_spot();
     let mut b = siege(
-        &[(105 /* high_men_swordsmen */, (13, 11)), (105, (9, 11))],
-        &[(104 /* high_men_spearmen */, (15, 11))],
+        &[
+            (105 /* high_men_swordsmen */, spot.behind),
+            (105, spot.outside),
+        ],
+        &[(104 /* high_men_spearmen */, spot.deeper)],
         true,
         1,
     );
@@ -3187,7 +3249,7 @@ mod fields {
         let rules = crate::game::testutil::shipped().rules;
         b.enchant_unit(1, SpellId::new(5), A, &[], &[]);
         let u = &b.units[1];
-        assert_eq!(u.web_hits, rules.config.battle.web_hits);
+        assert_eq!(u.web_hits, rules.battle.web_hits);
         assert!(u.attacked && u.moves_left == 0);
         assert_eq!(
             u.enchantments
@@ -4775,18 +4837,19 @@ fn city_battle(ours: &[(u16, Pos)], theirs: &[(u16, Pos)]) -> Battle {
 
 #[test]
 fn a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers() -> TestResult {
-    let far = (104 /* high_men_spearmen */, (19, 2));
+    let spot = wall_spot();
+    let far = (104 /* high_men_spearmen */, spot.distant);
     for (number, burned) in [
         (107 /* high_men_cavalry */, true),
         (103 /* high_elf_pegasai */, false),
     ] {
-        let mut b = city_battle(&[(number, (10, 11))], &[far]);
+        let mut b = city_battle(&[(number, spot.two_out)], &[far]);
         let figures = b.units[0].figures;
         b.wall_of_fire = true;
         let events = b
             .apply(BattleCommand::Move {
                 unit: 0,
-                to: (12, 11),
+                to: spot.wall,
             })
             .map_err(|e| format!("{e:?}"))?;
         let hurt = events
@@ -4799,22 +4862,22 @@ fn a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers() -> Test
         );
     }
     // Walking about outside, or inside once there, costs nothing; so does a city without it.
-    let mut b = city_battle(&[(107 /* high_men_cavalry */, (13, 11))], &[far]);
+    let mut b = city_battle(&[(107 /* high_men_cavalry */, spot.behind)], &[far]);
     b.wall_of_fire = true;
     let events = b
         .apply(BattleCommand::Move {
             unit: 0,
-            to: (14, 11),
+            to: spot.deeper,
         })
         .map_err(|e| format!("{e:?}"))?;
     assert!(!events
         .iter()
         .any(|e| matches!(e, BattleEvent::SpellDamaged { .. })));
-    let mut b = city_battle(&[(107 /* high_men_cavalry */, (10, 11))], &[far]);
+    let mut b = city_battle(&[(107 /* high_men_cavalry */, spot.two_out)], &[far]);
     let events = b
         .apply(BattleCommand::Move {
             unit: 0,
-            to: (12, 11),
+            to: spot.wall,
         })
         .map_err(|e| format!("{e:?}"))?;
     assert!(!events
@@ -4825,9 +4888,10 @@ fn a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers() -> Test
 
 #[test]
 fn striking_into_a_city_behind_a_wall_of_fire_burns_the_attacker() -> TestResult {
+    let spot = wall_spot();
     let mut b = city_battle(
-        &[(104 /* high_men_spearmen */, (11, 11))],
-        &[(104 /* high_men_spearmen */, (12, 11))],
+        &[(104 /* high_men_spearmen */, spot.outside)],
+        &[(104 /* high_men_spearmen */, spot.wall)],
     );
     b.wall_of_fire = true;
     let events = b
@@ -4842,30 +4906,31 @@ fn striking_into_a_city_behind_a_wall_of_fire_burns_the_attacker() -> TestResult
 
 #[test]
 fn a_wall_of_darkness_stops_shots_into_the_city_unless_the_shooter_sees_through() {
+    let spot = wall_spot();
     // Longbowmen shoot into the city; shadow demons (illusion immune) see through the darkness.
     let shoot = |shooter: u16, from: Pos, dark: bool| {
         let mut b = city_battle(
             &[(shooter, from)],
-            &[(104 /* high_men_spearmen */, (13, 11))],
+            &[(104 /* high_men_spearmen */, spot.behind)],
         );
         b.wall_of_darkness = dark;
         b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
     };
     let longbowmen = 101;
     assert_eq!(
-        shoot(longbowmen, (8, 11), true),
+        shoot(longbowmen, spot.distant, true),
         Err(BattleError::WallOfDarkness)
     );
     assert!(
-        shoot(171 /* shadow_demons */, (8, 11), true).is_ok(),
+        shoot(171 /* shadow_demons */, spot.distant, true).is_ok(),
         "illusion immunity sees through"
     );
     assert!(
-        shoot(longbowmen, (8, 11), false).is_ok(),
+        shoot(longbowmen, spot.distant, false).is_ok(),
         "no wall, no darkness"
     );
     assert!(
-        shoot(longbowmen, (12, 10), true).is_ok(),
+        shoot(longbowmen, spot.deeper, true).is_ok(),
         "shooters inside the city are not stopped"
     );
 }
@@ -4965,14 +5030,15 @@ fn the_legal_commands_are_exactly_what_apply_accepts() -> TestResult {
 
 #[test]
 fn the_legal_commands_cover_walls_crushers_and_darkness() -> TestResult {
+    let spot = wall_spot();
     let mut b = siege(
         &[
-            (37 /* catapult */, (11, 11)),
-            (153 /* troll_war_mammoths */, (3, 3)),
+            (37 /* catapult */, spot.outside),
+            (153 /* troll_war_mammoths */, spot.distant),
         ],
         &[
-            (104 /* high_men_spearmen */, (14, 11)),
-            (104 /* high_men_spearmen */, (12, 12)),
+            (104 /* high_men_spearmen */, spot.deeper),
+            (104 /* high_men_spearmen */, spot.behind),
         ],
         true,
         3,
@@ -4980,7 +5046,7 @@ fn the_legal_commands_cover_walls_crushers_and_darkness() -> TestResult {
     check_legal_list(&b);
     assert!(b.legal_commands().contains(&BattleCommand::AttackWall {
         unit: 0,
-        cell: (12, 11)
+        cell: spot.wall
     }));
     // A Wall of Darkness stops the shots from outside the city at a unit inside it.
     b.wall_of_darkness = true;
@@ -6300,10 +6366,65 @@ fn an_outpost_with_city_walls_is_fought_round_its_walls() -> TestResult {
     });
     let b = g.battle().ok_or("no battle")?;
     assert!(b.map.is_walled(), "the logic has its walls");
-    assert!(
-        b.map.has_wall((12, 11)) || (0..21).any(|x| (0..22).any(|y| b.map.has_wall((x, y)))),
-        "and a wall stands somewhere"
-    );
+    assert!(!b.map.standing_walls().is_empty(), "and a wall stands");
+    Ok(())
+}
+
+/// Setup: the shipped deployment rules (`deployment` of `battle.ron`); a battle in the field and a
+/// battle at a city with walls, each with several units a side. Action: the game starts the battle.
+/// Outcome: every unit stands on a square its side's block of the rules gives, no two share a square,
+/// and the units that fight (a stack has a limit) take the first places of the block.
+#[test]
+fn the_units_start_on_the_squares_the_deployment_rules_give() -> TestResult {
+    let rules = rules().deployment;
+    for (city, count) in [(false, 5), (false, 12), (true, 5), (true, 12)] {
+        let mut g = game();
+        if city {
+            let c = g.spawn_city(D, at(5, 4), "Outpost".into(), None, 0);
+            g.world
+                .get::<&mut crate::city::economy::Buildings>(c)
+                .map_err(|e| format!("{e:?}"))?
+                .0
+                .push(crate::rules::BuildingId::new(35 /* city_walls */));
+        }
+        let kind = g
+            .content
+            .rules
+            .units
+            .id_numbered(104)
+            .ok_or("unit 104 is not in the content")?;
+        let attackers: Vec<_> = (0..count)
+            .map(|_| g.spawn_unit(A, at(4, 4), kind))
+            .collect();
+        let defenders: Vec<_> = (0..count)
+            .map(|_| g.spawn_unit(D, at(5, 4), kind))
+            .collect();
+        g.apply(Command::BeginBattle {
+            attackers,
+            defenders,
+        });
+        let b = g.battle().ok_or("no battle")?;
+        assert_eq!(b.map.is_city(), city);
+        for side in [Side::Attacker, Side::Defender] {
+            let block = match (side, city) {
+                (Side::Attacker, false) => &rules.attacker,
+                (Side::Defender, false) => &rules.defender,
+                (Side::Attacker, true) => &rules.city_attacker,
+                (Side::Defender, true) => &rules.city_defender,
+            };
+            let mut cells: Vec<Pos> = b
+                .units
+                .iter()
+                .filter(|u| u.side == side)
+                .map(|u| u.cell)
+                .collect();
+            cells.sort();
+            let mut first: Vec<Pos> = block.squares().into_iter().take(cells.len()).collect();
+            first.sort();
+            assert!(!cells.is_empty());
+            assert_eq!(cells, first, "{side:?}, city {city}, {count} units");
+        }
+    }
     Ok(())
 }
 

@@ -956,7 +956,7 @@ fn wizard_lines(b: &f4x_core::battle::Battle) -> Vec<String> {
 
 /// What stands round a city fought over: its walls, standing and fallen, and the gate.
 fn city_lines(b: &f4x_core::battle::Battle) -> Vec<String> {
-    use f4x_core::battle::map::{CITY_SIZE, CITY_X0, CITY_Y0, GATE};
+    use f4x_core::battle::map::{CITY_SIZE, CITY_X0, CITY_Y0};
     if !b.map.is_walled() {
         return if b.map.is_city() {
             vec!["a city without walls".to_string()]
@@ -980,8 +980,8 @@ fn city_lines(b: &f4x_core::battle::Battle) -> Vec<String> {
     let mut lines = vec![format!(
         "city walls stand at {} (the gate is at {},{}); damage to the city {}",
         squares(false),
-        GATE.0,
-        GATE.1,
+        b.map.gate().0,
+        b.map.gate().1,
         b.city_damage
     )];
     let fallen = squares(true);

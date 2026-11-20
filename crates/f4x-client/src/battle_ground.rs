@@ -88,23 +88,41 @@ pub(crate) enum Piece {
     Figure(usize, usize, bool),
 }
 
-/// The fourteen pictures of a magic wall (`citywall` 36 for fire, 50 for darkness) and where each
-/// stands: the cell, the point's offset and the anchor (`None` for half the picture's width)
-/// (`Spawn_Fire_Wall_Entities` and the dark one).
-type MagicSection = ((i32, i32), (f32, f32), (Option<f32>, f32));
+/// The sections of a magic wall (`citywall` 36 for fire, 50 for darkness): one for each square of the
+/// ring of the city's walls, and a second at two corners, each with one of the fourteen pictures. The
+/// original's four by four ring had twelve squares and these fourteen; the wider ring repeats the
+/// straight pieces along its sides (`Spawn_Fire_Wall_Entities` and the dark one for the placing).
+const MAGIC_SECTIONS: usize = 22;
+
+/// A section: the cell, the point's offset, the anchor (`None` for half the picture's width) and
+/// which of the fourteen pictures it shows.
+type MagicSection = ((i32, i32), (f32, f32), (Option<f32>, f32), usize);
 
 fn magic_section(itr: usize) -> MagicSection {
-    use layout::{MAX_CGX_CITY as X1, MAX_CGY_CITY as Y1, MIN_CGX_CITY as X0, MIN_CGY_CITY as Y0};
-    let i = itr as i32;
-    match itr {
-        0 => ((X0, Y0), (1.0, 1.0), (None, 19.0)),
-        1..=3 => ((X0, Y0 + i), (1.0, 1.0), (Some(17.0), 18.0)),
-        4..=6 => (((2 + i), Y0), (1.0, 0.0), (Some(17.0), 17.0)),
-        7..=9 => (((i - 1), Y1), (0.0, 14.0), (Some(16.0), 29.0)),
-        10 | 11 => ((X1, i + 1), (0.0, 14.0), (Some(16.0), 29.0)),
-        12 => ((X0, Y1), (0.0, 14.0), (Some(16.0), 30.0)),
-        _ => ((X1, Y0), (0.0, 14.0), (Some(16.0), 30.0)),
-    }
+    use layout::{MAX_CGX_WALL as X1, MAX_CGY_WALL as Y1, MIN_CGX_WALL as X0, MIN_CGY_WALL as Y0};
+    // The squares of a side between its corners, and the two pictures that alternate along it.
+    let inner = |n: usize, pair: [usize; 2]| pair[n % 2];
+    let along = |n: usize| n as i32;
+    let (cell, piece) = match itr {
+        0 => ((X0, Y0), 0),
+        1..=4 => ((X0, Y0 + along(itr)), inner(itr - 1, [1, 2])),
+        5 => ((X0, Y1), 3),
+        6 => ((X0, Y1), 12),
+        7..=10 => ((X0 + along(itr - 6), Y0), inner(itr - 7, [4, 5])),
+        11 => ((X1, Y0), 6),
+        12 => ((X1, Y0), 13),
+        13..=16 => ((X0 + along(itr - 12), Y1), inner(itr - 13, [7, 8])),
+        17 => ((X1, Y1), 9),
+        _ => ((X1, Y0 + along(itr - 17)), inner(itr - 18, [10, 11])),
+    };
+    let (offset, anchor) = match piece {
+        0 => ((1.0, 1.0), (None, 19.0)),
+        1..=3 => ((1.0, 1.0), (Some(17.0), 18.0)),
+        4..=6 => ((1.0, 0.0), (Some(17.0), 17.0)),
+        7..=11 => ((0.0, 14.0), (Some(16.0), 29.0)),
+        _ => ((0.0, 14.0), (Some(16.0), 30.0)),
+    };
+    (cell, offset, anchor, piece)
 }
 const FIRE_WALL: usize = 36;
 const DARK_WALL: usize = 50;
@@ -163,6 +181,11 @@ fn ring_site(turn: Turn, at: (i32, i32)) -> (i32, i32) {
     turn.ring_cell(at)
 }
 
+/// The point of a wall square of the ring (a cell of the original's frame).
+fn wall_point(turn: Turn, cgx: i32, cgy: i32) -> (f32, f32) {
+    point(turn, cgx, cgy, (0, 0))
+}
+
 /// The point of a section of a magic wall: its cell is one of the ring of the city, in the ring's
 /// turned place (the pictures of the ring are the same from every side).
 fn magic_point(turn: Turn, cgx: i32, cgy: i32) -> (f32, f32) {
@@ -184,19 +207,24 @@ fn turned_wall_sprite(turn: Turn, cgx: i32, cgy: i32) -> Option<WallSprite> {
 }
 
 fn wall_sprite(cgx: i32, cgy: i32) -> Option<WallSprite> {
-    use layout::{MAX_CGX_CITY as X1, MAX_CGY_CITY as Y1, MIN_CGX_CITY as X0, MIN_CGY_CITY as Y0};
-    Some(match (cgx, cgy) {
-        (X0, Y0) => (0, (1.0, 1.0), (None, 18.0)),
-        (X0, y) if (Y0 + 1..=Y1).contains(&y) => {
-            ((y - Y0) as usize, (1.0, 1.0), (Some(17.0), 17.0))
-        }
-        (x, Y0) if (X0 + 1..=X1).contains(&x) => ((x - 2) as usize, (1.0, 0.0), (Some(17.0), 17.0)),
-        (x, Y1) if (X0 + 1..=X1).contains(&x) => {
-            ((x + 1) as usize, (0.0, 14.0), (Some(16.0), 30.0))
-        }
-        (X1, y) if (Y0 + 1..Y1).contains(&y) => ((y - 1) as usize, (0.0, 14.0), (Some(16.0), 30.0)),
+    use layout::{MAX_CGX_WALL as X1, MAX_CGY_WALL as Y1, MIN_CGX_WALL as X0, MIN_CGY_WALL as Y0};
+    // The twelve pictures: a corner each, and along each side (between its corners) two that alternate.
+    let alternate = |n: i32, pair: [usize; 2]| pair[(n - 1) as usize % 2];
+    let side_west = ((1.0, 1.0), (Some(17.0), 17.0));
+    let side_north = ((1.0, 0.0), (Some(17.0), 17.0));
+    let side_south = ((0.0, 14.0), (Some(16.0), 30.0));
+    let (piece, (offset, anchor)) = match (cgx, cgy) {
+        (X0, Y0) => (0, ((1.0, 1.0), (None, 18.0))),
+        (X0, Y1) => (3, side_west),
+        (X1, Y0) => (6, side_north),
+        (X1, Y1) => (9, side_south),
+        (X0, y) if (Y0 + 1..Y1).contains(&y) => (alternate(y - Y0, [1, 2]), side_west),
+        (x, Y0) if (X0 + 1..X1).contains(&x) => (alternate(x - X0, [4, 5]), side_north),
+        (x, Y1) if (X0 + 1..X1).contains(&x) => (alternate(x - X0, [7, 8]), side_south),
+        (X1, y) if (Y0 + 1..Y1).contains(&y) => (alternate(y - Y0, [10, 11]), side_south),
         _ => return None,
-    })
+    };
+    Some((piece, offset, anchor))
 }
 
 /// The value a picture sorts by (`Combat_Grid_Entity_Create`, `Set_Entity_Draw_Order`): its
@@ -506,7 +534,7 @@ impl App {
                         Some((_, frame)) => Piece::RisingStone(pos, frame),
                         None => Piece::Wall(pos),
                     };
-                    let (px, py) = point(turn, cgx, cgy, (0, 0));
+                    let (px, py) = wall_point(turn, cgx, cgy);
                     out.push((order_of((px + dx, py + dy)), piece));
                 }
             }
@@ -523,8 +551,8 @@ impl App {
             if !on && rise.is_none() {
                 continue;
             }
-            for itr in 0..14 {
-                let ((cgx, cgy), (dx, dy), _) = magic_section(itr);
+            for itr in 0..MAGIC_SECTIONS {
+                let ((cgx, cgy), (dx, dy), _, _) = magic_section(itr);
                 let piece = match rise {
                     Some(frame) => Piece::RisingWall(kind, itr, frame),
                     None => Piece::MagicWall(kind, itr),
@@ -649,7 +677,7 @@ impl App {
                 else {
                     return;
                 };
-                let (px, py) = point(turn, cgx, cgy, (0, 0));
+                let (px, py) = wall_point(turn, cgx, cgy);
                 (
                     "citywall",
                     entry,
@@ -658,8 +686,8 @@ impl App {
                 )
             }
             Piece::MagicWall(kind, itr) => {
-                let ((cgx, cgy), (dx, dy), (hang_x, hang_y)) = magic_section(itr);
-                let entry = if kind == 0 { FIRE_WALL } else { DARK_WALL } + itr;
+                let ((cgx, cgy), (dx, dy), (hang_x, hang_y), piece) = magic_section(itr);
+                let entry = if kind == 0 { FIRE_WALL } else { DARK_WALL } + piece;
                 let frame = (get_time() * 6.0) as usize % 4;
                 let Some(size) = self
                     .art
@@ -677,8 +705,8 @@ impl App {
                 )
             }
             Piece::RisingWall(kind, itr, frame) => {
-                let ((cgx, cgy), (dx, dy), (hang_x, hang_y)) = magic_section(itr);
-                let entry = if kind == 0 { FIRE_WALL } else { DARK_WALL } + itr;
+                let ((cgx, cgy), (dx, dy), (hang_x, hang_y), piece) = magic_section(itr);
+                let entry = if kind == 0 { FIRE_WALL } else { DARK_WALL } + piece;
                 let frames = self.art.frames("wallrise", entry).max(1);
                 let Some(size) = self
                     .art
@@ -726,60 +754,78 @@ mod tests {
         assert_eq!(ground_file(Set::Tundra, Plane::Arcanus), "cmbtundr");
     }
 
+    /// The cells of the ring of the walls (the area with its walls, in the original's frame).
+    fn wall_area() -> Vec<(i32, i32)> {
+        (layout::MIN_CGY_WALL..=layout::MAX_CGY_WALL)
+            .flat_map(|y| (layout::MIN_CGX_WALL..=layout::MAX_CGX_WALL).map(move |x| (x, y)))
+            .collect()
+    }
+
     #[test]
-    fn the_twelve_wall_sites_have_twelve_different_pictures() {
-        let mut seen = Vec::new();
-        for y in layout::MIN_CGY_CITY..=layout::MAX_CGY_CITY {
-            for x in layout::MIN_CGX_CITY..=layout::MAX_CGX_CITY {
-                if let Some((itr, _, _)) = wall_sprite(x, y) {
-                    seen.push(itr);
-                }
-            }
-        }
+    fn the_wall_sites_show_all_twelve_pictures_and_the_inside_has_none() {
+        let mut seen: Vec<usize> = wall_area()
+            .into_iter()
+            .filter_map(|(x, y)| wall_sprite(x, y).map(|s| s.0))
+            .collect();
         seen.sort();
+        seen.dedup();
         assert_eq!(seen, (0..12).collect::<Vec<_>>());
-        // The middle four squares have none.
-        assert!(wall_sprite(6, 11).is_none() && wall_sprite(7, 12).is_none());
+        let middle = (layout::MIN_CGX_WALL + 1, layout::MIN_CGY_WALL + 1);
+        assert!(wall_sprite(middle.0, middle.1).is_none());
     }
 
     #[test]
     fn the_wall_sites_match_the_cores_wall_sites() {
         use f4x_core::battle::map::is_wall_site;
-        for y in layout::MIN_CGY_CITY..=layout::MAX_CGY_CITY {
-            for x in layout::MIN_CGX_CITY..=layout::MAX_CGX_CITY {
-                assert_eq!(
-                    wall_sprite(x, y).is_some(),
-                    is_wall_site(core_pos(x, y)),
-                    "({x},{y})"
-                );
-            }
+        for (x, y) in wall_area() {
+            assert_eq!(
+                wall_sprite(x, y).is_some(),
+                is_wall_site(core_pos(x, y)),
+                "({x},{y})"
+            );
         }
     }
 
     #[test]
-    fn in_every_turn_the_twelve_wall_sites_show_the_twelve_pictures_of_the_ring() {
-        use layout::{MAX_CGX_CITY, MAX_CGY_CITY, MIN_CGX_CITY, MIN_CGY_CITY};
+    fn in_every_turn_every_wall_site_shows_a_picture_of_the_ring_in_its_own_place() {
+        let sites: Vec<_> = wall_area()
+            .into_iter()
+            .filter(|&(x, y)| wall_sprite(x, y).is_some())
+            .collect();
         for quarters in 0..4 {
             let turn = (0..quarters).fold(Turn::NONE, |t, _| t.step(false));
-            let mut pictures = Vec::new();
             let mut places = Vec::new();
-            for cgy in MIN_CGY_CITY..=MAX_CGY_CITY {
-                for cgx in MIN_CGX_CITY..=MAX_CGX_CITY {
-                    if wall_sprite(cgx, cgy).is_none() {
-                        continue;
-                    }
-                    let sprite = turned_wall_sprite(turn, cgx, cgy)
-                        .expect("every wall site has a picture in every turn");
-                    pictures.push(sprite.0);
-                    places.push(turn.cg((cgx, cgy)));
-                }
+            for &(cgx, cgy) in &sites {
+                assert!(
+                    turned_wall_sprite(turn, cgx, cgy).is_some(),
+                    "every wall site has a picture in every turn"
+                );
+                places.push(turn.cg((cgx, cgy)));
             }
-            pictures.sort();
-            pictures.dedup();
             places.sort();
             places.dedup();
-            assert_eq!((pictures.len(), places.len()), (12, 12), "turn {quarters}");
+            assert_eq!(places.len(), sites.len(), "turn {quarters}");
         }
+    }
+
+    #[test]
+    fn a_magic_wall_has_a_section_on_every_wall_site_and_uses_the_fourteen_pictures() {
+        let sites: Vec<_> = wall_area()
+            .into_iter()
+            .filter(|&(x, y)| wall_sprite(x, y).is_some())
+            .collect();
+        let mut cells: Vec<_> = (0..MAGIC_SECTIONS).map(|i| magic_section(i).0).collect();
+        cells.sort();
+        cells.dedup();
+        assert_eq!(cells, {
+            let mut s = sites;
+            s.sort();
+            s
+        });
+        let mut pieces: Vec<_> = (0..MAGIC_SECTIONS).map(|i| magic_section(i).3).collect();
+        pieces.sort();
+        pieces.dedup();
+        assert_eq!(pieces, (0..14).collect::<Vec<_>>());
     }
 
     #[test]

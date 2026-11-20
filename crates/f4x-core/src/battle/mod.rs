@@ -300,7 +300,7 @@ impl BattleUnit {
             base.enchantments.push(spell);
         }
         if effects.contains(crate::spell::unit_effect::UnitEffect::Web) {
-            self.web_closes(rules.config.battle.web_hits);
+            self.web_closes(rules.battle.web_hits);
         }
     }
 }
@@ -595,7 +595,7 @@ impl BattleUnit {
             strength += self.ranged.max(0);
         }
         if self.has(Ability::new(32 /* immolation */)) {
-            strength += rules.config.battle.immolation_strength;
+            strength += rules.battle.immolation_strength;
         }
         strength
     }
@@ -1191,7 +1191,7 @@ impl Battle {
 
     /// The numbers of the battle (`rules.ron`).
     pub fn rules(&self) -> &BattleRules {
-        &self.content.rules.config.battle
+        &self.content.rules.battle
     }
 
     /// Start a battle. Unit ids are assigned in list order; the attacker moves first.
@@ -1299,8 +1299,7 @@ impl Battle {
         for y in 0..crate::battle::map::GRID_H {
             for x in 0..crate::battle::map::GRID_W {
                 let p = (x, y);
-                let open = self.map.enter_cost(p, false).is_some()
-                    && !(map::is_wall_corner(p) && self.map.has_wall(p));
+                let open = self.map.enter_cost(p, false).is_some() && !self.map.is_shut_tower(p);
                 if open && self.unit_at(p).is_none() {
                     squares.push(p);
                 }
@@ -1493,7 +1492,12 @@ impl Battle {
 
     fn roll_wall_falls(&mut self, ranged: bool) -> bool {
         use rand::Rng;
-        let percent = if ranged { 25 } else { 50 };
+        let wall = &self.content.rules.battle.city_wall;
+        let percent = if ranged {
+            wall.crush_ranged_percent
+        } else {
+            wall.crush_melee_percent
+        };
         self.rng.gen_range(1..=100) <= percent
     }
 
@@ -1507,7 +1511,7 @@ impl Battle {
         if !self.map.is_walled() || !in_city_area(hit.cell) || in_city_area(from.cell) {
             return 0;
         }
-        let rules = &self.content.rules.config.battle;
+        let rules = &self.content.rules.battle;
         if self.walls_cover_city || self.map.has_wall(hit.cell) {
             rules.wall_defence
         } else {
@@ -1865,7 +1869,7 @@ impl Battle {
         let stopped_def = d.state.immunities.stopped_by(a.melee.types());
         let stopped_att = a.state.immunities.stopped_by(d.melee.types());
         let rng: &mut dyn RngCore = &mut self.rng;
-        let out = attack::melee_exchange(&self.content.rules.config.battle, &mut a, &mut d, rng);
+        let out = attack::melee_exchange(&self.content.rules.battle, &mut a, &mut d, rng);
         let mut events = vec![BattleEvent::Attacked {
             attacker: att,
             defender: def,
@@ -1948,7 +1952,7 @@ impl Battle {
             }
             let rng: &mut dyn RngCore = &mut self.rng;
             let d = attack::ranged_attack(
-                &self.content.rules.config.battle,
+                &self.content.rules.battle,
                 &shooter,
                 figures,
                 &mut state,

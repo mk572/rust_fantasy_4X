@@ -14,8 +14,6 @@
     diplomacy: (subversion_penalty: 25, max_rounds: 4, pact_relation: 10, alliance_relation: 50),
     offer: (first_turn: 30, ai_first_turn: 50, max_chance: 10, ai_bonus: 10),
     outpost: (start_tens: 3, city_tens: 10),
-    // The scenery of a battle field in percent of the original's (scaled to the field's area): more trees on forest ground, more rocks on mountains.
-    battle_scenery: (forest_trees_percent: 150, mountain_rocks_percent: 300),
     threat: (raider_limit: 30, rampage_damage: 40, cheapest_monster: 25, big_events_from_turn: 150, spared_realms: [3 /* life */],
         // The raid from the sea (setting `sea_raids`): the ship by turn, the party's size and strength by turn.
         sea_raid: (chance_percent: 25, ships: [(0, 35 /* trireme */), (120, 36 /* galley */)], parties: [(0, 0, 2, 2), (121, 1, 2, 4), (251, 2, 3, 0)] /* (from turn, base, dice sides, pool of cheapest units; 0 = all): 1d2 of the 2 cheapest, 1d2+1 of the 4 cheapest, 1d3+2 of all */, coast_rolls: 4)),
@@ -56,15 +54,6 @@
         magic_ranged: [36 /* lightning bolt */, 22 /* fireball */, 60 /* sorcery bolt */, 14 /* death bolt */, 29 /* ice bolt */, 58 /* shaman bolt */, 47 /* nature bolt */],
         armsmaster: 81, super_armsmaster: 82,
         mutation: (mutated: 98, armor_marker: 104, wings_marker: 105, breath_marker: 106, wings_ability: 24, breath_ability: 20, thrown_ability: 69, thrown_most: 3, armor_defense: 3, wings_moves: 2, breath_strength: 2, breath_ammo: 1),
-    ),
-    // The battle: attack strengths and defence of the abilities and fields, mana of a shot and of a leak, the web, the
-    // turn limit, the node, Counter Magic, Power Drain, Stasis and the Magic Vortex.
-    battle: (
-        immolation_strength: 4, invulnerability_block: 2, wall_defence: 3, city_defence: 1,
-        mana_leak_drain: 5, call_lightning_strength: 8, wall_of_fire_strength: 5,
-        node_counter_strength: 50, node_aura_bonus: 2, counter_magic_drain: 5,
-        shot_mana: 3, web_hits: 12, turn_limit: 100, power_drain_min: 2, power_drain_max: 20, freeing_modifier: -5,
-        vortex_random_moves: 3, vortex_crush_damage: 5, vortex_bolt_strength: 5, vortex_city_damage: 5,
     ),
     // Experience and fame: per dead enemy unit and per turn, the dead that cost a point of fame, the cost of a very rare
     // foe, Just Cause and the fortress prize, the level Heroism gives (from 0) and the resistance Charmed adds.

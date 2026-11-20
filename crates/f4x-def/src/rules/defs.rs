@@ -899,8 +899,6 @@ pub struct RulesConfig {
     pub offer: OfferRules,
     /// The growth of an outpost.
     pub outpost: OutpostRules,
-    /// The scenery of the battle field (`SceneryRules`).
-    pub battle_scenery: SceneryRules,
     /// Raiders, monsters and the big events of the world.
     pub threat: ThreatRules,
     /// The fewest defenders a city wants: `(from figures, defenders)` pairs in rising order of
@@ -928,16 +926,15 @@ pub struct RulesConfig {
     pub spell_effects: SpellEffectRules,
     /// Experience, fame and the level Heroism gives.
     pub renown: RenownRules,
-    /// The numbers of the battle.
-    pub battle: BattleRules,
     /// The rows of the content that a setting of the game changes.
     pub targets: SettingTargets,
 }
 
-/// The numbers of the battle: strengths of the attacks the abilities and fields make, the
-/// defence they give, what a spell shot or a mana leak costs, the limits. A battle takes a copy
-/// when it starts and keeps it with its save.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// The rules of the battle (`battle.ron`): strengths of the attacks the abilities and fields make,
+/// the defence they give, what a spell shot or a mana leak costs, the limits, the scenery of the field
+/// and what the walls of a city do. The battle rules stand by themselves: nothing of them is in
+/// `rules.ron`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BattleRules {
     /// The strength of the fire attack Immolation adds to a melee attack.
     pub immolation_strength: i32,
@@ -975,6 +972,99 @@ pub struct BattleRules {
     pub vortex_crush_damage: i32,
     pub vortex_bolt_strength: i32,
     pub vortex_city_damage: u32,
+    /// How thick the scenery of the field is.
+    #[serde(default)]
+    pub scenery: SceneryRules,
+    /// What the walls of a city do.
+    #[serde(default)]
+    pub city_wall: CityWallRules,
+    /// Where the units of each side start.
+    #[serde(default)]
+    pub deployment: DeploymentRules,
+}
+
+/// The block of squares where a side's units start: they fill the columns (the x of the square, the
+/// front one first), each column's rows (the y of the square) in the order given, the first
+/// places going to the first units. The square of a lair's structure is skipped for the defenders.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeployBlock {
+    pub columns: Vec<i32>,
+    pub rows: Vec<i32>,
+}
+
+impl DeployBlock {
+    /// The squares of the block in the order the units take them.
+    pub fn squares(&self) -> Vec<(i32, i32)> {
+        self.columns
+            .iter()
+            .flat_map(|&x| self.rows.iter().map(move |&y| (x, y)))
+            .collect()
+    }
+}
+
+/// Where the units start in a field battle and in a city battle (`deployment` of `battle.ron`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DeploymentRules {
+    pub attacker: DeployBlock,
+    pub defender: DeployBlock,
+    pub city_attacker: DeployBlock,
+    /// The defenders of a city (at a wizard's fortress they also keep off the fortress's square).
+    pub city_defender: DeployBlock,
+}
+
+impl Default for DeploymentRules {
+    fn default() -> Self {
+        let rows = vec![12, 11, 13, 10];
+        let block = |columns: &[i32]| DeployBlock {
+            columns: columns.to_vec(),
+            rows: rows.clone(),
+        };
+        Self {
+            attacker: block(&[6, 5, 4, 3, 2]),
+            defender: block(&[12, 13, 14, 15, 16]),
+            city_attacker: block(&[6, 5, 4]),
+            city_defender: block(&[12, 13, 14]),
+        }
+    }
+}
+
+/// What the walls of a city do in a battle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CityWallRules {
+    /// A standing tower (a corner of the wall) can be entered by a unit: no, as in the original. When
+    /// it cannot, nobody moves onto it, flying or teleporting units included, no summoned or merged
+    /// unit comes up on it and a confused unit does not wander onto it. A broken tower can be entered.
+    pub tower_enterable: bool,
+    /// A unit on foot can step onto a standing wall section from outside (not the gate's, not a tower).
+    pub section_enterable: bool,
+    /// A flying, teleporting or non-corporeal unit can cross a standing wall section (the walkers' rule
+    /// above applies to it when not).
+    pub passers_cross: bool,
+    /// A unit on foot can step onto the gate's square from outside while its wall stands.
+    pub gate_enterable: bool,
+    /// The gate, a feature of the wall: its square, counted from the corner of the city area (the
+    /// wall's north-west tower). It must be a wall square that is not a corner; a test checks it.
+    pub gate: (i32, i32),
+    /// The chance in a hundred that a wall crusher's blow on a standing wall section brings it down: a
+    /// blow in melee (also the one on a unit standing on the wall), and a shot.
+    pub crush_melee_percent: u32,
+    pub crush_ranged_percent: u32,
+}
+
+impl Default for CityWallRules {
+    fn default() -> Self {
+        Self {
+            tower_enterable: false,
+            section_enterable: false,
+            passers_cross: true,
+            gate_enterable: true,
+            gate: (0, 3),
+            crush_melee_percent: 50,
+            crush_ranged_percent: 25,
+        }
+    }
 }
 
 impl Default for BattleRules {
@@ -1000,6 +1090,9 @@ impl Default for BattleRules {
             vortex_crush_damage: 5,
             vortex_bolt_strength: 5,
             vortex_city_damage: 5,
+            scenery: SceneryRules::default(),
+            city_wall: CityWallRules::default(),
+            deployment: DeploymentRules::default(),
         }
     }
 }
@@ -1627,7 +1720,6 @@ impl Default for RulesConfig {
             diplomacy: DiplomacyRules::default(),
             offer: OfferRules::default(),
             outpost: OutpostRules::default(),
-            battle_scenery: SceneryRules::default(),
             threat: ThreatRules::default(),
             garrison_minimum: Vec::new(),
             city_size_from: Vec::new(),
@@ -1639,7 +1731,6 @@ impl Default for RulesConfig {
             abilities: AbilityRules::default(),
             spell_effects: SpellEffectRules::default(),
             renown: RenownRules::default(),
-            battle: BattleRules::default(),
             targets: SettingTargets::default(),
         }
     }
@@ -1859,6 +1950,8 @@ pub struct Rules {
     pub ratings: UnitRatings,
     /// What the ratings buy per resource (`unit_efficiency.ron`, optional).
     pub efficiency: UnitEfficiencies,
+    /// The rules of the battle (`battle.ron`, optional: without it the original's numbers).
+    pub battle: BattleRules,
     /// The guard and treasure rules of the sites (`lairs.ron`).
     pub lairs: super::lair::LairRules,
     /// How the AI weighs a place for a city (`ai_sites.ron`, optional).

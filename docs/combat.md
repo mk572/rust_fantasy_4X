@@ -224,7 +224,7 @@ good.
   places in the core's frame (`x = 20 - cgx`, `y = cgy`) and generate exactly as before (same draws); the new
   squares are columns 21 to 23 (`cgx` -3 to -1) and rows 22 and 23, filled from a second random stream seeded
   from the original's field (`layout::expand`). Their ground repeats the nearest original cell mirrored outwards.
-  Trees and rocks are scaled to the field's area, and `battle_scenery` in `rules.ron` thickens forest trees and
+  Trees and rocks are scaled to the field's area, and `scenery` in `battle.ron` thickens forest trees and
   mountain rocks. The view scrolls (arrow keys, mouse wheel) and turns about the field's middle. A square is open, rough (forest,
   swamp, rubble: two moves to enter), or blocked (trees, rocks: walkers cannot enter). Flying
   units pay one move everywhere. Moves are `HalfInt` amounts (1 move, 1.5, a road half a move) like the overland map; a unit with
@@ -397,25 +397,29 @@ Code: `battle/map.rs` (the city and its walls), `battle/mod.rs` (wall attacks, t
 city damage), `battle/game.rs` (starting a city battle), `city/conquest.rs` (what a fallen city
 costs). The numbers are the original's (`Generate_Combat_Map`, `Deploy_Battle_Units`,
 `Update_Move_Map_City_Area_Restrictions`, `Battle_Unit_Attack`, `End_Of_Combat`); the field is
-mirrored, so the defenders are at the east and the city stands at x 12 to 15, y 10 to 13.
+mirrored, so the defenders are at the east. **What the walls and the units do is in `battle.ron`**
+(`crates/f4x-def/content/battle.ron`, `BattleRules`: the battle rules stand by themselves and none are in `rules.ron`); the
+tests read the rules from it and never carry a coordinate, a count or a chance of their own.
 
-- **A fight at a city or outpost is a city battle**: the city area is open ground. A city with
-  the City Walls building has a wall of twelve sections round the edge of the area; the four
-  middle squares are inside. The gate is the section at 12,12, facing the attackers. Outposts
-  have no walls.
-- **Deployment** is the original's: defenders inside in three columns of four (the gate square
-  first), skipping the corner towers when there are walls; attackers outside in three columns.
-- **Movement:** an attacker outside cannot enter a standing wall section, except at the gate,
-  and nobody can enter a standing corner tower. A unit inside cannot leave except by the gate,
-  because the squares just outside the standing walls are shut to it. Fliers, teleporters and the
-  non-corporeal pass over the walls (but not the towers). A fallen section (`Wall::Broken`) is open
-  ground again.
+- **A fight at a city or outpost is a city battle**: the city area is open ground, six by six squares
+  (the original's four by four houses and the ring of squares round them, task 733). A city with the City
+  Walls building has its wall on the twenty squares round the edge of the area; the sixteen inside are
+  the city. Outposts have no walls. The wall's shape is today in the constants of `battle/map.rs`
+  (`CITY_X0`, `CITY_SIZE`); the gate (a feature of the wall, `city_wall.gate`), the towers and the rest
+  of what the walls do are the `city_wall` rules.
+- **Deployment** is `deployment` of `battle.ron`: four blocks of columns and rows, for the units of a
+  field battle and of a city battle, each side. The defenders of a city start inside its walls.
+- **Movement** (`city_wall`): a unit on foot cannot step onto a standing wall section from outside
+  (`section_enterable`), except onto the gate (`gate_enterable`); nobody enters a standing tower
+  (`tower_enterable`); a unit inside, or on the wall, cannot leave the city area except through the
+  gate; fliers, teleporters and the non-corporeal cross the sections (`passers_cross`), but not the
+  towers. A fallen section (`Wall::Broken`) is open ground again.
 - **Wall crushers** (the attackers' units with `wall_crusher`) strike a standing section with
-  `AttackWall` from next to it (it falls half the time, and the blow costs half the allowance like any melee attack) or
-  `ShootWall` with a ranged attack (a quarter of the time, one shot). A wall crusher that hits a unit standing on
-  a wall section may bring that section down too, by the same chances.
-- **Defence:** a unit in the city, hit by an attacker outside it, has +3 defence on a standing wall
-  section and +1 elsewhere in the city. Only a city with walls gives this, and attackers that
+  `AttackWall` from next to it (`crush_melee_percent`, and the blow costs half the allowance like any
+  melee attack) or `ShootWall` with a ranged attack (`crush_ranged_percent`, one shot). A wall crusher that
+  hits a unit standing on a wall section may bring that section down too, by the melee chance.
+- **Defence:** a unit in the city, hit by an attacker outside it, has `wall_defence` on a standing wall
+  section and `city_defence` elsewhere in the city. Only a city with walls gives this, and attackers that
   have come inside get none of it.
 - **City damage:** at the start of each turn of the battle every attacking unit inside the city area adds one
   (`Battle::city_damage`): a siege that gets into the city and stays there costs the city more when it falls.

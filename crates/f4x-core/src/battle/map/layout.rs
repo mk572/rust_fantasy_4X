@@ -46,10 +46,23 @@ pub const DECK_PICTURE: u8 = 0x81;
 /// from the island's only in that a walker may jump the single square of water between decks.
 pub const SHIP_DECK: u8 = 0x82;
 
+/// The city area of the original: four by four cells, where the houses stand. The original generator
+/// keeps it clear of trees and rocks.
 pub const MIN_CGX_CITY: i32 = 5;
 pub const MAX_CGX_CITY: i32 = 8;
 pub const MIN_CGY_CITY: i32 = 10;
 pub const MAX_CGY_CITY: i32 = 13;
+/// The ring of squares round that area where the city's walls stand (task 733): six by six cells,
+/// the walls on the squares outside the area. They are kept clear of scenery in `expand`.
+pub const MIN_CGX_WALL: i32 = MIN_CGX_CITY - 1;
+pub const MAX_CGX_WALL: i32 = MAX_CGX_CITY + 1;
+pub const MIN_CGY_WALL: i32 = MIN_CGY_CITY - 1;
+pub const MAX_CGY_WALL: i32 = MAX_CGY_CITY + 1;
+
+/// Whether the cell is in the six by six area of a city's walls and what they enclose.
+pub fn in_wall_area(cgx: i32, cgy: i32) -> bool {
+    (MIN_CGX_WALL..=MAX_CGX_WALL).contains(&cgx) && (MIN_CGY_WALL..=MAX_CGY_WALL).contains(&cgy)
+}
 /// Where a lair, tower, outpost and the like stands.
 pub const STRUCTURE: (i32, i32) = (6, 11);
 
@@ -1504,25 +1517,35 @@ fn expand(spec: &Spec, original: Layout, group: &[u8]) -> Layout {
         },
         spec.structure,
     );
+    // A city's walls stand on the ring round its area: nothing else stands there.
+    let walled_ground = |cgx: i32, cgy: i32| spec.site == Site::City && in_wall_area(cgx, cgy);
     for y in 0..H {
         for x in 0..W {
-            if in_band(x, y) {
+            if in_band(x, y) && !walled_ground(x, y) {
                 cost[cell(x, y)] = original.cost[at(x, y)];
                 sail[cell(x, y)] = original.sail[at(x, y)];
             }
         }
     }
+    let kept = |prop: &&Prop| !walled_ground(prop.cell.0, prop.cell.1);
     // The original's scenery outside its band made its cells dearer too.
-    for prop in original.look.trees.iter().chain(&original.look.rocks) {
+    for prop in original
+        .look
+        .trees
+        .iter()
+        .chain(&original.look.rocks)
+        .filter(kept)
+    {
         if !in_band(prop.cell.0, prop.cell.1) {
             dearer(&mut cost[cell(prop.cell.0, prop.cell.1)]);
         }
     }
-    let mut trees = original.look.trees.clone();
-    let mut rocks = original.look.rocks.clone();
+    let mut trees: Vec<Prop> = original.look.trees.iter().filter(kept).cloned().collect();
+    let mut rocks: Vec<Prop> = original.look.rocks.iter().filter(kept).cloned().collect();
     if spec.set != Set::Water {
-        let beyond = |cgx: i32, cgy: i32, _: (i32, i32)| !in_band(cgx, cgy);
-        let everywhere = |_: i32, _: i32, _: (i32, i32)| true;
+        let beyond =
+            |cgx: i32, cgy: i32, _: (i32, i32)| !in_band(cgx, cgy) && !walled_ground(cgx, cgy);
+        let everywhere = |cgx: i32, cgy: i32, _: (i32, i32)| !walled_ground(cgx, cgy);
         let outside = Scatter {
             grid,
             shift: EXTRA_X,
@@ -1772,6 +1795,44 @@ mod tests {
         let n = generate(&none, &mut rng(2));
         assert!(n.look.roads.iter().all(|&r| r == 0));
         let _ = road;
+    }
+
+    #[test]
+    fn a_citys_wall_ring_and_its_inside_have_no_trees_or_rocks_and_walk_at_the_ground_cost() {
+        for set in [Set::Plains, Set::Forest, Set::Mountains] {
+            for seed in 0..40 {
+                let mut spec = Spec::open(set);
+                spec.site = Site::City;
+                spec.walled = true;
+                spec.population = 10;
+                let l = generate(&spec, &mut rng(seed));
+                assert!(
+                    l.look
+                        .trees
+                        .iter()
+                        .chain(&l.look.rocks)
+                        .all(|p| !in_wall_area(p.cell.0, p.cell.1)),
+                    "{set:?} seed {seed} {:?}",
+                    l.look
+                        .trees
+                        .iter()
+                        .chain(&l.look.rocks)
+                        .filter(|p| in_wall_area(p.cell.0, p.cell.1))
+                        .collect::<Vec<_>>()
+                );
+                for y in MIN_CGY_WALL..=MAX_CGY_WALL {
+                    for x in MIN_CGX_WALL..=MAX_CGX_WALL {
+                        let cost = l.cost_at(x, y).expect("the ring can be walked");
+                        assert!(cost <= ROUGH_COST, "({x},{y})");
+                        // Without a tree or rock on it a square costs what its ground costs.
+                        assert!(
+                            cost == OPEN_COST || cost == ROUGH_COST || cost == HalfInt::HALF,
+                            "({x},{y}) {cost:?}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]

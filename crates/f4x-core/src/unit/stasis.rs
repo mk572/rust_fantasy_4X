@@ -65,7 +65,7 @@ impl Game {
                         .unit_resistance_against(unit, Some(Realm::Sorcery));
                     if resistance_failure(
                         resistance,
-                        self.content.rules.config.battle.freeing_modifier,
+                        self.content.rules.battle.freeing_modifier,
                         &mut rng,
                     ) == 0
                     {

@@ -315,7 +315,7 @@ impl Game {
         let level = self.units().unit_level(unit);
         let mut ammo = self.units().unit_stat(unit, Stat::Ammo);
         if ranged_kind == RangedKind::Magic && mana > 0 {
-            ammo = mana / self.content().rules.config.battle.shot_mana;
+            ammo = mana / self.content().rules.battle.shot_mana;
         }
         let formulas = &self.content().rules;
         let mut built = BattleUnit {
@@ -613,9 +613,18 @@ impl Game {
                 })
                 .collect();
             let cells = if city.is_some() {
-                city_deployment(side == Side::Attacker, fighters.len(), walled, fortress)
+                city_deployment(
+                    &self.content.rules.battle.deployment,
+                    side == Side::Attacker,
+                    fighters.len(),
+                    fortress,
+                )
             } else {
-                deployment(side == Side::Attacker, fighters.len())
+                deployment(
+                    &self.content.rules.battle.deployment,
+                    side == Side::Attacker,
+                    fighters.len(),
+                )
             };
             let mut bus = Vec::new();
             for (n, &unit) in fighters.iter().enumerate() {
@@ -690,7 +699,9 @@ impl Game {
         };
         let has_wall = |kind: &str| city.is_some_and(|c| self.economy().city_has_wall(c, kind));
         if city.is_some() {
-            map = map.with_city(walled);
+            map = map
+                .with_city(walled)
+                .with_wall_rules(self.content.rules.battle.city_wall);
             if has(crate::spell::city::CityEffect::FlyingFortress) {
                 map = map.with_flying_fortress();
             }
@@ -889,7 +900,7 @@ impl Game {
         }
         let place = i64::from(site.x) * i64::from(site.y) * (site.plane.index() as i64 + 5) + 10039;
         let mut rng = <rand_pcg::Pcg64Mcg as rand::SeedableRng>::seed_from_u64(place as u64);
-        spec.scenery = self.content.rules.config.battle_scenery;
+        spec.scenery = self.content.rules.battle.scenery;
         BattleMap::from_layout(layout::generate(&spec, &mut rng))
     }
 

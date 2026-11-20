@@ -130,28 +130,7 @@ fn the_corners_the_original_shuts_can_be_entered_by_walkers_and_fliers() {
 }
 
 #[test]
-fn deployment_blocks_are_three_columns_of_four_on_opposite_sides_and_never_overlap() {
-    let att = deployment(true, 12);
-    let def = deployment(false, 12);
-    assert_eq!(att.len(), 12);
-    let in_band = |p: &Pos| layout::in_band(cg_of(*p).0, cg_of(*p).1);
-    assert!(att.iter().all(|p| p.0 < CITY_X0 && in_band(p)));
-    assert!(def.iter().all(|p| p.0 >= CITY_X0 && in_band(p)));
-    let mut seen: Vec<Pos> = att.iter().chain(&def).copied().collect();
-    seen.sort();
-    seen.dedup();
-    assert_eq!(seen.len(), 24);
-    assert_eq!(deployment(true, 1), vec![(6, 12)]);
-    assert!(
-        !def.contains(&STRUCTURE),
-        "defenders keep off a structure's square"
-    );
-    // A stack beyond twelve spills into columns further back, still in the band.
-    let many = deployment(true, 20);
-    assert_eq!(many.len(), 20);
-    assert!(many
-        .iter()
-        .all(|p| layout::in_band(cg_of(*p).0, cg_of(*p).1)));
+fn the_distance_counts_diagonals_as_one() {
     assert_eq!(distance((0, 0), (3, 2)), 3);
 }
 
@@ -171,17 +150,25 @@ fn flier() -> Mover {
     }
 }
 
+/// The squares of the city area's edge and the far corner, read from the constants.
+const X0: i32 = CITY_X0;
+const Y0: i32 = CITY_Y0;
+const X1: i32 = CITY_X0 + CITY_SIZE - 1;
+const Y1: i32 = CITY_Y0 + CITY_SIZE - 1;
+
 #[test]
-fn a_city_has_twelve_wall_sites_round_four_inner_squares() {
+fn a_city_has_wall_sites_round_its_inner_squares() {
     let m = walled();
     assert!(m.is_city() && m.is_walled());
-    assert_eq!(m.standing_walls().len(), 12);
+    assert_eq!(m.standing_walls().len() as i32, 4 * (CITY_SIZE - 1));
     assert!(
-        m.has_wall((12, 12)),
+        m.has_wall(m.gate()),
         "the gate square has a wall section too"
     );
-    assert!(!m.has_wall((13, 11)), "the inside has none");
-    assert!(is_wall_corner((15, 13)) && !is_wall_corner((15, 12)));
+    assert!(!m.has_wall((X0 + 2, Y0 + 2)), "the inside has none");
+    assert!(is_wall_corner((X1, Y1)) && !is_wall_corner((X1, m.gate().1)));
+    // The area with its walls is the ring and what it holds.
+    assert!(in_city_area((X0, Y0)) && !in_city_area((X0 - 1, Y0)));
     // No walls: a city, but nothing to break or stand behind.
     let open = BattleMap::open().with_city(false);
     assert!(open.is_city() && !open.is_walled());
@@ -189,120 +176,174 @@ fn a_city_has_twelve_wall_sites_round_four_inner_squares() {
     assert!(!BattleMap::open().is_city());
 }
 
+/// Setup: the city map the game builds, with the wall rules of the shipped `battle.ron`. Action: from a
+/// square outside the city, step a walker, a flier and a teleporter onto each standing wall section
+/// (the gate's, and the others), then break the section and step again. Outcome: each step is allowed
+/// exactly when the rules say (`gate_enterable`, `section_enterable`, `passers_cross`); a broken
+/// section is open to everyone.
 #[test]
-fn walkers_outside_cannot_enter_a_wall_except_by_the_gate() {
-    let m = walled();
-    let r = m.reachable_as((10, 12), HalfInt::from_int(10), walker(), &none);
-    // The gate is open, and from it the inside.
-    assert!(r.contains_key(&GATE));
-    assert!(r.contains_key(&(13, 12)), "inside, by the gate");
-    // Every other wall section is shut, as are the corner towers.
-    let walls: Vec<_> = m.standing_walls().into_iter().collect();
-    assert!(walls.contains(&GATE), "the gate stands in the wall");
-    for w in walls {
-        assert_eq!(r.contains_key(&w), w == GATE, "{w:?}");
+fn a_standing_wall_section_is_entered_as_the_battle_rules_say() {
+    let rule = crate::game::testutil::shipped().rules.battle.city_wall;
+    let teleporter = Mover {
+        through_walls: true,
+        ..Mover::default()
+    };
+    let mut m = BattleMap::open().with_city(true).with_wall_rules(rule);
+    let sections: Vec<Pos> = m
+        .standing_walls()
+        .into_iter()
+        .filter(|&p| !is_wall_corner(p))
+        .collect();
+    assert!(sections.contains(&m.gate()) && sections.len() > 1);
+    let enters = |m: &BattleMap, section: Pos, mover: Mover| {
+        let from = (-1..=1)
+            .flat_map(|dy| (-1..=1).map(move |dx| (section.0 + dx, section.1 + dy)))
+            .find(|&p| BattleMap::in_bounds(p) && !in_city_area(p))
+            .expect("a wall section has a square outside it");
+        m.reachable_as(from, HalfInt::from_int(3), mover, &none)
+            .contains_key(&section)
+    };
+    for &section in &sections {
+        let walkers_may = if section == m.gate() {
+            rule.gate_enterable
+        } else {
+            rule.section_enterable
+        };
+        let passers_may = rule.passers_cross || walkers_may;
+        assert_eq!(
+            enters(&m, section, walker()),
+            walkers_may,
+            "{section:?} on foot"
+        );
+        assert_eq!(
+            enters(&m, section, flier()),
+            passers_may,
+            "{section:?} flying"
+        );
+        assert_eq!(
+            enters(&m, section, teleporter),
+            passers_may,
+            "{section:?} teleporting"
+        );
     }
-    // Around the walls the field is open.
-    assert!(r.contains_key(&(11, 10)) && r.contains_key(&(16, 9)));
+    for &section in &sections {
+        m.break_wall(section);
+        assert!(
+            enters(&m, section, walker()),
+            "a broken section {section:?}"
+        );
+    }
 }
 
 #[test]
 fn a_broken_wall_can_be_walked_over() {
     let mut m = walled();
     assert!(!m.is_breached());
-    let to = (12, 11);
+    let (to, from) = ((X0, m.gate().1 - 1), (X0 - 1, m.gate().1 - 1));
     assert!(!m
-        .reachable_as((11, 11), HalfInt::from_int(2), walker(), &none)
+        .reachable_as(from, HalfInt::from_int(2), walker(), &none)
         .contains_key(&to));
     m.break_wall(to);
     assert!(m.is_breached());
     assert!(m
-        .reachable_as((11, 11), HalfInt::from_int(2), walker(), &none)
+        .reachable_as(from, HalfInt::from_int(2), walker(), &none)
         .contains_key(&to));
     // Breaking a wall that is not there does nothing.
-    m.break_wall((13, 11));
-    assert_eq!(m.wall((13, 11)), Wall::None);
-    assert_eq!(m.standing_walls().len(), 11);
+    m.break_wall((X0 + 2, Y0 + 2));
+    assert_eq!(m.wall((X0 + 2, Y0 + 2)), Wall::None);
+    assert_eq!(m.standing_walls().len() as i32, 4 * (CITY_SIZE - 1) - 1);
 }
 
+/// Setup: the city map the game builds, with the tower rule of the shipped `battle.ron`. Action: move
+/// each kind of unit (a walker, a flier, a teleporter) next to each standing tower and try to step onto
+/// it; then break the tower and try again. Outcome: a standing tower is entered exactly when the rule
+/// `city_wall.tower_enterable` says so; a broken one is always open.
 #[test]
-fn fliers_pass_the_wall_but_nobody_enters_a_corner_tower() {
-    let m = walled();
-    let r = m.reachable_as((10, 11), HalfInt::from_int(3), flier(), &none);
-    assert!(r.contains_key(&(12, 11)), "over the wall");
-    assert!(r.contains_key(&(13, 11)));
-    assert!(
-        !r.contains_key(&(12, 10)) && !r.contains_key(&(12, 13)),
-        "the towers"
-    );
+fn a_standing_tower_is_entered_as_the_battle_rules_say() {
+    let rule = crate::game::testutil::shipped().rules.battle.city_wall;
     let teleporter = Mover {
-        flying: false,
         through_walls: true,
         ..Mover::default()
     };
-    let r = m.reachable_as((10, 11), HalfInt::from_int(3), teleporter, &none);
-    assert!(r.contains_key(&(12, 11)));
-    assert!(!r.contains_key(&(12, 10)));
-    // A broken tower can be entered.
-    let mut m = m;
-    m.break_wall((12, 10));
-    assert!(m
-        .reachable_as((10, 10), HalfInt::from_int(2), walker(), &none)
-        .contains_key(&(12, 10)));
+    let enters = |m: &BattleMap, tower: Pos, mover: Mover| {
+        // Start on any square beside the tower that is not a wall or a tower itself.
+        let from = (-1..=1)
+            .flat_map(|dy| (-1..=1).map(move |dx| (tower.0 + dx, tower.1 + dy)))
+            .find(|&p| p != tower && BattleMap::in_bounds(p) && !m.has_wall(p))
+            .expect("a tower has a free square beside it");
+        m.reachable_as(from, HalfInt::from_int(3), mover, &none)
+            .contains_key(&tower)
+    };
+    let mut m = BattleMap::open().with_city(true).with_wall_rules(rule);
+    let towers = m.towers();
+    assert!(!towers.is_empty(), "a walled city has towers");
+    for &tower in &towers {
+        for mover in [walker(), flier(), teleporter] {
+            assert_eq!(
+                enters(&m, tower, mover),
+                rule.tower_enterable,
+                "{tower:?} {mover:?}"
+            );
+        }
+    }
+    for &tower in &towers {
+        m.break_wall(tower);
+        assert!(enters(&m, tower, walker()), "a broken tower {tower:?}");
+    }
 }
 
+/// The squares a unit passes from its start to `to`, read back from the reach map.
+fn path_to(reach: &HashMap<Pos, (HalfInt, Pos)>, from: Pos, to: Pos) -> Vec<Pos> {
+    let mut path = vec![to];
+    while *path.last().expect("not empty") != from {
+        path.push(reach[path.last().expect("not empty")].1);
+    }
+    path
+}
+
+/// Setup: a city with all its walls standing, and a walker on a square inside it with plenty of moves.
+/// Action: find everywhere it can go. Outcome: it can get out, and every way out leads through a gate;
+/// the same from a unit standing on a wall section. With the gates blocked and the walls unbroken it
+/// cannot get out at all; once a section is broken it can, through the breach.
 #[test]
-fn a_unit_inside_can_only_leave_by_the_gate() {
-    let m = walled();
-    // Standing at the gate, it may go out; from the inside it may not step through a wall.
-    let inside = m.reachable_as((13, 12), HalfInt::from_int(10), walker(), &none);
-    assert!(inside.contains_key(&(11, 12)), "out of the gate");
-    assert!(inside.contains_key(&(10, 12)));
-    // The squares beside the wall's outside are shut to it, except in front of the gate.
-    assert!(!inside.contains_key(&(11, 11)) && !inside.contains_key(&(11, 13)));
+fn a_unit_inside_the_unbroken_walls_leaves_only_through_a_gate() {
+    let mut m = walled();
+    let squares = || (0..GRID_H).flat_map(|y| (0..GRID_W).map(move |x| (x, y)));
+    let inside = squares()
+        .find(|&p| in_city_area(p) && !is_wall_site(p))
+        .expect("a city has an inside");
+    let on_wall = squares()
+        .find(|&p| m.has_wall(p) && !m.is_gate(p) && !is_wall_corner(p))
+        .expect("a wall has sections");
+    let far = HalfInt::from_int(40);
+    for from in [inside, on_wall] {
+        let reach = m.reachable_as(from, far, walker(), &none);
+        let outside: Vec<Pos> = reach
+            .keys()
+            .copied()
+            .filter(|&p| !in_city_area(p))
+            .collect();
+        assert!(!outside.is_empty(), "from {from:?} the way out is found");
+        for out in outside {
+            assert!(
+                path_to(&reach, from, out).iter().any(|&p| m.is_gate(p)),
+                "from {from:?} to {out:?} not through a gate: {:?}",
+                path_to(&reach, from, out)
+            );
+        }
+    }
+    // With every gate blocked the unbroken walls keep the unit in.
+    let gates_blocked = |p: Pos| m.is_gate(p);
+    let reach = m.reachable_as(inside, far, walker(), &gates_blocked);
+    assert!(reach.keys().all(|&p| in_city_area(p)), "walled in");
+    // A breach is a way out.
+    m.break_wall(on_wall);
+    let gates_blocked = |p: Pos| m.is_gate(p);
+    let reach = m.reachable_as(inside, far, walker(), &gates_blocked);
     assert!(
-        !inside.contains_key(&(16, 12)),
-        "the far side is walled off"
+        reach.keys().any(|&p| !in_city_area(p)),
+        "out through the breach"
     );
-    // Standing on the wall at the side it can walk the wall but not step off it.
-    let on_wall = m.reachable_as((14, 10), HalfInt::from_int(2), walker(), &none);
-    assert!(on_wall.contains_key(&(13, 10)));
-    assert!(!on_wall.contains_key(&(14, 9)));
-    // With a breach it can leave there.
-    let mut m = m;
-    m.break_wall((14, 10));
-    let on_wall = m.reachable_as((14, 11), HalfInt::from_int(2), walker(), &none);
-    assert!(on_wall.contains_key(&(14, 9)), "out through the breach");
-    assert!(
-        !on_wall.contains_key(&(13, 9)),
-        "other sections still stand"
-    );
-}
-
-#[test]
-fn city_battles_deploy_the_defenders_inside_and_the_attackers_outside() {
-    let def = city_deployment(false, 12, true, false);
-    assert_eq!(def.len(), 10, "the two corner towers are skipped");
-    assert_eq!(def[0], GATE, "the first defender holds the gate");
-    assert!(def.iter().all(|&p| in_city_area(p) && !is_wall_corner(p)));
-    let open = city_deployment(false, 12, false, false);
-    assert_eq!(open.len(), 12);
-    let att = city_deployment(true, 9, true, false);
-    assert_eq!(att.len(), 9);
-    assert!(att.iter().all(|&p| !in_city_area(p) && p.0 < CITY_X0));
-    let mut all = att.clone();
-    all.extend(def);
-    all.sort();
-    all.dedup();
-    assert_eq!(all.len(), 19, "nobody shares a square");
-}
-
-#[test]
-fn defenders_at_a_wizards_fortress_keep_off_the_fortress_square() {
-    let def = city_deployment(false, 12, false, true);
-    assert_eq!(def.len(), 11);
-    assert!(!def.contains(&STRUCTURE));
-    assert!(city_deployment(true, 12, false, true).len() == 12);
 }
 
 #[test]

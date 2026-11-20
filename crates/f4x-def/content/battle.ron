@@ -1,0 +1,31 @@
+// The rules of the battle: the numbers of the abilities and fields, the scenery of the field and what the
+// walls of a city do. The battle rules stand by themselves; nothing of them is in rules.ron.
+(
+    // Attack strengths and defence of the abilities and fields, mana of a shot and of a leak, the web, the
+    // turn limit, the node, Counter Magic, Power Drain, Stasis and the Magic Vortex.
+    immolation_strength: 4, invulnerability_block: 2, wall_defence: 3, city_defence: 1,
+    mana_leak_drain: 5, call_lightning_strength: 8, wall_of_fire_strength: 5,
+    node_counter_strength: 50, node_aura_bonus: 2, counter_magic_drain: 5,
+    shot_mana: 3, web_hits: 12, turn_limit: 100, power_drain_min: 2, power_drain_max: 20, freeing_modifier: -5,
+    vortex_random_moves: 3, vortex_crush_damage: 5, vortex_bolt_strength: 5, vortex_city_damage: 5,
+    // The scenery of a battle field in percent of the original's (scaled to the field's area): more trees on
+    // forest ground, more rocks on mountains.
+    scenery: (forest_trees_percent: 150, mountain_rocks_percent: 300),
+    // What the walls of a city do, as in the original: nobody enters a standing tower; a unit on foot cannot step
+    // onto a standing wall section from outside, except through the gate; fliers, teleporters and non-corporeal
+    // units cross the sections.
+    // Where the units start: the columns (x, the front one first) and the rows (y) of each block, filled in order;
+    // the squares of a lair's structure, and of a wizard's fortress for its defenders, are skipped. A city's defenders
+    // start inside its walls.
+    deployment: (
+        attacker: (columns: [6, 5, 4, 3, 2], rows: [12, 11, 13, 10]),
+        defender: (columns: [12, 13, 14, 15, 16], rows: [12, 11, 13, 10]),
+        city_attacker: (columns: [6, 5, 4], rows: [12, 11, 13, 10]),
+        city_defender: (columns: [12, 13, 14], rows: [12, 11, 13, 10]),
+    ),
+    city_wall: (tower_enterable: false, section_enterable: false, passers_cross: true, gate_enterable: true,
+        // The gate, counted from the corner of the city area: on the wall's side that faces the attackers.
+        gate: (0, 3),
+        // The chance in a hundred that a wall crusher brings a wall section down: in melee, and with a shot.
+        crush_melee_percent: 50, crush_ranged_percent: 25),
+)

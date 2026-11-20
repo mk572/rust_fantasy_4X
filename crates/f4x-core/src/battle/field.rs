@@ -556,7 +556,7 @@ impl Battle {
                 .flat_map(|y| (0..map::GRID_W).map(move |x| (x, y)))
                 .filter(|&p| {
                     self.map.enter_cost(p, false).is_some()
-                        && !(map::is_wall_corner(p) && self.map.has_wall(p))
+                        && !self.map.is_shut_tower(p)
                         && self.unit_at(p).is_none()
                 })
                 .collect();

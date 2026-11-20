@@ -64,29 +64,28 @@ pub enum Cell {
 
 pub type Pos = (i32, i32);
 
-/// The city in a city battle stands on a square of four by four squares, defended end of the field.
-/// The twelve squares round the edge are the walls when the city has them; the middle four are the
-/// inside.
-pub const CITY_X0: i32 = 12;
-pub const CITY_Y0: i32 = 10;
-pub const CITY_SIZE: i32 = 4;
-/// The gate in the wall, on the side facing the attackers. Nothing stops anyone passing it.
-pub const GATE: Pos = (12, 12);
+/// The city in a city battle stands on an area of four by four squares (`layout::MIN_CGX_CITY` and
+/// the like: the houses), ringed by the squares of its wall, so the city area with its walls is six by
+/// six squares, defended end of the field (task 733). The twenty squares round the edge of the six by
+/// six are the walls when the city has them; the sixteen inside are the city.
+pub const CITY_X0: i32 = 11;
+pub const CITY_Y0: i32 = 9;
+pub const CITY_SIZE: i32 = 6;
 
-/// Whether a square is in the four by four city area.
+/// Whether a square is in the six by six city area, walls included.
 pub fn in_city_area(pos: Pos) -> bool {
     (CITY_X0..CITY_X0 + CITY_SIZE).contains(&pos.0)
         && (CITY_Y0..CITY_Y0 + CITY_SIZE).contains(&pos.1)
 }
 
-/// Whether a square touches the city area from outside (the twenty squares round it).
+/// Whether a square touches the city area from outside (the twenty-eight squares round it).
 pub fn in_city_ring(pos: Pos) -> bool {
     (CITY_X0 - 1..=CITY_X0 + CITY_SIZE).contains(&pos.0)
         && (CITY_Y0 - 1..=CITY_Y0 + CITY_SIZE).contains(&pos.1)
         && !in_city_area(pos)
 }
 
-/// Whether a square is one of the twelve round the edge of the city area (where a wall stands).
+/// Whether a square is one of the twenty round the edge of the city area (where a wall stands).
 pub fn is_wall_site(pos: Pos) -> bool {
     in_city_area(pos)
         && (pos.0 == CITY_X0
@@ -142,7 +141,7 @@ pub struct BattleMap {
     look: Option<Box<Look>>,
     /// The walls of the city, indexed by the square's place in the city area; `None` outside
     /// a city battle, and in one without walls every site is `Wall::None`.
-    walls: Option<[Wall; 16]>,
+    walls: Option<Vec<Wall>>,
     /// The city is a Flying Fortress: it is shut to anyone who cannot fly or pass through walls,
     /// from the outside and from the inside alike.
     fortress: bool,
@@ -151,6 +150,9 @@ pub struct BattleMap {
     /// The squares of a ship's deck in a sea battle.
     #[serde(default)]
     ship_deck: Vec<bool>,
+    /// What the walls do (`city_wall` of `battle.ron`).
+    #[serde(default)]
+    wall_rules: f4x_def::rules::CityWallRules,
 }
 
 impl BattleMap {
@@ -165,7 +167,38 @@ impl BattleMap {
             fortress: false,
             mud: vec![false; (GRID_W * GRID_H) as usize],
             ship_deck: vec![false; (GRID_W * GRID_H) as usize],
+            wall_rules: Default::default(),
         }
+    }
+
+    /// Set what the walls do, as `battle.ron` says (the default is the original's).
+    pub fn with_wall_rules(mut self, rules: f4x_def::rules::CityWallRules) -> Self {
+        self.wall_rules = rules;
+        self
+    }
+
+    /// The square of the gate in the wall, where `battle.ron` puts it.
+    pub fn gate(&self) -> Pos {
+        let (dx, dy) = self.wall_rules.gate;
+        (CITY_X0 + dx, CITY_Y0 + dy)
+    }
+
+    /// Whether the square is a gate of the wall.
+    pub fn is_gate(&self, pos: Pos) -> bool {
+        pos == self.gate()
+    }
+
+    /// The squares of the standing towers (the corners of the wall that still stand).
+    pub fn towers(&self) -> Vec<Pos> {
+        (0..GRID_H)
+            .flat_map(|y| (0..GRID_W).map(move |x| (x, y)))
+            .filter(|&p| is_wall_corner(p) && self.has_wall(p))
+            .collect()
+    }
+
+    /// Whether a standing tower is on the square and the rules shut it to everyone.
+    pub fn is_shut_tower(&self, pos: Pos) -> bool {
+        !self.wall_rules.tower_enterable && is_wall_corner(pos) && self.has_wall(pos)
     }
 
     /// Whether the square is a ship's deck.
@@ -209,7 +242,7 @@ impl BattleMap {
     /// Put a city on the map, ringed by standing walls if `walled`. The ground of the city area
     /// stays as it is (the field generator keeps it clear).
     pub fn with_city(mut self, walled: bool) -> Self {
-        let mut walls = [Wall::None; 16];
+        let mut walls = vec![Wall::None; (CITY_SIZE * CITY_SIZE) as usize];
         if walled {
             for y in CITY_Y0..CITY_Y0 + CITY_SIZE {
                 for x in CITY_X0..CITY_X0 + CITY_SIZE {
@@ -235,6 +268,7 @@ impl BattleMap {
     /// Whether the city has (or had) walls: some site has a wall that is standing or broken.
     pub fn is_walled(&self) -> bool {
         self.walls
+            .as_ref()
             .is_some_and(|w| w.iter().any(|&w| w != Wall::None))
     }
 
@@ -248,7 +282,9 @@ impl BattleMap {
 
     /// Whether any section of the wall has been knocked down.
     pub fn is_breached(&self) -> bool {
-        self.walls.is_some_and(|w| w.contains(&Wall::Broken))
+        self.walls
+            .as_ref()
+            .is_some_and(|w| w.contains(&Wall::Broken))
     }
 
     /// A standing wall that can be attacked.
@@ -258,7 +294,7 @@ impl BattleMap {
 
     /// Whether every wall site of the city has a standing wall.
     pub fn is_fully_walled(&self) -> bool {
-        self.walls.is_some_and(|w| {
+        self.walls.as_ref().is_some_and(|w| {
             (CITY_Y0..CITY_Y0 + CITY_SIZE)
                 .flat_map(|y| (CITY_X0..CITY_X0 + CITY_SIZE).map(move |x| (x, y)))
                 .filter(|&p| is_wall_site(p))
@@ -437,14 +473,19 @@ impl BattleMap {
         if !self.is_walled() {
             return false;
         }
-        if is_wall_corner(pos) && self.has_wall(pos) {
+        if self.is_shut_tower(pos) {
             return true;
         }
-        if mover.flying || mover.through_walls {
+        if (mover.flying || mover.through_walls) && self.wall_rules.passers_cross {
             return false;
         }
         if !inside {
-            return pos != GATE && self.has_wall(pos);
+            let allowed = if pos == self.gate() {
+                self.wall_rules.gate_enterable
+            } else {
+                self.wall_rules.section_enterable
+            };
+            return !allowed && self.has_wall(pos);
         }
         // Inside: the squares just outside any standing wall (not the gate's) are shut.
         if in_city_area(pos) {
@@ -455,7 +496,7 @@ impl BattleMap {
         for y in y1..=y2 {
             for x in x1..=x2 {
                 let site = (x, y);
-                if !is_wall_site(site) || site == GATE || !self.has_wall(site) {
+                if !is_wall_site(site) || site == self.gate() || !self.has_wall(site) {
                     continue;
                 }
                 let mut outside = Vec::new();
@@ -483,6 +524,18 @@ impl BattleMap {
             }
         }
         false
+    }
+
+    /// Whether the step from `at` to `next` leaves a standing wall section for a square outside the
+    /// city area: a unit on the wall walks along it but leaves it only by the gate.
+    fn steps_off_a_wall(&self, at: Pos, next: Pos, mover: Mover) -> bool {
+        let passes = (mover.flying || mover.through_walls) && self.wall_rules.passers_cross;
+        self.is_walled()
+            && !passes
+            && in_city_area(at)
+            && !in_city_area(next)
+            && self.has_wall(at)
+            && !self.is_gate(at)
     }
 
     /// Squares reachable from `from` with `points` moves, with the cheapest cost and the
@@ -538,7 +591,10 @@ impl BattleMap {
                         // anyway.
                         step += DIAGONAL_EXTRA;
                     }
-                    if occupied(next) || self.shut_by_walls(next, mover, inside) {
+                    if occupied(next)
+                        || self.shut_by_walls(next, mover, inside)
+                        || self.steps_off_a_wall(at, next, mover)
+                    {
                         continue;
                     }
                     let total = cost + step;
@@ -600,25 +656,22 @@ pub fn set_of(terrain: Option<TerrainClass>) -> Set {
 /// (the gate's first), skipping the wall's corner towers when there are walls, the attackers in
 /// three columns of four outside. At a wizard's fortress the defenders also keep off the square
 /// the fortress stands on. The first `count` places in order.
-pub fn city_deployment(attacker: bool, count: usize, walled: bool, fortress: bool) -> Vec<Pos> {
-    // Rows from the front column back.
-    let (columns, rows): ([i32; 3], [i32; 4]) = if attacker {
-        ([6, 5, 4], [12, 11, 13, 10])
+pub fn city_deployment(
+    rules: &f4x_def::rules::DeploymentRules,
+    attacker: bool,
+    count: usize,
+    fortress: bool,
+) -> Vec<Pos> {
+    let block = if attacker {
+        &rules.city_attacker
     } else {
-        ([CITY_X0, CITY_X0 + 1, CITY_X0 + 2], [12, 11, 13, 10])
+        &rules.city_defender
     };
-    let mut out = Vec::new();
-    for &x in &columns {
-        for &y in &rows {
-            if !attacker && walled && is_wall_corner((x, y)) {
-                continue;
-            }
-            if !attacker && fortress && (x, y) == STRUCTURE {
-                continue;
-            }
-            out.push((x, y));
-        }
-    }
+    let mut out: Vec<Pos> = block
+        .squares()
+        .into_iter()
+        .filter(|&p| attacker || !fortress || p != STRUCTURE)
+        .collect();
     out.truncate(count);
     out
 }
@@ -626,21 +679,21 @@ pub fn city_deployment(attacker: bool, count: usize, walled: bool, fortress: boo
 /// Squares where a side's `count` units start outside a city: the same block of three columns
 /// of four as at a city (the original deploys every battle alike), then two columns further
 /// back for a stack beyond twelve. The defenders keep off the square of a lair's structure.
-pub fn deployment(attacker: bool, count: usize) -> Vec<Pos> {
-    let columns: [i32; 5] = if attacker {
-        [6, 5, 4, 3, 2]
+pub fn deployment(
+    rules: &f4x_def::rules::DeploymentRules,
+    attacker: bool,
+    count: usize,
+) -> Vec<Pos> {
+    let block = if attacker {
+        &rules.attacker
     } else {
-        [12, 13, 14, 15, 16]
+        &rules.defender
     };
-    let mut out = Vec::new();
-    for &x in &columns {
-        for y in [12, 11, 13, 10] {
-            if !attacker && (x, y) == STRUCTURE {
-                continue;
-            }
-            out.push((x, y));
-        }
-    }
+    let mut out: Vec<Pos> = block
+        .squares()
+        .into_iter()
+        .filter(|&p| attacker || p != STRUCTURE)
+        .collect();
     out.truncate(count);
     out
 }
