@@ -55,6 +55,16 @@ impl HalfInt {
         (self.0 + 1).div_euclid(2)
     }
 
+    /// Half of the value, rounded up to the next half: 3 gives 1.5, 1.5 gives 1, 1 gives 0.5.
+    pub const fn half(self) -> Self {
+        Self((self.0 + 1).div_euclid(2))
+    }
+
+    /// The value times `percent` over 100, rounded down to a half: 3 at 150 is 4.5.
+    pub const fn percent(self, percent: i32) -> Self {
+        Self((self.0 * percent).div_euclid(100))
+    }
+
     /// The value without its sign.
     pub const fn abs(self) -> Self {
         Self(self.0.abs())
@@ -240,6 +250,19 @@ impl<'de> serde::Deserialize<'de> for HalfInt {
 #[cfg(test)]
 mod tests {
     use super::HalfInt;
+
+    #[test]
+    fn half_and_percent_stay_on_halves() {
+        let h = |n: f32| HalfInt::from_raw((n * 2.0) as i32);
+        assert_eq!(h(3.0).half(), h(1.5));
+        assert_eq!(h(1.5).half(), h(1.0));
+        assert_eq!(h(1.0).half(), h(0.5));
+        assert_eq!(h(0.5).half(), h(0.5));
+        assert_eq!(HalfInt::ZERO.half(), HalfInt::ZERO);
+        assert_eq!(h(3.0).percent(150), h(4.5));
+        assert_eq!(h(3.0).percent(50), h(1.5));
+        assert_eq!(h(1.5).percent(50), h(0.5));
+    }
 
     #[test]
     fn represents_whole_and_half_values_exactly() {

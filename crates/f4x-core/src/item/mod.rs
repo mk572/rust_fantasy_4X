@@ -246,7 +246,9 @@ pub fn modifiers(
     let b = &item.bonus;
     add(Stat::Defense, b.defense);
     add(Stat::Resistance, b.resistance);
-    add(Stat::Moves, b.moves.floor());
+    if b.moves != HalfInt::ZERO {
+        mods.push(Modifier::amount(Stat::Moves, ModOp::Add, b.moves, source));
+    }
     let powers: Vec<&ItemPowerDef> = item
         .powers
         .iter()

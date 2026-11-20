@@ -520,12 +520,12 @@ impl<'a> UnitView<'a> {
                     owner,
                     crate::spell::global_enchantment::GlobalEffect::WindMastery,
                 ) {
-                    return HalfInt::from_raw(moves.raw() * 3 / 2);
+                    return moves.percent(150);
                 }
                 if self
                     .any_global_effect(crate::spell::global_enchantment::GlobalEffect::WindMastery)
                 {
-                    return HalfInt::from_raw(moves.raw() / 2);
+                    return moves.percent(50);
                 }
             }
         }
