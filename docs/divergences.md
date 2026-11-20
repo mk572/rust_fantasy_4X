@@ -995,3 +995,7 @@ Open and decided later: doom damage and Black Sleep (task 714) and which spells 
 ## Battle moves and Wind Mastery
 
 A unit's battle allowance is its overland allowance with the same parts as `Battle_Unit_Moves2` in ReMoM `Combat.c`: the Flight spell's floor (3 moves), the floor of Chaos Channels wings (`wings_moves`), Endurance (+1) and Haste (x2) all work the same way. One difference: the original applies the Wind Mastery factor of a ship in combat before those floors and bonuses (the source marks it an original bug, and overland it comes last); ours applies it last, in `unit_max_moves`, in combat and overland alike.
+
+## Confusion: when the enemy commands a lent unit
+
+In the original a confused unit that rolls "controlled by the enemy" is handed to the enemy at the start of its owner's own turn (`Combat.c`, the confusion roll at the turn start, which swaps `controller_idx`). The enemy commands it during that turn, after its own units have moved, and the owner's other units may strike it back in the same turn. Ours hands it over at the start of the enemy's next turn (`side_turn_effects`): the unit loses its own turn, then acts for the enemy in theirs and goes home as the next turn begins. So the owner's units get no chance to hit it before it acts. The chances (a quarter each), the loss of a side whose every unit is lent at once and the other outcomes are as in the original. Task: none yet.
