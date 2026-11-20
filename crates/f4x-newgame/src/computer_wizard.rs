@@ -1,13 +1,6 @@
-//! How the computer wizards are made (`docs/game-settings.md` 4.8), after the original's
-//! `Init_Computer_Players_Wizard_Profile`: a random ready-made wizard each, opposed realms merged
-//! now and then, "erasure dice" that take books away, one or two made Myrran, and the picks
-//! filled up to the game's budget with random books and retorts. Every roll comes from the
-//! game's seeded generator.
-//!
-//! Where this differs from the original: a retort the books do not allow is not given (the
-//! original's refill did not check), the refill never picks Myrran (the Myrran rule makes them),
-//! and the erasure dice that clear retorts clear them all (the original's loop has an index bug
-//! that clears one slot).
+//! How the computer wizards are made, after the original's `Init_Computer_Players_Wizard_Profile`:
+//! the phases, the rolls and where this differs from the original are in `docs/game-settings.md`
+//! 4.8. Every roll comes from the game's seeded generator.
 //!
 //! Tests: in computer_wizard/tests.rs.
 

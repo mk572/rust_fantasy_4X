@@ -1,26 +1,9 @@
 //! The war plan (task 648, `docs/ai-design.md` section 15): the layer between the diplomacy that
-//! decides on a war and the army that fights it.
-//!
-//! The strategist lists every town it knows of an enemy (what a human can read of them: the
-//! city report, the defence in it, the walk to it) and rates each town twice:
-//!
-//! 1. **The war goal**, the prize the war is for: the fortress, or the biggest and best
-//!    developed town. Rated by worth (the fortress, size, buildings, a wizard at war) less the
-//!    walk from our own cities, and heavily less when the army cannot walk to it. A good
-//!    target on the same plane therefore comes before a fortress on the other.
-//! 2. **The next target**, the step now: a town the army can walk to, rated by the walk, the
-//!    defence in it, whether it lies on the way to the goal, whether it is the foothold
-//!    towards a goal the army cannot walk to, and a share of its own worth. A weak town behind
-//!    or beside the front comes up by its low defence.
-//!
-//! Both keep their choice until something is clearly better (`GOAL_HOLD`, `NEXT_HOLD`), so the
-//! plan does not swing between two towns. The plan also names the **recon**: the towns of the
-//! enemy with unexplored ground around them, which the scouts look at before others
-//! (`scout::best_target_with`).
-//!
-//! What is not built yet (task 648, next steps): several groups at once (a pincer, a pickoff),
-//! recon of the route (needs task 649, path finding by what the player knows), and the
-//! demands that tell the builder and the dispatcher what the plan lacks.
+//! decides on a war and the army that fights it. It rates every known enemy town twice, as the
+//! war goal (the prize, changed rarely) and as the next target (the step now), keeps each choice
+//! until something is clearly better (`GOAL_HOLD`, `NEXT_HOLD`), and names the recon: the towns
+//! with unexplored ground around them, which the scouts look at before others
+//! (`scout::best_target_with`). What is not built yet is in the doc and task 648.
 //!
 //! Tests: at the end of this file, the ratings on plain data and the plan on the shipped rules.
 

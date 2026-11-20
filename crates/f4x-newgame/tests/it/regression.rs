@@ -1,16 +1,8 @@
 //! Regression tests on the whole game, without the client (`docs/rust_coding_rules.md`).
 //!
 //! Each scenario loads a prepared save from `tests/regression/<name>.save`, applies a fixed list
-//! of commands and compares the resulting game with `tests/regression/<name>.target`: a readable
-//! summary of the state (totals, then what each player holds, then the units by kind). A rule that
-//! changes by accident moves a line of the summary and the test fails, with both texts in the message.
-//!
-//! **Changing the target on purpose** (a rule changed and the new result is right):
-//! `F4X_REFRESH_REGRESSION=targets cargo test -p f4x-newgame --test it regression`
-//! rewrites the `.target` files; read the diff in git before committing it.
-//! **Rebuilding the saves** (the save format version changed, or the scenario's set-up changed):
-//! `F4X_REFRESH_REGRESSION=saves cargo test -p f4x-newgame --test it regression` rewrites the
-//! `.save` files from the set-ups below, then the targets.
+//! of commands and compares the resulting game with `tests/regression/<name>.target`. To change
+//! a target on purpose or rebuild the saves, see `docs/rust_coding_rules.md` (`F4X_REFRESH_REGRESSION`).
 
 use std::path::{Path, PathBuf};
 

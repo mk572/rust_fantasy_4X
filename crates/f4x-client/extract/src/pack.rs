@@ -1,21 +1,8 @@
 //! The sprite pack: the pictures of a folder (a unit's frames, a spell's) as ordinary PNG sheets.
 //! `f4x-extract pack` writes them (`pack_build`); the client reads them (`pack_set`) and still finds
-//! loose PNGs where no sheet has the picture (`docs/local-assets.md`).
-//!
-//! A sheet is a plain PNG that any image tool opens. Its pictures sit on a uniform grid: every cell
-//! is `cell_w` by `cell_h` pixels (the largest picture on the sheet), `cols` cells to a row, so the
-//! offset of picture number `i` is `(i % cols * cell_w, i / cols * cell_h)`. Smaller pictures sit at
-//! the top left of their cell, the rest is transparent. What the grid cannot say, the PNG says in
-//! one text chunk, keyword `f4x-sheet`:
-//!
-//! ```text
-//! cell <cell_w>x<cell_h>
-//! <name> TAB <width> TAB <height>      (one line for each picture, in grid order)
-//! ```
-//!
-//! `cols` is the image's width divided by `cell_w`. A folder can have several sheets (pictures of
-//! very different sizes are not put on one grid); a sheet's file name is `<name>.sheet.png`, then
-//! `<name>.sheet2.png`, and so on. This module needs no PNG code: it reads the chunk headers.
+//! loose PNGs where no sheet has the picture. The sheet format (the grid, the `f4x-sheet` text
+//! chunk, the file names) is in `docs/local-assets.md`. This module needs no PNG code: it reads
+//! the chunk headers.
 
 use std::collections::BTreeMap;
 

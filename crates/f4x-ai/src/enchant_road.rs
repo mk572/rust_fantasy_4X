@@ -1,26 +1,7 @@
 //! Enchant Road (task 642): the AI casts it to make its armies and settlers fast along the roads
-//! between the places that matter.
-//!
-//! The spell enchants every road within two squares of the square it is cast on, and a step
-//! between two enchanted road squares costs no movement. A road is therefore worth enchanting
-//! from end to end or not at all, and takes a cast for every five squares of it. The roads are
-//! the ones the engineers have built (`road.rs`); this only enchants what is there.
-//!
-//! **What is joined to what**, in this order:
-//! 1. the fortress and a harbour city, when the fortress is inland (the ships are the way
-//!    abroad);
-//! 2. the fortress and the other large cities;
-//! 3. the fortress and the border towns (an own city near a wizard's city);
-//! 4. the fortress and the open towers (the way to the other plane).
-//!
-//! A place needs to be joined to the enchanted network of its continent once: once a road of
-//! enchanted squares leads from it to the network, the next place is joined to the nearest
-//! square of the network, not to the fortress. A continent the fortress is not on has its own
-//! network around its largest city. Myrror needs none: all its roads are enchanted.
-//!
-//! The cast square is chosen on the road between the place and the network: the third unenchanted
-//! square from the network's end, so that five squares are enchanted at once. The next turn
-//! looks again from the enchanted end.
+//! between the places that matter. The rule (what is joined to what, in which order, and where
+//! the cast square lies) is in `docs/ai-design.md` section 16. The roads are the ones the
+//! engineers have built (`road.rs`); this only enchants what is there.
 //!
 //! Tests: at the end of this file, on the shipped rules.
 

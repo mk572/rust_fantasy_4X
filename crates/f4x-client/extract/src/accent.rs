@@ -1,11 +1,6 @@
-//! Letters the original's ASCII fonts lack, drawn from the ones they have: accented letters
-//! (acute, grave, circumflex, caron, tilde, diaeresis, ring, breve, dot, macron, double acute,
-//! cedilla, ogonek, a tick for the Czech and Slovak ď ť ľ), strokes (ł ø đ), ligatures (æ œ),
-//! the eszett, the dotless i, inverted marks, guillemets, typographic quotes and dashes. They
-//! cover French, Spanish, Portuguese, Italian, German, Dutch, Danish, Norwegian, Swedish,
-//! Finnish, Czech, Slovak, Polish, Hungarian, Romanian, Croatian and Turkish; Icelandic þ and ð
-//! are not drawn. Every glyph is made from the style's own letters, so it keeps the style's
-//! stroke and colours. See `docs/extract-art.md` section 5.
+//! Letters the original's ASCII fonts lack (accents, strokes, ligatures, inverted marks, quotes),
+//! drawn from the letters the style has, so a glyph keeps the style's stroke and colours. Which
+//! languages they cover and which glyphs are not drawn: `docs/extract-art.md` section 5.
 
 /// A glyph of the BMFont export: colour indexes (0 is clear), `width` by `height`, drawn
 /// `y_offset` rows below the top of the line (negative: above it).
