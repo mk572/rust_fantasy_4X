@@ -238,13 +238,18 @@ pub fn compute(stat: Stat, base: i32, mods: &[Modifier]) -> i32 {
     }
 }
 
-/// [`compute`] for a stat that is counted in halves (the food stats): the same order, with the
-/// base and the result as [`HalfInt`] and the percent rounded down to a half.
+/// [`compute`] for a stat that is counted in halves (the food stats, sight and moves): the same
+/// order, with the base and the result as [`HalfInt`] and the percent rounded down to a half.
 pub fn compute_half(stat: Stat, base: HalfInt, mods: &[Modifier]) -> HalfInt {
     let of = |op: ModOp| {
         mods.iter()
             .filter(move |m| m.stat == stat && m.op == op)
             .map(|m| m.value)
+    };
+    // As in `compute`, a Min on the moves raises the unit's own moves before the bonuses.
+    let base = match (stat, of(ModOp::Min).max()) {
+        (Stat::Moves, Some(min)) => base.max(min),
+        _ => base,
     };
     let adds: i64 = of(ModOp::Add).map(|v| i64::from(v.raw())).sum();
     let percent: i64 = of(ModOp::Percent).map(|v| i64::from(v.floor())).sum();
@@ -254,7 +259,7 @@ pub fn compute_half(stat: Stat, base: HalfInt, mods: &[Modifier]) -> HalfInt {
             .div_euclid(100)
             .clamp(i32::MIN as i64, i32::MAX as i64) as i32,
     );
-    if let Some(min) = of(ModOp::Min).max() {
+    if let (Some(min), false) = (of(ModOp::Min).max(), stat == Stat::Moves) {
         v = v.max(min);
     }
     if let Some(max) = of(ModOp::Max).min() {
@@ -351,6 +356,20 @@ mod tests {
             compute(Stat::Moves, 5, &flier),
             6,
             "a faster unit keeps its own moves"
+        );
+        // The same in halves: a half move stays, Haste doubles it.
+        let half = |raw| HalfInt::from_raw(raw);
+        assert_eq!(
+            compute_half(Stat::Moves, half(3), &flier),
+            HalfInt::from_int(4)
+        );
+        assert_eq!(
+            compute_half(Stat::Moves, half(3), &[m(Stat::Moves, ModOp::Percent, 100)]),
+            half(6)
+        );
+        assert_eq!(
+            compute_half(Stat::Moves, half(5), &[m(Stat::Moves, ModOp::Add, 1)]),
+            half(7)
         );
         let set = [
             m(Stat::Resistance, ModOp::Add, 3),

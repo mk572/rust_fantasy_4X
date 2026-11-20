@@ -480,6 +480,9 @@ impl<'a> UnitView<'a> {
     }
 
     pub fn unit_stat(&self, unit: hecs::Entity, stat: Stat) -> i32 {
+        if stat == Stat::Moves {
+            return self.unit_moves(unit).floor();
+        }
         let base = self
             .unit_def(unit)
             .and_then(|d| d.stats.get(&stat).map(|v| v.floor()))
@@ -497,9 +500,18 @@ impl<'a> UnitView<'a> {
             .collect()
     }
 
+    /// The `Moves` stat of the unit with everything on it, in halves.
+    pub fn unit_moves(&self, unit: hecs::Entity) -> HalfInt {
+        let base = self
+            .unit_def(unit)
+            .and_then(|d| d.stats.get(&Stat::Moves).copied())
+            .unwrap_or(HalfInt::ZERO);
+        compute_half(Stat::Moves, base, &self.modifiers_shared(unit))
+    }
+
     /// Full movement allowance.
     pub fn unit_max_moves(&self, unit: hecs::Entity) -> HalfInt {
-        let moves = HalfInt::from_int(self.unit_stat(unit, Stat::Moves).max(0));
+        let moves = self.unit_moves(unit).max(HalfInt::ZERO);
         // Wind Mastery (our rule): ships and fliers of a wizard who keeps it go half as far again;
         // those of a wizard without it, while anyone else keeps it, go half as far. Nothing stacks.
         if self.is_ship_or_flier(unit) {

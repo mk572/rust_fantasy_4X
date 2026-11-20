@@ -21,7 +21,7 @@ use super::map::{is_wall_corner, Pos};
 use super::{Battle, BattleEvent, BattleUnit, RangedKind, Side, Status};
 use crate::player::PlayerId;
 use crate::rules::effects::DamageTraits;
-use crate::rules::stats::{compute, Modifier, Stat};
+use crate::rules::stats::{compute, compute_half, Modifier, Stat};
 use crate::rules::{Rules, SpellId};
 
 /// A damage spell of `strength` on one unit (see [`Battle::spell_damage`]); the unit is changed
@@ -654,14 +654,7 @@ impl BattleUnit {
         self.resistance = comp(Stat::Resistance, self.resistance);
         self.to_hit = comp(Stat::ToHit, self.to_hit);
         self.hits = comp(Stat::MaxHp, self.hits).max(1);
-        let old = self.moves;
-        // The spell data has whole moves; a half move the unit has stays.
-        let whole = comp(Stat::Moves, old.floor()).max(0);
-        self.moves = if whole == 0 {
-            HalfInt::ZERO
-        } else {
-            HalfInt::from_int(whole) + HalfInt::from_raw(old.raw() % 2)
-        };
+        self.moves = compute_half(Stat::Moves, self.moves, mods).max(HalfInt::ZERO);
         for g in grants {
             if !self.has(*g) {
                 self.abilities.push(*g);
