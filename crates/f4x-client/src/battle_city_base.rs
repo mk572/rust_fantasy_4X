@@ -165,6 +165,9 @@ pub(crate) fn turned(
     if (width, height) != (w, h) || bytes.len() != w * h * 4 || scale == 0 {
         return None;
     }
+    if quarters % 4 == 2 {
+        return Some(half_turned(bytes, w, h, scale));
+    }
     let alpha = |x: i32, y: i32| {
         (0..SIZE.0).contains(&x)
             && (0..SIZE.1).contains(&y)
@@ -199,6 +202,26 @@ pub(crate) fn turned(
         }
     }
     Some(out)
+}
+
+/// The picture turned by half a turn: a pixel map about the block's middle, so exact (the
+/// squares' pieces are only the same to a pixel, as the lattice is not painted symmetric).
+fn half_turned(bytes: &[u8], w: usize, h: usize, scale: usize) -> Vec<u8> {
+    // The pixel (x, y) goes to (2 * CENTRE.0 - 1 - x, 2 * CENTRE.1 - 1 - y), at the art scale.
+    let (mx, my) = (
+        2 * CENTRE.0 as usize * scale - 1,
+        2 * CENTRE.1 as usize * scale - 1,
+    );
+    let mut out = vec![0u8; bytes.len()];
+    for y in 0..h {
+        for x in 0..w {
+            if x <= mx && y <= my && mx - x < w && my - y < h {
+                let at = ((my - y) * w + (mx - x)) * 4;
+                out[at..at + 4].copy_from_slice(&bytes[(y * w + x) * 4..][..4]);
+            }
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -309,6 +332,21 @@ mod tests {
         for a in 0..4 {
             for b in a + 1..4 {
                 assert_ne!(looks[a], looks[b], "turns {a} and {b}");
+            }
+        }
+    }
+
+    #[test]
+    fn half_a_turn_is_the_picture_turned_about_the_blocks_middle_pixel_for_pixel() {
+        let Some((bytes, w, h)) = base() else { return };
+        let out = turned(&bytes, w, h, 1, 2).unwrap();
+        let alpha = |b: &[u8], x: i32, y: i32| b[(y as usize * w + x as usize) * 4 + 3] > 0;
+        for y in 0..h as i32 {
+            for x in 0..w as i32 {
+                let (tx, ty) = (2 * CENTRE.0 - 1 - x, 2 * CENTRE.1 - 1 - y);
+                if (0..w as i32).contains(&tx) && (0..h as i32).contains(&ty) {
+                    assert_eq!(alpha(&bytes, x, y), alpha(&out, tx, ty));
+                }
             }
         }
     }
