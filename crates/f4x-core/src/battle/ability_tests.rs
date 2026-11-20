@@ -9,6 +9,7 @@ use super::*;
 use crate::game::rng::GameRng;
 use crate::game::testutil::shipped;
 use crate::rules::unit_flag::UnitFlag;
+use crate::rules::Ability;
 
 use crate::game::Game;
 use crate::map::{Grid, Map, Plane, Position};

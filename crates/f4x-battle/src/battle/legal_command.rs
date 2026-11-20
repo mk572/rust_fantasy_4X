@@ -5,9 +5,13 @@
 //!
 //! Tests: in battle/tests.rs.
 
-use super::map::{distance, GRID_H, GRID_W};
-use super::{Battle, BattleCommand, RangedKind, Side};
-use crate::rules::Ability;
+use f4x_def::rules::damage_type::RangedKind;
+use f4x_def::rules::Ability;
+
+use super::{Battle, BattleCommand};
+use crate::map::{distance, GRID_H, GRID_W};
+use crate::side::Side;
+use crate::unit::Status;
 
 impl Battle {
     /// The commands of the active side that `apply` accepts now: for each unit that can still
@@ -67,7 +71,7 @@ impl Battle {
         for u in self
             .units
             .iter()
-            .filter(|u| u.side == side && u.status == super::Status::Merged && !u.merged_this_turn)
+            .filter(|u| u.side == side && u.status == Status::Merged && !u.merged_this_turn)
         {
             out.extend(
                 self.free_squares()

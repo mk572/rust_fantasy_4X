@@ -9,9 +9,11 @@
 //!
 //! Tests: in battle/tests.rs.
 
-use super::{Battle, BattleUnit};
-use crate::game::serial::Serial;
-use crate::rules::{Rules, SpellId};
+use f4x_def::id::Serial;
+use f4x_def::rules::{Rules, SpellId};
+
+use super::Battle;
+use crate::unit::BattleUnit;
 
 /// Why a saved battle could not be loaded.
 #[derive(Debug, Clone, PartialEq, Eq)]

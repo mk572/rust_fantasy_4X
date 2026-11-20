@@ -7,9 +7,16 @@ use super::*;
 use crate::game::rng::GameRng;
 use crate::game::save::Snapshot;
 use crate::game::testutil::shipped;
+use crate::rules::attack_nature::{AttackNature, Mode};
+use crate::rules::damage_type::DamageType;
 use crate::rules::damage_type::DamageTypes;
+use crate::rules::realm::Realm;
 use crate::rules::unit_flag::UnitFlag;
 use crate::rules::UnitId;
+use crate::rules::{Ability, SpellId};
+use f4x_battle::battlemagic::field::Field;
+use f4x_battle::map::BattleMap;
+use f4x_def::half_int::HalfInt;
 
 use crate::game::{Command, Event, Game, Rejection};
 use crate::map::{Grid, Map, Plane};

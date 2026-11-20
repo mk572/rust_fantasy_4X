@@ -11,12 +11,15 @@
 //!
 //! Tests: in battle/tests.rs.
 
-use super::attack::unblockable;
-use super::immunity::{AttackNature, Realm};
-use super::map::{self, Pos};
-use super::{Battle, BattleError, BattleEvent, Side};
-use crate::rules::damage_type::{DamageType, DamageTypes};
-use crate::rules::effects::DamageTraits;
+use f4x_def::rules::attack_nature::AttackNature;
+use f4x_def::rules::damage_type::{DamageType, DamageTypes};
+use f4x_def::rules::effects::DamageTraits;
+use f4x_def::rules::realm::Realm;
+
+use crate::attack::unblockable;
+use crate::battle::{Battle, BattleError, BattleEvent};
+use crate::map::{self, Pos};
+use crate::side::Side;
 
 /// The most vortices on one battlefield.
 pub const MAX_VORTICES: usize = 10;
@@ -53,7 +56,7 @@ impl Battle {
     }
 
     /// The start of a turn: every vortex moves three times at random.
-    pub(super) fn vortex_round(&mut self) -> Vec<BattleEvent> {
+    pub fn vortex_round(&mut self) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         for index in 0..self.vortices.len() {
             for _ in 0..self.rules().vortex_random_moves {
@@ -78,18 +81,14 @@ impl Battle {
     }
 
     /// A new turn for `side`: its vortices can be steered again.
-    pub(super) fn vortex_new_turn(&mut self, side: Side) {
+    pub fn vortex_new_turn(&mut self, side: Side) {
         for v in self.vortices.iter_mut().filter(|v| v.owner == side) {
             v.steered = false;
         }
     }
 
     /// The owner moves a vortex one square on their turn.
-    pub(super) fn steer_vortex(
-        &mut self,
-        index: usize,
-        to: Pos,
-    ) -> Result<Vec<BattleEvent>, BattleError> {
+    pub fn steer_vortex(&mut self, index: usize, to: Pos) -> Result<Vec<BattleEvent>, BattleError> {
         let v = *self.vortices.get(index).ok_or(BattleError::NoSuchUnit)?;
         if v.owner != self.active || v.steered {
             return Err(BattleError::NotYours);
@@ -105,7 +104,7 @@ impl Battle {
     }
 
     /// Move the vortex to `to` and let it strike.
-    fn vortex_move(&mut self, index: usize, to: Pos) -> Vec<BattleEvent> {
+    pub fn vortex_move(&mut self, index: usize, to: Pos) -> Vec<BattleEvent> {
         self.vortices[index].cell = to;
         let mut events = vec![BattleEvent::VortexMoved { index, to }];
         if self.map.is_city() && map::in_city_area(to) {

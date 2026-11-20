@@ -619,7 +619,7 @@ Similarly, the notes about AI storm spells targeting random or non-existent unit
 
 The battle code exposes legal-command generation and validates commands when applied. Preserve that separation: AI scoring should select from legal actions, and command application should independently reject stale or illegal targets.
 
-Relevant code: [battle/legal.rs](../crates/f4x-core/src/battle/legal.rs), [f4x-ai/src/battle/order.rs](../crates/f4x-ai/src/battle/order.rs), [f4x-ai/src/battle/cast.rs](../crates/f4x-ai/src/battle/cast.rs), [ai-design.md](ai-design.md).
+Relevant code: [battle/legal_command.rs](../crates/f4x-core/src/battle/legal_command.rs), [f4x-ai/src/battle/order.rs](../crates/f4x-ai/src/battle/order.rs), [f4x-ai/src/battle/cast.rs](../crates/f4x-ai/src/battle/cast.rs), [ai-design.md](ai-design.md).
 
 **Recommended tests:** AI spell target becomes invalid between scoring and execution; friendly and inactive targets excluded; flying target rejected by a ground-only attack; battle memory reset between battles; multi-AI turn execution completes one wizard's whole turn before the next wizard begins.
 

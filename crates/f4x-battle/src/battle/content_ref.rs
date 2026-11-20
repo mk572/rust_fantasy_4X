@@ -43,7 +43,7 @@ mod tests {
 
     #[test]
     fn a_handle_reads_the_content_it_was_given_and_clones_share_it() {
-        let content = Arc::new(crate::game::testutil::shipped());
+        let content = Arc::new(f4x_def::testdir::shipped().clone());
         let a = ContentRef::new(content.clone());
         let b = a.clone();
         assert_eq!(a.rules.units.defs().len(), content.rules.units.defs().len());
@@ -52,7 +52,7 @@ mod tests {
 
     #[test]
     fn battles_with_different_content_are_still_compared_by_state() {
-        let shipped = ContentRef::new(Arc::new(crate::game::testutil::shipped()));
+        let shipped = ContentRef::new(Arc::new(f4x_def::testdir::shipped().clone()));
         assert_eq!(shipped, ContentRef::default());
     }
 }

@@ -14,7 +14,7 @@
 //!
 //! Tests: below.
 
-use crate::rules::{Ability, Stat, UnitDef};
+use f4x_def::rules::{Ability, Stat, UnitDef};
 
 /// What a special ability adds to a unit's worth in a battle, as a share, from the offence it gives
 /// and from the defence it gives (the ability numbers are those of `abilities.ron`). A battle has
@@ -93,14 +93,14 @@ pub fn def_formula(d: &UnitDef) -> f32 {
 /// What a unit definition adds to a battle (a unit that does not exist yet: what a city could
 /// build, what a spell summons): its measured combat rating at the first level
 /// (`Rules::combat_power`), the formula for a unit that has no row.
-pub fn def_power(d: &UnitDef, rules: &crate::rules::Rules) -> f32 {
+pub fn def_power(d: &UnitDef, rules: &f4x_def::rules::Rules) -> f32 {
     rules.combat_power(d, 0).unwrap_or_else(|| def_formula(d))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::shipped;
+    use f4x_def::testdir::shipped;
 
     /// A stronger fighter is a higher number: the measure follows the stats it reads.
     #[test]
