@@ -74,7 +74,7 @@ pub enum Entry {
 
 pub(crate) const FULL_MOVE: HalfInt = HalfInt::from_int(1);
 /// What a step along a road costs.
-pub(crate) const ROAD_MOVE: HalfInt = HalfInt::from_raw(1);
+pub(crate) const ROAD_MOVE: HalfInt = HalfInt::HALF;
 
 pub(crate) fn adjacent(width: u32, a: Position, b: Position) -> bool {
     if a.plane != b.plane || a == b {

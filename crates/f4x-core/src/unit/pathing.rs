@@ -197,7 +197,7 @@ impl Game {
             .map(|&u| self.units().unit_max_moves(u))
             .min()
             .unwrap_or(FULL_MOVE)
-            .max(HalfInt::from_raw(1));
+            .max(HalfInt::HALF);
         let mut left = movers
             .iter()
             .map(|&u| self.units().unit_moves_left(u))
