@@ -32,6 +32,14 @@ The Master of Magic Wiki pages on the Community Patch, the Unofficial Patch 1.50
 Consolidation Patch (v1.31c) and the races, and the Caster of Magic page, are saved in `reference/` as HTML
 files. They tell what the patches changed and what the original's bugs are (`docs/help-vs-implementation-conflicts.md`).
 
+**Getting a wiki page:** `scripts/fetch_wiki.sh "Melee Attack"` saves the page into `reference/` through Safari
+(`--text` prints its text). Fandom answers curl and the fetch tools with HTTP 402, so the script drives Safari with
+AppleScript (`osascript`); by hand it is `make new document`, `set URL of front document to ...`, a wait until the
+window's `name` is no longer "Start Page", then `source of front document` (the HTML) or `text of front document`
+(what a reader sees). Use `front document`, not a variable holding the new document: the variable is lost when the
+page navigates. The first run asks for the permission to control Safari. Save the pages the work leans on, and
+write the page and section in the doc or test that uses it.
+
 ## How to use them
 
 - Rules come from the original game first (its files, then ReMoM), then from the patches' notes.
