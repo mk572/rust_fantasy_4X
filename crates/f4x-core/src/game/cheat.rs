@@ -4,7 +4,7 @@
 //!
 //! Tests: below.
 
-use crate::map::{Position, TerrainId};
+use crate::map::{Plane, Position, TerrainId};
 use crate::player::PlayerId;
 
 use crate::city::economy::Buildings;
@@ -229,6 +229,143 @@ impl Game {
             }
         }
         self.defeat(player, by, crate::wizard::fortress::Fall::Resigned)
+    }
+
+    /// Put an encounter site or a tower on a square with guards and treasure made as a new world
+    /// makes them (`feature::lair::create`, with the game's lair settings): `strong` picks the
+    /// budget of a strong site over a weak one (a tower has the one budget). Replaces whatever
+    /// feature stands there.
+    pub fn cheat_add_lair(
+        &mut self,
+        pos: Position,
+        feature: crate::map::FeatureId,
+        strong: bool,
+    ) -> Result<(), String> {
+        use crate::feature::def::FeatureKind;
+        use crate::feature::lair::create;
+        use rand::{RngCore, SeedableRng};
+        let def = self
+            .content
+            .features
+            .get(feature)
+            .ok_or("no such feature")?;
+        let kind = def.kind;
+        if !matches!(kind, FeatureKind::Encounter | FeatureKind::Tower) {
+            return Err("only an encounter site or a tower has a lair".into());
+        }
+        let site = create::site_type(def);
+        let on_map = self.map.as_ref().is_some_and(|m| {
+            let grid = m.plane(pos.plane);
+            pos.x < grid.width() && pos.y < grid.height()
+        });
+        if !on_map {
+            return Err("that square is off the map".into());
+        }
+        let style = crate::rules::lair::LairStyle {
+            stronger: self.settings.rules.stronger_lairs,
+            treasure: self.settings.rules.treasure_patch_150,
+        };
+        let guards = if style.stronger {
+            let table = &self.content.rules.lairs.patch_150.guard_percent;
+            table
+                .get(usize::from(self.settings.basic.difficulty))
+                .copied()
+                .unwrap_or(100)
+        } else {
+            i32::from(self.settings.world.lair_guard_percent.min(300))
+        };
+        let treasure = i32::from(self.settings.world.lair_treasure_percent.min(500));
+        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.rng.next_u64());
+        let (plane, budget) = if kind == FeatureKind::Tower {
+            let budget = create::tower_budget(&mut rng, &self.content, style);
+            (Plane::Arcanus, budget)
+        } else {
+            let budget = create::site_budget(&mut rng, &self.content, pos.plane, strong, style);
+            (pos.plane, budget)
+        };
+        let lair = create::create(
+            &mut rng,
+            &self.content,
+            plane,
+            site,
+            budget,
+            guards,
+            treasure,
+            style,
+        );
+        self.cheat_set_feature(pos, None);
+        self.spawn_feature(crate::feature::entity::Placement {
+            at: pos,
+            feature,
+            node: None,
+            lair: Some(lair),
+        });
+        Ok(())
+    }
+
+    /// Take the site with a lair off a square, guards, treasure and all. False when there is none.
+    pub fn cheat_remove_lair(&mut self, pos: Position) -> bool {
+        let Some(site) = self.map.as_ref().and_then(|m| m.feature_entity(pos)) else {
+            return false;
+        };
+        if !self
+            .world
+            .satisfies::<&crate::feature::lair::Lair>(site)
+            .unwrap_or(false)
+        {
+            return false;
+        }
+        self.despawn_feature(site);
+        true
+    }
+
+    /// Hire a hero type for `player` at no cost: it appears on the wizard's fortress, or in a city
+    /// of theirs. The hero must be free or dead (a resurrection).
+    pub fn cheat_hire_hero(
+        &mut self,
+        player: PlayerId,
+        kind: usize,
+    ) -> Result<hecs::Entity, String> {
+        let at = self
+            .wizard(player)
+            .and_then(|w| w.fortress())
+            .or_else(|| {
+                self.economy()
+                    .cities_of(player)
+                    .first()
+                    .map(|&(_, pos)| pos)
+            })
+            .ok_or("that wizard has no fortress or city to arrive in")?;
+        self.spawn_hero(player, at, kind)
+            .map_err(|e| format!("{e:?}"))
+    }
+
+    /// Roll a hero type's abilities and spells anew (`hero::kind::roll_one`); its name, level and
+    /// items stay. Works for a hero in service and for a free one.
+    pub fn cheat_reroll_hero(&mut self, kind: usize) -> Result<(), String> {
+        let hero = self.units().hero_entity(kind).ok_or("no such hero")?;
+        let name = self
+            .world
+            .get::<&crate::hero::Hero>(hero)
+            .map_err(|_| "no such hero")?
+            .name
+            .clone();
+        let template = self
+            .content
+            .rules
+            .hero_templates
+            .get(kind)
+            .ok_or("no such hero")?;
+        let mut rolled = crate::hero::kind::roll_one(
+            &mut self.rng,
+            &self.content.rules,
+            &self.names,
+            kind,
+            template,
+        );
+        rolled.name = name;
+        self.put(hero, rolled);
+        Ok(())
     }
 }
 

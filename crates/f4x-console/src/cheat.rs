@@ -33,6 +33,13 @@ pub const TABLE: &[CommandDef] = &[
     cheat!("newcity", "newcity <x,y[,plane]> <name> [player] [race=<id>] [pop=<n>]", "Found a city anywhere the map allows, at no cost.", newcity),
     cheat!("build", "build <city> <building>", "Give a city a building, ignoring its requirements and cost.", build),
     cheat!("terrain", "terrain <x,y[,plane]> <terrain-id>", "Change a square's terrain.", terrain),
+    cheat!("lair", "lair <feature> <x,y[,plane]> [strong]", "Put an encounter site or a tower on a square with guards and treasure made as a new world makes them (a strong or, by default, a weak site), replacing what stands there.", lair),
+    cheat!("unlair", "unlair <x,y[,plane]>", "Remove the site with a lair from a square, guards and treasure with it.", unlair),
+    cheat!("feature", "feature <x,y[,plane]> <feature|none>", "Put a terrain feature (a mineral, a tower, a node, an encounter site, with no guards, treasure or aura) on a square, or with `none` take the feature off.", feature),
+    cheat!("hire", "hire <hero> [player]", "Hire a hero for nothing: it appears on the wizard's fortress (or in a city). The hero must be free or dead.", hire),
+    cheat!("dismiss", "dismiss <hero>", "Let a hero in service go; it is free to be hired again and its items go to the armory.", dismiss),
+    cheat!("reroll", "reroll <hero>", "Roll a hero's abilities and spells anew; its name, level and items stay.", reroll),
+    cheat!("treasury", "treasury [player]", "Show a wizard's gold, mana and fame, and their income.", treasury),
     cheat!("enchant", "enchant <units> <spell> [player]", "Put a lasting spell on units at no cost, as if that wizard had cast it.", enchant),
     cheat!("citizens", "citizens <city> <n>", "Set a city's citizens.", citizens),
     cheat!("learn", "learn <spell> [player]", "Teach a wizard a spell.", learn),
@@ -474,6 +481,121 @@ fn citizens(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     ctx.say(format!(
         "{} now has {n} citizens",
         describe::city_name(ctx.game, city)
+    ));
+    Ok(())
+}
+
+fn feature_id(ctx: &Ctx, name: &str) -> Result<f4x_core::map::FeatureId, ConsoleError> {
+    let features = &ctx.game.content().features;
+    features
+        .defs()
+        .iter()
+        .find(|d| d.id == name)
+        .and_then(|d| features.id_numbered(d.num))
+        .ok_or_else(|| ConsoleError::NoSuch(format!("feature {name:?}")))
+}
+
+fn lair(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let id = feature_id(ctx, a.need(0, "feature id")?)?;
+    let pos = parse_pos(a.need(1, "position")?, Plane::Arcanus)?;
+    let strong = match a.get(2) {
+        None | Some("weak") => false,
+        Some("strong") => true,
+        Some(other) => {
+            return Err(ConsoleError::Usage(format!(
+                "lair <feature> <pos> [strong|weak], not {other:?}"
+            )))
+        }
+    };
+    ctx.game
+        .cheat_add_lair(pos, id, strong)
+        .map_err(ConsoleError::Failed)?;
+    ctx.say(format!("a lair stands at {}", describe::pos(pos)));
+    Ok(())
+}
+
+fn unlair(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let pos = parse_pos(a.need(0, "position")?, Plane::Arcanus)?;
+    if !ctx.game.cheat_remove_lair(pos) {
+        return Err(ConsoleError::Failed(
+            "there is no lair on that square".into(),
+        ));
+    }
+    ctx.say(format!("the lair at {} is gone", describe::pos(pos)));
+    Ok(())
+}
+
+fn feature(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let pos = parse_pos(a.need(0, "position")?, Plane::Arcanus)?;
+    let name = a.need(1, "feature id or none")?;
+    let id = match name {
+        "none" => None,
+        other => Some(feature_id(ctx, other)?),
+    };
+    if !ctx.game.cheat_set_feature(pos, id) {
+        return Err(ConsoleError::Failed("that square is off the map".into()));
+    }
+    ctx.say(format!("{} now has {name}", describe::pos(pos)));
+    Ok(())
+}
+
+/// The hero type a hero's id or number names (a hero type is also its unit's number).
+fn hero_kind(ctx: &Ctx, text: &str) -> Result<usize, ConsoleError> {
+    let rules = &ctx.game.content().rules;
+    let unit = resolve(&rules.units, text, |d| &d.id, "hero")?;
+    f4x_core::hero::kind::kind_of(rules, unit)
+        .ok_or_else(|| ConsoleError::NoSuch(format!("hero {text:?}")))
+}
+
+fn hire(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let kind = hero_kind(ctx, a.need(0, "hero")?)?;
+    let id = player_arg(ctx, a, 1)?;
+    let unit = ctx
+        .game
+        .cheat_hire_hero(id, kind)
+        .map_err(ConsoleError::Failed)?;
+    let line = describe::unit(ctx.game, unit);
+    ctx.say(format!("hired: {line}"));
+    Ok(())
+}
+
+fn dismiss(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let kind = hero_kind(ctx, a.need(0, "hero")?)?;
+    let hero = ctx
+        .game
+        .units()
+        .hero_entity(kind)
+        .filter(|&h| ctx.game.units().unit_owner(h).is_some())
+        .ok_or_else(|| ConsoleError::Failed("that hero is not in anyone's service".into()))?;
+    let line = describe::unit(ctx.game, hero);
+    ctx.game.dismiss_unit(hero);
+    ctx.say(format!("dismissed: {line}"));
+    Ok(())
+}
+
+fn reroll(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let kind = hero_kind(ctx, a.need(0, "hero")?)?;
+    ctx.game
+        .cheat_reroll_hero(kind)
+        .map_err(ConsoleError::Failed)?;
+    let hero = ctx.game.units().hero_entity(kind);
+    let line = hero.map_or_else(String::new, |h| describe::unit(ctx.game, h));
+    ctx.say(format!("rerolled: {line}"));
+    Ok(())
+}
+
+fn treasury(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let id = player_arg(ctx, a, 0)?;
+    let wallet = ctx.game.player(id).map(|p| p.treasury());
+    let (gold, mana) = wallet.map_or_else(
+        || ("0".to_string(), "0".to_string()),
+        |w| (w.gold.to_string(), w.mana.to_string()),
+    );
+    let net = ctx.game.budget(id).net_gold();
+    let fame = ctx.game.fame(id);
+    ctx.say(format!(
+        "{}: gold {gold} (net {net:+}), mana {mana}, fame {fame}",
+        describe::player(ctx.game, id)
     ));
     Ok(())
 }

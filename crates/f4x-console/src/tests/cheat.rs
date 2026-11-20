@@ -2,6 +2,7 @@
 //! saved, and a game that used the mode is `cheated` (no Hall of Fame).
 
 use super::*;
+use f4x_core::map::{Plane, Position};
 
 fn first_unit_of(g: &Game, owner: PlayerId) -> hecs::Entity {
     g.units()
@@ -166,4 +167,92 @@ fn contact_meets_the_other_wizards_in_the_override_mode_only() {
         assert!(g.have_met(HUMAN, w));
     }
     assert!(!c.execute(&mut g, "contact 99").ok);
+}
+
+/// The id of the first feature of a kind in the shipped content.
+fn feature_of(g: &Game, kind: f4x_core::feature::def::FeatureKind) -> String {
+    g.content()
+        .features
+        .defs()
+        .iter()
+        .find(|d| d.kind == kind)
+        .map(|d| d.id.clone())
+        .expect("the content has a feature of the kind")
+}
+
+#[test]
+fn a_lair_is_put_on_a_square_with_guards_and_taken_off_again() {
+    use f4x_core::feature::def::FeatureKind;
+    let (mut g, mut c) = (game(), console());
+    let at = Position {
+        plane: Plane::Arcanus,
+        x: 2,
+        y: 2,
+    };
+    assert!(!c.execute(&mut g, "unlair 2,2").ok, "not in the legal mode");
+    c.execute(&mut g, "mode override");
+    assert!(!c.execute(&mut g, "unlair 2,2").ok, "there is no lair yet");
+    let site = feature_of(&g, FeatureKind::Encounter);
+    let r = c.execute(&mut g, &format!("lair {site} 2,2 strong"));
+    assert!(r.ok, "{}", r.text());
+    let lair = g.economy().lair_at(at).expect("a lair stands there");
+    assert!(!lair.guards.is_empty(), "the lair has guards");
+    let r = c.execute(&mut g, "unlair 2,2");
+    assert!(r.ok, "{}", r.text());
+    assert!(g.economy().lair_at(at).is_none());
+    assert!(!c.execute(&mut g, "lair nonsense 2,2").ok);
+    let mineral = format!("lair {} 2,2", feature_of(&g, FeatureKind::Mineral));
+    assert!(!c.execute(&mut g, &mineral).ok, "a mineral has no lair");
+}
+
+#[test]
+fn a_feature_is_put_on_a_square_and_taken_off() {
+    use f4x_core::feature::def::FeatureKind;
+    let (mut g, mut c) = (game(), console());
+    c.execute(&mut g, "mode override");
+    let at = Position {
+        plane: Plane::Arcanus,
+        x: 2,
+        y: 2,
+    };
+    let site = feature_of(&g, FeatureKind::Encounter);
+    let r = c.execute(&mut g, &format!("feature 2,2 {site}"));
+    assert!(r.ok, "{}", r.text());
+    assert!(g.economy().feature_entity_at(at).is_some());
+    let r = c.execute(&mut g, "feature 2,2 none");
+    assert!(r.ok, "{}", r.text());
+    assert!(g.economy().feature_entity_at(at).is_none());
+}
+
+#[test]
+fn a_hero_is_hired_rerolled_and_dismissed_and_the_treasury_is_read() {
+    use f4x_core::hero::HeroState;
+    let (mut g, mut c) = (game(), console());
+    assert!(
+        !c.execute(&mut g, "hire healer").ok,
+        "not in the legal mode"
+    );
+    c.execute(&mut g, "mode override");
+    let kind = 7; // healer
+    let hero = |g: &Game| g.units().hero_entity(kind).expect("the hero exists");
+    assert_eq!(g.units().hero_state(hero(&g)), Some(HeroState::Free));
+    let r = c.execute(&mut g, "hire healer");
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(g.units().hero_state(hero(&g)), Some(HeroState::Serving));
+    assert!(!c.execute(&mut g, "hire healer").ok, "already in service");
+    let r = c.execute(&mut g, "reroll healer");
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(g.units().hero_state(hero(&g)), Some(HeroState::Serving));
+    assert!(
+        !c.execute(&mut g, "reroll barbarian_spearmen").ok,
+        "not a hero"
+    );
+    let r = c.execute(&mut g, "dismiss healer");
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(g.units().hero_state(hero(&g)), Some(HeroState::Free));
+    assert!(!c.execute(&mut g, "dismiss healer").ok, "nobody's now");
+    let gold = g.player(HUMAN).expect("a player").treasury().gold;
+    let r = c.execute(&mut g, "treasury");
+    assert!(r.ok && r.text().contains(&gold.to_string()), "{}", r.text());
+    assert!(c.execute(&mut g, "treasury 1").ok);
 }
