@@ -58,14 +58,14 @@ impl Treasury {
 
     /// Take half the gold (rounded down) out of the treasury and return it.
     pub fn take_half_gold(&mut self) -> HalfInt {
-        let half = HalfInt::from_raw(self.gold.raw() / 2);
+        let half = self.gold / 2;
         self.gold -= half;
         half
     }
 
     /// Take half the mana (rounded down) out of the treasury and return it.
     pub fn take_half_mana(&mut self) -> HalfInt {
-        let half = HalfInt::from_raw(self.mana.raw() / 2);
+        let half = self.mana / 2;
         self.mana -= half;
         half
     }
@@ -151,7 +151,7 @@ impl Bonus {
         if percent == 100 {
             value
         } else {
-            HalfInt::from_raw((i64::from(value.raw()) * i64::from(percent)).div_euclid(100) as i32)
+            value.percent(percent)
         }
     }
 

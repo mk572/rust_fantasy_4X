@@ -168,7 +168,7 @@ impl Economy<'_> {
                     compute_half(Stat::CityFood, base, m)
                 });
                 if food > terrain_food {
-                    let kept = terrain_food + HalfInt::from_raw((food - terrain_food).raw() / 2);
+                    let kept = terrain_food + (food - terrain_food) / 2;
                     put(&mut lines, Item::BeyondLand, kept - food);
                 }
                 stepped(&mut lines, &tagged(Stat::CityFoodFlat, &mods), &|m| {
@@ -179,7 +179,7 @@ impl Economy<'_> {
             }
             Resource::Production => {
                 let worked = per_worker * workers as i32;
-                let farmed = HalfInt::from_raw(farmers as i32);
+                let farmed = HalfInt::HALF * farmers as i32;
                 put(&mut lines, Item::Workers, worked);
                 put(&mut lines, Item::Farmers, farmed);
                 let base = worked + farmed;
@@ -200,7 +200,7 @@ impl Economy<'_> {
             Resource::Gold => {
                 let tax_rate = crate::player::component::<crate::player::Tax>(self.world, owner)
                     .map_or(1, |t| t.0) as usize;
-                let taxes = HalfInt::from_raw((figures as i32 - rebels as i32) * tax_rate as i32);
+                let taxes = HalfInt::HALF * ((figures as i32 - rebels as i32) * tax_rate as i32);
                 put(&mut lines, Item::Taxes, taxes);
                 if ctx.dwarf {
                     put(&mut lines, Item::Dwarves, taxes);
@@ -222,7 +222,7 @@ impl Economy<'_> {
                 });
                 if let Ok(p) = self.world.get::<&crate::city::production::Production>(city) {
                     if p.item == Some(crate::city::production::ProductionItem::TradeGoods) {
-                        let base = per_worker * workers as i32 + HalfInt::from_raw(farmers as i32);
+                        let base = per_worker * workers as i32 + HalfInt::HALF * farmers as i32;
                         let mut production_mods = mods.clone();
                         production_mods.push(Modifier::new(
                             Stat::CityProduction,

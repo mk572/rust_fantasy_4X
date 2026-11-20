@@ -290,8 +290,8 @@ impl<'a> Wizard<'a> {
         let split = self.power_split();
         // The mana share keeps halves; the skill and research points are whole, so the halves
         // they would have had stay with the research (or with the mana, when it takes the rest).
-        let mut mana = HalfInt::from_raw((power.raw() * i32::from(split.mana) + 50) / 100);
-        let mut skill = (power.raw() * i32::from(split.skill) + 50) / 100 / 2;
+        let mut mana = power.percent_nearest(i32::from(split.mana));
+        let mut skill = power.percent_nearest(i32::from(split.skill)).floor();
         let mut research = (power - mana - HalfInt::from_int(skill)).floor();
         if split.research == 0 && research > 0 {
             if split.skill == 0 {

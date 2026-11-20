@@ -52,10 +52,8 @@ pub(crate) fn loot_share(gold: HalfInt, citizens: u32, all_citizens: u32) -> Hal
     if all_citizens == 0 {
         return HalfInt::ZERO;
     }
-    HalfInt::from_raw(
-        (i64::from(gold.max(HalfInt::ZERO).raw()) * i64::from(citizens) / i64::from(all_citizens))
-            as i32,
-    )
+    gold.max(HalfInt::ZERO)
+        .scaled(i64::from(citizens), i64::from(all_citizens))
 }
 
 /// What the fighting cost a city.

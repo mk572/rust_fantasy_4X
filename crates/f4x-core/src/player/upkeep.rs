@@ -59,8 +59,7 @@ impl Game {
     pub fn upkeep_shortfall(&self, player: PlayerId) -> Option<Shortfall> {
         let percent = self.wizard(player)?.upkeep_percent(&self.content.rules);
         let items = self.upkeep_items(player);
-        let part =
-            |mana: i32| HalfInt::from_raw(mana.saturating_mul(2).saturating_mul(percent) / 100);
+        let part = |mana: i32| HalfInt::from_int(mana).percent(percent);
         let owed = part(items.iter().map(|i| i.mana).sum::<i32>());
         // The turn change adds the mana income first (not for the wizard who stopped time).
         let income = if self.time_stopper() == Some(player) {

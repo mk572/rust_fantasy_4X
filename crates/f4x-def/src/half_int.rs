@@ -7,7 +7,7 @@
 //! for display or interoperability.
 use std::fmt;
 use std::iter::Sum;
-use std::ops::{Add, AddAssign, Mul, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, Mul, Neg, Sub, SubAssign};
 
 /// A signed fixed-point value whose smallest step is 0.5.
 ///
@@ -63,9 +63,26 @@ impl HalfInt {
         Self((self.0 + 1).div_euclid(2))
     }
 
+    /// One half more: 3 becomes 3.5 (a `const` form of `+ HALF`).
+    pub const fn plus_half(self) -> Self {
+        Self(self.0 + 1)
+    }
+
+    /// The value times `num` over `den`, rounded down to a half: 3 times 3 over 2 is 4.5, 0.5 times
+    /// 1 over 2 is 0. The product is counted in 64 bits, so a large `num` does not overflow.
+    pub const fn scaled(self, num: i64, den: i64) -> Self {
+        Self((self.0 as i64 * num).div_euclid(den) as i32)
+    }
+
     /// The value times `percent` over 100, rounded down to a half: 3 at 150 is 4.5.
     pub const fn percent(self, percent: i32) -> Self {
-        Self((self.0 * percent).div_euclid(100))
+        self.scaled(percent as i64, 100)
+    }
+
+    /// The value times `percent` over 100, rounded to the nearest half (a half more rounds up): 1
+    /// at 25 is 0.5, 1 at 20 is 0.
+    pub const fn percent_nearest(self, percent: i32) -> Self {
+        Self(((self.0 as i64 * percent as i64 + 50).div_euclid(100)) as i32)
     }
 
     /// The value without its sign.
@@ -173,6 +190,16 @@ impl Mul<i32> for HalfInt {
     }
 }
 
+/// Divided by a whole number, rounded to a half towards zero: 3 over 2 is 1.5, 1.5 over 2 is 0.5,
+/// 0.5 over 2 is 0.
+impl Div<i32> for HalfInt {
+    type Output = Self;
+
+    fn div(self, rhs: i32) -> Self::Output {
+        Self(self.0 / rhs)
+    }
+}
+
 impl AddAssign for HalfInt {
     fn add_assign(&mut self, rhs: Self) {
         self.0 += rhs.0;
@@ -265,6 +292,20 @@ mod tests {
         assert_eq!(h(3.0).percent(150), h(4.5));
         assert_eq!(h(3.0).percent(50), h(1.5));
         assert_eq!(h(1.5).percent(50), h(0.5));
+    }
+
+    #[test]
+    fn scales_divides_and_rounds_to_halves() {
+        let h = HalfInt::from_raw;
+        assert_eq!(h(6).scaled(3, 2), h(9));
+        assert_eq!(h(1).scaled(1, 2), HalfInt::ZERO);
+        assert_eq!(h(i32::MAX / 2).scaled(1_000, 1_000), h(i32::MAX / 2));
+        assert_eq!(h(3) / 2, h(1));
+        assert_eq!(h(-3) / 2, h(-1));
+        assert_eq!(h(2).plus_half(), h(3));
+        assert_eq!(h(2).percent_nearest(25), h(1));
+        assert_eq!(h(2).percent_nearest(20), h(0));
+        assert_eq!(h(7).percent_nearest(50), h(4));
     }
 
     #[test]

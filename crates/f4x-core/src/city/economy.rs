@@ -66,7 +66,7 @@ fn food_with(
     let farmer_rate = compute_half(Stat::FarmerFood, farmer_rate, mods);
     let mut food = compute_half(Stat::CityFood, farmer_rate * farmers as i32, mods);
     if food > terrain_food {
-        food = terrain_food + HalfInt::from_raw((food - terrain_food).raw() / 2);
+        food = terrain_food + (food - terrain_food) / 2;
     }
     let flat = compute_half(Stat::CityFoodFlat, HalfInt::ZERO, mods);
     (food + flat + wild_food, flat)
@@ -738,7 +738,11 @@ impl<'a> Economy<'a> {
             if river_in && (grid.is_lake(x, y) || shore <= 3) {
                 return food.max(HalfInt::from_int(2));
             }
-            return food.max(HalfInt::from_raw(i32::from(shore > 0 || river_in)));
+            return food.max(if shore > 0 || river_in {
+                HalfInt::HALF
+            } else {
+                HalfInt::ZERO
+            });
         }
         if grid.has_river(x, y) {
             return food.max(HalfInt::from_int(2));
@@ -812,25 +816,21 @@ impl<'a> Economy<'a> {
             .and_then(|f| self.content.features.get(f))
         {
             let b = f.city;
-            let scale = |mut v: i32, miners_factor: (i32, i32)| {
+            let scale = |mut v: HalfInt, miners_factor: (i64, i64)| {
                 if ctx.dwarf {
-                    v *= 2;
+                    v = v * 2;
                 }
                 if ctx.miners {
-                    v = v * miners_factor.0 / miners_factor.1;
+                    v = v.scaled(miners_factor.0, miners_factor.1);
                 }
                 if shared {
-                    v /= 2;
+                    v = v / 2;
                 }
                 v
             };
-            out.gold = HalfInt::from_raw(scale(b.gold.raw(), (3, 2)));
-            out.mana = HalfInt::from_raw(scale(b.mana.raw(), (3, 2)));
-            out.wild_food = HalfInt::from_raw(if shared {
-                b.food.raw() / 2
-            } else {
-                b.food.raw()
-            });
+            out.gold = scale(b.gold, (3, 2));
+            out.mana = scale(b.mana, (3, 2));
+            out.wild_food = if shared { b.food / 2 } else { b.food };
             // A miners' guild doubles the saving of iron and coal (the original); with
             // `miners_guild_half_ore` (1.50 note 251) it adds half, as it does to gold and mana.
             let mut cut = b.unit_cost_percent;
@@ -1130,7 +1130,7 @@ impl<'a> Economy<'a> {
             basis.wild_food,
             farmers,
         );
-        HalfInt::from_raw(crate::player::Bonus::of(basis.food_bonus, food.raw()))
+        crate::player::Bonus::of_half(basis.food_bonus, food)
     }
 
     /// Compute the city's yields as if `farmers` citizens farmed.
@@ -1201,7 +1201,7 @@ impl<'a> Economy<'a> {
         let pre_cap_adds = compute_half(Stat::CityFood, HalfInt::ZERO, &mods);
         let mut max_size = terrain_food;
         if famine {
-            max_size = HalfInt::from_raw(max_size.raw() / 2);
+            max_size = max_size / 2;
         }
         let max_size = (max_size + pre_cap_adds + flat + wild_food).floor().max(0) as u32;
         let max_size = max_size.min(self.max_city_size);
@@ -1209,7 +1209,7 @@ impl<'a> Economy<'a> {
         // Production.
         let per_worker = self.worker_production(race);
         // A farmer makes half a production point.
-        let base_production = per_worker * workers as i32 + HalfInt::from_raw(farmers as i32);
+        let base_production = per_worker * workers as i32 + HalfInt::HALF * farmers as i32;
         let mut production_mods = mods.clone();
         production_mods.push(Modifier::new(
             Stat::CityProduction,
@@ -1221,7 +1221,7 @@ impl<'a> Economy<'a> {
 
         // Gold: taxes, trade bonus, mines, then percentage buildings.
         // The tax rate is half a gold for each citizen who is not a rebel.
-        let mut gold = HalfInt::from_raw((figures as i32 - rebels as i32) * tax_rate as i32);
+        let mut gold = HalfInt::HALF * ((figures as i32 - rebels as i32) * tax_rate as i32);
         if dwarf {
             gold = gold * 2;
         }
@@ -1286,7 +1286,7 @@ impl<'a> Economy<'a> {
             workers,
             rebels,
             max_size,
-            food: HalfInt::from_raw(of(bonus.food, food.raw())),
+            food: crate::player::Bonus::of_half(bonus.food, food),
             production: crate::player::Bonus::of_half(bonus.production, production),
             gold: crate::player::Bonus::of_half(bonus.gold, gold),
             gold_upkeep: crate::player::Bonus::of_half(bonus.maintenance, gold_upkeep),
@@ -1452,7 +1452,7 @@ fn growth_rate(
     let eaten = HalfInt::from_int(figures as i32);
     if food < eaten {
         // Five people (tens: 50) starve for each missing food.
-        return (food - eaten).raw() * 5 / 2;
+        return (food - eaten).scaled(5, 1).ceil();
     }
     if figures == max_size {
         return 0;
@@ -1720,18 +1720,12 @@ mod handle_tests {
             before.food > HalfInt::ZERO && before.production > HalfInt::ZERO && before.gold > 0
         );
         assert!(before.growth_tens > 0, "a growing city: {before:?}");
-        assert_eq!(after.food, HalfInt::from_raw(before.food.raw() * 2));
-        assert_eq!(
-            after.production,
-            HalfInt::from_raw(before.production.raw() * 3 / 2)
-        );
+        assert_eq!(after.food, before.food * 2);
+        assert_eq!(after.production, before.production.percent(150));
         assert_eq!(after.gold, before.gold * 2);
         assert_eq!(after.research, before.research * 3 / 2);
         assert_eq!(after.mana, before.mana * 2);
-        assert_eq!(
-            after.gold_upkeep,
-            HalfInt::from_raw(before.gold_upkeep.raw() / 2)
-        );
+        assert_eq!(after.gold_upkeep, before.gold_upkeep / 2);
         assert_eq!(after.growth_tens, before.growth_tens * 2);
         assert_eq!(
             after.figures, before.figures,

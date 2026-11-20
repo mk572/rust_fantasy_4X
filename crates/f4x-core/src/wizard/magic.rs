@@ -193,7 +193,7 @@ pub(crate) fn upkeep_plan(
     reserve: HalfInt,
 ) -> (Vec<UpkeepItem>, HalfInt) {
     // Whole mana times a percent, kept in halves (a Channeler's half of 3 is 1.5).
-    let part = |mana: i32| HalfInt::from_raw(mana.saturating_mul(2).saturating_mul(percent) / 100);
+    let part = |mana: i32| HalfInt::from_int(mana).percent(percent);
     let mut owed: HalfInt = part(items.iter().map(|i| i.mana).sum::<i32>());
     let entries: Vec<(i32, i32)> = items.iter().map(|i| (i.mana, i.cost)).collect();
     let mut dropped = Vec::new();

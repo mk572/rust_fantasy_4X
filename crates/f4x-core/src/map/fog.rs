@@ -30,7 +30,7 @@ const AT_CORNER: &[(u8, [(i32, i32); 3])] = &[
 /// The sight that shows `squares` squares along a row or column and the diagonal step after
 /// it (the original's scouting level).
 pub const fn sight_for(squares: u32) -> HalfInt {
-    HalfInt::from_raw(2 * squares as i32 + 1)
+    HalfInt::from_int(squares as i32).plus_half()
 }
 
 /// The most squares a `sight` shows along a row or column.
@@ -47,7 +47,7 @@ pub const fn squares_seen(sight: HalfInt) -> u32 {
 /// more for each diagonal step when it costs extra (`diagonal_extra_cost`).
 fn sight_cost(dx: i32, dy: i32, diagonal_extra: bool) -> HalfInt {
     let (long, short) = (dx.abs().max(dy.abs()), dx.abs().min(dy.abs()));
-    HalfInt::from_int(long) + HalfInt::from_raw(if diagonal_extra { short } else { 0 })
+    HalfInt::from_int(long) + HalfInt::HALF * if diagonal_extra { short } else { 0 }
 }
 
 /// Whether a square `dx, dy` away is within a `sight`.

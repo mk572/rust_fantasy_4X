@@ -322,8 +322,8 @@ impl MagicUi {
             let base = income.power_base;
             let [m, _, s] = self.pos;
             let mut p = income.split;
-            p.mana = HalfInt::from_raw(base.raw() * 2 * m / 100);
-            p.skill = base.raw() * 2 * s / 100 / 2;
+            p.mana = base.percent(2 * m);
+            p.skill = base.percent(2 * s).floor();
             p.research =
                 (base - p.mana - HalfInt::from_int(p.skill)).floor() + income.city_research;
             p
