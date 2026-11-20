@@ -1215,6 +1215,7 @@ fn node_at(content: &Content, num: u16, level: usize) -> u16 {
 /// node). Writes `ladder_levels.csv`, and with `ratings` the rating file (`unit_ratings.ron`).
 fn combine_levels(
     content: &Arc<Content>,
+    content_dir: &Path,
     range: &[usize],
     dir: &Path,
     ratings: Option<&Path>,
@@ -1324,9 +1325,10 @@ fn combine_levels(
         scales.sort_by(f64::total_cmp);
         let power_scale = scales.get(scales.len() / 2).copied().unwrap_or(1.0);
         let mut ron = format!(
-            "// What a unit is worth in a fight, in High Men spearmen (a recruit High Men spearman is 1): the\n// fit of `f4x-tools duel ladder` over real battles (task 655, `docs/duel.md`). `levels` is the worth at\n// experience level 1, 2, ... as far as it was measured (6 for a normal unit, 9 for a hero, one number for a\n// creature, which does not level); a higher level takes the last number. It is a rough guide, a\n// few percent either way: two units of 100 are worth one of 200, and rock-paper-scissors cases\n// (immunities, special attacks) can overturn it. A hero was fought with the abilities and spells the\n// game rolls for a hero (no items), so `hero_factor` is 1.\n// Written by `f4x-tools duel ladder --combine {}-{} --ratings FILE`; no unit of the settler kind.\n(\n    hero_factor: 1.0,\n    // What one spearman is in the numbers the AI's thresholds were tuned to: the median of the old formula\n    // (`battle::power`) over the worth at level 1 of the units that are not heroes.\n    power_scale: {},\n    units: [\n",
+            "// What a unit is worth in a fight, in High Men spearmen (a recruit High Men spearman is 1): the\n// fit of `f4x-tools duel ladder` over real battles (task 655, `docs/duel.md`). `levels` is the worth at\n// experience level 1, 2, ... as far as it was measured (6 for a normal unit, 9 for a hero, one number for a\n// creature, which does not level); a higher level takes the last number. It is a rough guide, a\n// few percent either way: two units of 100 are worth one of 200, and rock-paper-scissors cases\n// (immunities, special attacks) can overturn it. A hero was fought with the abilities and spells the\n// game rolls for a hero (no items), so `hero_factor` is 1.\n// Written by `f4x-tools duel ladder --combine {}-{} --ratings FILE`; no unit of the settler kind.\n{}(\n    hero_factor: 1.0,\n    // What one spearman is in the numbers the AI's thresholds were tuned to: the median of the old formula\n    // (`battle::power`) over the worth at level 1 of the units that are not heroes.\n    power_scale: {},\n    units: [\n",
             range[0],
             range[range.len() - 1],
+            made_for(content_dir),
             sig3(power_scale)
         );
         for u in sorted {
@@ -1399,6 +1401,39 @@ fn write_efficiency(content: &Content, path: &Path) -> Result<(), String> {
 }
 
 /// A number to three significant figures, as RON text.
+/// The rule files the ratings depend on, as the record of the content folder (`content.sha256`
+/// beside it) hashes them, for the header of the rating file: a reference to see whether the
+/// units, abilities, spells, levels or battle numbers have changed since the ratings were made.
+/// Nothing checks it (a changed unit is a reason to run the ladder again, not a failing test).
+const MADE_FOR: [&str; 6] = [
+    "abilities.ron",
+    "heroes.ron",
+    "level_paths.ron",
+    "rules.ron",
+    "spells.ron",
+    "units.ron",
+];
+
+fn made_for(content_dir: &Path) -> String {
+    let record = content_dir
+        .parent()
+        .map(|p| p.join("content.sha256"))
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .unwrap_or_default();
+    let mut text = String::from(
+        "// Made for these rule files (SHA-256 as `content.sha256` records them; a different hash means the\n// ratings may be stale; nothing checks it):\n",
+    );
+    for name in MADE_FOR {
+        let hash = record
+            .lines()
+            .filter_map(|l| l.split_once("  "))
+            .find(|(_, path)| *path == format!("content/{name}"))
+            .map_or("unknown", |(hash, _)| hash);
+        text += &format!("//   {name}  {hash}\n");
+    }
+    text
+}
+
 fn sig3(x: f64) -> String {
     let digits = if x >= 100.0 {
         0
@@ -1601,7 +1636,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         }
     }
     if let Some(range) = &combine {
-        combine_levels(&content, range, &out, ratings.as_deref())?;
+        combine_levels(&content, &dir, range, &out, ratings.as_deref())?;
     }
     if let Some(path) = &efficiency {
         write_efficiency(&content, path)?;

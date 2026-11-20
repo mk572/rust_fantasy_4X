@@ -44,6 +44,11 @@ The outcome tables of the runs are archived in `duel-out/` (local, not committed
   `python3 scripts/ron_hashes.py --update`. The tables themselves (`target/ladder/`) are local and not
   committed. A full run takes about three hours on four threads (`scripts/cool_run.sh`).
 
+- The header of the file lists the SHA-256 of the rule files the ratings were made for (units, abilities,
+  spells, heroes, level paths, `rules.ron`), as `content.sha256` records them, written by `--combine`. It is a
+  reference to see whether they changed since; **nothing checks it** (a changed unit is a reason to run the
+  ladder again, not a failing test).
+
 - **Efficiency** (`crates/f4x-def/content/unit_efficiency.ron`, `Rules::efficiency.row(num)`, optional):
   the rating per resource, for choosing garrisons, what to build and what to hire. The rating is
   averaged over the measured levels (a creature's is flat, a hero's has its factor), the cost is the

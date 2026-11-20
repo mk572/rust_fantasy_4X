@@ -6,6 +6,14 @@
 // (immunities, special attacks) can overturn it. A hero was fought with the abilities and spells the
 // game rolls for a hero (no items), so `hero_factor` is 1.
 // Written by `f4x-tools duel ladder --combine 1-9 --ratings FILE`; no unit of the settler kind.
+// Made for these rule files (SHA-256 as `content.sha256` records them; a different hash means the
+// ratings may be stale; nothing checks it):
+//   abilities.ron  345e025b111f892b2b0cc7cbe15829a869f1e1ee7f3e72534eed9578abf125b1
+//   heroes.ron  6d847b35e8807678c7b33abdd702d837cb79a7f57d73a7242749f070c281749c
+//   level_paths.ron  521e7adbbbf100e15945b9bc1a829d442d3c32849227dbf38d13b92dd2a8a1f1
+//   rules.ron  a6c4175d6b1f488369c1eadd6d807814ac19736036642079223740a2183af8d1
+//   spells.ron  33c2cdf4971f7d896664a55e56f16de653f8673997a1dcbad556dc79bf180534
+//   units.ron  0631f6354c56ba3cdc4e44d4d41e887803aa0a1ea5ade28436a2e181adea8081
 (
     hero_factor: 1.0,
     // What one spearman is in the numbers the AI's thresholds were tuned to: the median of the old formula
