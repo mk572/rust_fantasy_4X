@@ -13,6 +13,7 @@ mod attack_prompt;
 mod audio;
 mod autobuild_dialog;
 mod battle_anim;
+mod battle_city_base;
 mod battle_ground;
 mod battle_info;
 mod battle_screen;

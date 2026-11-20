@@ -172,6 +172,8 @@ pub struct Art {
     banners: Vec<[Color; 5]>,
     /// Tiles of rivers with everything but the water cut out, to lay over any ground.
     river_overlays: HashMap<usize, Option<Texture2D>>,
+    /// The city's base picture turned by 1 to 3 quarter turns (`battle_city_base.rs`).
+    city_bases: HashMap<u8, Option<Texture2D>>,
     /// Combat figures painted in a banner, by (unit type, direction, frame, banner).
     figures: HashMap<FigureKey, Option<Texture2D>>,
     unit_pictures: HashMap<(String, usize, u8), Option<Texture2D>>,
@@ -337,6 +339,7 @@ impl Art {
             minimap,
             banners,
             river_overlays: HashMap::new(),
+            city_bases: HashMap::new(),
             figures: HashMap::new(),
             glows: HashMap::new(),
             unit_glows: HashMap::new(),
@@ -531,6 +534,27 @@ impl Art {
         self.river_overlays
             .get(&terrain_type)
             .and_then(Option::as_ref)
+    }
+
+    /// The city's base picture (`cmbtcity` 0) turned by `quarters` clockwise quarter turns; `None`
+    /// without the picture.
+    pub fn turned_city_base(&mut self, quarters: u8) -> Option<&Texture2D> {
+        if !self.city_bases.contains_key(&quarters) {
+            let scale = usize::from(crate::resolution::art_scale());
+            let tex = self.pixels("cmbtcity", 0, 0).and_then(|img| {
+                let (w, h) = (usize::from(img.width), usize::from(img.height));
+                let bytes = crate::battle_city_base::turned(&img.bytes, w, h, scale, quarters)?;
+                let tex = Texture2D::from_image(&Image {
+                    bytes,
+                    width: img.width,
+                    height: img.height,
+                });
+                tex.set_filter(FilterMode::Nearest);
+                Some(tex)
+            });
+            self.city_bases.insert(quarters, tex);
+        }
+        self.city_bases.get(&quarters).and_then(Option::as_ref)
     }
 
     /// A combat figure of a unit type facing one of eight directions (0 north, clockwise) at an

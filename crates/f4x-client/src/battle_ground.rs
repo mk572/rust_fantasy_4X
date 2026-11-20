@@ -389,13 +389,25 @@ impl App {
                 } else {
                     CITY_BASE
                 };
-                self.draw_native(
-                    "cmbtcity",
-                    entry,
-                    anim,
-                    (sx - 48.0 * scale, sy - 48.0 * scale),
-                    scale,
-                );
+                let at = (sx - 48.0 * scale, sy - 48.0 * scale);
+                // The base turns with the field: its 16 squares are swapped for the pieces that
+                // have the turned roads (`battle_city_base.rs`).
+                let turned = (entry == CITY_BASE && turn != Turn::NONE)
+                    .then(|| self.art.turned_city_base(turn.quarters()).cloned())
+                    .flatten();
+                match turned {
+                    Some(tex) => draw_texture_ex(
+                        &tex,
+                        at.0,
+                        at.1,
+                        WHITE,
+                        DrawTextureParams {
+                            dest_size: Some(crate::resolution::logical_size(&tex) * scale),
+                            ..Default::default()
+                        },
+                    ),
+                    None => self.draw_native("cmbtcity", entry, anim, at, scale),
+                }
             }
             Site::Open => {}
         }
