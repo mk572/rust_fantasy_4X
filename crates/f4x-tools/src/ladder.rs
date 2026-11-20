@@ -5,7 +5,7 @@
 //! wizard casts), and finds how many of A are worth how many of B, from 4 against 4 down to a
 //! wipeout or a stalemate. The steps and the ratio notation are in `docs/duel.md`; tests below.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -13,24 +13,29 @@ use std::sync::{Arc, Mutex};
 use f4x_ai::battle::cast::next_command;
 use f4x_core::battle::map::BattleMap;
 use f4x_core::battle::BattleEvent;
+use f4x_core::game::rng::GameRng;
 use f4x_core::game::{Command, Event, Game};
+use f4x_core::hero::kind::roll_one;
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
-use f4x_core::rules::{Ability, Stat, UnitKind};
+use f4x_core::rules::UnitKind;
 use f4x_def::content::Content;
+use f4x_def::names::NameBundle;
 
-pub const USAGE: &str = "usage: f4x-tools duel ladder [--levels 1-9|N,N,..] [--units N,N,..] [--normal] [--cross LO-HI] [--combine LO-HI] [--ratings FILE] [--efficiency FILE] [--seeds N] [--jobs N] [--out DIR] [--report] [--content DIR]
+pub const USAGE: &str = "usage: f4x-tools duel ladder [--levels 1-9|N,N,..] [--units N,N,..] [--normal] [--cross LO-HI|A,B] [--prior DIR] [--combine LO-HI] [--ratings FILE] [--efficiency FILE] [--seeds N] [--jobs N] [--out DIR] [--report] [--content DIR]
   Fights every unit against every other at each experience level (1 is a recruit or a plain hero,
   9 a Demi-God; a normal unit stops at 6, a fantastic unit has no levels) and writes, per level
   into DIR (default target/ladder): ladder_L.csv (every pair), ladder_L_rank.csv (the fitted strength
   of each unit) and ladder_L.html (the table of who beats whom); with several levels also
-  ladder_ranking.csv; --normal fights normal units only (no heroes, creatures or settlers);
-  --cross 1-4 fights every normal unit at a level against every one at a higher level
-  (cross_A_B.csv, kept if there); --combine 1-4 fits one worth for every unit at every level
+  ladder_ranking.csv; --normal fights the units that gain levels only (normal units and heroes, no
+  creatures); --cross 1-4 (or one pair, 2,5) fights every such unit at a level against every one at a
+  higher level (cross_A_B.csv, kept if there); --prior DIR starts each pair's ladder at its result in
+  the ladder_L.csv and cross_A_B.csv files of an earlier run, and ends a series whose first two
+  fights confirm a wipeout (or a stalemate) there; --combine 1-4 fits one worth for every unit at every level
   from ladder_L.csv and cross_A_B.csv into ladder_levels.csv; --efficiency FILE writes the rating
   per resource of every rated unit (unit_efficiency.ron, from the rating file and the unit rows);
   --report builds the other files from the ladder_L.csv of an earlier run
-  without fighting. --seeds is the fights of a step (default 6, even), --jobs the threads (default 4).";
+  without fighting. --seeds is the fights of a step (default 10, even), --jobs the threads (default 4).";
 
 const P0: PlayerId = PlayerId(0);
 const P1: PlayerId = PlayerId(1);
@@ -174,16 +179,20 @@ pub fn fight(
             .units
             .id_numbered(num)
             .ok_or(format!("no unit {num}"))?;
-        for _ in 0..count {
-            let unit = game.spawn_unit(
-                owner,
-                Position {
-                    plane: Plane::Arcanus,
-                    x,
-                    y: 4,
-                },
-                id,
-            );
+        for copy in 0..count {
+            let at = Position {
+                plane: Plane::Arcanus,
+                x,
+                y: 4,
+            };
+            // A hero is rolled anew for every fight (its random abilities and spells, no items).
+            let unit =
+                match rolled_hero(content, num, mix(&[seed, u64::from(owner.0), copy.into()])) {
+                    Some(hero) => game
+                        .scenario_spawn_hero_copy(owner, at, hero)
+                        .map_err(|e| format!("{e:?}"))?,
+                    None => game.spawn_unit(owner, at, id),
+                };
             give_level(&mut game, content, unit, owner, num, level);
             sides[i].push(unit);
         }
@@ -198,6 +207,24 @@ pub fn fight(
         Some(w) if w == (if a_attacks { P0 } else { P1 }) => Outcome::A,
         Some(_) => Outcome::B,
     })
+}
+
+/// The hero of the unit `num` as the game rolls it (`hero::kind::roll_one`), from `seed`; `None`
+/// for a unit that is not a hero type.
+fn rolled_hero(content: &Content, num: u16, seed: u64) -> Option<f4x_core::hero::Hero> {
+    let rules = &content.rules;
+    let kind = rules
+        .hero_templates
+        .iter()
+        .position(|t| rules.units.get(t.unit).num == num)?;
+    let mut rng = GameRng::new(seed);
+    Some(roll_one(
+        &mut rng,
+        rules,
+        &NameBundle::default(),
+        kind,
+        &rules.hero_templates[kind],
+    ))
 }
 
 /// Play the battle that has just begun in `game` to its end on open ground, the battle AI with
@@ -266,17 +293,32 @@ fn mix(parts: &[u64]) -> u64 {
     h
 }
 
-/// `seeds` fights of `na` of A against `nb` of B, each side the attacker half of the time.
+/// `seeds` fights of `na` of A against `nb` of B, each side the attacker half of the time; `early`
+/// is the outcome that ends the step after two fights when both are it.
 fn step(
     content: &Arc<Content>,
     (a, na): (u16, u8),
     (b, nb): (u16, u8),
     levels: (usize, usize),
     seeds: u64,
+    early: Option<Outcome>,
     errors: &mut Vec<String>,
 ) -> Step {
     let mut s = Step::default();
     for i in 0..seeds {
+        // The first two fights (each side attacking once) that both end as the old result says
+        // settle a wipeout or a stalemate: the other fights are not played.
+        if i == 2 {
+            let settled = match early {
+                Some(Outcome::A) => s.a == 2,
+                Some(Outcome::B) => s.b == 2,
+                Some(Outcome::Draw) => s.draws == 2,
+                None => false,
+            };
+            if settled {
+                break;
+            }
+        }
         let seed = mix(&[
             levels.0 as u64 * 16 + levels.1 as u64,
             u64::from(a),
@@ -355,13 +397,185 @@ impl Pair {
     }
 }
 
-/// The ladder of one pair, A at its level and B at its (`levels`).
+/// The cells of the ladder in the winner's and the loser's counts, from the first fight on.
+const CELLS: [(u8, u8); 9] = [
+    (4, 4),
+    (4, 5),
+    (3, 5),
+    (3, 6),
+    (2, 6),
+    (2, 7),
+    (1, 7),
+    (1, 8),
+    (1, 9),
+];
+
+/// The results of an earlier run, to start the ladders of a new one where the old ones ended.
+#[derive(Default)]
+pub struct Prior(HashMap<(u16, u16, usize, usize), Pair>);
+
+impl Prior {
+    /// The `ladder_L.csv` and `cross_A_B.csv` files of `dir`.
+    pub fn load(dir: &Path) -> Result<Prior, String> {
+        let mut map = HashMap::new();
+        let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        for entry in entries.flatten() {
+            let file = entry.file_name().to_string_lossy().into_owned();
+            let Some(stem) = file.strip_suffix(".csv") else {
+                continue;
+            };
+            let numbers: Vec<usize> = if let Some(l) = stem.strip_prefix("ladder_") {
+                l.parse().map(|l| vec![l, l]).unwrap_or_default()
+            } else if let Some(c) = stem.strip_prefix("cross_") {
+                c.split('_').filter_map(|n| n.parse().ok()).collect()
+            } else {
+                Vec::new()
+            };
+            let [la, lb] = numbers[..] else {
+                continue;
+            };
+            let text = std::fs::read_to_string(entry.path())
+                .map_err(|e| format!("{}: {e}", entry.path().display()))?;
+            for p in read_pairs(&text)? {
+                map.insert((p.a, p.b, la, lb), p);
+                map.insert((p.b, p.a, lb, la), p.flipped());
+            }
+        }
+        Ok(Prior(map))
+    }
+
+    /// The old result of A at `levels.0` against B at `levels.1`. The old run stopped at level 6
+    /// (a normal unit gains no more), so a higher level starts where level 6 ended.
+    fn get(&self, a: u16, b: u16, levels: (usize, usize)) -> Option<&Pair> {
+        self.0.get(&(a, b, levels.0.min(6), levels.1.min(6)))
+    }
+}
+
+/// The ladder of one pair, A at its level and B at its (`levels`). With the pair's old result
+/// (`old`) it starts at the cell where that ended and walks to where the ladder ends now (a
+/// wipeout is confirmed in one step, or two fights); a change of order, or the ladder running
+/// out at 4 against 4, goes back to the whole ladder.
 pub fn ladder(
     content: &Arc<Content>,
     a: u16,
     b: u16,
     levels: (usize, usize),
     seeds: u64,
+    old: Option<&Pair>,
+    errors: &mut Vec<String>,
+) -> Pair {
+    let mut early_first = None;
+    if let Some(old) = old {
+        let winner = match old.first {
+            Verdict::A => Some(true),
+            Verdict::B => Some(false),
+            _ => None,
+        };
+        match (old.kind, winner) {
+            (Kind::Stalemate, _) => early_first = Some(Outcome::Draw),
+            (Kind::Wipeout, Some(w)) => {
+                let wins = if w { Outcome::A } else { Outcome::B };
+                if let Some(p) =
+                    from_cell(content, (a, b), levels, seeds, (w, 8, Some(wins)), errors)
+                {
+                    return p;
+                }
+            }
+            (Kind::Flip | Kind::Even, Some(w)) => {
+                let (n, m) = if w {
+                    (old.na, old.nb)
+                } else {
+                    (old.nb, old.na)
+                };
+                if let Some(i) = CELLS.iter().position(|&c| c == (n, m)).filter(|&i| i > 0) {
+                    if let Some(p) = from_cell(content, (a, b), levels, seeds, (w, i, None), errors)
+                    {
+                        return p;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    whole_ladder(content, a, b, levels, seeds, early_first, errors)
+}
+
+/// The pair from its cell at `start` = (the winner is A, the index in [`CELLS`], the outcome
+/// that ends the first step early): up while the old winner still wins, down while it does not.
+/// `None` when the old winner does not win at 4 against 4 either, so that the pair is new.
+fn from_cell(
+    content: &Arc<Content>,
+    (a, b): (u16, u16),
+    levels: (usize, usize),
+    seeds: u64,
+    (winner_a, start, early): (bool, usize, Option<Outcome>),
+    errors: &mut Vec<String>,
+) -> Option<Pair> {
+    let first = if winner_a { Verdict::A } else { Verdict::B };
+    let counts = |i: usize| {
+        let (w, l) = CELLS[i];
+        if winner_a {
+            (w, l)
+        } else {
+            (l, w)
+        }
+    };
+    // The kind of the pair that ends at cell `i`, from the step fought there, or `None` when the
+    // old winner still wins at it.
+    let mut fought = |i: usize, early: Option<Outcome>| {
+        let (na, nb) = counts(i);
+        let s = step(content, (a, na), (b, nb), levels, seeds, early, errors);
+        match s.verdict() {
+            Verdict::A if winner_a => None,
+            Verdict::B if !winner_a => None,
+            Verdict::A | Verdict::B => Some(Kind::Flip),
+            _ => Some(Kind::Even),
+        }
+    };
+    let pair = |kind, i: usize| {
+        let (na, nb) = counts(i);
+        Pair {
+            a,
+            b,
+            kind,
+            first,
+            na,
+            nb,
+        }
+    };
+    let mut at = start;
+    let mut failure = fought(at, early);
+    if failure.is_none() {
+        while at + 1 < CELLS.len() {
+            at += 1;
+            failure = fought(at, None);
+            if let Some(kind) = failure {
+                return Some(pair(kind, at));
+            }
+        }
+        return Some(pair(Kind::Wipeout, at));
+    }
+    // It fails here: the pair ends here when the cell before still has the old winner winning.
+    while at > 0 {
+        let kind = failure?;
+        let before = fought(at - 1, None);
+        if before.is_none() {
+            return Some(pair(kind, at));
+        }
+        at -= 1;
+        failure = before;
+    }
+    None
+}
+
+/// The ladder from 4 against 4 on; `early` ends the first step after two fights that are both it.
+fn whole_ladder(
+    content: &Arc<Content>,
+    a: u16,
+    b: u16,
+    levels: (usize, usize),
+    seeds: u64,
+    early: Option<Outcome>,
     errors: &mut Vec<String>,
 ) -> Pair {
     let pair = |kind, first, na, nb| Pair {
@@ -372,7 +586,15 @@ pub fn ladder(
         na,
         nb,
     };
-    let first = step(content, (a, START), (b, START), levels, seeds, errors);
+    let first = step(
+        content,
+        (a, START),
+        (b, START),
+        levels,
+        seeds,
+        early,
+        errors,
+    );
     let winner_a = match first.verdict() {
         Verdict::A => true,
         Verdict::B => false,
@@ -392,7 +614,7 @@ pub fn ladder(
         }
         add_to_loser = !add_to_loser;
         let (na, nb) = if winner_a { (w, l) } else { (l, w) };
-        let s = step(content, (a, na), (b, nb), levels, seeds, errors);
+        let s = step(content, (a, na), (b, nb), levels, seeds, None, errors);
         let winner_still_wins = match s.verdict() {
             Verdict::A => winner_a,
             Verdict::B => !winner_a,
@@ -411,23 +633,23 @@ pub fn ladder(
     }
 }
 
-/// The units the ladder fights: those with an attack, that enter a battle (not ships or settlers).
-pub fn unit_set(content: &Arc<Content>, chosen: &[u16], normal_only: bool) -> (Vec<u16>, Vec<u16>) {
+/// The units the ladder fights: those that enter a battle (not ships). `leveling_only` keeps those that gain levels.
+pub fn unit_set(
+    content: &Arc<Content>,
+    chosen: &[u16],
+    leveling_only: bool,
+) -> (Vec<u16>, Vec<u16>) {
     let (mut set, mut left_out) = (Vec::new(), Vec::new());
     for (_, d) in content.rules.units.iter() {
         if !chosen.is_empty() && !chosen.contains(&d.num) {
             continue;
         }
-        // Normal units only: no heroes, no creatures, and no settlers (nobody fights with them).
-        let settler = d.abilities.contains(&Ability::new(12 /* create_outpost */));
-        if normal_only && (d.kind != UnitKind::Normal || settler) {
+        // The units that gain levels (normal units, settlers and engineers among them, and heroes).
+        if leveling_only && !matches!(d.kind, UnitKind::Normal | UnitKind::Hero) {
             continue;
         }
-        let attacks = [Stat::Melee, Stat::Ranged]
-            .iter()
-            .any(|s| d.stats.get(s).is_some_and(|v| v.floor() > 0));
-        let fits = attacks && fight(content, (d.num, 1), (d.num, 1), (1, 1), true, 1).is_ok();
-        if fits {
+        // A unit with no attack is fought too: it loses to anything that can hurt it.
+        if fight(content, (d.num, 1), (d.num, 1), (1, 1), true, 1).is_ok() {
             set.push(d.num);
         } else {
             left_out.push(d.num);
@@ -438,37 +660,68 @@ pub fn unit_set(content: &Arc<Content>, chosen: &[u16], normal_only: bool) -> (V
     (set, left_out)
 }
 
+/// The highest experience level of a unit: nine for a hero, six for a normal unit, one for a
+/// creature (it has none).
+fn top_level(content: &Content, num: u16) -> usize {
+    match content
+        .rules
+        .units
+        .iter()
+        .find(|(_, u)| u.num == num)
+        .map(|(_, u)| u.kind)
+    {
+        Some(UnitKind::Hero) => 9,
+        Some(UnitKind::Normal) => 6,
+        _ => 1,
+    }
+}
+
+fn is_hero(content: &Content, num: u16) -> bool {
+    top_level(content, num) == 9
+}
+
 /// Every pair of the set at one level, on `jobs` threads. Returns the pairs (each once, a < b)
-/// and the fights that failed.
+/// and the fights that failed. Past level 6 only a hero still gains anything, so a pair of two
+/// others is the pair of `level_6` (the pairs of level 6).
 pub fn run_level(
     content: &Arc<Content>,
     set: &[u16],
     level: usize,
     seeds: u64,
     jobs: usize,
+    prior: &Prior,
+    level_6: &[Pair],
 ) -> (Vec<Pair>, Vec<String>) {
+    let capped = |a: u16, b: u16| level > 6 && !is_hero(content, a) && !is_hero(content, b);
     let todo: Vec<(u16, u16)> = set
         .iter()
         .enumerate()
         .flat_map(|(i, &a)| set[i + 1..].iter().map(move |&b| (a, b)))
+        .filter(|&(a, b)| !capped(a, b))
         .collect();
-    run_todo(content, &todo, (level, level), seeds, jobs)
+    let (mut pairs, errors) = run_todo(content, &todo, (level, level), seeds, jobs, prior);
+    pairs.extend(level_6.iter().filter(|p| capped(p.a, p.b)));
+    pairs.sort_by_key(|p| (p.a, p.b));
+    (pairs, errors)
 }
 
 /// Every pair of the set with A at level `la` and B at level `lb` (a unit against its own kind
-/// too, and both orders: the levels tell the two apart), on `jobs` threads.
+/// too, and both orders: the levels tell the two apart), on `jobs` threads. A unit has no level
+/// above its top one, so it is left out of the levels it does not reach.
 pub fn run_cross(
     content: &Arc<Content>,
     set: &[u16],
     (la, lb): (usize, usize),
     seeds: u64,
     jobs: usize,
+    prior: &Prior,
 ) -> (Vec<Pair>, Vec<String>) {
     let todo: Vec<(u16, u16)> = set
         .iter()
         .flat_map(|&a| set.iter().map(move |&b| (a, b)))
+        .filter(|&(a, b)| top_level(content, a) >= la && top_level(content, b) >= lb)
         .collect();
-    run_todo(content, &todo, (la, lb), seeds, jobs)
+    run_todo(content, &todo, (la, lb), seeds, jobs, prior)
 }
 
 fn run_todo(
@@ -477,6 +730,7 @@ fn run_todo(
     levels: (usize, usize),
     seeds: u64,
     jobs: usize,
+    prior: &Prior,
 ) -> (Vec<Pair>, Vec<String>) {
     let next = AtomicUsize::new(0);
     let done = Mutex::new((Vec::new(), Vec::new()));
@@ -488,7 +742,8 @@ fn run_todo(
                     break;
                 };
                 let mut errors = Vec::new();
-                let p = ladder(content, a, b, levels, seeds, &mut errors);
+                let old = prior.get(a, b, levels);
+                let p = ladder(content, a, b, levels, seeds, old, &mut errors);
                 let mut d = done.lock().expect("the result lock");
                 d.0.push(p);
                 d.1.extend(errors);
@@ -918,15 +1173,6 @@ fn combine_levels(
     ratings: Option<&Path>,
 ) -> Result<(), String> {
     let (set, _) = unit_set(content, &[], false);
-    // Settlers are nobody's fighters.
-    let set: Vec<u16> = set
-        .into_iter()
-        .filter(|&u| {
-            !content.rules.units.iter().any(|(_, d)| {
-                d.num == u && d.abilities.contains(&Ability::new(12 /* create_outpost */))
-            })
-        })
-        .collect();
     let read = |file: PathBuf| -> Result<Vec<Pair>, String> {
         let text =
             std::fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
@@ -1123,9 +1369,10 @@ fn parse_levels(text: &str) -> Result<Vec<usize>, String> {
 pub fn run(args: &[String]) -> Result<(), String> {
     let (mut report, mut normal, mut levels_given) = (false, false, false);
     let (mut cross, mut combine) = (None::<Vec<usize>>, None::<Vec<usize>>);
-    let (mut ratings, mut efficiency) = (None::<PathBuf>, None::<PathBuf>);
+    let (mut ratings, mut efficiency, mut prior_dir) =
+        (None::<PathBuf>, None::<PathBuf>, None::<PathBuf>);
     let (mut levels, mut units, mut seeds, mut jobs) =
-        (vec![1usize], Vec::<u16>::new(), 6u64, 4usize);
+        (vec![1usize], Vec::<u16>::new(), 10u64, 4usize);
     let (mut out, mut dir) = (
         PathBuf::from("target/ladder"),
         PathBuf::from(f4x_def::SHIPPED_CONTENT),
@@ -1150,6 +1397,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
             "--normal" => normal = true,
             "--cross" => cross = Some(parse_levels(&value("--cross")?)?),
             "--combine" => combine = Some(parse_levels(&value("--combine")?)?),
+            "--prior" => prior_dir = Some(PathBuf::from(value("--prior")?)),
             "--ratings" => ratings = Some(PathBuf::from(value("--ratings")?)),
             "--efficiency" => efficiency = Some(PathBuf::from(value("--efficiency")?)),
             "--content" => dir = value("--content")?.into(),
@@ -1182,6 +1430,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
         left_out
     );
     std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+    let prior = match &prior_dir {
+        Some(dir) => Prior::load(dir)?,
+        None => Prior::default(),
+    };
     let mut ranking: BTreeMap<u16, Vec<f64>> = BTreeMap::new();
     let mut failed = 0;
     for &level in &levels {
@@ -1195,7 +1447,16 @@ pub fn run(args: &[String]) -> Result<(), String> {
             set.dedup();
             (set, pairs, Vec::new())
         } else {
-            let (pairs, errors) = run_level(&content, &set, level, seeds, jobs);
+            // Past level 6 the pairs without a hero are those of level 6, which must be done.
+            let level_6 = if level > 6 {
+                let file = out.join("ladder_6.csv");
+                let text = std::fs::read_to_string(&file)
+                    .map_err(|e| format!("level {level} needs {}: {e}", file.display()))?;
+                read_pairs(&text)?
+            } else {
+                Vec::new()
+            };
+            let (pairs, errors) = run_level(&content, &set, level, seeds, jobs, &prior, &level_6);
             (set.clone(), pairs, errors)
         };
         failed += errors.len();
@@ -1252,7 +1513,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
                     println!("levels {la} and {lb}: {} is there", file.display());
                     continue;
                 }
-                let (pairs, errors) = run_cross(&content, &set, (la, lb), seeds, jobs);
+                let (pairs, errors) = run_cross(&content, &set, (la, lb), seeds, jobs, &prior);
                 failed += errors.len();
                 for e in errors.iter().take(20) {
                     eprintln!("ERROR {e}");
@@ -1312,7 +1573,7 @@ mod tests {
         let (set, _) = unit_set(&c, &[], false);
         let u = set[0];
         let mut errors = Vec::new();
-        let p = ladder(&c, u, u, (1, 1), 6, &mut errors);
+        let p = ladder(&c, u, u, (1, 1), 6, None, &mut errors);
         assert!(errors.is_empty(), "{errors:?}");
         assert!(
             matches!(p.kind, Kind::Even | Kind::Stalemate | Kind::Flip),
@@ -1329,9 +1590,51 @@ mod tests {
         let (a, b) = (set[0], set[set.len() / 2]);
         let (mut e1, mut e2) = (Vec::new(), Vec::new());
         assert_eq!(
-            ladder(&c, a, b, (1, 1), 2, &mut e1),
-            ladder(&c, a, b, (1, 1), 2, &mut e2)
+            ladder(&c, a, b, (1, 1), 2, None, &mut e1),
+            ladder(&c, a, b, (1, 1), 2, None, &mut e2)
         );
+    }
+
+    /// Action: a ladder started at the result of an earlier one, for pairs of every kind of result.
+    /// Outcome: it ends at the same result (the dice are seeded), so a prior only saves fights.
+    #[test]
+    fn a_ladder_started_at_its_old_result_ends_where_the_old_one_did() {
+        let c = content();
+        let (set, _) = unit_set(&c, &[], false);
+        let a = set[0];
+        let mut kinds = std::collections::BTreeSet::new();
+        for &b in set.iter().step_by(set.len() / 12 + 1) {
+            let mut errors = Vec::new();
+            let fresh = ladder(&c, a, b, (1, 1), 2, None, &mut errors);
+            let again = ladder(&c, a, b, (1, 1), 2, Some(&fresh), &mut errors);
+            assert!(errors.is_empty(), "{errors:?}");
+            assert_eq!(fresh, again, "units {a} and {b}");
+            kinds.insert(format!("{:?}", fresh.kind));
+        }
+        assert!(
+            kinds.len() > 1,
+            "the sample has one kind of result: {kinds:?}"
+        );
+    }
+
+    /// Action: four copies of a hero fight, each rolled for the fight. Outcome: the fight is played
+    /// to its end with no error, and the same seed gives the same result.
+    #[test]
+    fn four_heroes_of_one_kind_fight_with_rolls_of_their_own() {
+        let c = content();
+        let hero = c
+            .rules
+            .units
+            .iter()
+            .map(|(_, d)| d)
+            .find(|d| d.kind == UnitKind::Hero && rolled_hero(&c, d.num, 1).is_some())
+            .map(|d| d.num);
+        let Some(hero) = hero else {
+            panic!("no hero type in the content");
+        };
+        let one = fight(&c, (hero, 4), (hero, 4), (3, 3), true, 7);
+        assert!(one.is_ok(), "{one:?}");
+        assert_eq!(one, fight(&c, (hero, 4), (hero, 4), (3, 3), true, 7));
     }
 
     /// Action: a pair seen from either side. Outcome: the two views agree on the exchange rate.

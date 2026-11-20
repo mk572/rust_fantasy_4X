@@ -5,6 +5,7 @@
 #
 #   scripts/cool_run.sh COMMAND [ARGS...]
 #   scripts/cool_run.sh --timing COMMAND [ARGS...]   for timing runs: see below
+#   scripts/cool_run.sh --boost COMMAND [ARGS...]    full power, thermal check at the start only
 #   scripts/cool_run.sh --state          print nominal | fair | serious | critical | unknown
 #   scripts/cool_run.sh -h | --help      print the usage
 #
@@ -20,6 +21,9 @@
 # it waits for a cool Mac before it starts, then runs at normal priority (background QoS is about six
 # times slower, docs/KNOWLEDGE.md) and is never paused (a pause would count in the time). When the
 # state reached COOL_PAUSE_AT or worse during the run it says so on stderr, and the times are suspect.
+# --boost is for a long run that may use the whole machine (scripts/ladder_run.py runs several at once):
+# it waits for a cool Mac before it starts, then runs at normal priority on any core, with no pausing
+# and no check afterwards. The command limits its own threads.
 # Environment (defaults): COOL_PAUSE_AT=fair  COOL_POLL=15  COOL_REST=60
 # The command should also limit its own threads (the training tasks use at most 4 of the 10 cores).
 set -u
@@ -36,6 +40,9 @@ makes everything crawl.
 Options:
   --timing      relaxed mode for a short timing run: starts only when the Mac is cool, runs at
                 normal priority, is never paused, and warns if the Mac got hot during the run
+  --boost       full-power mode for a long run: starts only when the Mac is cool, then runs at
+                normal priority on any core, never paused and not watched; the thermal state is
+                read once, before the start
   --state       print the thermal state (nominal | fair | serious | critical | unknown) and exit
   -h, --help    print this help and exit
 
@@ -53,7 +60,7 @@ USAGE
 }
 case "${1:-}" in
     -h|--help) usage; exit 0 ;;
-    --state|--timing|"") ;;
+    --state|--timing|--boost|"") ;;
     -*) echo "cool_run: unknown option: $1 (see --help)" >&2; exit 2 ;;
 esac
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -65,7 +72,9 @@ state() { "$bin" 2>/dev/null || echo unknown; }
 rank() { case "$1" in nominal) echo 0;; fair) echo 1;; serious) echo 2;; critical) echo 3;; *) echo 9;; esac; }
 if [ "${1:-}" = "--state" ]; then state; exit 0; fi
 timing=0
+boost=0
 if [ "${1:-}" = "--timing" ]; then timing=1; shift; fi
+if [ "${1:-}" = "--boost" ]; then boost=1; shift; fi
 [ $# -ge 1 ] || { echo "cool_run: no command given (see --help)" >&2; exit 2; }
 
 pause_at="$(rank "${COOL_PAUSE_AT:-fair}")"
@@ -75,6 +84,10 @@ log() { echo "cool_run: $(date '+%F %T') $*" >&2; }
 
 # wait before starting, too
 while [ "$(rank "$(state)")" -ge "$pause_at" ]; do log "not cool ($(state)), waiting before start"; sleep "$poll"; done
+
+if [ "$boost" = 1 ]; then
+    exec "$@"
+fi
 
 if [ "$timing" = 1 ]; then
     # Normal priority, never paused; only note whether the Mac got hot while it ran.

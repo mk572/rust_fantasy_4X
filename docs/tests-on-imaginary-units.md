@@ -15,7 +15,7 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 31 tests. Part 2: 6 tests. Of 2610 in all.**
+**Part 1: 31 tests. Part 2: 6 tests. Of 2620 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
@@ -86,17 +86,17 @@ Helpers that make things up: `table` (line 150).
 
 ## `crates/f4x-def/src/rules/stats.rs` (7)
 
-Helpers that make things up: `m` (line 299).
+Helpers that make things up: `m` (line 305).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `adds_then_percent` | 304 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `order_of_modifiers_does_not_matter` | 313 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `percent_rounds_down_including_negatives` | 324 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `bounds_and_set` | 338 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `floors_apply_only_where_defined` | 367 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `other_stats_are_ignored_and_contributions_filter` | 379 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `extreme_values_do_not_overflow` | 389 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `adds_then_percent` | 310 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `order_of_modifiers_does_not_matter` | 319 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `percent_rounds_down_including_negatives` | 330 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `bounds_and_set` | 344 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `floors_apply_only_where_defined` | 387 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `other_stats_are_ignored_and_contributions_filter` | 399 | hand-made spell modifier (`Modifier::new`) | `m` | |
+| `extreme_values_do_not_overflow` | 409 | hand-made spell modifier (`Modifier::new`) | `m` | |
 
 ## `crates/f4x-def/src/settings/tests.rs` (2)
 
@@ -115,13 +115,13 @@ Helpers that make things up: `m` (line 299).
 
 ## `crates/f4x-core/src/city/economy.rs` (3)
 
-Helpers that make things up: `production_of` (line 1576).
+Helpers that make things up: `production_of` (line 1587).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_cities_yields_come_from_a_world_a_map_and_the_content_alone` | 1522 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `the_base_of_a_farmer_and_a_worker_is_the_setting_and_a_races_own_value_wins` | 1623 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `production_of` | |
-| `a_computer_wizards_bonuses_multiply_its_cities_and_nobody_elses` | 1663 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `a_cities_yields_come_from_a_world_a_map_and_the_content_alone` | 1533 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `the_base_of_a_farmer_and_a_worker_is_the_setting_and_a_races_own_value_wins` | 1634 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `production_of` | |
+| `a_computer_wizards_bonuses_multiply_its_cities_and_nobody_elses` | 1674 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
 
 ## `crates/f4x-core/src/game/tests.rs` (1)
 

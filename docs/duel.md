@@ -12,7 +12,7 @@ is the base of task 655 (the unit strength measure).
 cargo build --release -p f4x-tools
 target/release/f4x-tools duel pairs  [--units N,N,..|--all] [--seeds N] [--max-commands N] [--csv FILE]
 target/release/f4x-tools duel teams  [--units N,N,..|--all] [--battles N] [--max-team N] [--seed N] [--csv FILE]
-target/release/f4x-tools duel ladder [--levels 1-9] [--units N,N,..] [--seeds 6] [--jobs 4] [--out DIR]
+target/release/f4x-tools duel ladder [--levels 1-9] [--units N,N,..] [--seeds 10] [--prior DIR] [--jobs 4] [--out DIR]
 target/release/f4x-tools duel heroes [--level 1-9] [--seeds 10] [--jobs 4] [--out DIR]
 target/release/f4x-tools duel spells [--unit N] [--level 1-6 | --balance] [--spells N,.. | --all] [--against N,..] [--hurt PERCENT] [--count N] [--seeds 20] [--jobs 4] [--out DIR]
 ```
@@ -63,11 +63,11 @@ Which unit beats which, as an exchange rate: "4 of A are worth 5 of B". Code:
 2. The loser gets one more unit; if it now wins or the step is even, the ladder stops with that
    ratio (`4:5`, a **flip**). Else the winner loses one and the loser gets one again: 4:5, 3:5, 3:6,
    2:6, 2:7, 1:7, 1:8, 1:9. The winner still winning at 1 against 9 is a **wipeout** (`1:9+`).
-3. A step is `--seeds` fights (default 6, an even number), each side the attacker (first to move)
+3. A step is `--seeds` fights (default 10, an even number), each side the attacker (first to move)
    half of them; the dice are seeded from the pair, the counts and the level, so a run repeats.
 
 The rules are 1.3 with death and magic immunity exceptions on (the original's; the shipped default
-has them off). No wizard casts, no items, no walls, no terrain; the units cast their own spells
+has them off). No wizard casts, no items, no walls, no terrain; a unit with no attack (settlers, engineers) is fought too and loses to anything that can hurt it; the units cast their own spells
 (the fights go through the game with `f4x_ai::battle::cast::next_command`, so a hero's or a
 creature's spell is cast as in a real game). The 1.50 patch's gaze at strength 0 stays on
 (`divergences.md`). A stalemate is a fight that reaches the turn limit with both sides standing
@@ -108,9 +108,25 @@ on), `--combine 1-4` (one fit over `ladder_L.csv` and the `cross_A_B.csv` files 
 retort or a spell and the creatures do not level, so they stay out; heroes are left for a run with
 rolled heroes.
 
-**Heroes are base heroes.** The ladder spawns a hero as a plain unit from `units.ron`: its stats, its
-innate abilities and the level bonuses, but no rolled skills (Might, Agility, ...), no spells (so the
-casters do not cast) and no items. A real hero is stronger; the hero table is a floor.
+**Heroes are rolled for every fight.** Each hero of a side is rolled anew the way the game rolls it
+(`hero::kind::roll_one`: the template's abilities, the random picks and the spells it knows), from the
+seed of the fight, so four heroes of one type are four different heroes and a run repeats. No items.
+The heroes' tables are therefore of an average hero, not a floor. Heroes have the nine levels, so
+`--levels 1-9` and `--cross` over 1-9 include them; the normal units stop at 6 (the pairs of two units
+that are not heroes at levels 7 to 9 are those of level 6, copied from `ladder_6.csv`, which must be
+done first). `--cross` fights the units that gain levels (normal units, settlers and engineers, heroes).
+
+**Starting from an earlier run (`--prior DIR`).** A pair's ladder starts at the cell where the old
+run ended it (a wipeout at 1:9, a flip at its ratio) and walks up while the winner still wins and
+down while it does not, so a result that held costs one step, or two with the cell before it. The
+first step of a wipeout or a stalemate ends after two fights (each side attacking once) that both
+end as the old result says; a changed result plays the whole step. A pair that changed order (the
+old winner does not win at 4:4) is laddered anew. Levels above 6 start from level 6.
+
+**`scripts/ladder_run.py`** runs the whole ladder as brackets (one table each: a level, or a pair
+of levels across) at once, each through `cool_run.sh --boost` (the thermal state is read once,
+before a bracket starts), skips the brackets whose file is already in `--out`, and ends with the
+fit over all of it (`ladder_levels.csv`, no rating file written).
 
 **Archived runs.** The tables of a run are kept in `duel-out/DATE-NAME/` (ignored by git, so local; a
 `README.txt` in each says how it was made and what each file is). The first, `2026-11-20-ladder/`,

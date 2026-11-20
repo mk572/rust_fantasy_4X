@@ -249,6 +249,42 @@ impl Game {
         ) {
             return Err(HeroError::NotAvailable);
         }
+        self.serve_hero(entity, player, pos)?;
+        // Nobody else is offered this hero now.
+        for (_, offers) in self.world.query::<&mut crate::player::Offers>().iter() {
+            offers.0.retain(
+                |o| !matches!(o, crate::player::offer::Offer::Hero { kind: k, .. } if *k == kind),
+            );
+        }
+        Ok(entity)
+    }
+
+    /// Scenario setup: a hero rolled elsewhere (`hero::kind::roll_one`) enters `player`'s army at
+    /// `pos` as one more body of its type, so that a battle can hold several of the same kind
+    /// (the ladder's four against four). Unlike [`Game::spawn_hero`] it takes no free hero.
+    pub fn scenario_spawn_hero_copy(
+        &mut self,
+        player: PlayerId,
+        pos: Position,
+        hero: Hero,
+    ) -> Result<hecs::Entity, HeroError> {
+        let entity = self.make_hero(hero, HeroState::Free, 0);
+        self.serve_hero(entity, player, pos)?;
+        Ok(entity)
+    }
+
+    /// Give the hero entity its unit body in the army of `player` at `pos`.
+    fn serve_hero(
+        &mut self,
+        entity: hecs::Entity,
+        player: PlayerId,
+        pos: Position,
+    ) -> Result<(), HeroError> {
+        let kind = self
+            .world
+            .get::<&Hero>(entity)
+            .map_err(|_| HeroError::Unknown)?
+            .kind;
         let unit = kind::unit_of(&self.content.rules, kind).ok_or(HeroError::Unknown)?;
         let owner = self.player_entity(player).ok_or(HeroError::Unknown)?;
         self.put_bundle(entity, (Owner(owner), Unit(unit), pos, Hurt(0)));
@@ -257,13 +293,7 @@ impl Game {
         self.put(entity, HeroState::Serving);
         let sight = self.units().unit_sight(entity);
         self.explore(player, pos, sight);
-        // Nobody else is offered this hero now.
-        for (_, offers) in self.world.query::<&mut crate::player::Offers>().iter() {
-            offers.0.retain(
-                |o| !matches!(o, crate::player::offer::Offer::Hero { kind: k, .. } if *k == kind),
-            );
-        }
-        Ok(entity)
+        Ok(())
     }
 
     /// The hero's body is gone: the entity keeps only what is the hero's own (serial, what was
