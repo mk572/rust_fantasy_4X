@@ -9,8 +9,8 @@
 //! (the cell's top-left plus (14, 0), plus the offset inside the cell for trees and rocks) and
 //! the shift of its anchor from the picture's top-left.
 
-use f4x_core::battle::map::layout::{self, Set, Site, Structure, H, W};
-use f4x_core::battle::map::{Pos, Wall, GRID_W};
+use f4x_core::battle::map::layout::{self, Set, Site, Structure, W};
+use f4x_core::battle::map::{cg_of, pos_of_cg, Pos, Wall, GRID_H};
 use f4x_core::battle::Battle;
 use f4x_core::map::Plane;
 use macroquad::prelude::*;
@@ -129,7 +129,7 @@ fn file_grass(plane: Plane) -> &'static str {
 }
 
 fn core_pos(cgx: i32, cgy: i32) -> Pos {
-    (GRID_W - 1 - cgx, cgy)
+    pos_of_cg((cgx, cgy))
 }
 
 /// The top-left of a cell of the original's frame, where the view draws it (`turn`).
@@ -238,18 +238,18 @@ impl App {
         };
         let look = battle.map.look();
         let file = look.map_or("cmbgrass", |l| ground_file(l.set, plane));
-        for cgy in 0..H {
-            for cgx in 0..W {
+        for cgy in 0..GRID_H {
+            for cgx in -layout::EXTRA_X..W {
                 let (sx, sy) = at(cgx, cgy);
                 let size = Some(vec2(CELL_W * scale, CELL_H * scale));
-                let tile = look.map_or(0, |l| l.tiles[(cgy * W + cgx) as usize]) as usize;
+                let tile = look.map_or(0, |l| l.tiles[layout::cell(cgx, cgy)]) as usize;
                 let water = look.is_some_and(|l| l.set == Set::Water);
                 // The pictures that name where the dirt, the rough ground or the river goes.
                 let tile = if water { tile } else { turn.ground(tile) };
                 let river = !water && tile >= layout::RIVER_TILE as usize;
                 // A floating island's deck: its picture in the files (`cmbtcity` 117) is blank,
                 // so the deck is shown as grass.
-                let deck = look.is_some_and(|l| l.roads[(cgy * W + cgx) as usize] == layout::DECK);
+                let deck = look.is_some_and(|l| l.roads[layout::cell(cgx, cgy)] == layout::DECK);
                 // The ocean's pictures (Myrror's are in `chriver`); a river's ground is the
                 // base square `(cgx + cgy) & 3`, with the river drawn over it.
                 let tex = if deck {
@@ -286,7 +286,7 @@ impl App {
                     ),
                 }
                 // A ship's deck: brown planks over the water, a darker plank every other square.
-                if look.is_some_and(|l| l.roads[(cgy * W + cgx) as usize] == layout::SHIP_DECK) {
+                if look.is_some_and(|l| l.roads[layout::cell(cgx, cgy)] == layout::SHIP_DECK) {
                     let plank = if (cgx + cgy) & 1 == 0 {
                         Color::new(0.47, 0.31, 0.16, 1.0)
                     } else {
@@ -330,9 +330,9 @@ impl App {
         };
         // Roads: the pieces a cell's flags call for, the worn variant when bit 0 is clear.
         let base = if look.enchanted_roads { 14 } else { 0 };
-        for cgy in 0..H {
-            for cgx in 0..W {
-                let flags = look.roads[(cgy * W + cgx) as usize];
+        for cgy in 0..GRID_H {
+            for cgx in -layout::EXTRA_X..W {
+                let flags = look.roads[layout::cell(cgx, cgy)];
                 if flags == 0 || !battle.map.is_playable(core_pos(cgx, cgy)) {
                     continue;
                 }
@@ -495,8 +495,8 @@ impl App {
                 out.push((order_of(point(turn, x, y, (0, 0))), Piece::Structure));
             }
         }
-        for cgy in 0..H {
-            for cgx in 0..W {
+        for cgy in 0..GRID_H {
+            for cgx in -layout::EXTRA_X..W {
                 let pos = core_pos(cgx, cgy);
                 if battle.map.wall(pos) == Wall::None {
                     continue;
@@ -545,7 +545,7 @@ impl App {
         pos: Pos,
         turn: Turn,
     ) -> bool {
-        let (cgx, cgy) = (GRID_W - 1 - pos.0, pos.1);
+        let (cgx, cgy) = cg_of(pos);
         let Some((itr, _, _)) = turned_wall_sprite(turn, cgx, cgy) else {
             return true;
         };
@@ -634,7 +634,7 @@ impl App {
                 ("cmbtcity", entry, 0, (px - hang_x, py - hang_y))
             }
             Piece::Wall(pos) | Piece::RisingStone(pos, _) => {
-                let (cgx, cgy) = (GRID_W - 1 - pos.0, pos.1);
+                let (cgx, cgy) = cg_of(pos);
                 let Some((itr, (dx, dy), (shift_x, shift_y))) = turned_wall_sprite(turn, cgx, cgy)
                 else {
                     return;

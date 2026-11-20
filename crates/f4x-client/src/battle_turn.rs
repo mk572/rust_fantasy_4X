@@ -5,9 +5,9 @@
 //!
 //! The turn works on the original's cells `(cgx, cgy)` (`f4x_core::battle::map::layout`; the core's
 //! square is `(20 - cgx, cgy)`). One quarter turn clockwise on the screen is
-//! `(cgx, cgy) -> (21 - cgy, cgx)`, about the point `(10.5, 10.5)`, which is the middle of the band
-//! (`layout::in_band`) and stays where it is on the screen, so the turned field is drawn about the
-//! same spot. Squares map to squares, so what stands on a square (units, trees, rocks, houses) is
+//! `(cgx, cgy) -> (SUM - cgy, cgx + DIFF)`, about the middle of the field (`(8.5, 11.5)`: the field
+//! has the columns `cgx` -3 to 20 and the rows 0 to 23), which stays where it is on the screen, so
+//! the turned field is drawn about the same spot. Squares map to squares, so what stands on a square (units, trees, rocks, houses) is
 //! drawn upright on the turned square.
 //!
 //! The pictures that are drawn for one point of view cannot be turned as pictures. The field's
@@ -17,13 +17,21 @@
 //! its own middle, so the picture of each turned wall square is the one the same place of the
 //! ring has when it is not turned (`ring_shift`).
 
+use f4x_core::battle::map::layout::{EXTRA_X, W};
 use f4x_core::battle::map::layout::{
     MAX_CGX_CITY, MAX_CGY_CITY, MIN_CGX_CITY, MIN_CGY_CITY, RIVER_TILE,
 };
-use f4x_core::battle::map::GRID_W;
+use f4x_core::battle::map::GRID_H;
 
-/// Twice the fixed point's coordinate less one: a quarter turn maps `(x, y)` to `(MID - y, x)`.
-const MID: i32 = 21;
+/// The field's last and first column (`cgx`) and last row, in the original's frame.
+const LAST_X: i32 = W - 1;
+const FIRST_X: i32 = -EXTRA_X;
+const LAST_Y: i32 = GRID_H - 1;
+/// A quarter turn about the field's middle maps `(x, y)` to `(SUM - y, x + DIFF)`: the field's
+/// middle is `((FIRST_X + LAST_X) / 2, LAST_Y / 2)`, which is `(8.5, 11.5)`, and the sum and the
+/// difference of its coordinates are whole numbers.
+pub(crate) const SUM: i32 = (FIRST_X + LAST_X + LAST_Y) / 2;
+pub(crate) const DIFF: i32 = (LAST_Y - FIRST_X - LAST_X) / 2;
 
 /// How far the view is turned, in quarter turns clockwise (0 to 3).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -45,7 +53,7 @@ impl Turn {
     /// A cell (or a point between cells) of the original's frame, where the view draws it.
     pub(crate) fn cg_f(self, mut p: (f32, f32)) -> (f32, f32) {
         for _ in 0..self.0 {
-            p = (MID as f32 - p.1, p.0);
+            p = (SUM as f32 - p.1, p.0 + DIFF as f32);
         }
         p
     }
@@ -53,7 +61,7 @@ impl Turn {
     /// The same for a whole cell.
     pub(crate) fn cg(self, mut p: (i32, i32)) -> (i32, i32) {
         for _ in 0..self.0 {
-            p = (MID - p.1, p.0);
+            p = (SUM - p.1, p.0 + DIFF);
         }
         p
     }
@@ -61,7 +69,7 @@ impl Turn {
     /// The cell that the view draws at `p`, the other way round.
     pub(crate) fn uncg(self, mut p: (i32, i32)) -> (i32, i32) {
         for _ in 0..self.0 {
-            p = (p.1, MID - p.0);
+            p = (p.1 - DIFF, SUM - p.0);
         }
         p
     }
@@ -69,7 +77,7 @@ impl Turn {
     /// Where the view draws the core's square (or a point between squares), as a cell of the
     /// original's frame.
     pub(crate) fn of_core(self, pos: (f32, f32)) -> (f32, f32) {
-        self.cg_f(((GRID_W - 1) as f32 - pos.0, pos.1))
+        self.cg_f(((W - 1) as f32 - pos.0, pos.1))
     }
 
     /// Which of the eight pictures of a figure (0 north, clockwise) shows it looking where the
@@ -192,18 +200,22 @@ const EDGE_TURNED: [usize; 12] = [3, 5, 4, 6, 7, 8, 9, 10, 11, 0, 2, 1];
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::battle::map::layout::{self, DIRT, GRASS, H, ROUGH as ROUGH_GROUND, W};
+    use f4x_core::battle::map::layout::{self, DIRT, GRASS, H, ROUGH as ROUGH_GROUND};
     use rand::{Rng, SeedableRng};
 
     #[test]
     fn a_quarter_turn_maps_cells_to_cells_and_four_of_them_are_none() {
-        let t = Turn::NONE.step(false);
-        assert_eq!(t.cg((5, 10)), (11, 5));
+        // Every turn maps the field's cells onto the field's cells, one to one.
+        let field = |(x, y): (i32, i32)| (-EXTRA_X..W).contains(&x) && (0..GRID_H).contains(&y);
         for turn in 0..4u8 {
             let turn = Turn(turn);
-            for y in 0..H {
-                for x in 0..W {
-                    assert_eq!(turn.uncg(turn.cg((x, y))), (x, y));
+            let mut seen = std::collections::HashSet::new();
+            for y in 0..GRID_H {
+                for x in -EXTRA_X..W {
+                    let turned = turn.cg((x, y));
+                    assert!(field(turned), "{turned:?}");
+                    assert!(seen.insert(turned));
+                    assert_eq!(turn.uncg(turned), (x, y));
                 }
             }
         }
@@ -218,28 +230,24 @@ mod tests {
     #[test]
     fn the_playable_band_keeps_its_middle_on_the_screen() {
         // The screen spot of a cell of the original's frame is ((x - y) * 16, (x + y) * 8): the
-        // band's middle (10.5, 10.5) is the same spot after every turn.
+        // field's middle is the same spot after every turn.
+        let middle = ((W - 1 - EXTRA_X) as f32 / 2.0, (GRID_H - 1) as f32 / 2.0);
         for turn in 0..4u8 {
-            let (x, y) = Turn(turn).cg_f((10.5, 10.5));
-            assert_eq!((x, y), (10.5, 10.5));
+            assert_eq!(Turn(turn).cg_f(middle), middle);
         }
     }
 
     #[test]
     fn the_turned_band_is_inside_the_field_the_core_has_and_the_screen_shows() {
-        // The cells the view draws all have a column and a row, and the field is as wide on the
-        // screen as the turned band says (no cell is more than ten columns from the middle).
-        for turn in 0..4u8 {
-            let turn = Turn(turn);
-            for cgy in 0..H {
-                for cgx in 0..W {
-                    if !layout::in_band(cgx, cgy) {
-                        continue;
-                    }
-                    let (x, y) = turn.cg((cgx, cgy));
-                    assert!(((x - y) * 16).abs() <= 160 && (x + y - 21).abs() <= 10);
-                }
-            }
+        // A turned field takes the same room on the screen: the spots of its cells are the same set.
+        let spots = |turn: Turn| -> std::collections::BTreeSet<(i32, i32)> {
+            (0..GRID_H)
+                .flat_map(|y| (-EXTRA_X..W).map(move |x| (x, y)))
+                .map(|c| turn.cg(c))
+                .collect()
+        };
+        for turn in 1..4u8 {
+            assert_eq!(spots(Turn(turn)), spots(Turn::NONE));
         }
     }
 

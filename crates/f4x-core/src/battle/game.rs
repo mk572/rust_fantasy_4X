@@ -682,6 +682,9 @@ impl Game {
         // The field is built from the square alone, so a fight on the same square is fought on the
         // same ground.
         let mut map = self.battle_field(site, city, walled, &decks.cells());
+        if self.settings.rules.original_battlefield {
+            map.shut_beyond_original();
+        }
         let has = |effect: crate::spell::city::CityEffect| {
             city.is_some_and(|c| self.economy().city_has_effect(c, effect))
         };
@@ -886,6 +889,7 @@ impl Game {
         }
         let place = i64::from(site.x) * i64::from(site.y) * (site.plane.index() as i64 + 5) + 10039;
         let mut rng = <rand_pcg::Pcg64Mcg as rand::SeedableRng>::seed_from_u64(place as u64);
+        spec.scenery = self.content.rules.config.battle_scenery;
         BattleMap::from_layout(layout::generate(&spec, &mut rng))
     }
 

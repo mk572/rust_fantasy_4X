@@ -510,6 +510,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.walls_cover_city = v != 0,
         ),
         flag(
+            "custom.original_battlefield",
+            |s| s.rules.original_battlefield.into(),
+            |s, v| s.rules.original_battlefield = v != 0,
+        ),
+        flag(
             "custom.miners_guild_half_ore",
             |s| s.rules.miners_guild_half_ore.into(),
             |s, v| s.rules.miners_guild_half_ore = v != 0,

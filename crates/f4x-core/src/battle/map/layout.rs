@@ -21,13 +21,20 @@
 //! squares marked `0x80` in the road layer, with `0x81` where the island's picture hangs) to stand
 //! land units on.
 
-use super::{OPEN_COST, ROUGH_COST};
+use super::{GRID_H, GRID_W, OPEN_COST, ROUGH_COST};
 use crate::game::rng::random;
 use f4x_def::half_int::HalfInt;
-use rand::Rng;
+use f4x_def::rules::SceneryRules;
+use rand::{Rng, SeedableRng};
 
+/// The original's field: 21 by 22 cells. The generator below is the original's, on these cells,
+/// with the same random draws; [`generate`] then lays the rest of the bigger field round it.
 pub const W: i32 = 21;
 pub const H: i32 = 22;
+/// The columns the field has beyond the original's cell 0 (`cgx` -1 to -3), and the rows beyond
+/// its last (22 and 23).
+pub const EXTRA_X: i32 = GRID_W - W;
+pub const EXTRA_Y: i32 = GRID_H - H;
 
 /// Half-moves for a cell nobody can enter (outside the band, or a lair's structure).
 pub const SAIL_COST: HalfInt = HalfInt::from_int(1);
@@ -46,8 +53,9 @@ pub const MAX_CGY_CITY: i32 = 13;
 /// Where a lair, tower, outpost and the like stands.
 pub const STRUCTURE: (i32, i32) = (6, 11);
 
-/// Whether a cell is in the playable band: the part of the grid the original's screen shows
-/// (`Set_Movement_Cost_Maps` shuts the four corners).
+/// Whether a cell is in the original's playable band: the part of its grid the original's screen
+/// shows (`Set_Movement_Cost_Maps` shuts the four corners). The field of today has no shut corners;
+/// the band is where the original's own draws put the ground and the scenery.
 pub fn in_band(cgx: i32, cgy: i32) -> bool {
     (0..W).contains(&cgx)
         && (0..H).contains(&cgy)
@@ -146,6 +154,8 @@ pub struct Spec {
     pub defender_island: bool,
     /// The squares of the ships' decks (water battles).
     pub ship_decks: Vec<(i32, i32)>,
+    /// How thick the trees and rocks are (`rules.ron`).
+    pub scenery: SceneryRules,
 }
 
 impl Spec {
@@ -169,6 +179,7 @@ impl Spec {
             attacker_island: false,
             defender_island: false,
             ship_decks: Vec::new(),
+            scenery: SceneryRules::default(),
         }
     }
 }
@@ -195,7 +206,7 @@ pub struct Look {
     pub site: Site,
     pub structure: Structure,
     pub enchanted_roads: bool,
-    /// Ground picture of each cell, `cgy * 21 + cgx`: 0 to 3 grass, 4 to 7 dirt, 8 to 31 grass
+    /// Ground picture of each cell, indexed by [`cell`]: 0 to 3 grass, 4 to 7 dirt, 8 to 31 grass
     /// edged by dirt, 32 to 47 rough ground edged by its neighbours.
     pub tiles: Vec<u8>,
     /// Road pieces of each cell: 0 none; otherwise bit 0 the plain/worn variant and bits 1 to 6
@@ -217,30 +228,36 @@ pub struct Layout {
 }
 
 impl Layout {
-    /// Whether nobody can enter the cell, flying or not: outside the band, or a structure's.
+    /// Whether nobody can enter the cell, flying or not: a structure's (an outpost's, the fortress).
     pub fn is_void(&self, cgx: i32, cgy: i32) -> bool {
-        !in_band(cgx, cgy)
-            || ((cgx, cgy) == STRUCTURE
-                && (self.look.site == Site::Outpost || self.look.structure == Structure::Fortress))
+        (cgx, cgy) == STRUCTURE
+            && (self.look.site == Site::Outpost || self.look.structure == Structure::Fortress)
     }
 
     /// The moves for a ship to enter the cell, `None` where it cannot.
     pub fn sail_at(&self, cgx: i32, cgy: i32) -> Option<HalfInt> {
-        if inside(cgx, cgy) {
-            self.sail[at(cgx, cgy)]
-        } else {
-            None
-        }
+        in_field(cgx, cgy)
+            .then(|| self.sail[cell(cgx, cgy)])
+            .flatten()
     }
 
     /// The moves to enter the cell on foot, `None` where nobody can.
     pub fn cost_at(&self, cgx: i32, cgy: i32) -> Option<HalfInt> {
-        if (0..W).contains(&cgx) && (0..H).contains(&cgy) {
-            self.cost[(cgy * W + cgx) as usize]
-        } else {
-            None
-        }
+        in_field(cgx, cgy)
+            .then(|| self.cost[cell(cgx, cgy)])
+            .flatten()
     }
+}
+
+/// Whether the original's cell `(cgx, cgy)` is on the field (columns -3 to 20, rows 0 to 23).
+pub const fn in_field(cgx: i32, cgy: i32) -> bool {
+    cgx > -EXTRA_X - 1 && cgx < W && cgy >= 0 && cgy < GRID_H
+}
+
+/// The place of the cell `(cgx, cgy)` in the layout's lists (`Look::tiles`, `Look::roads`,
+/// `Layout::cost`, `Layout::sail`): row by row, the field's columns from `cgx` -3.
+pub const fn cell(cgx: i32, cgy: i32) -> usize {
+    (cgy * GRID_W + cgx + EXTRA_X) as usize
 }
 
 /// The kinds of ground a cell has before it gets its picture (`tile_types`).
@@ -272,6 +289,43 @@ fn group_at(group: &[u8], cgx: i32, cgy: i32) -> u8 {
         group[at(cgx, cgy)]
     } else {
         GRASS
+    }
+}
+
+/// A rectangle of cells to work on, in its own coordinates from 0: the original's 21 by 22, or
+/// the field's 24 by 24 (where a cell's own `x` is its `cgx` plus [`EXTRA_X`]).
+#[derive(Clone, Copy)]
+struct Grid {
+    w: i32,
+    h: i32,
+}
+
+impl Grid {
+    const ORIGINAL: Grid = Grid { w: W, h: H };
+    const FIELD: Grid = Grid {
+        w: GRID_W,
+        h: GRID_H,
+    };
+
+    fn at(self, x: i32, y: i32) -> usize {
+        (y * self.w + x) as usize
+    }
+
+    fn inside(self, x: i32, y: i32) -> bool {
+        (0..self.w).contains(&x) && (0..self.h).contains(&y)
+    }
+
+    fn cells(self) -> usize {
+        (self.w * self.h) as usize
+    }
+
+    /// The kind of ground at `(x, y)`; cells outside count as grass.
+    fn get(self, group: &[u8], x: i32, y: i32) -> u8 {
+        if self.inside(x, y) {
+            group[self.at(x, y)]
+        } else {
+            GRASS
+        }
     }
 }
 
@@ -828,16 +882,20 @@ fn merge_dirt(group: &mut [u8]) {
 
 /// `Set_Terrain_Tile_Types`: the picture of every cell. Cells outside the grid count as grass.
 pub fn tile_types(group: &[u8], rng: &mut impl Rng) -> Vec<u8> {
-    let mut tiles = vec![0u8; (W * H) as usize];
-    for y in 0..H {
-        for x in 0..W {
-            let g = |dx: i32, dy: i32| group_at(group, x + dx, y + dy);
+    tile_types_on(group, Grid::ORIGINAL, rng)
+}
+
+fn tile_types_on(group: &[u8], grid: Grid, rng: &mut impl Rng) -> Vec<u8> {
+    let mut tiles = vec![0u8; grid.cells()];
+    for y in 0..grid.h {
+        for x in 0..grid.w {
+            let g = |dx: i32, dy: i32| grid.get(group, x + dx, y + dy);
             let (up, down, left, right) = (g(0, -1), g(0, 1), g(-1, 0), g(1, 0));
             let (ul, ur, dl, dr) = (g(-1, -1), g(1, -1), g(-1, 1), g(1, 1));
             let centre = g(0, 0);
             let pair =
                 |base: i32, rng: &mut dyn rand::RngCore| (base + 1 + rng.gen_range(0..2)) as u8;
-            tiles[at(x, y)] = match centre {
+            tiles[grid.at(x, y)] = match centre {
                 GRASS => {
                     if right == DIRT {
                         if up == DIRT {
@@ -898,7 +956,7 @@ pub fn tile_types(group: &[u8], rng: &mut impl Rng) -> Vec<u8> {
                 }
                 RIVER => {
                     // Beyond the field's edge a river goes on.
-                    let r = |dx: i32, dy: i32| !inside(x + dx, y + dy) || g(dx, dy) == RIVER;
+                    let r = |dx: i32, dy: i32| !grid.inside(x + dx, y + dy) || g(dx, dy) == RIVER;
                     let (u, d, l, rt) = (r(0, -1), r(0, 1), r(-1, 0), r(1, 0));
                     let variant = ((random(rng, 2) - 1) * 6) as u8;
                     let shape = if l && d {
@@ -927,18 +985,24 @@ pub fn tile_types(group: &[u8], rng: &mut impl Rng) -> Vec<u8> {
 /// roads half a move, ocean none) and the ships' (ocean and rivers 1, nothing on land or a road), with the
 /// corners outside the band and the structure of a lair shut on both. A floating island's deck
 /// walks like a road.
+///
+/// `shift` is the column of the grid that is `cgx` 0; `shut_corners` shuts the cells outside the
+/// original's band, as the original does (the field of today does not).
 fn movement_costs(
     group: &[u8],
     roads: &[u8],
+    grid: Grid,
+    shift: i32,
+    shut_corners: bool,
     site: Site,
     structure: Structure,
 ) -> (Vec<Option<HalfInt>>, Vec<Option<HalfInt>>) {
-    let n = (W * H) as usize;
+    let n = grid.cells();
     let mut cost = vec![Some(OPEN_COST); n];
     let mut sail = vec![None; n];
-    for y in 0..H {
-        for x in 0..W {
-            let i = at(x, y);
+    for y in 0..grid.h {
+        for x in 0..grid.w {
+            let i = grid.at(x, y);
             match group[i] {
                 ROUGH => cost[i] = Some(ROUGH_COST),
                 RIVER => {
@@ -958,15 +1022,15 @@ fn movement_costs(
                 cost[i] = Some(HalfInt::HALF);
                 sail[i] = None;
             }
-            if !in_band(x, y) {
+            if shut_corners && !in_band(x - shift, y) {
                 cost[i] = None;
                 sail[i] = None;
             }
         }
     }
     if site == Site::Outpost || structure == Structure::Fortress {
-        cost[at(STRUCTURE.0, STRUCTURE.1)] = None;
-        sail[at(STRUCTURE.0, STRUCTURE.1)] = None;
+        cost[grid.at(STRUCTURE.0 + shift, STRUCTURE.1)] = None;
+        sail[grid.at(STRUCTURE.0 + shift, STRUCTURE.1)] = None;
     }
     (cost, sail)
 }
@@ -1003,6 +1067,32 @@ fn on_screen(cgx: i32, cgy: i32, sub: (i32, i32)) -> bool {
     sx > 0 && sx < 320 && sy > 0 && sy < 180
 }
 
+/// Where scenery is laid: a grid, the column that is `cgx` 0, and which places may hold it.
+struct Scatter<'a> {
+    grid: Grid,
+    shift: i32,
+    allowed: &'a dyn Fn(i32, i32, (i32, i32)) -> bool,
+    /// Whether the middle of a patch of trees must be on an allowed place too (the original's
+    /// draws do not look: it only refuses the trees).
+    strict_centre: bool,
+}
+
+impl Scatter<'_> {
+    fn cg(&self, x: i32, y: i32) -> (i32, i32) {
+        (x - self.shift, y)
+    }
+}
+
+/// How many trees the original lays on a field of this ground (its first draw).
+fn tree_count_of(set: Set, rng: &mut impl Rng) -> i32 {
+    match set {
+        Set::Plains | Set::Hills | Set::Tundra => random(rng, 20),
+        Set::Desert => random(rng, 10),
+        Set::Mountains => random(rng, 40),
+        _ => 30 + random(rng, 30),
+    }
+}
+
 /// `Scatter_Tree_Scenery`.
 fn scatter_trees(
     set: Set,
@@ -1012,12 +1102,28 @@ fn scatter_trees(
     cost: &mut [Option<HalfInt>],
     rng: &mut impl Rng,
 ) -> Vec<Prop> {
-    let tree_count = match set {
-        Set::Plains | Set::Hills | Set::Tundra => random(rng, 20),
-        Set::Desert => random(rng, 10),
-        Set::Mountains => random(rng, 40),
-        _ => 30 + random(rng, 30),
+    let count = tree_count_of(set, rng);
+    let at = Scatter {
+        grid: Grid::ORIGINAL,
+        shift: 0,
+        allowed: &on_screen,
+        strict_centre: false,
     };
+    place_trees(count, site, group, roads, cost, &at, rng)
+}
+
+/// The patches of `Scatter_Tree_Scenery`: `tree_count` trees in patches of about ten, on the places
+/// `at` allows.
+fn place_trees(
+    tree_count: i32,
+    site: Site,
+    group: &[u8],
+    roads: &[u8],
+    cost: &mut [Option<HalfInt>],
+    at: &Scatter,
+    rng: &mut impl Rng,
+) -> Vec<Prop> {
+    let grid = at.grid;
     let mut trees = Vec::new();
     if tree_count == 0 {
         return trees;
@@ -1033,8 +1139,13 @@ fn scatter_trees(
             if tries > 500 {
                 return trees;
             }
-            let (px, py) = (random(rng, W) - 1, random(rng, H) - 1);
-            if roads[at(px, py)] != 0 || group[at(px, py)] != GRASS || cost[at(px, py)].is_none() {
+            let (px, py) = (random(rng, grid.w) - 1, random(rng, grid.h) - 1);
+            let i = grid.at(px, py);
+            if roads[i] != 0
+                || group[i] != GRASS
+                || cost[i].is_none()
+                || (at.strict_centre && !(at.allowed)(at.cg(px, py).0, py, (3, 3)))
+            {
                 continue;
             }
             break (px, py);
@@ -1043,17 +1154,19 @@ fn scatter_trees(
         while placed < patch_size {
             let (tx, ty) = (px + random(rng, 7) - 4, py + random(rng, 7) - 4);
             let sub = (random(rng, 6), random(rng, 6));
-            let mut illegal = !inside(tx, ty);
+            let mut illegal = !grid.inside(tx, ty);
             if !illegal {
-                illegal = roads[at(tx, ty)] != 0
-                    || group[at(tx, ty)] != GRASS
-                    || cost[at(tx, ty)].is_none()
-                    || forbidden(site, tx, ty, false);
+                let i = grid.at(tx, ty);
+                let (cgx, cgy) = at.cg(tx, ty);
+                illegal = roads[i] != 0
+                    || group[i] != GRASS
+                    || cost[i].is_none()
+                    || forbidden(site, cgx, cgy, false);
             }
-            if !illegal && on_screen(tx, ty, sub) {
-                dearer(&mut cost[at(tx, ty)]);
+            if !illegal && (at.allowed)(at.cg(tx, ty).0, ty, sub) {
+                dearer(&mut cost[grid.at(tx, ty)]);
                 trees.push(Prop {
-                    cell: (tx, ty),
+                    cell: at.cg(tx, ty),
                     sub: (sub.0 as u8, sub.1 as u8),
                     variant: (random(rng, 5) - 1) as u8,
                 });
@@ -1076,6 +1189,17 @@ fn dearer(cost: &mut Option<HalfInt>) {
     }
 }
 
+/// How many rocks the original lays on a field of this ground (its first draw).
+fn rock_count_of(set: Set, rng: &mut impl Rng) -> i32 {
+    match set {
+        Set::Plains | Set::Hills => random(rng, 5) - 1,
+        Set::Desert => random(rng, 8) - 1,
+        Set::Mountains => random(rng, 12),
+        Set::Tundra => random(rng, 12) + 4,
+        _ => random(rng, 8),
+    }
+}
+
 /// `Scatter_Rock_Scenery`.
 fn scatter_rocks(
     set: Set,
@@ -1085,30 +1209,46 @@ fn scatter_rocks(
     cost: &mut [Option<HalfInt>],
     rng: &mut impl Rng,
 ) -> Vec<Prop> {
-    let rock_count = match set {
-        Set::Plains | Set::Hills => random(rng, 5) - 1,
-        Set::Desert => random(rng, 8) - 1,
-        Set::Mountains => random(rng, 12),
-        Set::Tundra => random(rng, 12) + 4,
-        _ => random(rng, 8),
+    let count = rock_count_of(set, rng);
+    let at = Scatter {
+        grid: Grid::ORIGINAL,
+        shift: 0,
+        allowed: &on_screen,
+        strict_centre: false,
     };
+    place_rocks(count, site, group, roads, cost, &at, rng)
+}
+
+/// `rock_count` rocks at random places `at` allows.
+fn place_rocks(
+    rock_count: i32,
+    site: Site,
+    group: &[u8],
+    roads: &[u8],
+    cost: &mut [Option<HalfInt>],
+    at: &Scatter,
+    rng: &mut impl Rng,
+) -> Vec<Prop> {
+    let grid = at.grid;
     let mut rocks = Vec::new();
     let mut placed = 0;
     // A limit on the attempts stops a field with no room at all.
     let mut attempts = 0;
     while placed < rock_count && attempts < 5000 {
         attempts += 1;
-        let (rx, ry) = (random(rng, W) - 1, random(rng, H) - 1);
+        let (rx, ry) = (random(rng, grid.w) - 1, random(rng, grid.h) - 1);
         let sub = (random(rng, 2) + 3, random(rng, 2) + 3);
-        let ok = roads[at(rx, ry)] == 0
-            && group[at(rx, ry)] == GRASS
-            && cost[at(rx, ry)].is_some()
-            && !forbidden(site, rx, ry, true)
-            && on_screen(rx, ry, sub);
+        let i = grid.at(rx, ry);
+        let (cgx, cgy) = at.cg(rx, ry);
+        let ok = roads[i] == 0
+            && group[i] == GRASS
+            && cost[i].is_some()
+            && !forbidden(site, cgx, cgy, true)
+            && (at.allowed)(cgx, cgy, sub);
         if ok {
-            dearer(&mut cost[at(rx, ry)]);
+            dearer(&mut cost[i]);
             rocks.push(Prop {
-                cell: (rx, ry),
+                cell: (cgx, cgy),
                 sub: (sub.0 as u8, sub.1 as u8),
                 variant: (random(rng, 5) - 1) as u8,
             });
@@ -1170,9 +1310,10 @@ fn houses_of(spec: &Spec, rng: &mut impl Rng) -> Vec<House> {
     houses
 }
 
-/// Build the field for `spec`, with `rng` standing in for the original's seeded `Random`.
-pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
-    let n = (W * H) as usize;
+/// The original's field for `spec` on its 21 by 22 cells, with `rng` standing in for its seeded
+/// `Random`, and the kind of ground of each cell.
+fn generate_original(spec: &Spec, rng: &mut impl Rng) -> (Layout, Vec<u8>) {
+    let n = Grid::ORIGINAL.cells();
     if spec.set == Set::Water {
         // All ocean; a Floating Island's deck is marked in the road layer.
         let tiles: Vec<u8> = (0..n).map(|_| (48 + rng.gen_range(0..4)) as u8).collect();
@@ -1188,8 +1329,16 @@ pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
         for &(x, y) in &spec.ship_decks {
             roads[at(x, y)] = SHIP_DECK;
         }
-        let (cost, sail) = movement_costs(&group, &roads, Site::Open, Structure::Outpost);
-        return Layout {
+        let (cost, sail) = movement_costs(
+            &group,
+            &roads,
+            Grid::ORIGINAL,
+            0,
+            true,
+            Site::Open,
+            Structure::Outpost,
+        );
+        let layout = Layout {
             look: Look {
                 set: spec.set,
                 site: spec.site,
@@ -1204,6 +1353,7 @@ pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
             cost,
             sail,
         };
+        return (layout, group);
     }
     let houses = houses_of(spec, rng);
     let mut group = vec![GRASS; n];
@@ -1233,10 +1383,18 @@ pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
     remove_rough(&mut group, &roads, spec.site);
     merge_dirt(&mut group);
     let tiles = tile_types(&group, rng);
-    let (mut cost, sail) = movement_costs(&group, &roads, spec.site, spec.structure);
+    let (mut cost, sail) = movement_costs(
+        &group,
+        &roads,
+        Grid::ORIGINAL,
+        0,
+        true,
+        spec.site,
+        spec.structure,
+    );
     let trees = scatter_trees(spec.set, spec.site, &group, &roads, &mut cost, rng);
     let rocks = scatter_rocks(spec.set, spec.site, &group, &roads, &mut cost, rng);
-    Layout {
+    let layout = Layout {
         look: Look {
             set: spec.set,
             site: spec.site,
@@ -1247,6 +1405,168 @@ pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
             houses,
             trees,
             rocks,
+        },
+        cost,
+        sail,
+    };
+    (layout, group)
+}
+
+/// Build the field for `spec`, with `rng` standing in for the original's seeded `Random`: the
+/// original's 21 by 22 cells exactly as the original lays them (same draws), and the rest of the
+/// 24 by 24 field round them (task 735). The cells the original does not have get the ground of
+/// the nearest cell of the original mirrored outwards, and scenery drawn from a second stream of
+/// random numbers seeded from the original's field, so nothing is taken from `rng`.
+pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
+    let (original, group) = generate_original(spec, rng);
+    expand(spec, original, &group)
+}
+
+/// The cell of the original that the ground of the field's cell at `(x, y)` (the field's own
+/// coordinates) repeats: the original's own cell, or the nearest cell mirrored outwards.
+fn mirrored_source(x: i32, y: i32) -> (i32, i32) {
+    let cgx = x - EXTRA_X;
+    let sx = if cgx < 0 { -cgx - 1 } else { cgx };
+    let sy = if y >= H { 2 * H - 1 - y } else { y };
+    (sx, sy)
+}
+
+/// A seed from what the original made, so the same field always gets the same extra scenery.
+fn seed_of(layout: &Layout) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    let mut mix = |byte: u8| {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    };
+    layout.look.tiles.iter().copied().for_each(&mut mix);
+    layout.look.roads.iter().copied().for_each(&mut mix);
+    for prop in layout.look.trees.iter().chain(&layout.look.rocks) {
+        mix(prop.cell.0 as u8);
+        mix(prop.cell.1 as u8);
+        mix(prop.sub.0);
+        mix(prop.sub.1);
+    }
+    hash
+}
+
+/// How many of a kind of scenery to add for the cells the original's screen does not show, and
+/// then as a bonus anywhere, given the original's count and the thickness the rules ask for.
+fn extra_scenery(original: usize, percent: u32) -> (i32, i32) {
+    let band = (0..H)
+        .flat_map(|y| (0..W).map(move |x| (x, y)))
+        .filter(|&(x, y)| in_band(x, y))
+        .count();
+    let outside = Grid::FIELD.cells() - band;
+    let beyond = original * outside / band;
+    let total = original + beyond;
+    let bonus = total * (percent.saturating_sub(100) as usize) / 100;
+    (beyond as i32, bonus as i32)
+}
+
+/// The original's field laid in the middle of the 24 by 24 field, with the rest filled in.
+fn expand(spec: &Spec, original: Layout, group: &[u8]) -> Layout {
+    let grid = Grid::FIELD;
+    let n = grid.cells();
+    let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(seed_of(&original));
+    // The kind of ground everywhere: the original's, repeated outwards.
+    let wide: Vec<u8> = (0..GRID_H)
+        .flat_map(|y| (0..GRID_W).map(move |x| (x, y)))
+        .map(|(x, y)| {
+            let (sx, sy) = mirrored_source(x, y);
+            group[at(sx, sy)]
+        })
+        .collect();
+    // The pictures: the original's where it has a cell.
+    let mut tiles = if spec.set == Set::Water {
+        (0..n).map(|_| (48 + rng.gen_range(0..4)) as u8).collect()
+    } else {
+        tile_types_on(&wide, grid, &mut rng)
+    };
+    let mut roads = vec![0u8; n];
+    for y in 0..H {
+        for x in 0..W {
+            tiles[cell(x, y)] = original.look.tiles[at(x, y)];
+            roads[cell(x, y)] = original.look.roads[at(x, y)];
+        }
+    }
+    // What it costs to walk or sail: the original's where it has a cell and the cell is in its band
+    // (which keeps the cost of its trees and rocks); the ground's own cost elsewhere.
+    let (mut cost, mut sail) = movement_costs(
+        &wide,
+        &roads,
+        grid,
+        EXTRA_X,
+        false,
+        if spec.set == Set::Water {
+            Site::Open
+        } else {
+            spec.site
+        },
+        spec.structure,
+    );
+    for y in 0..H {
+        for x in 0..W {
+            if in_band(x, y) {
+                cost[cell(x, y)] = original.cost[at(x, y)];
+                sail[cell(x, y)] = original.sail[at(x, y)];
+            }
+        }
+    }
+    // The original's scenery outside its band made its cells dearer too.
+    for prop in original.look.trees.iter().chain(&original.look.rocks) {
+        if !in_band(prop.cell.0, prop.cell.1) {
+            dearer(&mut cost[cell(prop.cell.0, prop.cell.1)]);
+        }
+    }
+    let mut trees = original.look.trees.clone();
+    let mut rocks = original.look.rocks.clone();
+    if spec.set != Set::Water {
+        let beyond = |cgx: i32, cgy: i32, _: (i32, i32)| !in_band(cgx, cgy);
+        let everywhere = |_: i32, _: i32, _: (i32, i32)| true;
+        let outside = Scatter {
+            grid,
+            shift: EXTRA_X,
+            allowed: &beyond,
+            strict_centre: true,
+        };
+        let anywhere = Scatter {
+            grid,
+            shift: EXTRA_X,
+            allowed: &everywhere,
+            strict_centre: true,
+        };
+        let tree_percent = if spec.set == Set::Forest {
+            spec.scenery.forest_trees_percent
+        } else {
+            100
+        };
+        let rock_percent = if spec.set == Set::Mountains {
+            spec.scenery.mountain_rocks_percent
+        } else {
+            100
+        };
+        let (more, bonus) = extra_scenery(original.look.trees.len(), tree_percent);
+        trees.extend(place_trees(
+            more, spec.site, &wide, &roads, &mut cost, &outside, &mut rng,
+        ));
+        trees.extend(place_trees(
+            bonus, spec.site, &wide, &roads, &mut cost, &anywhere, &mut rng,
+        ));
+        let (more, bonus) = extra_scenery(original.look.rocks.len(), rock_percent);
+        rocks.extend(place_rocks(
+            more, spec.site, &wide, &roads, &mut cost, &outside, &mut rng,
+        ));
+        rocks.extend(place_rocks(
+            bonus, spec.site, &wide, &roads, &mut cost, &anywhere, &mut rng,
+        ));
+    }
+    Layout {
+        look: Look {
+            tiles,
+            roads,
+            trees,
+            rocks,
+            ..original.look
         },
         cost,
         sail,
@@ -1294,18 +1614,98 @@ mod tests {
     }
 
     #[test]
-    fn a_field_is_repeatable_and_keeps_the_corners_shut() {
+    fn a_field_is_repeatable_and_has_no_shut_corners() {
         let spec = Spec::open(Set::Hills);
         let a = generate(&spec, &mut rng(3));
         let b = generate(&spec, &mut rng(3));
         assert_eq!(a, b);
         let c = generate(&spec, &mut rng(4));
         assert_ne!(a.look.tiles, c.look.tiles);
-        for y in 0..H {
-            for x in 0..W {
-                assert_eq!(a.cost_at(x, y).is_none(), !in_band(x, y), "({x},{y})");
+        for y in 0..GRID_H {
+            for x in -EXTRA_X..W {
+                assert!(a.cost_at(x, y).is_some(), "({x},{y})");
             }
         }
+        assert!(a.cost_at(W, 0).is_none() && a.cost_at(-EXTRA_X - 1, 0).is_none());
+        assert!(a.cost_at(0, -1).is_none() && a.cost_at(0, GRID_H).is_none());
+    }
+
+    #[test]
+    fn the_originals_cells_are_laid_as_the_original_lays_them_whatever_is_added_round_them() {
+        for set in [
+            Set::Plains,
+            Set::Forest,
+            Set::Mountains,
+            Set::Hills,
+            Set::Water,
+        ] {
+            for seed in 0..30 {
+                let mut spec = Spec::open(set);
+                spec.rivers = [false, false, false, false, true, true, false, false, false];
+                spec.roads = [false, false, false, true, true, true, false, false, false];
+                let (original, _) = generate_original(&spec, &mut rng(seed));
+                let field = generate(&spec, &mut rng(seed));
+                for y in 0..H {
+                    for x in 0..W {
+                        assert_eq!(
+                            field.look.tiles[cell(x, y)],
+                            original.look.tiles[at(x, y)],
+                            "{set:?} seed {seed} tile ({x},{y})"
+                        );
+                        assert_eq!(field.look.roads[cell(x, y)], original.look.roads[at(x, y)]);
+                        if in_band(x, y) {
+                            assert_eq!(field.cost_at(x, y), original.cost[at(x, y)]);
+                            assert_eq!(field.sail_at(x, y), original.sail[at(x, y)]);
+                        }
+                    }
+                }
+                // Its trees and rocks are still there, in the same order.
+                assert_eq!(
+                    field.look.trees[..original.look.trees.len()],
+                    original.look.trees
+                );
+                assert_eq!(
+                    field.look.rocks[..original.look.rocks.len()],
+                    original.look.rocks
+                );
+                assert_eq!(field.look.houses, original.look.houses);
+            }
+        }
+    }
+
+    #[test]
+    fn the_new_cells_get_ground_and_scenery_of_their_own_and_a_denser_forest_or_mountain() {
+        let beyond = |x: i32, y: i32| !in_band(x, y);
+        let more = |set: Set, percent: u32| -> (usize, usize) {
+            let mut inside = 0;
+            let mut outside = 0;
+            for seed in 0..30 {
+                let mut spec = Spec::open(set);
+                spec.scenery.forest_trees_percent = percent;
+                spec.scenery.mountain_rocks_percent = percent;
+                let l = generate(&spec, &mut rng(seed));
+                for p in l.look.trees.iter().chain(&l.look.rocks) {
+                    if beyond(p.cell.0, p.cell.1) {
+                        outside += 1;
+                    } else {
+                        inside += 1;
+                    }
+                }
+            }
+            (inside, outside)
+        };
+        let (inside, outside) = more(Set::Plains, 100);
+        assert!(outside > 0, "scenery lies on the new cells too");
+        // The cells outside the original's band are the bigger part of the field and get a share
+        // to match: about as thick as inside it.
+        assert!(outside > inside, "{outside} outside, {inside} inside");
+        // A higher percent for forest and mountain ground gives more; other ground ignores it.
+        for set in [Set::Forest, Set::Mountains] {
+            let (a_in, a_out) = more(set, 100);
+            let (b_in, b_out) = more(set, 300);
+            assert!(b_in + b_out > a_in + a_out, "{set:?}");
+        }
+        assert_eq!(more(Set::Plains, 100), more(Set::Plains, 500));
     }
 
     #[test]
@@ -1326,7 +1726,11 @@ mod tests {
                         .is_none_or(|c| c >= OPEN_COST + HalfInt::HALF)
                         || l.look.set == Set::Water
                 );
-                assert_eq!(l.look.roads[at(t.cell.0, t.cell.1)], 0, "no prop on a road");
+                assert_eq!(
+                    l.look.roads[cell(t.cell.0, t.cell.1)],
+                    0,
+                    "no prop on a road"
+                );
             }
         }
     }
@@ -1358,7 +1762,7 @@ mod tests {
         // A road on the square and to the east and the west.
         spec.roads = [false, false, false, true, true, true, false, false, false];
         let l = generate(&spec, &mut rng(2));
-        let road = |x: i32, y: i32| l.look.roads[at(x, y)] != 0;
+        let road = |x: i32, y: i32| l.look.roads[cell(x, y)] != 0;
         let count = l.look.roads.iter().filter(|&&r| r != 0).count();
         assert!(count >= 15, "a road across the field, got {count}");
         assert!(l.look.roads.iter().all(|&r| r & 0x80 == 0));
@@ -1452,8 +1856,12 @@ mod tests {
         assert!(l.look.trees.is_empty() && l.look.rocks.is_empty());
         assert_eq!(l.cost_at(10, 10), None, "nobody walks on the sea");
         assert_eq!(l.sail_at(10, 10), Some(SAIL_COST));
-        assert_eq!(l.sail_at(0, 0), None, "the corners are shut to ships too");
-        assert!(!l.is_void(10, 10) && l.is_void(0, 0));
+        assert_eq!(
+            l.sail_at(0, 0),
+            Some(SAIL_COST),
+            "the corners are open to ships too"
+        );
+        assert!(!l.is_void(10, 10) && !l.is_void(0, 0));
         assert!(l.look.tiles.iter().all(|&t| (48..52).contains(&t)));
     }
 
@@ -1465,7 +1873,7 @@ mod tests {
         let decks = island_decks(false, true);
         assert_eq!(decks.defenders.len(), 9);
         for &(x, y) in &decks.defenders {
-            assert_eq!(l.look.roads[at(x, y)], DECK);
+            assert_eq!(l.look.roads[cell(x, y)], DECK);
             assert_eq!(
                 l.cost_at(x, y),
                 Some(HalfInt::HALF),
@@ -1474,7 +1882,7 @@ mod tests {
             assert_eq!(l.sail_at(x, y), None);
         }
         let (px, py) = decks.pictures[0];
-        assert_eq!(l.look.roads[at(px, py)], DECK_PICTURE);
+        assert_eq!(l.look.roads[cell(px, py)], DECK_PICTURE);
         assert_eq!(l.cost_at(px, py), None);
         assert_eq!(l.sail_at(px, py), Some(SAIL_COST));
         // Both sides: the attackers' island is in the middle, and nothing overlaps.
@@ -1505,23 +1913,21 @@ mod tests {
                 let l = generate(&river_spec(rivers), &mut rng(seed));
                 let wet = (0..H)
                     .flat_map(|y| (0..W).map(move |x| (x, y)))
-                    .filter(|&(x, y)| in_band(x, y) && l.look.tiles[at(x, y)] >= RIVER_TILE)
+                    .filter(|&(x, y)| in_band(x, y) && l.look.tiles[cell(x, y)] >= RIVER_TILE)
                     .count();
                 assert!(wet >= 8, "seed {seed}: {wet} river squares in view");
                 across += 1;
                 for y in 0..H {
                     for x in 0..W {
-                        let i = at(x, y);
+                        let i = cell(x, y);
                         if l.look.tiles[i] >= RIVER_TILE && l.look.roads[i] == 0 {
-                            assert_eq!(l.cost_at(x, y), in_band(x, y).then_some(ROUGH_COST));
-                            if in_band(x, y) {
-                                assert_eq!(l.sail_at(x, y), Some(SAIL_COST));
-                            }
+                            assert_eq!(l.cost_at(x, y), Some(ROUGH_COST));
+                            assert_eq!(l.sail_at(x, y), Some(SAIL_COST));
                         }
                     }
                 }
                 for t in l.look.trees.iter().chain(&l.look.rocks) {
-                    assert!(l.look.tiles[at(t.cell.0, t.cell.1)] < RIVER_TILE);
+                    assert!(l.look.tiles[cell(t.cell.0, t.cell.1)] < RIVER_TILE);
                 }
             }
         }
@@ -1551,7 +1957,7 @@ mod tests {
             let l = generate(&spec, &mut rng(seed));
             for y in MIN_CGY_CITY..=MAX_CGY_CITY {
                 for x in MIN_CGX_CITY..=MAX_CGX_CITY {
-                    assert!(l.look.tiles[at(x, y)] < RIVER_TILE);
+                    assert!(l.look.tiles[cell(x, y)] < RIVER_TILE);
                 }
             }
             // Every cell a unit may deploy on can be entered on foot.

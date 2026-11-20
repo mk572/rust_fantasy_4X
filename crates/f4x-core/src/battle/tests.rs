@@ -612,7 +612,6 @@ fn obstacles_shape_where_units_can_go() {
             to: (11, 10)
         })
         .is_err());
-    assert_eq!(GRID_W, 21);
 }
 
 // ---- joining the game ------------------------------------------------------------------

@@ -220,7 +220,12 @@ good.
 
 ## 3. The tactical map and the turn (task 40)
 
-- The grid is **21 by 22** squares (the original's size). A square is open, rough (forest,
+- The grid is **24 by 24** squares, every one enterable (task 735). The original's 21 by 22 cells keep their
+  places in the core's frame (`x = 20 - cgx`, `y = cgy`) and generate exactly as before (same draws); the new
+  squares are columns 21 to 23 (`cgx` -3 to -1) and rows 22 and 23, filled from a second random stream seeded
+  from the original's field (`layout::expand`). Their ground repeats the nearest original cell mirrored outwards.
+  Trees and rocks are scaled to the field's area, and `battle_scenery` in `rules.ron` thickens forest trees and
+  mountain rocks. The view scrolls (arrow keys, mouse wheel) and turns about the field's middle. A square is open, rough (forest,
   swamp, rubble: two moves to enter), or blocked (trees, rocks: walkers cannot enter). Flying
   units pay one move everywhere. Moves are `HalfInt` amounts (1 move, 1.5, a road half a move) like the overland map; a unit with
   any move left may take a last step that costs more. **A diagonal step costs half a move more**
@@ -292,7 +297,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   the square: terrain set, roads on it and its eight neighbours, the city with its houses and
   walls. Rough ground, dirt, roads, trees and rocks are laid as the original lays them; walking
   costs are grass and dirt 1 move, rough 2, road half a move, plus half a move for each tree or rock on the
-  square (to 2); the corners outside the band and the structure square (an outpost's, a lair's,
+  square (to 2); the structure square (an outpost's, a lair's,
   a tower's, a node's, a wizard's fortress) are shut to everyone. The seed comes from the
   square (`x * y * (plane + 5) + 10039`), as in the original, so a fight on one square is
   fought on the same ground.

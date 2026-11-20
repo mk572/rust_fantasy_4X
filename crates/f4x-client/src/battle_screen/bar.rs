@@ -112,14 +112,18 @@ fn range_text(tenths: i32) -> String {
 }
 
 impl App {
-    pub(super) fn battle_view() -> (f32, f32, f32) {
+    /// The view of the field: the scale and the window point of the grid's origin, for the view
+    /// `scroll` native pixels from the field's middle (the middle of the 24 by 24 field is where
+    /// the middle of the original's was).
+    pub(super) fn battle_view(scroll: (f32, f32)) -> (f32, f32, f32) {
         let lay = Layout::new();
+        let (mx, my) = super::field_middle_shift();
         // The window's first row shows the cells whose origins are 144 pixels left of the grid's
         // origin and 72 below it, 8 pixels above the window (`Combat_Screen_Map_Draw`).
         (
             lay.scale,
-            lay.origin.x + 144.0 * lay.scale,
-            lay.origin.y - 80.0 * lay.scale,
+            lay.origin.x + (144.0 + mx + scroll.0) * lay.scale,
+            lay.origin.y + (-80.0 + my + scroll.1) * lay.scale,
         )
     }
 

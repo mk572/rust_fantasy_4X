@@ -48,6 +48,62 @@ const STEP_Y: f32 = 8.0;
 /// Seconds between the opponent's orders.
 const AI_DELAY: f32 = 0.3;
 
+/// How fast the arrow keys move the view, in native pixels a second, and how far it may go from the
+/// field's middle (the field is 24 by 24 squares, bigger than the window).
+const SCROLL_SPEED: f32 = 220.0;
+const SCROLL_LIMIT: (f32, f32) = (230.0, 130.0);
+
+/// How near the window's left or right edge the pointer scrolls the view, in window pixels.
+const EDGE: f32 = 3.0;
+
+/// The scroll that puts the square `cell` in the middle of the view.
+fn scroll_to(cell: Pos, turn: Turn) -> (f32, f32) {
+    let (cx, cy) = (
+        (f4x_core::battle::map::layout::W - 1 - f4x_core::battle::map::layout::EXTRA_X) as f32
+            / 2.0,
+        (GRID_H - 1) as f32 / 2.0,
+    );
+    let middle = original_origin(cx, cy);
+    let at = cell_origin(cell, turn);
+    (
+        (middle.0 - at.0).clamp(-SCROLL_LIMIT.0, SCROLL_LIMIT.0),
+        (middle.1 - at.1).clamp(-SCROLL_LIMIT.1, SCROLL_LIMIT.1),
+    )
+}
+
+/// Move the view by the arrow keys, the mouse wheel, a drag with the middle button and the
+/// pointer at the window's left or right edge.
+fn scroll_view(ui: &mut BattleUi, input: &Input, dt: f32) {
+    let (mx, my) = input.mouse_position();
+    let (scale, ..) = App::battle_view((0.0, 0.0));
+    let mut drag = (0.0, 0.0);
+    if input.mouse_down(MouseButton::Middle) {
+        if let Some((lx, ly)) = ui.last_mouse {
+            drag = ((mx - lx) / scale, (my - ly) / scale);
+        }
+    }
+    ui.last_mouse = Some((mx, my));
+    let edge = if mx <= EDGE {
+        -1.0
+    } else if mx >= screen_width() - EDGE {
+        1.0
+    } else {
+        0.0
+    };
+    let key = |k| input.key_down(k) as i32 as f32;
+    let (wheel_x, wheel_y) = input.mouse_wheel();
+    let dx = key(KeyCode::Right) - key(KeyCode::Left) + edge;
+    let dy = key(KeyCode::Down) - key(KeyCode::Up);
+    // Scrolling moves the view over the field, so the field moves the other way on the screen.
+    let (x, y) = ui.scroll;
+    ui.scroll = (
+        (x - dx * SCROLL_SPEED * dt - wheel_x * 8.0 + drag.0)
+            .clamp(-SCROLL_LIMIT.0, SCROLL_LIMIT.0),
+        (y - dy * SCROLL_SPEED * dt - wheel_y * 8.0 + drag.1)
+            .clamp(-SCROLL_LIMIT.1, SCROLL_LIMIT.1),
+    );
+}
+
 /// What the screen remembers between frames.
 #[derive(Default)]
 pub(crate) struct BattleUi {
@@ -67,6 +123,11 @@ pub(crate) struct BattleUi {
     log: Vec<String>,
     /// The fleeing button was pressed once and waits for a second press.
     confirm_flee: bool,
+    /// How far the view is moved from the field's middle, in native pixels (arrow keys, mouse wheel).
+    scroll: (f32, f32),
+    /// The unit the view last centred on, and where the mouse was last frame (for the drag).
+    followed: Option<usize>,
+    last_mouse: Option<(f32, f32)>,
     /// Unit names by id, kept while the battle exists so the last events can be told after
     /// the game has dropped the battle.
     names: Vec<f4x_lang::text::Term>,
@@ -145,6 +206,17 @@ fn cast_order(unit: Option<usize>, spell: SpellId, aim: SpellAim, mana: u32) -> 
         },
         None => BattleCommand::Cast { spell, aim, mana },
     }
+}
+
+/// How far the grid's origin lies from where the original puts it, so that the middle of the 24 by
+/// 24 field is on the spot where the middle of the original's band was (`(10.5, 10.5)`).
+fn field_middle_shift() -> (f32, f32) {
+    let (cx, cy) = (
+        (f4x_core::battle::map::layout::W - 1 - f4x_core::battle::map::layout::EXTRA_X) as f32
+            / 2.0,
+        (GRID_H - 1) as f32 / 2.0,
+    );
+    (-(cx - cy) * STEP_X, (10.5 + 10.5 - cx - cy) * STEP_Y)
 }
 
 fn original_origin(cgx: f32, cgy: f32) -> (f32, f32) {
@@ -1302,6 +1374,7 @@ impl App {
     pub(crate) fn battle_screen(&mut self, ui: &mut BattleUi, input: &Input) {
         let dt = get_frame_time();
         self.advance_animation(ui, dt);
+        scroll_view(ui, input, dt);
         // While orders animate, the battle as it was is drawn; afterwards the real one.
         let animating = ui.animating();
         let over = self.modals.has(crate::modal::kind::COMBAT_RESULT);
@@ -1360,8 +1433,15 @@ impl App {
             return self.draw_battle(ui, &battle, my_turn, None, input);
         }
 
+        // The view goes to a unit when it is picked.
+        if ui.selected != ui.followed {
+            ui.followed = ui.selected;
+            if let Some(unit) = ui.selected.and_then(|i| battle.unit(i)) {
+                ui.scroll = scroll_to(unit.cell, ui.turn);
+            }
+        }
         // Where the pointer is.
-        let (scale, ox, oy) = Self::battle_view();
+        let (scale, ox, oy) = Self::battle_view(ui.scroll);
         let mouse: Vec2 = input.mouse_position().into();
         let hovered = cell_at((mouse.x - ox) / scale, (mouse.y - oy) / scale, ui.turn)
             .filter(|&p| battle.map.is_playable(p))
@@ -2033,7 +2113,7 @@ impl App {
         input: &Input,
     ) {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        let (scale, ox, oy) = Self::battle_view();
+        let (scale, ox, oy) = Self::battle_view(ui.scroll);
         let mut gl = unsafe { get_internal_gl() };
         gl.flush();
         let dpi = screen_dpi_scale();
@@ -2077,12 +2157,15 @@ impl App {
                 }
             }
         }
-        // Grid lines help to judge distance.
+        // Grid lines help to judge distance; a square nobody can enter is dimmed (the original's
+        // field size setting shuts the outer ones, a structure's square is one too).
         for gy in 0..GRID_H {
             for gx in 0..GRID_W {
+                let (sx, sy) = at((gx, gy));
                 if battle.map.is_playable((gx, gy)) {
-                    let (sx, sy) = at((gx, gy));
                     diamond(sx, sy, scale, Color::new(0.0, 0.0, 0.0, 0.18), false);
+                } else if battle.map.get((gx, gy)).is_some() {
+                    diamond(sx, sy, scale, Color::new(0.0, 0.0, 0.0, 0.5), true);
                 }
             }
         }
@@ -2791,14 +2874,36 @@ mod tests {
                         "turn {quarters}"
                     );
                     assert!(places.insert((ox as i32, oy as i32)), "turn {quarters}");
-                    // The field is at most 336 pixels wide, 16 beyond the original's 320.
-                    assert!((-160.0..=160.0).contains(&(ox - 0.0)), "turn {quarters}");
                     // A unit standing there is drawn where the square is.
                     assert_eq!(cell_origin_f((x as f32, y as f32), turn), (ox, oy));
                 }
             }
         }
         Ok(())
+    }
+
+    #[test]
+    fn picking_a_unit_scrolls_the_view_so_its_square_is_where_the_fields_middle_is() {
+        let middle = original_origin(
+            (f4x_core::battle::map::layout::W - 1 - f4x_core::battle::map::layout::EXTRA_X) as f32
+                / 2.0,
+            (GRID_H - 1) as f32 / 2.0,
+        );
+        for quarters in 0..4 {
+            let turn = (0..quarters).fold(Turn::NONE, |t, _| t.step(false));
+            // A square near the middle is not held back by the limits of the scroll.
+            let cell = (f4x_core::battle::map::layout::W - 1 - 8, 11);
+            let scroll = scroll_to(cell, turn);
+            let at = cell_origin(cell, turn);
+            assert_eq!(
+                (at.0 + scroll.0, at.1 + scroll.1),
+                middle,
+                "turn {quarters}"
+            );
+        }
+        // Far squares stay inside the limits.
+        let scroll = scroll_to((0, 0), Turn::NONE);
+        assert!(scroll.0.abs() <= SCROLL_LIMIT.0 && scroll.1.abs() <= SCROLL_LIMIT.1);
     }
 
     #[test]

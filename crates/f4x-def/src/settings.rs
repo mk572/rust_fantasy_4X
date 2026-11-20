@@ -430,6 +430,11 @@ pub struct RuleSettings {
     /// the wall sections give, not just the +1 of the original, against attackers outside.
     #[serde(default = "fb_walls_cover_city")]
     pub walls_cover_city: bool,
+    /// Battles are fought on the original's field: the squares of the 24 by 24 field outside the
+    /// original's band (its four corners and the rows and columns added to it: `layout::in_band`)
+    /// are drawn and can be scrolled to, but nobody can enter them. Off: every square is playable.
+    #[serde(default = "fb_original_battlefield")]
+    pub original_battlefield: bool,
     /// Death immunity has the original's exceptions. Off (the default): a unit with death
     /// immunity is not harmed by any spell of the Death realm that harms units (Word of Death,
     /// Black Prayer and Terror included). On: those three ignore it, as they do in the original
@@ -667,6 +672,10 @@ fn fb_worker_production() -> HalfInt {
 
 fn fb_walls_cover_city() -> bool {
     fallback(|g| g.rules.walls_cover_city, false)
+}
+
+fn fb_original_battlefield() -> bool {
+    fallback(|g| g.rules.original_battlefield, false)
 }
 
 fn fb_magic_immunity_exceptions() -> bool {

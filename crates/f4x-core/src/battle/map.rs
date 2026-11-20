@@ -26,8 +26,23 @@ pub const JUMP_COST: HalfInt = HalfInt::from_int(2);
 
 /// What a diagonal step costs beyond the square's own cost: half a move.
 pub const DIAGONAL_EXTRA: HalfInt = HalfInt::HALF;
-pub const GRID_W: i32 = 21;
-pub const GRID_H: i32 = 22;
+/// The field is 24 by 24 squares, all of them playable (task 735). The original's is 21 by 22 with
+/// its corners shut (`layout::W`, `layout::H`); its squares keep their places in the core's frame
+/// (`x = 20 - cgx`, `y = cgy`) and the new ones lie beyond them: columns 21 to 23 (`cgx` -1 to -3) and
+/// rows 22 and 23.
+pub const GRID_W: i32 = 24;
+pub const GRID_H: i32 = 24;
+
+/// The original's cell (`cgx`, `cgy`) of a square of the field; `cgx` is negative on the columns the
+/// original does not have.
+pub const fn cg_of(pos: Pos) -> (i32, i32) {
+    (layout::W - 1 - pos.0, pos.1)
+}
+
+/// The square of the field the original's cell `(cgx, cgy)` is.
+pub const fn pos_of_cg(cg: (i32, i32)) -> Pos {
+    (layout::W - 1 - cg.0, cg.1)
+}
 
 /// Moves to enter an open square.
 pub const OPEN_COST: HalfInt = HalfInt::from_int(1);
@@ -294,13 +309,12 @@ impl BattleMap {
         let mut map = Self::open();
         for y in 0..GRID_H {
             for x in 0..GRID_W {
-                let (cgx, cgy) = (GRID_W - 1 - x, y);
+                let (cgx, cgy) = cg_of((x, y));
                 let cost = layout.cost_at(cgx, cgy);
                 let i = Self::index((x, y));
                 map.costs[i] = cost;
                 map.sail[i] = layout.sail_at(cgx, cgy);
-                map.ship_deck[i] =
-                    layout.look.roads[(cgy * layout::W + cgx) as usize] == layout::SHIP_DECK;
+                map.ship_deck[i] = layout.look.roads[layout::cell(cgx, cgy)] == layout::SHIP_DECK;
                 map.cells[i] = match cost {
                     _ if layout.is_void(cgx, cgy) => Cell::Void,
                     // Ocean: walkers cannot enter it, ships and fliers can.
@@ -325,9 +339,23 @@ impl BattleMap {
         self.look.as_deref()
     }
 
-    /// Whether a square is in the band the battle is played on (always true on a map made by hand).
+    /// Whether a square can be entered by anyone (all of them but a structure's, on a map made by
+    /// hand and on a generated one).
     pub fn is_playable(&self, pos: Pos) -> bool {
         self.get(pos).is_some_and(|c| c != Cell::Void)
+    }
+
+    /// Shut every square outside the original's band (`layout::in_band`) to everyone, as the original
+    /// does (`RuleSettings::original_battlefield`); the field keeps its 24 by 24 squares and its look.
+    pub fn shut_beyond_original(&mut self) {
+        for y in 0..GRID_H {
+            for x in 0..GRID_W {
+                let (cgx, cgy) = cg_of((x, y));
+                if !layout::in_band(cgx, cgy) {
+                    self.set((x, y), Cell::Void);
+                }
+            }
+        }
     }
 
     pub fn in_bounds(pos: Pos) -> bool {
@@ -618,7 +646,7 @@ pub fn deployment(attacker: bool, count: usize) -> Vec<Pos> {
 }
 
 /// The square of a lair's structure, an outpost's or a tower's, in the rules' frame.
-pub const STRUCTURE: Pos = (GRID_W - 1 - layout::STRUCTURE.0, layout::STRUCTURE.1);
+pub const STRUCTURE: Pos = pos_of_cg(layout::STRUCTURE);
 
 /// Distance in squares (diagonals count as one).
 pub fn distance(a: Pos, b: Pos) -> u32 {

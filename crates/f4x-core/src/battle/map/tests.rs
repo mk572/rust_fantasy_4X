@@ -9,13 +9,21 @@ fn none(_: Pos) -> bool {
 }
 
 #[test]
-fn the_map_has_the_original_size() {
+fn the_field_holds_the_originals_squares_where_they_were_and_squares_beyond_them() {
     let m = BattleMap::open();
-    assert_eq!((GRID_W, GRID_H), (21, 22));
+    const { assert!(GRID_W >= layout::W && GRID_H >= layout::H) };
     assert_eq!(m.get((0, 0)), Some(Cell::Open));
-    assert_eq!(m.get((20, 21)), Some(Cell::Open));
-    assert_eq!(m.get((21, 0)), None);
+    assert_eq!(m.get((GRID_W - 1, GRID_H - 1)), Some(Cell::Open));
+    assert_eq!(m.get((GRID_W, 0)), None);
     assert_eq!(m.get((0, -1)), None);
+    // The original's squares keep their places in the core's frame (`x = 20 - cgx`), so every
+    // position the rules name stays where it was; the new ones lie beyond its last column and row.
+    for cg in [(0, 0), (layout::W - 1, layout::H - 1), layout::STRUCTURE] {
+        assert_eq!(pos_of_cg(cg), (layout::W - 1 - cg.0, cg.1));
+        assert_eq!(cg_of(pos_of_cg(cg)), cg);
+        assert!(BattleMap::in_bounds(pos_of_cg(cg)));
+    }
+    assert!(BattleMap::in_bounds(pos_of_cg((-1, layout::H))));
 }
 
 #[test]
@@ -78,7 +86,7 @@ fn rough_ground_costs_double_and_a_last_move_may_overrun() {
 }
 
 #[test]
-fn the_generated_map_is_the_original_band_mirrored_and_follows_the_terrain() {
+fn the_generated_map_is_playable_everywhere_and_follows_the_terrain() {
     let counts = |t, seed| {
         let mut r = Pcg64Mcg::seed_from_u64(seed);
         let m = BattleMap::generate(t, &mut r);
@@ -86,11 +94,7 @@ fn the_generated_map_is_the_original_band_mirrored_and_follows_the_terrain() {
         let mut dear = 0;
         for y in 0..GRID_H {
             for x in 0..GRID_W {
-                assert_eq!(
-                    m.is_playable((x, y)),
-                    layout::in_band(GRID_W - 1 - x, y),
-                    "({x},{y})"
-                );
+                assert!(m.is_playable((x, y)), "({x},{y})");
                 if m.is_playable((x, y)) {
                     playable += 1;
                     if m.enter_cost((x, y), false).is_some_and(|c| c > OPEN_COST) {
@@ -101,7 +105,7 @@ fn the_generated_map_is_the_original_band_mirrored_and_follows_the_terrain() {
         }
         (playable, dear)
     };
-    assert_eq!(counts(None, 1).0, 200);
+    assert_eq!(counts(None, 1).0, (GRID_W * GRID_H) as u32);
     let mountains: u32 = (0..20)
         .map(|s| counts(Some(TerrainClass::Mountains), s).1)
         .sum();
@@ -115,13 +119,13 @@ fn the_generated_map_is_the_original_band_mirrored_and_follows_the_terrain() {
 }
 
 #[test]
-fn fliers_cannot_enter_the_corners_outside_the_band() {
+fn the_corners_the_original_shuts_can_be_entered_by_walkers_and_fliers() {
     let m = BattleMap::generate(
         Some(TerrainClass::Grassland),
         &mut Pcg64Mcg::seed_from_u64(1),
     );
-    assert_eq!(m.enter_cost((20, 0), true), None);
-    assert_eq!(m.enter_cost((20, 0), false), None);
+    assert!(m.enter_cost((20, 0), true).is_some());
+    assert!(m.enter_cost((20, 0), false).is_some());
     assert!(m.enter_cost((10, 10), true).is_some());
 }
 
@@ -130,12 +134,9 @@ fn deployment_blocks_are_three_columns_of_four_on_opposite_sides_and_never_overl
     let att = deployment(true, 12);
     let def = deployment(false, 12);
     assert_eq!(att.len(), 12);
-    assert!(att
-        .iter()
-        .all(|p| p.0 < CITY_X0 && layout::in_band(GRID_W - 1 - p.0, p.1)));
-    assert!(def
-        .iter()
-        .all(|p| p.0 >= CITY_X0 && layout::in_band(GRID_W - 1 - p.0, p.1)));
+    let in_band = |p: &Pos| layout::in_band(cg_of(*p).0, cg_of(*p).1);
+    assert!(att.iter().all(|p| p.0 < CITY_X0 && in_band(p)));
+    assert!(def.iter().all(|p| p.0 >= CITY_X0 && in_band(p)));
     let mut seen: Vec<Pos> = att.iter().chain(&def).copied().collect();
     seen.sort();
     seen.dedup();
@@ -148,7 +149,9 @@ fn deployment_blocks_are_three_columns_of_four_on_opposite_sides_and_never_overl
     // A stack beyond twelve spills into columns further back, still in the band.
     let many = deployment(true, 20);
     assert_eq!(many.len(), 20);
-    assert!(many.iter().all(|p| layout::in_band(GRID_W - 1 - p.0, p.1)));
+    assert!(many
+        .iter()
+        .all(|p| layout::in_band(cg_of(*p).0, cg_of(*p).1)));
     assert_eq!(distance((0, 0), (3, 2)), 3);
 }
 
@@ -321,7 +324,7 @@ fn ships_sail_the_ocean_swimmers_take_either_way_and_walkers_stay_ashore() {
     );
     assert_eq!(ocean.enter_cost_as(cell, walker()), None);
     assert_eq!(ocean.enter_cost_as(cell, flier()), Some(OPEN_COST));
-    assert_eq!(ocean.enter_cost_as((20, 0), flier()), None);
+    assert_eq!(ocean.enter_cost_as((20, 0), flier()), Some(OPEN_COST));
     // On land it is the other way about.
     let land = BattleMap::generate(
         Some(TerrainClass::Grassland),
@@ -443,8 +446,10 @@ fn a_field_gets_the_trees_and_rocks_its_terrain_asks_for() {
         for seed in 0..300 {
             let m = BattleMap::generate(Some(class), &mut Pcg64Mcg::seed_from_u64(seed));
             let look = m.look().expect("a generated map has a look");
-            t += look.trees.len() as f32 / 300.0;
-            r += look.rocks.len() as f32 / 300.0;
+            // The original's count is of the cells of its band; the cells beyond get more.
+            let in_band = |p: &&layout::Prop| layout::in_band(p.cell.0, p.cell.1);
+            t += look.trees.iter().filter(in_band).count() as f32 / 300.0;
+            r += look.rocks.iter().filter(in_band).count() as f32 / 300.0;
         }
         assert!(
             t > trees * 0.8 && t <= trees + 0.5,
@@ -452,4 +457,29 @@ fn a_field_gets_the_trees_and_rocks_its_terrain_asks_for() {
         );
         assert!((r - rocks).abs() < 0.8, "{class:?}: {r} rocks of {rocks}");
     }
+}
+
+#[test]
+fn the_original_battlefield_shuts_every_square_outside_the_original_band_and_nothing_else() {
+    let mut r = Pcg64Mcg::seed_from_u64(1);
+    let mut map = BattleMap::generate(Some(TerrainClass::Grassland), &mut r);
+    let before = map.clone();
+    map.shut_beyond_original();
+    for y in 0..GRID_H {
+        for x in 0..GRID_W {
+            let (cgx, cgy) = cg_of((x, y));
+            if layout::in_band(cgx, cgy) {
+                assert_eq!(map.get((x, y)), before.get((x, y)), "({x},{y})");
+                assert_eq!(
+                    map.enter_cost((x, y), false),
+                    before.enter_cost((x, y), false)
+                );
+            } else {
+                assert!(!map.is_playable((x, y)), "({x},{y})");
+                assert_eq!(map.enter_cost((x, y), true), None, "fliers too");
+            }
+        }
+    }
+    // The picture of the field is the same.
+    assert_eq!(map.look(), before.look());
 }

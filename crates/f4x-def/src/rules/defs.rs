@@ -899,6 +899,8 @@ pub struct RulesConfig {
     pub offer: OfferRules,
     /// The growth of an outpost.
     pub outpost: OutpostRules,
+    /// The scenery of the battle field (`SceneryRules`).
+    pub battle_scenery: SceneryRules,
     /// Raiders, monsters and the big events of the world.
     pub threat: ThreatRules,
     /// The fewest defenders a city wants: `(from figures, defenders)` pairs in rising order of
@@ -1492,6 +1494,26 @@ impl Default for OfferRules {
     }
 }
 
+/// How thick the scenery of a battle field is, as a percent of what the original lays: the field
+/// is bigger than the original's, so the original's number is first scaled to its area.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SceneryRules {
+    /// The trees of a field on forest ground.
+    pub forest_trees_percent: u32,
+    /// The rocks of a field on mountain ground.
+    pub mountain_rocks_percent: u32,
+}
+
+impl Default for SceneryRules {
+    fn default() -> Self {
+        Self {
+            forest_trees_percent: 100,
+            mountain_rocks_percent: 100,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OutpostRules {
     /// Tens of people a new outpost starts with, and at which it becomes a city of one (kept: a
@@ -1605,6 +1627,7 @@ impl Default for RulesConfig {
             diplomacy: DiplomacyRules::default(),
             offer: OfferRules::default(),
             outpost: OutpostRules::default(),
+            battle_scenery: SceneryRules::default(),
             threat: ThreatRules::default(),
             garrison_minimum: Vec::new(),
             city_size_from: Vec::new(),
