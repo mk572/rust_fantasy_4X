@@ -141,4 +141,39 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn a_heros_rolled_abilities_are_in_its_rating_not_on_top_of_it() -> TestResult {
+        let mut g = world();
+        let kind = crate::hero::game::tests::kind_of(&g, 3 /* dervish */);
+        let h = g
+            .spawn_hero(P0, at(1, 1), kind)
+            .map_err(|e| format!("{e:?}"))?;
+        let def = g.units().unit_def(h).ok_or("no unit def")?;
+        let rated = g
+            .content()
+            .rules
+            .combat_power(def, g.units().unit_level(h))
+            .ok_or("the dervish has no rating")?;
+        for rolled in [
+            vec![],
+            vec![
+                Ability::new(85 /* might */),
+                Ability::new(94 /* super_agility */),
+            ],
+            vec![
+                Ability::new(79 /* blademaster */),
+                Ability::new(83 /* constitution */),
+            ],
+        ] {
+            g.world.get::<&mut Hero>(h)?.abilities = HeroAbilities::from_ids(&rolled);
+            let power = g.units().unit_power(h);
+            assert!(
+                (power - rated).abs() <= rated * 1e-3,
+                "{} rolled abilities: {power} against the rating {rated}",
+                rolled.len()
+            );
+        }
+        Ok(())
+    }
 }

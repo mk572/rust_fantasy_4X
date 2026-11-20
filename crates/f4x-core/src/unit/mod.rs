@@ -617,7 +617,7 @@ impl<'a> UnitView<'a> {
     /// row in the rating file is worth its measured combat rating at its experience level
     /// (`Rules::combat_power`), times what it carries beyond that level: the formula of
     /// `battle::power` on its stats and abilities now over the formula on the stats and abilities of
-    /// its level alone (an item, a spell, a rolled ability of a hero raise it, a curse lowers it).
+    /// its level alone (an item or a spell raises it, a curse lowers it; a hero's rolled abilities are in its rating).
     /// A unit with no row is worth the formula.
     pub fn unit_power(&self, unit: hecs::Entity) -> f32 {
         let now = crate::battle::power::unit_power(
@@ -640,9 +640,20 @@ impl<'a> UnitView<'a> {
                 Source::Ability(id),
             ));
         }
+        // A hero's rating was measured with the abilities the game rolls for it (task 655), so
+        // they are part of the level alone: only items, spells and curses move it from there.
+        let mut rolled = Vec::new();
+        if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
+            let magic = crate::battle::game::ranged_kind_of(
+                &self.unit_abilities(unit),
+                &self.content.rules,
+            ) == crate::battle::RangedKind::Magic;
+            mods.extend(hero.abilities.modifiers(&self.content.rules, level, magic));
+            rolled = hero.abilities.ids();
+        }
         let base = crate::battle::power::unit_power(
             |s| compute(s, def.stats.get(&s).map_or(0, |v| v.floor()), &mods),
-            |a| def.abilities.contains(&a),
+            |a| def.abilities.contains(&a) || rolled.contains(&a),
         );
         if base > 0.0 {
             rated * now / base

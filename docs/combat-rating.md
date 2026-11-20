@@ -21,7 +21,7 @@ The outcome tables of the runs are archived in `duel-out/` (local, not committed
 
 ```
 (
-    hero_factor: 1.5,
+    hero_factor: 1.0,
     units: [ (num: 104, id: "high_men_spearmen", levels: [1.00, 1.81, 2.41, 9.18]), ... ],
 )
 ```
@@ -137,11 +137,10 @@ the combat factor in these combinations and leaves the others where they are.
 
 ### Step 4: the data gets better (tasks 723 and 724)
 
-- **Heroes (task 724)**: replace `hero_factor` with a function of class, level and carried items. The
-  measured pointer: rolled casters climb the hero ranking a lot (Warlock 24 places, Witch 15, Wind Mage
-  14) and warriors do not, and the rolled abilities scale with the level, so one flat factor is wrong
-  both ways. Measure the rolled hero against fixed reference units per hero, add a typical item loadout
-  by level, and measure the heroes at levels 5 to 9. The wiring goes first; this changes numbers.
+- **Heroes (task 724)**: rolled abilities, spells and levels 1 to 9 are measured (20 November 2026,
+  `hero_factor` 1, a hero's rolled abilities are in its rating and not counted again by `unit_power`);
+  what items add is not. Measure a typical loadout by level against the same heroes without, and wire
+  the uplift into `unit_power`. Until then a hero is assumed to carry nothing.
 - **Levels 5 and 6 of the normal units** (Ultra-Elite and Champion, task 723): `duel ladder --normal
   --cross 1-6`, needing the Warlord retort and the Crusade spell in the harness, which it has
   (`Game::scenario_level_bonus`).
