@@ -153,16 +153,16 @@ impl BattleCaster {
         }
     }
 
-    /// Mana from the reserve for `skill` points of casting, exact: `range` is a multiple of 5
+    /// Mana from the reserve for `skill` points of casting: `range` is the multiplier in
     /// tenths, so the price is a whole or a half number.
     pub fn mana_for(&self, skill: i32) -> HalfInt {
-        HalfInt::from_raw(skill * self.range / 5)
+        HalfInt::from_int(skill.saturating_mul(self.range)).percent(10)
     }
 
     /// The most skill a spell can cost now: what is left, and what the reserve pays for.
     pub fn affordable(&self) -> i32 {
         // The most skill whose price in mana the reserve (or the budget) covers.
-        let skill_for = |mana: HalfInt| mana.raw().max(0) * 5 / self.range;
+        let skill_for = |mana: HalfInt| (mana.max(HalfInt::ZERO) * 10).floor() / self.range;
         let by_budget = self.budget.map_or(i32::MAX, skill_for);
         self.skill_left.min(skill_for(self.mana)).min(by_budget)
     }
