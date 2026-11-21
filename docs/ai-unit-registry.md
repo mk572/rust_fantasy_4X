@@ -273,8 +273,14 @@ their `party` and the rally as `to`.
 
 - soldiers holding `AwaitingOrders` (4 or more): no more soldiers are built; a war (a campaign)
   with nobody holding `March` makes the cities build attackers;
-- a ship holding `TransportFree` exists: no ship is built;
-- units are tagged `Crossing::Sea` and no ship exists: the own port nearest to them builds one;
+- the ships holding `TransportFree` have places for every unit waiting for a ship (and a landing party
+  when a landing is planned): no ship is built; otherwise (`Roster::short_of_ships`, task 758) the own
+  port nearest to the waiting units builds one;
+- units tagged `Crossing::Sea` with no ship assigned also ask the wizard for a spell (task 701,
+  `wizardry::cross_target`): Water Walking or Wind Walking (`Kind::Cross`), and Flight (a `UnitBuff`), is
+  cast on a walker that waits, the cheapest spell first, from the pool without the third the other
+  spells leave over; the next sweep (`pickup::tidy_unit_registry`) drops the tag of a unit that no
+  longer needs a ship;
 - nobody holds a scouting role, no soldier is spare and the frontier is open (build phase): one city
   builds the fastest cheap fighter, which `scout.rs` recruits.
 

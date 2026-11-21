@@ -26,6 +26,10 @@ pub enum Kind {
     SummonHero,
     /// A lasting spell that makes one of the wizard's units better.
     UnitBuff,
+    /// Water Walking and Wind Walking: a lasting spell that lets a walker cross the sea without a
+    /// ship, cast on a unit that waits for a ship none is coming to (`cross_target`). Flight does
+    /// the same but stays a `UnitBuff`: it is worth casting for the fight as well.
+    Cross,
     /// A lasting spell that makes one of the wizard's cities better.
     CityBuff,
     /// A lasting spell on the wizard that helps it.
@@ -154,6 +158,18 @@ pub(crate) fn lycanthropy_target(
         .map(|(rate, u, extra)| (u, extra, rate))
 }
 
+/// The abilities (`abilities.ron`) that take a unit over the sea: water walking and wind walking
+/// (`SEA_WALKS`, the spells of `Kind::Cross`), and flying, which Flight gives.
+const SEA_WALKS: [u16; 2] = [71 /* water_walking */, 74 /* wind_walking */];
+const FLYING: u16 = 24;
+
+/// Whether a spell grants one of the abilities.
+fn grants_any(def: &SpellDef, abilities: &[u16]) -> bool {
+    def.effects
+        .iter()
+        .any(|r| matches!(&r.effect, Effect::GrantAbility(a) if abilities.contains(&a.num())))
+}
+
 /// What the AI makes of a spell.
 pub fn kind(def: &SpellDef) -> Kind {
     if !def.contexts.contains(&CastContext::Overland) {
@@ -202,6 +218,12 @@ pub fn kind(def: &SpellDef) -> Kind {
     }
     if UnitEffect::of(def) == Some(UnitEffect::Stasis) {
         return Kind::Stasis;
+    }
+    if def.target == SpellTarget::OwnUnit
+        && def.duration == Duration::Permanent
+        && grants_any(def, &SEA_WALKS)
+    {
+        return Kind::Cross;
     }
     if def.target == SpellTarget::OwnUnit
         && def.duration == Duration::Permanent
@@ -295,6 +317,8 @@ fn priority(k: Kind) -> u8 {
         Kind::Summon => 3,
         Kind::SummonHero => 3,
         Kind::UnitBuff => 4,
+        // Units wait on the shore for it: before the buffs.
+        Kind::Cross => 3,
         Kind::CityBuff => 5,
         Kind::GlobalBuff => 6,
         Kind::CityCurse => 7,
@@ -777,7 +801,12 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         if !view.spell_needs_target(spell) {
             return;
         }
-        pick_target(&view, spell)
+        let k = kind(view.spell(spell));
+        if aims_at_crossers(view.spell(spell), k) {
+            cross_aim(ai, &view, spell, k)
+        } else {
+            pick_target(&view, spell)
+        }
     };
     if let Some(target) = target {
         ai.order(
@@ -967,6 +996,59 @@ fn shift_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
         .max_by(|a, b| a.0.total_cmp(&b.0))
         .map(|(_, u)| Target::Unit(u))
         .filter(|&t| view.can_aim(spell, Some(t)))
+}
+
+/// Whether the spell goes first to a unit that waits for a ship: the walking spells, and Flight
+/// (a `UnitBuff`).
+fn aims_at_crossers(def: &SpellDef, k: Kind) -> bool {
+    k == Kind::Cross || (k == Kind::UnitBuff && grants_any(def, &[FLYING]))
+}
+
+/// The aim of a spell for [`aims_at_crossers`]: a unit that waits for a ship comes first, for
+/// Flight as for the walking spells; Flight with none waiting goes where a buff does.
+fn cross_aim(ai: &Ai, view: &PlayerView, spell: SpellId, k: Kind) -> Option<Target> {
+    cross_target(ai, view, spell).or_else(|| {
+        (k == Kind::UnitBuff)
+            .then(|| pick_target(view, spell))
+            .flatten()
+    })
+}
+
+/// The unit a spell that takes walkers over the sea is cast on: one that waits for a ship with
+/// none assigned (`Registry::waiting_for_ship`: the dispatcher has had its turn with a ship
+/// free, so none was) and that the spell would still help, that is, one that cannot cross by
+/// itself or in its stack. Wind Walking carries the stack it is in, so it goes to the unit with
+/// the most waiting mates on its square; Water Walking and Flight carry the one unit, the oldest
+/// of those that wait.
+fn cross_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
+    let waiting = ai.roles.waiting_for_ship();
+    if waiting.is_empty() {
+        return None;
+    }
+    let mine = view.my_units();
+    let wind = grants_any(view.spell(spell), &[74 /* wind_walking */]);
+    let mut stands: Vec<(Position, hecs::Entity)> = waiting
+        .iter()
+        .filter_map(|&(s, _)| {
+            let u = mine.iter().copied().find(|&u| view.serial_of(u) == s)?;
+            Some((view.unit_position(u)?, u))
+        })
+        .filter(|&(_, u)| view.is_walker_in_stack(u) && !view.unit_enchantments(u).contains(&spell))
+        .collect();
+    let mates: Vec<usize> = stands
+        .iter()
+        .map(|&(p, _)| stands.iter().filter(|&&(q, _)| q == p).count())
+        .collect();
+    let mut ranked: Vec<(usize, _, hecs::Entity)> = stands
+        .drain(..)
+        .zip(mates)
+        .map(|((_, u), n)| (if wind { n } else { 0 }, view.serial_of(u), u))
+        .collect();
+    ranked.sort_by_key(|&(n, serial, _)| (std::cmp::Reverse(n), serial));
+    ranked
+        .into_iter()
+        .map(|(_, _, u)| Target::Unit(u))
+        .find(|&t| view.can_aim(spell, Some(t)))
 }
 
 /// The square of the strongest enemy stack within `STASIS_RADIUS` of an own city that is stronger
@@ -1237,6 +1319,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 && matches!(
                     k,
                     Kind::UnitBuff
+                        | Kind::Cross
                         | Kind::CityBuff
                         | Kind::GlobalBuff
                         | Kind::Mutate
@@ -1262,6 +1345,8 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 shift_target(ai, &view, spell)
             } else if k == Kind::Gate {
                 gate_target(ai, &view, spell)
+            } else if aims_at_crossers(def, k) {
+                cross_aim(ai, &view, spell, k)
             } else {
                 pick_target(&view, spell)
             };
@@ -1289,6 +1374,10 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 Kind::UnitBuff => {
                     now && room && fighters >= 3 && upkeep_ok(&view, def) && target.is_some()
                 }
+                // Units wait on the shore for it: paid from what is in the pool, without the third
+                // that the other spells leave over (the wizards' pools stay below it for hundreds
+                // of turns, and the units wait just as long).
+                Kind::Cross => cost <= mana && room && upkeep_ok(&view, def) && target.is_some(),
                 Kind::Mutate => now && fighters >= 3 && target.is_some(),
                 Kind::Lycanthropy => now && fighters >= 3 && target.is_some(),
                 Kind::CityBuff => now && room && upkeep_ok(&view, def) && target.is_some(),
@@ -1537,6 +1626,9 @@ mod tests {
             (213 /* spell_of_mastery */, Kind::Mastery),
             (6 /* war_bears */, Kind::Summon),
             (4 /* giant_strength */, Kind::UnitBuff),
+            (8 /* water_walking */, Kind::Cross),
+            (63 /* wind_walking */, Kind::Cross),
+            (56 /* flight */, Kind::UnitBuff),
             (130 /* heroism */, Kind::UnitBuff),
             (21 /* elemental_armor */, Kind::UnitBuff),
             (12 /* natures_eye */, Kind::CityBuff),
@@ -1959,6 +2051,161 @@ mod tests {
         }));
         cast(&ai, &mut g, &mut Vec::new());
         assert!(began(&g)?, "at war: Meteor Storm begun or cast");
+        Ok(())
+    }
+
+    /// A wizard with the mana, the skill and the books to cast what it knows at once, and a
+    /// world with a strait: its walkers at the west wait for a target in the east.
+    fn strait_wizard(spells: &[u16]) -> Result<(Game, Ai), Box<dyn std::error::Error>> {
+        use crate::roles::{Crossing, Role};
+        let mut g = crate::testworld::game_with_strait(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        for &s in spells {
+            g.cheat_learn_spell(P0, spell(s)?);
+        }
+        treasury(&mut g, P0)?.mana = HalfInt::from_int(20_000);
+        let mut wizard = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
+        wizard.found(
+            &f4x_def::testdir::shipped().rules,
+            &[
+                (RealmId::new(2) /* chaos */, 11),
+                (RealmId::new(4) /* death */, 11),
+                (RealmId::new(0) /* nature */, 11),
+            ],
+            &[],
+        );
+        wizard.put(Some(f4x_core::wizard::fortress::Fortress(at(
+            COAST_CITY.0,
+            COAST_CITY.1,
+        ))));
+        {
+            let mut skill = wizard.get_mut::<f4x_core::wizard::sheet::Skill>();
+            skill.points = 20_000;
+            // A turn's casting skill, enough to pay for any of the spells at once.
+            skill.left = 5_000;
+        }
+        wizard.set_split(55, 0, 45).map_err(|e| format!("{e:?}"))?;
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        let _ = (Crossing::Sea, Role::Reinforce);
+        Ok((g, ai))
+    }
+
+    /// `units` wait for a ship to the east shore, as the dispatcher leaves them.
+    fn wait_for_a_ship(ai: &mut Ai, g: &Game, units: &[hecs::Entity]) {
+        use crate::roles::{Crossing, Role};
+        let view = PlayerView::new(g, P0);
+        for &u in units {
+            let s = view.serial_of(u);
+            let _ = ai.roles.claim(s, Role::Reinforce, g.turn, Some(at(30, 6)));
+            ai.roles.set_crossing(s, Some(Crossing::Sea));
+        }
+    }
+
+    fn has(g: &Game, u: hecs::Entity, id: u16) -> Result<bool, String> {
+        Ok(PlayerView::new(g, P0)
+            .unit_enchantments(u)
+            .contains(&spell(id)?))
+    }
+
+    /// Task 701: a walker that waits for a ship, with none assigned, is given Water Walking and
+    /// crosses the strait by itself; the others of the stack are not given it, and a unit that
+    /// has a ship coming is left alone.
+    #[test]
+    fn a_walker_that_waits_for_a_ship_is_given_water_walking() -> TestResult {
+        let (mut g, mut ai) = strait_wizard(&[8 /* water_walking */])?;
+        let ship = spawn(&mut g, P0, at(25, 1), 36 /* galley */, 1)[0];
+        let walkers = spawn(&mut g, P0, at(9, 6), 104 /* spearmen */, 3);
+        crate::roles::register(&mut ai, &g);
+        wait_for_a_ship(&mut ai, &g, &walkers);
+        // One has a ship coming: it is not the one.
+        {
+            let view = PlayerView::new(&g, P0);
+            ai.roles
+                .board_at(view.serial_of(walkers[0]), view.serial_of(ship), at(9, 6));
+        }
+        cast(&ai, &mut g, &mut Vec::new());
+        assert!(!has(&g, walkers[0], 8)?, "its ship is coming");
+        assert!(has(&g, walkers[1], 8)?, "the first that waits with no ship");
+        assert!(!has(&g, walkers[2], 8)?, "one spell, one unit");
+        // The unit now walks on water: it needs no ship.
+        assert!(!PlayerView::new(&g, P0).is_walker(walkers[1]));
+        assert!(g.find_path(&[walkers[1]], at(30, 6)).is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn nothing_is_cast_for_units_that_wait_for_nothing_or_need_no_ship() -> TestResult {
+        let (mut g, mut ai) =
+            strait_wizard(&[8 /* water_walking */, 63 /* wind_walking */])?;
+        let walkers = spawn(&mut g, P0, at(9, 6), 104 /* spearmen */, 2);
+        let flier = spawn(&mut g, P0, at(9, 6), 164 /* great_drake */, 1)[0];
+        crate::roles::register(&mut ai, &g);
+        // Nobody waits for a ship.
+        cast(&ai, &mut g, &mut Vec::new());
+        for &u in &walkers {
+            assert!(!has(&g, u, 8)? && !has(&g, u, 63)?);
+        }
+        // A flier that carries the sea tag is no walker: it is not aimed at.
+        wait_for_a_ship(&mut ai, &g, &[flier]);
+        cast(&ai, &mut g, &mut Vec::new());
+        assert!(!has(&g, flier, 8)? && !has(&g, flier, 63)?);
+        Ok(())
+    }
+
+    /// Wind Walking carries the stack it is cast in: it goes to the unit with the most mates
+    /// waiting on its square, and once cast the mates are no walkers in the stack, so it is cast
+    /// once. With Water Walking known as well, the cheaper one is chosen.
+    #[test]
+    fn wind_walking_is_cast_once_on_the_largest_waiting_stack() -> TestResult {
+        let (mut g, mut ai) = strait_wizard(&[63 /* wind_walking */])?;
+        let lone = spawn(&mut g, P0, at(8, 6), 104 /* spearmen */, 1);
+        let stack = spawn(&mut g, P0, at(9, 6), 104 /* spearmen */, 3);
+        crate::roles::register(&mut ai, &g);
+        wait_for_a_ship(&mut ai, &g, &[lone[0], stack[0], stack[1], stack[2]]);
+        cast(&ai, &mut g, &mut Vec::new());
+        let carriers: Vec<_> = stack
+            .iter()
+            .filter(|&&u| has(&g, u, 63) == Ok(true))
+            .collect();
+        assert_eq!(carriers.len(), 1, "one Wind Walker in the big stack");
+        assert!(!has(&g, lone[0], 63)?);
+        cast(&ai, &mut g, &mut Vec::new());
+        let again = stack
+            .iter()
+            .filter(|&&u| has(&g, u, 63) == Ok(true))
+            .count();
+        assert_eq!(again, 1, "the stack is carried: no second cast");
+        // The stack crosses the strait as one.
+        assert!(g.find_path(&stack, at(30, 6)).is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn the_cheaper_crossing_spell_goes_first() -> TestResult {
+        let (mut g, mut ai) =
+            strait_wizard(&[63 /* wind_walking */, 8 /* water_walking */])?;
+        let units = spawn(&mut g, P0, at(9, 6), 104 /* spearmen */, 2);
+        crate::roles::register(&mut ai, &g);
+        wait_for_a_ship(&mut ai, &g, &units);
+        cast(&ai, &mut g, &mut Vec::new());
+        assert!(units.iter().any(|&u| has(&g, u, 8) == Ok(true)));
+        assert!(units.iter().all(|&u| has(&g, u, 63) == Ok(false)));
+        Ok(())
+    }
+
+    /// Flight is a buff for the fight too: with fighters to buff it goes where it gains most;
+    /// but a walker that waits for a ship comes first.
+    #[test]
+    fn flight_goes_to_the_walker_that_waits_for_a_ship() -> TestResult {
+        let (mut g, mut ai) = strait_wizard(&[56 /* flight */])?;
+        let units = spawn(&mut g, P0, at(9, 6), 104 /* spearmen */, 3);
+        crate::roles::register(&mut ai, &g);
+        // The last one waits: by serial order the buff would go to the first.
+        wait_for_a_ship(&mut ai, &g, &units[2..]);
+        cast(&ai, &mut g, &mut Vec::new());
+        assert!(has(&g, units[2], 56)?);
+        assert!(!has(&g, units[0], 56)? && !has(&g, units[1], 56)?);
         Ok(())
     }
 

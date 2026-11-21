@@ -85,6 +85,9 @@ pub fn rate(view: &PlayerView, spell: SpellId, kind: Kind) -> f32 {
         // costs no unit.
         Kind::Lycanthropy => crate::wizardry::lycanthropy_target(view, spell).map_or(0.0, |t| t.2),
         Kind::UnitBuff => best_buff(view, spell).map_or(0.0, |b| b.1),
+        // The cheapest spell that takes a walker over the sea (its cost and the upkeep as for a
+        // summon): the one on the cheapest terms goes first.
+        Kind::Cross => 1000.0 / (cost + upkeep * upkeep_weight()).max(1.0),
         _ => cost / (1.0 + upkeep),
     };
     let affinity = view.wizard().map_or(1.0, |w| {
