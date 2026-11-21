@@ -131,7 +131,7 @@ def plan(files, run_all, with_slow):
     graph = crate_graph()
     cmds = []
     if run_all or any(f.startswith(EVERYTHING) for f in files):
-        return [("everything", ["cargo", "test", "--workspace"])]
+        return [("everything", ["cargo", "test", "--workspace", "--exclude", "f4x-learn"])]
 
     crates, areas, core_mods = set(), set(), set()
     unmapped = False

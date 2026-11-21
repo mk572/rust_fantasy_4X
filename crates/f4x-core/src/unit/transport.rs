@@ -36,11 +36,12 @@ impl Economy<'_> {
                 .is_some_and(|d| d.movement == MovementType::Sailing)
     }
 
-    /// Whether the unit is a walker: it walks by nature and nothing it carries (an item), nothing
-    /// cast on it (an enchantment) and no unit stacked with it lifts it off the ground: no
-    /// flight (24), no Wind Walking (74), no Water Walking (71), no Non-Corporeal (49). Only a
-    /// walker is fetched by a ship or counted on to walk the way a route plans; the abilities
-    /// are the unit's own, its enchantments' and its items' (`Units::unit_abilities`).
+    /// Whether the unit is a walker: it walks by nature and nothing it carries (an item) or has
+    /// cast on it (an enchantment) lifts it off the ground: no flight (24), no Wind Walking (74),
+    /// no Water Walking (71), no Non-Corporeal (49). Only a walker is fetched by a ship or counted
+    /// on to walk the way a route plans; the abilities are the unit's own, its enchantments' and
+    /// its items' (`Units::unit_abilities`). The unit alone: [`Economy::is_walker_in_stack`] adds
+    /// the stack it stands in.
     pub fn is_walker(&self, unit: hecs::Entity) -> bool {
         let units = self.units();
         units
@@ -54,6 +55,18 @@ impl Economy<'_> {
             ]
             .iter()
             .any(|&f| units.flags_of(&units.unit_abilities(unit)).contains(f))
+    }
+
+    /// [`Economy::is_walker`] for a unit in the stack it stands in: a stack with a Wind Walker is
+    /// carried through the air, so its units are no walkers while they stand together. A
+    /// question for the moment, since the stack changes when a unit steps away: not one to keep
+    /// as a fact about the unit.
+    pub fn is_walker_in_stack(&self, unit: hecs::Entity) -> bool {
+        self.is_walker(unit)
+            && self
+                .units()
+                .unit_position(unit)
+                .is_none_or(|at| !self.stack_flies(&self.army_at(at)))
     }
 
     /// Whether the unit cannot cross the sea by itself: it walks and neither flies nor is
@@ -868,6 +881,23 @@ mod tests {
             g.scenario_enchant_unit(u, crate::rules::SpellId::new(spell), P0);
             assert!(!g.economy().is_walker(u), "spell {spell}");
         }
+        Ok(())
+    }
+
+    #[test]
+    fn a_walker_in_a_stack_with_a_wind_walker_is_no_walker_while_they_stand_together() -> TestResult
+    {
+        let mut g = world();
+        let cavalry = unit(&mut g, 107 /* high_men_cavalry */, at(2, 2));
+        assert!(g.economy().is_walker_in_stack(cavalry));
+        // A mate with Wind Walking on the same square carries the stack.
+        let mate = unit(&mut g, 107 /* high_men_cavalry */, at(2, 2));
+        g.scenario_enchant_unit(mate, crate::rules::SpellId::new(63 /* wind_walking */), P0);
+        assert!(g.economy().is_walker(cavalry), "by itself it still is one");
+        assert!(!g.economy().is_walker_in_stack(cavalry));
+        // On another square it is a walker again.
+        let apart = unit(&mut g, 107 /* high_men_cavalry */, at(3, 2));
+        assert!(g.economy().is_walker_in_stack(apart));
         Ok(())
     }
 

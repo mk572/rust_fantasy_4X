@@ -413,6 +413,12 @@ impl<'a> PlayerView<'a> {
         self.game.economy().is_walker(unit)
     }
 
+    /// [`PlayerView::is_walker`] for the unit in the stack it stands in
+    /// (`Economy::is_walker_in_stack`): a stack with a Wind Walker is carried through the air.
+    pub fn is_walker_in_stack(&self, unit: hecs::Entity) -> bool {
+        self.game.economy().is_walker_in_stack(unit)
+    }
+
     pub fn unit_has_ability(&self, unit: hecs::Entity, ability: Ability) -> bool {
         self.game.units().unit_has_ability(unit, ability)
     }

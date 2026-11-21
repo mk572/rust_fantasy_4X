@@ -6,8 +6,10 @@
 //! those). A town that is a war target (the plan's goal or next target, the campaign, the march)
 //! is left to the army.
 //!
-//! The strike is outside the long-standing orders and changes nothing in the registry: the roles
-//! and targets of the units stay as they are. A unit that fights has moved from where it was (the
+//! The strike is outside the long-standing orders and changes almost nothing in the registry: the
+//! roles and targets of the units stay as they are. The one change: a unit that walks into an
+//! empty city leaves the ship that was to carry it (the pickup plan counts only the units that
+//! stand on its boarding tile or sit aboard), so it is taken off the passenger list. A unit that fights has moved from where it was (the
 //! winner takes the enemy's square), so the repair of the dispatcher (`dispatch::revalidate`)
 //! sends it on to its target again; a city's soldier is sent back to its city at once.
 
@@ -153,11 +155,21 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     if walkers.is_empty() {
                         continue;
                     }
+                    let walkers_sent = walkers.clone();
                     let to = Command::MoveStack {
                         units: walkers,
                         to: city,
                     };
                     if ai.send(game, to, events).is_ok() {
+                        // The units are off the ship, or off its boarding tile: its pickup plan
+                        // must not count them any more.
+                        let serials: Vec<_> = {
+                            let view = PlayerView::new(game, me);
+                            walkers_sent.iter().map(|&u| view.serial_of(u)).collect()
+                        };
+                        for s in serials {
+                            ai.roles.unboard(s);
+                        }
                         break;
                     }
                 }
@@ -342,5 +354,31 @@ mod tests {
         );
         assert!(g.economy().lair_at(at(7, 8)).is_some(), "the lair stands");
         Ok(())
+    }
+
+    /// A unit booked on a ship that walks into an empty enemy city is off the ship's passenger
+    /// list: the pickup plan does not wait for it or walk it back.
+    #[test]
+    fn a_unit_that_walks_into_an_empty_city_leaves_the_ships_passenger_list() {
+        use crate::testworld::ENEMY_CITY;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let beside = at(ENEMY_CITY.0 - 1, ENEMY_CITY.1);
+        let soldier = spawn(&mut g, P0, beside, 105 /* high_men_swordsmen */, 1);
+        g.make_contact(P0, P1);
+        g.declare_war(P0, P1);
+        let mut ai = Ai::new(P0);
+        let serial = PlayerView::new(&g, P0).serial_of(soldier[0]);
+        let _ = ai
+            .roles
+            .claim(serial, Role::Reinforce, g.turn, Some(beside));
+        ai.roles.board_at(serial, serial, beside);
+        assert!(ai.roles.boarding_of(serial).is_some());
+        run(&mut ai, &mut g, &mut Vec::new());
+        assert_eq!(
+            g.units().unit_position(soldier[0]),
+            Some(at(ENEMY_CITY.0, ENEMY_CITY.1)),
+            "it walked into the city"
+        );
+        assert_eq!(ai.roles.boarding_of(serial), None, "off the passenger list");
     }
 }
