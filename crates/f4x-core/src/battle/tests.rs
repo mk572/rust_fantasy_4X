@@ -11,6 +11,7 @@ use crate::rules::UnitId;
 use crate::rules::{Ability, SpellId};
 use f4x_battle::battlemagic::field::Field;
 use f4x_battle::map::BattleMap;
+use f4x_battle::map::Pos;
 use f4x_def::half_int::HalfInt;
 
 use crate::game::{Command, Event, Game, Rejection};
@@ -609,7 +610,7 @@ fn a_power_drain_shot_takes_two_to_twenty_mana_from_a_caster_that_fails_its_chec
 
 mod casting {
     use super::*;
-    use crate::battle::casting::range_percent;
+    use f4x_battle::battlemagic::caster::range_percent;
 
     use crate::rules::stats::Stat;
     use f4x_def::testdir::TestResult;
@@ -779,8 +780,8 @@ mod casting {
 mod fields {
     use super::*;
     use crate::battle::field::Field;
-    use crate::battle::immunity::Realm;
     use crate::rules::SpellId;
+    use f4x_def::rules::realm::Realm;
     use f4x_def::testdir::TestResult;
 
     #[test]
@@ -2563,7 +2564,7 @@ fn an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities() -> 
         .find(|u| u.source == Some(1))
         .ok_or("find is missing")?;
     assert!(raised.undead && raised.is_fantastic());
-    assert_eq!(raised.realm, Some(immunity::Realm::Death));
+    assert_eq!(raised.realm, Some(f4x_def::rules::realm::Realm::Death));
     for a in [
         16, /* death_immunity */
         10, /* cold_immunity */
@@ -2781,7 +2782,7 @@ fn finish_with_fates(
         b.units[i].damage_kinds = kinds;
     }
     for &i in of_death {
-        b.units[i].realm = Some(crate::battle::immunity::Realm::Death);
+        b.units[i].realm = Some(f4x_def::rules::realm::Realm::Death);
     }
     g.apply(Command::Battle(BattleCommand::EndTurn))
 }

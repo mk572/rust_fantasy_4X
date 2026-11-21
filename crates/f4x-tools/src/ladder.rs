@@ -11,8 +11,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use f4x_ai::battle::cast::next_command;
-use f4x_core::battle::map::BattleMap;
-use f4x_core::battle::BattleEvent;
+use f4x_battle::battle::BattleEvent;
+use f4x_battle::map::BattleMap;
 use f4x_core::game::rng::GameRng;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::hero::kind::roll_one;
@@ -1019,7 +1019,7 @@ pub fn rank_csv(content: &Content, strength: &BTreeMap<u16, f64>, pairs: &[Pair]
             .iter()
             .find(|(_, d)| d.num == u)
             .map_or((0.0, 0), |(_, d)| {
-                (f64::from(f4x_core::battle::power::def_formula(d)), d.cost)
+                (f64::from(f4x_battle::power::def_formula(d)), d.cost)
             })
     };
     let least = rows
@@ -1319,7 +1319,7 @@ fn combine_levels(
             })
             .filter_map(|&u| {
                 let d = content.rules.units.iter().find(|(_, d)| d.num == u)?.1;
-                Some(f64::from(f4x_core::battle::power::def_formula(d)) / worth(u, range[0]))
+                Some(f64::from(f4x_battle::power::def_formula(d)) / worth(u, range[0]))
             })
             .collect();
         scales.sort_by(f64::total_cmp);

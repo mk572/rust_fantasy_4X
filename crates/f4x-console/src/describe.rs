@@ -528,8 +528,8 @@ pub fn event(game: &Game, e: &Event) -> String {
 }
 
 /// The spell events of a battle; the other battle events are shown plainly.
-fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
-    use f4x_core::battle::BattleEvent as B;
+fn battle_event(game: &Game, e: &f4x_battle::battle::BattleEvent) -> String {
+    use f4x_battle::battle::BattleEvent as B;
     match e {
         B::SpellCast {
             side,
@@ -602,9 +602,9 @@ fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
             }
         }
         B::Confused { unit, act } => match act {
-            f4x_core::battle::Confusion::Idle => format!("Unit {unit} stands about, confused"),
-            f4x_core::battle::Confusion::Wandered => format!("Unit {unit} wanders off, confused"),
-            f4x_core::battle::Confusion::Seized => {
+            f4x_battle::Confusion::Idle => format!("Unit {unit} stands about, confused"),
+            f4x_battle::Confusion::Wandered => format!("Unit {unit} wanders off, confused"),
+            f4x_battle::Confusion::Seized => {
                 format!("Unit {unit} falls under the enemy's orders")
             }
         },

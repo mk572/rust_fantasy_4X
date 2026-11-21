@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::AddAssign;
 
-use f4x_core::battle::BattleEvent;
+use f4x_battle::battle::BattleEvent;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::diplomacy::{DiplomacyEvent, Proposal, ProposalKind, Treaty};
 use f4x_core::game::{Event, Game};
@@ -1952,7 +1952,7 @@ mod tests {
         )?;
         let mut tally = Tally::new(&game);
         let bolt = spell("fire_bolt")?;
-        let side = f4x_core::battle::Side::Attacker;
+        let side = f4x_battle::Side::Attacker;
         tally.record(
             &game,
             None,

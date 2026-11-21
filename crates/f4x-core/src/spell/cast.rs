@@ -5,7 +5,6 @@
 use crate::rules::Ability;
 use rand::RngCore;
 
-use crate::battle::immunity::Realm;
 use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
 use crate::map::Position;
@@ -18,6 +17,7 @@ use crate::spell::instance::SpellTarget as Placed;
 use crate::spell::target_error::TargetError;
 use crate::unit::Hurt;
 use crate::wizard::magic::MagicError;
+use f4x_def::rules::realm::Realm;
 
 /// Something a wizard pays mana for every turn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -167,7 +167,7 @@ impl EffectHost for GameHost<'_> {
         let Target::Unit(u) = who else {
             return false;
         };
-        crate::battle::immunity::Immunities::of(
+        f4x_def::rules::immunity::Immunities::of(
             &self.game.units().unit_abilities(u),
             &self.game.units().unit_enchantment_ids(u),
             &self.game.content.rules,
@@ -198,7 +198,7 @@ impl EffectHost for GameHost<'_> {
         who: Target,
         strength: i32,
         types: DamageTypes,
-        _realm: Option<crate::battle::immunity::Realm>,
+        _realm: Option<f4x_def::rules::realm::Realm>,
         traits: &crate::rules::effects::DamageTraits,
     ) -> i32 {
         let Target::Unit(u) = who else {
@@ -207,7 +207,7 @@ impl EffectHost for GameHost<'_> {
         if !traits.area {
             return self.damage(who, strength, types);
         }
-        let nature = crate::battle::immunity::AttackNature {
+        let nature = f4x_def::rules::attack_nature::AttackNature {
             types,
             armor_piercing: traits.armor_piercing,
         };

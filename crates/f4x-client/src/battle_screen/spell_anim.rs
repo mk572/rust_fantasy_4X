@@ -33,7 +33,7 @@ impl App {
                 self.game.content().rules.realms.get(def.realm).id.clone(),
                 summons,
                 self.names.spell_term(def.num),
-                f4x_core::battle::field::Field::of(def).is_some(),
+                f4x_battle::battlemagic::field::Field::of(def).is_some(),
             )
         };
         let fx = spell_fx::fx_for(self.art.spells(), &id, &realm, summons, is_field);

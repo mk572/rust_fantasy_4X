@@ -3,7 +3,7 @@
 //!
 //! Tests: in `tests.rs`, through the console.
 
-use f4x_core::battle::BattleCommand;
+use f4x_battle::battle::BattleCommand;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::map::{Plane, Position};
 
@@ -510,8 +510,8 @@ fn bshootwall(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 /// The aim, mana and spell name of a `bcast` or `ucast`.
 fn cast_words(
     words: &[String],
-) -> Result<(f4x_core::battle::SpellAim, u32, Vec<&str>), ConsoleError> {
-    use f4x_core::battle::SpellAim;
+) -> Result<(f4x_battle::battle::SpellAim, u32, Vec<&str>), ConsoleError> {
+    use f4x_battle::battle::SpellAim;
     let mut aim = SpellAim::None;
     let mut mana = 0;
     let mut name = Vec::new();

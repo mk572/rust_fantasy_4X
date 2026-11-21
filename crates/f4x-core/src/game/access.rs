@@ -266,7 +266,7 @@ impl Game {
         if let Some(a) = self.battle.as_mut() {
             a.battle.set_caster(
                 side,
-                crate::battle::casting::BattleCaster::new(mana, mana, 10),
+                f4x_battle::battlemagic::caster::BattleCaster::new(mana, mana, 10),
             );
         }
     }

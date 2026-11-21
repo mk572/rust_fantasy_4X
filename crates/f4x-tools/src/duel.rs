@@ -18,14 +18,15 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use f4x_ai::battle::order::next_command;
-use f4x_core::battle::immunity::Immunities;
-use f4x_core::battle::map::{BattleMap, Pos};
-use f4x_core::battle::{Battle, BattleEvent, Side};
+use f4x_battle::battle::{Battle, BattleEvent};
+use f4x_battle::map::{BattleMap, Pos};
+use f4x_battle::Side;
 use f4x_core::game::{Command, Game};
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::damage_type::{DamageType, DamageTypes};
 use f4x_def::content::Content;
+use f4x_def::rules::immunity::Immunities;
 
 pub const USAGE: &str = "usage: f4x-tools duel pairs|teams|ladder|heroes [--units N,N,...|--all] [--seeds N] [--battles N] [--max-team N] [--max-commands N] [--seed N] [--csv FILE] [--content DIR]
   pairs   every unit of the set against every unit of the set, --seeds fights each (default 1)
@@ -472,7 +473,7 @@ fn group_fight(
                 if rated {
                     rules.combat_rating(d, 0)
                 } else {
-                    Some(f4x_core::battle::power::def_formula(d))
+                    Some(f4x_battle::power::def_formula(d))
                 }
             })
             .collect::<Option<Vec<f32>>>()?;
@@ -683,7 +684,8 @@ mod tests {
         for (_, u) in c.rules.units.iter().filter(|(_, u)| shoots_missiles(u.num)) {
             let mut b = make_battle(&c, &[(u.num, (3, 10))], &[(target, (6, 10))], 1)
                 .expect("the battle starts");
-            let Ok(events) = b.apply(f4x_core::battle::BattleCommand::Shoot { unit: 0, target: 1 })
+            let Ok(events) =
+                b.apply(f4x_battle::battle::BattleCommand::Shoot { unit: 0, target: 1 })
             else {
                 continue;
             };

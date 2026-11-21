@@ -17,10 +17,9 @@ use crate::page::Page;
 use crate::spellbook::BookUi;
 use crate::text::{Args, Texts};
 use f4x_ai::battle::order::next_command;
-use f4x_core::battle::map::{distance, BattleMap, Pos, Wall, GRID_H, GRID_W};
-use f4x_core::battle::{
-    Battle, BattleCommand, BattleEvent, BattleUnit, Confusion, Fate, RangedKind, Side, SpellAim,
-};
+use f4x_battle::battle::{Battle, BattleCommand, BattleEvent, RangedKind, SpellAim};
+use f4x_battle::map::{distance, BattleMap, Pos, Wall, GRID_H, GRID_W};
+use f4x_battle::{BattleUnit, Confusion, Fate, Side};
 use f4x_core::game::{Command, Event};
 use f4x_core::map::Plane;
 use f4x_core::rules::damage_type::DamageType;
@@ -59,8 +58,7 @@ const EDGE: f32 = 3.0;
 /// The scroll that puts the square `cell` in the middle of the view.
 fn scroll_to(cell: Pos, turn: Turn) -> (f32, f32) {
     let (cx, cy) = (
-        (f4x_core::battle::map::layout::W - 1 - f4x_core::battle::map::layout::EXTRA_X) as f32
-            / 2.0,
+        (f4x_battle::map::layout::W - 1 - f4x_battle::map::layout::EXTRA_X) as f32 / 2.0,
         (GRID_H - 1) as f32 / 2.0,
     );
     let middle = original_origin(cx, cy);
@@ -212,8 +210,7 @@ fn cast_order(unit: Option<usize>, spell: SpellId, aim: SpellAim, mana: u32) -> 
 /// 24 field is on the spot where the middle of the original's band was (`(10.5, 10.5)`).
 fn field_middle_shift() -> (f32, f32) {
     let (cx, cy) = (
-        (f4x_core::battle::map::layout::W - 1 - f4x_core::battle::map::layout::EXTRA_X) as f32
-            / 2.0,
+        (f4x_battle::map::layout::W - 1 - f4x_battle::map::layout::EXTRA_X) as f32 / 2.0,
         (GRID_H - 1) as f32 / 2.0,
     );
     (-(cx - cy) * STEP_X, (10.5 + 10.5 - cx - cy) * STEP_Y)
@@ -561,16 +558,13 @@ mod spell_anim;
 
 impl App {
     /// What the interface calls a unit of the battle: the name of its definition.
-    pub(crate) fn battle_unit_name(&self, u: &f4x_core::battle::BattleUnit) -> String {
+    pub(crate) fn battle_unit_name(&self, u: &f4x_battle::BattleUnit) -> String {
         u.unit_id
             .map_or_else(String::new, |id| self.names.unit(id.num()).to_string())
     }
 
     /// The same as a term, for a message that needs a form of the name.
-    pub(crate) fn battle_unit_term(
-        &self,
-        u: &f4x_core::battle::BattleUnit,
-    ) -> f4x_lang::text::Term {
+    pub(crate) fn battle_unit_term(&self, u: &f4x_battle::BattleUnit) -> f4x_lang::text::Term {
         u.unit_id
             .map_or_else(Default::default, |id| self.names.unit_term(id.num()))
     }
@@ -755,7 +749,7 @@ impl App {
             self.with_page(|page, app| page.test_effect(app, kind));
             return;
         }
-        use f4x_core::battle::field::Field;
+        use f4x_battle::battlemagic::field::Field;
         let spells = &self.game.content().rules.spells;
         let raised: Vec<_> = [
             (Side::Attacker, SpellId::new(140) /* prayer */),
@@ -785,13 +779,12 @@ impl App {
             "walls" => {
                 battle.wall_of_fire = true;
                 battle.wall_of_darkness = true;
-                let map =
-                    std::mem::replace(&mut battle.map, f4x_core::battle::map::BattleMap::open());
+                let map = std::mem::replace(&mut battle.map, f4x_battle::map::BattleMap::open());
                 battle.map = map.with_city(true);
             }
             "info" => {
-                battle.node_site = Some(f4x_core::battle::immunity::Realm::Chaos);
-                battle.node_aura = Some(f4x_core::battle::immunity::Realm::Chaos);
+                battle.node_site = Some(f4x_def::rules::realm::Realm::Chaos);
+                battle.node_aura = Some(f4x_def::rules::realm::Realm::Chaos);
             }
             "enchants" => {
                 for (side, field, spell) in raised {
@@ -810,7 +803,7 @@ impl App {
                     u.sheet_mut().enchantments.push(spell);
                 }
                 for (u, spell) in battle.units.iter_mut().skip(5).zip(curses) {
-                    u.lasting_mut().push(f4x_core::battle::Lasting {
+                    u.lasting_mut().push(f4x_battle::Lasting {
                         spell,
                         caster: f4x_core::player::PlayerId(0),
                         mods: Vec::new(),
@@ -823,11 +816,13 @@ impl App {
                     .flat_map(|y| (8..12).map(move |x| (x, y)))
                     .find(|&cell| !battle.is_occupied(cell))
                 {
-                    battle.vortices.push(f4x_core::battle::vortex::Vortex {
-                        cell,
-                        owner: Side::Attacker,
-                        steered: false,
-                    });
+                    battle
+                        .vortices
+                        .push(f4x_battle::battlemagic::vortex::Vortex {
+                            cell,
+                            owner: Side::Attacker,
+                            steered: false,
+                        });
                 }
             }
             "mud" => {
@@ -1030,7 +1025,7 @@ impl App {
                     self.log.push(line);
                 }
                 Event::Rejected(f4x_core::game::Rejection::Battle(
-                    f4x_core::battle::BattleError::Spell(why),
+                    f4x_battle::battle::BattleError::Spell(why),
                 )) if why.is_pointless() && !confirmed => {
                     // The player is asked, not told.
                     ui.confirm_cast = Some(order.clone());
@@ -1630,7 +1625,7 @@ impl App {
     }
 
     /// The human wizard's casting in the battle.
-    fn my_caster(battle: &Battle) -> Option<f4x_core::battle::BattleCaster> {
+    fn my_caster(battle: &Battle) -> Option<f4x_battle::battle::BattleCaster> {
         battle.caster(Self::human_side(battle)?).copied()
     }
 
@@ -2886,14 +2881,13 @@ mod tests {
     #[test]
     fn picking_a_unit_scrolls_the_view_so_its_square_is_where_the_fields_middle_is() {
         let middle = original_origin(
-            (f4x_core::battle::map::layout::W - 1 - f4x_core::battle::map::layout::EXTRA_X) as f32
-                / 2.0,
+            (f4x_battle::map::layout::W - 1 - f4x_battle::map::layout::EXTRA_X) as f32 / 2.0,
             (GRID_H - 1) as f32 / 2.0,
         );
         for quarters in 0..4 {
             let turn = (0..quarters).fold(Turn::NONE, |t, _| t.step(false));
             // A square near the middle is not held back by the limits of the scroll.
-            let cell = (f4x_core::battle::map::layout::W - 1 - 8, 11);
+            let cell = (f4x_battle::map::layout::W - 1 - 8, 11);
             let scroll = scroll_to(cell, turn);
             let at = cell_origin(cell, turn);
             assert_eq!(
@@ -2939,7 +2933,7 @@ mod tests {
     #[test]
     fn the_ground_set_follows_terrain_and_plane() {
         use crate::battle_ground::ground_file;
-        use f4x_core::battle::map::set_of;
+        use f4x_battle::map::set_of;
         use f4x_core::map::terrain::TerrainClass;
         let terrain_set = |c: Option<TerrainClass>, p: Plane| ground_file(set_of(c), p);
         assert_eq!(

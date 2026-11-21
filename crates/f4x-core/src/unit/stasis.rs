@@ -5,9 +5,10 @@
 //!
 //! Tests: in spell/wizard/tests.rs.
 
-use crate::battle::immunity::{resistance_failure, Realm};
 use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
+use f4x_battle::resistance::resistance_failure;
+use f4x_def::rules::realm::Realm;
 
 /// A unit held in stasis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

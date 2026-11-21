@@ -713,13 +713,13 @@ mod tests {
         let drake = f4x_def::rules::UnitId::new(164 /* great_drake */);
         let content = game(COAST_CITY, 8 /* high_men */);
         let rules = &content.content().rules;
-        let one_paladin = f4x_core::battle::power::def_power(
+        let one_paladin = f4x_battle::power::def_power(
             rules.units.get(f4x_def::rules::UnitId::new(
                 113, /* high_men_paladins */
             )),
             rules,
         );
-        let one_drake = f4x_core::battle::power::def_power(rules.units.get(drake), rules);
+        let one_drake = f4x_battle::power::def_power(rules.units.get(drake), rules);
         let guards = (3.0 * PARTY as f32 * one_paladin / one_drake)
             .ceil()
             .max(1.0) as u32;

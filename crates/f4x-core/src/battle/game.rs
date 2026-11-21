@@ -13,12 +13,12 @@ use crate::unit::Hurt;
 use f4x_def::half_int::HalfInt;
 
 use super::field::Field;
-use super::immunity::Realm;
 use super::map::{city_deployment, deployment, layout, BattleMap, Pos};
 use super::{
     Battle, BattleCommand, BattleError, BattleUnit, HeroSheet, Sheet, Side, Status, WizardSheet,
 };
 use f4x_battle::battle::setup::{place_side, Placement};
+use f4x_def::rules::realm::Realm;
 
 /// A battle in progress and the overland units its fighters were copied from.
 pub struct ActiveBattle {
@@ -289,13 +289,13 @@ impl Game {
         unit: hecs::Entity,
         strength: i32,
         traits: &crate::rules::effects::DamageTraits,
-        nature: super::immunity::AttackNature,
+        nature: f4x_def::rules::attack_nature::AttackNature,
         rng: &mut dyn rand::RngCore,
     ) -> bool {
         let Some(mut state) = self.overland_defender(unit) else {
             return false;
         };
-        let _ = super::casting::damage_state_with_spell(
+        let _ = f4x_battle::battlemagic::casting::damage_state_with_spell(
             &self.content.rules,
             &mut state,
             strength,

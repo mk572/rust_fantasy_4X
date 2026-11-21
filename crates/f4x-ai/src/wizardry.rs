@@ -133,10 +133,8 @@ pub(crate) fn lycanthropy_target(
         .rules
         .units
         .id_numbered(view.content().rules.config.spell_effects.werewolves)?;
-    let wolf_power = f4x_core::battle::power::def_power(
-        view.content().rules.units.get(wolf),
-        &view.content().rules,
-    );
+    let wolf_power =
+        f4x_battle::power::def_power(view.content().rules.units.get(wolf), &view.content().rules);
     let cast = view.casting_cost(spell).max(1) as f32;
     let mut units: Vec<hecs::Entity> = view
         .my_units()

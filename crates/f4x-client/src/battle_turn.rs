@@ -3,7 +3,7 @@
 //! animation asks this module where a square of the field is drawn, and the drawn square is the
 //! field's square turned about the middle of the playable band.
 //!
-//! The turn works on the original's cells `(cgx, cgy)` (`f4x_core::battle::map::layout`; the core's
+//! The turn works on the original's cells `(cgx, cgy)` (`f4x_battle::map::layout`; the core's
 //! square is `(20 - cgx, cgy)`). One quarter turn clockwise on the screen is
 //! `(cgx, cgy) -> (SUM - cgy, cgx + DIFF)`, about the middle of the field (`(8.5, 11.5)`: the field
 //! has the columns `cgx` -3 to 20 and the rows 0 to 23), which stays where it is on the screen, so
@@ -17,11 +17,9 @@
 //! its own middle, so the picture of each turned wall square is the one the same place of the
 //! ring has when it is not turned (`ring_shift`).
 
-use f4x_core::battle::map::layout::{EXTRA_X, W};
-use f4x_core::battle::map::layout::{
-    MAX_CGX_CITY, MAX_CGY_CITY, MIN_CGX_CITY, MIN_CGY_CITY, RIVER_TILE,
-};
-use f4x_core::battle::map::GRID_H;
+use f4x_battle::map::layout::{EXTRA_X, W};
+use f4x_battle::map::layout::{MAX_CGX_CITY, MAX_CGY_CITY, MIN_CGX_CITY, MIN_CGY_CITY, RIVER_TILE};
+use f4x_battle::map::GRID_H;
 
 /// The field's last and first column (`cgx`) and last row, in the original's frame.
 const LAST_X: i32 = W - 1;
@@ -200,7 +198,7 @@ const EDGE_TURNED: [usize; 12] = [3, 5, 4, 6, 7, 8, 9, 10, 11, 0, 2, 1];
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::battle::map::layout::{
+    use f4x_battle::map::layout::{
         self, DIRT, GRASS, H, MAX_CGX_WALL, MAX_CGY_WALL, MIN_CGX_WALL, MIN_CGY_WALL,
         ROUGH as ROUGH_GROUND,
     };

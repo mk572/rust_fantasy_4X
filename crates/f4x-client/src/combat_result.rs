@@ -141,12 +141,12 @@ impl App {
         let human_took = looted.is_some_and(|l| self.game.economy().city_owner(l.0) == Some(HUMAN));
         let human_lost_city = looted.is_some() && !human_took;
         let fled_side = events.iter().find_map(|e| match e {
-            Event::Battle(f4x_core::battle::BattleEvent::Fled { side }) => Some(*side),
+            Event::Battle(f4x_battle::battle::BattleEvent::Fled { side }) => Some(*side),
             _ => None,
         });
         let exhausted = events
             .iter()
-            .any(|e| matches!(e, Event::Battle(f4x_core::battle::BattleEvent::Exhausted)));
+            .any(|e| matches!(e, Event::Battle(f4x_battle::battle::BattleEvent::Exhausted)));
         let rampage = events.iter().find_map(|e| match e {
             Event::CityRampaged { name, ruined, .. } => Some((name.clone(), *ruined)),
             _ => None,
@@ -156,7 +156,7 @@ impl App {
             (Some(_), _) if fled_side.is_some() => {
                 let fled_human = site.is_some_and(|s| {
                     let player = match fled_side {
-                        Some(f4x_core::battle::Side::Attacker) => s.attacker,
+                        Some(f4x_battle::Side::Attacker) => s.attacker,
                         _ => s.defender,
                     };
                     player == HUMAN
@@ -517,7 +517,8 @@ impl Line {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::battle::{BattleEvent, Side};
+    use f4x_battle::battle::BattleEvent;
+    use f4x_battle::Side;
     use f4x_def::testdir::TestResult;
 
     const RIVAL: PlayerId = PlayerId(1);

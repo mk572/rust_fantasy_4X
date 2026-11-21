@@ -6,7 +6,8 @@
 //! `USW_Build_Effect_List`). The numbers in the tables below are picture indexes into the
 //! original's `special.lbx` (and `special2.lbx` from 111 on), not art.
 use crate::text::{Args, Term, Texts};
-use f4x_core::battle::{Battle, BattleUnit, RangedKind};
+use f4x_battle::battle::{Battle, RangedKind};
+use f4x_battle::BattleUnit;
 use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_def::rules::Ability;
 use f4x_def::rules::SpellId;
@@ -501,7 +502,7 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
     // Some abilities show a number: poison strength, the strength of a thrown weapon or a
     // breath, and what a touch or a gaze takes off the target's save (Life Steal and Death
     // Touch since 1.50).
-    let special = f4x_core::battle::special::SpecialAttacks::of_unit(
+    let special = f4x_battle::special::SpecialAttacks::of_unit(
         input.abilities,
         input.granted,
         input.special_level,

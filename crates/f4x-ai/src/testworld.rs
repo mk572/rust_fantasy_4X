@@ -256,13 +256,14 @@ pub fn build(game: &mut Game, pos: Position, buildings: &[u16]) {
 /// chosen, on open ground, so that the squares a test names are free, and the units are numbered
 /// in the order of the lists. The dice start from `seed`.
 pub fn real_battle(
-    ours: &[(u16, f4x_core::battle::map::Pos)],
-    theirs: &[(u16, f4x_core::battle::map::Pos)],
+    ours: &[(u16, f4x_battle::map::Pos)],
+    theirs: &[(u16, f4x_battle::map::Pos)],
     seed: u64,
-) -> f4x_core::battle::Battle {
-    use f4x_core::battle::{map::BattleMap, Side};
+) -> f4x_battle::battle::Battle {
+    use f4x_battle::map::BattleMap;
+    use f4x_battle::Side;
     let mut g = game_seeded(COAST_CITY, 7, seed);
-    let mut spawn_all = |owner: PlayerId, x: u32, list: &[(u16, f4x_core::battle::map::Pos)]| {
+    let mut spawn_all = |owner: PlayerId, x: u32, list: &[(u16, f4x_battle::map::Pos)]| {
         list.iter()
             .map(|&(number, _)| spawn(&mut g, owner, at(x, 4), number, 1)[0])
             .collect::<Vec<_>>()

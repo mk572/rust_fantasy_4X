@@ -22,10 +22,11 @@ use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use f4x_ai::battle::cast::next_command;
-use f4x_core::battle::casting::SpellAim;
-use f4x_core::battle::map::BattleMap;
-use f4x_core::battle::BattleEvent;
-use f4x_core::battle::{BattleCommand, Side};
+use f4x_battle::battle::BattleCommand;
+use f4x_battle::battle::BattleEvent;
+use f4x_battle::battlemagic::caster::SpellAim;
+use f4x_battle::map::BattleMap;
+use f4x_battle::Side;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::PlayerId;
 use f4x_def::content::Content;

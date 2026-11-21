@@ -1,5 +1,5 @@
 //! The ground and the scenery of the battle screen, drawn from the field the core built
-//! (`f4x_core::battle::map::layout`) with the original's combat pictures: the terrain files
+//! (`f4x_battle::map::layout`) with the original's combat pictures: the terrain files
 //! (`cmbgrass` and the like: ground 0 to 47, trees 48 to 52, rocks 53 to 57), `cmbtcity` (roads,
 //! houses, the city base, structures) and `citywall`.
 //!
@@ -9,9 +9,9 @@
 //! (the cell's top-left plus (14, 0), plus the offset inside the cell for trees and rocks) and
 //! the shift of its anchor from the picture's top-left.
 
-use f4x_core::battle::map::layout::{self, Set, Site, Structure, W};
-use f4x_core::battle::map::{cg_of, pos_of_cg, Pos, Wall, GRID_H};
-use f4x_core::battle::Battle;
+use f4x_battle::battle::Battle;
+use f4x_battle::map::layout::{self, Set, Site, Structure, W};
+use f4x_battle::map::{cg_of, pos_of_cg, Pos, Wall, GRID_H};
 use f4x_core::map::Plane;
 use macroquad::prelude::*;
 
@@ -776,7 +776,7 @@ mod tests {
 
     #[test]
     fn the_wall_sites_match_the_cores_wall_sites() {
-        use f4x_core::battle::map::is_wall_site;
+        use f4x_battle::map::is_wall_site;
         for (x, y) in wall_area() {
             assert_eq!(
                 wall_sprite(x, y).is_some(),

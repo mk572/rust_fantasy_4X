@@ -7,10 +7,11 @@
 use crate::rules::damage_type::DamageType;
 use rand::SeedableRng;
 
-use crate::battle::immunity::{AttackNature, Realm};
 use crate::game::rng::GameRng;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
+use f4x_def::rules::attack_nature::AttackNature;
+use f4x_def::rules::realm::Realm;
 
 use crate::game::{Event, Game};
 use crate::rules::effects::DamageTraits;

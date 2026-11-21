@@ -242,36 +242,36 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() -> TestResult {
         }
         let order = f4x_ai::battle::order::next_command(b);
         let line = match order {
-            f4x_core::battle::BattleCommand::Move { unit, to } => {
+            f4x_battle::battle::BattleCommand::Move { unit, to } => {
                 format!("bmove {unit} {},{}", to.0, to.1)
             }
-            f4x_core::battle::BattleCommand::Attack { unit, target } => {
+            f4x_battle::battle::BattleCommand::Attack { unit, target } => {
                 format!("battack {unit} {target}")
             }
-            f4x_core::battle::BattleCommand::Shoot { unit, target } => {
+            f4x_battle::battle::BattleCommand::Shoot { unit, target } => {
                 format!("bshoot {unit} {target}")
             }
-            f4x_core::battle::BattleCommand::AttackWall { unit, cell } => {
+            f4x_battle::battle::BattleCommand::AttackWall { unit, cell } => {
                 format!("bwall {unit} {},{}", cell.0, cell.1)
             }
-            f4x_core::battle::BattleCommand::ShootWall { unit, cell } => {
+            f4x_battle::battle::BattleCommand::ShootWall { unit, cell } => {
                 format!("bshootwall {unit} {},{}", cell.0, cell.1)
             }
-            f4x_core::battle::BattleCommand::Cast { .. }
-            | f4x_core::battle::BattleCommand::UnitCast { .. }
-            | f4x_core::battle::BattleCommand::SummonDemon { .. } => {
+            f4x_battle::battle::BattleCommand::Cast { .. }
+            | f4x_battle::battle::BattleCommand::UnitCast { .. }
+            | f4x_battle::battle::BattleCommand::SummonDemon { .. } => {
                 unreachable!("the plain unit AI casts nothing")
             }
-            f4x_core::battle::BattleCommand::MoveVortex { .. } => {
+            f4x_battle::battle::BattleCommand::MoveVortex { .. } => {
                 unreachable!("the plain unit AI steers no vortex")
             }
-            f4x_core::battle::BattleCommand::Merge { unit } => format!("bmerge {unit}"),
-            f4x_core::battle::BattleCommand::Surface { unit, to } => {
+            f4x_battle::battle::BattleCommand::Merge { unit } => format!("bmerge {unit}"),
+            f4x_battle::battle::BattleCommand::Surface { unit, to } => {
                 format!("bsurface {unit} {},{}", to.0, to.1)
             }
-            f4x_core::battle::BattleCommand::Done { unit } => format!("bdone {unit}"),
-            f4x_core::battle::BattleCommand::EndTurn => "bend".into(),
-            f4x_core::battle::BattleCommand::Flee => "bflee".into(),
+            f4x_battle::battle::BattleCommand::Done { unit } => format!("bdone {unit}"),
+            f4x_battle::battle::BattleCommand::EndTurn => "bend".into(),
+            f4x_battle::battle::BattleCommand::Flee => "bflee".into(),
         };
         let r = c.execute(&mut g, &line);
         assert!(r.ok, "{line}: {}", r.text());
@@ -1192,8 +1192,8 @@ fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() -
 
 #[test]
 fn battle_units_carry_the_numbers_of_their_special_attacks() -> TestResult {
-    use f4x_core::battle::special::SpecialAttacks;
-    use f4x_core::battle::RangedKind;
+    use f4x_battle::battle::RangedKind;
+    use f4x_battle::special::SpecialAttacks;
     let content = content();
     let mut g = new_game(
         content,
@@ -1720,7 +1720,7 @@ fn cast(g: &mut Game, line: &str) -> crate::Reply {
 #[test]
 fn units_list_and_cast_their_own_spells_by_text() {
     let mut g = casting_siege(&[83 /* fire_bolt */]);
-    let mine = battle_units_of(&g, f4x_core::battle::Side::Attacker)[0];
+    let mine = battle_units_of(&g, f4x_battle::Side::Attacker)[0];
     let r = cast(&mut g, &format!("uspells {mine}"));
     assert!(r.ok, "{}", r.text());
     assert!(r.text().contains("mana"), "{}", r.text());
@@ -1736,11 +1736,11 @@ fn pass_turn(g: &mut Game) {
     let r = cast(g, "bend");
     assert!(r.ok, "{}", r.text());
     g.apply(f4x_core::game::Command::Battle(
-        f4x_core::battle::BattleCommand::EndTurn,
+        f4x_battle::battle::BattleCommand::EndTurn,
     ));
 }
 
-fn battle_units_of(g: &Game, side: f4x_core::battle::Side) -> Vec<usize> {
+fn battle_units_of(g: &Game, side: f4x_battle::Side) -> Vec<usize> {
     g.battle()
         .expect("a battle is on")
         .units
@@ -1752,7 +1752,7 @@ fn battle_units_of(g: &Game, side: f4x_core::battle::Side) -> Vec<usize> {
 
 #[test]
 fn a_wizard_goes_into_battle_with_skill_mana_and_a_range_cost() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let g = casting_siege(&[83 /* fire_bolt */]);
     let b = g.battle().expect("a battle is on");
     let mine = b.caster(Side::Attacker).expect("the human wizard casts");
@@ -1777,7 +1777,7 @@ fn a_wizard_goes_into_battle_with_skill_mana_and_a_range_cost() {
 
 #[test]
 fn a_spell_costs_skill_and_range_priced_mana_and_only_one_a_turn() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[83 /* fire_bolt */]);
     let enemy = battle_units_of(&g, Side::Defender)[0];
     let before = *g
@@ -1811,7 +1811,7 @@ fn a_spell_costs_skill_and_range_priced_mana_and_only_one_a_turn() {
 
 #[test]
 fn a_battle_spell_is_refused_for_the_reason_it_cannot_be_cast() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     // Warp Wood needs a target with missiles, Earth Lore is overland only, Fireball is not known.
     let mut g = casting_siege(&[81 /* warp_wood */, 10 /* earth_lore */]);
     let enemy = battle_units_of(&g, Side::Defender)[0];
@@ -1833,7 +1833,7 @@ fn a_battle_spell_is_refused_for_the_reason_it_cannot_be_cast() {
 
 #[test]
 fn a_spell_that_costs_more_than_the_wizard_has_is_refused() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[83 /* fire_bolt */]);
     let enemy = battle_units_of(&g, Side::Defender)[0];
     // A reserve too small for the mana the spell takes at this range.
@@ -1862,7 +1862,7 @@ fn a_spell_that_costs_more_than_the_wizard_has_is_refused() {
 
 #[test]
 fn counter_magic_stops_a_spell_that_still_costs_its_mana() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[83 /* fire_bolt */]);
     let enemy = battle_units_of(&g, Side::Defender)[0];
     g.battle
@@ -1901,7 +1901,7 @@ fn counter_magic_stops_a_spell_that_still_costs_its_mana() {
 
 #[test]
 fn counter_magic_is_a_reserve_of_the_mana_put_in() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[48 /* counter_magic */]);
     let r = cast(&mut g, "bcast counter magic mana:25");
     assert!(r.ok, "{}", r.text());
@@ -1916,7 +1916,7 @@ fn counter_magic_is_a_reserve_of_the_mana_put_in() {
 
 #[test]
 fn a_summoned_creature_joins_the_side_and_goes_with_the_battle() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[45 /* phantom_warriors */]);
     let overland = g.entity_count();
     let before = g
@@ -1949,7 +1949,7 @@ fn a_summoned_creature_joins_the_side_and_goes_with_the_battle() {
 
 #[test]
 fn a_lasting_spell_changes_a_unit_until_a_dispel_takes_it_off() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[4 /* giant_strength */]);
     let mine = battle_units_of(&g, Side::Attacker)[0];
     let melee = g
@@ -1977,7 +1977,7 @@ fn a_lasting_spell_changes_a_unit_until_a_dispel_takes_it_off() {
 
 #[test]
 fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[202 /* dispel_magic */]);
     let enemy = battle_units_of(&g, Side::Defender)[0];
     let strength = g
@@ -2040,7 +2040,7 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
 
 #[test]
 fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let (mut g, city) = siege_world(6, &[]);
     let rival = PlayerId(1);
     let at = *g
@@ -2107,7 +2107,7 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
 
 #[test]
 fn a_bolt_hurts_by_its_strength_and_star_fires_only_burns_chaos_and_death() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[
         104, /* doom_bolt */
         122, /* star_fires */
@@ -2162,14 +2162,14 @@ fn a_bolt_hurts_by_its_strength_and_star_fires_only_burns_chaos_and_death() {
 
 #[test]
 fn a_spell_that_kills_the_last_enemy_ends_the_battle() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[104 /* doom_bolt */]);
     let enemies = battle_units_of(&g, Side::Defender);
     // Leave one frail defender.
     {
         let b = &mut g.battle.as_mut().expect("the value is there").battle;
         for &e in &enemies[1..] {
-            b.units[e].status = f4x_core::battle::Status::Dead;
+            b.units[e].status = f4x_battle::Status::Dead;
         }
         b.units[enemies[0]].force(f4x_def::rules::stats::Stat::MaxHp, 3);
         b.units[enemies[0]].set_figures(1);
@@ -2183,7 +2183,7 @@ fn a_spell_that_kills_the_last_enemy_ends_the_battle() {
 
 #[test]
 fn a_unit_standing_on_hit_points_a_spell_added_is_dead_when_the_battle_is_over() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[141 /* lionheart */]);
     // Fleeing may lose the unit by chance; this test is about its hit points, not that roll.
     g.scenario_set_safe_flee(true);
@@ -2220,8 +2220,8 @@ fn a_unit_standing_on_hit_points_a_spell_added_is_dead_when_the_battle_is_over()
 
 #[test]
 fn a_battlefield_enchantment_goes_up_once_and_changes_the_units() {
-    use f4x_core::battle::field::Field;
-    use f4x_core::battle::Side;
+    use f4x_battle::battlemagic::field::Field;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[151 /* high_prayer */]);
     let mine = battle_units_of(&g, Side::Attacker)[0];
     let defense = g
@@ -2261,7 +2261,7 @@ fn a_battlefield_enchantment_goes_up_once_and_changes_the_units() {
 
 #[test]
 fn mana_leak_drains_the_rivals_reserve_in_the_game_too() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[170 /* mana_leak */]);
     g.treasury_mut(PlayerId(1))
         .expect("the player has a treasury")
@@ -2297,7 +2297,7 @@ fn mana_leak_drains_the_rivals_reserve_in_the_game_too() {
 
 #[test]
 fn flame_strike_hits_every_enemy_and_mass_healing_every_friend() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[109 /* flame_strike */, 149 /* mass_healing */]);
     let enemies = battle_units_of(&g, Side::Defender);
     for &e in &enemies {
@@ -2343,7 +2343,7 @@ fn flame_strike_hits_every_enemy_and_mass_healing_every_friend() {
 
 #[test]
 fn mass_healing_still_heals_under_true_light() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[128 /* true_light */, 149 /* mass_healing */]);
     let r = cast(&mut g, "bcast true light");
     assert!(r.ok, "{}", r.text());
@@ -2369,7 +2369,7 @@ fn mass_healing_still_heals_under_true_light() {
 
 #[test]
 fn death_spell_and_word_of_death_destroy_the_figures_that_cannot_resist() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[194 /* death_spell */, 192 /* word_of_death */]);
     let enemies = battle_units_of(&g, Side::Defender);
     for &e in &enemies {
@@ -2401,7 +2401,7 @@ fn death_spell_and_word_of_death_destroy_the_figures_that_cannot_resist() {
 
 #[test]
 fn a_curse_can_be_resisted_and_banish_only_touches_fantastic_creatures() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[
         162, /* weakness */
         64,  /* banish */
@@ -2454,7 +2454,8 @@ fn a_curse_can_be_resisted_and_banish_only_touches_fantastic_creatures() {
 
 #[test]
 fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
-    use f4x_core::battle::{RangedKind, Side};
+    use f4x_battle::battle::RangedKind;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[
         88, /* shatter */
         81, /* warp_wood */
@@ -2527,7 +2528,7 @@ fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
             break;
         }
         // A zero resistance cannot be told from the third harm: look at the spell list.
-        if u.warp == Some(f4x_core::battle::WarpKind::Resistance) {
+        if u.warp == Some(f4x_battle::WarpKind::Resistance) {
             assert_eq!(u.own_resistance, resistance.min(0));
             warped = true;
             break;
@@ -2543,8 +2544,8 @@ fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
 
 #[test]
 fn creature_binding_and_possession_turn_a_unit_for_the_battle() {
-    use f4x_core::battle::immunity::Realm;
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
+    use f4x_def::rules::realm::Realm;
     // Two rival units: `a` a normal one, `b` a fantastic one, neither with resistance. The
     // spell is cast until it takes (they get a roll), the other unit keeping the fight going.
     for (spell, name, turned, other) in [
@@ -2593,7 +2594,7 @@ fn creature_binding_and_possession_turn_a_unit_for_the_battle() {
 
 #[test]
 fn call_chaos_and_invisibility_cast_and_the_spell_list_offers_them() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[115 /* call_chaos */, 62 /* invisibility */]);
     let list = cast(&mut g, "bspells").text();
     assert!(
@@ -2774,7 +2775,8 @@ fn every_wizard_of_a_new_game_has_a_picture_of_its_own() {
 
 #[test]
 fn the_legal_casts_are_the_casts_the_game_accepts() -> TestResult {
-    use f4x_core::battle::{BattleCommand, Side};
+    use f4x_battle::battle::BattleCommand;
+    use f4x_battle::Side;
     let spells = [
         83,  /* fire_bolt */
         96,  /* fireball */
@@ -2838,14 +2840,14 @@ fn the_legal_casts_are_the_casts_the_game_accepts() -> TestResult {
         .expect("the shipped content has it");
     let listed = legal.iter().find(|l| l.spell == bolt).expect("fire bolt");
     assert!(listed.aims.iter().all(|a| match a {
-        f4x_core::battle::SpellAim::Unit(u) => enemy.contains(u),
+        f4x_battle::battle::SpellAim::Unit(u) => enemy.contains(u),
         _ => false,
     }));
     let mut fresh = casting_siege(&known);
     assert!(fresh
         .battle_command(BattleCommand::Cast {
             spell: bolt,
-            aim: f4x_core::battle::SpellAim::Unit(own[0]),
+            aim: f4x_battle::battle::SpellAim::Unit(own[0]),
             mana: 0
         })
         .is_err());
@@ -2853,7 +2855,7 @@ fn the_legal_casts_are_the_casts_the_game_accepts() -> TestResult {
     let mut g = casting_siege(&known);
     g.battle_command(BattleCommand::Cast {
         spell: bolt,
-        aim: f4x_core::battle::SpellAim::Unit(enemy[0]),
+        aim: f4x_battle::battle::SpellAim::Unit(enemy[0]),
         mana: 0,
     })
     .map_err(|e| format!("{e:?}"))?;
@@ -2863,7 +2865,8 @@ fn the_legal_casts_are_the_casts_the_game_accepts() -> TestResult {
 
 #[test]
 fn healing_does_not_work_on_a_death_creature() {
-    use f4x_core::battle::{immunity::Realm, Side};
+    use f4x_battle::Side;
+    use f4x_def::rules::realm::Realm;
     let mut g = casting_siege(&[125 /* healing */]);
     let own = battle_units_of(&g, Side::Attacker)[0];
     // A wounded living unit can be healed; the same unit as a death creature cannot.
@@ -2877,7 +2880,7 @@ fn healing_does_not_work_on_a_death_creature() {
 
 #[test]
 fn blegal_lists_what_the_game_allows_and_the_listed_orders_work() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[83 /* fire_bolt */]);
     let all = cast(&mut g, "blegal");
     assert!(all.ok, "{}", all.text());
@@ -2916,13 +2919,13 @@ fn blegal_lists_what_the_game_allows_and_the_listed_orders_work() {
 fn fell(g: &mut Game, id: usize, kinds: [i32; 3]) {
     let u = &mut g.battle.as_mut().expect("the value is there").battle.units[id];
     u.set_figures(0);
-    u.status = f4x_core::battle::Status::Dead;
+    u.status = f4x_battle::Status::Dead;
     u.damage_kinds = kinds;
 }
 
 #[test]
 fn animate_dead_raises_a_fallen_unit_of_the_wizard_as_undead() {
-    use f4x_core::battle::{Side, Status};
+    use f4x_battle::{Side, Status};
     let mut g = casting_siege(&[195 /* animate_dead */]);
     let mine = battle_units_of(&g, Side::Attacker);
     let (fallen, standing) = (mine[0], mine[1]);
@@ -2940,7 +2943,7 @@ fn animate_dead_raises_a_fallen_unit_of_the_wizard_as_undead() {
     let u = b.unit(fallen).expect("the unit is alive");
     assert_eq!(u.status, Status::Active);
     assert_eq!(u.figures, u.figures_start);
-    assert!(u.undead && u.realm == Some(f4x_core::battle::immunity::Realm::Death));
+    assert!(u.undead && u.realm == Some(f4x_def::rules::realm::Realm::Death));
     assert!(u.has(Ability::new(16)) && u.has(Ability::new(10)));
     assert_eq!(u.side, Side::Attacker);
     let entity = g.battle.as_ref().expect("the value is there").sources
@@ -2950,8 +2953,8 @@ fn animate_dead_raises_a_fallen_unit_of_the_wizard_as_undead() {
 
 #[test]
 fn raise_dead_brings_a_fallen_normal_unit_back_with_half_its_figures() {
-    use f4x_core::battle::immunity::Realm;
-    use f4x_core::battle::{Side, Status};
+    use f4x_battle::{Side, Status};
+    use f4x_def::rules::realm::Realm;
     let mut g = casting_siege(&[137 /* raise_dead */]);
     let mine = battle_units_of(&g, Side::Attacker);
     let (fallen, fantastic) = (mine[0], mine[1]);
@@ -2996,7 +2999,7 @@ fn raise_dead_brings_a_fallen_normal_unit_back_with_half_its_figures() {
 
 #[test]
 fn animate_dead_cannot_raise_what_was_destroyed_outright() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[195 /* animate_dead */]);
     let fallen = battle_units_of(&g, Side::Attacker)[0];
     fell(&mut g, fallen, [1, 0, 6]);
@@ -3009,7 +3012,8 @@ fn animate_dead_cannot_raise_what_was_destroyed_outright() {
 
 #[test]
 fn the_units_drained_to_death_join_the_winner_as_undead() {
-    use f4x_core::battle::{BattleCommand, Side};
+    use f4x_battle::battle::BattleCommand;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[]);
     let mine = battle_units_of(&g, Side::Attacker);
     let (drained, slain) = (mine[0], mine[1]);
@@ -3042,7 +3046,7 @@ fn the_units_drained_to_death_join_the_winner_as_undead() {
 
 #[test]
 fn the_regeneration_spell_heals_a_hit_each_turn_in_battle() {
-    use f4x_core::battle::Side;
+    use f4x_battle::Side;
     let mut g = casting_siege(&[31 /* regeneration */]);
     let mine = battle_units_of(&g, Side::Attacker)[0];
     g.battle.as_mut().expect("the value is there").battle.units[mine].set_front_damage(1);
@@ -3214,7 +3218,7 @@ fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() -> TestResult
 
 #[test]
 fn recall_hero_takes_a_hero_off_the_field_to_the_summoning_circle() -> TestResult {
-    use f4x_core::battle::{Side, Status};
+    use f4x_battle::{Side, Status};
     let (mut g, city) = siege_world(6, &[]);
     arm_human(&mut g, &[205 /* recall_hero */]);
     let home = g.summon_point(HUMAN).expect("the wizard has a circle");
@@ -3251,7 +3255,7 @@ fn recall_hero_takes_a_hero_off_the_field_to_the_summoning_circle() -> TestResul
     );
     // The rest of the army gives up: the hero is not among those who flee and risk their lives.
     g.apply(f4x_core::game::Command::Battle(
-        f4x_core::battle::BattleCommand::Flee,
+        f4x_battle::battle::BattleCommand::Flee,
     ));
     assert!(g.battle().is_none(), "the battle is over");
     assert_eq!(

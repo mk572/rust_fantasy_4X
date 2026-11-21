@@ -6,7 +6,7 @@
 //! the next thing happens; when the last one ends the real battle is shown. Everything here is
 //! pure (times in, positions out) so it can be tested.
 
-use f4x_core::battle::map::Pos;
+use f4x_battle::map::Pos;
 
 use crate::spell_fx::SpellFx;
 

@@ -2656,6 +2656,7 @@ dependencies = [
 name = "f4x-ai"
 version = "0.0.7"
 dependencies = [
+ "f4x-battle",
  "f4x-core",
  "f4x-def",
  "f4x-master",
@@ -2683,6 +2684,7 @@ name = "f4x-client"
 version = "0.0.7"
 dependencies = [
  "f4x-ai",
+ "f4x-battle",
  "f4x-console",
  "f4x-core",
  "f4x-def",
@@ -2705,6 +2707,7 @@ name = "f4x-console"
 version = "0.0.7"
 dependencies = [
  "f4x-ai",
+ "f4x-battle",
  "f4x-core",
  "f4x-def",
  "f4x-newgame",
@@ -2816,6 +2819,7 @@ name = "f4x-tools"
 version = "0.0.7"
 dependencies = [
  "f4x-ai",
+ "f4x-battle",
  "f4x-console",
  "f4x-core",
  "f4x-def",

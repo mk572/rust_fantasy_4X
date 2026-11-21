@@ -23,18 +23,19 @@
 //! Tests: at the end of this file.
 
 use super::order::{self as ai, worth};
-use f4x_core::battle::casting::SpellAim;
-use f4x_core::battle::field::Field;
-use f4x_core::battle::immunity::Immunities;
-use f4x_core::battle::immunity::Realm;
-use f4x_core::battle::map::{self, Pos};
+use f4x_battle::battle::{Battle, BattleCommand, RangedKind};
+use f4x_battle::battlemagic::caster::SpellAim;
+use f4x_battle::battlemagic::field::Field;
+use f4x_battle::map::{self, Pos};
+use f4x_battle::{BattleUnit, Side};
 use f4x_core::battle::spell::{slay_allows, BattleEffect};
-use f4x_core::battle::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
 use f4x_core::game::Game;
 use f4x_core::rules::effects::{Effect, EffectRule, TargetSel};
 use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_core::rules::{ModOp, SpellDef, SpellId, Stat};
 use f4x_core::spell::unit_effect::UnitEffect;
+use f4x_def::rules::immunity::Immunities;
+use f4x_def::rules::realm::Realm;
 
 /// A cast by a unit (a hero's spell, a charge) must be worth at least this share of the dearest
 /// enemy unit to be made. The wizard has no floor: it spends what it may (`cast_choice`).
@@ -861,7 +862,7 @@ fn rule_value(
             let hp = stat(Stat::MaxHp).max(1) * stat(Stat::Figures).max(1);
             // Fresh units fight at once but are an extra target: three quarters of their worth,
             // on the footing of `worth` above (the strength of a unit as it stands in a fight).
-            0.75 * f4x_core::battle::strength(
+            0.75 * f4x_battle::battle::strength(
                 stat(Stat::Melee).max(stat(Stat::Ranged)),
                 stat(Stat::Defense),
                 hp,
@@ -894,7 +895,8 @@ fn rule_value(
 mod tests {
     use super::*;
     use crate::testworld::{at, game, shipped, COAST_CITY, P0, P1};
-    use f4x_core::battle::{BattleCommand, Side};
+    use f4x_battle::battle::BattleCommand;
+    use f4x_battle::Side;
     use f4x_core::game::Command;
     use f4x_core::player::view::PlayerView;
     use f4x_def::testdir::TestResult;
@@ -1817,7 +1819,8 @@ mod tests {
     #[test]
     fn death_is_one_way_and_no_live_unit_has_no_hit_points_in_fights_with_every_spell() -> TestResult
     {
-        use f4x_core::battle::{BattleEvent, Status};
+        use f4x_battle::battle::BattleEvent;
+        use f4x_battle::Status;
         use f4x_core::game::Event;
         use f4x_def::rules::{CastContext, UnitKind};
         crate::battle::install();

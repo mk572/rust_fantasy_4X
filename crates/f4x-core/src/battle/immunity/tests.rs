@@ -1,6 +1,12 @@
-use super::*;
 use crate::rules::damage_type::{DamageType, DamageTypes};
 use crate::rules::SpellId;
+use f4x_battle::resistance::resistance_failure;
+use f4x_def::rules::attack_nature::AttackNature;
+use f4x_def::rules::attack_nature::{delivery, Mode};
+use f4x_def::rules::immunity::effective_defense;
+use f4x_def::rules::immunity::effective_resistance;
+use f4x_def::rules::immunity::Immunities;
+use f4x_def::rules::realm::Realm;
 use rand::SeedableRng;
 
 fn unit(names: &[u16]) -> Immunities {

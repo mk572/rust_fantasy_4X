@@ -9,29 +9,24 @@
 //! Sides alternate: the attacker plays all its units, then the defender, and a new turn
 //! starts when the defender is done. A side loses when it has no active unit left.
 //!
-//! The battle itself is in `f4x-battle`; this module holds what ties it to the game and re-exports the
-//! rest at the old paths.
+//! The battle itself is in `f4x-battle`; this module holds what ties it to the game (task 740: the callers
+//! use the `f4x_battle` paths; what is re-exported here is for the crate's own code only).
 //!
 //! Tests: in battle/tests.rs.
 
-pub use f4x_battle::attack;
-pub use f4x_battle::battle::*;
-pub use f4x_battle::battle::{content_ref, legal_command, load};
-pub use f4x_battle::battlemagic::field;
-pub use f4x_battle::battlemagic::vortex;
-pub use f4x_battle::map;
-pub use f4x_battle::map::Pos;
-pub use f4x_battle::power;
-pub use f4x_battle::special;
-pub use f4x_battle::{
-    BattleUnit, Confusion, Fate, FieldBonus, HeroSheet, ItemCharge, Lasting, Sheet, Side, Stats,
-    Status, UnitCasting, UnitNow, WarpKind, WizardSheet, RANGED_ATTACK_COST,
+pub(crate) use f4x_battle::attack;
+pub(crate) use f4x_battle::battle::*;
+pub(crate) use f4x_battle::battle::{content_ref, load};
+pub(crate) use f4x_battle::battlemagic::field;
+pub(crate) use f4x_battle::map;
+pub(crate) use f4x_battle::power;
+pub(crate) use f4x_battle::{
+    BattleUnit, Fate, HeroSheet, ItemCharge, Lasting, Sheet, Side, Status, UnitCasting, WizardSheet,
 };
 
-pub mod casting;
 pub mod forecast;
 pub mod game;
-pub mod immunity;
+mod immunity;
 pub mod info;
 pub mod save;
 pub mod spell;

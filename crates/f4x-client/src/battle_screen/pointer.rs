@@ -100,7 +100,7 @@ impl App {
 mod tests {
     use super::*;
     use crate::view::HUMAN;
-    use f4x_core::battle::RangedKind;
+    use f4x_battle::battle::RangedKind;
     use f4x_def::testdir::TestResult;
 
     /// A real battle between the human's first unit and a monster, the units placed by hand on a
@@ -197,11 +197,13 @@ mod tests {
     fn a_vortex_being_steered_gets_the_boot_one_square_away_and_the_cross_elsewhere() -> TestResult
     {
         let mut f = fight()?;
-        f.battle.vortices.push(f4x_core::battle::vortex::Vortex {
-            cell: (5, 7),
-            owner: f.battle.active,
-            steered: false,
-        });
+        f.battle
+            .vortices
+            .push(f4x_battle::battlemagic::vortex::Vortex {
+                cell: (5, 7),
+                owner: f.battle.active,
+                steered: false,
+            });
         let mut ui = BattleUi {
             steering: Some(0),
             ..BattleUi::default()
@@ -217,11 +219,13 @@ mod tests {
         let mut f = fight()?;
         let active = f.battle.active;
         let battle = &mut f.app.game.battle.as_mut().ok_or("no battle")?.battle;
-        battle.vortices.push(f4x_core::battle::vortex::Vortex {
-            cell: (5, 7),
-            owner: active,
-            steered: false,
-        });
+        battle
+            .vortices
+            .push(f4x_battle::battlemagic::vortex::Vortex {
+                cell: (5, 7),
+                owner: active,
+                steered: false,
+            });
         let units: Vec<usize> = battle
             .active_units(active)
             .filter(|u| unfinished(u))

@@ -738,7 +738,7 @@ fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 }
 
 fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    use f4x_core::battle::{BattleCommand as C, SpellAim};
+    use f4x_battle::battle::{BattleCommand as C, SpellAim};
     let b = ctx
         .game
         .battle()
@@ -930,8 +930,8 @@ fn bspells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 }
 
 /// Each side's wizard: casting skill and mana left, what casting costs, Counter Magic.
-fn wizard_lines(b: &f4x_core::battle::Battle) -> Vec<String> {
-    use f4x_core::battle::Side;
+fn wizard_lines(b: &f4x_battle::battle::Battle) -> Vec<String> {
+    use f4x_battle::Side;
     [Side::Attacker, Side::Defender]
         .into_iter()
         .filter_map(|side| {
@@ -956,8 +956,8 @@ fn wizard_lines(b: &f4x_core::battle::Battle) -> Vec<String> {
 }
 
 /// What stands round a city fought over: its walls, standing and fallen, and the gate.
-fn city_lines(b: &f4x_core::battle::Battle) -> Vec<String> {
-    use f4x_core::battle::map::{CITY_SIZE, CITY_X0, CITY_Y0};
+fn city_lines(b: &f4x_battle::battle::Battle) -> Vec<String> {
+    use f4x_battle::map::{CITY_SIZE, CITY_X0, CITY_Y0};
     if !b.map.is_walled() {
         return if b.map.is_city() {
             vec!["a city without walls".to_string()]
@@ -970,8 +970,8 @@ fn city_lines(b: &f4x_core::battle::Battle) -> Vec<String> {
         for y in CITY_Y0..CITY_Y0 + CITY_SIZE {
             for x in CITY_X0..CITY_X0 + CITY_SIZE {
                 let wall = b.map.wall((x, y));
-                let fallen = wall == f4x_core::battle::map::Wall::Broken;
-                if down == fallen && wall != f4x_core::battle::map::Wall::None {
+                let fallen = wall == f4x_battle::map::Wall::Broken;
+                if down == fallen && wall != f4x_battle::map::Wall::None {
                     out.push(format!("{x},{y}"));
                 }
             }

@@ -4,7 +4,7 @@
 //! - The wizard casts one spell on each of their turns, from the spells they know that can be
 //!   cast in battle. A spell costs its price (before the overland five-fold), less the usual
 //!   reductions, out of the casting skill they have for the whole battle, and the reserve pays
-//!   that times the range multiplier (`casting::range_percent`).
+//!   that times the range multiplier (`f4x_battle::battlemagic::caster::range_percent`).
 //! - A bolt, a dispel, Counter Magic and Banish take extra mana: the more put in, the stronger the
 //!   spell (one more strength per `mana_per_point` mana for a bolt; a dispel's strength is the
 //!   mana; Counter Magic's reserve is the mana).
@@ -25,9 +25,7 @@
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
-use super::casting::{BattleCaster, SpellAim, SpellError};
 use super::field::Field;
-use super::immunity::Realm;
 use super::{Battle, BattleError, BattleEvent, Side};
 use crate::game::{DispelSite, Event, Game};
 use crate::map::Position;
@@ -38,6 +36,8 @@ use crate::rules::SpellId;
 use crate::spell::target_error::TargetError;
 use crate::spell::unit_effect::UnitEffect;
 use f4x_battle::battlemagic::aim::AimWorld;
+use f4x_battle::battlemagic::caster::{BattleCaster, SpellAim};
+use f4x_battle::battlemagic::error::SpellError;
 use f4x_battle::battlemagic::spell::{Cast, CastWorld};
 use f4x_battle::battlemagic::spell_type::warp_mods;
 pub use f4x_battle::battlemagic::spell_type::{
@@ -45,6 +45,7 @@ pub use f4x_battle::battlemagic::spell_type::{
     BATTLE_EFFECT,
 };
 use f4x_def::half_int::HalfInt;
+use f4x_def::rules::realm::Realm;
 
 mod unit_cast;
 pub use unit_cast::{SpellSource, UnitSpell};
@@ -156,9 +157,10 @@ impl Game {
                     Some(map.plane(f.plane).chebyshev((f.x, f.y), (site.x, site.y)))
                 });
             let setting = &self.content.rules.config.casting_range;
-            let mut range = super::casting::range_percent(setting, distance, |d| {
-                magic.stat(&self.content.rules, crate::rules::Stat::CastingDistance, d)
-            });
+            let mut range =
+                f4x_battle::battlemagic::caster::range_percent(setting, distance, |d| {
+                    magic.stat(&self.content.rules, crate::rules::Stat::CastingDistance, d)
+                });
             // On corrupted ground a wizard who keeps Great Wasting going pays no range penalty.
             if self.is_corrupted(site)
                 && self.has_global_effect(

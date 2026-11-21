@@ -52,7 +52,7 @@ impl ReachCache {
 }
 
 /// What a unit adds to a battle, as one number: the one measure of the rules engine
-/// (`f4x_core::battle::power`), at full health. Hurt units are kept out of the army by the
+/// (`f4x_battle::power`), at full health. Hurt units are kept out of the army by the
 /// callers (`recover::needs_rest`), not weighed less here.
 pub fn unit_strength(view: &PlayerView, unit: hecs::Entity) -> f32 {
     view.unit_power(unit)

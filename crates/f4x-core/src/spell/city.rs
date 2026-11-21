@@ -87,8 +87,9 @@ impl Game {
     /// (armour piercing, stopped by magic immunity), and there is a 5 percent chance that a
     /// building falls (one that no other building needs). This is the help text's rule.
     pub(crate) fn process_chaos_rifts(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
-        use crate::battle::immunity::{AttackNature, Realm};
         use crate::rules::effects::DamageTraits;
+        use f4x_def::rules::attack_nature::AttackNature;
+        use f4x_def::rules::realm::Realm;
         use rand::SeedableRng;
         let mut events = Vec::new();
         let rifts: Vec<hecs::Entity> = self

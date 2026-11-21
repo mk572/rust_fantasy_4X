@@ -8,7 +8,7 @@ use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::frame::Layout;
 use crate::input::Input;
-use f4x_core::battle::UnitNow;
+use f4x_battle::UnitNow;
 use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_def::half_int::HalfInt;
 
@@ -75,7 +75,7 @@ fn damage_bar(u: &BattleUnit) -> Option<(i32, &'static str)> {
 /// The enchantments on one side's strip, in the original's order, as `compix` entries
 /// (`combat_enchantment_icon_segs`): the battlefield spells, and Counter Magic's 15.
 fn enchantment_icons(battle: &Battle, side: Side) -> Vec<usize> {
-    use f4x_core::battle::field::Field;
+    use f4x_battle::battlemagic::field::Field;
     let mut icons: Vec<(usize, usize)> = battle
         .fields()
         .filter(|&(s, _, _)| s == side)

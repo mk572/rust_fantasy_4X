@@ -14,10 +14,11 @@ use rand::RngCore;
 use super::damage_type::DamageTypes;
 use super::effects::{Effect, EffectRule, TargetSel, Trigger};
 use super::stats::{ModOp, Modifier, Source, Stat};
-use crate::battle::immunity::{resistance_failure, Realm};
 use crate::map::Position;
 use crate::player::PlayerId;
+use f4x_battle::resistance::resistance_failure;
 pub use f4x_def::rules::facts::{eval, Facts};
+use f4x_def::rules::realm::Realm;
 
 /// Something an effect can act on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

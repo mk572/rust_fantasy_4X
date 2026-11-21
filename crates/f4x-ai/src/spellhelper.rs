@@ -34,7 +34,7 @@ fn summoned_strength(view: &PlayerView, def: &SpellDef) -> f32 {
             _ => None,
         })
         .map(|(unit, count)| {
-            f4x_core::battle::power::def_power(
+            f4x_battle::power::def_power(
                 view.content().rules.units.get(unit),
                 &view.content().rules,
             ) * f32::from(count)

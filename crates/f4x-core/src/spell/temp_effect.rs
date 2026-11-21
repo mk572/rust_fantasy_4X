@@ -5,7 +5,6 @@
 //! through `modifiers_shared` and `unit_abilities`, cities through `city_modifiers`. Cities have
 //! no abilities, so granting or removing one there does nothing.
 
-use crate::battle::immunity::{effective_resistance, Immunities, Realm};
 use crate::game::Game;
 use crate::rules::effects::{Condition, Effect, Trigger};
 use crate::rules::exec::Target;
@@ -13,6 +12,9 @@ use crate::rules::stats::passive_modifiers;
 use crate::rules::SpellId;
 use crate::rules::{Ability, ModOp, Modifier, Source, Stat};
 use crate::unit::UnitView;
+use f4x_def::rules::immunity::effective_resistance;
+use f4x_def::rules::immunity::Immunities;
+use f4x_def::rules::realm::Realm;
 use hecs::World;
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -325,11 +327,11 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::battle::immunity::Realm;
     use crate::game::testutil::shipped;
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::player::PlayerId;
+    use f4x_def::rules::realm::Realm;
     use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);

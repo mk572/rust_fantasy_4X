@@ -710,7 +710,7 @@ fn corrupted_squares_starve_and_unsettle_a_city_unless_its_wizard_keeps_great_wa
 
 #[test]
 fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() -> TestResult {
-    use crate::battle::immunity::Realm;
+    use f4x_def::rules::realm::Realm;
     let mut g = world();
     let chaos = g
         .content

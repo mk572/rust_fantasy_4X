@@ -118,18 +118,18 @@ fn resist_elements_gives_way_to_elemental_armor_and_resist_magic_to_magic_immuni
     let w = unit(&mut g, 107 /* high_men_cavalry */);
     let base = g
         .units()
-        .unit_resistance_against(w, Some(crate::battle::immunity::Realm::Life));
+        .unit_resistance_against(w, Some(f4x_def::rules::realm::Realm::Life));
     enchant(&mut g, w, 41 /* resist_magic */);
     assert_eq!(
         g.units()
-            .unit_resistance_against(w, Some(crate::battle::immunity::Realm::Life)),
+            .unit_resistance_against(w, Some(f4x_def::rules::realm::Realm::Life)),
         base + 5
     );
     assert_eq!(aim(&g, w, 69 /* magic_immunity */), Ok(()));
     enchant(&mut g, w, 69 /* magic_immunity */);
     assert_eq!(
         g.units()
-            .unit_resistance_against(w, Some(crate::battle::immunity::Realm::Life)),
+            .unit_resistance_against(w, Some(f4x_def::rules::realm::Realm::Life)),
         base + 30
     );
 }

@@ -109,9 +109,9 @@ impl App {
         // to the other side) is let go.
         if ui.placing.is_some_and(|p| {
             !my_turn
-                || !battle.unit(p).is_some_and(|u| {
-                    u.status == f4x_core::battle::Status::Merged && !u.merged_this_turn
-                })
+                || !battle
+                    .unit(p)
+                    .is_some_and(|u| u.status == f4x_battle::Status::Merged && !u.merged_this_turn)
         }) {
             ui.placing = None;
         }
@@ -119,9 +119,7 @@ impl App {
         // The units under the ground come first: they cannot be picked on the field.
         let mine = Self::human_side(battle).filter(|&side| my_turn && side == battle.active);
         for u in battle.units.iter().filter(|u| {
-            mine == Some(u.side)
-                && u.status == f4x_core::battle::Status::Merged
-                && !u.merged_this_turn
+            mine == Some(u.side) && u.status == f4x_battle::Status::Merged && !u.merged_this_turn
         }) {
             rows.push(Row::Up(
                 u.id,

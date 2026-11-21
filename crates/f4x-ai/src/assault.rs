@@ -23,7 +23,7 @@ pub(crate) fn guard_parts(view: &PlayerView, site: Position) -> Option<(f32, f32
     let (mut all, mut immune) = (0.0, 0.0);
     for (id, n) in &guards {
         let def = rules.units.get(*id);
-        let worth = f4x_core::battle::power::def_power(def, rules) * *n as f32;
+        let worth = f4x_battle::power::def_power(def, rules) * *n as f32;
         all += worth;
         if def.abilities.contains(&f4x_core::rules::Ability::new(
             72, /* weapon_immunity */
@@ -223,7 +223,7 @@ pub(crate) fn assault(
         if !ai
             .send(
                 game,
-                Command::Battle(f4x_core::battle::BattleCommand::Flee),
+                Command::Battle(f4x_battle::battle::BattleCommand::Flee),
                 events,
             )
             .is_ok()

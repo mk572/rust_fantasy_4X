@@ -8,14 +8,16 @@
 //! a defender inside a walled city stays behind the wall. Spells are chosen by the wizard's brain
 //! with the whole game (`game.rs`), not here: a [`Battle`] alone knows nothing of the wizard.
 
-use f4x_core::battle::attack::Mode;
-use f4x_core::battle::immunity::{AttackNature, Immunities};
-use f4x_core::battle::map::{distance, in_city_area, Pos};
-use f4x_core::battle::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
+use f4x_battle::attack::Mode;
+use f4x_battle::battle::{Battle, BattleCommand, RangedKind};
+use f4x_battle::map::{distance, in_city_area, Pos};
+use f4x_battle::{BattleUnit, Side};
 use f4x_core::game::setting::MeleeVsFliers;
 use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_core::rules::{Ability, Rules};
 use f4x_def::half_int::HalfInt;
+use f4x_def::rules::attack_nature::AttackNature;
+use f4x_def::rules::immunity::Immunities;
 
 /// The nearest active enemy the unit's side can see (lowest id on ties).
 fn closest_enemy<'a>(battle: &'a Battle, unit: &BattleUnit) -> Option<&'a BattleUnit> {
@@ -154,7 +156,7 @@ pub fn baseline_command(battle: &Battle) -> BattleCommand {
 /// What a unit is worth in a fight: its strength times what it has left.
 pub fn worth(battle: &Battle, u: &BattleUnit) -> f32 {
     let u = battle.now_of(u);
-    f4x_core::battle::strength(u.melee().max(u.ranged()), u.defense(), u.hit_points())
+    f4x_battle::battle::strength(u.melee().max(u.ranged()), u.defense(), u.hit_points())
 }
 
 /// The damage (hit points) `attacker` is expected to do to `target` with one attack of kind
@@ -293,7 +295,7 @@ pub fn merge_order(battle: &Battle) -> Option<BattleCommand> {
 pub fn surface_order(battle: &Battle) -> Option<BattleCommand> {
     let side = battle.active;
     let unit = battle.units.iter().find(|u| {
-        u.side == side && u.status == f4x_core::battle::Status::Merged && !u.merged_this_turn
+        u.side == side && u.status == f4x_battle::Status::Merged && !u.merged_this_turn
     })?;
     let enemies: Vec<&BattleUnit> = battle.active_units(side.other()).collect();
     let free = battle.free_squares();
@@ -524,8 +526,8 @@ fn approach(battle: &Battle, unit: &BattleUnit, goal: &BattleUnit) -> Option<Pos
 mod tests {
     use super::*;
     use crate::testworld::real_battle;
-    use f4x_core::battle::map::BattleMap;
-    use f4x_core::battle::Side;
+    use f4x_battle::map::BattleMap;
+    use f4x_battle::Side;
     use f4x_def::testdir::TestResult;
 
     fn duel(a: Pos, d: Pos) -> Battle {

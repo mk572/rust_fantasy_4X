@@ -7,7 +7,6 @@
 //!
 //! Tests: in spell/wizard/tests.rs.
 
-use crate::battle::immunity::{resistance_failure, Realm};
 use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
 use crate::player::PlayerId;
@@ -15,7 +14,9 @@ use crate::rules::unit_flag::UnitFlag;
 use crate::rules::UnitKind;
 use crate::spell::target_error::TargetError;
 use crate::wizard::magic::{base_casting_skill, skill_points_for};
+use f4x_battle::resistance::resistance_failure;
 use f4x_def::half_int::HalfInt;
+use f4x_def::rules::realm::Realm;
 
 /// The hook of the spells aimed straight at an opponent wizard.
 pub const WIZARD_EFFECT: &str = "wizard_effect";
@@ -101,7 +102,7 @@ impl Game {
             self.settings.rules.magic_immunity_exceptions,
         );
         let units = self.units();
-        crate::battle::immunity::Immunities::of(
+        f4x_def::rules::immunity::Immunities::of(
             &units.unit_abilities(unit),
             &units.unit_enchantment_ids(unit),
             &self.content.rules,
