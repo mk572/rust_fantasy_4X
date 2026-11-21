@@ -715,13 +715,11 @@ impl Game {
                 }
             }
         }
-        let ashore = !self.economy().is_sea(to);
+        // Passengers carried into a port stay aboard while the ship goes on (a voyage passes
+        // through ports); the ship that stops there puts them ashore at the next turn start
+        // (`Game::unload_in_ports`).
         for &p in &carried {
             self.put(p, to);
-            // A ship that sails into a port leaves its passengers in the city, not aboard.
-            if ashore {
-                self.strip::<crate::unit::transport::Aboard>(p);
-            }
         }
         // Who is aboard what now.
         let flies = self.economy().stack_traits(units);

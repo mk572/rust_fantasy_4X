@@ -63,6 +63,7 @@ impl Game {
         }
         events.extend(self.determine_offers(player));
         events.extend(self.process_purify(player));
+        self.unload_in_ports(player);
         events.extend(self.sail_marooned(player));
         events.extend(self.drown_stranded(Some(player)));
         events.extend(self.process_road_work(player));

@@ -492,6 +492,29 @@ impl Game {
             .all(|&p| e.step_cost(p, from, land, traits).is_ok())
     }
 
+    /// The passengers of `player`'s ships that lie in a city are put ashore: a unit in a port is in
+    /// its city, not aboard. Called at the turn start, so that a ship that sailed on through a port
+    /// kept its load, and one that stopped there does not keep a garrison "aboard" for hundreds of
+    /// turns, which left it out of every ferry job (seed 20134 of the soak).
+    pub(crate) fn unload_in_ports(&mut self, player: crate::player::PlayerId) {
+        let aboard: Vec<hecs::Entity> = self
+            .world
+            .query::<&Aboard>()
+            .iter()
+            .map(|(e, _)| e)
+            .filter(|&e| self.units().unit_owner(e) == Some(player))
+            .collect();
+        for unit in aboard {
+            let in_port = self
+                .units()
+                .unit_position(unit)
+                .is_some_and(|p| self.economy().city_at(p).is_some());
+            if in_port && self.economy().carrier_of(unit).is_some() {
+                self.strip::<Aboard>(unit);
+            }
+        }
+    }
+
     /// Ships on land that lost their way there are destroyed (their passengers stay on the
     /// square); land units at sea with no ship under them are lost, as the units of a defeated army are
     /// when they flee: where free land lies beside them they scramble ashore, half of the troops
@@ -925,9 +948,10 @@ mod tests {
         Ok(())
     }
 
-    /// A ship moved alone carries its passengers into the port, and there they stand in the city:
-    /// aboard nothing, so the ship is empty again (a passenger that stayed marked aboard kept the
-    /// ship from carrying anyone else for hundreds of turns, seed 20134 of the soak).
+    /// A ship moved alone carries its passengers into the port; it keeps them while it sails on, and
+    /// when it stops there they are put ashore at the turn start: aboard nothing, so the ship is
+    /// empty again (a passenger that stayed marked aboard kept the ship from carrying anyone else for
+    /// hundreds of turns, seed 20134 of the soak).
     #[test]
     fn a_ship_sailing_alone_into_a_port_leaves_its_passengers_in_the_city() -> TestResult {
         let mut g = world();
@@ -945,6 +969,22 @@ mod tests {
         g.move_stack(&[boat], at(10, 3))
             .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.units().unit_position(w), Some(at(10, 3)), "it came along");
+        assert_eq!(
+            g.economy().carrier_of(w),
+            Some(boat),
+            "still aboard: the ship may sail on"
+        );
+        // Out of the port again, it carries them.
+        let whole = g.units().unit_max_moves(boat);
+        g.scenario_set_moves_left(boat, whole);
+        g.move_stack(&[boat], at(9, 4))
+            .map_err(|e| format!("{e:?}"))?;
+        assert_eq!(g.units().unit_position(w), Some(at(9, 4)));
+        // The ship stopped in the port: at the turn start the passengers are ashore.
+        g.scenario_set_moves_left(boat, whole);
+        g.move_stack(&[boat], at(10, 3))
+            .map_err(|e| format!("{e:?}"))?;
+        g.unload_in_ports(P0);
         assert_eq!(g.economy().carrier_of(w), None, "ashore in the port");
         assert!(g.economy().passengers_of(boat).is_empty());
         Ok(())

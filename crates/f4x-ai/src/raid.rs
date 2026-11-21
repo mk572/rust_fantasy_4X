@@ -123,7 +123,14 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .hostile_at(city)
                 .unwrap_or_default();
             if defenders.is_empty() {
-                ai.order(game, Command::MoveStack { units, to: city }, events);
+                // A party with a unit that has no moves left (it fought or walked this turn)
+                // waits: the order would be refused, and the next turn's moves are whole.
+                let tired = units
+                    .iter()
+                    .any(|&u| game.units().unit_moves_left(u) == f4x_def::half_int::HalfInt::ZERO);
+                if !tired {
+                    ai.order(game, Command::MoveStack { units, to: city }, events);
+                }
             } else {
                 strike(ai, game, units, defenders, events);
             }
@@ -496,6 +503,49 @@ mod tests {
             .sum();
         assert_eq!(gold, 300, "the hoard is the wizard's");
         assert!(g.economy().lair_at(at(8, 6)).is_none());
+        Ok(())
+    }
+
+    /// A party with a unit that has no moves left does not order the walk into the empty city
+    /// (the game refuses it): it waits, and goes in the next turn with its moves whole.
+    #[test]
+    fn a_party_with_a_tired_unit_waits_before_an_empty_city() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let neutral = f4x_core::player::PlayerId(2);
+        g.add_neutral_player(neutral);
+        let east = at(33, 6);
+        g.apply(Command::FoundCity {
+            owner: neutral,
+            pos: east,
+            name: "Greyhold".into(),
+            race: g.content().rules.races.id_numbered(8),
+            population: 8,
+        });
+        g.explore(P0, east, f4x_def::half_int::HalfInt::from_raw(3));
+        let party = spawn(&mut g, P0, at(32, 6), 113 /* high_men_paladins */, 2);
+        g.scenario_set_moves_left(party[0], f4x_def::half_int::HalfInt::ZERO);
+        let mut ai = Ai::new(P0);
+        ai.record_refusals(true);
+        {
+            let view = PlayerView::new(&g, P0);
+            ai.roles.assign(
+                crate::roles::Role::Raid,
+                party.iter().map(|&u| view.serial_of(u)),
+                1,
+            );
+        }
+        run(&mut ai, &mut g, &mut Vec::new());
+        assert!(ai.take_refusals().is_empty(), "no refused order");
+        assert!(party
+            .iter()
+            .all(|&u| g.units().unit_position(u) == Some(at(32, 6))));
+        // The next turn the moves are whole and the party goes in.
+        let whole = g.units().unit_max_moves(party[0]);
+        g.scenario_set_moves_left(party[0], whole);
+        run(&mut ai, &mut g, &mut Vec::new());
+        assert!(party
+            .iter()
+            .all(|&u| g.units().unit_position(u) == Some(east)));
         Ok(())
     }
 

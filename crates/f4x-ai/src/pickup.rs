@@ -297,6 +297,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         return;
     }
     call_off_a_scout_ship(ai, game, events);
+    adopt_passengers(ai, game);
     assign_ships(ai, game);
     walk_to_shore(ai, game, events);
     for pickup in voyages(ai) {
@@ -515,6 +516,71 @@ fn is_aboard(view: &PlayerView, unit: hecs::Entity) -> bool {
                 && view.passengers_of(s).contains(&unit)
         })
     })
+}
+
+/// A ship with no job that carries units waiting for a ship, at sea: it is theirs. They went
+/// aboard on their own (a stack that walked onto a ship waiting at the shore) or the voyage that
+/// carried them was ended; the pickup left the ship out of the free ones (it has passengers) and
+/// booked the units on another ship, far away, for hundreds of turns. The ship takes them where
+/// they want to go: a voyage whose units are all aboard already, with the shore beside the ship
+/// as its boarding tile.
+fn adopt_passengers(ai: &mut Ai, game: &mut Game) {
+    let me = ai.player;
+    let mut plans: Vec<(Serial, Position, Position, Vec<Serial>)> = Vec::new();
+    {
+        let view = PlayerView::new(game, me);
+        let waiting = ai.roles.waiting_for_ship();
+        let mut ships: Vec<hecs::Entity> = view
+            .my_units()
+            .into_iter()
+            .filter(|&u| is_ship(&view, u) && !ai.roles.has_role(view.serial_of(u)))
+            .collect();
+        view.sort_by_serial(&mut ships);
+        for ship in ships {
+            let Some(at) = view.unit_position(ship) else {
+                continue;
+            };
+            let passengers = view.passengers_of(ship);
+            if passengers.is_empty() || view.terrain_class(at) != Some(TerrainClass::Ocean) {
+                continue;
+            }
+            let serials: Vec<Serial> = passengers.iter().map(|&u| view.serial_of(u)).collect();
+            // Every passenger waits for a ship, with a target of its own.
+            if !serials.iter().all(|s| waiting.iter().any(|(w, _)| w == s)) {
+                continue;
+            }
+            let Some(shore) = crate::military::neighbours(&view, at)
+                .into_iter()
+                .find(|&p| {
+                    view.terrain_class(p)
+                        .is_some_and(|t| t != TerrainClass::Ocean)
+                })
+            else {
+                continue;
+            };
+            plans.push((view.serial_of(ship), at, shore, serials));
+        }
+    }
+    for (ship, at, shore, serials) in plans {
+        let capacity = {
+            let view = PlayerView::new(game, me);
+            view.my_units()
+                .into_iter()
+                .find(|&u| view.serial_of(u) == ship)
+                .map_or(1, |u| game.economy().ship_room(u) as usize + serials.len())
+        };
+        if ai
+            .roles
+            .plan_ship(ship, serials.len(), capacity, game.turn, at)
+        {
+            let party = ai.roles.new_party();
+            let role = ai.roles.role_of(ship).unwrap_or(Role::TransportSpace);
+            ai.roles.group(&[ship], role, party, None);
+            for s in serials {
+                ai.roles.board_at(s, ship, shore);
+            }
+        }
+    }
 }
 
 /// Each group of waiting units with no ship coming gets a boarding plan and a free ship.
@@ -942,6 +1008,43 @@ mod tests {
             if let Some(other) = cost(p) {
                 assert!(chosen <= other, "{tile:?} {chosen} vs {p:?} {other}");
             }
+        }
+        Ok(())
+    }
+
+    /// Units that wait for a ship and are already aboard an unassigned ship at sea (they walked
+    /// onto it, or the voyage that carried them was ended): the ship takes them to their
+    /// destination, where before it stood for hundreds of turns (the refused-order log of seed 31:
+    /// three soldiers booked on a ship that was far away, carried by an idle one).
+    #[test]
+    fn units_aboard_an_idle_ship_at_sea_are_carried_to_their_destination() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let land = shore(&g)?;
+        let soldiers = spawn(&mut g, P0, land, 104 /* spearmen */, 2);
+        let sea = {
+            let view = PlayerView::new(&g, P0);
+            sea_beside(&view, land).ok_or("a sea square beside the shore")?
+        };
+        let ship = spawn(&mut g, P0, sea, 36 /* galley */, 1)[0];
+        g.move_stack(&soldiers, sea).map_err(|e| format!("{e:?}"))?;
+        assert_eq!(g.economy().carrier_of(soldiers[0]), Some(ship), "aboard");
+        g.balance_farmers(P0);
+        let mut ai = Ai::new(P0);
+        strand(&mut ai, &g, &soldiers, port());
+        for _ in 0..40 {
+            run_turns(&mut ai, &mut g, 1);
+            let view = PlayerView::new(&g, P0);
+            if soldiers
+                .iter()
+                .all(|&u| ai.roles.crossing_of(view.serial_of(u)).is_none())
+            {
+                break;
+            }
+        }
+        let view = PlayerView::new(&g, P0);
+        for &u in &soldiers {
+            assert_eq!(view.unit_position(u), Some(port()), "{:?}", ai.roles);
         }
         Ok(())
     }
