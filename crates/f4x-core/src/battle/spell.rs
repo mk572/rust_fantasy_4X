@@ -32,7 +32,7 @@ use super::{Battle, BattleError, BattleEvent, Side};
 use crate::game::{DispelSite, Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
-use crate::rules::defs::{CastContext, SpellDef, SpellTarget};
+use crate::rules::defs::{CastContext, SpellDef};
 use crate::rules::stats::Modifier;
 use crate::rules::SpellId;
 use crate::spell::target_error::TargetError;

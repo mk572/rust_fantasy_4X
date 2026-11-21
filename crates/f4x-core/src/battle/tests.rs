@@ -4924,6 +4924,32 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() -> Te
     Ok(())
 }
 
+/// The demon appears on one of the nine squares nearest the side's edge, in the middle of the
+/// field: over many battles every one of the nine is used and no tenth.
+#[test]
+fn a_demon_appears_on_one_of_nine_squares_by_the_edge_and_all_nine_are_used() -> TestResult {
+    let mut g = game();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_numbered(173)
+        .ok_or("demon_lord is not in the content")?;
+    let lord = g.spawn_unit(A, at(4, 4), walker);
+    begin(&mut g, lord);
+    let start = g.battle().ok_or("battle is missing")?.clone();
+    let mut cells = std::collections::BTreeSet::new();
+    for seed in 0..400 {
+        let mut b = reseeded(&start, seed);
+        let Ok(BattleEvent::Summoned { unit }) = b.summon_demon(0) else {
+            return Err("no demon came".into());
+        };
+        cells.insert(b.units[unit].cell);
+    }
+    assert_eq!(cells.len(), 9, "the squares the demon came to: {cells:?}");
+    Ok(())
+}
+
 // ---- city enchantments ---------------------------------------------------------
 
 fn city_map() -> BattleMap {

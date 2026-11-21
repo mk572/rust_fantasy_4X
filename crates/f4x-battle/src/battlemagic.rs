@@ -11,4 +11,5 @@ pub mod error;
 pub mod field;
 pub mod spell;
 pub mod spell_type;
+pub mod unit_cast;
 pub mod vortex;
