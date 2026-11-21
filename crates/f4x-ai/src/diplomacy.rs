@@ -97,9 +97,17 @@ pub(crate) fn rate(
     asker: PlayerId,
     judge: PlayerId,
     kind: ProposalKind,
-    // What the judge remembers (task 760); system A does not use it yet.
-    _memory: &crate::memory::Memory,
+    // What the judge remembers (task 760).
+    memory: &crate::memory::Memory,
 ) -> Verdict {
+    // A wizard of system B answers a peace by its one peace score (`diplo_b.rs`).
+    if memory.system == crate::System::B && matches!(kind, ProposalKind::Peace) {
+        return if crate::diplo_b::accepts(game, judge, asker, memory) {
+            Verdict::Accepted
+        } else {
+            Verdict::Refused
+        };
+    }
     let relation = game.relation(asker, judge);
     let (type_modifier, early) = match kind {
         ProposalKind::Pact => (
@@ -348,6 +356,13 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
         .is_ok()
     };
     match game.treaty(me, human) {
+        Treaty::War if ai.system() == crate::System::B => {
+            // System B: the one peace score, the same as for the other wizards (`diplo_b.rs`).
+            if crate::diplo_b::offer_due(ai, game, human) {
+                propose(game, events, ProposalKind::Peace);
+                ai.memory.put().offered_peace(human, game.turn);
+            }
+        }
         Treaty::War => {
             let score = stance.hidden + relation + mood + stance.peace_patience;
             if game.roll(8) == 1 && 30 + game.roll(100) as i32 <= score {
@@ -714,6 +729,8 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             + (3 + game.roll(5) as i32) * difficulty as i32
             + crate::statecraft::goodwill(game, me, other, ProposalKind::Pact);
         let kind = match treaty {
+            // System B offers peace by its own score (`diplo_b::wars`).
+            Treaty::War if ai.system() == crate::System::B => None,
             Treaty::War => (stance.peace_patience + game.roll(100) as i32 > 100
                 && crate::statecraft::peace_ok(game, me, other))
             .then_some(ProposalKind::Peace),

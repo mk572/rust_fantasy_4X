@@ -14,7 +14,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use f4x_core::game::Event;
+use f4x_core::game::{Event, Game};
 use f4x_core::player::PlayerId;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -28,6 +28,16 @@ pub(crate) struct Dealing {
     pub cities_lost: u32,
     /// The turn of the last battle or city between them.
     pub last_clash: u32,
+    /// The weariness of the war these events belong to (system B, `diplo_b.rs`): up for a battle or
+    /// a city lost, down for one won or taken, never below 0. It starts again when a war begins.
+    #[serde(default)]
+    pub weary: i32,
+    /// The turn the war `weary` belongs to began (0: none).
+    #[serde(default)]
+    pub war_since: u32,
+    /// The turn it last offered this one peace (system B's cool-down; 0: never).
+    #[serde(default)]
+    pub offered: u32,
 }
 
 impl Dealing {
@@ -39,6 +49,9 @@ impl Dealing {
             cities_taken: 0,
             cities_lost: 0,
             last_clash: 0,
+            weary: 0,
+            war_since: 0,
+            offered: 0,
         }
     }
 }
@@ -88,33 +101,53 @@ impl Memory {
         &mut self.dealings[i]
     }
 
-    /// Take in what `me` has been told: the battles it fought and the cities it won or lost. What
-    /// happened to others is not its business.
-    pub(crate) fn notice(&mut self, me: PlayerId, turn: u32, events: &[Event]) {
+    /// Write down that peace was offered to `with` on this turn.
+    pub(crate) fn offered_peace(&mut self, with: PlayerId, turn: u32) {
+        self.dealing(with).offered = turn;
+    }
+
+    /// Take in what `me` has been told: the battles it fought and the cities it won or lost against
+    /// another wizard or neutral race. What happened to others, and its fights with monsters, are not
+    /// its business.
+    pub(crate) fn notice(&mut self, me: PlayerId, game: &Game, events: &[Event]) {
+        use crate::diplo_b::Knobs;
+        let turn = game.turn;
+        let known =
+            |p: PlayerId| p != me && (game.is_wizard(p) || game.race_of_player(p).is_some());
+        let k = Knobs::current();
         for event in events {
-            match *event {
-                Event::BattleEnded { winner, loser } if winner == me && loser != me => {
-                    let d = self.dealing(loser);
-                    d.battles_won += 1;
-                    d.last_clash = turn;
-                }
-                Event::BattleEnded { winner, loser } if loser == me && winner != me => {
-                    let d = self.dealing(winner);
-                    d.battles_lost += 1;
-                    d.last_clash = turn;
-                }
-                Event::CityCaptured { from, to, .. } if to == me && from != me => {
-                    let d = self.dealing(from);
-                    d.cities_taken += 1;
-                    d.last_clash = turn;
-                }
-                Event::CityCaptured { from, to, .. } if from == me && to != me => {
-                    let d = self.dealing(to);
-                    d.cities_lost += 1;
-                    d.last_clash = turn;
-                }
-                _ => {}
+            let (with, battle, won, city) = match *event {
+                Event::BattleEnded { winner, loser } if winner == me => (loser, true, true, false),
+                Event::BattleEnded { winner, loser } if loser == me => (winner, true, false, false),
+                Event::CityCaptured { from, to, .. } if to == me => (from, false, true, true),
+                Event::CityCaptured { from, to, .. } if from == me => (to, false, false, true),
+                _ => continue,
+            };
+            if !known(with) {
+                continue;
             }
+            // A war that began since the last clash is another war: its weariness starts at 0.
+            let since = game
+                .war_age(me, with)
+                .map_or(0, |age| turn.saturating_sub(age));
+            let d = self.dealing(with);
+            if d.war_since != since {
+                d.war_since = since;
+                d.weary = 0;
+            }
+            d.last_clash = turn;
+            let (up, down) = if city {
+                (k.city_lost, k.city_taken)
+            } else {
+                (k.battle_lost, k.battle_won)
+            };
+            match (battle, won) {
+                (true, true) => d.battles_won += 1,
+                (true, false) => d.battles_lost += 1,
+                (false, true) => d.cities_taken += 1,
+                (false, false) => d.cities_lost += 1,
+            }
+            d.weary = (d.weary + if won { -down } else { up }).max(0);
         }
     }
 }
@@ -187,9 +220,20 @@ impl Diplomats {
 mod tests {
     use super::*;
 
-    const ME: PlayerId = PlayerId(1);
-    const FOE: PlayerId = PlayerId(2);
-    const THIRD: PlayerId = PlayerId(3);
+    use crate::testworld::{game, COAST_CITY, P0, P1};
+    use f4x_core::player::MONSTERS;
+
+    const ME: PlayerId = P0;
+    const FOE: PlayerId = P1;
+    /// The monsters: not a wizard, so its fights are not dealings.
+    const THIRD: PlayerId = MONSTERS;
+
+    /// A game at turn `turn`.
+    fn at_turn(turn: u32) -> Game {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.turn = turn;
+        g
+    }
 
     #[test]
     fn a_wizard_notes_the_battles_it_fought_and_the_cities_it_won_and_lost() {
@@ -197,7 +241,7 @@ mod tests {
         let city = hecs::Entity::DANGLING;
         m.notice(
             ME,
-            10,
+            &at_turn(10),
             &[
                 Event::BattleEnded {
                     winner: ME,
@@ -242,11 +286,11 @@ mod tests {
     }
 
     #[test]
-    fn what_happens_between_others_is_not_noted() {
+    fn what_happens_between_others_and_with_monsters_is_not_noted() {
         let mut m = Memory::default();
         m.notice(
             ME,
-            3,
+            &at_turn(3),
             &[Event::BattleEnded {
                 winner: FOE,
                 loser: THIRD,
@@ -262,7 +306,7 @@ mod tests {
         table.add(ME, &mine);
         mine.put().notice(
             ME,
-            5,
+            &at_turn(5),
             &[Event::BattleEnded {
                 winner: ME,
                 loser: FOE,
@@ -279,7 +323,7 @@ mod tests {
         let mut m = Memory::default();
         m.notice(
             ME,
-            7,
+            &at_turn(7),
             &[Event::BattleEnded {
                 winner: FOE,
                 loser: ME,

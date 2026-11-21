@@ -19,6 +19,7 @@ mod city_site;
 mod controller;
 mod craft;
 mod crowd;
+mod diplo_b;
 mod diplomacy;
 mod dispatch;
 mod economy;
@@ -411,7 +412,7 @@ impl Ai {
     /// Tell the wizard what has happened (the events of a turn): the battles it fought and the
     /// cities it won or lost go into its memory. What a human would be told of, and no more.
     pub fn notice(&mut self, game: &Game, events: &[Event]) {
-        self.memory.put().notice(self.player, game.turn, events);
+        self.memory.put().notice(self.player, game, events);
     }
 
     /// Whether the AI keeps out of this player's way, for being much stronger and near.
@@ -818,8 +819,8 @@ pub(crate) fn knob(name: &str, default: f32) -> f32 {
 mod memory_tests {
     use super::*;
 
-    const ME: PlayerId = PlayerId(1);
-    const FOE: PlayerId = PlayerId(2);
+    const ME: PlayerId = crate::testworld::P0;
+    const FOE: PlayerId = crate::testworld::P1;
 
     fn lost_a_battle(ai: &mut Ai, turn: u32) {
         let mut g = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);

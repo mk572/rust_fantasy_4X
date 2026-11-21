@@ -1009,3 +1009,15 @@ In the original the Holy Bonus, Resistance to All and the leaders' bonus (Leader
 ## 50. Cavalry and halberdiers by type (task 728)
 
 The shipped unit rows (`units.ron`, taken from the original's table) give First Strike to every cavalry unit but the orc cavalry, and Negate First Strike to the halberdiers of the gnolls, lizardmen and trolls only: the beastmen, draconian, dwarven, high elf, Klackon and orc halberdiers lack it. We have not checked the wiki's unit pages or ReMoM's unit table for whether that is the original's intent or a slip of the table, so the rows stay as they are. The setting `cavalry_halberdier_abilities` (off by default, Custom screen) gives every unit listed as cavalry (`targets.cavalry_units` in `rules.ron`) First Strike and every halberdier unit (`targets.halberdier_units`) Negate First Strike, whatever its row says. It adds the ability and never removes one. The ratings (`unit_ratings.ron`) of these units were measured with it off.
+
+## 51. A wizard of diplomacy system B makes peace by one score (tasks 761, 762)
+
+The original's AI ends a war in three places with three formulas (its peace patience against a roll, the peace
+patience against `30 + Random(100)` towards the human, and a loss test of this game's own `statecraft`). A wizard of
+**system B** (`soak --diplomacy`, `ai-diplomacy-b.md`) has one score for offering and accepting peace, for the AI
+wizards among themselves and for the peace the human offers it or asks of it: the weariness of the war (what the
+battles and cities it was told of moved it by, and the turns since the last clash), the gap in strength, fear,
+friendship, the strategic value and its temper. A human who offers peace to a wizard of B is answered by the score, not
+by the original's patience and a roll, and the wizard offers the human peace by it, with a cool-down, not one turn in
+eight. System A, the default, is unchanged; B is for the soak to compare and is not offered to the player.
+

@@ -47,6 +47,44 @@ threat to its own cities a plus), with the personality's modifier. **It offers p
 A cool-down keeps it from asking every turn; the dice stay only as pacing, never as the decision. Replaces
 `wars`, the peace roll of `negotiate`, `peace_ok` and the peace formula of `approach_human` for a wizard of B.
 
+## What is built (task 762: the peace)
+
+`crates/f4x-ai/src/diplo_b.rs`, for a wizard whose memory says system B (`Ai::system`); every number is a knob,
+`AIK_DIPLO_B_<NAME>`, so a soak can vary it. The first guesses:
+
+```text
+peace_wish = weariness
+           + gap       (their power - ours) * GAP / max(theirs, ours)         GAP 50: losing is a plus, far ahead a minus
+           + fear      FEAR_PCT % of fear if they are the stronger, minus half of it if we are  (FEAR_PCT 40)
+           + friendship  (relation + hidden relation) * FRIEND_PCT / 100      FRIEND_PCT 10
+           + strategic   -PREY (30) for a prey (150 % weaker, within 30 squares), +TWO_FRONTS (25) for the more
+                         dangerous of two fronts
+           + mood / MOOD_DIV (3)                                              the personality's modifier
+           - YOUNG (40) while the war is younger than YOUNG_AGE (10) turns
+```
+
+* **Weariness** = what the events moved it by (`BATTLE_LOST` 5, `BATTLE_WON` -4, `CITY_LOST` 25, `CITY_TAKEN` -25, never
+  below 0, and starting again when a new war begins) + `DRIFT_PER_TEN` (7) for every ten turns since the last clash
+  or the start of the war: a war with nothing in it wears down at 0.7 a turn.
+* **Fear** = nearness (100 minus `NEAR_PER_SQUARE` (5) for each square between the nearest cities, from 0 to 100) times
+  their might (their power as a percent of ours, less 50, from 0 to 100), divided by 100. Power is the army plus a
+  city's worth (`statecraft` `CITY_POWER`) for each city, as the observer sees it. The ruthlessness it will add
+  (razing, wars declared, treaties broken) waits for the AI to be told of them: only battles and cities are told
+  today.
+* **Offer** at `OFFER` (80) with a cool-down of `COOL` (15) turns for each wizard, kept in the memory; **accept** at
+  `ACCEPT` (60). The dice are gone from the decision.
+* **Where it plugs in:** `statecraft::run` calls `diplo_b::wars` in place of `statecraft::wars`;
+  `diplomacy::rate` answers a peace by `diplo_b::accepts` from the judge's memory (in place of `peace_ok`);
+  `diplomacy::negotiate` makes no peace roll for B; `approach_human` offers the human peace by `offer_due`. The
+  other parts of A (the dominant war, appeasing, the coalition, the hate rolls, the warnings) are still A's, for B
+  too, until task 763.
+* **What a B wizard asks of an A wizard** is answered by A's rules, and the other way round: the two systems meet in
+  one game through the same proposals.
+
+Seen from a stalled war between equals with nothing in it, the wish is about 70 after a hundred quiet turns, so peace
+is accepted from about the turn 85 of the stall and offered from the turn 115; a lost war reaches both marks much
+sooner. These are guesses to be read against a soak (task 761), not tuned values.
+
 ## Friends and enemies
 
 Every few turns (with some hysteresis, so it does not flip each turn) each other wizard gets an enemy value and a

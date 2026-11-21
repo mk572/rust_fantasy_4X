@@ -178,23 +178,23 @@ pub(crate) struct Power {
 }
 
 impl Power {
-    fn score(self, k: &Knobs) -> i32 {
+    pub(crate) fn score(self, k: &Knobs) -> i32 {
         self.army + k.city_power * self.cities
     }
 }
 
 /// What the observer sees of the players: its own cities and the cities of the others it has
 /// seen, and every army (the Astrologer shows the scores).
-struct Scene {
-    me: PlayerId,
+pub(crate) struct Scene {
+    pub(crate) me: PlayerId,
     known: Vec<(PlayerId, f4x_core::map::Position)>,
-    mine: Vec<f4x_core::map::Position>,
+    pub(crate) mine: Vec<f4x_core::map::Position>,
     /// The living diplomats the observer has met.
-    others: Vec<PlayerId>,
+    pub(crate) others: Vec<PlayerId>,
 }
 
 impl Scene {
-    fn new(game: &Game, me: PlayerId) -> Self {
+    pub(crate) fn new(game: &Game, me: PlayerId) -> Self {
         let view = PlayerView::new(game, me);
         let others = game
             .player_ids()
@@ -215,7 +215,7 @@ impl Scene {
         }
     }
 
-    fn power(&self, game: &Game, who: PlayerId) -> Power {
+    pub(crate) fn power(&self, game: &Game, who: PlayerId) -> Power {
         let cities = if who == self.me {
             self.mine.len()
         } else {
@@ -227,7 +227,7 @@ impl Scene {
         }
     }
 
-    fn cities_of(&self, who: PlayerId) -> Vec<f4x_core::map::Position> {
+    pub(crate) fn cities_of(&self, who: PlayerId) -> Vec<f4x_core::map::Position> {
         self.known
             .iter()
             .filter(|(o, _)| *o == who)
@@ -425,7 +425,7 @@ pub(crate) fn arms_enemy(game: &Game, judge: PlayerId, asker: PlayerId) -> bool 
 }
 
 /// A proposal `me` makes to `to`, which `to` answers at once when it is an AI. Whether it was made.
-fn propose(
+pub(crate) fn propose(
     ai: &Ai,
     game: &mut Game,
     events: &mut Vec<Event>,
@@ -454,7 +454,7 @@ fn propose(
     made
 }
 
-fn remark(ai: &Ai, game: &mut Game, events: &mut Vec<Event>, to: PlayerId, why: Remark) {
+pub(crate) fn remark(ai: &Ai, game: &mut Game, events: &mut Vec<Event>, to: PlayerId, why: Remark) {
     ai.order(
         game,
         Command::Diplomacy(DiplomacyCommand::Remark {
@@ -477,7 +477,10 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     let k = Knobs::current();
     let scene = Scene::new(game, me);
-    if k.on_wars {
+    if ai.system() == crate::System::B {
+        // System B's peace: one score for offering and accepting (`diplo_b.rs`).
+        crate::diplo_b::wars(ai, game, events, &scene);
+    } else if k.on_wars {
         wars(ai, game, events, &k, &scene);
     }
     if k.on_appease {
