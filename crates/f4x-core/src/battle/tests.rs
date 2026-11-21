@@ -6224,6 +6224,79 @@ fn cast_on(g: &mut Game, spell: u16, target: usize) -> Result<Vec<Event>, Battle
     })
 }
 
+/// The hit points the first defender loses to a Fire Bolt the wizard casts with `mana` put in.
+fn fire_bolt_damage(mana: u32) -> Result<i32, String> {
+    let mut g = wizard_battle_against(107 /* high_men_cavalry */, &[83 /* fire_bolt */], 1);
+    let bolt = g
+        .content
+        .rules
+        .spells
+        .id_numbered(83)
+        .ok_or("no fire bolt")?;
+    let before = g.battle().ok_or("no battle")?.units[1].hit_points();
+    g.battle_command(BattleCommand::Cast {
+        spell: bolt,
+        aim: SpellAim::Unit(1),
+        mana,
+    })
+    .map_err(|e| format!("{e:?}"))?;
+    let after = g.battle().ok_or("no battle")?.units[1].hit_points();
+    Ok(before - after)
+}
+
+/// A bolt takes extra mana for strength: the same bolt, cast in the same battle with more mana
+/// put in, hurts the same unit more, by the strength the content gives for each point.
+#[test]
+fn extra_mana_makes_a_bolt_stronger() -> TestResult {
+    let rules = &shipped().rules;
+    let bolt = rules.spells.id_numbered(83).ok_or("no fire bolt")?;
+    let cost = rules.spells.get(bolt).cost;
+    let least = fire_bolt_damage(cost)?;
+    let more = fire_bolt_damage(cost + 40)?;
+    assert!(least >= 0, "the bolt hurts or misses, it does not heal");
+    assert!(
+        more > least,
+        "40 more mana: {more} hit points against {least}"
+    );
+    Ok(())
+}
+
+/// Dispel Evil and Holy Word are harder on the undead to resist (the help's "much more difficult
+/// time"): of the same units with the same resistance, more of them die when they are undead.
+#[test]
+fn dispel_evil_slays_more_of_the_undead_than_of_the_living() -> TestResult {
+    let dead_of = |undead: bool| -> Result<u32, String> {
+        let foes = 8;
+        let mut g = wizard_battle_versus(
+            107, /* high_men_cavalry */
+            &[134 /* dispel_evil */],
+            165, /* skeletons */
+            foes,
+        );
+        let mut slain = 0;
+        for t in 1..=foes {
+            let b = &mut g.battle.as_mut().ok_or("no battle")?.battle;
+            b.units[t].undead = undead;
+            b.units[t].force(f4x_def::rules::stats::Stat::Resistance, 6);
+            let events = cast_on(&mut g, 134 /* dispel_evil */, t).map_err(|e| format!("{e:?}"))?;
+            slain += events
+                .iter()
+                .filter_map(|e| match e {
+                    Event::Battle(BattleEvent::SpellSlew { kills, .. }) => Some(*kills),
+                    _ => None,
+                })
+                .sum::<u32>();
+        }
+        Ok(slain)
+    };
+    let (undead, living) = (dead_of(true)?, dead_of(false)?);
+    assert!(
+        undead > living,
+        "{undead} undead die, {living} of the living"
+    );
+    Ok(())
+}
+
 /// 1.50 notes 447, 451, 495: a battle turn changes hands only by `EndTurn`, whether or not a
 /// unit can still move. A side whose units are all spent (or held still) keeps its turn, and its
 /// wizard still casts; ending the turn once passes it once, with no turn lost on either side.

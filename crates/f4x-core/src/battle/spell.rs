@@ -15,35 +15,35 @@
 //!   (`SpellDef::save`) first gives its target a resistance check.
 //! - Battlefield enchantments (`field.rs`) stay up for the battle.
 //!
-//! Not here: dispelling battlefield enchantments, the spells whose effects are not in the game,
-//! the node counter and the heroes' own casting.
+//! Not here: the effect of a cast that needs nothing outside the battle (`f4x_battle`'s
+//! `battlemagic/spell.rs`, `Battle::apply_spell`; here the effects that reach the overland units:
+//! Animate and Raise Dead, Chaos Channels, Call Chaos, Dispel), the spells whose effects are not in
+//! the game, the node counter and the heroes' own casting.
+//!
+//! Tests: in battle/tests.rs, on whole battles.
 
-use crate::rules::damage_type::DamageType;
-use crate::rules::damage_type::DamageTypes;
-use crate::rules::unit_flag::UnitFlag;
-use crate::rules::Ability;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
 use super::casting::{BattleCaster, SpellAim, SpellError};
 use super::field::Field;
 use super::immunity::Realm;
-use super::WarpKind;
 use super::{Battle, BattleError, BattleEvent, Side};
 use crate::game::{DispelSite, Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
-use crate::rules::defs::{CastContext, SpellDef, SpellSave, SpellTarget};
+use crate::rules::defs::{CastContext, SpellDef, SpellTarget};
 use crate::rules::stats::Modifier;
 use crate::rules::SpellId;
 use crate::spell::target_error::TargetError;
 use crate::spell::unit_effect::UnitEffect;
-use f4x_battle::battlemagic::aim::{save_types, AimWorld};
+use f4x_battle::battlemagic::aim::AimWorld;
+use f4x_battle::battlemagic::spell::{Cast, CastWorld};
+use f4x_battle::battlemagic::spell_type::warp_mods;
 pub use f4x_battle::battlemagic::spell_type::{
     slay_allows, BattleEffect, BattleSpell, CityWall, DamageOdds, LegalCast, SpellType,
     BATTLE_EFFECT,
 };
-use f4x_battle::battlemagic::spell_type::{undead_penalty, warp_mods};
 use f4x_def::half_int::HalfInt;
 
 mod unit_cast;
@@ -371,11 +371,6 @@ impl Game {
         Ok(out)
     }
 
-    /// The damage types a curse's target may be immune to (the spell's `save`).
-    pub(super) fn save_types(&self, save: &SpellSave) -> Vec<DamageType> {
-        save_types(save, self.settings.rules.illusion_immunity_protects)
-    }
-
     /// What a lasting spell with no rules of its own gives a unit of the battle: Heroism raises it
     /// to the level the spell gives (the unit was made without it).
     fn battle_bonuses_by_name(&self, spell: SpellId, target: usize) -> Vec<Modifier> {
@@ -503,6 +498,9 @@ impl Game {
             .preview_spell_damage(spell, target, extra_mana)
     }
 
+    /// What a cast does. The effects that reach the overland units are done here (Animate and
+    /// Raise Dead, Chaos Channels, Call Chaos, Dispel); the others are the battle's own
+    /// ([`Battle::apply_spell`]), which the world only gives what it alone knows.
     #[allow(clippy::too_many_arguments)]
     fn apply_battle_spell(
         &mut self,
@@ -514,393 +512,64 @@ impl Game {
         aim: SpellAim,
         pool: i32,
     ) -> Vec<BattleEvent> {
-        match (kind, aim) {
-            (
-                SpellType::Damage {
-                    strength,
-                    types,
-                    traits,
-                    all,
-                },
-                aim,
-            ) => {
-                let extra = if traits.mana_per_point > 0 {
-                    (pool - def.cost as i32) / traits.mana_per_point as i32
-                } else {
-                    0
-                };
-                let targets = match (all, aim) {
-                    (true, _) => self.enemies_of(side),
-                    (false, SpellAim::Unit(t)) => vec![t],
-                    _ => return Vec::new(),
-                };
-                self.battle.as_mut().map_or_else(Vec::new, |a| {
-                    a.battle.strike(&targets, strength + extra, types, &traits)
-                })
-            }
-            (
-                SpellType::Heal {
-                    points,
-                    all,
-                    except,
-                },
-                aim,
-            ) => {
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
-                };
-                let battle = &mut active.battle;
-                let targets: Vec<usize> = match (all, aim) {
-                    (true, _) => battle.active_units(side).map(|u| u.id).collect(),
-                    (false, SpellAim::Unit(t)) => vec![t],
-                    _ => return Vec::new(),
-                };
-                let mut events = Vec::new();
-                for t in targets {
-                    if except.is_some() && battle.units[t].realm == except {
-                        continue;
-                    }
-                    let healed = battle.spell_heal(t, points);
-                    events.push(BattleEvent::SpellHealed { unit: t, healed });
-                }
-                events
-            }
-            (SpellType::CounterMagic, _) => {
-                if let Some(active) = self.battle.as_mut() {
-                    active.battle.cast_counter_magic(side, pool as u32);
-                }
-                vec![BattleEvent::CounterMagicRaised {
-                    side,
-                    strength: pool as u32,
-                }]
-            }
-            (SpellType::Field(field), _) => {
-                if let Some(active) = self.battle.as_mut() {
-                    active.battle.raise_field(side, field, spell);
-                }
-                vec![BattleEvent::FieldRaised { side, spell }]
-            }
-            (SpellType::CallChaos, _) => self.call_chaos(side, player),
-            (SpellType::Vortex, SpellAim::Tile(cell)) => {
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
-                };
-                vec![active.battle.make_vortex(side, cell)]
-            }
-            (SpellType::EarthToMud, SpellAim::Tile(cell)) => {
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
-                };
-                active.battle.spread_mud(cell);
-                vec![BattleEvent::MudMade { cell }]
-            }
-            (SpellType::CityWall(wall), _) => {
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
-                };
-                let battle = &mut active.battle;
-                match wall {
-                    CityWall::Stone => {
-                        battle.map.raise_walls();
-                    }
-                    CityWall::Fire => battle.wall_of_fire = true,
-                    CityWall::Darkness => battle.wall_of_darkness = true,
-                }
-                vec![BattleEvent::WallRaised { side, spell }]
-            }
-            (SpellType::Disrupt, SpellAim::Tile(cell)) => {
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
-                };
-                active.battle.map.break_wall(cell);
-                vec![BattleEvent::WallDestroyed { cell }]
-            }
-            (SpellType::CracksCall, SpellAim::Tile(cell)) => {
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
-                };
-                let battle = &mut active.battle;
-                let mut events = vec![BattleEvent::FissureOpened { cell }];
-                // A walker or crawler over the fissure falls in one time in four, whatever its
-                // defence; fliers, the bodiless and merging units (which pass through the ground)
-                // stand clear.
-                let over = battle
-                    .unit_at(cell)
-                    .filter(|u| {
-                        !u.flag(UnitFlag::Flies)
-                            && !battle.spares(u, spell)
-                            && !u.flag(UnitFlag::NonCorporeal)
-                            && !u.has(Ability::new(43 /* merging */))
-                    })
-                    .map(|u| u.id);
-                if let Some(id) = over {
-                    if battle.roll(4) == 1 {
-                        let dmg = battle.destroy_unit(id);
-                        events.extend(battle.spell_events_for_damage(
-                            id,
-                            Some(dmg),
-                            DamageTypes::NONE,
-                        ));
-                    }
-                }
-                if battle.map.has_wall(cell) {
-                    battle.map.break_wall(cell);
-                    events.push(BattleEvent::WallDestroyed { cell });
-                }
-                events
-            }
-            (SpellType::LifeDrain, SpellAim::Unit(target)) => {
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
-                };
-                let battle = &mut active.battle;
-                let extra = ((pool - def.cost as i32) / 5).max(0);
-                let dmg = battle.drain_life(target, -extra, spell);
-                let mut events = battle.spell_events_for_damage(
-                    target,
-                    dmg,
-                    DamageTypes::of(&[DamageType::Death]),
-                );
-                if let Some(d) = dmg.filter(|d| d.points > 0) {
-                    events.push(BattleEvent::LifeDrained {
-                        unit: target,
-                        points: d.points,
-                    });
-                    match battle.spell_caster {
-                        // A hero or creature that cast it takes the life as hit points.
-                        Some(c) => {
-                            battle.units[c].heal_points(d.points, true);
-                        }
-                        // A wizard turns it into mana.
-                        None => {
-                            if let Some(caster) = battle.casters[side.index()].as_mut() {
-                                caster.mana += d.points * 3;
-                            }
-                        }
-                    }
-                }
-                self.sync_battle_mana();
-                events
-            }
-            (SpellType::Recall { .. }, SpellAim::Unit(target)) => {
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
-                };
-                active.battle.units[target].status = super::Status::Recalled;
-                vec![BattleEvent::HeroRecalled { unit: target }]
-            }
-            (SpellType::WarpWood, SpellAim::Unit(target)) => {
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
-                };
-                active.battle.units[target].set_ammo(0);
-                vec![BattleEvent::SpellEnchanted {
-                    unit: target,
-                    spell,
-                }]
-            }
-            (SpellType::Turn { bind, save }, SpellAim::Unit(target)) => {
-                let immune_types = save
-                    .as_ref()
-                    .map(|s| self.save_types(s))
-                    .unwrap_or_default();
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
-                };
-                let battle = &mut active.battle;
-                if let Some(save) = save {
-                    let unit = &battle.units[target];
-                    if unit.is_immune_to(&immune_types, &battle.content.rules) {
-                        return vec![BattleEvent::SpellImmune {
-                            unit: target,
-                            by: unit.immune_type(&immune_types, &battle.content.rules),
-                        }];
-                    }
-                    if !battle.resist_fails(target, Realm::of(def.realm), save.modifier) {
-                        return vec![BattleEvent::SpellResisted { unit: target }];
-                    }
-                }
-                if bind {
-                    battle.enchant_unit(target, spell, player, &[], &[]);
-                }
-                battle.change_sides(target, side);
-                vec![BattleEvent::SpellEnchanted {
-                    unit: target,
-                    spell,
-                }]
-            }
+        match (&kind, aim) {
+            (SpellType::CallChaos, _) => return self.call_chaos(side, player),
             (SpellType::Channel, SpellAim::Unit(target)) => {
-                if self.channel_battle_unit(target) {
+                return if self.channel_battle_unit(target) {
                     vec![BattleEvent::SpellEnchanted {
                         unit: target,
                         spell,
                     }]
                 } else {
                     Vec::new()
-                }
+                };
             }
-            (SpellType::Warp { save }, SpellAim::Unit(target)) => {
-                self.warp_creature(spell, def, target, player, save.as_ref())
+            (SpellType::Animate, SpellAim::Unit(target)) => return self.animate_dead(side, target),
+            (SpellType::Raise, SpellAim::Unit(target)) => return self.raise_dead(side, target),
+            (SpellType::Dispel(per_mana), SpellAim::Unit(target)) => {
+                let strength = pool as u32 * per_mana * self.dispel_power(player);
+                let mut events = self.dispel_battle_unit(target, strength, player);
+                events.extend(self.dispel_battle_fields(strength, player));
+                return events;
             }
-            (SpellType::Animate, SpellAim::Unit(target)) => self.animate_dead(side, target),
-            (SpellType::Raise, SpellAim::Unit(target)) => self.raise_dead(side, target),
-            (SpellType::Enchant { mods, grants, save }, SpellAim::Unit(target)) => {
+            _ => {}
+        }
+        // What an Enchant takes from the overland unit and the rules in force.
+        let extra_mods = match (&kind, aim) {
+            (SpellType::Enchant { .. }, SpellAim::Unit(target)) => {
                 let present = self
                     .battle
                     .as_ref()
                     .map(|a| a.battle.units[target].enchantments.clone())
                     .unwrap_or_default();
-                let mut mods = mods;
-                mods.extend(self.superseded_bonuses(spell, &present));
+                let mut mods = self.superseded_bonuses(spell, &present);
                 mods.extend(self.battle_bonuses_by_name(spell, target));
-                let immune_types = save
-                    .as_ref()
-                    .map(|s| self.save_types(s))
-                    .unwrap_or_default();
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
-                };
-                let battle = &mut active.battle;
-                if let Some(save) = save {
-                    let unit = &battle.units[target];
-                    if unit.is_immune_to(&immune_types, &battle.content.rules) {
-                        return vec![BattleEvent::SpellImmune {
-                            unit: target,
-                            by: unit.immune_type(&immune_types, &battle.content.rules),
-                        }];
-                    }
-                    let realm = Realm::of(def.realm);
-                    if !battle.resist_fails(target, realm, save.modifier) {
-                        return vec![BattleEvent::SpellResisted { unit: target }];
-                    }
-                }
-                battle.enchant_unit(target, spell, player, &mods, &grants);
-                vec![BattleEvent::SpellEnchanted {
-                    unit: target,
-                    spell,
-                }]
-            }
-            (
-                SpellType::Slay {
-                    realm,
-                    modifier,
-                    types,
-                    only,
-                    below,
-                    mana_per_step,
-                    all,
-                },
-                aim,
-            ) => {
-                let modifier = if mana_per_step > 0 {
-                    modifier - (pool - def.cost as i32) / mana_per_step as i32
-                } else {
-                    modifier
-                };
-                let targets = match (all, aim) {
-                    (true, _) => self.enemies_of(side),
-                    (false, SpellAim::Unit(t)) => vec![t],
-                    _ => return Vec::new(),
-                };
-                let Some(active) = self.battle.as_mut() else {
-                    return Vec::new();
-                };
-                let battle = &mut active.battle;
-                // Word of Death has `death_immunity_exception`: with the rule on, nothing stops it.
-                let immune_types =
-                    if def.death_immunity_exception && battle.death_immunity_exceptions {
-                        Vec::new()
-                    } else {
-                        types
-                    };
-                let mut events = Vec::new();
-                for t in targets {
-                    // Spell Lock keeps a unit from the spells that sever or burn it.
-                    let locked = battle.units[t]
-                        .effects(&self.content.rules)
-                        .contains(UnitEffect::SpellLock);
-                    if !slay_allows(only, &battle.units[t]) || locked {
-                        continue;
-                    }
-                    let modifier = if battle.units[t].undead {
-                        modifier - undead_penalty(spell)
-                    } else {
-                        modifier
-                    };
-                    match battle.spell_slay(t, realm, modifier, &immune_types, below) {
-                        None => events.push(BattleEvent::SpellImmune {
-                            unit: t,
-                            by: battle.units[t].immune_type(&immune_types, &battle.content.rules),
-                        }),
-                        Some(d) => {
-                            events.push(BattleEvent::SpellSlew {
-                                unit: t,
-                                kills: d.kills,
-                            });
-                            if !battle.units[t].is_active() {
-                                events.push(BattleEvent::UnitDied { unit: t });
-                            }
-                        }
-                    }
-                }
-                events
-            }
-            (SpellType::Summon(unit_id), SpellAim::Tile(cell)) => {
-                // The creature exists only in this battle: it is made from its definition.
-                let unit = super::BattleUnit::from_def(&self.content.rules, unit_id, side);
-                let id = self
-                    .battle
-                    .as_mut()
-                    .map_or(0, |a| a.battle.add_summoned(side, unit, cell));
-                vec![BattleEvent::Summoned { unit: id }]
-            }
-            (SpellType::Dispel(per_mana), SpellAim::Unit(target)) => {
-                let strength = pool as u32 * per_mana * self.dispel_power(player);
-                let mut events = self.dispel_battle_unit(target, strength, player);
-                events.extend(self.dispel_battle_fields(strength, player));
-                events
+                mods
             }
             _ => Vec::new(),
-        }
-    }
-
-    /// Warp Creature on a unit: after its resistance check (`save`), one of three lasting harms.
-    fn warp_creature(
-        &mut self,
-        spell: SpellId,
-        def: &SpellDef,
-        target: usize,
-        player: PlayerId,
-        save: Option<&SpellSave>,
-    ) -> Vec<BattleEvent> {
-        let immune_types = save.map(|s| self.save_types(s)).unwrap_or_default();
+        };
+        let world = CastWorld {
+            illusion_immunity_protects: self.settings.rules.illusion_immunity_protects,
+            extra_mods,
+        };
+        let cast = Cast {
+            spell,
+            def,
+            kind,
+            side,
+            player,
+            aim,
+            pool,
+        };
         let Some(active) = self.battle.as_mut() else {
             return Vec::new();
         };
-        let battle = &mut active.battle;
-        if let Some(save) = save {
-            let unit = &battle.units[target];
-            if unit.is_immune_to(&immune_types, &battle.content.rules) {
-                return vec![BattleEvent::SpellImmune {
-                    unit: target,
-                    by: unit.immune_type(&immune_types, &battle.content.rules),
-                }];
-            }
-            if !battle.resist_fails(target, Realm::of(def.realm), save.modifier) {
-                return vec![BattleEvent::SpellResisted { unit: target }];
-            }
+        let events = active.battle.apply_spell(&cast, &world);
+        // A wizard's Life Drain turned life into mana of the battle's reserve.
+        if matches!(cast.kind, SpellType::LifeDrain) {
+            self.sync_battle_mana();
         }
-        let kind = match battle.roll(3) {
-            1 => WarpKind::Attack,
-            2 => WarpKind::Defense,
-            _ => WarpKind::Resistance,
-        };
-        battle.enchant_unit(target, spell, player, &warp_mods(kind, spell), &[]);
-        battle.units[target].warp = Some(kind);
-        vec![BattleEvent::SpellEnchanted {
-            unit: target,
-            spell,
-        }]
+        events
     }
 
     /// Call Chaos: every enemy unit gets one of eight effects at random: nothing, five hit
@@ -942,12 +611,20 @@ impl Game {
                     {
                         if !u.is_fantastic() && !warped {
                             let def = self.content.rules.spells.get(spell).clone();
-                            events.extend(self.warp_creature(
+                            let world = CastWorld {
+                                illusion_immunity_protects: self
+                                    .settings
+                                    .rules
+                                    .illusion_immunity_protects,
+                                extra_mods: Vec::new(),
+                            };
+                            events.extend(active.battle.warp_creature(
                                 spell,
                                 &def,
                                 t,
                                 player,
                                 def.save.as_ref(),
+                                &world,
                             ));
                         }
                     }
@@ -1281,18 +958,5 @@ impl AimWorld for Game {
 
     fn illusion_immunity_protects(&self) -> bool {
         self.settings.rules.illusion_immunity_protects
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::undead_penalty;
-    use crate::rules::SpellId;
-
-    #[test]
-    fn only_dispel_evil_and_holy_word_are_harder_on_the_undead() {
-        assert_eq!(undead_penalty(SpellId::new(134) /* dispel_evil */), 5);
-        assert_eq!(undead_penalty(SpellId::new(150) /* holy_word */), 5);
-        assert_eq!(undead_penalty(SpellId::new(192) /* word_of_death */), 0);
     }
 }
