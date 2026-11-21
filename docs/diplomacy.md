@@ -313,6 +313,8 @@ another's city (on its plane, or in a tower) trigger a warning sequence: first a
 loss `-Random(5)` and a warning, a second step of nothing, and a third step the treaty is broken
 with `-5`. Wizards at war ignore it.
 
+*System A* is what follows; a new design, *system B* (friendship, fear and strategy, one peace score), is built beside it for a soak to compare: [`ai-diplomacy-b.md`](ai-diplomacy-b.md).
+
 **What the AI does today (tasks 361, 384 and 385).** Towards the human, at the start of the human's turn
 (`Ai::approach_human`, called by the client after the turn change; proposals wait in a yes-or-no box and lapse when
 that turn ends):
