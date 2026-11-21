@@ -40,14 +40,7 @@ pub fn unit_of(rules: &Rules, kind: usize) -> Option<UnitId> {
 
 /// The 0-based experience level `xp` gives a unit on its level path.
 pub fn level_of(rules: &Rules, unit: UnitId, xp: u32) -> usize {
-    rules
-        .units
-        .get(unit)
-        .level_path
-        .map(|p| rules.level_paths.get(p))
-        .map_or(0, |path| {
-            path.levels.iter().rposition(|l| l.xp <= xp).unwrap_or(0)
-        })
+    rules.xp_level(rules.units.get(unit), xp)
 }
 
 /// The hire price: `cost + level * cost / 4`, `percent` of it (50 for a Charismatic wizard;

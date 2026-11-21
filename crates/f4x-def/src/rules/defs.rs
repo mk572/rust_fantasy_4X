@@ -1822,6 +1822,17 @@ impl BuildingDef {
 }
 
 impl Rules {
+    /// The 0-based level that `xp` experience points give a unit on its level path: the last
+    /// level whose threshold they reach (0 for a unit without a path). Nothing a unit is given
+    /// besides (Heroism, a wizard's retorts) is in it.
+    pub fn xp_level(&self, unit: &UnitDef, xp: u32) -> usize {
+        unit.level_path
+            .map(|p| self.level_paths.get(p))
+            .map_or(0, |path| {
+                path.levels.iter().rposition(|l| l.xp <= xp).unwrap_or(0)
+            })
+    }
+
     /// The combat rating of a unit at an experience level (from 0; the level of
     /// `UnitView::unit_level`): its worth in High Men spearmen (`UnitRatings`), a hero's times
     /// the hero factor. `None` for a unit with no row (a settler, a unit of a rule set that has no

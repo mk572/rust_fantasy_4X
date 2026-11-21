@@ -32,10 +32,7 @@ pub fn id_of(world: &hecs::World, player: hecs::Entity) -> Option<PlayerId> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Neutral;
 
-/// The id of the one neutral player that owns the monsters of lairs and nodes. Its units last
-/// until someone kills them (the lair guards are made for a fight and removed after it; undead
-/// raised for the monsters stay).
-pub const MONSTERS: PlayerId = PlayerId(u8::MAX);
+pub use f4x_def::id::MONSTERS;
 
 /// On a player: its gold and mana.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

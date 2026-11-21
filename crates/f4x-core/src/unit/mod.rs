@@ -299,11 +299,11 @@ impl<'a> UnitView<'a> {
 
     /// The level the unit's experience points alone give, 0-based (0 without a level path).
     pub fn unit_xp_level(&self, unit: hecs::Entity) -> usize {
-        let Some(path) = self.unit_level_path(unit) else {
+        let Some(def) = self.unit_def(unit) else {
             return 0;
         };
         let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
-        path.levels.iter().rposition(|l| l.xp <= xp).unwrap_or(0)
+        self.content.rules.xp_level(def, xp)
     }
 
     /// The lasting spells on a unit, with the wizard who cast each.

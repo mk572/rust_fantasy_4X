@@ -349,7 +349,10 @@ pub fn veteran_cost(view: &Game, unit: hecs::Entity, base: i32) -> i32 {
         return base;
     };
     let xp = view.units().unit_experience(unit);
-    let level = path.levels.iter().rposition(|l| l.xp <= xp).unwrap_or(0);
+    let level = view
+        .units()
+        .unit_def(unit)
+        .map_or(0, |def| view.content().rules.xp_level(def, xp));
     let part = path.levels.get(level + 1).map_or(0, |next| {
         let from = path.levels[level].xp;
         let span = next.xp.saturating_sub(from).max(1);

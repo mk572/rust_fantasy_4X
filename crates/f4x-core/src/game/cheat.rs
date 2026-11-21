@@ -11,7 +11,7 @@ use crate::city::economy::Buildings;
 use crate::game::{Event, Game};
 use crate::rules::{BuildingId, SpellId};
 
-const MONSTERS: PlayerId = PlayerId(u8::MAX);
+use crate::player::MONSTERS;
 
 impl Game {
     /// Note that an override command changed the game.

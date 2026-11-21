@@ -155,11 +155,7 @@ impl BattleUnit {
         let Some(path) = def.level_path.map(|p| rules.level_paths.get(p)) else {
             return 0;
         };
-        let mut level = path
-            .levels
-            .iter()
-            .rposition(|l| l.xp <= self.sheet.xp)
-            .unwrap_or(0);
+        let mut level = rules.xp_level(def, self.sheet.xp);
         let lifted = rules.config.renown.heroism_level;
         if level < lifted
             && self
