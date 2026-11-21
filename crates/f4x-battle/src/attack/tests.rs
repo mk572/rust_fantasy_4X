@@ -2,9 +2,7 @@ use super::*;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
-fn rules() -> f4x_def::rules::BattleRules {
-    f4x_def::testdir::shipped().rules.battle.clone()
-}
+use crate::testutil::rules;
 
 fn rng(seed: u64) -> Pcg64Mcg {
     Pcg64Mcg::seed_from_u64(seed)

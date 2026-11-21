@@ -21,7 +21,10 @@ use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
 use crate::rules::RealmId;
 use crate::spell::target_error::TargetError;
-use f4x_battle::testutil::{bolt, check_legal_list, end_turns, merging_battle, target, without};
+use f4x_battle::testutil::{
+    bolt, check_legal_list, end_turns, merging_battle, reseeded, rules, target, unit_numbered,
+    without,
+};
 use f4x_def::testdir::TestResult;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
@@ -33,10 +36,6 @@ const D: PlayerId = PlayerId(1);
 /// each a unit number of the content and the square it stands on. The game sets it up
 /// (`BeginBattle`), so the units have their real numbers, rules and owners; only the squares are
 /// chosen, on open ground, so that the squares a test names are free. The dice start from `seed`.
-fn rules() -> crate::rules::BattleRules {
-    crate::game::testutil::shipped().rules.battle
-}
-
 fn real_battle(ours: &[(u16, Pos)], theirs: &[(u16, Pos)], seed: u64) -> Battle {
     let mut g = game();
     let mut spawn = |owner: PlayerId, x: u32, list: &[(u16, Pos)]| -> Vec<hecs::Entity> {
@@ -205,23 +204,6 @@ fn a_battle_the_game_starts_has_the_rules_of_the_one_built_for_the_tests() -> Te
     assert_eq!(game_made.attacker, own.attacker);
     assert_eq!(game_made.defender, own.defender);
     Ok(())
-}
-
-/// The unit `number` of the content, as a battle makes it, for a side to add.
-fn unit_numbered(number: u16) -> BattleUnit {
-    let b = real_battle(
-        &[(number, (0, 0))],
-        &[(104 /* high_men_spearmen */, (20, 20))],
-        1,
-    );
-    b.units[0].clone()
-}
-
-/// The same battle with its dice started from `seed`.
-fn reseeded(b: &Battle, seed: u64) -> Battle {
-    let mut c = b.clone();
-    c.rng = GameRng::new(seed);
-    c
 }
 
 #[test]
