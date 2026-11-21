@@ -81,9 +81,10 @@ peace_wish = weariness
 * **What a B wizard asks of an A wizard** is answered by A's rules, and the other way round: the two systems meet in
   one game through the same proposals.
 
-Seen from a stalled war between equals with nothing in it, the wish is about 70 after a hundred quiet turns, so peace
-is accepted from about the turn 85 of the stall and offered from the turn 115; a lost war reaches both marks much
-sooner. These are guesses to be read against a soak (task 761), not tuned values.
+By arithmetic (not measured), a stalled war between equals with nothing in it reaches the accept mark after about
+a hundred quiet turns and the offer mark after about a hundred and twenty-five, moved by 10 or so either way by the
+friendship and the temper; a lost war reaches both much sooner. These are guesses to be read against a soak
+(task 761), not tuned values.
 
 ## Friends and enemies
 
