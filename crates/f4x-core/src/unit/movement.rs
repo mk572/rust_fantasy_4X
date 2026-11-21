@@ -715,8 +715,13 @@ impl Game {
                 }
             }
         }
+        let ashore = !self.economy().is_sea(to);
         for &p in &carried {
             self.put(p, to);
+            // A ship that sails into a port leaves its passengers in the city, not aboard.
+            if ashore {
+                self.strip::<crate::unit::transport::Aboard>(p);
+            }
         }
         // Who is aboard what now.
         let flies = self.economy().stack_traits(units);

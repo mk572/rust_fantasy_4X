@@ -925,6 +925,31 @@ mod tests {
         Ok(())
     }
 
+    /// A ship moved alone carries its passengers into the port, and there they stand in the city:
+    /// aboard nothing, so the ship is empty again (a passenger that stayed marked aboard kept the
+    /// ship from carrying anyone else for hundreds of turns, seed 20134 of the soak).
+    #[test]
+    fn a_ship_sailing_alone_into_a_port_leaves_its_passengers_in_the_city() -> TestResult {
+        let mut g = world();
+        g.apply(Command::FoundCity {
+            owner: P0,
+            pos: at(10, 3),
+            name: "Far Port".into(),
+            race: None,
+            population: 3,
+        });
+        let boat = unit(&mut g, 35 /* trireme */, at(9, 4));
+        let w = unit(&mut g, 107 /* high_men_cavalry */, at(10, 4));
+        g.move_stack(&[w], at(9, 4)).map_err(|e| format!("{e:?}"))?;
+        assert_eq!(g.economy().carrier_of(w), Some(boat));
+        g.move_stack(&[boat], at(10, 3))
+            .map_err(|e| format!("{e:?}"))?;
+        assert_eq!(g.units().unit_position(w), Some(at(10, 3)), "it came along");
+        assert_eq!(g.economy().carrier_of(w), None, "ashore in the port");
+        assert!(g.economy().passengers_of(boat).is_empty());
+        Ok(())
+    }
+
     #[test]
     fn at_sea_the_ships_are_decks_and_their_passengers_fight_on_them() -> TestResult {
         let mut g = world();

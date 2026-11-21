@@ -976,16 +976,24 @@ mod tests {
                 ai.roles.board_at(view.serial_of(u), ship_serial, tile);
             }
         }
+        // The turn the ship has put what it holds ashore in the port (it is free again then and
+        // fetches the one left behind on a later voyage).
+        let at_port = |g: &Game| {
+            let view = PlayerView::new(g, P0);
+            soldiers
+                .iter()
+                .filter(|&&u| view.unit_position(u) == Some(port()))
+                .count()
+        };
         for _ in 0..30 {
             run_turns(&mut ai, &mut g, 1);
+            if at_port(&g) >= room {
+                break;
+            }
         }
         let view = PlayerView::new(&g, P0);
         // The ship took what it holds to the port.
-        let landed = soldiers
-            .iter()
-            .filter(|&&u| view.unit_position(u) == Some(port()))
-            .count();
-        assert_eq!(landed, room, "{:?}", ai.roles);
+        assert_eq!(at_port(&g), room, "{:?}", ai.roles);
         // The one left on the shore is let off the plan, not asked to board a full ship.
         let left = soldiers
             .iter()

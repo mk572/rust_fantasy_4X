@@ -69,8 +69,8 @@ struct Roster {
     idle_fighters: usize,
     /// Units marching on a campaign target.
     marching: usize,
-    /// Ships with no plan (`TransportFree`).
-    free_ships: usize,
+    /// The places on the ships with no plan (`TransportFree`): what could carry units now.
+    free_places: usize,
     /// Units awaiting transport on a shore (not the settlers waiting in a port).
     waiting: usize,
     /// Units out scouting.
@@ -95,10 +95,21 @@ impl Roster {
         Roster {
             idle_fighters,
             marching: ai.roles.count(Role::March),
-            free_ships: ai.roles.count(Role::TransportFree),
+            free_places: units
+                .iter()
+                .filter(|&&u| ai.roles.is(view.serial_of(u), Role::TransportFree))
+                .map(|&u| view.unit_stat(u, f4x_def::rules::Stat::Transport).max(0) as usize)
+                .sum(),
             waiting,
             scouts: ai.roles.scouting().len(),
         }
+    }
+
+    /// Whether the idle ships cannot carry what waits for transport (and, when a landing is
+    /// planned, a landing party): one idle trireme does not make a fleet for twenty-five units.
+    fn short_of_ships(&self, landing: bool) -> bool {
+        let need = self.waiting + if landing { crate::naval::MIN_LOAD } else { 0 };
+        self.free_places < need
     }
 
     /// Whether the army has more soldiers than it has work for.
@@ -275,7 +286,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 continue;
             }
             // Units awaiting transport and no ship free to take them: the nearest port builds one.
-            let rescue_port = (roster.waiting > 0 && roster.free_ships == 0)
+            let rescue_port = (roster.waiting > 0 && roster.short_of_ships(false))
                 .then(|| rescue_port(ai, &view))
                 .flatten();
             let port = ai.naval.map(|p| p.port).or(ai.sea_port).or(rescue_port);
@@ -286,8 +297,9 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 && !matches!(current, Some(ProductionItem::Building(_))))
             .then(|| crate::naval::port_item(&view, city, ai.naval.is_some()))
             .flatten()
-            // Ships that stand idle (`TransportFree`) are the fleet: no more are built.
-            .filter(|_| roster.free_ships == 0)
+            // Ships that stand idle (`TransportFree`) are the fleet while they can carry what waits
+            // and the landing party: when their places fall short, more are built.
+            .filter(|_| roster.short_of_ships(ai.naval.is_some()))
             // Without a ship yard the best the port can build is a trireme, which takes two:
             // enough for a settler and a guard, so it counts as the ship; otherwise a landing
             // wants a ship that carries a landing party.
@@ -300,10 +312,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 view.my_units()
                     .iter()
                     .filter(|&&u| crate::view::is_ship(&view, u))
-                    .filter(|&&u| {
-                        ai.naval.is_none()
-                            || view.unit_stat(u, f4x_def::rules::Stat::Transport) >= needed
-                    })
+                    .filter(|&&u| view.unit_stat(u, f4x_def::rules::Stat::Transport) >= needed)
                     .count()
                     < ships_wanted(ai, &view)
             });
@@ -858,6 +867,54 @@ mod tests {
             matches!(item, Some(ProductionItem::Unit(u)) if rules.units.get(u).id == "galley"),
             "{item:?}"
         );
+        Ok(())
+    }
+
+    /// One idle trireme (two places) is no fleet for the units that wait for transport: the port
+    /// builds a galley, and builds none when the trireme has places for all of them.
+    #[test]
+    fn an_idle_trireme_is_a_fleet_only_for_as_many_units_as_it_holds() -> TestResult {
+        use crate::testworld::{at, build, spawn};
+        for (waiting, builds_galley) in [(2, false), (6, true)] {
+            let port = at(COAST_CITY.0, COAST_CITY.1);
+            let mut g = game(COAST_CITY, 8 /* high_men */);
+            build(
+                &mut g,
+                port,
+                &[
+                    12, /* ship_wrights_guild */
+                    15, /* sawmill */
+                    13, /* ship_yard */
+                ],
+            );
+            spawn(&mut g, P0, port, 35 /* trireme */, 1);
+            let stranded = spawn(
+                &mut g,
+                P0,
+                at(9, 9),
+                104, /* high_men_spearmen */
+                waiting,
+            );
+            let mut ai = Ai::new(P0);
+            ai.frontier_closed = true;
+            crate::roles::register(&mut ai, &g);
+            let serials: Vec<_> = {
+                let view = PlayerView::new(&g, P0);
+                stranded.iter().map(|&u| view.serial_of(u)).collect()
+            };
+            for s in &serials {
+                let _ = ai
+                    .roles
+                    .claim(*s, crate::roles::Role::Reinforce, 1, Some(port));
+                ai.roles.set_crossing(*s, Some(crate::roles::Crossing::Sea));
+            }
+            cities(&mut ai, &mut g, &mut Vec::new());
+            let item = g.economy().city_production(capital(&g)?).item;
+            let rules = &g.content().rules;
+            let galley =
+                matches!(item, Some(ProductionItem::Unit(u)) if rules.units.get(u).id == "galley");
+            assert_eq!(galley, builds_galley, "{waiting} waiting: {item:?}");
+        }
         Ok(())
     }
 
