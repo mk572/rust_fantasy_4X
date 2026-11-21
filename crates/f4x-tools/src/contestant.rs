@@ -56,6 +56,8 @@ pub trait Contestant {
     /// the live AI does; the reference copy has neither.
     fn join(&mut self, _diplomats: &f4x_ai::Diplomats) {}
     fn notice(&mut self, _game: &Game, _events: &[Event]) {}
+    /// Play diplomacy system A or B (task 761); the reference copy has only A.
+    fn set_system(&mut self, _system: f4x_ai::System) {}
 }
 
 macro_rules! contestant {
@@ -115,6 +117,9 @@ macro_rules! contestant {
                 }
                 fn notice(&mut self, game: &Game, events: &[Event]) {
                     $krate::Ai::notice(self, game, events);
+                }
+                fn set_system(&mut self, system: f4x_ai::System) {
+                    $krate::Ai::set_system(self, system);
                 }
             )?
             $(

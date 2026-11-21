@@ -19,6 +19,7 @@ use crate::metrics::{
     add_casts, casts_line, known_never_cast, never_cast, never_cast_in, Metrics, Standing,
 };
 use crate::soak::{GameResult, Options};
+use f4x_ai::System;
 
 /// One game of a seed: its variant, who plays each seat, and how it went.
 pub struct Played<'a> {
@@ -31,6 +32,15 @@ pub struct Played<'a> {
 }
 
 impl Played<'_> {
+    /// The diplomacy system the wizard played (task 761); A in a game that recorded none.
+    fn system_of(&self, player: PlayerId) -> System {
+        self.result
+            .systems
+            .get(usize::from(player.0))
+            .copied()
+            .unwrap_or_default()
+    }
+
     fn version_of(&self, player: PlayerId) -> Version {
         self.versions
             .get(usize::from(player.0))
@@ -160,6 +170,7 @@ pub fn print(opts: &Options, content: &Content, title: &str, played: &[Played]) 
     let ended = played.iter().filter(|g| g.result.over.is_some()).count();
     println!("{ended} of {} games ended with a winner", played.len());
     print_wins(played);
+    print_systems(played);
     print_tables(&seeds, played);
     print_casts(content, played);
     print_divergence(opts, &seeds, played);
@@ -209,25 +220,79 @@ fn print_wins(played: &[Played]) {
     );
 }
 
+/// The two diplomacy systems side by side, when a game had a wizard of system B (task 761): who won,
+/// who was still alive at the end, and every count of `metrics.rs` per wizard and game for the seats
+/// of each system.
+fn print_systems(played: &[Played]) {
+    if !played.iter().any(|g| g.result.systems.contains(&System::B)) {
+        return;
+    }
+    let systems = [System::A, System::B];
+    let mut columns: Vec<(String, Column)> = systems
+        .iter()
+        .map(|s| (s.name().to_string(), Column::default()))
+        .collect();
+    let (mut won, mut alive) = ([0usize; 2], [0usize; 2]);
+    let mut undecided = 0;
+    for game in played {
+        for (i, system) in systems.iter().enumerate() {
+            columns[i]
+                .1
+                .add(game.result, |p| game.system_of(p) == *system);
+            alive[i] += game
+                .result
+                .standing
+                .iter()
+                .filter(|(p, st)| st.cities > 0 && game.system_of(*p) == *system)
+                .count();
+        }
+        match game.result.over {
+            Some(o) => {
+                let i = systems.iter().position(|s| *s == game.system_of(o.winner));
+                won[i.unwrap_or(0)] += 1;
+            }
+            None => undecided += 1,
+        }
+    }
+    println!();
+    println!("== By diplomacy system ==");
+    println!(
+        "wins: A {}, B {}, no winner {undecided} ({} games)",
+        won[0],
+        won[1],
+        played.len()
+    );
+    println!(
+        "wizards alive at the end (of {} and {}): A {}, B {}",
+        columns[0].1.wizards, columns[1].1.wizards, alive[0], alive[1]
+    );
+    print_rows(&columns);
+}
+
 /// The counts per wizard and game for each kind of seat, then the standing at the end.
 fn print_tables(seeds: &[u64], played: &[Played]) {
     let columns = columns(played);
     println!();
     println!("Per wizard and game (average over {} seeds):", seeds.len());
+    print_rows(&columns);
+}
+
+/// The rows of the tables: each count per wizard and game, the first landing, the standing at the end.
+fn print_rows(columns: &[(String, Column)]) {
     print!("{:<20}", "");
-    for (name, _) in &columns {
+    for (name, _) in columns {
         print!("{name:>12}");
     }
     println!();
     for (i, (label, _)) in Metrics::default().rows().iter().enumerate() {
         print!("{label:<20}");
-        for (_, col) in &columns {
+        for (_, col) in columns {
             print!("{:>12}", col.per_wizard(i64::from(col.metrics.rows()[i].1)));
         }
         println!();
     }
     print!("{:<20}", "first landing turn");
-    for (_, col) in &columns {
+    for (_, col) in columns {
         print!(
             "{:>12}",
             col.metrics
@@ -239,7 +304,7 @@ fn print_tables(seeds: &[u64], played: &[Played]) {
     println!("-- at the end of the game --");
     for (i, (label, _)) in Standing::default().rows().iter().enumerate() {
         print!("{label:<20}");
-        for (_, col) in &columns {
+        for (_, col) in columns {
             print!("{:>12}", col.per_wizard(col.standing[i]));
         }
         println!();
@@ -358,6 +423,7 @@ mod tests {
             tally: Tally::new(&game),
             standing: Vec::new(),
             fingerprints,
+            systems: Vec::new(),
             log: Vec::new(),
         }
     }

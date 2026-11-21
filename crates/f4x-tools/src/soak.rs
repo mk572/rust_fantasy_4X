@@ -25,7 +25,7 @@ use crate::contestant::{self, Contestant, Version};
 use crate::metrics::{casts_line, Metrics, Standing, Tally};
 use crate::report::{self, Played};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE | --no-refused-log] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE | --no-refused-log] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off] [--diplomacy A|B|AB]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -66,6 +66,33 @@ pub struct Options {
     pub spell_return: Option<f4x_def::settings::SpellAccess>,
     /// The rules the games are played with; 1.31 unless asked otherwise.
     pub rules: f4x_def::settings::RuleSet,
+    /// Which diplomacy the wizards play: A, B or both in one game (task 761).
+    pub diplomacy: DiplomacyMode,
+}
+
+/// `--diplomacy`: system A for every wizard, system B for every wizard, or `AB`: A and B in turn,
+/// the order rotated by the seed so that no seat is favoured.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DiplomacyMode {
+    #[default]
+    A,
+    B,
+    Mixed,
+}
+
+impl DiplomacyMode {
+    /// The system of each wizard of a game of this seed.
+    pub fn systems(self, seed: u64, players: usize) -> Vec<f4x_ai::System> {
+        use f4x_ai::System::{A, B};
+        (0..players)
+            .map(|k| match self {
+                DiplomacyMode::A => A,
+                DiplomacyMode::B => B,
+                DiplomacyMode::Mixed if (k as u64 + seed).is_multiple_of(2) => A,
+                DiplomacyMode::Mixed => B,
+            })
+            .collect()
+    }
 }
 
 /// `all`, `human` or `off`: who a special spell is open to.
@@ -108,6 +135,7 @@ impl Options {
             mastery: None,
             spell_return: None,
             rules: Default::default(),
+            diplomacy: DiplomacyMode::A,
         };
         let mut it = args.iter();
         while let Some(a) = it.next() {
@@ -174,6 +202,14 @@ impl Options {
                     )
                 }
                 "--mastery" => o.mastery = Some(spell_access(&value("--mastery")?)?),
+                "--diplomacy" => {
+                    o.diplomacy = match value("--diplomacy")?.as_str() {
+                        "A" => DiplomacyMode::A,
+                        "B" => DiplomacyMode::B,
+                        "AB" => DiplomacyMode::Mixed,
+                        other => return Err(format!("{other:?} is not A, B or AB")),
+                    }
+                }
                 "--return" => o.spell_return = Some(spell_access(&value("--return")?)?),
                 other => return Err(format!("unknown option {other:?}\n{usage}")),
             }
@@ -301,6 +337,10 @@ pub struct GameResult {
     pub standing: Vec<(PlayerId, Standing)>,
     /// A fingerprint of the saved game at each snapshot turn.
     pub fingerprints: Vec<(u32, u64)>,
+    /// The diplomacy system of each wizard, by player number (task 761); empty in a game taken from
+    /// a cache made before it, which is all A.
+    #[serde(default)]
+    pub systems: Vec<f4x_ai::System>,
     /// The lines the game printed when it ended (the same for every kind of soak), kept so that a
     /// game taken from the cache prints them as a played one does.
     #[serde(default)]
@@ -506,6 +546,7 @@ pub fn game(
     let mut neutrals = contestant::Neutrals::new(roster.neutrals);
     // The wizards' memories of their dealings, shared for answering a proposal (task 760).
     let diplomats = f4x_ai::Diplomats::new();
+    let systems = opts.diplomacy.systems(seed, ais.len());
     for ai in &mut ais {
         ai.join(&diplomats);
     }
@@ -519,6 +560,7 @@ pub fn game(
     for ai in &mut ais {
         // A game that was saved carries what its AIs had in mind.
         ai.recall(&game);
+        ai.set_system(systems[usize::from(ai.player().0)]);
         ai.record_refusals(
             refused_out
                 .lock()
@@ -878,6 +920,7 @@ pub fn game(
         tally,
         standing,
         fingerprints,
+        systems,
         log: log.finish(),
     })
 }
@@ -1726,6 +1769,46 @@ mod tests {
     fn parse(line: &[&str]) -> Result<Options, String> {
         let args: Vec<String> = line.iter().map(|s| s.to_string()).collect();
         Options::parse(&args, "usage")
+    }
+
+    #[test]
+    fn the_diplomacy_option_gives_a_b_or_both_in_turn_with_the_order_rotated_by_seed() -> TestResult
+    {
+        use f4x_ai::System::{A, B};
+        assert_eq!(parse(&[])?.diplomacy, DiplomacyMode::A);
+        assert_eq!(parse(&["--diplomacy", "B"])?.diplomacy, DiplomacyMode::B);
+        assert_eq!(
+            parse(&["--diplomacy", "AB"])?.diplomacy,
+            DiplomacyMode::Mixed
+        );
+        assert!(parse(&["--diplomacy", "C"]).is_err());
+        assert_eq!(DiplomacyMode::A.systems(5, 3), vec![A, A, A]);
+        assert_eq!(DiplomacyMode::B.systems(5, 3), vec![B, B, B]);
+        assert_eq!(DiplomacyMode::Mixed.systems(2, 3), vec![A, B, A]);
+        assert_eq!(DiplomacyMode::Mixed.systems(3, 3), vec![B, A, B]);
+        // Over two seeds each system holds each seat once.
+        for k in 0..3 {
+            let (x, y) = (
+                DiplomacyMode::Mixed.systems(2, 3),
+                DiplomacyMode::Mixed.systems(3, 3),
+            );
+            assert_ne!(x[k], y[k]);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_game_records_the_system_of_each_wizard() -> TestResult {
+        let content = f4x_def::testdir::shipped();
+        let roster = Roster {
+            versions: vec![Version::New; 2],
+            neutrals: Version::New,
+        };
+        let none: RefusedLog = Mutex::new(None);
+        let opts = parse(&["--turns", "3", "--diplomacy", "AB"])?;
+        let result = game(content, 7, &opts, &roster, "", &none)?;
+        assert_eq!(result.systems, opts.diplomacy.systems(7, 2));
+        Ok(())
     }
 
     #[test]

@@ -43,9 +43,30 @@ impl Dealing {
     }
 }
 
+/// Which diplomacy a wizard plays: A is the AI's statecraft as it was before task 761, B the new design
+/// of `docs/ai-diplomacy-b.md` (tasks 762 and 763), built beside it so that a soak can compare them.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum System {
+    #[default]
+    A,
+    B,
+}
+
+impl System {
+    pub fn name(self) -> &'static str {
+        match self {
+            System::A => "A",
+            System::B => "B",
+        }
+    }
+}
+
 /// Everything a wizard keeps of the others.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Memory {
+    /// The diplomacy it plays; A for a save that has none.
+    #[serde(default)]
+    pub system: System,
     pub dealings: Vec<Dealing>,
 }
 
