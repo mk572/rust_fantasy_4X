@@ -139,6 +139,8 @@ pub struct App {
     pub(crate) offer_ui: crate::offer_prompt::OfferUi,
     /// The rival wizards, who play their turns when the human ends theirs.
     pub(crate) ais: Vec<f4x_ai::Ai>,
+    /// Budget and income, made again only when the game changed (`frame_cache.rs`).
+    pub(crate) cache: crate::frame_cache::FrameCache,
     /// Attacks on the human this turn, waiting to be fought one after the other.
     pub(crate) defences: std::collections::VecDeque<crate::attack_prompt::PendingAttack>,
     /// The turn change is under way: the rivals take their turns one after another and the
@@ -373,6 +375,7 @@ impl App {
             hero_summon_due: None,
             offer_ui: Default::default(),
             ais: Vec::new(),
+            cache: Default::default(),
             defences: Default::default(),
             turn_events: None,
             master_state: f4x_master::State {
@@ -1317,7 +1320,7 @@ impl App {
         if self.turn_events.is_some() || !self.game.crowded_squares(HUMAN).is_empty() {
             return;
         }
-        let t = self.game.budget(HUMAN);
+        let t = self.cache.budget(&self.game, HUMAN);
         if t.food_surplus < t.food_upkeep {
             self.game.balance_farmers(HUMAN);
         }

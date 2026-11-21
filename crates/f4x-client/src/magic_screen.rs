@@ -316,7 +316,7 @@ impl MagicUi {
 
     /// The income under each staff and the block of facts below them.
     fn magic_text(&mut self, app: &mut App, lay: &Layout, view: (f32, f32, f32)) {
-        let income = app.game.income(HUMAN);
+        let income = app.cache.income(&app.game, HUMAN);
         let split = if self.drag.is_some() {
             // While dragging show what the staves would give.
             let base = income.power_base;

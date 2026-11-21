@@ -193,7 +193,7 @@ impl App {
             } else {
                 def.research_cost as i32 * 100 / (100 + bonus)
             };
-            let income = self.game.income(HUMAN).research.max(0);
+            let income = self.cache.income(&self.game, HUMAN).research.max(0);
             let turns = if income == 0 {
                 999
             } else {
@@ -213,7 +213,7 @@ impl App {
                     self.game
                         .player(HUMAN)
                         .map_or(0, |p| p.treasury().mana.floor())
-                        + self.game.income(HUMAN).split.mana.floor(),
+                        + self.cache.income(&self.game, HUMAN).split.mana.floor(),
                 );
             let turns = if limit <= 0 {
                 999

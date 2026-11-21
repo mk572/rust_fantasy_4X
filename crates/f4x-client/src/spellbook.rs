@@ -839,7 +839,7 @@ impl BookUi {
             .game
             .player(HUMAN)
             .map_or(0, |p| p.treasury().mana.floor());
-        let income = app.game.income(HUMAN).split.mana.floor();
+        let income = app.cache.income(&app.game, HUMAN).split.mana.floor();
         let limit = skill.min(mana + income).max(0);
         let turns = if limit == 0 {
             40

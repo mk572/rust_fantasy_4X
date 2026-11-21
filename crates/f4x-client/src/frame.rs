@@ -373,8 +373,8 @@ impl App {
         let s = lay.scale;
         let view = (lay.origin.x, lay.origin.y, s);
         // Resource panels with this turn's income in each.
-        let t = self.game.budget(HUMAN);
-        let income = self.game.income(HUMAN);
+        let t = self.cache.budget(&self.game, HUMAN);
+        let income = self.cache.income(&self.game, HUMAN);
         let net_mana = income.split.mana - income.mana_upkeep;
         let (px, py) = spot::PANELS;
         self.draw_pic(lay, "main", 34, 0, px, py);

@@ -54,6 +54,7 @@ mod fled_notice;
 mod font;
 mod font_ramp;
 mod frame;
+mod frame_cache;
 mod game_over_screen;
 mod gem;
 mod global_pick;
