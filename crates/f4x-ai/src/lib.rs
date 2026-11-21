@@ -114,18 +114,89 @@ fn step_detail(game: &Game, event: &Event) -> Option<String> {
     })
 }
 
-/// The facts of a refused order: why a go-to found no way, or what blocks the square of a refused
-/// move.
+/// What a command that moves or fights is aimed at, for the facts of its refusal.
+enum Aim {
+    /// A stack sent to a square.
+    Walk(Vec<hecs::Entity>, Position),
+    /// A battle between two stacks.
+    Fight(Vec<hecs::Entity>, Vec<hecs::Entity>),
+}
+
+/// One side of a battle for the log: how many units, whose, and where they stand.
+fn side_detail(game: &Game, units: &[hecs::Entity]) -> String {
+    if units.is_empty() {
+        return "no units".to_string();
+    }
+    let mut owners: Vec<u32> = Vec::new();
+    let mut squares: Vec<String> = Vec::new();
+    for &u in units {
+        let owner = game.units().unit_owner(u).map_or(u32::MAX, |p| p.0.into());
+        if !owners.contains(&owner) {
+            owners.push(owner);
+        }
+        let square = game
+            .units()
+            .unit_position(u)
+            .map_or("nowhere".to_string(), |p| {
+                format!("({}, {}) {:?}", p.x, p.y, p.plane)
+            });
+        if !squares.contains(&square) {
+            squares.push(square);
+        }
+    }
+    format!(
+        "{} units of players {owners:?} on {}",
+        units.len(),
+        squares.join(" and ")
+    )
+}
+
+/// The facts of a refused order: why a go-to found no way, what blocks the square of a refused
+/// move, which units had no moves left, or how the sides of a refused battle stood.
 fn rejection_detail(
     game: &Game,
     why: &f4x_core::game::Rejection,
-    target: Option<&(Vec<hecs::Entity>, Position)>,
+    aim: Option<&Aim>,
 ) -> Option<String> {
     use f4x_core::game::Rejection;
     use f4x_core::unit::movement::MoveError;
+    let walk = match aim {
+        Some(Aim::Walk(units, to)) => Some((units, to)),
+        _ => None,
+    };
     match why {
+        Rejection::BattleStart(_) => {
+            let Some(Aim::Fight(attackers, defenders)) = aim else {
+                return None;
+            };
+            Some(format!(
+                "attackers: {}; defenders: {}",
+                side_detail(game, attackers),
+                side_detail(game, defenders)
+            ))
+        }
+        Rejection::Move(MoveError::NoMovesLeft) => {
+            let (units, to) = walk?;
+            let spent: Vec<String> = units
+                .iter()
+                .filter(|&&u| game.units().unit_moves_left(u) == 0)
+                .map(|&u| {
+                    game.units()
+                        .unit_def(u)
+                        .map_or("?".to_string(), |d| d.num.to_string())
+                })
+                .collect();
+            Some(format!(
+                "to ({}, {}): {} of {} units have no moves left (kinds {}); a Wind Walker's allowance counts for the stack",
+                to.x,
+                to.y,
+                spent.len(),
+                units.len(),
+                spent.join(",")
+            ))
+        }
         Rejection::NoPath(no_path) => {
-            let (units, to) = target?;
+            let (units, to) = walk?;
             // The kinds of unit in the stack (their content numbers): one that cannot go where the
             // others can is a common cause.
             let kinds: Vec<String> = units
@@ -144,7 +215,7 @@ fn rejection_detail(
             ))
         }
         Rejection::Move(MoveError::Impassable | MoveError::StackFull | MoveError::NoRoom) => {
-            let (units, to) = target?;
+            let (units, to) = walk?;
             let why = game.blocker_at(units, *to)?;
             Some(format!("to ({}, {}): {why}", to.x, to.y))
         }
@@ -551,8 +622,17 @@ impl Ai {
         LAST_ORDER.with(|l| *l.borrow_mut() = Some(command.clone()));
         let target = match &command {
             Command::GoTo { units, to } | Command::MoveStack { units, to } => {
-                Some((units.clone(), *to))
+                Some(Aim::Walk(units.clone(), *to))
             }
+            Command::AutoResolve {
+                attackers,
+                defenders,
+                ..
+            }
+            | Command::BeginBattle {
+                attackers,
+                defenders,
+            } => Some(Aim::Fight(attackers.clone(), defenders.clone())),
             _ => None,
         };
         let out = game.apply(command);
@@ -727,6 +807,92 @@ mod send_tests {
         );
         assert_eq!(sent, Err(SendError::Stopped(MoveError::StackFull)));
         Ok(())
+    }
+
+    #[test]
+    fn a_move_with_no_moves_left_names_the_units_that_have_none() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let units = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 1);
+        let mut ai = Ai::new(P0);
+        ai.record_refusals(true);
+        let mut events = Vec::new();
+        // Walk until the moves are spent, then ask for one more step.
+        let mut y = 8;
+        while g.units().unit_moves_left(units[0]) != 0 {
+            y += 1;
+            ai.order(
+                &mut g,
+                Command::MoveStack {
+                    units: units.clone(),
+                    to: at(5, y),
+                },
+                &mut events,
+            );
+            assert!(y < 20, "the moves never ran out");
+        }
+        ai.take_refusals();
+        let sent = ai.send(
+            &mut g,
+            Command::MoveStack {
+                units,
+                to: at(5, y + 1),
+            },
+            &mut events,
+        );
+        assert_eq!(
+            sent,
+            Err(SendError::Rejected(f4x_core::game::Rejection::Move(
+                MoveError::NoMovesLeft
+            )))
+        );
+        let reasons: Vec<String> = ai.take_refusals().into_iter().map(|r| r.reason).collect();
+        assert!(
+            reasons
+                .iter()
+                .any(|r| r.contains("1 of 1 units have no moves left (kinds 113)")),
+            "{reasons:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_battle_with_bad_sides_says_who_stood_where() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let ours = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 2);
+        let mut ai = Ai::new(P0);
+        ai.record_refusals(true);
+        let mut events = Vec::new();
+        // The defenders are nobody at all.
+        let _ = ai.send(
+            &mut g,
+            Command::AutoResolve {
+                attackers: ours,
+                defenders: Vec::new(),
+                mana_budget: None,
+            },
+            &mut events,
+        );
+        let reasons: Vec<String> = ai.take_refusals().into_iter().map(|r| r.reason).collect();
+        assert!(
+            reasons.iter().any(
+                |r| r.contains("attackers: 2 units of players [0] on (5, 8)")
+                    && r.contains("defenders: no units")
+            ),
+            "{reasons:?}"
+        );
+    }
+
+    #[test]
+    fn a_march_with_no_room_says_how_full_the_squares_beside_the_site_are() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let party = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 2);
+        let limit = g.max_tile();
+        spawn(&mut g, P0, at(5, 10), 113, limit);
+        let said = crate::assault::march_detail(&Ai::new(P0), &g, &party, at(5, 11));
+        assert!(
+            said.contains(&format!("(5, 10) holds {limit}")) && said.starts_with("party of 2"),
+            "{said}"
+        );
     }
 
     #[test]

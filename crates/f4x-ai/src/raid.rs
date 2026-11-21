@@ -165,7 +165,13 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         // A site the party cannot walk to is passed over by design (the next
                         // candidate is tried), so it is not a refused order worth logging.
                         if !matches!(why, crate::assault::MarchError::Unreachable) {
-                            ai.note_failure(game, format!("march to {t:?}"), format!("{why:?}"));
+                            let detail = matches!(why, crate::assault::MarchError::Refused(_))
+                                .then(|| crate::assault::march_detail(ai, game, &units, t));
+                            ai.note_failure(
+                                game,
+                                format!("march to {t:?}"),
+                                crate::with_detail(format!("{why:?}"), detail),
+                            );
                         }
                         false
                     }

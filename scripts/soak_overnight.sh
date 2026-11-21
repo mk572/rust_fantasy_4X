@@ -2,13 +2,14 @@
 # Overnight variety soaks: plays the runs of scripts/soak_variety.sh again and again on fresh seeds
 # until a deadline, writing a detailed log, and watches the laptop's temperature while it goes.
 #
-#   scripts/soak_overnight.sh --until 07:00 [--out DIR] [--jobs N] [--extra 'SOAK ARGS']
+#   scripts/soak_overnight.sh --until 07:00 [--out DIR] [--jobs N] [--extra 'SOAK ARGS'] [--first-round N]
 #   scripts/soak_overnight.sh -h | --help
 set -u
 
 usage() {
     cat <<'USAGE'
 Usage: soak_overnight.sh --until HH:MM [--out DIR] [--jobs N] [--extra 'SOAK ARGS'] [--only LIST]
+                        [--first-round N]
 
 Plays the variety runs (scripts/soak_variety.sh) round after round, each round on seeds 1000 higher
 than the one before, and starts no run after the deadline. Every run goes through cool_run.sh (low
@@ -21,6 +22,8 @@ Options:
   --jobs N        games played at once in a run (default 4, at most 4 by the project rule)
   --extra ARGS    more arguments for every `f4x-tools soak` (default '--events')
   --only LIST     only these runs of the matrix (comma-separated, see soak_variety.sh --help)
+  --first-round N start at round N, so on seeds N*1000 higher (default 0: pick N above every round
+                  played before, see the logs in soak-out/overnight-*)
 
 Writes into DIR:
   log.txt         one line for each start and end of a run, with the time, the exit status, the seconds
@@ -33,7 +36,7 @@ Exit status: 0 when no run failed or panicked, 1 otherwise, 2 for a usage error.
 USAGE
 }
 
-until_at=""; out=""; jobs=4; extra="--events"; only=""
+until_at=""; out=""; jobs=4; extra="--events"; only=""; first_round=0
 while [ $# -gt 0 ]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
@@ -42,6 +45,7 @@ while [ $# -gt 0 ]; do
         --jobs) jobs="${2:?--jobs needs a number}"; shift 2 ;;
         --extra) extra="${2:?--extra needs arguments}"; shift 2 ;;
         --only) only="${2:?--only needs names}"; shift 2 ;;
+        --first-round) first_round="${2:?--first-round needs a number}"; shift 2 ;;
         *) echo "soak_overnight: unknown option: $1 (see --help)" >&2; exit 2 ;;
     esac
 done
@@ -87,7 +91,7 @@ trap 'kill "$watch_pid" "$dog_pid" 2>/dev/null' EXIT
 
 names="small-2p crowded-5p huge-4p islands-3p magic-4p weak-3p hard-3p easy-2p long-2p"
 if [ -n "$only" ]; then names="${only//,/ }"; fi
-failed=0; round=0
+failed=0; round="$first_round"
 while [ "$(date +%s)" -lt "$deadline" ]; do
     for name in $names; do
         [ "$(date +%s)" -lt "$deadline" ] || break 2

@@ -48,6 +48,36 @@ pub(crate) enum MarchError {
     Refused(f4x_core::unit::movement::MoveError),
 }
 
+/// The facts of a march the game refused for want of room: how many the party is and how full
+/// each square beside the site is (the limit of a square is `max_tile`).
+pub(crate) fn march_detail(ai: &Ai, game: &Game, units: &[hecs::Entity], site: Position) -> String {
+    let view = PlayerView::new(game, ai.player);
+    let squares: Vec<String> = crate::military::neighbours(&view, site)
+        .into_iter()
+        .filter(|&p| !game.economy().army_at(p).is_empty())
+        .map(|p| {
+            format!(
+                "({}, {}) holds {}",
+                p.x,
+                p.y,
+                game.economy().army_at(p).len()
+            )
+        })
+        .collect();
+    format!(
+        "party of {} to ({}, {}), room for {} on a square; beside it: {}",
+        units.len(),
+        site.x,
+        site.y,
+        game.max_tile(),
+        if squares.is_empty() {
+            "no square with units".to_string()
+        } else {
+            squares.join(", ")
+        }
+    )
+}
+
 /// Send a party to the free square next to `site` that it can reach and is nearest to it; the
 /// error says why it could not be sent.
 pub(crate) fn march(

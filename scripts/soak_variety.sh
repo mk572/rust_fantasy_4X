@@ -27,15 +27,15 @@ Options:
   --extra ARGS  more arguments for every `f4x-tools soak` (one quoted string, e.g. '--events')
 
 Runs (name: wizards, map, land %, node strength, difficulty, seeds, turns):
-  small-2p     2  45x30  20  1  2  101..104  500
-  crowded-5p   5  60x40  35  1  2  111..113  600
-  huge-4p      4  90x60  30  1  2  121..123  700
-  islands-3p   3  60x40  15  1  2  131..134  600
-  magic-4p     4  60x40  30  2  2  141..143  600
-  weak-3p      3  60x40  30  0  2  151..153  600
-  hard-3p      3  60x40  30  1  4  161..163  600
-  easy-2p      2  60x40  30  1  1  171..173  500
-  long-2p      2  60x40  30  1  2  181..182  1000
+  small-2p     2  45x30  20  1  2  101..104  1200
+  crowded-5p   5  60x40  35  1  2  111..113  1200
+  huge-4p      4  90x60  30  1  2  121..123  1200
+  islands-3p   3  60x40  15  1  2  131..134  1200
+  magic-4p     4  60x40  30  2  2  141..143  1200
+  weak-3p      3  60x40  30  0  2  151..153  1200
+  hard-3p      3  60x40  30  1  4  161..163  1200
+  easy-2p      2  60x40  30  1  1  171..173  1200
+  long-2p      2  60x40  30  1  2  181..182  1200
 
 The summary lists, for each run, the games that ended with a winner, the games that panicked, the
 defeated wizards and the refused orders. Needs: cargo, scripts/cool_run.sh.
@@ -44,15 +44,15 @@ USAGE
 }
 
 RUNS=(
-    "small-2p|2|45x30|20|1|2|101..104|500"
-    "crowded-5p|5|60x40|35|1|2|111..113|600"
-    "huge-4p|4|90x60|30|1|2|121..123|700"
-    "islands-3p|3|60x40|15|1|2|131..134|600"
-    "magic-4p|4|60x40|30|2|2|141..143|600"
-    "weak-3p|3|60x40|30|0|2|151..153|600"
-    "hard-3p|3|60x40|30|1|4|161..163|600"
-    "easy-2p|2|60x40|30|1|1|171..173|500"
-    "long-2p|2|60x40|30|1|2|181..182|1000"
+    "small-2p|2|45x30|20|1|2|101..104|1200"
+    "crowded-5p|5|60x40|35|1|2|111..113|1200"
+    "huge-4p|4|90x60|30|1|2|121..123|1200"
+    "islands-3p|3|60x40|15|1|2|131..134|1200"
+    "magic-4p|4|60x40|30|2|2|141..143|1200"
+    "weak-3p|3|60x40|30|0|2|151..153|1200"
+    "hard-3p|3|60x40|30|1|4|161..163|1200"
+    "easy-2p|2|60x40|30|1|1|171..173|1200"
+    "long-2p|2|60x40|30|1|2|181..182|1200"
 )
 
 out=""; only=""; jobs=4; quick=0; dry=0; offset=0; extra=""
