@@ -91,7 +91,7 @@ pub enum Screen {
 }
 
 pub struct App {
-    pub(crate) game: Game,
+    pub(crate) game: crate::revised::Revised<Game>,
     pub(crate) art: Art,
     params: GenParams,
     /// The new-game options chosen before the wizard is made.
@@ -346,7 +346,7 @@ impl App {
         let prefs = crate::preferences::Preferences::default();
         let game = Self::new_game(seed, &options, &content, &names.bundle(), None, race, true)?;
         let mut app = Self {
-            game,
+            game: crate::revised::Revised::new(game),
             art,
             params,
             options,
@@ -1218,7 +1218,7 @@ impl App {
         if let Some(r) = game.wizard(HUMAN).and_then(|w| w.capital_race()) {
             self.race = r.num() as usize;
         }
-        self.game = game;
+        self.game = crate::revised::Revised::new(game);
         self.game.set_names(self.names.bundle());
         self.game.ensure_human(HUMAN);
         self.game.set_undo(true);
@@ -1587,7 +1587,7 @@ impl App {
             self.prefs.get(crate::preferences::Pref::RandomEvents),
         ) {
             Ok(game) => {
-                self.game = game;
+                self.game = crate::revised::Revised::new(game);
                 // The next game gets another seed, unless `--seed` fixed it.
                 self.seed = if self.seed_fixed { seed } else { fresh_seed() };
                 self.game_over_seen = false;
@@ -2045,10 +2045,8 @@ impl App {
             x: (from.x as i32 + dx).rem_euclid(w) as u32,
             y: y as u32,
         };
-        let events = self.game.apply(Command::MoveStack {
-            units: self.units_that_can_move(),
-            to,
-        });
+        let units = self.units_that_can_move();
+        let events = self.game.apply(Command::MoveStack { units, to });
         self.note(events);
         // A stack with nothing left to do hands over to the next one waiting for orders.
         let spent = self
@@ -2449,10 +2447,8 @@ impl App {
             }
             return;
         }
-        let events = self.game.apply(Command::GoTo {
-            units: self.units_that_can_move(),
-            to: pos,
-        });
+        let units = self.units_that_can_move();
+        let events = self.game.apply(Command::GoTo { units, to: pos });
         self.note(events);
     }
 
@@ -2986,6 +2982,35 @@ fn keys_move_stack(stack: Plane, view: Plane) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_game_revision_moves_for_every_change_and_for_nothing_else() {
+        use f4x_core::game::Command;
+        let mut app = App::for_test();
+        let r = app.game.revision();
+        // A read and a change of the view only: the revision stays.
+        let _ = app.game.economy().cities_of(HUMAN);
+        let _ = app.game.units().player_units(HUMAN);
+        app.screen = Screen::Map;
+        app.selection.clear();
+        app.view_step_keys(&press(&[KeyCode::V]));
+        assert_eq!(app.game.revision(), r, "a read or a UI change");
+        // A command.
+        app.game.apply(Command::EndTurn);
+        let after_command = app.game.revision();
+        assert_ne!(after_command, r, "a command");
+        // A direct mutator.
+        app.game.set_undo(false);
+        let after_direct = app.game.revision();
+        assert_ne!(after_direct, after_command, "a direct call");
+        // A load replaces the game.
+        let path = std::env::temp_dir().join(format!("f4x-revision-{}.save", std::process::id()));
+        app.save_to(&path);
+        let saved = app.game.revision();
+        app.load_from(&path).expect("the save loads");
+        let _ = std::fs::remove_file(&path);
+        assert_ne!(app.game.revision(), saved, "a load");
+    }
+
     #[test]
     fn the_movement_keys_move_only_a_stack_on_the_plane_in_view() {
         assert!(super::keys_move_stack(Plane::Arcanus, Plane::Arcanus));

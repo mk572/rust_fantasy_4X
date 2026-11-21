@@ -95,6 +95,7 @@ mod production_screen;
 mod resolution;
 mod resource_breakdown;
 mod resurrect_prompt;
+mod revised;
 mod river_art;
 mod road_plan;
 mod scroll;

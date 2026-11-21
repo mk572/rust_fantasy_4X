@@ -349,8 +349,9 @@ impl App {
             self.screen = Screen::Map;
             return;
         }
+        let extra = self.chosen_extra(spell);
         let events = self.game.apply(Command::CastSpell {
-            extra: self.chosen_extra(spell),
+            extra,
             player: HUMAN,
             spell,
             target: None,

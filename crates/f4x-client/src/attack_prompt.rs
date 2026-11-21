@@ -544,7 +544,7 @@ mod tests {
         assert_eq!(app.forecast_line(&pending), None, "off by default");
         let mut snapshot = app.game.snapshot();
         snapshot.settings.rules.combat_forecast = true;
-        app.game = snapshot.restore(app.game.content().clone())?;
+        app.game = crate::revised::Revised::new(snapshot.restore(app.game.content().clone())?);
         // The units of the restored game are new entities.
         let pending = attack(&app, rival, false)?;
         let line = app
