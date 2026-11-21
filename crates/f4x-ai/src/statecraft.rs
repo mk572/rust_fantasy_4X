@@ -449,7 +449,7 @@ fn propose(
         )
         .is_ok();
     if made && game.human() != Some(to) {
-        events.extend(crate::settle(game, me, to));
+        events.extend(crate::settle(game, me, to, &ai.diplomats));
     }
     made
 }

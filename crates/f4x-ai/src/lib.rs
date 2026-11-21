@@ -29,6 +29,7 @@ mod forge;
 mod garrison;
 mod intent;
 mod meld;
+mod memory;
 mod military;
 mod monster;
 mod naval;
@@ -302,6 +303,13 @@ pub struct Ai {
     /// What the statecraft (`statecraft.rs`, task 510) keeps between turns.
     #[serde(default)]
     statecraft: statecraft::State,
+    /// What it remembers of its dealings with the others (`memory.rs`, task 760); shared with the
+    /// game's [`Diplomats`] table when the host joined it.
+    #[serde(default, with = "memory::shared")]
+    memory: memory::Shared,
+    /// The game's table of memories, for answering a proposal made to another wizard.
+    #[serde(skip)]
+    diplomats: Diplomats,
     /// Units whose mission the dispatcher found over this turn (`dispatch::revalidate`); counted
     /// in the audit.
     #[serde(skip)]
@@ -365,9 +373,35 @@ impl Ai {
                 .and_then(|(_, text)| Ai::from_text(text).ok());
             if let Some(mut saved) = saved {
                 saved.defended_by = std::mem::take(&mut ai.defended_by);
+                // The table keeps the handle it has; the memory goes into it.
+                let memory = saved.memory.get().clone();
+                ai.memory.replace(memory);
+                saved.memory = std::mem::take(&mut ai.memory);
+                saved.diplomats = std::mem::take(&mut ai.diplomats);
                 *ai = saved;
             }
         }
+    }
+
+    /// The wizard as it answers a proposal made to it: a new one with the memory the table holds
+    /// of the real wizard.
+    fn answering(player: PlayerId, diplomats: &Diplomats) -> Self {
+        let ai = Ai::new(player);
+        ai.memory.replace(diplomats.of(player));
+        ai
+    }
+
+    /// Join the game's table of memories: the wizard's memory is shared with it, so a proposal made to
+    /// the wizard is answered by what it remembers (`memory.rs`).
+    pub fn join(&mut self, diplomats: &Diplomats) {
+        diplomats.add(self.player, &self.memory);
+        self.diplomats = diplomats.clone();
+    }
+
+    /// Tell the wizard what has happened (the events of a turn): the battles it fought and the
+    /// cities it won or lost go into its memory. What a human would be told of, and no more.
+    pub fn notice(&mut self, game: &Game, events: &[Event]) {
+        self.memory.put().notice(self.player, game.turn, events);
     }
 
     /// Whether the AI keeps out of this player's way, for being much stronger and near.
@@ -409,6 +443,8 @@ impl Ai {
             war_on: None,
             quarrel: None,
             statecraft: Default::default(),
+            memory: Default::default(),
+            diplomats: Diplomats::default(),
             missions_reset: 0,
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
@@ -721,15 +757,18 @@ impl SendError {
 
 /// The wizard answers the proposals made to it now (a human who has put a proposal waits for
 /// the answer on the diplomacy screen instead of until the turn ends). Returns the events.
-pub fn answer_proposals(game: &mut Game, player: PlayerId) -> Vec<Event> {
+///
+/// The wizard answers with what it remembers: `diplomats` is the game's table of memories (`memory.rs`);
+/// a wizard that is not in it answers with an empty memory.
+pub fn answer_proposals(game: &mut Game, player: PlayerId, diplomats: &Diplomats) -> Vec<Event> {
     let mut events = Vec::new();
-    diplomacy::answer(&Ai::new(player), game, &mut events);
+    diplomacy::answer(&Ai::answering(player, diplomats), game, &mut events);
     events
 }
 
 /// Two AI wizards answer each other's proposals and counters until nothing is pending between
 /// them (a negotiation has at most `max_rounds` messages). `from` made the proposal to `to`.
-pub fn settle(game: &mut Game, from: PlayerId, to: PlayerId) -> Vec<Event> {
+pub fn settle(game: &mut Game, from: PlayerId, to: PlayerId, diplomats: &Diplomats) -> Vec<Event> {
     let mut events = Vec::new();
     for _ in 0..=game.content().rules.config.diplomacy.max_rounds {
         let mut answered = false;
@@ -741,7 +780,7 @@ pub fn settle(game: &mut Game, from: PlayerId, to: PlayerId) -> Vec<Event> {
                     .iter()
                     .any(|p| p.to == who && (p.from == from || p.from == to));
             if waiting {
-                events.extend(answer_proposals(game, who));
+                events.extend(answer_proposals(game, who, diplomats));
                 answered = true;
             }
         }
@@ -755,6 +794,7 @@ pub fn settle(game: &mut Game, from: PlayerId, to: PlayerId) -> Vec<Event> {
 pub use offer::answer_resales;
 
 pub use controller::{play_round, AiSeat, NeutralSeat};
+pub use memory::Diplomats;
 
 /// A tuning number that an experiment may set from the environment (`AIK_<NAME>`).
 pub(crate) fn knob(name: &str, default: f32) -> f32 {
@@ -762,6 +802,72 @@ pub(crate) fn knob(name: &str, default: f32) -> f32 {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(default)
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use super::*;
+
+    const ME: PlayerId = PlayerId(1);
+    const FOE: PlayerId = PlayerId(2);
+
+    fn lost_a_battle(ai: &mut Ai, turn: u32) {
+        let mut g = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
+        g.turn = turn;
+        ai.notice(
+            &g,
+            &[Event::BattleEnded {
+                winner: FOE,
+                loser: ME,
+            }],
+        );
+    }
+
+    fn battles_lost(m: &memory::Memory) -> Option<u32> {
+        m.with(FOE).map(|d| d.battles_lost)
+    }
+
+    #[test]
+    fn a_wizard_hears_of_a_battle_it_lost_and_the_table_shares_what_it_remembers() {
+        let table = Diplomats::new();
+        let mut ai = Ai::new(ME);
+        ai.join(&table);
+        lost_a_battle(&mut ai, 4);
+        assert_eq!(battles_lost(&table.of(ME)), Some(1));
+        // A proposal made to it is answered by the memory of the real wizard, not an empty one.
+        let judge = Ai::answering(ME, &table);
+        assert_eq!(battles_lost(&judge.memory.get()), Some(1));
+        // Without the table the answer is made with an empty memory.
+        let stranger = Ai::answering(ME, &Diplomats::new());
+        assert_eq!(battles_lost(&stranger.memory.get()), None);
+    }
+
+    #[test]
+    fn the_memory_is_saved_with_the_plans_and_comes_back_into_the_table(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let table = Diplomats::new();
+        let mut ai = Ai::new(ME);
+        ai.join(&table);
+        lost_a_battle(&mut ai, 9);
+        let text = ai.to_text()?;
+        // A game is loaded: a new AI for the wizard recalls the plans; the table keeps its handle.
+        let mut fresh = vec![Ai::new(ME)];
+        fresh[0].join(&table);
+        let mut g = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
+        g.set_plans(vec![(ME, text)]);
+        Ai::recall(&g, &mut fresh);
+        assert_eq!(battles_lost(&fresh[0].memory.get()), Some(1));
+        assert_eq!(battles_lost(&table.of(ME)), Some(1));
+        Ok(())
+    }
+
+    #[test]
+    fn a_copy_of_a_wizard_remembers_on_its_own() {
+        let mut ai = Ai::new(ME);
+        let copy = ai.clone();
+        lost_a_battle(&mut ai, 2);
+        assert_eq!(battles_lost(&copy.memory.get()), None);
+    }
 }
 
 #[cfg(test)]

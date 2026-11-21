@@ -43,7 +43,13 @@ pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
             }
         }
-        let accept = rate(game, proposal.from, proposal.to, proposal.kind) == Verdict::Accepted;
+        let accept = rate(
+            game,
+            proposal.from,
+            proposal.to,
+            proposal.kind,
+            &ai.memory.get(),
+        ) == Verdict::Accepted;
         ai.order(
             game,
             Command::Diplomacy(DiplomacyCommand::Answer {
@@ -91,6 +97,8 @@ pub(crate) fn rate(
     asker: PlayerId,
     judge: PlayerId,
     kind: ProposalKind,
+    // What the judge remembers (task 760); system A does not use it yet.
+    _memory: &crate::memory::Memory,
 ) -> Verdict {
     let relation = game.relation(asker, judge);
     let (type_modifier, early) = match kind {
@@ -747,7 +755,7 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 )
                 .is_ok();
             if made {
-                events.extend(crate::settle(game, me, other));
+                events.extend(crate::settle(game, me, other, &ai.diplomats));
             }
         }
         // An ally joins the wars of its friend.
@@ -937,12 +945,18 @@ mod tests {
     ) -> TestResult {
         let mut g = game();
         assert_eq!(
-            rate(&mut g, HUMAN, AI, ProposalKind::Pact),
+            rate(&mut g, HUMAN, AI, ProposalKind::Pact, &Default::default()),
             Verdict::Refused,
             "a stranger at relation 0 does not sign a pact"
         );
         assert_eq!(
-            rate(&mut g, HUMAN, AI, ProposalKind::Alliance),
+            rate(
+                &mut g,
+                HUMAN,
+                AI,
+                ProposalKind::Alliance,
+                &Default::default()
+            ),
             Verdict::Refused
         );
         // A trade is rated by worth, not by patience: a spell for much gold is taken, for a
@@ -958,8 +972,14 @@ mod tests {
             give: f4x_core::diplomacy::Goods::gold(gold),
             get: f4x_core::diplomacy::Goods::spell(spell),
         };
-        assert_eq!(rate(&mut g, HUMAN, AI, trade(5000)), Verdict::Accepted);
-        assert_eq!(rate(&mut g, HUMAN, AI, trade(1)), Verdict::Refused);
+        assert_eq!(
+            rate(&mut g, HUMAN, AI, trade(5000), &Default::default()),
+            Verdict::Accepted
+        );
+        assert_eq!(
+            rate(&mut g, HUMAN, AI, trade(1), &Default::default()),
+            Verdict::Refused
+        );
         Ok(())
     }
 
@@ -1047,7 +1067,8 @@ mod tests {
             g.wizard_mut(AI)
                 .ok_or("the AI wizard exists")?
                 .put(Some(f4x_core::wizard::objective::Personality::Peaceful));
-            if rate(&mut g, HUMAN, AI, ProposalKind::Pact) == Verdict::Accepted {
+            if rate(&mut g, HUMAN, AI, ProposalKind::Pact, &Default::default()) == Verdict::Accepted
+            {
                 yes += 1;
             }
             let mut h = game_seeded(seed);
@@ -1060,7 +1081,8 @@ mod tests {
                     None,
                 );
             }
-            if rate(&mut h, HUMAN, AI, ProposalKind::Pact) == Verdict::Accepted {
+            if rate(&mut h, HUMAN, AI, ProposalKind::Pact, &Default::default()) == Verdict::Accepted
+            {
                 no += 1;
             }
         }
@@ -1148,7 +1170,7 @@ mod tests {
                 to: AI,
                 kind: ProposalKind::Threat,
             }));
-            crate::answer_proposals(&mut g, AI);
+            crate::answer_proposals(&mut g, AI, &crate::Diplomats::new());
             let paid = g.player(AI).ok_or("the AI exists")?.treasury().gold < 500;
             outcomes.insert((g.treaty(HUMAN, AI) == Treaty::War, paid));
         }

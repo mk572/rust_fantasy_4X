@@ -82,6 +82,10 @@ impl Controller for RivalSeat<'_> {
             .into_iter()
             .collect()
     }
+
+    fn notice(&mut self, game: &Game, events: &[Event]) {
+        self.ai.notice(game, events);
+    }
 }
 
 /// The independent cities and the monsters.
@@ -103,5 +107,9 @@ impl Controller for NeutralSeat<'_> {
 
     fn plans(&self) -> Vec<(PlayerId, String)> {
         self.inner.plans()
+    }
+
+    fn notice(&mut self, game: &Game, events: &[Event]) {
+        Controller::notice(&mut *self.inner, game, events);
     }
 }

@@ -328,3 +328,49 @@ fn a_flow_for_another_table_is_refused() {
         Some(f4x_master::FlowError::Unreadable(_))
     ));
 }
+
+/// Counts the events it is told of, whoever played the step that made them.
+struct Listener {
+    told: Rc<RefCell<usize>>,
+}
+
+impl Controller for Listener {
+    fn play(&mut self, _: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+        Status::Done
+    }
+
+    fn notice(&mut self, _: &Game, events: &[Event]) {
+        *self.told.borrow_mut() += events.len();
+    }
+}
+
+#[test]
+fn every_seat_is_told_the_events_of_each_step_whoever_made_them() {
+    let g0 = game(2);
+    let mut g = g0;
+    let told: Vec<Rc<RefCell<usize>>> = (0..2).map(|_| Rc::default()).collect();
+    let seats: Vec<Seat> = g
+        .player_ids()
+        .into_iter()
+        .filter(|&p| !g.is_neutral_player(p))
+        .zip(&told)
+        .map(|(p, t)| Seat::new(vec![p], Box::new(Listener { told: t.clone() })))
+        .collect();
+    let mut master = Master::new(seats);
+    let made = master.run(&mut g, Until::Rounds(2)).events.len();
+    assert!(made > 0, "two rounds make events");
+    for t in &told {
+        assert_eq!(*t.borrow(), made, "each seat hears all of them");
+    }
+    // A host that changes the game itself tells the seats what its commands did.
+    master.tell(
+        &g,
+        &[Event::BattleEnded {
+            winner: PlayerId(0),
+            loser: PlayerId(1),
+        }],
+    );
+    for t in &told {
+        assert_eq!(*t.borrow(), made + 1);
+    }
+}

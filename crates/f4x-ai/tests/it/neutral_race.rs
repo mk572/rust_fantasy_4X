@@ -147,7 +147,7 @@ fn a_neutral_player_meets_answers_proposals_and_trades_no_spells() {
         !events.iter().any(|e| matches!(e, Event::Rejected(_))),
         "a neutral player takes a proposal: {events:?}"
     );
-    let answered = f4x_ai::answer_proposals(&mut g, race);
+    let answered = f4x_ai::answer_proposals(&mut g, race, &f4x_ai::Diplomats::new());
     assert!(
         !answered.iter().any(|e| matches!(e, Event::Rejected(_))),
         "{answered:?}"

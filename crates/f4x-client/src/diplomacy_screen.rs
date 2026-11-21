@@ -947,7 +947,11 @@ impl DiploUi {
             self.diplo_say(said, Mood::Neutral, false);
             return;
         }
-        events.extend(f4x_ai::answer_proposals(&mut app.game, with));
+        events.extend(f4x_ai::answer_proposals(
+            &mut app.game,
+            with,
+            &app.diplomats,
+        ));
         let answer = events.iter().find_map(|e| match e {
             Event::Diplomacy(f4x_core::diplomacy::DiplomacyEvent::ProposalAnswered {
                 accepted,

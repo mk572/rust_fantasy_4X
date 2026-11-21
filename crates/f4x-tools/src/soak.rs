@@ -504,6 +504,12 @@ pub fn game(
         .map(|(k, &v)| contestant::make(v, PlayerId(k as u8)))
         .collect();
     let mut neutrals = contestant::Neutrals::new(roster.neutrals);
+    // The wizards' memories of their dealings, shared for answering a proposal (task 760).
+    let diplomats = f4x_ai::Diplomats::new();
+    for ai in &mut ais {
+        ai.join(&diplomats);
+    }
+    neutrals.share(&diplomats);
     neutrals.record_refusals(
         refused_out
             .lock()

@@ -139,6 +139,8 @@ pub struct App {
     pub(crate) offer_ui: crate::offer_prompt::OfferUi,
     /// The rival wizards, who play their turns when the human ends theirs.
     pub(crate) ais: Vec<f4x_ai::Ai>,
+    /// The memories of the rivals and the neutral players, for answering a proposal made to one.
+    pub(crate) diplomats: f4x_ai::Diplomats,
     /// Budget and income, made again only when the game changed (`frame_cache.rs`).
     pub(crate) cache: crate::frame_cache::FrameCache,
     /// Attacks on the human this turn, waiting to be fought one after the other.
@@ -375,6 +377,7 @@ impl App {
             hero_summon_due: None,
             offer_ui: Default::default(),
             ais: Vec::new(),
+            diplomats: f4x_ai::Diplomats::new(),
             cache: Default::default(),
             defences: Default::default(),
             turn_events: None,
@@ -486,6 +489,7 @@ impl App {
             .filter(|id| *id != HUMAN && !self.game.is_neutral_player(*id))
             .map(|id| {
                 let mut ai = f4x_ai::Ai::new(id);
+                ai.join(&self.diplomats);
                 ai.leave_defence_to(&[HUMAN]);
                 ai
             })
@@ -525,6 +529,17 @@ impl App {
 
     /// Turn events into log lines; returns whether a city was founded.
     pub(crate) fn note(&mut self, events: Vec<Event>) -> bool {
+        // The rivals hear what the human's commands did (a battle, a city taken), as they hear what
+        // the other wizards' turns did through the master.
+        for ai in &mut self.ais {
+            ai.notice(&self.game, &events);
+        }
+        f4x_master::Controller::notice(&mut self.neutral_seat, &self.game, &events);
+        self.note_shown(events)
+    }
+
+    /// `note` for events the rivals have heard already (the master told them).
+    pub(crate) fn note_shown(&mut self, events: Vec<Event>) -> bool {
         let mut founded = false;
         let mut dispelled = 0;
         for event in events {
@@ -1308,6 +1323,7 @@ impl App {
             .unwrap_or(human);
         self.seating = Default::default();
         self.neutral_seat = f4x_ai::NeutralSeat::defended_by(&[HUMAN]);
+        self.neutral_seat.share(&self.diplomats);
     }
 
     /// End the turn. First put more citizens on farms if the army would otherwise go hungry
@@ -1376,7 +1392,7 @@ impl App {
         let turn = self.game.turn;
         let news = self.collect_report(&events);
         self.last_news = news.clone();
-        self.note(events);
+        self.note_shown(events);
         self.open_chancellor(news);
         self.log
             .push(self.text_with("log.turn", &Args::new().count("turn", turn)));

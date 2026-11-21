@@ -3,7 +3,7 @@
 //!
 //! Tests: in tests/it.
 
-use crate::{Ai, Attack};
+use crate::{Ai, Attack, Diplomats};
 use f4x_core::game::{Event, Game};
 use f4x_core::player::PlayerId;
 use f4x_master::{Controller, Master, Pass, Seat, Status, Until};
@@ -26,6 +26,10 @@ impl Controller for AiSeat<'_> {
             .into_iter()
             .collect()
     }
+
+    fn notice(&mut self, game: &Game, events: &[Event]) {
+        self.0.notice(game, events);
+    }
 }
 
 /// The neutral seat (task 522): the neutral player of each race plays as any AI does, with the
@@ -39,6 +43,8 @@ pub struct NeutralSeat {
     attacks: Vec<Attack>,
     ais: BTreeMap<PlayerId, Ai>,
     record_refusals: bool,
+    /// The game's table of memories, which the race players join when they are made.
+    diplomats: Diplomats,
 }
 
 impl NeutralSeat {
@@ -47,6 +53,14 @@ impl NeutralSeat {
         Self {
             defended_by: players.to_vec(),
             ..Self::default()
+        }
+    }
+
+    /// The race players join this table of memories (`Ai::join`) when they are made.
+    pub fn share(&mut self, diplomats: &Diplomats) {
+        self.diplomats = diplomats.clone();
+        for ai in self.ais.values_mut() {
+            ai.join(diplomats);
         }
     }
 
@@ -95,8 +109,10 @@ impl NeutralSeat {
     /// The AI of a race player, made now if it has none.
     fn ai_of(&mut self, game: &Game, id: PlayerId) -> &mut Ai {
         let (defended_by, record) = (self.defended_by.clone(), self.record_refusals);
+        let diplomats = self.diplomats.clone();
         self.ais.entry(id).or_insert_with(|| {
             let mut ai = Ai::new(id);
+            ai.join(&diplomats);
             ai.leave_defence_to(&defended_by);
             Ai::recall(game, std::slice::from_mut(&mut ai));
             ai.record_refusals(record);
@@ -132,6 +148,12 @@ impl Controller for NeutralSeat {
     fn plans(&self) -> Vec<(PlayerId, String)> {
         NeutralSeat::plans(self)
     }
+
+    fn notice(&mut self, game: &Game, events: &[Event]) {
+        for ai in self.ais.values_mut() {
+            ai.notice(game, events);
+        }
+    }
 }
 
 /// Play the rest of the current round for these AIs and begin the next one. Every wizard has a
@@ -139,6 +161,10 @@ impl Controller for NeutralSeat {
 /// (a human the caller does not drive); the neutral seat comes last. Returns all the events.
 pub fn play_round(game: &mut Game, ais: &mut [Ai]) -> Vec<Event> {
     crate::battle::install();
+    let diplomats = Diplomats::new();
+    for ai in ais.iter_mut() {
+        ai.join(&diplomats);
+    }
     let mut by_player: HashMap<PlayerId, &mut Ai> =
         ais.iter_mut().map(|ai| (ai.player, ai)).collect();
     let mut seats: Vec<Seat> = game
@@ -150,6 +176,8 @@ pub fn play_round(game: &mut Game, ais: &mut [Ai]) -> Vec<Event> {
             None => Seat::new(vec![p], Box::new(Pass)),
         })
         .collect();
-    seats.push(Seat::neutrals(Box::new(NeutralSeat::default())));
+    let mut neutrals = NeutralSeat::default();
+    neutrals.share(&diplomats);
+    seats.push(Seat::neutrals(Box::new(neutrals)));
     Master::new(seats).run(game, Until::Rounds(1)).events
 }

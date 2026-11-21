@@ -52,10 +52,14 @@ pub trait Contestant {
     /// Take back the plans a loaded game carries for this player (`Game::plans`); a version that
     /// cannot read them starts afresh.
     fn recall(&mut self, _game: &Game) {}
+    /// Join the game's table of memories (`f4x_ai::Diplomats`), and hear the events of the turns, as
+    /// the live AI does; the reference copy has neither.
+    fn join(&mut self, _diplomats: &f4x_ai::Diplomats) {}
+    fn notice(&mut self, _game: &Game, _events: &[Event]) {}
 }
 
 macro_rules! contestant {
-    ($krate:ident $(, plans $plans:ident)? $(, dropped $dropped:ident)? $(, settlers $settlers:ident)?) => {
+    ($krate:ident $(, memory $memory:ident)? $(, plans $plans:ident)? $(, dropped $dropped:ident)? $(, settlers $settlers:ident)?) => {
         impl Contestant for $krate::Ai {
             fn player(&self) -> PlayerId {
                 self.player
@@ -106,6 +110,14 @@ macro_rules! contestant {
                 }
             )?
             $(
+                fn join(&mut self, diplomats: &f4x_ai::Diplomats) {
+                    $krate::Ai::$memory(self, diplomats);
+                }
+                fn notice(&mut self, game: &Game, events: &[Event]) {
+                    $krate::Ai::notice(self, game, events);
+                }
+            )?
+            $(
                 fn plans(&self) -> Option<String> {
                     self.$plans().ok()
                 }
@@ -117,7 +129,7 @@ macro_rules! contestant {
     };
 }
 
-contestant!(f4x_ai, plans to_text, dropped plans_dropped, settlers settler_failures);
+contestant!(f4x_ai, memory join, plans to_text, dropped plans_dropped, settlers settler_failures);
 #[cfg(feature = "reference")]
 contestant!(f4x_ai_ref, plans to_text);
 
@@ -216,6 +228,19 @@ impl Neutrals {
         }
     }
 
+    /// The race players join the game's table of memories.
+    pub fn share(&mut self, diplomats: &f4x_ai::Diplomats) {
+        if self.version == Version::New {
+            self.new.share(diplomats);
+        }
+    }
+
+    fn notice(&mut self, game: &Game, events: &[Event]) {
+        if self.version == Version::New {
+            Controller::notice(&mut self.new, game, events);
+        }
+    }
+
     fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) {
         match self.version {
             Version::New => self.new.play_turn(game, players, events),
@@ -266,6 +291,10 @@ impl Controller for ContestantSeat<'_> {
             .push((self.contestant.player(), events));
         Status::Done
     }
+
+    fn notice(&mut self, game: &Game, events: &[Event]) {
+        self.contestant.notice(game, events);
+    }
 }
 
 /// The neutral seat of one version of the AI.
@@ -277,6 +306,10 @@ impl Controller for NeutralSeat<'_> {
         self.0.play(game, players, events);
         self.1.borrow_mut().neutrals += started.elapsed();
         Status::Done
+    }
+
+    fn notice(&mut self, game: &Game, events: &[Event]) {
+        self.0.notice(game, events);
     }
 }
 

@@ -46,6 +46,12 @@ pub trait Controller {
     fn plans(&self) -> Vec<(PlayerId, String)> {
         Vec::new()
     }
+
+    /// What has just happened in the game: the events of the step the master made, whoever
+    /// played it. A computer wizard keeps what concerns it (it fought a battle on another
+    /// wizard's turn, a city of it was taken) as a human's screen shows them. The default ignores
+    /// them.
+    fn notice(&mut self, _game: &Game, _events: &[Event]) {}
 }
 
 /// A controller that plays nothing and finishes at once: for a seat the host does not drive
@@ -411,7 +417,19 @@ impl<'a> Master<'a> {
         }
         // Whatever saves the game now saves where it is in its round.
         game.set_flow(Some(self.state.to_text()));
+        self.tell(game, &events);
         Progress { events, stopped }
+    }
+
+    /// Tell every seat what happened. A host that changes the game outside the master (a human's
+    /// commands on the client) tells it the events they caused with this.
+    pub fn tell(&mut self, game: &Game, events: &[Event]) {
+        if events.is_empty() {
+            return;
+        }
+        for seat in &mut self.seats {
+            seat.controller.notice(game, events);
+        }
     }
 
     /// Step until the stop condition, collecting the events.
