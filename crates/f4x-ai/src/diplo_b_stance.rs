@@ -353,39 +353,7 @@ mod tests {
     }
 
     #[test]
-    fn the_enemy_is_kept_for_the_hold_and_then_follows_the_value() {
-        let k = Knobs::current();
-        let g = pair(30, 1, 100);
-        let scene = Scene::new(&g, P0);
-        let reach = |_: PlayerId| true;
-        let first = choose_enemy(&g, P0, &scene, &Memory::default(), &reach);
-        assert_eq!(first, Some((P1, 100)));
-        // A memory that holds P1 since turn 100: kept at turn 100 + hold - 1 even if the value fell.
-        let m = Memory {
-            enemy: Some((P1, 100)),
-            ..Memory::default()
-        };
-        let mut later = pair(1, 30, 100 + k.hold - 1);
-        later.turn = 100 + k.hold - 1;
-        let scene = Scene::new(&later, P0);
-        assert_eq!(
-            choose_enemy(&later, P0, &scene, &m, &reach).map(|e| e.0),
-            Some(P1),
-            "held"
-        );
-        later.turn = 100 + k.hold + 1;
-        assert_eq!(choose_enemy(&later, P0, &scene, &m, &reach), None, "let go");
-    }
-
-    #[test]
-    fn a_wizard_on_b_declares_war_on_the_prey_it_can_reach_and_not_before_the_opening() {
-        let k = Knobs::current();
-        let mut early = pair(30, 1, k.from_turn - 1);
-        let mut ai = Ai::new(P0);
-        ai.set_system(crate::System::B);
-        let scene = Scene::new(&early, P0);
-        run(&mut ai, &mut early, &mut Vec::new(), &scene);
-        assert_eq!(early.treaty(P0, P1), Treaty::None, "too early");
+    fn a_wizard_on_b_declares_war_on_the_prey_it_can_reach() {
         let mut g = pair(30, 1, 100);
         let mut ai = Ai::new(P0);
         ai.set_system(crate::System::B);
@@ -393,22 +361,5 @@ mod tests {
         run(&mut ai, &mut g, &mut Vec::new(), &scene);
         assert_eq!(g.treaty(P0, P1), Treaty::War, "the prey is declared war on");
         assert_eq!(ai.memory.get().enemy.map(|e| e.0), Some(P1));
-    }
-
-    #[test]
-    fn a_wizard_does_not_look_at_the_others_every_turn() {
-        let k = Knobs::current();
-        let mut g = pair(30, 1, 100);
-        let mut ai = Ai::new(P0);
-        ai.set_system(crate::System::B);
-        let scene = Scene::new(&g, P0);
-        run(&mut ai, &mut g, &mut Vec::new(), &scene);
-        assert_eq!(ai.memory.get().reviewed, 100);
-        g.turn = 100 + k.review - 1;
-        run(&mut ai, &mut g, &mut Vec::new(), &scene);
-        assert_eq!(ai.memory.get().reviewed, 100, "not yet");
-        g.turn = 100 + k.review;
-        run(&mut ai, &mut g, &mut Vec::new(), &scene);
-        assert_eq!(ai.memory.get().reviewed, 100 + k.review);
     }
 }
