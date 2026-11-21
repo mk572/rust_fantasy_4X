@@ -358,7 +358,7 @@ impl Game {
             events.extend(self.apply_battle_spell(spell, &def, kind, side, player, aim, pool));
         }
         if let Some(active) = self.battle.as_mut() {
-            active.battle.refresh_fields();
+            active.battle.note_invisibility();
         }
         let mut out = self.battle_event_list(events);
         let ended = self
@@ -841,7 +841,7 @@ impl Game {
             {
                 active.battle.return_unit(target);
             }
-            active.battle.refresh_fields();
+            active.battle.note_invisibility();
         }
         let mut events = vec![event];
         // Taking off hit points can leave a unit with none.
@@ -923,7 +923,7 @@ impl Game {
         if let Some(active) = self.battle.as_mut() {
             active.battle.rebuild_unit(target, base, lasting);
             active.battle.units[target].realm = realm;
-            active.battle.refresh_fields();
+            active.battle.note_invisibility();
         }
         true
     }

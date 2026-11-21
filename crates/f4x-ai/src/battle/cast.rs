@@ -134,7 +134,7 @@ pub fn unit_cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
         .filter(|e| battle.seen_by(side, e.id))
         .collect();
     let friends: Vec<&BattleUnit> = battle.active_units(side).collect();
-    let floor = enemies.iter().map(|e| worth(e)).fold(0.0, f32::max) * WORTH_FLOOR;
+    let floor = enemies.iter().map(|e| worth(battle, e)).fold(0.0, f32::max) * WORTH_FLOOR;
     // A demon is worth calling whenever the unit can: it is free and strong.
     if let Some(unit) = friends
         .iter()
@@ -145,11 +145,12 @@ pub fn unit_cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
     }
     let scene = Scene {
         game,
+        battle,
         side,
         friends: &friends,
         enemies: &enemies,
     };
-    let dearest = enemies.iter().map(|e| worth(e)).fold(0.0, f32::max);
+    let dearest = enemies.iter().map(|e| worth(battle, e)).fold(0.0, f32::max);
     let mut best: Option<(Tier, f32, BattleCommand)> = None;
     for (unit, cast) in game.legal_unit_casts() {
         let free = game
@@ -198,11 +199,12 @@ pub fn cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
     let friends: Vec<&BattleUnit> = battle.active_units(side).collect();
     let scene = Scene {
         game,
+        battle,
         side,
         friends: &friends,
         enemies: &enemies,
     };
-    let dearest = enemies.iter().map(|e| worth(e)).fold(0.0, f32::max);
+    let dearest = enemies.iter().map(|e| worth(battle, e)).fold(0.0, f32::max);
     let mut best: Option<(Tier, f32, BattleCommand)> = None;
     for cast in game.legal_battle_casts() {
         let def = game.content().rules.spells.get(cast.spell);
@@ -241,6 +243,7 @@ pub fn cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
 /// The fight a cast is judged in.
 struct Scene<'a> {
     game: &'a Game,
+    battle: &'a Battle,
     side: Side,
     friends: &'a [&'a BattleUnit],
     enemies: &'a [&'a BattleUnit],
@@ -298,7 +301,12 @@ impl Scene<'_> {
         if judged.harm * 2.0 >= judged.value {
             blow_floor
         } else {
-            WORTH_FLOOR * self.friends.iter().map(|u| worth(u)).fold(0.0, f32::max)
+            WORTH_FLOOR
+                * self
+                    .friends
+                    .iter()
+                    .map(|u| worth(self.battle, u))
+                    .fold(0.0, f32::max)
         }
     }
 
@@ -317,13 +325,17 @@ impl Scene<'_> {
         self.friends
             .iter()
             .copied()
-            .filter(|u| !u.flag(UnitFlag::MagicalWeapon) && u.melee > 0)
+            .filter(|u| !u.flag(UnitFlag::MagicalWeapon) && self.battle.now_of(u).melee() > 0)
             .collect()
     }
 
     /// The worth of the units of one side that `keep` picks.
-    fn sum(units: &[&BattleUnit], keep: impl Fn(&BattleUnit) -> bool) -> f32 {
-        units.iter().filter(|u| keep(u)).map(|u| worth(u)).sum()
+    fn sum(&self, units: &[&BattleUnit], keep: impl Fn(&BattleUnit) -> bool) -> f32 {
+        units
+            .iter()
+            .filter(|u| keep(u))
+            .map(|u| worth(self.battle, u))
+            .sum()
     }
 
     /// What a battlefield enchantment is worth to the side that casts it, and the part of that
@@ -335,31 +347,34 @@ impl Scene<'_> {
         let spared = |u: &BattleUnit| self.game.battle().is_some_and(|b| b.field_spares(u, field));
         let realm = |r: Realm| move |u: &BattleUnit| u.realm == Some(r);
         let (gain, harm) = match field {
-            Field::Prayer => (PRAYER_SHARE * Self::sum(own, all), 0.0),
-            Field::HighPrayer => (HIGH_PRAYER_SHARE * Self::sum(own, all), 0.0),
-            Field::BlackPrayer => (0.0, BLACK_PRAYER_SHARE * Self::sum(foe, all)),
+            Field::Prayer => (PRAYER_SHARE * self.sum(own, all), 0.0),
+            Field::HighPrayer => (HIGH_PRAYER_SHARE * self.sum(own, all), 0.0),
+            Field::BlackPrayer => (0.0, BLACK_PRAYER_SHARE * self.sum(foe, all)),
             Field::MetalFires => (
-                METAL_FIRES_SHARE * Self::sum(own, |u| !u.is_fantastic())
-                    + ARM_SHARE * Self::sum(&self.blocked(), |_| true),
+                METAL_FIRES_SHARE * self.sum(own, |u| !u.is_fantastic())
+                    + ARM_SHARE * self.sum(&self.blocked(), |_| true),
                 0.0,
             ),
-            Field::MassInvisibility => (MASS_INVISIBILITY_SHARE * Self::sum(own, all), 0.0),
+            Field::MassInvisibility => (MASS_INVISIBILITY_SHARE * self.sum(own, all), 0.0),
             // Blur only matters against shooters: scaled by their share of the enemy's worth.
             Field::Blur => {
-                let shooters = Self::sum(foe, |u| u.ranged_kind != RangedKind::None);
-                let total = Self::sum(foe, all).max(1.0);
-                (BLUR_SHARE * Self::sum(own, all) * shooters / total, 0.0)
+                let shooters = self.sum(foe, |u| u.ranged_kind != RangedKind::None);
+                let total = self.sum(foe, all).max(1.0);
+                (BLUR_SHARE * self.sum(own, all) * shooters / total, 0.0)
             }
-            Field::Terror => (0.0, TERROR_SHARE * Self::sum(foe, |u| !spared(u))),
-            Field::Entangle => (0.0, ENTANGLE_SHARE * Self::sum(foe, all)),
-            Field::Wrack => (0.0, WRACK_SHARE * Self::sum(foe, |u| !spared(u))),
-            Field::CallLightning => (0.0, LIGHTNING_SHARE * Self::sum(foe, all)),
+            Field::Terror => (0.0, TERROR_SHARE * self.sum(foe, |u| !spared(u))),
+            Field::Entangle => (0.0, ENTANGLE_SHARE * self.sum(foe, all)),
+            Field::Wrack => (0.0, WRACK_SHARE * self.sum(foe, |u| !spared(u))),
+            Field::CallLightning => (0.0, LIGHTNING_SHARE * self.sum(foe, all)),
             Field::ManaLeak => {
                 let wizard = self.game.battle().map(|b| b.player_of(self.side.other()));
                 let has_mana = wizard
                     .and_then(|p| self.game.player(p))
                     .is_some_and(|p| p.treasury().mana.floor() > 0);
-                let dearest = foe.iter().map(|u| worth(u)).fold(0.0, f32::max);
+                let dearest = foe
+                    .iter()
+                    .map(|u| worth(self.battle, u))
+                    .fold(0.0, f32::max);
                 (
                     0.0,
                     if has_mana {
@@ -376,16 +391,16 @@ impl Scene<'_> {
                 } else {
                     (Realm::Death, Realm::Life)
                 };
-                let up = Self::sum(own, realm(good)) + Self::sum(foe, realm(bad));
-                let down = Self::sum(own, realm(bad)) + Self::sum(foe, realm(good));
-                let hurt = LIGHT_SHARE * Self::sum(foe, realm(bad));
+                let up = self.sum(own, realm(good)) + self.sum(foe, realm(bad));
+                let down = self.sum(own, realm(bad)) + self.sum(foe, realm(good));
+                let hurt = LIGHT_SHARE * self.sum(foe, realm(bad));
                 (LIGHT_SHARE * (up - down), hurt)
             }
             // Warp Reality weakens every unit but the chaos creatures.
             Field::WarpReality => {
                 let hit = |u: &BattleUnit| u.realm != Some(Realm::Chaos);
-                let foes = WARP_REALITY_SHARE * Self::sum(foe, hit);
-                (foes - WARP_REALITY_SHARE * Self::sum(own, hit), foes)
+                let foes = WARP_REALITY_SHARE * self.sum(foe, hit);
+                (foes - WARP_REALITY_SHARE * self.sum(own, hit), foes)
             }
         };
         let value = gain + harm;
@@ -401,9 +416,9 @@ impl Scene<'_> {
         };
         let walks = |u: &BattleUnit| !u.flag(UnitFlag::Flies) && !u.flag(UnitFlag::NonCorporeal);
         let near = |u: &&BattleUnit, reach: u32| map::distance(u.cell, cell) <= reach;
-        let ours = |reach: u32| Self::sum(self.friends, |u| walks(u) && near(&u, reach));
-        let theirs = |reach: u32| Self::sum(self.enemies, |u| walks(u) && near(&u, reach));
-        let own_worth: f32 = self.friends.iter().map(|u| worth(u)).sum();
+        let ours = |reach: u32| self.sum(self.friends, |u| walks(u) && near(&u, reach));
+        let theirs = |reach: u32| self.sum(self.enemies, |u| walks(u) && near(&u, reach));
+        let own_worth: f32 = self.friends.iter().map(|u| worth(self.battle, u)).sum();
         // A section of wall comes down: the attacker's gain, more with the enemy at the gap.
         let breach = if self.side == Side::Attacker && battle.map.has_wall(cell) {
             let gap = if self.enemies.iter().any(|u| near(u, 3)) {
@@ -419,7 +434,7 @@ impl Scene<'_> {
             BattleEffect::EarthToMud => (MUD_SHARE * (theirs(3) - ours(3))).max(0.0),
             BattleEffect::CracksCall => {
                 let over = |units: &[&BattleUnit]| {
-                    Self::sum(units, |u| {
+                    self.sum(units, |u| {
                         u.cell == cell
                             && walks(u)
                             && !u.has(f4x_core::rules::Ability::new(43 /* merging */))
@@ -438,7 +453,12 @@ impl Scene<'_> {
             .and_then(|p| self.game.player(p))
             .map_or(0, |p| p.treasury().mana.floor());
         if mana > 0 {
-            COUNTER_SHARE * self.friends.iter().map(|u| worth(u)).fold(0.0, f32::max)
+            COUNTER_SHARE
+                * self
+                    .friends
+                    .iter()
+                    .map(|u| worth(self.battle, u))
+                    .fold(0.0, f32::max)
         } else {
             0.0
         }
@@ -463,16 +483,16 @@ impl Scene<'_> {
     ) -> Option<(f32, bool, u32)> {
         let odds = self.game.preview_spell_damage(spell, target.id, 0)?;
         let left = target.hit_points().max(1) as f32;
-        let hurt = |mean: f32| (mean.min(left) / left) * worth(target);
+        let hurt = |mean: f32| (mean.min(left) / left) * worth(self.battle, target);
         if odds.kill_chance >= KILL_ODDS {
-            return Some((KILL_BONUS * worth(target), true, least));
+            return Some((KILL_BONUS * worth(self.battle, target), true, least));
         }
         // Not enough: more mana, if the spell takes it, until it is.
         let mut extra = 1;
         while least + extra <= most {
             if let Some(more) = self.game.preview_spell_damage(spell, target.id, extra) {
                 if more.kill_chance >= KILL_ODDS {
-                    return Some((KILL_BONUS * worth(target), true, least + extra));
+                    return Some((KILL_BONUS * worth(self.battle, target), true, least + extra));
                 }
             }
             extra += 1;
@@ -520,7 +540,7 @@ impl Scene<'_> {
         // A lasting spell that only gives the unit defence rules (a blessing, Elemental Armor,
         // Righteousness): a share of the unit's worth, as any other lasting spell on a unit.
         if def.effects.is_empty() && !def.defence.is_empty() {
-            out.value += aimed.map_or(0.0, |u| LASTING_SHARE * worth(u)) * landing;
+            out.value += aimed.map_or(0.0, |u| LASTING_SHARE * worth(self.battle, u)) * landing;
         }
         for rule in &def.effects {
             let (value, harm) = match &rule.effect {
@@ -548,14 +568,14 @@ impl Scene<'_> {
                         .map(|u| {
                             (CHAOS_DAMAGE.min(u.hit_points().max(1) as f32)
                                 / u.hit_points().max(1) as f32)
-                                * worth(u)
+                                * worth(self.battle, u)
                         })
                         .sum();
                     (v, v)
                 }
                 Effect::Custom { .. } if own == Some(BattleEffect::Vortex) => match aim {
                     SpellAim::Tile(cell) => {
-                        let v = vortex_reach_value(cell, self.friends, self.enemies);
+                        let v = vortex_reach_value(self.battle, cell, self.friends, self.enemies);
                         (v, v.max(0.0))
                     }
                     _ => (0.0, 0.0),
@@ -569,7 +589,7 @@ impl Scene<'_> {
                                 && u.ranged_kind == RangedKind::Missile
                                 && u.ammo > 0
                         })
-                        .map_or(0.0, |u| WARP_WOOD_SHARE * worth(u));
+                        .map_or(0.0, |u| WARP_WOOD_SHARE * worth(self.battle, u));
                     (v, v)
                 }
                 Effect::Custom { name, .. } if name == "battlefield" => {
@@ -586,17 +606,27 @@ impl Scene<'_> {
                         }) =>
                 {
                     out.arms = true;
-                    (ARM_SHARE * aimed.map_or(0.0, worth), 0.0)
+                    (
+                        ARM_SHARE * aimed.map_or(0.0, |u| worth(self.battle, u)),
+                        0.0,
+                    )
                 }
                 Effect::Custom { name, .. } if name == "wall" => {
-                    let v = WALL_SHARE * self.friends.iter().map(|u| worth(u)).sum::<f32>();
+                    let v = WALL_SHARE
+                        * self
+                            .friends
+                            .iter()
+                            .map(|u| worth(self.battle, u))
+                            .sum::<f32>();
                     (v, 0.0)
                 }
                 Effect::Custom { name, args } if name == "counter_effect" => {
                     match args.first().map(String::as_str) {
                         Some("dispel") => {
                             let v = aimed.filter(|u| u.side != self.side).map_or(0.0, |u| {
-                                DISPEL_SHARE * worth(u) * u.enchantments.len().min(3) as f32
+                                DISPEL_SHARE
+                                    * worth(self.battle, u)
+                                    * u.enchantments.len().min(3) as f32
                             });
                             (v, v)
                         }
@@ -610,7 +640,7 @@ impl Scene<'_> {
                     let v = aimed.filter(|u| u.side == self.side).map_or(0.0, |u| {
                         let left = u.health();
                         if left < 0.4 {
-                            RECALL_SHARE * (1.0 - left) * worth(u)
+                            RECALL_SHARE * (1.0 - left) * worth(self.battle, u)
                         } else {
                             0.0
                         }
@@ -620,7 +650,7 @@ impl Scene<'_> {
                 Effect::Custom { .. } if own == Some(BattleEffect::LifeDrain) => {
                     let v = aimed
                         .filter(|u| u.side != self.side)
-                        .map_or(0.0, |u| DRAIN_SHARE * worth(u));
+                        .map_or(0.0, |u| DRAIN_SHARE * worth(self.battle, u));
                     (v, v)
                 }
                 Effect::Custom { .. }
@@ -653,7 +683,7 @@ impl Scene<'_> {
                             .game
                             .battle()
                             .and_then(|b| b.unit(id))
-                            .map_or(0.0, |u| share * worth(u)),
+                            .map_or(0.0, |u| share * worth(self.battle, u)),
                         _ => 0.0,
                     };
                     (v, 0.0)
@@ -673,7 +703,7 @@ impl Scene<'_> {
                     } else {
                         LASTING_SHARE
                     };
-                    let v = aimed.map_or(0.0, |u| share * worth(u));
+                    let v = aimed.map_or(0.0, |u| share * worth(self.battle, u));
                     (
                         v,
                         if aimed.is_some_and(|u| u.side != self.side) {
@@ -685,6 +715,7 @@ impl Scene<'_> {
                 }
                 _ => {
                     let v = rule_value(
+                        self.battle,
                         self.game,
                         rule,
                         aimed,
@@ -706,12 +737,17 @@ impl Scene<'_> {
 
 /// What a vortex raised on `cell` is worth: a share of the worth of each enemy unit within reach,
 /// less the same for ours (it strikes whoever it comes to).
-fn vortex_reach_value(cell: Pos, friends: &[&BattleUnit], enemies: &[&BattleUnit]) -> f32 {
+fn vortex_reach_value(
+    battle: &Battle,
+    cell: Pos,
+    friends: &[&BattleUnit],
+    enemies: &[&BattleUnit],
+) -> f32 {
     let sum = |units: &[&BattleUnit]| -> f32 {
         units
             .iter()
             .filter(|u| map::distance(u.cell, cell) <= VORTEX_REACH)
-            .map(|u| worth(u))
+            .map(|u| worth(battle, u))
             .sum()
     };
     VORTEX_SHARE * (sum(enemies) - sum(friends))
@@ -743,9 +779,9 @@ pub fn steer_choice(battle: &Battle) -> Option<BattleCommand> {
                 // Landing on a unit strikes it for certain: weigh that square's unit again.
                 let on_square = battle.unit_at(to).map_or(0.0, |u| {
                     let sign = if u.side == side { -1.0 } else { 1.0 };
-                    sign * worth(u)
+                    sign * worth(battle, u)
                 });
-                let value = vortex_reach_value(to, &friends, &enemies) + 0.3 * on_square;
+                let value = vortex_reach_value(battle, to, &friends, &enemies) + 0.3 * on_square;
                 if value > 0.0 && best.as_ref().is_none_or(|(s, _)| value > *s) {
                     best = Some((value, BattleCommand::MoveVortex { index, to }));
                 }
@@ -772,6 +808,7 @@ fn victims<'a>(
 }
 
 fn rule_value(
+    battle: &Battle,
     game: &Game,
     rule: &EffectRule,
     aimed: Option<&BattleUnit>,
@@ -803,7 +840,7 @@ fn rule_value(
                 let chance = game.battle().map_or(1.0, |b| {
                     b.failure_chance(u.id, Realm::of(*realm), *modifier)
                 });
-                SLAY_SHARE * worth(u) * chance
+                SLAY_SHARE * worth(battle, u) * chance
             })
             .sum(),
         // Healing is kept for a unit that has lost half its hit points or more: a cast for a
@@ -813,7 +850,7 @@ fn rule_value(
             .filter(|u| ours(u) && u.health() <= 0.5)
             .map(|u| {
                 let missing = u.lost().max(0) as f32;
-                (missing.min(*points as f32) / u.max_hit_points().max(1) as f32) * worth(u)
+                (missing.min(*points as f32) / u.max_hit_points().max(1) as f32) * worth(battle, u)
             })
             .sum(),
         Effect::Summon {
@@ -840,14 +877,14 @@ fn rule_value(
                 *value >= zero && !(*op == ModOp::Set && *value == zero) && *op != ModOp::Max;
             on.iter()
                 .filter(|u| ours(u) == good)
-                .map(|u| LASTING_SHARE * worth(u))
+                .map(|u| LASTING_SHARE * worth(battle, u))
                 .sum()
         }
         // A gift of an ability the unit already has is worth nothing.
         Effect::GrantAbility(a) => on
             .iter()
             .filter(|u| ours(u) && !u.has(*a))
-            .map(|u| LASTING_SHARE * worth(u))
+            .map(|u| LASTING_SHARE * worth(battle, u))
             .sum(),
         _ => 0.0,
     }
@@ -1223,6 +1260,7 @@ mod tests {
         let friends: Vec<&BattleUnit> = battle.active_units(Side::Attacker).collect();
         let scene = Scene {
             game: g,
+            battle: g.battle().ok_or("no battle")?,
             side: Side::Attacker,
             friends: &friends,
             enemies: &enemy,
@@ -1363,6 +1401,7 @@ mod tests {
         let friends: Vec<&BattleUnit> = battle.active_units(Side::Attacker).collect();
         let scene = Scene {
             game: &g,
+            battle: g.battle().ok_or("no battle")?,
             side: Side::Attacker,
             friends: &friends,
             enemies: &enemy,
@@ -1415,6 +1454,7 @@ mod tests {
         let friends: Vec<&BattleUnit> = battle.active_units(Side::Attacker).collect();
         let scene = Scene {
             game: &g,
+            battle: g.battle().ok_or("no battle")?,
             side: Side::Attacker,
             friends: &friends,
             enemies: &enemy,
@@ -1661,6 +1701,7 @@ mod tests {
         let friends: Vec<&BattleUnit> = battle.active_units(Side::Attacker).collect();
         let scene = Scene {
             game: &g,
+            battle: g.battle().ok_or("no battle")?,
             side: Side::Attacker,
             friends: &friends,
             enemies: &enemy,
@@ -1695,6 +1736,7 @@ mod tests {
         let friends: Vec<&BattleUnit> = battle.active_units(Side::Attacker).collect();
         let scene = Scene {
             game: &g,
+            battle: g.battle().ok_or("no battle")?,
             side: Side::Attacker,
             friends: &friends,
             enemies: &enemy,
@@ -1741,6 +1783,7 @@ mod tests {
             let enemies = [u];
             let scene = Scene {
                 game: &g,
+                battle: g.battle().expect("a battle is on"),
                 side: Side::Attacker,
                 friends: &[],
                 enemies: &enemies,

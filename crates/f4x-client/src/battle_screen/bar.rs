@@ -8,6 +8,7 @@ use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::frame::Layout;
 use crate::input::Input;
+use f4x_core::battle::UnitNow;
 use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_def::half_int::HalfInt;
 
@@ -25,8 +26,8 @@ const SCAN: (f32, f32, f32, f32) = (156.0, 4.0, 68.0, 39.0);
 
 /// The icon (entry of `compix` 29 on, 61 on in the small window) for a unit's melee attack
 /// (`Battle_Unit_Melee_Attack_Icon`): the weapon quality picks the sword.
-fn melee_icon(u: &BattleUnit) -> Option<usize> {
-    (u.melee > 0).then_some(match u.weapon_quality {
+fn melee_icon(u: &UnitNow) -> Option<usize> {
+    (u.melee() > 0).then_some(match u.weapon_quality {
         2 => 3,
         3 => 2,
         _ => 0,
@@ -417,6 +418,7 @@ impl App {
             self.draw_active_vortex(ui, battle, &lay);
             return;
         };
+        let n = battle.now_of(u);
         let owner = battle.player_of(u.side).0;
         let banner = self.banner_index(owner);
         let units = &self.game.content().rules.units;
@@ -448,12 +450,24 @@ impl App {
             (112.0, 167.0),
             Align::Center,
         );
-        if let Some(icon) = melee_icon(u) {
-            self.bar_text(view, 0, &u.melee.to_string(), (126.0, 174.0), Align::Right);
+        if let Some(icon) = melee_icon(&n) {
+            self.bar_text(
+                view,
+                0,
+                &n.melee().to_string(),
+                (126.0, 174.0),
+                Align::Right,
+            );
             self.draw_pic(&lay, "compix", 29 + icon, 0, 128.0, 172.0);
         }
         if let Some(icon) = ranged_icon(u) {
-            self.bar_text(view, 0, &u.ranged.to_string(), (126.0, 181.0), Align::Right);
+            self.bar_text(
+                view,
+                0,
+                &n.ranged().to_string(),
+                (126.0, 181.0),
+                Align::Right,
+            );
             self.draw_pic(&lay, "compix", 29 + icon, 0, 128.0, 179.0);
         }
         self.bar_text(
@@ -505,6 +519,7 @@ impl App {
         let Some(u) = hovered.and_then(|p| Self::seen_unit_at(battle, p)) else {
             return;
         };
+        let n = battle.now_of(u);
         let lay = Layout::new();
         let (x, y, w, h) = SCAN;
         let dark = Self::draw_hud_box(&lay, (x, y, w, h));
@@ -519,10 +534,10 @@ impl App {
             (x + w / 2.0, y + 2.0),
             Align::Center,
         );
-        if let Some(icon) = melee_icon(u) {
+        if let Some(icon) = melee_icon(&n) {
             text(
                 self,
-                &u.melee.to_string(),
+                &n.melee().to_string(),
                 (x + 9.0, y + 10.0),
                 Align::Right,
             );
@@ -531,7 +546,7 @@ impl App {
         if let Some(icon) = ranged_icon(u) {
             text(
                 self,
-                &u.ranged.to_string(),
+                &n.ranged().to_string(),
                 (x + 9.0, y + 17.0),
                 Align::Right,
             );
@@ -551,14 +566,14 @@ impl App {
         self.draw_damage_bar(&lay, u, (x + 19.0, y + 34.0));
         text(
             self,
-            &u.defense.to_string(),
+            &n.defense().to_string(),
             (x + 48.0, y + 10.0),
             Align::Right,
         );
         self.draw_pic(&lay, "compix", 70, 0, x + 50.0, y + 8.0);
         text(
             self,
-            &u.resistance.to_string(),
+            &n.resistance().to_string(),
             (x + 48.0, y + 17.0),
             Align::Right,
         );

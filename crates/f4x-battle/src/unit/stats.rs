@@ -36,19 +36,20 @@ use crate::weapon::{caster_mana_of, ranged_kind_of, weapon_shot_of};
 /// What a unit fights with now.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Stats {
-    pub melee: i32,
-    pub ranged: i32,
-    pub defense: i32,
-    pub resistance: i32,
+    /// Its own numbers: what the battlefield adds is not in them (`Battle::now`).
+    pub own_melee: i32,
+    pub own_ranged: i32,
+    pub own_defense: i32,
+    pub own_resistance: i32,
     /// Pluses to hit (each ten percentage points).
-    pub to_hit: i32,
+    pub own_to_hit: i32,
     /// Pluses to hit that only the melee attack gets, and only the ranged or thrown attack.
     pub melee_plus: i32,
     pub ranged_plus: i32,
     /// Of the dice of the melee and of the ranged attack, the ones made of damage types.
     pub melee_parts: Vec<(i32, DamageTypes)>,
     pub ranged_parts: Vec<(i32, DamageTypes)>,
-    pub to_block: i32,
+    pub own_to_block: i32,
     /// Hit points of one figure, with the extra ones life steal gave.
     pub hits: i32,
     pub moves: HalfInt,
@@ -76,11 +77,11 @@ impl Stats {
     /// One lasting spell's modifiers and abilities on the numbers worked out so far.
     pub fn apply(&mut self, mods: &[Modifier], grants: &[Ability]) {
         let comp = |stat: Stat, base: i32| compute(stat, base, mods);
-        self.melee = comp(Stat::Melee, self.melee);
-        self.ranged = comp(Stat::Ranged, self.ranged);
-        self.defense = comp(Stat::Defense, self.defense);
-        self.resistance = comp(Stat::Resistance, self.resistance);
-        self.to_hit = comp(Stat::ToHit, self.to_hit);
+        self.own_melee = comp(Stat::Melee, self.own_melee);
+        self.own_ranged = comp(Stat::Ranged, self.own_ranged);
+        self.own_defense = comp(Stat::Defense, self.own_defense);
+        self.own_resistance = comp(Stat::Resistance, self.own_resistance);
+        self.own_to_hit = comp(Stat::ToHit, self.own_to_hit);
         self.hits = comp(Stat::MaxHp, self.hits).max(1);
         self.moves = compute_half(Stat::Moves, self.moves, mods).max(HalfInt::ZERO);
         for g in grants {
@@ -319,16 +320,16 @@ impl BattleUnit {
         let physical_shot = rules.is_some_and(|r| weapon_shot_of(&sheet.abilities, r).is_some());
         let lucky = i32::from(sheet.abilities.contains(&Ability::new(39 /* lucky */)));
         let (melee, ranged) = (stat(Stat::Melee), stat(Stat::Ranged));
-        s.melee = if melee > 0 { melee + extra } else { melee };
-        s.ranged = if ranged > 0 && physical_shot {
+        s.own_melee = if melee > 0 { melee + extra } else { melee };
+        s.own_ranged = if ranged > 0 && physical_shot {
             ranged + extra
         } else {
             ranged
         };
-        s.defense = stat(Stat::Defense) + if quality > 0 { extra } else { 0 };
-        s.resistance = stat(Stat::Resistance) + lucky;
-        s.to_hit = stat(Stat::ToHit) + lucky;
-        s.to_block = lucky;
+        s.own_defense = stat(Stat::Defense) + if quality > 0 { extra } else { 0 };
+        s.own_resistance = stat(Stat::Resistance) + lucky;
+        s.own_to_hit = stat(Stat::ToHit) + lucky;
+        s.own_to_block = lucky;
         s.melee_plus = stat(Stat::MeleeToHit);
         s.ranged_plus = stat(Stat::RangedToHit);
         s.melee_parts = typed(Stat::Melee);
@@ -402,16 +403,6 @@ impl BattleUnit {
             if self.owner_has(rules, GlobalEffect::CharmOfLife) {
                 s.hits = charm_of_life_hits(s.hits);
             }
-        }
-        let wanted = self.field;
-        s.melee = (s.melee + wanted.melee).max(0);
-        s.ranged = (s.ranged + wanted.ranged).max(0);
-        s.defense = (s.defense + wanted.defense).max(0);
-        s.resistance = (s.resistance + wanted.resistance).max(0);
-        s.to_hit += wanted.to_hit;
-        s.to_block += wanted.to_block;
-        if wanted.magical {
-            s.flags.insert(UnitFlag::MagicalWeapon);
         }
         if let Some(rules) = rules {
             s.flags = sync_flags(s.flags, &s.abilities, rules);

@@ -25,9 +25,10 @@ fn closest_enemy<'a>(battle: &'a Battle, unit: &BattleUnit) -> Option<&'a Battle
         .min_by_key(|e| (distance(unit.cell, e.cell), e.id))
 }
 
-fn can_shoot(unit: &BattleUnit) -> bool {
+fn can_shoot(battle: &Battle, unit: &BattleUnit) -> bool {
+    let unit = battle.now_of(unit);
     matches!(unit.ranged_kind, RangedKind::Missile | RangedKind::Magic)
-        && unit.ranged > 0
+        && unit.ranged() > 0
         && unit.ammo > 0
 }
 
@@ -112,7 +113,7 @@ pub fn baseline_command(battle: &Battle) -> BattleCommand {
                     target: enemy.id,
                 };
             }
-            if can_shoot(unit) && !battle.blocked_by_darkness(unit.id, enemy.id) {
+            if can_shoot(battle, unit) && !battle.blocked_by_darkness(unit.id, enemy.id) {
                 return BattleCommand::Shoot {
                     unit: unit.id,
                     target: enemy.id,
@@ -151,14 +152,16 @@ pub fn baseline_command(battle: &Battle) -> BattleCommand {
 // ---- the smarter AI ------------------------------------------------------------
 
 /// What a unit is worth in a fight: its strength times what it has left.
-pub fn worth(u: &BattleUnit) -> f32 {
-    f4x_core::battle::strength(u.melee.max(u.ranged), u.defense, u.hit_points())
+pub fn worth(battle: &Battle, u: &BattleUnit) -> f32 {
+    let u = battle.now_of(u);
+    f4x_core::battle::strength(u.melee().max(u.ranged()), u.defense(), u.hit_points())
 }
 
 /// The damage (hit points) `attacker` is expected to do to `target` with one attack of kind
 /// `ranged`: its dice that hit, less what the target's defence blocks. Zero when the target is
 /// immune to what the attack is made of.
 pub fn expected_damage(
+    battle: &Battle,
     rules: &Rules,
     attacker: &BattleUnit,
     target: &BattleUnit,
@@ -166,16 +169,17 @@ pub fn expected_damage(
     vs_fliers: MeleeVsFliers,
     magic_exceptions: bool,
 ) -> f32 {
+    let (attacker, target) = (battle.now_of(attacker), battle.now_of(target));
     let (mode, strength, parts) = if ranged {
-        (Mode::Ranged, attacker.ranged, &attacker.ranged_parts)
+        (Mode::Ranged, attacker.ranged(), &attacker.ranged_parts)
     } else if target.flag(UnitFlag::Flies) && !attacker.flag(UnitFlag::Flies) {
         (
             Mode::Melee,
-            vs_fliers.strength(attacker.melee),
+            vs_fliers.strength(attacker.melee()),
             &attacker.melee_parts,
         )
     } else {
-        (Mode::Melee, attacker.melee, &attacker.melee_parts)
+        (Mode::Melee, attacker.melee(), &attacker.melee_parts)
     };
     let nature = AttackNature::of_unit_attack(
         mode,
@@ -198,13 +202,13 @@ pub fn expected_damage(
     if strength <= 0 {
         return 0.0;
     }
-    let p_hit = (0.3 + 0.1 * attacker.to_hit as f32).clamp(0.05, 0.95);
-    let p_block = (0.3 + 0.1 * target.to_block as f32).clamp(0.05, 0.95);
+    let p_hit = (0.3 + 0.1 * attacker.to_hit() as f32).clamp(0.05, 0.95);
+    let p_block = (0.3 + 0.1 * target.to_block() as f32).clamp(0.05, 0.95);
     let hits = attacker.figures as f32 * strength as f32 * p_hit;
     let defence = if nature.armor_piercing {
-        target.defense / 2
+        target.defense() / 2
     } else {
-        target.defense
+        target.defense()
     }
     .max(0) as f32;
     let blocked = attacker.figures.min(target.figures) as f32 * defence * p_block;
@@ -214,6 +218,7 @@ pub fn expected_damage(
 /// What an attack is worth: how much of the target it takes (a kill is worth all of it) times
 /// what the target is worth, with a premium on the units that shoot back.
 fn attack_value(
+    battle: &Battle,
     rules: &Rules,
     attacker: &BattleUnit,
     target: &BattleUnit,
@@ -222,11 +227,18 @@ fn attack_value(
     magic_exceptions: bool,
 ) -> f32 {
     let left = target.hit_points().max(1) as f32;
-    let taken = (expected_damage(rules, attacker, target, ranged, vs_fliers, magic_exceptions)
-        / left)
+    let taken = (expected_damage(
+        battle,
+        rules,
+        attacker,
+        target,
+        ranged,
+        vs_fliers,
+        magic_exceptions,
+    ) / left)
         .min(1.0);
-    let threat = if can_shoot(target) { 1.2 } else { 1.0 };
-    taken * worth(target) * threat
+    let threat = if can_shoot(battle, target) { 1.2 } else { 1.0 };
+    taken * worth(battle, target) * threat
 }
 
 /// A side runs when the enemy on the field is this many times as strong as what it has left.
@@ -234,7 +246,7 @@ const FLEE_RATIO: f32 = 4.0;
 
 /// What a side has on the field: the worth of its active units.
 fn field_worth(battle: &Battle, side: Side) -> f32 {
-    battle.active_units(side).map(worth).sum()
+    battle.active_units(side).map(|u| worth(battle, u)).sum()
 }
 
 /// Whether the side's fight is lost: the enemy is [`FLEE_RATIO`] times as strong as what the side
@@ -260,10 +272,11 @@ pub fn merge_order(battle: &Battle) -> Option<BattleCommand> {
             let threatened = battle.active_units(side.other()).any(|e| {
                 distance(u.cell, e.cell) <= 3
                     && expected_damage(
+                        battle,
                         &battle.content.rules,
                         e,
                         u,
-                        can_shoot(e),
+                        can_shoot(battle, e),
                         battle.melee_vs_fliers,
                         battle.magic_immunity_exceptions,
                     ) > 0.0
@@ -311,6 +324,7 @@ pub fn surface_order(battle: &Battle) -> Option<BattleCommand> {
                 .iter()
                 .map(|e| {
                     attack_value(
+                        battle,
                         &battle.content.rules,
                         &at,
                         e,
@@ -366,7 +380,7 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
         if let Some(order) = wall_order(battle, unit, nearest) {
             return order;
         }
-        let shooter = can_shoot(unit);
+        let shooter = can_shoot(battle, unit);
         let adjacent = enemies.iter().any(|e| distance(unit.cell, e.cell) == 1);
         if unit.can_attack() {
             let melee = enemies
@@ -375,6 +389,7 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
                 .map(|e| {
                     (
                         attack_value(
+                            battle,
                             &battle.content.rules,
                             unit,
                             e,
@@ -393,6 +408,7 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
                     .map(|e| {
                         (
                             attack_value(
+                                battle,
                                 &battle.content.rules,
                                 unit,
                                 e,
@@ -446,6 +462,7 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
         // it holds its place instead of dying for nothing.
         let hurts = |e: &&BattleUnit| {
             attack_value(
+                battle,
                 &battle.content.rules,
                 unit,
                 e,
@@ -465,6 +482,7 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
             .max_by(|a, b| {
                 let value = |e: &&BattleUnit| {
                     attack_value(
+                        battle,
                         &battle.content.rules,
                         unit,
                         e,
@@ -657,7 +675,7 @@ mod tests {
         );
         let (walker, bat) = (&b.units[0], &b.units[1]);
         assert!(bat.flag(UnitFlag::Flies));
-        let expect = |rule| expected_damage(&b.content.rules, walker, bat, false, rule, false);
+        let expect = |rule| expected_damage(&b, &b.content.rules, walker, bat, false, rule, false);
         assert_eq!(expect(MeleeVsFliers::Zero), 0.0);
         assert!(expect(MeleeVsFliers::Half) > 0.0);
         assert!(expect(MeleeVsFliers::Full) > expect(MeleeVsFliers::Half));
@@ -677,19 +695,19 @@ mod tests {
             1,
         );
         let (a, soft, hard, stone) = (&b.units[0], &b.units[1], &b.units[2], &b.units[3]);
-        assert!(soft.defense < hard.defense);
+        assert!(soft.own_defense < hard.own_defense);
         let rule = MeleeVsFliers::default();
         assert!(
-            expected_damage(&b.content.rules, a, soft, false, rule, false)
-                > expected_damage(&b.content.rules, a, hard, false, rule, false)
+            expected_damage(&b, &b.content.rules, a, soft, false, rule, false)
+                > expected_damage(&b, &b.content.rules, a, hard, false, rule, false)
         );
         assert_eq!(
-            expected_damage(&b.content.rules, a, stone, false, rule, false),
+            expected_damage(&b, &b.content.rules, a, stone, false, rule, false),
             0.0
         );
         let mut magic = a.clone();
         magic.put_flag(UnitFlag::MagicalWeapon);
-        assert!(expected_damage(&b.content.rules, &magic, stone, false, rule, false) > 0.0);
+        assert!(expected_damage(&b, &b.content.rules, &magic, stone, false, rule, false) > 0.0);
     }
 
     #[test]

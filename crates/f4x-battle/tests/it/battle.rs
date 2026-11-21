@@ -532,7 +532,7 @@ fn units_deploy_melee_first_and_shooters_behind_them() {
     let all = real_battle(&army, &[(104 /* high_men_spearmen */, (17, 10))], 1);
     let mut units = vec![unit_of(&all, 104 /* high_men_spearmen */)];
     units.extend(shooters.iter().map(|&n| unit_of(&all, n)));
-    let melee: Vec<i32> = units.iter().map(|u| u.melee).collect();
+    let melee: Vec<i32> = units.iter().map(|u| u.own_melee).collect();
     assert!(melee[1..].windows(2).all(|w| w[0] < w[1]), "{melee:?}");
     assert_eq!(deployment_order(&units), vec![0, 6, 5, 1, 2, 3, 4]);
 }
@@ -545,24 +545,22 @@ fn a_nodes_aura_helps_its_realms_creatures_on_both_sides() {
         &[(180 /* sprites */, (17, 10))],
         4,
     );
-    let (melee, ranged, defense, resist) = (
-        b.units[0].melee,
-        b.units[0].ranged,
-        b.units[0].defense,
-        b.units[0].resistance,
-    );
-    let theirs = (b.units[1].melee, b.units[1].defense);
+    let now = |b: &Battle, i: usize| {
+        let u = b.now(i).unwrap();
+        (u.melee(), u.ranged(), u.defense(), u.resistance())
+    };
+    let (melee, ranged, defense, resist) = now(&b, 0);
+    let theirs = now(&b, 1);
     b.node_aura = Some(Realm::Chaos);
-    b.refresh_fields();
-    assert_eq!(b.units[0].melee, melee + rules().node_aura_bonus);
-    assert_eq!(b.units[0].ranged, ranged + rules().node_aura_bonus);
-    assert_eq!(b.units[0].defense, defense + rules().node_aura_bonus);
-    assert_eq!(b.units[0].resistance, resist + rules().node_aura_bonus);
-    assert_eq!((b.units[1].melee, b.units[1].defense), theirs);
-    // Gone with the aura.
+    let plus = rules().node_aura_bonus;
+    assert_eq!(
+        now(&b, 0),
+        (melee + plus, ranged + plus, defense + plus, resist + plus)
+    );
+    assert_eq!(now(&b, 1), theirs);
+    // Gone with the aura, with nothing to take off.
     b.node_aura = None;
-    b.refresh_fields();
-    assert_eq!(b.units[0].melee, melee);
+    assert_eq!(now(&b, 0), (melee, ranged, defense, resist));
 }
 
 #[test]
@@ -948,7 +946,7 @@ fn invisibility_that_begins_in_battle_hides_the_unit_at_once() {
         Field::MassInvisibility,
         SpellId::new(74 /* mass_invisibility */),
     );
-    b.refresh_fields();
+    b.note_invisibility();
     assert!(!b.units[1].revealed);
     assert!(!b.seen_by(Side::Attacker, 1));
 }

@@ -496,8 +496,8 @@ pub(crate) fn missile_type(u: &BattleUnit) -> usize {
 /// The realm of the glow round an enchanted unit (`Combat_Unit_Enchantment_Outline_Set`): the
 /// first of its lasting spells in the original's order (0 chaos, 1 death, 2 life, 3 nature,
 /// 4 sorcery). Invisible units have none.
-fn enchantment_realm(u: &BattleUnit, ids: &[SpellId]) -> Option<usize> {
-    if u.is_invisible() {
+fn enchantment_realm(battle: &Battle, u: &BattleUnit, ids: &[SpellId]) -> Option<usize> {
+    if battle.now_of(u).is_invisible() {
         return None;
     }
     realm_of_spells(ids)
@@ -548,8 +548,10 @@ fn unfinished(u: &BattleUnit) -> bool {
     u.is_active() && u.moves_left > 0
 }
 
-fn can_shoot(u: &BattleUnit) -> bool {
-    matches!(u.ranged_kind, RangedKind::Missile | RangedKind::Magic) && u.ranged > 0 && u.ammo > 0
+fn can_shoot(battle: &Battle, u: &BattleUnit) -> bool {
+    matches!(u.ranged_kind, RangedKind::Missile | RangedKind::Magic)
+        && battle.now_of(u).ranged() > 0
+        && u.ammo > 0
 }
 
 mod bar;
@@ -1585,7 +1587,7 @@ impl App {
                         unit: u.id,
                         target: id,
                     }
-                } else if can_shoot(u) {
+                } else if can_shoot(battle, u) {
                     BattleCommand::Shoot {
                         unit: u.id,
                         target: id,
@@ -1605,7 +1607,7 @@ impl App {
             {
                 let order = if distance(u.cell, cell) == 1 {
                     BattleCommand::AttackWall { unit: u.id, cell }
-                } else if can_shoot(u) {
+                } else if can_shoot(battle, u) {
                     BattleCommand::ShootWall { unit: u.id, cell }
                 } else {
                     return;
@@ -2310,7 +2312,7 @@ impl App {
                     && u.can_attack()
                 {
                     for wall in battle.map.standing_walls() {
-                        if distance(u.cell, wall) == 1 || can_shoot(u) {
+                        if distance(u.cell, wall) == 1 || can_shoot(battle, u) {
                             let (wx, wy) = at(wall);
                             diamond(wx, wy, scale, Color::new(1.0, 0.6, 0.1, 0.9), false);
                         }
@@ -2323,7 +2325,7 @@ impl App {
                     let hit = if distance(u.cell, e.cell) == 1 {
                         u.can_attack()
                     } else {
-                        can_shoot(u) && u.can_attack()
+                        can_shoot(battle, u) && u.can_attack()
                     };
                     if hit {
                         let (ex, ey) = at(e.cell);
@@ -2454,12 +2456,12 @@ impl App {
                 .and_then(|b| battle_anim::blood_frame(u.id, index, b).map(|f| (b.gibs, f)));
             // The fourth frame of the blood: the figure is gone.
             let gone = bleeding.is_some_and(|(_, f)| f == 3);
-            let glow = enchantment_realm(u, &ids);
+            let glow = enchantment_realm(battle, u, &ids);
             let step = (get_time() * 8.0) as usize;
             let figure = (ty, ui.turn.facing(vis.facing), frame, banner_index);
             // Black Sleep greys a figure, Warp Creature turns it red and inside out.
             let effects = u.effects(&self.game.content().rules);
-            let effect = if u.is_invisible() {
+            let effect = if battle.now_of(u).is_invisible() {
                 Some(FigureEffect::Revealed)
             } else if effects.contains(UnitEffect::WarpCreature) {
                 Some(FigureEffect::Warped)

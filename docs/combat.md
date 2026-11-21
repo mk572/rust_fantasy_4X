@@ -569,11 +569,10 @@ area of open ground; walkers pay 6 moves to enter, fliers and the bodiless do no
 **Battlefield enchantments** (`battle/field.rs`): fourteen spells with the `battlefield` hook and
 target *Battlefield*; the battle knows what each does by the hook's argument (`Field::of`, e.g. `Custom(name: "battlefield", args: ["blur"])`). Each side can have each one up once (a second cast is refused,
 `SpellError::AlreadyUp`); they last the battle. What they ask of a unit is a `FieldBonus` request
-on it, worked out by `Battle::refresh_fields` (whenever a spell goes up or down, a unit changes or
-a lasting spell is cast on it, since the request depends on the unit's numbers) and put on the
-numbers (`Stats::derive`) after the unit's sheet and its lasting spells. Nothing is
-subtracted when a field goes down, so the changes never pile up and never push a stat below
-nothing:
+on it, worked out when it is asked for (`Battle::now` returns a `UnitNow`: the unit's own numbers,
+which hold its sheet and its lasting spells, with `Battle::field_bonus_for` added). Nothing is stored on
+the unit and nothing is subtracted when a field goes down or a source dies, so the changes never
+pile up, never linger and never push a stat below nothing:
 
 | Spell | Effect |
 |---|---|
@@ -583,7 +582,7 @@ nothing:
 | Prayer | the caster's units: +1 to hit, +1 to block, +1 resistance |
 | High Prayer | instead of Prayer: +1 to hit, +1 to block, +3 resistance, +2 melee (if it has any), +2 defence (the code; the help said more) |
 | Holy Bonus (a unit ability: Angel, Arch Angel, High Men Paladins; level `SpecialLevel`) | the unit's side, from the highest level among its standing units (never added up): +level melee (if it has any), defence and resistance, the same bonus also counting as Resistance to All. Only the attack of melee, as in the original (the help says "attack strength") |
-| Resistance to All (Unicorns, Guardian Spirit) | the unit's side: +level resistance, highest level only, on top of any Holy Bonus. Both are recomputed at each side's turn start and when a creature is summoned, so a fallen bearer's bonus goes at the next turn |
+| Resistance to All (Unicorns, Guardian Spirit) | the unit's side: +level resistance, highest level only, on top of any Holy Bonus. The bonus is worked out from the units standing now, so it goes the moment its bearer dies and comes the moment a bearer is summoned (the original updates it only at the turn start and on a summon, which this game counts as a bug, decided by the project owner, 21 November 2026) |
 | Metal Fires | the caster's units that are not fantastic and have no Flame Blade: +1 melee (if any), +1 missile and thrown attack, magical weapons |
 | Mass Invisibility | the caster's units are invisible: attackers not immune to illusions are -1 to hit them (also the `invisibility` ability, the Invisibility spell: its game name is `Invisiblity`) |
 | Blur | each point of an enemy attack's hits against the caster's units misses one time in ten, from attackers that do not see through illusions (the original checks the *defender's* immunity, an OGBUG) |

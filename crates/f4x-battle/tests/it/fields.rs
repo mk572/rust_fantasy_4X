@@ -5,7 +5,7 @@
 
 use f4x_battle::battle::BattleEvent;
 use f4x_battle::testutil::*;
-use f4x_battle::{Confusion, Fate, Side, Status};
+use f4x_battle::{Confusion, Fate, FieldBonus, Side, Status};
 use f4x_def::rules::realm::Realm;
 use f4x_def::rules::SpellId;
 use f4x_def::testdir::{shipped, TestResult};
@@ -18,7 +18,11 @@ fn what_a_unit_brings_to_the_web_follows_its_attacks() {
         if let Some(ammo) = ammo {
             u.set_ammo(ammo);
         }
-        (u.web_strength(&shipped().rules), u.melee, u.ranged)
+        (
+            u.web_strength(&shipped().rules, FieldBonus::default()),
+            u.own_melee,
+            u.own_ranged,
+        )
     };
     let (w, melee, _) = web(105 /* high_men_swordsmen */, None);
     assert_eq!(w, melee, "melee alone");
@@ -186,4 +190,63 @@ fn figures_that_fail_their_resistance_are_destroyed() -> TestResult {
         .ok_or("spell_slay is missing")?;
     assert!(b.units[1].is_active());
     Ok(())
+}
+
+/// The defence of unit `i` as the battle has it now.
+fn defense_of(b: &f4x_battle::battle::Battle, i: usize) -> i32 {
+    b.now(i).expect("the unit is there").defense()
+}
+
+#[test]
+fn a_holy_bonus_goes_at_once_when_its_unit_dies_and_comes_with_a_summon() {
+    let mut b = real_battle(
+        &[(105 /* high_men_swordsmen */, (3, 5))],
+        &[(104 /* high_men_spearmen */, (17, 5))],
+        1,
+    );
+    let (plain, enemy) = (defense_of(&b, 0), defense_of(&b, 1));
+    let angel = b.add_summoned(Side::Attacker, unit_numbered(178 /* arch_angel */), (3, 6));
+    let level = b.units[angel].special_level;
+    assert!(level > 0);
+    // Nothing was refreshed: the bonus is there as the summon is.
+    assert_eq!(defense_of(&b, 0), plain + level);
+    assert_eq!(defense_of(&b, 1), enemy, "the enemy gets none");
+    // Nothing is called after the death: the bonus is gone.
+    b.units[angel].status = Status::Dead;
+    assert_eq!(defense_of(&b, 0), plain);
+}
+
+#[test]
+fn a_field_taken_down_takes_its_numbers_with_it_at_once() {
+    let mut b = real_battle(
+        &[(177 /* angel */, (3, 5))],
+        &[(171 /* shadow_demons */, (17, 5))],
+        3,
+    );
+    let (life, death) = (defense_of(&b, 0), defense_of(&b, 1));
+    let dark = b
+        .content
+        .rules
+        .spells
+        .iter()
+        .find(|(_, d)| {
+            f4x_battle::battlemagic::field::Field::of(d)
+                == Some(f4x_battle::battlemagic::field::Field::Darkness)
+        })
+        .map(|(id, _)| id)
+        .expect("a shipped spell raises Darkness");
+    b.raise_field(
+        Side::Attacker,
+        f4x_battle::battlemagic::field::Field::Darkness,
+        dark,
+    );
+    assert_eq!(
+        (defense_of(&b, 0), defense_of(&b, 1)),
+        (life - 1, death + 1)
+    );
+    b.take_down_field(
+        Side::Attacker,
+        f4x_battle::battlemagic::field::Field::Darkness,
+    );
+    assert_eq!((defense_of(&b, 0), defense_of(&b, 1)), (life, death));
 }

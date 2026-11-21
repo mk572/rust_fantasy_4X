@@ -39,7 +39,7 @@ pub fn battle_policy(game: &crate::game::Game) -> Option<crate::battle::BattleCo
                 });
             }
             let shoots = matches!(unit.ranged_kind, RangedKind::Missile | RangedKind::Magic)
-                && unit.ranged > 0
+                && unit.own_ranged > 0
                 && unit.ammo > 0;
             if shoots && !battle.blocked_by_darkness(unit.id, enemy.id) {
                 return Some(BattleCommand::Shoot {

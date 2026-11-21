@@ -28,19 +28,20 @@ use crate::attack::{
 use crate::battle::{Battle, BattleError, BattleEvent};
 use crate::map::Pos;
 use crate::side::Side;
-use crate::unit::{BattleUnit, Lasting, Sheet, Status};
+use crate::unit::{BattleUnit, FieldBonus, Lasting, Sheet, Status};
 
 /// A damage spell of `strength` on one unit (see [`Battle::spell_damage`]); the unit is changed
 /// in place. Overland units are hit through [`damage_state_with_spell`] instead.
 pub fn damage_unit_with_spell(
     rules: &Rules,
     unit: &mut BattleUnit,
+    bonus: FieldBonus,
     strength: i32,
     traits: &DamageTraits,
     nature: AttackNature,
     rng: &mut dyn RngCore,
 ) -> Option<Damage> {
-    let mut state = unit.defender_state(rules);
+    let mut state = unit.defender_state(rules, bonus);
     let dmg = damage_state_with_spell(rules, &mut state, strength, traits, nature, rng)?;
     unit.set_from(&state);
     unit.record(dmg);
@@ -174,7 +175,7 @@ impl Battle {
         unit.bind(&self.content.arc());
         unit.set_wizards(self.wizards.clone());
         self.units.push(unit);
-        self.refresh_fields();
+        self.note_invisibility();
         id
     }
 
@@ -189,10 +190,12 @@ impl Battle {
         traits: &DamageTraits,
         nature: AttackNature,
     ) -> Option<Damage> {
+        let bonus = self.field_bonus_for(&self.units[target]);
         let rng: &mut dyn RngCore = &mut self.rng;
         damage_unit_with_spell(
             &self.content.rules,
             &mut self.units[target],
+            bonus,
             strength,
             traits,
             nature,
@@ -222,7 +225,7 @@ impl Battle {
         if unit.is_immune_to(types, &self.content.rules) {
             return None;
         }
-        let mut state = unit.defender_state(&self.content.rules);
+        let mut state = unit.defender_state(&self.content.rules, self.field_bonus_for(unit));
         let dmg = if let Some(limit) = below {
             let res = effective_resistance(state.resistance, &state.immunities, Some(realm));
             if res + modifier < limit {
@@ -251,7 +254,10 @@ impl Battle {
     /// Destroy a unit outright, no defence or resistance helping (Cracks Call). Nothing is left
     /// to raise.
     pub fn destroy_unit(&mut self, target: usize) -> Damage {
-        let mut state = self.units[target].defender_state(&self.content.rules);
+        let mut state = self.units[target].defender_state(
+            &self.content.rules,
+            self.field_bonus_for(&self.units[target]),
+        );
         let all = state.hit_points();
         let dmg = unblockable(&mut state, all).all_gone();
         self.units[target].set_from(&state);
@@ -267,7 +273,7 @@ impl Battle {
         if self.spares(unit, spell) {
             return None;
         }
-        let mut state = unit.defender_state(&self.content.rules);
+        let mut state = unit.defender_state(&self.content.rules, self.field_bonus_for(unit));
         let rng: &mut dyn RngCore = &mut self.rng;
         let amount =
             state.resistance_failure(Some(Realm::Death), modifier - self.save_penalty, rng);
@@ -383,7 +389,10 @@ impl Battle {
             None => {
                 // A spell is a ranged attack.
                 let by = self.units[target]
-                    .defender_state(&self.content.rules)
+                    .defender_state(
+                        &self.content.rules,
+                        self.field_bonus_for(&self.units[target]),
+                    )
                     .immunities
                     .stopped_by(types.with(DamageType::Ranged));
                 events.push(BattleEvent::SpellImmune { unit: target, by });

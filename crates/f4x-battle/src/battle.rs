@@ -641,7 +641,7 @@ impl Battle {
             }
         }
         // Holy Bonus and Resistance to All follow whoever is still standing.
-        self.refresh_fields();
+        self.note_invisibility();
         for u in self
             .units
             .iter_mut()
@@ -862,7 +862,7 @@ impl Battle {
     /// immune to illusions.
     pub fn blur_penalty(&self, attacker: usize, hit: usize) -> i32 {
         i32::from(
-            self.units[hit].field().blur
+            self.now(hit).is_some_and(|u| u.blur())
                 && !self.units[attacker].has(Ability::new(31 /* illusion_immunity */))
                 && !self.field_spares(&self.units[attacker], Field::Blur),
         )
@@ -871,7 +871,7 @@ impl Battle {
     /// The penalty to hit that `hit`'s invisibility gives `attacker`: one for each square of
     /// distance (one when adjacent), none if the attacker is immune to illusions.
     pub fn invisibility_penalty(&self, attacker: usize, hit: usize) -> i32 {
-        if self.units[hit].is_invisible()
+        if self.now(hit).is_some_and(|u| u.is_invisible())
             && !self.units[attacker].has(Ability::new(31 /* illusion_immunity */))
         {
             distance(self.units[attacker].cell, self.units[hit].cell) as i32
@@ -889,7 +889,7 @@ impl Battle {
         let Some(u) = self.units.get(id) else {
             return false;
         };
-        if u.side == viewer || !u.is_invisible() || u.revealed {
+        if u.side == viewer || !self.now_of(u).is_invisible() || u.revealed {
             return true;
         }
         self.active_units(viewer).any(|e| {
@@ -1039,7 +1039,7 @@ impl Battle {
                 let u = self.check_unit(unit)?;
                 Self::check_can_attack(u)?;
                 if !matches!(u.ranged_kind, RangedKind::Missile | RangedKind::Magic)
-                    || u.ranged <= 0
+                    || self.now_of(u).ranged() <= 0
                 {
                     return Err(BattleError::NoRangedAttack);
                 }
@@ -1062,7 +1062,7 @@ impl Battle {
             BattleCommand::ShootWall { unit, cell } => {
                 let u = self.check_wall_attacker(unit, cell)?;
                 if !matches!(u.ranged_kind, RangedKind::Missile | RangedKind::Magic)
-                    || u.ranged <= 0
+                    || self.now_of(u).ranged() <= 0
                 {
                     return Err(BattleError::NoRangedAttack);
                 }
@@ -1141,7 +1141,7 @@ impl Battle {
     }
 
     pub fn fighter(&self, id: usize, vs_flier_blocked: bool) -> Fighter {
-        let u = &self.units[id];
+        let u = self.now_of(&self.units[id]);
         let rules = &self.content.rules;
         let mut melee = u.melee_combatant(rules, self.magic_immunity_exceptions);
         if vs_flier_blocked {
@@ -1239,7 +1239,7 @@ impl Battle {
                 0
             }
         };
-        let a = &self.units[att];
+        let a = self.now_of(&self.units[att]);
         let penalty = penalty + self.invisibility_penalty(att, def) + self.blur_penalty(att, def);
         let plus = if a.ranged_kind == RangedKind::Missile {
             a.weapon_plus()
@@ -1248,15 +1248,18 @@ impl Battle {
         };
         let shooter = a.combatant(
             Mode::Ranged,
-            a.ranged,
-            a.to_hit + plus + a.ranged_plus - penalty,
+            a.ranged(),
+            a.to_hit() + plus + a.ranged_plus - penalty,
             &self.content.rules,
             self.magic_immunity_exceptions,
+            a.bonus(),
         );
         let figures = a.figures;
         let volleys = if a.is_hasted() { 2 } else { 1 };
         let shot_mana = self.rules().shot_mana;
-        let mut state = self.units[def].defender_state(&self.content.rules);
+        let mut state = self
+            .now_of(&self.units[def])
+            .defender_state(&self.content.rules);
         state.defense += self.city_defense_bonus(def, att);
         let stopped = state.immunities.stopped_by(shooter.types());
         let mut dmg = Damage::default();

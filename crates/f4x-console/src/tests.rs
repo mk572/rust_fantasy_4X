@@ -1955,17 +1955,17 @@ fn a_lasting_spell_changes_a_unit_until_a_dispel_takes_it_off() {
     let melee = g
         .battle()
         .expect("a battle is on")
-        .unit(mine)
+        .now(mine)
         .expect("the unit is alive")
-        .melee;
+        .melee();
     let r = cast(&mut g, &format!("bcast giant strength unit:{mine}"));
     assert!(r.ok, "{}", r.text());
     assert_eq!(
         g.battle()
             .expect("a battle is on")
-            .unit(mine)
+            .now(mine)
             .expect("the unit is alive")
-            .melee,
+            .melee(),
         melee + 1
     );
     // Not twice on one unit, and not on the enemy's.
@@ -2008,9 +2008,9 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
     let melee = g
         .battle()
         .expect("a battle is on")
-        .unit(enemy)
+        .now(enemy)
         .expect("the unit is alive")
-        .melee;
+        .melee();
     // So much mana that a dispel hardly ever fails; try over a few turns.
     let mut removed = false;
     for _ in 0..6 {
@@ -2034,7 +2034,7 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
         .expect("a battle is on")
         .unit(enemy)
         .expect("the unit is alive");
-    assert_eq!(u.melee, melee - 1);
+    assert_eq!(u.own_melee, melee - 1);
     assert!(u.enchantments.is_empty() && u.lasting().is_empty());
 }
 
@@ -2079,7 +2079,7 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
         .iter()
         .position(|u| {
             u.side == Side::Defender
-                && u.melee == plain + 1
+                && u.own_melee == plain + 1
                 && u.enchantments
                     .contains(&f4x_def::rules::SpellId::new(4) /* giant_strength */)
         })
@@ -2098,9 +2098,9 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
     assert_eq!(
         g.battle()
             .expect("a battle is on")
-            .unit(enemy)
+            .now(enemy)
             .expect("the unit is alive")
-            .melee,
+            .melee(),
         plain
     );
 }
@@ -2227,23 +2227,23 @@ fn a_battlefield_enchantment_goes_up_once_and_changes_the_units() {
     let defense = g
         .battle()
         .expect("a battle is on")
-        .unit(mine)
+        .now(mine)
         .expect("the unit is alive")
-        .defense;
+        .defense();
     let enemy = battle_units_of(&g, Side::Defender)[0];
     let enemy_block = g
         .battle()
         .expect("a battle is on")
-        .unit(enemy)
+        .now(enemy)
         .expect("the unit is alive")
-        .to_block;
+        .to_block();
     let r = cast(&mut g, "bcast high prayer");
     assert!(r.ok, "{}", r.text());
     assert!(r.text().contains("raises high_prayer"), "{}", r.text());
     let b = g.battle().expect("a battle is on");
     assert!(b.has_field(Side::Attacker, Field::HighPrayer));
     assert_eq!(
-        b.unit(mine).expect("the unit is alive").defense,
+        b.now(mine).expect("the unit is alive").defense(),
         defense + 2
     );
     // Not again; and the enemy's units are not blessed.
@@ -2252,9 +2252,9 @@ fn a_battlefield_enchantment_goes_up_once_and_changes_the_units() {
     assert_eq!(
         g.battle()
             .expect("a battle is on")
-            .unit(enemy)
+            .now(enemy)
             .expect("the unit is alive")
-            .to_block,
+            .to_block(),
         enemy_block
     );
 }
@@ -2416,18 +2416,18 @@ fn a_curse_can_be_resisted_and_banish_only_touches_fantastic_creatures() {
     let melee = g
         .battle()
         .expect("a battle is on")
-        .unit(enemy)
+        .now(enemy)
         .expect("the unit is alive")
-        .melee;
+        .melee();
     let mut weakened = false;
     for _ in 0..8 {
         let r = cast(&mut g, &format!("bcast weakness unit:{enemy}"));
         assert!(r.ok, "{}", r.text());
         if g.battle()
             .expect("a battle is on")
-            .unit(enemy)
+            .now(enemy)
             .expect("the unit is alive")
-            .melee
+            .melee()
             < melee
         {
             weakened = true;
@@ -2495,8 +2495,8 @@ fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
             .expect("a battle is on")
             .unit(a)
             .expect("the unit is alive");
-        if u.melee == 1 {
-            assert_eq!(u.ranged, 1);
+        if u.own_melee == 1 {
+            assert_eq!(u.own_ranged, 1);
             shattered = true;
             break;
         }
@@ -2510,7 +2510,7 @@ fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
             .expect("a battle is on")
             .unit(b)
             .expect("the unit is alive");
-        (u.melee, u.defense, u.resistance)
+        (u.own_melee, u.own_defense, u.own_resistance)
     };
     let mut warped = false;
     for _ in 0..8 {
@@ -2522,13 +2522,13 @@ fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
             .expect("a battle is on")
             .unit(b)
             .expect("the unit is alive");
-        if u.melee < melee || u.defense < defense {
+        if u.own_melee < melee || u.own_defense < defense {
             warped = true;
             break;
         }
         // A zero resistance cannot be told from the third harm: look at the spell list.
         if u.warp == Some(f4x_core::battle::WarpKind::Resistance) {
-            assert_eq!(u.resistance, resistance.min(0));
+            assert_eq!(u.own_resistance, resistance.min(0));
             warped = true;
             break;
         }
@@ -2602,12 +2602,8 @@ fn call_chaos_and_invisibility_cast_and_the_spell_list_offers_them() {
     );
     let mine = battle_units_of(&g, Side::Attacker)[0];
     assert!(cast(&mut g, &format!("bcast invisibility unit:{mine}")).ok);
-    assert!(g
-        .battle()
-        .expect("a battle is on")
-        .unit(mine)
-        .expect("the unit is alive")
-        .is_invisible());
+    let battle = g.battle().expect("a battle is on");
+    assert!(battle.now(mine).expect("the unit is alive").is_invisible());
     pass_turn(&mut g);
     let r = cast(&mut g, "bcast call chaos");
     assert!(r.ok, "{}", r.text());

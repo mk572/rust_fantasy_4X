@@ -16,6 +16,7 @@ use crate::attack::{unblockable, Damage};
 use crate::battle::{Battle, BattleEvent};
 use crate::map::{self, Pos};
 use crate::side::Side;
+use crate::unit::UnitNow;
 use crate::unit::{BattleUnit, Confusion, FieldBonus};
 
 /// Hooks the spell data names.
@@ -158,7 +159,7 @@ impl Battle {
             return false;
         }
         self.fields[side.index()].push((field, spell));
-        self.refresh_fields();
+        self.note_invisibility();
         true
     }
 
@@ -168,7 +169,7 @@ impl Battle {
         let list = &mut self.fields[side.index()];
         let at = list.iter().position(|&(f, _)| f == field)?;
         let (_, spell) = list.remove(at);
-        self.refresh_fields();
+        self.note_invisibility();
         Some(spell)
     }
 
@@ -193,8 +194,16 @@ impl Battle {
         for _ in 0..swing.abs() {
             let step = swing.signum();
             // A gain only helps an attack the creature has; a loss is felt anyway.
-            b.melee += if step > 0 && u.melee <= 0 { 0 } else { step };
-            b.ranged += if step > 0 && u.ranged <= 0 { 0 } else { step };
+            b.melee += if step > 0 && u.own_melee <= 0 {
+                0
+            } else {
+                step
+            };
+            b.ranged += if step > 0 && u.own_ranged <= 0 {
+                0
+            } else {
+                step
+            };
             b.defense += step;
             b.resistance += step;
         }
@@ -214,7 +223,7 @@ impl Battle {
             b.to_hit += 1;
             b.to_block += 1;
             b.resistance += 3;
-            if u.melee > 0 {
+            if u.own_melee > 0 {
                 b.melee += 2;
             }
             b.defense += 2;
@@ -227,7 +236,7 @@ impl Battle {
             && !u.is_fantastic()
             && !u.enchantments.contains(&SpellId::new(94) /* flame_blade */)
         {
-            if u.melee > 0 {
+            if u.own_melee > 0 {
                 b.melee += 1;
             }
             if u.weapon_shot(&self.content.rules).is_some() {
@@ -257,17 +266,17 @@ impl Battle {
         };
         // A hero's Prayermaster counts as Resistance to All; the better of the two applies.
         let resist_all = level(Ability::new(56 /* resist_all */)).max(best(|x| x.prayermaster));
-        if holy > 0 && u.melee > 0 {
+        if holy > 0 && u.own_melee > 0 {
             b.melee += holy;
         }
         // Leadership: the best hero's bonus to the melee (and half of it to the ranged, but not
         // magic) attack of every normal unit, not the fantastic ones or the undead.
         let lead = best(|x| x.leadership);
         if lead > 0 && !u.is_fantastic() && !u.undead {
-            if u.melee > 0 {
+            if u.own_melee > 0 {
                 b.melee += lead;
             }
-            if u.ranged > 0 && u.ranged_kind != RangedKind::Magic {
+            if u.own_ranged > 0 && u.ranged_kind != RangedKind::Magic {
                 b.ranged += lead / 2;
             }
         }
@@ -276,7 +285,7 @@ impl Battle {
         // A node's aura: its own realm's creatures fight harder, on either side.
         if u.realm.is_some() && u.realm == self.node_aura {
             b.melee += self.rules().node_aura_bonus;
-            if u.ranged > 0 {
+            if u.own_ranged > 0 {
                 b.ranged += self.rules().node_aura_bonus;
             }
             b.defense += self.rules().node_aura_bonus;
@@ -287,19 +296,26 @@ impl Battle {
         b
     }
 
-    /// Bring every unit's numbers in line with the enchantments on the field.
-    pub fn refresh_fields(&mut self) {
+    /// A unit as it stands in this battle now: its own numbers with what the battlefield adds.
+    pub fn now(&self, id: usize) -> Option<UnitNow<'_>> {
+        Some(self.now_of(self.unit(id)?))
+    }
+
+    /// [`Battle::now`] for a unit of this battle that is at hand.
+    pub fn now_of<'a>(&'a self, unit: &'a BattleUnit) -> UnitNow<'a> {
+        UnitNow::new(unit, self.field_bonus_for(unit))
+    }
+
+    /// Invisibility that begins now (a field or a spell) hides the unit at once, whatever it
+    /// showed before: call it after anything that can make a unit invisible.
+    pub fn note_invisibility(&mut self) {
         for i in 0..self.units.len() {
-            // What the field wants depends on the unit's numbers without it.
-            self.units[i].set_field(FieldBonus::default());
-            let wanted = self.field_bonus_for(&self.units[i]);
-            self.units[i].set_field(wanted);
-            // Invisibility that begins now hides the unit at once.
-            let invisible = self.units[i].is_invisible();
-            if invisible && !self.units[i].was_invisible {
-                self.units[i].revealed = false;
+            let invisible = self.now_of(&self.units[i]).is_invisible();
+            let u = &mut self.units[i];
+            if invisible && !u.was_invisible {
+                u.revealed = false;
             }
-            self.units[i].was_invisible = invisible;
+            u.was_invisible = invisible;
         }
     }
 
@@ -379,7 +395,7 @@ impl Battle {
             if u.side == caster || !u.is_active() || self.field_spares(u, Field::Wrack) {
                 continue;
             }
-            let mut state = u.defender_state(&self.content.rules);
+            let mut state = u.defender_state(&self.content.rules, self.field_bonus_for(u));
             let rng: &mut dyn RngCore = &mut self.rng;
             let mut lost = Damage::default();
             for _ in 0..state.figures {
@@ -416,7 +432,8 @@ impl Battle {
             // Death immunity "negates all spells which cause death and fear" (the help; the
             // original's Terror ignores it, and `death_immunity_exceptions` brings that back).
             if terror && !self.field_spares(&self.units[id], Field::Terror) {
-                let state = self.units[id].defender_state(&self.content.rules);
+                let state = self.units[id]
+                    .defender_state(&self.content.rules, self.field_bonus_for(&self.units[id]));
                 let rng: &mut dyn RngCore = &mut self.rng;
                 if state.resistance_failure(Some(Realm::Death), 1, rng) > 0 {
                     let u = &mut self.units[id];
@@ -436,8 +453,11 @@ impl Battle {
             }
             // A unit in a web spends its whole turn striking at it.
             if self.units[id].held_by_web(&self.content.rules) {
+                let strength = self
+                    .now(id)
+                    .map_or(0, |u| u.web_strength(&self.content.rules));
                 let u = &mut self.units[id];
-                let dealt = u.web_strength(&self.content.rules).min(u.web_hits);
+                let dealt = strength.min(u.web_hits);
                 u.web_hits -= dealt;
                 u.end_moves();
                 u.attacked = true;

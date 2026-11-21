@@ -32,7 +32,7 @@ impl Battle {
             }
             if u.can_attack() {
                 let shoots = matches!(u.ranged_kind, RangedKind::Missile | RangedKind::Magic)
-                    && u.ranged > 0
+                    && self.now_of(u).ranged() > 0
                     && u.ammo > 0;
                 for t in self
                     .active_units(side.other())

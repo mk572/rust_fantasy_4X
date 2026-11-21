@@ -991,6 +991,7 @@ impl App {
     /// The sheet of a unit in the battle on screen.
     pub(crate) fn battle_sheet(&self, battle: &Battle, id: usize) -> Option<Sheet> {
         let u: &BattleUnit = battle.unit(id)?;
+        let now = battle.now_of(u);
         let content = self.game.content();
         let def = content.rules.units.get(u.unit_id?);
         let base = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor());
@@ -1014,7 +1015,7 @@ impl App {
             abilities: &u.abilities,
             stasis_held: false,
             ammo: u.ammo,
-            to_hit: u.to_hit,
+            to_hit: now.to_hit(),
             construction: false,
             scouting: 0,
             mana: if u.ranged_kind == RangedKind::Magic {
@@ -1030,7 +1031,7 @@ impl App {
             rules: &content.rules,
             enchantments,
             special_level: u.special_level,
-            ranged: u.ranged,
+            ranged: now.ranged(),
             granted: &u.granted,
             hero_level: def.hero.is_some().then(|| {
                 self.game
@@ -1063,11 +1064,11 @@ impl App {
             },
             upkeep: None,
             damage: Some(u.front_damage),
-            melee: Row::stat(melee_icon(u.weapon_quality), u.melee, base(Stat::Melee)),
-            ranged: (u.ranged > 0)
-                .then(|| Row::stat(ranged_icon(&u.abilities), u.ranged, base(Stat::Ranged))),
-            defense: Row::stat(9, u.defense, base(Stat::Defense)),
-            resist: Row::stat(14, u.resistance, base(Stat::Resistance)),
+            melee: Row::stat(melee_icon(u.weapon_quality), now.melee(), base(Stat::Melee)),
+            ranged: (now.ranged() > 0)
+                .then(|| Row::stat(ranged_icon(&u.abilities), now.ranged(), base(Stat::Ranged))),
+            defense: Row::stat(9, now.defense(), base(Stat::Defense)),
+            resist: Row::stat(14, now.resistance(), base(Stat::Resistance)),
             hits: Row {
                 grey: 0,
                 ..Row::stat(10, u.hits, base(Stat::MaxHp))

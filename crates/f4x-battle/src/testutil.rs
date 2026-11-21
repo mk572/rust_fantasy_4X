@@ -59,16 +59,10 @@ pub fn reseeded(b: &Battle, seed: u64) -> Battle {
     c
 }
 
-/// The unit `number` of the content, as a battle makes it (with what the battle gives it, such as
-/// a holy unit's bonus to its own side), for a side to add. It is on no square.
+/// The unit `number` of the content as it ships, for a side to add (it is on no square). What the
+/// battlefield does to it is worked out by the battle that holds it (`Battle::now`).
 pub fn unit_numbered(number: u16) -> BattleUnit {
-    real_battle(
-        &[(number, (0, 0))],
-        &[(104 /* high_men_spearmen */, (20, 20))],
-        1,
-    )
-    .units[0]
-        .clone()
+    unit_as(number, Side::Attacker)
 }
 
 /// A battle of shipped units on an open field: `ours` of player [`A`] (the attacker) and `theirs`

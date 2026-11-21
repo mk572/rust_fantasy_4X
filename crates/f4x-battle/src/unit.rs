@@ -24,7 +24,7 @@ pub mod lasting;
 pub mod sheet;
 pub mod stats;
 
-pub use field_bonus::FieldBonus;
+pub use field_bonus::{FieldBonus, UnitNow};
 pub use lasting::Lasting;
 pub use sheet::{HeroSheet, Sheet, WizardSheet};
 use stats::Memo;
@@ -99,8 +99,6 @@ pub struct BattleUnit {
     /// Lasting spells cast on it in this battle, in the order cast, with who cast them and what
     /// they do to its numbers. They last until the battle ends or a dispel takes them off.
     lasting: Vec<Lasting>,
-    /// What the battlefield spells ask of its numbers (`field.rs`).
-    field: FieldBonus,
     /// Of its hit points per figure, the extra ones overhealing (life steal) added in this battle:
     /// they are not part of the unit's real strength, so the damage written back ignores them.
     extra_hits: i32,
@@ -322,7 +320,6 @@ impl BattleUnit {
             sheet,
             wizards: Default::default(),
             lasting: Vec::new(),
-            field: FieldBonus::default(),
             extra_hits: 0,
             figures_start: figures,
             lost: 0,
@@ -393,15 +390,6 @@ impl BattleUnit {
     pub fn lasting_mut(&mut self) -> &mut Vec<Lasting> {
         self.memo.clear();
         &mut self.lasting
-    }
-
-    pub fn field(&self) -> FieldBonus {
-        self.field
-    }
-
-    pub fn set_field(&mut self, field: FieldBonus) {
-        self.memo.clear();
-        self.field = field;
     }
 
     pub fn wizards(&self) -> &[WizardSheet; 2] {
@@ -529,7 +517,7 @@ impl BattleUnit {
             return 0;
         }
         let before = self.hit_points();
-        let mut state = self.body_state();
+        let mut state = self.body_state(FieldBonus::default());
         if overheal {
             state.heal_overflow(amount);
         } else {
@@ -619,7 +607,7 @@ impl BattleUnit {
 
     /// Hit points left over all figures.
     pub fn hit_points(&self) -> i32 {
-        self.body_state().hit_points()
+        self.body_state(FieldBonus::default()).hit_points()
     }
 
     /// What each figure can stand: its hits and the extra ones life steal gave it.
@@ -638,28 +626,28 @@ impl BattleUnit {
     }
 
     /// The unit as a defender, with the defence rules of its abilities.
-    pub fn defender_state(&self, rules: &Rules) -> DefenderState {
+    pub fn defender_state(&self, rules: &Rules, bonus: FieldBonus) -> DefenderState {
         DefenderState {
             immunities: Immunities::of(&self.abilities, &self.enchantments, rules),
             effects: self.effects(rules),
-            ..self.body_state()
+            ..self.body_state(bonus)
         }
     }
 
     /// The unit's body without its defence rules: all that hit points and healing need.
-    pub fn body_state(&self) -> DefenderState {
+    pub fn body_state(&self, bonus: FieldBonus) -> DefenderState {
         DefenderState {
             hits: self.per_figure(),
             extra_hits: self.extra_hits,
-            defense: self.defense,
+            defense: (self.own_defense + bonus.defense).max(0),
             immunities: Immunities::default(),
-            resistance: self.resistance,
+            resistance: (self.own_resistance + bonus.resistance).max(0),
             enchantments: self.enchantments.clone(),
             effects: Default::default(),
             realm: self.realm,
             undead: self.undead,
             figures_max: self.figures_start,
-            to_block: self.to_block,
+            to_block: self.own_to_block + bonus.to_block,
             figures: self.figures,
             front_damage: self.front_damage,
             lucky: self.has(Ability::new(39 /* lucky */)),
@@ -717,17 +705,21 @@ impl BattleUnit {
     ///   melee (boulders do not count, they are the same bodily strength as melee);
     /// - a thrown weapon, a breath or a gaze: its strength on top of melee;
     /// - Immolation: its fire on top.
-    pub fn web_strength(&self, rules: &Rules) -> i32 {
-        let mut strength = self.melee.max(0);
+    pub fn web_strength(&self, rules: &Rules, bonus: FieldBonus) -> i32 {
+        let (melee, ranged) = (
+            (self.own_melee + bonus.melee).max(0),
+            (self.own_ranged + bonus.ranged).max(0),
+        );
+        let mut strength = melee;
         let shoots = self.ammo > 0
             && (self.ranged_kind == RangedKind::Magic
                 || self
                     .weapon_attack(rules)
                     .is_some_and(|a| a.kind == RangedKind::Missile && !a.bodily));
         if shoots {
-            strength = strength.max(self.ranged);
+            strength = strength.max(ranged);
         } else if self.ranged_kind == RangedKind::Short {
-            strength += self.ranged.max(0);
+            strength += ranged;
         }
         if self.has(Ability::new(32 /* immolation */)) {
             strength += rules.battle.immolation_strength;
@@ -805,6 +797,7 @@ impl BattleUnit {
         to_hit: i32,
         rules: &Rules,
         magic_exceptions: bool,
+        bonus: FieldBonus,
     ) -> Combatant {
         let special = self.special_attacks();
         // Doom damage that an item or a spell gives is half as strong.
@@ -825,7 +818,7 @@ impl BattleUnit {
             nature: AttackNature::of_unit_attack(
                 mode,
                 &self.abilities,
-                self.flag(UnitFlag::MagicalWeapon),
+                self.flag(UnitFlag::MagicalWeapon) || bonus.magical,
                 magic_exceptions,
                 rules,
             ),
@@ -855,13 +848,19 @@ impl BattleUnit {
         Immunities::of(&self.abilities, &self.enchantments, rules).meets(types)
     }
 
-    pub fn melee_combatant(&self, rules: &Rules, magic_exceptions: bool) -> Combatant {
+    pub fn melee_combatant(
+        &self,
+        rules: &Rules,
+        magic_exceptions: bool,
+        bonus: FieldBonus,
+    ) -> Combatant {
         self.combatant(
             Mode::Melee,
-            self.melee,
-            self.to_hit + self.weapon_plus() + self.melee_plus,
+            (self.own_melee + bonus.melee).max(0),
+            self.own_to_hit + bonus.to_hit + self.weapon_plus() + self.melee_plus,
             rules,
             magic_exceptions,
+            bonus,
         )
     }
 
@@ -870,10 +869,16 @@ impl BattleUnit {
         i32::from(self.weapon_quality > 0 || self.has(Ability::new(19 /* eldritch_weapon */)))
     }
 
-    pub fn thrown_combatant(&self, rules: &Rules, magic_exceptions: bool) -> Option<Combatant> {
+    pub fn thrown_combatant(
+        &self,
+        rules: &Rules,
+        magic_exceptions: bool,
+        bonus: FieldBonus,
+    ) -> Option<Combatant> {
         // A gaze needs no attack strength (1.50 note 153): a unit weakened to none still gazes.
         let gazes = self.special_attacks().has_gaze();
-        (self.ranged_kind == RangedKind::Short && (self.ranged > 0 || gazes)).then(|| {
+        let ranged = (self.own_ranged + bonus.ranged).max(0);
+        (self.ranged_kind == RangedKind::Short && (ranged > 0 || gazes)).then(|| {
             // Only a thrown weapon gains the plus, not breath or a gaze.
             let plus = if self.weapon_shot(rules) == Some(RangedKind::Short) {
                 self.weapon_plus()
@@ -882,10 +887,11 @@ impl BattleUnit {
             };
             self.combatant(
                 Mode::ThrownOrBreath,
-                self.ranged,
-                self.to_hit + plus + self.ranged_plus,
+                ranged,
+                self.own_to_hit + bonus.to_hit + plus + self.ranged_plus,
                 rules,
                 magic_exceptions,
+                bonus,
             )
         })
     }

@@ -722,10 +722,11 @@ fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
                         .is_none_or(|side| b.seen_by(side, u.id))
             })
             .map(|u| {
+                let n = b.now_of(u);
                 format!(
             "{} {:?} {} at {},{} figures {}/{} melee {} ranged {} defense {} moves {}/{} ammo {}",
-            u.id, u.side, u.unit_id.map_or(-1, |i| i32::from(i.num())), u.cell.0, u.cell.1, u.figures, u.figures_start, u.melee,
-            u.ranged, u.defense, u.moves_left, u.moves, u.ammo
+            u.id, u.side, u.unit_id.map_or(-1, |i| i32::from(i.num())), u.cell.0, u.cell.1, u.figures, u.figures_start, n.melee(),
+            n.ranged(), n.defense(), u.moves_left, u.moves, u.ammo
         )
             }),
     )

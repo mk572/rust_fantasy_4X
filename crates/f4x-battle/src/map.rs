@@ -704,7 +704,7 @@ pub fn deployment(
 /// units without a ranged attack, then the shooters. With more than five shooters the strongest
 /// in melee move forward, until the front has four units or four shooters are left.
 pub fn deployment_order(units: &[BattleUnit]) -> Vec<usize> {
-    let shoots = |u: &BattleUnit| u.ranged > 0 && u.ammo > 0;
+    let shoots = |u: &BattleUnit| u.own_ranged > 0 && u.ammo > 0;
     let mut melee: Vec<usize> = (0..units.len()).filter(|&i| !shoots(&units[i])).collect();
     let mut ranged: Vec<usize> = (0..units.len()).filter(|&i| shoots(&units[i])).collect();
     if ranged.len() > 5 {
@@ -715,7 +715,7 @@ pub fn deployment_order(units: &[BattleUnit]) -> Vec<usize> {
             }
             // The strongest is taken from the shooters. The first of equals goes.
             let best = (0..ranged.len())
-                .max_by_key(|&k| (units[ranged[k]].melee, std::cmp::Reverse(k)))
+                .max_by_key(|&k| (units[ranged[k]].own_melee, std::cmp::Reverse(k)))
                 .unwrap_or(0);
             melee.push(ranged.remove(best));
         }

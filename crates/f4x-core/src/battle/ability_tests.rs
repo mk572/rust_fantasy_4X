@@ -302,7 +302,7 @@ fn assert_a_bolt(shooter: u16, ability: u16) {
         "{ability} is a magic attack"
     );
     assert!(
-        b.units[a].ammo > 0 && b.units[a].ranged > 0,
+        b.units[a].ammo > 0 && b.units[a].own_ranged > 0,
         "{shooter} can shoot"
     );
     let (_, open) = losses(&b, true, nothing);

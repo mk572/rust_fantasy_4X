@@ -83,7 +83,7 @@ impl Game {
             }
         }
         if let Some(active) = self.battle.as_mut() {
-            active.battle.refresh_fields();
+            active.battle.note_invisibility();
         }
         let mut out = self.battle_event_list(events);
         let ended = self

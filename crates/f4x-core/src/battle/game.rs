@@ -613,7 +613,7 @@ impl Game {
         for (side, owner) in [(Side::Attacker, a_owner), (Side::Defender, d_owner)] {
             battle.set_wizard(side, self.wizard_sheet(owner));
         }
-        battle.refresh_fields();
+        battle.note_invisibility();
         battle.wall_of_fire = has_wall("fire");
         battle.wall_of_darkness = has_wall("darkness");
         if let Some(c) = city {

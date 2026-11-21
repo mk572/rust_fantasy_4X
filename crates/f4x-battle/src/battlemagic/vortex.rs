@@ -125,11 +125,11 @@ impl Battle {
                 let u = &self.units[id];
                 let types = DamageTypes::of(&[DamageType::Magic, DamageType::ChaosRealm]);
                 if !u
-                    .defender_state(&self.content.rules)
+                    .defender_state(&self.content.rules, self.field_bonus_for(u))
                     .immunities
                     .stops(types)
                 {
-                    let mut state = u.defender_state(&self.content.rules);
+                    let mut state = u.defender_state(&self.content.rules, self.field_bonus_for(u));
                     let lost = unblockable(&mut state, crush);
                     if lost.points > 0 {
                         self.units[id].set_from(&state);

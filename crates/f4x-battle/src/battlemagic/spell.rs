@@ -94,6 +94,7 @@ impl Battle {
             let dealt = super::casting::damage_unit_with_spell(
                 &self.content.rules,
                 &mut copy,
+                self.field_bonus_for(unit),
                 strength + extra,
                 &traits,
                 nature,
@@ -151,7 +152,7 @@ impl Battle {
         let Some(unit) = self.units.get(target) else {
             return 1.0;
         };
-        let state = unit.defender_state(&self.content.rules);
+        let state = unit.defender_state(&self.content.rules, self.field_bonus_for(unit));
         let resistance = effective_resistance(state.resistance, &state.immunities, realm);
         let needed = resistance + modifier - self.save_penalty;
         (10 - needed.clamp(0, 10)) as f32 / 10.0
@@ -159,7 +160,10 @@ impl Battle {
 
     /// A resistance check of one unit against a realm: whether it *fails*.
     pub fn resist_fails(&mut self, target: usize, realm: Option<Realm>, modifier: i32) -> bool {
-        let state = self.units[target].defender_state(&self.content.rules);
+        let state = self.units[target].defender_state(
+            &self.content.rules,
+            self.field_bonus_for(&self.units[target]),
+        );
         let rng: &mut dyn rand::RngCore = &mut self.rng;
         state.resistance_failure(realm, modifier - self.save_penalty, rng) > 0
     }

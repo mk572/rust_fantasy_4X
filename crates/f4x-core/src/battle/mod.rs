@@ -25,7 +25,7 @@ pub use f4x_battle::power;
 pub use f4x_battle::special;
 pub use f4x_battle::{
     BattleUnit, Confusion, Fate, FieldBonus, HeroSheet, ItemCharge, Lasting, Sheet, Side, Stats,
-    Status, UnitCasting, WarpKind, WizardSheet, RANGED_ATTACK_COST,
+    Status, UnitCasting, UnitNow, WarpKind, WizardSheet, RANGED_ATTACK_COST,
 };
 
 pub mod casting;

@@ -60,7 +60,7 @@ impl App {
                 RED_CROSS
             } else if distance(u.cell, cell) == 1 {
                 SWORDS
-            } else if can_shoot(u) {
+            } else if can_shoot(battle, u) {
                 BOW
             } else {
                 RED_CROSS
