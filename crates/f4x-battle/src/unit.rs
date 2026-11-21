@@ -11,8 +11,7 @@ use f4x_def::rules::realm::Realm;
 use f4x_def::rules::stats::Stat;
 use f4x_def::rules::unit_effect::{UnitEffect, UnitEffects};
 use f4x_def::rules::unit_flag::UnitFlag;
-use f4x_def::rules::unit_flag::UnitFlags;
-use f4x_def::rules::{Ability, MovementType, Rules, SpellId, UnitDef, UnitId};
+use f4x_def::rules::{Ability, Rules, SpellId, UnitId};
 
 use crate::attack::{self, Combatant, DefenderState, Mode};
 use crate::map::{Mover, Pos, OPEN_COST};
@@ -311,45 +310,6 @@ impl BattleUnit {
 }
 
 impl BattleUnit {
-    /// The unit a definition makes by itself: its own abilities, numbers and flags, no experience,
-    /// no lasting spell, no item, no wound, and no wizard behind it. The game starts from this and
-    /// adds what the overland world says about the unit (`f4x-core`'s `battle_unit_from`); a test
-    /// uses it as it is.
-    pub fn of_def(
-        content: &std::sync::Arc<f4x_def::content::Content>,
-        side: Side,
-        def: &UnitDef,
-    ) -> Self {
-        let rules = &content.rules;
-        let abilities = def.abilities.clone();
-        let mut flags = UnitFlags::NONE;
-        if def.movement == MovementType::Flying {
-            flags.insert(UnitFlag::Flies);
-        }
-        if def.innate_magical_weapon()
-            || abilities.contains(&Ability::new(41 /* magical_weapon */))
-        {
-            flags.insert(UnitFlag::MagicalWeapon);
-        }
-        let mut sheet = Sheet::plain(side, def.stats.clone());
-        sheet.ranged_kind = crate::weapon::ranged_kind_of(&abilities, rules);
-        sheet.abilities = abilities;
-        sheet.flags = flags;
-        let figures = def
-            .stats
-            .get(&Stat::Figures)
-            .map_or(1, |v| v.floor())
-            .max(1) as u32;
-        let mut built = Self::from_sheet(side, sheet, figures);
-        built.unit_id = Some(UnitId::new(def.num));
-        built.casting = UnitCasting::of_abilities(&built.sheet().abilities.clone(), rules);
-        built.sails = def.movement == MovementType::Sailing;
-        built.swims = def.movement == MovementType::Swimming;
-        built.realm = def.realm.and_then(Realm::of);
-        built.bind(content);
-        built
-    }
-
     /// A unit with this sheet, whole and with all its moves, on no square yet. Its numbers are
     /// worked out from the sheet once it has the content (`bind`).
     pub fn from_sheet(side: Side, sheet: Sheet, figures: u32) -> Self {

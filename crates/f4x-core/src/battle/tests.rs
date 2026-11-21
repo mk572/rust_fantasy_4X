@@ -88,8 +88,9 @@ fn real_battle(ours: &[(u16, Pos)], theirs: &[(u16, Pos)], seed: u64) -> Battle 
 
 /// Setup: every unit of the shipped content, spawned in a game (a ship at sea, the rest on land) and sent into a
 /// battle. Action: the game builds the battle unit from the overland one. Outcome: it equals the
-/// unit `f4x-battle` builds from the definition alone (`testutil::real_battle`, which the tests of
-/// that crate use), apart from where it stands and which overland unit it came from; so a test
+/// unit `f4x-battle` builds from the definition alone (`BattleUnit::from_def`, as `testutil::real_battle`
+/// makes it for the tests of that crate; heroes and ships at sea included, which the test above
+/// leaves out), apart from where it stands and which overland unit it came from; so a test
 /// there fights the units the game fights.
 #[test]
 fn a_unit_the_game_builds_equals_the_one_built_from_its_definition_for_every_shipped_unit(

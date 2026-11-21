@@ -42,7 +42,9 @@ pub fn unit_as(number: u16, side: Side) -> BattleUnit {
         .units
         .id_numbered(number)
         .expect("a unit of the content");
-    BattleUnit::of_def(&content, side, content.rules.units.get(id))
+    let mut unit = BattleUnit::from_def(&content.rules, id, side);
+    unit.bind(&content);
+    unit
 }
 
 /// The battle rules of the shipped content.
