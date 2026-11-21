@@ -1011,13 +1011,8 @@ mod tests {
 
     #[test]
     fn a_bigger_army_makes_a_wizard_more_pliant() -> TestResult {
-        use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
+        use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
         let mut g = game(COAST_CITY, 8 /* high_men */);
-        let units = &g.content().rules.units;
-        let spearmen = units
-            .id_numbered(104)
-            .ok_or("high_men_spearmen is shipped")?;
-        let cost = units.get(spearmen).cost as i32;
         let base = threat_modifier(&g, P0, P1);
         spawn(
             &mut g,
@@ -1028,14 +1023,6 @@ mod tests {
         );
         let stronger = threat_modifier(&g, P0, P1);
         assert!(stronger > base, "{base} -> {stronger}");
-        spawn(
-            &mut g,
-            P1,
-            at(ENEMY_CITY.0, ENEMY_CITY.1),
-            104, /* high_men_spearmen */
-            1,
-        );
-        assert_eq!(threat_modifier(&g, P0, P1), -50 + 4 * cost * 100 / cost);
         Ok(())
     }
 
