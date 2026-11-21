@@ -39,6 +39,8 @@ Gitignored, local only: `assets-local/` (extracted art, screenshots), `content-l
 
 The crate rules (who may depend on whom) are in [`rust_coding_rules.md`](rust_coding_rules.md). `f4x-core` must never depend on the client or on a crate above it; that keeps it testable and fast to iterate.
 
+**What stays in `f4x-core/src/battle` and why** (the file check of task 741, 21 November 2026). A rule of the fight, a type of it or a function of the battle alone is `f4x-battle`'s (or `f4x-def`'s when the rules of the content need it too): the battle, its spells (`Battle::apply_spell`, unit casts, the demon), the spoils, who comes back as undead, where the units stand and the settings that change a fight. What stays in core is whatever reads or writes the overland world, and it only gathers the facts and hands them over as arguments (`AimWorld`, `CastWorld`, small structs and flags): building a battle unit from an overland one, the choice of who fights, the field of a square (terrain, roads, city, walls), the wizard's casts and mana, the save and load that tie a battle to the world's entities, and the write-back of a finished battle (wounds, deaths, items, spoils, relations, fleeing, the winner moving in, raised undead, conquest). A function that stays is thin: if it has a rule in it that needs no world, the rule moves.
+
 
 ## 3. ECS choice
 Decided: `hecs` inside `f4x-core`, not a full engine. Only state with identity and varied attributes is an entity; everything else is plain data owned by `Game`. The client renders with macroquad and only reads the core. The details, and how this differs from the original game's fixed arrays, are in [`ecs-structure.md`](ecs-structure.md).

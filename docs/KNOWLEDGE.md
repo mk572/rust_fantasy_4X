@@ -145,3 +145,4 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   default (`red_button` to `red_button_face` to `red_button_face_sized`). What was removed: the free functions
   `grant_ability`/`remove_ability` under `Game::grant_temp_ability`/`remove_temp_ability` and
   `App::open_diplomacy` over `try_open_diplomacy`. The rule is in `docs/rust_coding_rules.md` (Layers of calls).
+- **A saved game taken in the middle of a battle before commit d13e885c does not load.** That commit made a battle unit keep only real state (the `Sheet` the game hands over, what it lost, spent and used) and work its numbers out when asked, so the old saved units have no sheet. Saves taken since load; `restore_battle` refuses a battle that disagrees with the world with a reason (`LoadError`), and `a_saved_battle_that_disagrees_with_the_world_is_refused_with_the_reason` covers each way. Saves taken between battles are not affected.
