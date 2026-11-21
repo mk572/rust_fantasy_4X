@@ -12,6 +12,7 @@
 mod alchemy;
 mod assault;
 pub mod battle;
+mod bridge;
 mod budget;
 mod builder;
 mod city_site;

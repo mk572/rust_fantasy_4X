@@ -13,6 +13,7 @@ use crate::map::Position;
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::unit_flag::UnitFlag;
 use crate::rules::{MovementType, Stat};
+use crate::unit::movement::MoveError;
 use f4x_def::half_int::HalfInt;
 
 use crate::game::{Event, Game};
@@ -22,9 +23,40 @@ use crate::game::{Event, Game};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Marooned;
 
+/// A ship parked at sea as a bridge (task 739): it stays on its square, and the walkers of its
+/// owner are routed over it as over a land square, as many at a time as it has places. Set and
+/// taken off by `Command::SetBridge`; a ship that sails is no bridge any more.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bridge;
+
 /// The ship a land unit is aboard, by creation number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Aboard(pub Serial);
+
+impl Game {
+    /// Park `ship` at sea as a bridge, or take it off its post (`Command::SetBridge`). It has to
+    /// be a ship and, to become a bridge, to stand at sea; its standing order is dropped, since
+    /// a bridge does not move. A ship that sails later is no bridge any more (`move_stack`).
+    pub fn set_bridge(&mut self, ship: hecs::Entity, on: bool) -> Result<(), MoveError> {
+        if !self.economy().is_ship(ship) {
+            return Err(MoveError::BadSelection);
+        }
+        if !on {
+            let _ = self.world.remove_one::<Bridge>(ship);
+            return Ok(());
+        }
+        let at = self
+            .units()
+            .unit_position(ship)
+            .ok_or(MoveError::BadSelection)?;
+        if !self.economy().is_sea(at) {
+            return Err(MoveError::Impassable);
+        }
+        let _ = self.world.remove_one::<crate::unit::Order>(ship);
+        self.put(ship, Bridge);
+        Ok(())
+    }
+}
 
 impl Economy<'_> {
     /// A unit that carries others: it sails and has room.
@@ -146,20 +178,52 @@ impl Economy<'_> {
             })
     }
 
-    /// Every square where `owner` has a ship with a free place: one pass over the units, for a
-    /// search that asks about many squares.
-    pub fn ship_room_squares(&self, owner: PlayerId) -> crate::fast::FastSet<Position> {
+    /// Every square where `owner`'s ships have room for the walkers of `units` all together: the
+    /// squares a stack of walkers may step onto at sea. A step needs a place for each walker that
+    /// needs a ship (`plan_step`), so a square whose ship has room for one will not do for a party
+    /// of six: a path through it is a path the order cannot walk (`MoveError::NoRoom`).
+    pub fn ship_room_squares_for(
+        &self,
+        owner: PlayerId,
+        units: &[hecs::Entity],
+    ) -> crate::fast::FastSet<Position> {
+        let flies = self.stack_traits(units).flies;
+        let walkers = units
+            .iter()
+            .filter(|&&u| self.needs_ship(u, flies))
+            .count()
+            .max(1) as u32;
         let Some(me) = crate::player::find_entity(self.world, owner) else {
             return Default::default();
         };
-        self.world
+        let mut room: crate::fast::FastMap<Position, u32> = Default::default();
+        for (u, (unit, p, o)) in self
+            .world
             .query::<(&crate::unit::Unit, &Position, &crate::player::Owner)>()
             .iter()
-            .filter(|&(u, (unit, _, o))| {
-                o.0 == me
-                    && self.content.rules.units.get(unit.0).movement == MovementType::Sailing
-                    && self.ship_room(u) > 0
-            })
+        {
+            if o.0 == me && self.content.rules.units.get(unit.0).movement == MovementType::Sailing {
+                *room.entry(*p).or_default() += self.ship_room(u);
+            }
+        }
+        room.into_iter()
+            .filter(|&(_, n)| n >= walkers)
+            .map(|(p, _)| p)
+            .collect()
+    }
+
+    /// Whether the ship is parked as a bridge (`Bridge`).
+    pub fn is_bridge(&self, ship: hecs::Entity) -> bool {
+        self.world.get::<&Bridge>(ship).is_ok()
+    }
+
+    /// The squares of `owner` where a ship is a bridge (`Bridge`).
+    pub fn bridge_squares(&self, owner: PlayerId) -> crate::fast::FastSet<Position> {
+        let units = self.units();
+        self.world
+            .query::<(&crate::unit::Unit, &Position, &Bridge)>()
+            .iter()
+            .filter(|&(u, _)| units.unit_owner(u) == Some(owner) && self.is_ship(u))
             .map(|(_, (_, p, _))| *p)
             .collect()
     }
@@ -540,6 +604,35 @@ mod tests {
         g
     }
 
+    /// 14x8, wrapping east and west: sea in columns 5 and 10, so the land is two islands, x 6-9
+    /// and x 11-13 with 0-4.
+    fn strait_world() -> Game {
+        let mut g = world();
+        let (grass, ocean) = (
+            g.content
+                .terrains
+                .id_numbered(4 /* grassland */)
+                .expect("id_of succeeds"),
+            g.content
+                .terrains
+                .id_numbered(8 /* ocean */)
+                .expect("id_of succeeds"),
+        );
+        let map = g.map.as_mut().expect("a map");
+        for plane in [Plane::Arcanus, Plane::Myrror] {
+            let grid = map.plane_mut(plane);
+            for x in 5..10 {
+                grid.set(x, 4, grass);
+            }
+            for y in 0..8 {
+                for x in [5, 10] {
+                    grid.set(x, y, ocean);
+                }
+            }
+        }
+        g
+    }
+
     fn unit(g: &mut Game, id: u16, pos: Position) -> hecs::Entity {
         let u = g
             .content
@@ -600,6 +693,115 @@ mod tests {
         let mut g = world();
         let w = unit(&mut g, 107 /* high_men_cavalry */, at(4, 4));
         assert_eq!(g.move_stack(&[w], at(5, 4)), Err(MoveError::Impassable));
+    }
+
+    /// A path over a waiting ship is only a path for a party the ship has room for: the order that
+    /// follows it would stop at the water with `NoRoom` (soak, neutral parties at a site).
+    #[test]
+    fn a_party_is_planned_onto_a_waiting_ship_only_when_it_has_room_for_all() {
+        let mut g = world();
+        let boat = unit(&mut g, 35 /* trireme */, at(5, 4));
+        let room = g.economy().ship_room(boat) as usize;
+        let party: Vec<_> = (0..=room)
+            .map(|_| unit(&mut g, 107 /* high_men_cavalry */, at(4, 4)))
+            .collect();
+        assert!(g.find_path(&party[..room], at(5, 4)).is_some());
+        assert_eq!(
+            g.find_path(&party, at(5, 4)),
+            None,
+            "one more than the room"
+        );
+        assert_eq!(g.move_stack(&party, at(5, 4)), Err(MoveError::NoRoom));
+    }
+
+    /// A computer player's walkers are routed over a ship parked as a bridge and over no other:
+    /// the other ship's square can end a path (where they board), never lie in the middle of one.
+    #[test]
+    fn walkers_of_a_computer_player_cross_over_a_bridge_ship_only() -> TestResult {
+        let mut g = strait_world();
+        let boat = unit(&mut g, 35 /* trireme */, at(5, 4));
+        let walker = unit(&mut g, 107 /* high_men_cavalry */, at(4, 4));
+        let across = at(7, 4);
+        assert!(
+            g.find_path(&[walker], at(5, 4)).is_some(),
+            "boards at the end"
+        );
+        assert_eq!(
+            g.find_path(&[walker], across),
+            None,
+            "no way over a plain ship"
+        );
+        g.set_bridge(boat, true).map_err(|e| format!("{e:?}"))?;
+        let path = g
+            .find_path(&[walker], across)
+            .ok_or("a way over the bridge")?;
+        assert!(path.contains(&at(5, 4)), "{path:?}");
+        // The walk itself: aboard the bridge, then ashore on the other side.
+        g.move_stack(&[walker], at(5, 4))
+            .map_err(|e| format!("{e:?}"))?;
+        assert_eq!(g.economy().carrier_of(walker), Some(boat));
+        g.put(walker, MovesLeft(HalfInt::from_int(2)));
+        g.move_stack(&[walker], at(6, 4))
+            .map_err(|e| format!("{e:?}"))?;
+        assert_eq!(g.economy().carrier_of(walker), None);
+        assert_eq!(
+            g.economy().ship_room(boat),
+            g.units().unit_stat(boat, Stat::Transport) as u32
+        );
+        Ok(())
+    }
+
+    /// The human's walkers use any ship, bridge or not.
+    #[test]
+    fn the_human_walks_over_any_waiting_ship() {
+        let mut g = strait_world();
+        g.set_human(Some(P0));
+        unit(&mut g, 35 /* trireme */, at(5, 4));
+        let walker = unit(&mut g, 107 /* high_men_cavalry */, at(4, 4));
+        assert!(g.find_path(&[walker], at(7, 4)).is_some());
+    }
+
+    /// A bridge takes as many walkers at a time as the ship has places.
+    #[test]
+    fn a_bridge_takes_a_party_no_larger_than_its_room() -> TestResult {
+        let mut g = strait_world();
+        let boat = unit(&mut g, 35 /* trireme */, at(5, 4));
+        g.set_bridge(boat, true).map_err(|e| format!("{e:?}"))?;
+        let room = g.economy().ship_room(boat) as usize;
+        let party: Vec<_> = (0..=room)
+            .map(|_| unit(&mut g, 107 /* high_men_cavalry */, at(4, 4)))
+            .collect();
+        assert!(g.find_path(&party[..room], at(7, 4)).is_some());
+        assert_eq!(g.find_path(&party, at(7, 4)), None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_ship_that_sails_is_no_bridge_and_only_a_ship_at_sea_becomes_one() -> TestResult {
+        let mut g = strait_world();
+        let boat = unit(&mut g, 35 /* trireme */, at(5, 4));
+        let walker = unit(&mut g, 107 /* high_men_cavalry */, at(4, 4));
+        assert_eq!(g.set_bridge(walker, true), Err(MoveError::BadSelection));
+        let shore = unit(&mut g, 35 /* trireme */, at(3, 3));
+        assert_eq!(g.set_bridge(shore, true), Err(MoveError::Impassable));
+        g.set_bridge(boat, true).map_err(|e| format!("{e:?}"))?;
+        assert_eq!(g.economy().bridge_squares(P0).len(), 1);
+        g.move_stack(&[boat], at(5, 3))
+            .map_err(|e| format!("{e:?}"))?;
+        assert!(g.economy().bridge_squares(P0).is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn a_bridge_survives_saving() -> TestResult {
+        let mut g = strait_world();
+        let boat = unit(&mut g, 35 /* trireme */, at(5, 4));
+        g.set_bridge(boat, true).map_err(|e| format!("{e:?}"))?;
+        let content = g.content.clone();
+        let text = g.snapshot().to_text()?;
+        let back = crate::game::save::Snapshot::from_text(&text)?.restore(content)?;
+        assert_eq!(back.economy().bridge_squares(P0).len(), 1);
+        Ok(())
     }
 
     #[test]

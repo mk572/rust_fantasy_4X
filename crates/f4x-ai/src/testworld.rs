@@ -77,12 +77,30 @@ pub fn game_with_rivers(city0: (u32, u32), race: u16, rivers: &[(u32, u32)]) -> 
     build_game(city0, race, 7, Plane::Arcanus, rivers)
 }
 
+/// [`game`] with the sea between the islands filled but for the column of x 27: the two
+/// islands are one land mass with a strait of one sea square (rows 3 to 10) in it, and the sea
+/// round the land is open.
+pub fn game_with_strait(city0: (u32, u32), race: u16) -> Game {
+    build_game_in(city0, race, 7, Plane::Arcanus, &[], true)
+}
+
 fn build_game(
     city0: (u32, u32),
     race: u16,
     seed: u64,
     rival_plane: Plane,
     rivers: &[(u32, u32)],
+) -> Game {
+    build_game_in(city0, race, seed, rival_plane, rivers, false)
+}
+
+fn build_game_in(
+    city0: (u32, u32),
+    race: u16,
+    seed: u64,
+    rival_plane: Plane,
+    rivers: &[(u32, u32)],
+    strait: bool,
 ) -> Game {
     let content = content();
     let ocean = content.terrains.id_numbered(8).expect("ocean");
@@ -92,6 +110,11 @@ fn build_game(
         for y in ROWS {
             for x in WEST.chain(EAST) {
                 grid.set(x, y, grass);
+            }
+            if strait {
+                for x in (*WEST.end() + 1)..*EAST.start() - 1 {
+                    grid.set(x, y, grass);
+                }
             }
         }
         for &(x, y) in rivers {

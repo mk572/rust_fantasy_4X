@@ -359,7 +359,9 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::war::run(ai, game, events);
     // 5. raiding parties from the soldiers the war left over
     crate::raid::run(ai, game, events);
-    // The ships (task 647)
+    // The ships (task 647): the bridges first, since a free ship goes to the bridge before it
+    // scouts (task 739)
+    crate::bridge::run(ai, game, events);
     crate::naval::run(ai, game, events);
     crate::pickup::run(ai, game, events);
     crate::roles::audit(ai, game, events);

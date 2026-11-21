@@ -34,7 +34,9 @@ impl Game {
             | Command::ShiftPlane { units }
             | Command::EarthGate { units, .. } => first(units),
             Command::BeginBattle { attackers, .. } => first(attackers),
-            Command::DismissUnit { unit } | Command::SettleOutpost { unit, .. } => first(&[*unit]),
+            Command::DismissUnit { unit }
+            | Command::SetBridge { unit, .. }
+            | Command::SettleOutpost { unit, .. } => first(&[*unit]),
             Command::SetProduction { city: c, .. }
             | Command::BuyProduction { city: c }
             | Command::SetFarmers { city: c, .. }

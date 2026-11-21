@@ -43,6 +43,13 @@ pub enum Command {
         #[serde(with = "game::replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
     },
+    /// Park a ship at sea as a bridge for its owner's walkers (`transport::Bridge`), or take it
+    /// off its post with `on: false`. The ship has to stand at sea.
+    SetBridge {
+        #[serde(with = "game::replay::stable_ref::one")]
+        unit: hecs::Entity,
+        on: bool,
+    },
     /// Put units on standby (Done or Patrol), or take them off it with `None`.
     SetStandby {
         #[serde(with = "game::replay::stable_ref::many")]

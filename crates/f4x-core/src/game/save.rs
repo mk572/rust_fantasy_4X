@@ -553,6 +553,9 @@ pub struct UnitSave {
     /// The owner pays no upkeep for the unit (`unit::Unpaid`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub unpaid: bool,
+    /// A ship parked at sea as a bridge (`transport::Bridge`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bridge: bool,
 }
 
 fn is_zero(n: &u32) -> bool {
@@ -956,6 +959,7 @@ impl Game {
                         .get::<&crate::unit::transport::Marooned>(u)
                         .is_ok(),
                     unpaid: self.units().unit_is_unpaid(u),
+                    bridge: self.world.get::<&crate::unit::transport::Bridge>(u).is_ok(),
                     stasis: self
                         .world
                         .get::<&crate::unit::stasis::Stasis>(u)
@@ -1515,6 +1519,9 @@ impl Snapshot {
             }
             if u.marooned {
                 game.put(entity, crate::unit::transport::Marooned);
+            }
+            if u.bridge {
+                game.put(entity, crate::unit::transport::Bridge);
             }
             if let Some(stasis) = u.stasis {
                 game.put(entity, stasis);

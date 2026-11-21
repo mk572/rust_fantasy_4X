@@ -42,6 +42,9 @@ pub enum Role {
     /// Engineers building a road, or on their way to the square where they start (`road.rs`);
     /// `to` is the city or frontier the road leads to.
     Road,
+    /// A ship parked at sea as a bridge for the wizard's walkers (`bridge.rs`, task 739): `to` is
+    /// its square. It stays there, and no pickup or voyage takes it.
+    Bridge,
     /// A ship with no mission, no passengers and no target: free to be sent.
     TransportFree,
     /// A ship with a target (`to`) and room: on its way to the port where a landing loads, or to
@@ -73,6 +76,9 @@ pub enum Crossing {
     Sea,
     /// The target is on the other plane: a tower, a gate or a spell.
     Plane,
+    /// The target is across one sea square that a ship parked as a bridge will span
+    /// (`bridge.rs`): the unit waits for the bridge, not for a ferry.
+    Bridge,
 }
 
 /// A unit's role as the registry holds it.
@@ -364,6 +370,13 @@ impl Registry {
                 a.crossing = None;
             }
             a.to = to;
+        }
+    }
+
+    /// The role's plan was asked for again this turn (a bridge that is still wanted).
+    pub fn touch(&mut self, serial: Serial, turn: u32) {
+        if let Some(a) = self.map.get_mut(&serial) {
+            a.planned = turn;
         }
     }
 
@@ -747,6 +760,7 @@ impl Role {
     fn priority(self) -> u8 {
         match self {
             Role::Settle => 1,
+            Role::Bridge => 2,
             Role::TransportReady => 3,
             Role::Transporting => 3,
             Role::SeaParty => 4,

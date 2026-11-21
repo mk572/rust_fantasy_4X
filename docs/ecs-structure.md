@@ -140,7 +140,7 @@ A wrong structure is moved and not worked around, and names are singular.
 |---|---|---|
 | **Player** | `player/` | `PlayerId`, `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`, `Offers`, `Defeat`, `Control`, `Neutral` (marker), `WizardLink`, `Serial` |
 | **Wizard** | `wizard/` | `Name`, `Portrait`, `Banner`, `CapitalRace`, `Books`, `Retorts`, `Skill`, `PowerSplit`, `Research`, `KnownSpells`, `Candidates`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt`, `Banishment`, `PlayerLink`, `Serial` |
-| **Unit** | `unit/` | `Unit`, `Owner`, `Position`, `Hurt`, `Experience`, `WeaponQuality`, `MovesLeft`, `Order`, `Standby`, `Serial`, and the other components it has today |
+| **Unit** | `unit/` | `Unit`, `Owner`, `Position`, `Hurt`, `Experience`, `WeaponQuality`, `MovesLeft`, `Order`, `Standby`, `Serial`, `Bridge` (a ship parked as a bridge, `unit/transport.rs`), and the other components it has today |
 | **Hero** | `hero/` | `Hero` (type number, name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `Serial`; the unit components while serving |
 | **City** | `city/` | `City`, `Position`, `Owner`, `Population`, `Farmers`, `Buildings`, `CityRace`, `Production`, `Serial` |
 | **Spell instance** | `spell/` | `SpellCast {def}`, `Caster`, `SpellTarget`, `Serial`; `Owed`, `Crafting` on a cast in progress |

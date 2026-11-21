@@ -670,6 +670,10 @@ impl Game {
                 .resign(player)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Fortress(e))]),
             Command::DismissUnit { unit } => self.dismiss_unit(unit),
+            Command::SetBridge { unit, on } => match self.set_bridge(unit, on) {
+                Ok(()) => Vec::new(),
+                Err(e) => vec![Event::Rejected(Rejection::Move(e))],
+            },
             Command::MoveItem {
                 player,
                 from,

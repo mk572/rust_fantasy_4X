@@ -409,7 +409,7 @@ pub struct RuleSettings {
     #[serde(default = "fb_half_upkeep")]
     pub half_upkeep: bool,
     /// The question before an attack says how the two sides compare by their combat ratings
-    /// ("The enemy is slightly stronger", `battle::forecast`). Off by default: it tells the
+    /// ("The enemy is slightly stronger", `rules::forecast`). Off by default: it tells the
     /// player more than the original does. Saved with the game.
     #[serde(default = "fb_combat_forecast")]
     pub combat_forecast: bool,

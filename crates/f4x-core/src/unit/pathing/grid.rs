@@ -103,7 +103,7 @@ impl Game {
         let owner = self.units().unit_owner(first)?;
         let traits = self.economy().stack_traits(units);
         let economy = self.economy();
-        let room = economy.ship_room_squares(owner);
+        let room = economy.ship_room_squares_for(owner, units);
         let cities = economy.own_city_squares(owner);
         let economy = economy
             .with_ship_room(owner, &room)
@@ -149,10 +149,33 @@ impl Game {
         Some(grid)
     }
 
+    /// The sea squares a party of `units` may step onto but not walk on over: the squares of a
+    /// computer player's ships that are no bridge (`transport::Bridge`). Its walkers are routed
+    /// over the bridges only; a ship's square can still end a path, where they board (the pickup
+    /// of the AI). Empty for the human, whose walkers use any ship, and for a stack that needs
+    /// no ship.
+    pub(crate) fn ship_stops(&self, owner: PlayerId, units: &[hecs::Entity]) -> FastSet<Position> {
+        let economy = self.economy();
+        let traits = economy.stack_traits(units);
+        if self.human() == Some(owner)
+            || traits.flies
+            || traits.sea_lift
+            || !units.iter().any(|&u| economy.needs_ship(u, traits.flies))
+        {
+            return FastSet::default();
+        }
+        let mut stops = economy.ship_room_squares_for(owner, units);
+        for bridge in economy.bridge_squares(owner) {
+            stops.remove(&bridge);
+        }
+        stops
+    }
+
     /// Whether the stack is stopped on `square`: hostile units or a city, or a guarded site.
     fn stops_at<'a>(
         economy: &'a Economy<'a>,
         hostile: &'a FastSet<Position>,
+        ships: &'a FastSet<Position>,
         owner: PlayerId,
         plane: Plane,
         width: u32,
@@ -164,6 +187,7 @@ impl Game {
                 y: s / width,
             };
             hostile.contains(&p)
+                || ships.contains(&p)
                 || (owner != crate::player::MONSTERS
                     && economy.lair_at(p).is_some_and(|l| !l.guards.is_empty()))
         }
@@ -199,7 +223,8 @@ impl Game {
             x: s % width,
             y: s / width,
         };
-        let stops = Self::stops_at(&economy, &hostile, owner, start.plane, width);
+        let ships = self.ship_stops(owner, units);
+        let stops = Self::stops_at(&economy, &hostile, &ships, owner, start.plane, width);
         let path = with_searcher(|searcher| {
             searcher.path(&grid, at(start), at(to), stops, |s| {
                 full.contains(&square(s))
@@ -230,7 +255,8 @@ impl Game {
         let width = grid.width();
         let economy = self.economy();
         let hostile = economy.hostile_squares(owner);
-        let stops = Self::stops_at(&economy, &hostile, owner, start.plane, width);
+        let ships = self.ship_stops(owner, units);
+        let stops = Self::stops_at(&economy, &hostile, &ships, owner, start.plane, width);
         let targets: Vec<Square> = targets
             .iter()
             .filter(|t| t.plane == start.plane)
@@ -263,7 +289,8 @@ impl Game {
         let width = grid.width();
         let economy = self.economy();
         let hostile = economy.hostile_squares(owner);
-        let stops = Self::stops_at(&economy, &hostile, owner, start.plane, width);
+        let ships = self.ship_stops(owner, units);
+        let stops = Self::stops_at(&economy, &hostile, &ships, owner, start.plane, width);
         let targets: Vec<Square> = targets
             .iter()
             .filter(|t| t.plane == start.plane)
@@ -418,7 +445,7 @@ mod tests {
                     .ok_or(format!("seed {seed}: no grid for {name}"))?;
                 let traits = game.economy().stack_traits(&units);
                 let economy = game.economy();
-                let room = economy.ship_room_squares(owner);
+                let room = economy.ship_room_squares_for(owner, &units);
                 let economy = economy.with_ship_room(owner, &room);
                 let profiles = Economy::distinct_step_profiles(
                     economy.step_profiles(&units).ok_or("no profiles")?,

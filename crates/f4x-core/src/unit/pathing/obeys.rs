@@ -19,7 +19,7 @@ impl Game {
         let owner = self.units().unit_owner(first)?;
         let traits = self.economy().stack_traits(units);
         let economy = self.economy();
-        let room = economy.ship_room_squares(owner);
+        let room = economy.ship_room_squares_for(owner, units);
         let economy = economy.with_ship_room(owner, &room);
         let profiles = Economy::distinct_step_profiles(economy.step_profiles(units)?);
         if path.last() != Some(&to) {

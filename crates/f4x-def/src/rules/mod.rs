@@ -10,6 +10,7 @@ pub mod damage_type;
 pub mod defs;
 pub mod effects;
 pub mod facts;
+pub mod forecast;
 pub mod global_effect;
 pub mod hook_name;
 pub mod ids;

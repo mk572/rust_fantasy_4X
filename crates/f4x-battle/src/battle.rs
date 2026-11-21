@@ -12,6 +12,7 @@
 //! Tests: in battle/tests.rs.
 
 pub mod content_ref;
+pub mod info;
 pub mod legal_command;
 pub mod load;
 

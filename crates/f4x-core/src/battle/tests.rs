@@ -8724,19 +8724,197 @@ mod forecast {
         );
         assert_eq!(g.combat_forecast(&[], &[]), None);
     }
+}
 
-    #[test]
-    fn the_bands_split_the_ratio_the_same_way_both_ways() {
-        // Shares of 25, 50 and 80 percent, and so marks at 4, 2 and 1.25 times the other side.
-        let bands = [25, 50, 80];
-        let seen = |own: f32| Forecast::of_worths(own, 100.0, bands);
-        assert_eq!(seen(20.0), Some(Forecast::CompletelyOutmatched));
-        assert_eq!(seen(40.0), Some(Forecast::MuchWeaker));
-        assert_eq!(seen(70.0), Some(Forecast::SlightlyWeaker));
-        assert_eq!(seen(100.0), Some(Forecast::Even));
-        assert_eq!(seen(120.0), Some(Forecast::Even));
-        assert_eq!(seen(130.0), Some(Forecast::SlightlyStronger));
-        assert_eq!(seen(250.0), Some(Forecast::MuchStronger));
-        assert_eq!(seen(500.0), Some(Forecast::OtherOutmatched));
+/// A real battle between two wizards: the units are spawned, the lasting spells cast on the
+/// game, the battle begun by the command a player gives. `defender_at` is the square of the
+/// defender, the square of the fight.
+fn window_battle(defender_at: crate::map::Position) -> Result<Game, Box<dyn std::error::Error>> {
+    let mut g = game();
+    for p in [A, D] {
+        g.init_wizard(p, &[(RealmId::new(3 /* life */), 1)], &[], None)
+            .map_err(|e| format!("{e:?}"))?;
     }
+    let kind = g
+        .content
+        .rules
+        .units
+        .id_numbered(107 /* high_men_cavalry */)
+        .ok_or("high_men_cavalry is not in the content")?;
+    let ours = g.spawn_unit(A, at(4, 4), kind);
+    let theirs = g.spawn_unit(D, defender_at, kind);
+    g.apply(Command::BeginBattle {
+        attackers: vec![ours],
+        defenders: vec![theirs],
+    });
+    assert!(g.in_battle());
+    Ok(g)
+}
+
+fn spell_id(g: &Game, num: u16) -> Result<SpellId, Box<dyn std::error::Error>> {
+    Ok(g.content
+        .rules
+        .spells
+        .id_numbered(num)
+        .ok_or("the spell is not in the content")?)
+}
+
+fn keys(items: &[crate::battle::info::InfoItem]) -> Vec<&'static str> {
+    items.iter().map(|i| i.key).collect()
+}
+
+/// The window of a real battle lists each wizard's own spells on their side, whoever looks, and
+/// the spells that touch every fight among the common ones, whoever cast them.
+#[test]
+fn the_information_window_of_a_battle_lists_the_spells_in_force() -> TestResult {
+    let mut g = window_battle(at(5, 4))?;
+    for (wizard, spell) in [
+        (A, 158 /* crusade */),
+        (A, 154 /* holy_arms */),
+        (D, 188 /* zombie_mastery */),
+        (D, 160 /* charm_of_life */),
+        (D, 116 /* chaos_surge */),
+        (A, 198 /* evil_omens */),
+    ] {
+        let id = spell_id(&g, spell)?;
+        g.add_global(wizard, id);
+    }
+    let mine = g.battle_info(A).ok_or("no window for the attacker")?;
+    assert_eq!(
+        keys(&mine.viewer),
+        ["battle_info.crusade", "battle_info.holy_arms"]
+    );
+    assert_eq!(
+        keys(&mine.opponent),
+        ["battle_info.charm_of_life", "battle_info.zombie_mastery"]
+    );
+    assert_eq!(
+        keys(&mine.common),
+        ["battle_info.chaos_surge", "battle_info.evil_omens"],
+        "the field's spells are shown whoever cast them"
+    );
+    assert!(mine.viewer_name.is_some() && mine.opponent_name.is_some());
+    // The other wizard sees the same battle from the other side.
+    let theirs = g.battle_info(D).ok_or("no window for the defender")?;
+    assert_eq!(keys(&theirs.viewer), keys(&mine.opponent));
+    assert_eq!(keys(&theirs.opponent), keys(&mine.viewer));
+    assert_eq!(keys(&theirs.common), keys(&mine.common));
+    Ok(())
+}
+
+/// A besieged city's own spells are shown to its attacker; its owner sees them among their own
+/// enchantments, not in the window.
+#[test]
+fn a_besieged_citys_spells_are_in_the_window_of_its_attacker_only() -> TestResult {
+    let mut g = game();
+    for p in [A, D] {
+        g.init_wizard(p, &[(RealmId::new(3 /* life */), 1)], &[], None)
+            .map_err(|e| format!("{e:?}"))?;
+    }
+    let city = found(&mut g, D, at(5, 4));
+    for spell in [
+        185, /* cloud_of_shadow */
+        139, /* heavenly_light */
+    ] {
+        let id = spell_id(&g, spell)?;
+        g.scenario_enchant_city(city, id, D);
+    }
+    let kind = g
+        .content
+        .rules
+        .units
+        .id_numbered(107 /* high_men_cavalry */)
+        .ok_or("high_men_cavalry is not in the content")?;
+    let ours = g.spawn_unit(A, at(4, 4), kind);
+    let theirs = g.spawn_unit(D, at(5, 4), kind);
+    g.apply(Command::BeginBattle {
+        attackers: vec![ours],
+        defenders: vec![theirs],
+    });
+    assert!(g.in_battle());
+    let attacker = g.battle_info(A).ok_or("no window for the attacker")?;
+    assert_eq!(
+        keys(&attacker.common),
+        ["battle_info.cloud_of_darkness", "battle_info.holy_light"]
+    );
+    let owner = g.battle_info(D).ok_or("no window for the owner")?;
+    assert!(owner.common.is_empty(), "{:?}", keys(&owner.common));
+    Ok(())
+}
+
+/// A fight on a node shows what the node does to it: on the node's own square it dispels the
+/// other realms and its aura helps its realm; on a square only its aura covers, the aura alone.
+#[test]
+fn a_fight_on_a_node_shows_the_nodes_dispelling_and_aura() -> TestResult {
+    // The aura of `put_node` covers the node's square and the squares east and south of it.
+    for (fight, attacker, expected) in [
+        (
+            at(5, 4),
+            at(4, 4),
+            vec![
+                "battle_info.dispels_non_chaos",
+                "battle_info.chaos_node_aura",
+            ],
+        ),
+        (at(6, 4), at(7, 4), vec!["battle_info.chaos_node_aura"]),
+        (at(9, 4), at(8, 4), vec![]),
+    ] {
+        let mut g = game();
+        for p in [A, D] {
+            g.init_wizard(p, &[(RealmId::new(3 /* life */), 1)], &[], None)
+                .map_err(|e| format!("{e:?}"))?;
+        }
+        g.put_node(at(5, 4), 4 /* chaos_node */);
+        let kind = g
+            .content
+            .rules
+            .units
+            .id_numbered(107 /* high_men_cavalry */)
+            .ok_or("high_men_cavalry is not in the content")?;
+        let ours = g.spawn_unit(A, attacker, kind);
+        let theirs = g.spawn_unit(D, fight, kind);
+        g.apply(Command::BeginBattle {
+            attackers: vec![ours],
+            defenders: vec![theirs],
+        });
+        assert!(g.in_battle());
+        let info = g.battle_info(A).ok_or("no window")?;
+        assert_eq!(keys(&info.common), expected, "a fight on {fight:?}");
+    }
+    Ok(())
+}
+
+/// With nothing in force the window is empty; an opponent that is no wizard (the monsters) has
+/// no heading and no spells.
+#[test]
+fn the_window_of_a_battle_with_nothing_in_force_is_empty() -> TestResult {
+    let mut g = game();
+    g.init_wizard(A, &[(RealmId::new(3 /* life */), 1)], &[], None)
+        .map_err(|e| format!("{e:?}"))?;
+    let kind = g
+        .content
+        .rules
+        .units
+        .id_numbered(107 /* high_men_cavalry */)
+        .ok_or("high_men_cavalry is not in the content")?;
+    let ours = g.spawn_unit(A, at(4, 4), kind);
+    let beast = g.spawn_unit(crate::player::MONSTERS, at(5, 4), kind);
+    g.apply(Command::BeginBattle {
+        attackers: vec![ours],
+        defenders: vec![beast],
+    });
+    assert!(g.in_battle());
+    let info = g.battle_info(A).ok_or("no window")?;
+    assert!(info.is_empty(), "{info:?}");
+    assert_eq!(info.side_rows(), 0);
+    assert_eq!(info.opponent_name, None, "monsters have no wizard");
+    assert!(info.viewer_name.is_some());
+    // A spell of the wizard's own then shows on their side only.
+    let crusade = spell_id(&g, 158 /* crusade */)?;
+    g.add_global(A, crusade);
+    let info = g.battle_info(A).ok_or("no window")?;
+    assert_eq!(keys(&info.viewer), ["battle_info.crusade"]);
+    assert!(info.opponent.is_empty() && info.common.is_empty());
+    assert_eq!(info.side_rows(), 1);
+    Ok(())
 }

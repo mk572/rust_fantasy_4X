@@ -693,6 +693,8 @@ impl Game {
             let left = self.units().unit_moves_left(u).saturating_sub(cost);
             self.put(u, MovesLeft(left));
             self.put(u, to);
+            // A ship that sails is no bridge any more.
+            let _ = self.world.remove_one::<crate::unit::transport::Bridge>(u);
             let sight = self.units().unit_sight(u);
             self.explore(owner, to, sight);
         }
