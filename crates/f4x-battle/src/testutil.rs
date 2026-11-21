@@ -14,13 +14,14 @@ use f4x_def::id::PlayerId;
 use crate::attack::{Combatant, DefenderState};
 use crate::battle::{Battle, BattleCommand, BattleEvent};
 use crate::battlemagic::caster::{range_percent, BattleCaster};
+use crate::battlemagic::field::Field;
 use crate::map::{BattleMap, Pos};
 use crate::map::{GRID_H, GRID_W};
 use crate::rng::GameRng;
 use crate::side::Side;
 use crate::unit::BattleUnit;
 use f4x_def::rules::attack_nature::Mode;
-use f4x_def::rules::Ability;
+use f4x_def::rules::{Ability, SpellId};
 
 /// The attacker of a test battle.
 pub const A: PlayerId = PlayerId(0);
@@ -178,4 +179,40 @@ pub fn unit_of(b: &Battle, number: u16) -> BattleUnit {
         .find(|u| u.unit_id == kind)
         .expect("the battle has the unit")
         .clone()
+}
+
+/// The spell of the shipped content that raises `field`.
+pub fn spell_for(field: Field) -> SpellId {
+    content()
+        .rules
+        .spells
+        .iter()
+        .find(|(_, def)| Field::of(def) == Some(field))
+        .map(|(id, _)| id)
+        .expect("a shipped spell raises the field")
+}
+
+/// What a unit's numbers were at some moment: its own with what the battlefield added then.
+pub struct Was {
+    pub melee: i32,
+    pub ranged: i32,
+    pub defense: i32,
+    pub resistance: i32,
+    pub to_hit: i32,
+}
+
+pub fn was(b: &Battle, i: usize) -> Was {
+    let n = b.now(i).expect("the unit is there");
+    Was {
+        melee: n.melee(),
+        ranged: n.ranged(),
+        defense: n.defense(),
+        resistance: n.resistance(),
+        to_hit: n.to_hit(),
+    }
+}
+
+/// A battle of shipped units, the sides' first units standing far apart, and the dice seeded 3.
+pub fn pair(ours: u16, theirs: u16) -> Battle {
+    real_battle(&[(ours, (3, 5))], &[(theirs, (17, 5))], 3)
 }

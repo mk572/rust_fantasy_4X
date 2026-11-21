@@ -2,11 +2,8 @@ use super::game::BattleStartError;
 use super::map::{distance, Cell, Mover, OPEN_COST};
 use super::spell::SpellSource;
 use super::*;
-use crate::game::rng::GameRng;
 use crate::game::save::Snapshot;
 use crate::game::testutil::shipped;
-use crate::rules::attack_nature::{AttackNature, Mode};
-use crate::rules::damage_type::DamageType;
 use crate::rules::realm::Realm;
 use crate::rules::unit_flag::UnitFlag;
 use crate::rules::MovementType;
@@ -22,68 +19,12 @@ use crate::player::PlayerId;
 use crate::rules::RealmId;
 use crate::spell::target_error::TargetError;
 use f4x_battle::testutil::{
-    bolt, check_legal_list, end_turns, merging_battle, reseeded, rules, target, unit_numbered,
-    without,
+    end_turns, pair, real_battle, reseeded, rules, spell_for, unit_numbered, was,
 };
 use f4x_def::testdir::TestResult;
-use rand::SeedableRng;
-use rand_pcg::Pcg64Mcg;
 
 const A: PlayerId = PlayerId(0);
 const D: PlayerId = PlayerId(1);
-
-/// A battle of the real game between shipped units: `ours` of player A and `theirs` of player D,
-/// each a unit number of the content and the square it stands on. The game sets it up
-/// (`BeginBattle`), so the units have their real numbers, rules and owners; only the squares are
-/// chosen, on open ground, so that the squares a test names are free. The dice start from `seed`.
-fn real_battle(ours: &[(u16, Pos)], theirs: &[(u16, Pos)], seed: u64) -> Battle {
-    let mut g = game();
-    let mut spawn = |owner: PlayerId, x: u32, list: &[(u16, Pos)]| -> Vec<hecs::Entity> {
-        list.iter()
-            .map(|&(number, _)| {
-                let kind = g
-                    .content
-                    .rules
-                    .units
-                    .id_numbered(number)
-                    .expect("a unit of the content");
-                g.spawn_unit(owner, at(x, 4), kind)
-            })
-            .collect()
-    };
-    let attackers = spawn(A, 4, ours);
-    let defenders = spawn(D, 5, theirs);
-    g.apply(Command::BeginBattle {
-        attackers,
-        defenders,
-    });
-    let mut b = g.battle().expect("a battle began").clone();
-    b.map = BattleMap::open();
-    b.rng = GameRng::new(seed);
-    // Put each unit on its square, and number the units in the order of the lists (the game
-    // deploys the melee units first): the next unit of its side and kind that has none yet.
-    let mut placed = vec![false; b.units.len()];
-    let mut order = Vec::new();
-    for (side, list) in [(Side::Attacker, ours), (Side::Defender, theirs)] {
-        for &(number, cell) in list {
-            let kind = g.content.rules.units.id_numbered(number);
-            let at = b
-                .units
-                .iter()
-                .position(|u| u.side == side && u.unit_id == kind && !placed[u.id])
-                .expect("the battle has the unit");
-            placed[at] = true;
-            b.units[at].cell = cell;
-            order.push(at);
-        }
-    }
-    let mut units: Vec<BattleUnit> = order.iter().map(|&i| b.units[i].clone()).collect();
-    for (id, u) in units.iter_mut().enumerate() {
-        u.id = id;
-    }
-    b.units = units;
-    b
-}
 
 /// Setup: every unit of the shipped content, spawned in a game (a ship at sea, the rest on land) and sent into a
 /// battle. Action: the game builds the battle unit from the overland one. Outcome: it equals the
@@ -204,210 +145,6 @@ fn a_battle_the_game_starts_has_the_rules_of_the_one_built_for_the_tests() -> Te
     assert_eq!(game_made.attacker, own.attacker);
     assert_eq!(game_made.defender, own.defender);
     Ok(())
-}
-
-#[test]
-fn archers_shoot_with_ammunition_and_range_costs_accuracy() -> TestResult {
-    // Longbowmen against a lone troll settler, who has the hit points to take every volley.
-    let battle = |range: i32| {
-        real_battle(
-            &[(101 /* high_elf_longbowmen */, (3, 10))],
-            &[(151 /* troll_settlers */, (3 + range, 10))],
-            1,
-        )
-    };
-    let (near, far) = (battle(1), battle(9));
-    // Average damage at point blank against far away over many seeds.
-    let mut near_total = 0;
-    let mut far_total = 0;
-    for seed in 0..200 {
-        let (mut near, mut far) = (reseeded(&near, seed), reseeded(&far, seed));
-        let BattleEvent::Shot { dealt: n, .. } = near
-            .apply(BattleCommand::Shoot { unit: 0, target: 1 })
-            .map_err(|e| format!("{e:?}"))?[0]
-        else {
-            return Err("no shot".into());
-        };
-        let BattleEvent::Shot { dealt: f, .. } = far
-            .apply(BattleCommand::Shoot { unit: 0, target: 1 })
-            .map_err(|e| format!("{e:?}"))?[0]
-        else {
-            return Err("no shot".into());
-        };
-        near_total += n;
-        far_total += f;
-    }
-    assert!(near_total > far_total, "{near_total} vs {far_total}");
-    // Ammunition runs out: one volley a turn, as many as the unit has shots.
-    let mut b = battle(5);
-    let shots = b.units[0].ammo;
-    assert!(shots > 1);
-    for fired in 1..=shots {
-        b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
-            .map_err(|e| format!("{e:?}"))?;
-        assert_eq!(b.unit(0).ok_or("unit is missing")?.ammo, shots - fired);
-        assert_eq!(
-            b.apply(BattleCommand::Shoot { unit: 0, target: 1 }),
-            Err(BattleError::NoMovesLeft)
-        );
-        for _ in 0..2 {
-            b.apply(BattleCommand::EndTurn)
-                .map_err(|e| format!("{e:?}"))?;
-        }
-    }
-    assert_eq!(
-        b.apply(BattleCommand::Shoot { unit: 0, target: 1 }),
-        Err(BattleError::OutOfAmmo)
-    );
-    Ok(())
-}
-
-#[test]
-fn a_walkers_melee_against_a_flier_follows_the_setting_and_the_flier_hits_back() -> TestResult {
-    use crate::game::setting::MeleeVsFliers;
-    let mut b = real_battle(
-        &[(105 /* high_men_swordsmen */, (9, 10))],
-        &[(103 /* high_elf_pegasai, a flier */, (10, 10))],
-        8,
-    );
-    let full = b.fighter(0, false).melee.strength;
-    assert!(full > 1);
-    for (rule, strength) in [
-        (MeleeVsFliers::Zero, 0),
-        (MeleeVsFliers::Half, (full + 1) / 2),
-        (MeleeVsFliers::Full, full),
-    ] {
-        b.melee_vs_fliers = rule;
-        assert_eq!(b.fighter(0, true).melee.strength, strength, "{rule:?}");
-    }
-    // Setting `melee_vs_fliers` `zero`: the walker deals nothing, and the flier answers at full
-    // strength.
-    b.melee_vs_fliers = MeleeVsFliers::Zero;
-    let e = b
-        .apply(BattleCommand::Attack { unit: 0, target: 1 })
-        .map_err(|e| format!("{e:?}"))?;
-    let BattleEvent::Attacked { dealt, .. } = e[0] else {
-        return Err(format!("{e:?}").into());
-    };
-    assert_eq!(dealt, 0);
-    Ok(())
-}
-
-#[test]
-fn a_stalemate_ends_at_the_turn_limit_in_the_defenders_favour() -> TestResult {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        1,
-    );
-    let mut last = Vec::new();
-    for _ in 0..(2 * rules().turn_limit + 2) {
-        match b.apply(BattleCommand::EndTurn) {
-            Ok(e) => last = e,
-            Err(_) => break,
-        }
-    }
-    assert_eq!(b.winner, Some(Side::Defender));
-    assert!(last.iter().any(|e| matches!(
-        e,
-        BattleEvent::Ended {
-            winner: Side::Defender
-        }
-    )));
-    // The scroll says both armies withdrew exhausted, and the event comes before the end.
-    let at = |f: fn(&BattleEvent) -> bool| last.iter().position(f);
-    let exhausted = at(|e| matches!(e, BattleEvent::Exhausted)).ok_or("no exhausted event")?;
-    assert!(exhausted < at(|e| matches!(e, BattleEvent::Ended { .. })).ok_or("at is missing")?);
-    Ok(())
-}
-
-/// Both sides walk at the nearest enemy and attack: every such battle ends.
-fn play_out(mut b: Battle) -> Battle {
-    while b.winner.is_none() {
-        let side = b.active;
-        let ids: Vec<usize> = b.active_units(side).map(|u| u.id).collect();
-        for id in ids {
-            let me = b.unit(id).expect("unit succeeds").clone();
-            let Some(enemy) = b
-                .active_units(side.other())
-                .min_by_key(|e| distance(me.cell, e.cell))
-                .map(|e| e.id)
-            else {
-                break;
-            };
-            if distance(me.cell, b.unit(enemy).expect("unit succeeds").cell) > 1 {
-                // Step to the reachable square nearest the enemy.
-                let target = b.unit(enemy).expect("unit succeeds").cell;
-                if let Some((&to, _)) = b
-                    .reachable(id)
-                    .iter()
-                    .min_by_key(|(&p, _)| distance(p, target))
-                {
-                    let _ = b.apply(BattleCommand::Move { unit: id, to });
-                }
-            }
-            let enemy_cell = b.unit(enemy).map(|e| e.cell);
-            if let Some(cell) = enemy_cell {
-                if b.unit(enemy).expect("unit succeeds").is_active()
-                    && distance(b.unit(id).expect("unit succeeds").cell, cell) == 1
-                {
-                    let _ = b.apply(BattleCommand::Attack {
-                        unit: id,
-                        target: enemy,
-                    });
-                }
-            }
-            if b.winner.is_some() {
-                break;
-            }
-        }
-        if b.winner.is_none() {
-            b.apply(BattleCommand::EndTurn).expect("apply succeeds");
-        }
-    }
-    b
-}
-
-#[test]
-fn scripted_battles_always_finish() {
-    let start = real_battle(
-        &[
-            (107 /* high_men_cavalry */, (3, 9)),
-            (107 /* high_men_cavalry */, (3, 11)),
-            (107 /* high_men_cavalry */, (3, 10)),
-        ],
-        &[
-            (48 /* beastmen_halberdiers */, (17, 10)),
-            (48 /* beastmen_halberdiers */, (17, 11)),
-        ],
-        0,
-    );
-    for seed in 0..40 {
-        let b = play_out(reseeded(&start, seed));
-        assert!(b.winner.is_some(), "seed {seed}");
-        assert!(
-            b.turn < rules().turn_limit,
-            "seed {seed}: took {} turns",
-            b.turn
-        );
-    }
-}
-
-#[test]
-fn the_stronger_side_usually_wins() {
-    // Paladins against spearmen.
-    let start = real_battle(
-        &[(113 /* high_men_paladins */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        0,
-    );
-    let mut strong_wins = 0;
-    for seed in 0..60 {
-        if play_out(reseeded(&start, seed)).winner == Some(Side::Attacker) {
-            strong_wins += 1;
-        }
-    }
-    assert!(strong_wins > 50, "{strong_wins} of 60");
 }
 
 // ---- joining the game ------------------------------------------------------------------
@@ -676,42 +413,6 @@ fn units_asleep_confused_or_webbed_are_always_lost_when_their_side_flees() {
     assert!(att.iter().all(|&u| !g.world.contains(u)));
 }
 
-#[test]
-fn ranged_abilities_map_to_battle_kinds() {
-    use super::game::ranged_kind_of;
-    let rules = &shipped().rules;
-    assert_eq!(
-        ranged_kind_of(&[Ability::new(3 /* bow */)], rules),
-        RangedKind::Missile
-    );
-    assert_eq!(
-        ranged_kind_of(&[Ability::new(57 /* rock_throwing */)], rules),
-        RangedKind::Missile
-    );
-    assert_eq!(
-        ranged_kind_of(&[Ability::new(69 /* thrown */)], rules),
-        RangedKind::Short
-    );
-    assert_eq!(
-        ranged_kind_of(
-            &[
-                Ability::new(20 /* fire_breath */),
-                Ability::new(24 /* flying */)
-            ],
-            rules
-        ),
-        RangedKind::Short
-    );
-    assert_eq!(
-        ranged_kind_of(&[Ability::new(29 /* ice_bolt */)], rules),
-        RangedKind::Magic
-    );
-    assert_eq!(
-        ranged_kind_of(&[Ability::new(25 /* forester */)], rules),
-        RangedKind::None
-    );
-}
-
 fn found(g: &mut Game, owner: PlayerId, pos: crate::map::Position) -> hecs::Entity {
     let race = g.content.rules.races.id_numbered(7);
     g.apply(Command::FoundCity {
@@ -863,236 +564,6 @@ fn auto_resolve_needs_an_adjacent_target() -> TestResult {
 }
 
 #[test]
-fn a_merged_unit_leaves_the_field_and_comes_up_on_the_next_turn_wherever_it_likes() -> TestResult {
-    let mut b = merging_battle();
-    b.apply(BattleCommand::Merge { unit: 0 })
-        .map_err(|e| format!("{e:?}"))?;
-    let gone = b.unit(0).ok_or("no unit")?;
-    assert_eq!(gone.status, Status::Merged);
-    assert!(b.unit_at((3, 10)).is_none(), "its square is free");
-    assert!(b.active_units(Side::Attacker).all(|u| u.id != 0));
-    // It cannot come up on the turn it went down, and a unit that is not merged cannot come up.
-    assert_eq!(
-        b.apply(BattleCommand::Surface {
-            unit: 0,
-            to: (9, 9)
-        }),
-        Err(BattleError::NotMerged)
-    );
-    assert_eq!(
-        b.apply(BattleCommand::Surface {
-            unit: 1,
-            to: (9, 9)
-        }),
-        Err(BattleError::NotMerged)
-    );
-    b.apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    // The enemy cannot touch it: nothing to attack, and it is not on the legal lists.
-    assert!(b
-        .legal_commands()
-        .iter()
-        .all(|c| !matches!(c, BattleCommand::Attack { target: 0, .. })));
-    b.apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    // Its own side's next turn: it comes up anywhere free, beside an enemy if it likes.
-    assert!(b.legal_commands().contains(&BattleCommand::Surface {
-        unit: 0,
-        to: (16, 10)
-    }));
-    assert_eq!(
-        b.apply(BattleCommand::Surface {
-            unit: 0,
-            to: (17, 10)
-        }),
-        Err(BattleError::Unreachable),
-        "not onto a unit"
-    );
-    b.apply(BattleCommand::Surface {
-        unit: 0,
-        to: (16, 10),
-    })
-    .map_err(|e| format!("{e:?}"))?;
-    let up = b.unit(0).ok_or("no unit")?;
-    assert_eq!(up.status, Status::Active);
-    assert_eq!(up.cell, (16, 10));
-    assert_eq!(up.moves_left, up.moves, "coming up costs no moves");
-    assert!(!up.attacked, "it can strike at once");
-    b.apply(BattleCommand::Attack { unit: 0, target: 2 })
-        .map_err(|e| format!("{e:?}"))?;
-    // It cannot go down again on the turn it came up.
-    assert_eq!(
-        b.apply(BattleCommand::Merge { unit: 0 }),
-        Err(BattleError::CannotMerge)
-    );
-    assert!(!b
-        .legal_commands()
-        .contains(&BattleCommand::Merge { unit: 0 }));
-    // Next turn it can.
-    b.apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    b.apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(b
-        .legal_commands()
-        .contains(&BattleCommand::Merge { unit: 0 }));
-    Ok(())
-}
-
-#[test]
-fn counter_magic_resists_by_its_strength_and_loses_some_per_attempt() {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        4,
-    );
-    // No wizard on either side to begin with (a battle of a game may have them).
-    b.casters = Default::default();
-    // No reserve: nothing is stopped, nothing drains.
-    assert!(!b.counter_magic_stops(Side::Attacker, 10));
-    assert_eq!(b.counter_magic, [0, 0]);
-    // The defender holds a reserve of 100; only the attacker's spells face it.
-    b.cast_counter_magic(Side::Defender, 100);
-    assert_eq!(b.counter_magic, [0, 100]);
-    assert!(
-        !b.counter_magic_stops(Side::Defender, 10),
-        "the holder's own spells pass"
-    );
-    assert_eq!(b.counter_magic, [0, 100]);
-    // Against difficulty 100 the reserve of 100 stops about half, and every try costs the drain.
-    let drain = rules().counter_magic_drain;
-    let tries = 10;
-    let mut stopped = 0;
-    for _ in 0..tries {
-        if b.counter_magic_stops(Side::Attacker, 100) {
-            stopped += 1;
-        }
-    }
-    assert_eq!(b.counter_magic, [0, 100 - tries * drain], "the drain each");
-    assert!(stopped <= tries, "stopped {stopped} of {tries}");
-    // A drained reserve stops nothing.
-    for _ in 0..100 {
-        b.counter_magic_stops(Side::Attacker, 1);
-    }
-    assert_eq!(b.counter_magic, [0, 0]);
-    assert!(!b.counter_magic_stops(Side::Attacker, 1));
-}
-
-/// Hit points that unit 1 of the battle `start` lost over many one-round fights from different
-/// seeds: unit 0 strikes (or shoots) at it.
-fn damage_over_seeds(start: &Battle, shoot: bool) -> i32 {
-    let mut total = 0;
-    for seed in 0..300 {
-        let mut b = reseeded(start, seed);
-        let command = if shoot {
-            BattleCommand::Shoot { unit: 0, target: 1 }
-        } else {
-            BattleCommand::Attack { unit: 0, target: 1 }
-        };
-        b.apply(command).expect("apply succeeds");
-        total += b.unit(1).expect("unit succeeds").max_hit_points()
-            - b.unit(1).expect("unit succeeds").hit_points();
-    }
-    total
-}
-
-#[test]
-fn weapon_immunity_blunts_normal_blows_but_not_magical_ones() {
-    // Swordsmen against werewolves, who are immune to weapons.
-    let stone = real_battle(
-        &[(105 /* high_men_swordsmen */, (3, 10))],
-        &[(168 /* werewolves */, (4, 10))],
-        1,
-    );
-    let open = without(&stone, 1, 72 /* weapon_immunity */);
-    let mut magic = stone.clone();
-    magic.units[0].put_flag(UnitFlag::MagicalWeapon);
-    let (open, stone, stone_vs_magic) = (
-        damage_over_seeds(&open, false),
-        damage_over_seeds(&stone, false),
-        damage_over_seeds(&magic, false),
-    );
-    assert!(stone * 3 < open, "{stone} vs {open}");
-    let ratio = f64::from(stone_vs_magic) / f64::from(open);
-    assert!((ratio - 1.0).abs() < 0.1, "{ratio}");
-}
-
-#[test]
-fn missile_immunity_stops_arrows_completely() {
-    // Longbowmen against a necromancer, who is immune to missiles.
-    let proof = real_battle(
-        &[(101 /* high_elf_longbowmen */, (3, 10))],
-        &[(32 /* necromancer */, (5, 10))],
-        1,
-    );
-    let open = without(&proof, 1, 44 /* missile_immunity */);
-    let (open, proof) = (
-        damage_over_seeds(&open, true),
-        damage_over_seeds(&proof, true),
-    );
-    assert!(open > 20, "{open}");
-    assert_eq!(proof, 0);
-}
-
-#[test]
-fn magic_immunity_and_fire_immunity_each_stop_a_fireball() {
-    // Magicians' fireballs against paladins (magic immunity) and a fire elemental (fire immunity).
-    let warded = real_battle(
-        &[(51 /* beastmen_magicians */, (3, 10))],
-        &[(113 /* high_men_paladins */, (5, 10))],
-        1,
-    );
-    let open = damage_over_seeds(&without(&warded, 1, 40 /* magic_immunity */), true);
-    assert!(open > 20, "{open}");
-    assert_eq!(damage_over_seeds(&warded, true), 0);
-    let fireproof = real_battle(
-        &[(51 /* beastmen_magicians */, (3, 10))],
-        &[(158 /* fire_elemental */, (5, 10))],
-        1,
-    );
-    // The fireball is fire as well as magic, so fire immunity stops it too.
-    let open = damage_over_seeds(&without(&fireproof, 1, 21 /* fire_immunity */), true);
-    assert!(open > 20, "{open}");
-    assert_eq!(damage_over_seeds(&fireproof, true), 0);
-}
-
-#[test]
-fn fire_breath_is_stopped_by_fire_immunity_and_magic_immunity() {
-    // Doom drakes (fire breath, then melee) against a fire elemental and against paladins.
-    for (foe, ability) in [
-        (158 /* fire_elemental */, 21 /* fire_immunity */),
-        (
-            113, /* high_men_paladins */
-            40,  /* magic_immunity */
-        ),
-    ] {
-        let shielded = real_battle(
-            &[(74 /* draconian_doom_drakes */, (3, 10))],
-            &[(foe, (4, 10))],
-            1,
-        );
-        let open = damage_over_seeds(&without(&shielded, 1, ability), false);
-        let shielded = damage_over_seeds(&shielded, false);
-        assert!(open > 0);
-        // The melee blow that follows the breath still lands: only the breath's share is gone.
-        assert!(shielded < open, "{ability}: {shielded} vs {open}");
-    }
-}
-
-#[test]
-fn an_illusion_ignores_armor_unless_the_defender_sees_through_it() {
-    // Phantom warriors against skeletons, who see through illusions.
-    let seen = real_battle(
-        &[(192 /* phantom_warriors */, (3, 10))],
-        &[(165 /* skeletons */, (4, 10))],
-        1,
-    );
-    let plain = damage_over_seeds(&without(&seen, 1, 31 /* illusion_immunity */), false);
-    let seen = damage_over_seeds(&seen, false);
-    assert!(plain > seen * 2, "{plain} vs {seen}");
-}
-
-#[test]
 fn a_power_drain_shot_takes_two_to_twenty_mana_from_a_caster_that_fails_its_check() -> TestResult {
     // The elven archer with the Master Crossbow (it has Power Drain) shoots a wind mage hero, who
     // has mana from its casting skill.
@@ -1134,480 +605,14 @@ fn a_power_drain_shot_takes_two_to_twenty_mana_from_a_caster_that_fails_its_chec
     Ok(())
 }
 
-/// A battle of the real game at a city, walled or not: `ours` attack, `theirs` defend.
-fn siege(ours: &[(u16, Pos)], theirs: &[(u16, Pos)], walled: bool, seed: u64) -> Battle {
-    let mut b = real_battle(ours, theirs, seed);
-    b.map = BattleMap::open().with_city(walled);
-    b.note_invisibility();
-    b
-}
-
-/// Squares round one section of a city's wall, asked from the map: a wall section that is neither a
-/// tower nor the gate, the square outside it, the squares behind it (inside the city area) and a
-/// square far outside, in line. Nothing here knows where the city stands or how big it is.
-struct WallSpot {
-    wall: Pos,
-    outside: Pos,
-    behind: Pos,
-    deeper: Pos,
-    two_out: Pos,
-    distant: Pos,
-}
-
-fn wall_spot() -> WallSpot {
-    use super::map::{in_city_area, is_wall_corner, is_wall_site};
-    let m = BattleMap::open().with_city(true);
-    let wall = (0..map::GRID_H)
-        .flat_map(|y| (0..map::GRID_W).map(move |x| (x, y)))
-        .find(|&p| is_wall_site(p) && !is_wall_corner(p) && !m.is_gate(p))
-        .expect("a wall has a plain section");
-    let (outside, dir) = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-        .into_iter()
-        .map(|d| ((wall.0 + d.0, wall.1 + d.1), d))
-        .find(|&(p, _)| !in_city_area(p))
-        .expect("a section has an outside");
-    let step = |n: i32| (wall.0 - n * dir.0, wall.1 - n * dir.1);
-    let spot = WallSpot {
-        wall,
-        outside,
-        behind: step(1),
-        deeper: step(2),
-        two_out: step(-2),
-        distant: step(-4),
-    };
-    for p in [spot.behind, spot.deeper] {
-        assert!(in_city_area(p) && !m.has_wall(p), "{p:?} is inside");
-    }
-    assert!(BattleMap::in_bounds(spot.distant) && !in_city_area(spot.distant));
-    spot
-}
-
-/// Whether `count` successes in `tries` fit a chance of `percent`, give or take five standard deviations.
-fn fits_percent(count: i32, tries: i32, percent: u32) -> bool {
-    let p = f64::from(percent) / 100.0;
-    let n = f64::from(tries);
-    (f64::from(count) - n * p).abs() <= 5.0 * (n * p * (1.0 - p)).sqrt()
-}
-
-#[test]
-fn a_wall_crusher_brings_a_wall_down_as_often_as_the_rules_say_in_melee() -> TestResult {
-    let (spot, chance) = (wall_spot(), rules().city_wall.crush_melee_percent);
-    let mut fell = 0;
-    for seed in 0..400 {
-        let mut b = siege(
-            &[(153 /* troll_war_mammoths */, spot.outside)],
-            &[(104 /* high_men_spearmen */, spot.deeper)],
-            true,
-            seed,
-        );
-        let events = b
-            .apply(BattleCommand::AttackWall {
-                unit: 0,
-                cell: spot.wall,
-            })
-            .map_err(|e| format!("{e:?}"))?;
-        let BattleEvent::WallAttacked { destroyed, .. } = events[0] else {
-            panic!("{events:?}")
-        };
-        assert_eq!(destroyed, !b.map.has_wall(spot.wall));
-        fell += i32::from(destroyed);
-        // The blow costs half the allowance, as a blow on a unit does.
-        let me = b.unit(0).ok_or("unit is missing")?;
-        assert!(!me.attacked);
-        assert_eq!(me.moves_left, me.moves - me.moves.half());
-    }
-    assert!(
-        fits_percent(fell, 400, chance),
-        "{fell} of 400 at {chance}%"
-    );
-    Ok(())
-}
-
-#[test]
-fn shooting_a_wall_brings_it_down_as_often_as_the_rules_say_and_costs_a_shot() -> TestResult {
-    let (spot, chance) = (wall_spot(), rules().city_wall.crush_ranged_percent);
-    let mut fell = 0;
-    for seed in 0..400 {
-        let mut b = siege(
-            &[(37 /* catapult */, spot.distant)],
-            &[(104 /* high_men_spearmen */, spot.deeper)],
-            true,
-            seed,
-        );
-        let shots = b.units[0].ammo;
-        b.apply(BattleCommand::ShootWall {
-            unit: 0,
-            cell: spot.wall,
-        })
-        .map_err(|e| format!("{e:?}"))?;
-        assert_eq!(b.unit(0).ok_or("unit is missing")?.ammo, shots - 1);
-        fell += i32::from(!b.map.has_wall(spot.wall));
-    }
-    assert!(
-        fits_percent(fell, 400, chance),
-        "{fell} of 400 at {chance}%"
-    );
-    Ok(())
-}
-
-#[test]
-fn only_attacking_wall_crushers_may_strike_a_standing_wall() -> TestResult {
-    let spot = wall_spot();
-    let mut b = siege(
-        &[
-            (105 /* high_men_swordsmen */, spot.outside),
-            (110 /* high_men_engineers */, spot.distant),
-        ],
-        &[(104 /* high_men_spearmen */, spot.deeper)],
-        true,
-        1,
-    );
-    assert_eq!(
-        b.apply(BattleCommand::AttackWall {
-            unit: 0,
-            cell: spot.wall
-        }),
-        Err(BattleError::NotWallCrusher)
-    );
-    // Not next to the wall.
-    assert_eq!(
-        b.apply(BattleCommand::AttackWall {
-            unit: 1,
-            cell: spot.wall
-        }),
-        Err(BattleError::NotAdjacent)
-    );
-    // No wall on the square.
-    assert_eq!(
-        b.apply(BattleCommand::AttackWall {
-            unit: 1,
-            cell: spot.distant
-        }),
-        Err(BattleError::NoWall)
-    );
-    assert_eq!(
-        b.apply(BattleCommand::ShootWall {
-            unit: 1,
-            cell: spot.wall
-        }),
-        Err(BattleError::NoRangedAttack)
-    );
-    // Once the defenders' turn comes, a defending crusher is no wall breaker.
-    let mut b2 = siege(
-        &[(104 /* high_men_spearmen */, spot.distant)],
-        &[(110 /* high_men_engineers */, spot.behind)],
-        true,
-        1,
-    );
-    b2.apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(
-        b2.apply(BattleCommand::AttackWall {
-            unit: 1,
-            cell: spot.wall
-        }),
-        Err(BattleError::NotWallCrusher)
-    );
-    // And a city without walls has none to strike.
-    let mut open = siege(
-        &[(110 /* high_men_engineers */, spot.outside)],
-        &[(104 /* high_men_spearmen */, spot.deeper)],
-        false,
-        1,
-    );
-    assert_eq!(
-        open.apply(BattleCommand::AttackWall {
-            unit: 0,
-            cell: spot.wall
-        }),
-        Err(BattleError::NoWall)
-    );
-    Ok(())
-}
-
-/// 1.50 note 476: a wall crusher can strike a wall section with an enemy standing right behind it:
-/// the wall has its own target path, not the one of a unit hit.
-#[test]
-fn a_wall_crusher_strikes_a_wall_with_a_defender_standing_behind_it() -> TestResult {
-    let spot = wall_spot();
-    let mut b = siege(
-        &[(110 /* high_men_engineers */, spot.outside)],
-        &[(104 /* high_men_spearmen */, spot.behind)],
-        true,
-        1,
-    );
-    let events = b
-        .apply(BattleCommand::AttackWall {
-            unit: 0,
-            cell: spot.wall,
-        })
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(matches!(
-        events.first(),
-        Some(BattleEvent::WallAttacked { unit: 0, .. })
-    ));
-    assert!(
-        !events.iter().any(|e| matches!(
-            e,
-            BattleEvent::Attacked { .. } | BattleEvent::UnitDied { .. }
-        )),
-        "no unit is hit: {events:?}"
-    );
-    Ok(())
-}
-
-#[test]
-fn a_wall_crusher_hitting_a_unit_on_the_wall_may_bring_the_wall_down_too() -> TestResult {
-    let (spot, chance) = (wall_spot(), rules().city_wall.crush_melee_percent);
-    let mut fell = 0;
-    for seed in 0..300 {
-        let mut b = siege(
-            &[(153 /* troll_war_mammoths */, spot.outside)],
-            &[(104 /* high_men_spearmen */, spot.wall)],
-            true,
-            seed,
-        );
-        b.apply(BattleCommand::Attack { unit: 0, target: 1 })
-            .map_err(|e| format!("{e:?}"))?;
-        fell += i32::from(!b.map.has_wall(spot.wall));
-    }
-    assert!(
-        fits_percent(fell, 300, chance),
-        "{fell} of 300 at {chance}%"
-    );
-    Ok(())
-}
-
-#[test]
-fn walls_lower_the_damage_a_unit_on_them_takes_from_attackers_outside_and_nothing_else(
-) -> TestResult {
-    let spot = wall_spot();
-    // Hit points a defender loses over many fights against swordsmen that stand at `from`.
-    let lost = |target: Pos, from: Pos, walled: bool| {
-        let mut total = 0;
-        for seed in 0..300 {
-            let mut b = siege(
-                &[(105 /* high_men_swordsmen */, from)],
-                &[(79 /* dwarven_hammerhands */, target)],
-                walled,
-                seed,
-            );
-            let _ = b.apply(BattleCommand::Attack { unit: 0, target: 1 });
-            total += b.unit(1).expect("unit succeeds").max_hit_points()
-                - b.unit(1).expect("unit succeeds").hit_points();
-        }
-        total
-    };
-    // A defender on the wall, struck from outside: the walls help it by what the rules give.
-    let on_wall = lost(spot.wall, spot.outside, true);
-    let on_open_ground = lost(spot.wall, spot.outside, false);
-    assert_eq!(
-        on_wall < on_open_ground,
-        rules().wall_defence > 0,
-        "{on_wall} vs {on_open_ground}"
-    );
-    // Struck by an attacker that is inside the city area too, the walls give nothing.
-    assert_eq!(
-        lost(spot.behind, spot.deeper, true),
-        lost(spot.behind, spot.deeper, false)
-    );
-    Ok(())
-}
-
-#[test]
-fn the_defence_the_walls_give_follows_the_rules_for_the_wall_and_behind_it() {
-    let (spot, rules) = (wall_spot(), rules());
-    let (wall, city) = (rules.wall_defence, rules.city_defence);
-    // An attacker outside the city area, a target on the wall and one behind it.
-    let mut b = siege(
-        &[(105 /* high_men_swordsmen */, spot.outside)],
-        &[
-            (104 /* high_men_spearmen */, spot.wall),
-            (104 /* high_men_spearmen */, spot.behind),
-        ],
-        true,
-        1,
-    );
-    assert_eq!(
-        (b.city_defense_bonus(1, 0), b.city_defense_bonus(2, 0)),
-        (wall, city)
-    );
-    b.walls_cover_city = true;
-    assert_eq!(
-        (b.city_defense_bonus(1, 0), b.city_defense_bonus(2, 0)),
-        (wall, wall)
-    );
-    // Still nothing against an attacker inside, or without walls.
-    b.units[0].cell = spot.deeper;
-    assert_eq!(b.city_defense_bonus(2, 0), 0);
-    let mut open = siege(
-        &[(105 /* high_men_swordsmen */, spot.outside)],
-        &[(104 /* high_men_spearmen */, spot.behind)],
-        false,
-        1,
-    );
-    open.walls_cover_city = true;
-    assert_eq!(open.city_defense_bonus(1, 0), 0);
-}
-
-#[test]
-fn attackers_inside_the_city_hurt_it_each_turn() -> TestResult {
-    let spot = wall_spot();
-    let mut b = siege(
-        &[
-            (105 /* high_men_swordsmen */, spot.behind),
-            (105, spot.outside),
-        ],
-        &[(104 /* high_men_spearmen */, spot.deeper)],
-        true,
-        1,
-    );
-    // Each new turn of the attackers counts the unit that stands inside (not the one outside).
-    b.apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(b.city_damage, 0, "the defenders' turn adds nothing");
-    b.apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(b.city_damage, 1);
-    for _ in 0..2 {
-        b.apply(BattleCommand::EndTurn)
-            .map_err(|e| format!("{e:?}"))?;
-    }
-    assert_eq!(b.city_damage, 2);
-    // A battle in the open has no city to hurt.
-    let b = real_battle(
-        &[(104 /* high_men_spearmen */, (13, 11))],
-        &[(104 /* high_men_spearmen */, (15, 11))],
-        1,
-    );
-    assert_eq!(b.city_damage, 0);
-    Ok(())
-}
-
 // ---- spells -----------------------------------------------------------------
 
 mod casting {
     use super::*;
-    use crate::battle::attack::{spell_attack, Volley};
-    use crate::battle::casting::{range_percent, BattleCaster};
+    use crate::battle::casting::range_percent;
 
     use crate::rules::stats::Stat;
     use f4x_def::testdir::TestResult;
-
-    #[test]
-    fn casting_costs_more_the_further_from_the_fortress() {
-        // `casting_range` of `rules.ron`: the fortress, then the base for the first distances and
-        // a step more for each distance in `beyond` that the battle is further than.
-        let rules = shipped().rules;
-        let range = &rules.config.casting_range;
-        assert_eq!(range_percent(range, Some(0), |d| d), range.at_fortress);
-        let mut last = 0;
-        let mut rises = 0;
-        for d in 1..=range.far + 10 {
-            let want =
-                range.base + range.step * range.beyond.iter().filter(|&&t| d > t).count() as i32;
-            let got = range_percent(range, Some(d), |d| d);
-            assert_eq!(got, want, "{d} squares");
-            assert!(got >= last, "dearer the further");
-            rises += i32::from(got > last);
-            last = got;
-        }
-        assert!(rises > 1, "the cost never rises with the distance");
-        // Another plane is as far as `far`.
-        assert_eq!(
-            range_percent(range, None, |d| d),
-            range_percent(range, Some(range.far), |d| d)
-        );
-        // A channeler is two squares away wherever they are, except at the fortress.
-        let channeler = [crate::wizard::magic::Retort::new(8)].into_iter().collect();
-        let counted = |d| crate::wizard::retort::stat(&rules, &channeler, Stat::CastingDistance, d);
-        let near = u32::try_from(counted(i32::try_from(range.far).unwrap_or(0))).unwrap_or(0);
-        assert!(near < range.far, "a Channeler counts as nearer");
-        assert_eq!(
-            range_percent(range, Some(range.far), counted),
-            range_percent(range, Some(near), |d| d)
-        );
-        assert_eq!(
-            range_percent(range, None, counted),
-            range_percent(range, Some(near), |d| d)
-        );
-        assert_eq!(range_percent(range, Some(0), counted), range.at_fortress);
-    }
-
-    #[test]
-    fn a_mana_budget_caps_what_the_wizard_can_afford_and_is_used_up_by_casting() -> TestResult {
-        let mut near = BattleCaster::new(20, 100, 10);
-        assert_eq!(near.affordable(), 20);
-        near.budget = Some(HalfInt::from_int(8));
-        assert_eq!(near.affordable(), 8);
-        // Two mana for each point of skill: a budget of 8 pays for 4.
-        let mut far = BattleCaster::new(20, 100, 20);
-        far.budget = Some(HalfInt::from_int(8));
-        assert_eq!(far.affordable(), 4);
-        // Casting spends it.
-        let mut b = real_battle(
-            &[(104 /* high_men_spearmen */, (3, 10))],
-            &[(104 /* high_men_spearmen */, (17, 10))],
-            1,
-        );
-        // No wizard on either side to begin with (a battle of a game may have them).
-        b.casters = Default::default();
-        b.set_caster(Side::Attacker, BattleCaster::new(20, 100, 10));
-        b.set_mana_budget(Side::Attacker, Some(8));
-        assert_eq!(b.pay_for_spell(5), HalfInt::from_int(5));
-        let c = b.caster(Side::Attacker).ok_or("caster is missing")?;
-        assert_eq!(
-            (c.budget, c.mana, c.skill_left),
-            (Some(HalfInt::from_int(3)), HalfInt::from_int(95), 15)
-        );
-        assert_eq!(c.affordable(), 3);
-        // A side without a wizard has nothing to limit; no budget means no limit.
-        b.set_mana_budget(Side::Defender, Some(1));
-        assert!(b.caster(Side::Defender).is_none());
-        b.set_mana_budget(Side::Attacker, None);
-        assert_eq!(
-            b.caster(Side::Attacker)
-                .ok_or("caster is missing")?
-                .affordable(),
-            15
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn what_a_wizard_can_afford_is_the_lesser_of_skill_and_what_the_reserve_pays_for() {
-        let near = BattleCaster::new(20, 100, 10);
-        assert_eq!(near.affordable(), 20);
-        let far = BattleCaster::new(20, 30, 30);
-        assert_eq!(far.affordable(), 10, "30 mana at three times pays for 10");
-        assert_eq!(far.mana_for(10), HalfInt::from_int(30));
-        assert_eq!(
-            BattleCaster::new(20, 100, 5).mana_for(7),
-            HalfInt::from_raw(7),
-            "halved, to the half point"
-        );
-    }
-
-    #[test]
-    fn a_fireball_hits_each_figure_and_none_loses_more_than_one_figure() {
-        let squad = target(6, 2, 0);
-        let ball = {
-            let mut c = bolt(5);
-            c.nature.types.insert(DamageType::Doom);
-            c
-        };
-        let mut state = squad.clone();
-        let mut rng = Pcg64Mcg::seed_from_u64(1);
-        let dmg = spell_attack(&rules(), &ball, Volley::Area, &mut state, &mut rng);
-        // Five points a figure, capped at its two hit points: a whole squad of six dies.
-        assert_eq!((dmg.points, dmg.kills, state.figures), (12, 6, 0));
-        let mut state = squad;
-        let single = spell_attack(&rules(), &ball, Volley::Bolt, &mut state, &mut rng);
-        assert_eq!(
-            single.kills, 2,
-            "a bolt of five kills two of them and no more"
-        );
-    }
 
     #[test]
     fn a_lasting_spell_changes_the_numbers_and_a_rebuild_takes_it_off_again() -> TestResult {
@@ -1727,6 +732,46 @@ mod casting {
         assert_eq!((u.figures as i32, u.hit_points()), (8, normal));
         Ok(())
     }
+
+    #[test]
+    fn casting_costs_more_the_further_from_the_fortress() {
+        // `casting_range` of `rules.ron`: the fortress, then the base for the first distances and
+        // a step more for each distance in `beyond` that the battle is further than.
+        let rules = shipped().rules;
+        let range = &rules.config.casting_range;
+        assert_eq!(range_percent(range, Some(0), |d| d), range.at_fortress);
+        let mut last = 0;
+        let mut rises = 0;
+        for d in 1..=range.far + 10 {
+            let want =
+                range.base + range.step * range.beyond.iter().filter(|&&t| d > t).count() as i32;
+            let got = range_percent(range, Some(d), |d| d);
+            assert_eq!(got, want, "{d} squares");
+            assert!(got >= last, "dearer the further");
+            rises += i32::from(got > last);
+            last = got;
+        }
+        assert!(rises > 1, "the cost never rises with the distance");
+        // Another plane is as far as `far`.
+        assert_eq!(
+            range_percent(range, None, |d| d),
+            range_percent(range, Some(range.far), |d| d)
+        );
+        // A channeler is two squares away wherever they are, except at the fortress.
+        let channeler = [crate::wizard::magic::Retort::new(8)].into_iter().collect();
+        let counted = |d| crate::wizard::retort::stat(&rules, &channeler, Stat::CastingDistance, d);
+        let near = u32::try_from(counted(i32::try_from(range.far).unwrap_or(0))).unwrap_or(0);
+        assert!(near < range.far, "a Channeler counts as nearer");
+        assert_eq!(
+            range_percent(range, Some(range.far), counted),
+            range_percent(range, Some(near), |d| d)
+        );
+        assert_eq!(
+            range_percent(range, None, counted),
+            range_percent(range, Some(near), |d| d)
+        );
+        assert_eq!(range_percent(range, Some(0), counted), range.at_fortress);
+    }
 }
 
 // ---- battlefield enchantments -----------------------------------------------
@@ -1737,86 +782,6 @@ mod fields {
     use crate::battle::immunity::Realm;
     use crate::rules::SpellId;
     use f4x_def::testdir::TestResult;
-
-    /// The spell of the shipped content that raises `field`.
-    fn spell_for(field: Field) -> SpellId {
-        crate::game::testutil::shipped()
-            .rules
-            .spells
-            .iter()
-            .find(|(_, def)| Field::of(def) == Some(field))
-            .map(|(id, _)| id)
-            .expect("a shipped spell raises the field")
-    }
-
-    /// What a unit's numbers were at some moment: its own with what the battlefield added then.
-    struct Was {
-        melee: i32,
-        ranged: i32,
-        defense: i32,
-        resistance: i32,
-        to_hit: i32,
-    }
-
-    fn was(b: &Battle, i: usize) -> Was {
-        let n = b.now(i).expect("the unit is there");
-        Was {
-            melee: n.melee(),
-            ranged: n.ranged(),
-            defense: n.defense(),
-            resistance: n.resistance(),
-            to_hit: n.to_hit(),
-        }
-    }
-
-    /// A battle of the real game, the sides' first units standing far apart, and the dice seeded 3.
-    fn pair(ours: u16, theirs: u16) -> Battle {
-        real_battle(&[(ours, (3, 5))], &[(theirs, (17, 5))], 3)
-    }
-
-    #[test]
-    fn light_helps_life_and_hurts_death_and_darkness_does_the_opposite() {
-        let mut b = pair(177 /* angel */, 171 /* shadow_demons */);
-        let (life, death) = (was(&b, 0), was(&b, 1));
-        assert!(death.ranged > 0);
-        b.raise_field(
-            Side::Attacker,
-            Field::TrueLight,
-            spell_for(Field::TrueLight),
-        );
-        let (l, d) = (&b.units[0], &b.units[1]);
-        assert_eq!(
-            (
-                b.now_of(l).melee(),
-                b.now_of(l).defense(),
-                b.now_of(l).resistance()
-            ),
-            (life.melee + 1, life.defense + 1, life.resistance + 1)
-        );
-        assert_eq!(
-            (
-                b.now_of(d).melee(),
-                b.now_of(d).ranged(),
-                b.now_of(d).defense(),
-                b.now_of(d).resistance()
-            ),
-            (
-                death.melee - 1,
-                death.ranged - 1,
-                death.defense - 1,
-                death.resistance - 1
-            )
-        );
-        // Darkness by the other side cancels it, whoever cast either.
-        b.raise_field(Side::Defender, Field::Darkness, spell_for(Field::Darkness));
-        assert_eq!(b.now(0).unwrap().melee(), life.melee);
-        assert_eq!(b.now(1).unwrap().resistance(), death.resistance);
-        // Darkness alone is the reverse.
-        let mut b = pair(177 /* angel */, 171 /* shadow_demons */);
-        b.raise_field(Side::Attacker, Field::Darkness, spell_for(Field::Darkness));
-        assert_eq!(b.now(0).unwrap().defense(), life.defense - 1);
-        assert_eq!(b.now(1).unwrap().defense(), death.defense + 1);
-    }
 
     #[test]
     fn torin_is_a_life_creature_to_light_and_darkness() -> TestResult {
@@ -1842,75 +807,6 @@ mod fields {
         assert_eq!(b.now(0).unwrap().defense(), plain.defense - 1);
         assert_eq!(b.now(0).unwrap().resistance(), plain.resistance - 1);
         Ok(())
-    }
-
-    #[test]
-    fn holy_bonus_and_resistance_to_all_help_the_whole_side_and_do_not_add_up() {
-        let mut b = pair(
-            105, /* high_men_swordsmen */
-            104, /* high_men_spearmen */
-        );
-        let plain = was(&b, 0);
-        let enemy = was(&b, 1);
-        // A unit without a melee attack gets defence and resistance but no attack.
-        let settlers = b.add_summoned(
-            Side::Attacker,
-            unit_numbered(73 /* draconian_settlers */),
-            (3, 7),
-        );
-        let settlers_before = was(&b, settlers);
-        assert_eq!(settlers_before.melee, 0);
-        let arch_angel = b.add_summoned(Side::Attacker, unit_numbered(178), (3, 6));
-        let level = b.units[arch_angel].special_level;
-        assert!(level >= 2);
-        let (p, a) = (&b.units[0], &b.units[settlers]);
-        assert_eq!(
-            (
-                b.now_of(p).melee(),
-                b.now_of(p).defense(),
-                b.now_of(p).resistance()
-            ),
-            (
-                plain.melee + level,
-                plain.defense + level,
-                plain.resistance + level
-            )
-        );
-        assert_eq!(
-            (b.now_of(a).melee(), b.now_of(a).defense()),
-            (0, settlers_before.defense + level)
-        );
-        // The bearer gets it too, as it does on its own: the same numbers as alone.
-        assert_eq!(
-            b.now(arch_angel).unwrap().melee(),
-            pair(178 /* arch_angel */, 104).now(0).unwrap().melee(),
-            "the bearer gets it too"
-        );
-        assert_eq!(
-            b.now(1).unwrap().defense(),
-            enemy.defense,
-            "the enemy gets nothing"
-        );
-        // A second, weaker holy unit (an angel) does not add, and Resistance to All (a guardian
-        // spirit, level 1) adds to the resistance only.
-        b.add_summoned(Side::Attacker, unit_numbered(177 /* angel */), (4, 6));
-        assert_eq!(b.now(0).unwrap().defense(), plain.defense + level);
-        b.add_summoned(
-            Side::Attacker,
-            unit_numbered(176 /* guardian_spirit */),
-            (4, 7),
-        );
-        let p = &b.units[0];
-        assert_eq!(b.now_of(p).melee(), plain.melee + level);
-        assert!(b.now_of(p).resistance() >= plain.resistance + level);
-        // When the bearer falls the bonus goes at the next refresh.
-        b.units[arch_angel].status = Status::Dead;
-        b.note_invisibility();
-        assert_eq!(
-            b.now(0).unwrap().defense(),
-            plain.defense + 1,
-            "the weaker one still stands"
-        );
     }
 
     /// The battle unit of a hero of the type `kind` with Leadership and Prayermaster of the doubled
@@ -1999,241 +895,6 @@ mod fields {
         b.units[hero].status = Status::Dead;
         b.note_invisibility();
         assert_eq!(b.now(0).unwrap().melee(), plain.melee);
-    }
-
-    #[test]
-    fn a_charmed_heros_resistance_passes_every_check() {
-        let mut b = pair(
-            105, /* high_men_swordsmen */
-            105, /* high_men_swordsmen */
-        );
-        let charmed =
-            b.now(1).unwrap().resistance() + shipped().rules.config.renown.charmed_resistance;
-        b.units[1].force(f4x_def::rules::stats::Stat::Resistance, charmed);
-        let fails = |b: &mut Battle, i: usize| {
-            (0..40)
-                .filter(|_| b.resist_fails(i, Some(Realm::Death), 0))
-                .count()
-        };
-        assert!(fails(&mut b, 0) > 0);
-        assert_eq!(fails(&mut b, 1), 0);
-    }
-
-    #[test]
-    fn refreshing_does_not_pile_the_bonuses_up_and_they_come_off_again() {
-        let mut b = pair(
-            105, /* high_men_swordsmen */
-            104, /* high_men_spearmen */
-        );
-        let before = b.units[0].clone();
-        b.raise_field(
-            Side::Attacker,
-            Field::HighPrayer,
-            spell_for(Field::HighPrayer),
-        );
-        for _ in 0..3 {
-            b.note_invisibility();
-        }
-        let u = &b.units[0];
-        assert_eq!(
-            (
-                b.now_of(u).melee(),
-                b.now_of(u).defense(),
-                b.now_of(u).resistance(),
-                b.now_of(u).to_hit(),
-                b.now_of(u).to_block()
-            ),
-            (
-                before.own_melee + 2,
-                before.own_defense + 2,
-                before.own_resistance + 3,
-                before.own_to_hit + 1,
-                before.own_to_block + 1
-            )
-        );
-        assert_eq!(b.now(1).unwrap().melee(), 1, "the enemy gets nothing");
-        // Prayer is the lesser one and High Prayer wins when both are up.
-        b.raise_field(Side::Attacker, Field::Prayer, spell_for(Field::Prayer));
-        assert_eq!(b.now(0).unwrap().resistance(), before.own_resistance + 3);
-        b.fields[Side::Attacker.index()].clear();
-        b.note_invisibility();
-        let u = &b.units[0];
-        assert_eq!(
-            (
-                b.now_of(u).melee(),
-                b.now_of(u).defense(),
-                b.now_of(u).resistance(),
-                b.now_of(u).to_hit(),
-                b.now_of(u).to_block()
-            ),
-            (
-                before.own_melee,
-                before.own_defense,
-                before.own_resistance,
-                before.own_to_hit,
-                before.own_to_block
-            )
-        );
-    }
-
-    #[test]
-    fn black_prayer_curses_the_enemy_and_warp_reality_every_unit_but_chaos() {
-        let mut b = pair(
-            105, /* high_men_swordsmen */
-            155, /* hell_hounds */
-        );
-        let (ours, enemy) = (b.units[0].clone(), b.units[1].clone());
-        assert!(enemy.own_ranged > 0);
-        b.raise_field(
-            Side::Attacker,
-            Field::BlackPrayer,
-            spell_for(Field::BlackPrayer),
-        );
-        let e = &b.units[1];
-        assert_eq!(
-            (
-                b.now_of(e).melee(),
-                b.now_of(e).ranged(),
-                b.now_of(e).defense(),
-                b.now_of(e).resistance()
-            ),
-            (
-                enemy.own_melee - 1,
-                enemy.own_ranged - 1,
-                enemy.own_defense - 1,
-                enemy.own_resistance - 2
-            )
-        );
-        assert_eq!(
-            b.now(0).unwrap().melee(),
-            ours.own_melee,
-            "its own side is untouched"
-        );
-        b.raise_field(
-            Side::Defender,
-            Field::WarpReality,
-            spell_for(Field::WarpReality),
-        );
-        assert_eq!(b.now(0).unwrap().to_hit(), ours.own_to_hit - 2);
-        assert_eq!(
-            b.now(1).unwrap().to_hit(),
-            enemy.own_to_hit,
-            "chaos creatures are not warped"
-        );
-    }
-
-    /// A battlefield spell changes a magic-immune unit when the content marks it as an exception
-    /// and the rule `magic_immunity_exceptions` is on, and not otherwise.
-    #[test]
-    fn battlefield_enchantments_change_a_magic_immune_unit_as_the_exceptions_say() {
-        let paladins = 113; // high_men_paladins: magic immunity
-        for (field, exceptions) in [Field::BlackPrayer, Field::WarpReality]
-            .into_iter()
-            .flat_map(|f| [(f, false), (f, true)])
-        {
-            let mut b = pair(105 /* high_men_swordsmen */, paladins);
-            b.magic_immunity_exceptions = exceptions;
-            let marked = b
-                .content
-                .rules
-                .spells
-                .get(spell_for(field))
-                .magic_immunity_exception;
-            let before = was(&b, 1);
-            let caster = if field == Field::WarpReality {
-                Side::Defender
-            } else {
-                Side::Attacker
-            };
-            b.raise_field(caster, field, spell_for(field));
-            let after = &b.units[1];
-            assert_eq!(
-                (
-                    b.now_of(after).melee(),
-                    b.now_of(after).defense(),
-                    b.now_of(after).resistance(),
-                    b.now_of(after).to_hit()
-                ) != (
-                    before.melee,
-                    before.defense,
-                    before.resistance,
-                    before.to_hit
-                ),
-                marked && exceptions,
-                "{field:?}, exceptions {exceptions}"
-            );
-        }
-        // Entangle takes a move from it when the exceptions are on.
-        let mut b = pair(105 /* high_men_swordsmen */, paladins);
-        b.magic_immunity_exceptions = true;
-        b.raise_field(Side::Attacker, Field::Entangle, spell_for(Field::Entangle));
-        let moves = b.units[1].moves;
-        end_turns(&mut b, 1);
-        assert!(b.units[1].moves_left < moves, "Entangle holds it");
-    }
-
-    /// Task 713: Black Prayer curses the enemy, but not a unit immune to death, unless the
-    /// original's exceptions are on.
-    #[test]
-    fn black_prayer_spares_the_immune_to_death_unless_the_original_exceptions_are_on() {
-        for (exceptions, cursed) in [(false, false), (true, true)] {
-            let mut b = pair(105 /* high_men_swordsmen */, 165 /* skeletons */);
-            b.death_immunity_exceptions = exceptions;
-            let before = b.now(1).unwrap().defense();
-            b.raise_field(
-                Side::Attacker,
-                Field::BlackPrayer,
-                spell_for(Field::BlackPrayer),
-            );
-            assert_eq!(
-                b.now(1).unwrap().defense() < before,
-                cursed,
-                "exceptions {exceptions}"
-            );
-        }
-    }
-
-    /// Task 713: Terror, the same way.
-    #[test]
-    fn terror_spares_the_immune_to_death_unless_the_original_exceptions_are_on() {
-        for exceptions in [false, true] {
-            let mut soft = pair(105 /* high_men_swordsmen */, 165 /* skeletons */);
-            soft.death_immunity_exceptions = exceptions;
-            soft.units[1].force(f4x_def::rules::stats::Stat::Resistance, 0);
-            soft.raise_field(Side::Attacker, Field::Terror, spell_for(Field::Terror));
-            let mut frozen = 0;
-            for seed in 0..40 {
-                let mut b = reseeded(&soft, seed);
-                end_turns(&mut b, 1);
-                if b.units[1].attacked && b.units[1].moves_left == 0 {
-                    frozen += 1;
-                }
-            }
-            if exceptions {
-                assert!(frozen > 0, "{frozen} of 40 froze");
-            } else {
-                assert_eq!(frozen, 0, "death immunity stops Terror");
-            }
-        }
-    }
-
-    #[test]
-    fn a_loss_never_takes_a_stat_below_nothing_and_comes_back_whole() {
-        // Settlers have no melee attack at all.
-        let mut b = pair(
-            105, /* high_men_swordsmen */
-            73,  /* draconian_settlers */
-        );
-        assert_eq!(b.now(1).unwrap().melee(), 0);
-        b.raise_field(
-            Side::Attacker,
-            Field::BlackPrayer,
-            spell_for(Field::BlackPrayer),
-        );
-        assert_eq!(b.now(1).unwrap().melee(), 0);
-        b.fields[0].clear();
-        b.note_invisibility();
-        assert_eq!(b.now(1).unwrap().melee(), 0, "not -1 + 1");
     }
 
     /// A unit's numbers, and whether the field makes it invisible or blurs it.
@@ -2410,55 +1071,6 @@ mod fields {
         Ok(())
     }
 
-    #[test]
-    fn entangle_costs_a_move_and_terror_can_freeze_the_enemy() {
-        let mut b = pair(
-            105, /* high_men_swordsmen */
-            104, /* high_men_spearmen */
-        );
-        b.raise_field(Side::Attacker, Field::Entangle, spell_for(Field::Entangle));
-        let moves = b.units[1].moves;
-        end_turns(&mut b, 1);
-        assert_eq!(b.active, Side::Defender);
-        assert_eq!(
-            b.units[1].moves_left,
-            moves - HalfInt::from_int(1),
-            "one whole move less"
-        );
-        // Fliers (pegasai) and the non-corporeal (wraiths) are not held.
-        for free in [103, 170] {
-            let mut b = pair(105 /* high_men_swordsmen */, free);
-            b.raise_field(Side::Attacker, Field::Entangle, spell_for(Field::Entangle));
-            end_turns(&mut b, 1);
-            assert_eq!(b.units[1].moves_left, b.units[1].moves, "{free}");
-        }
-        // Terror: a unit with no resistance never saves.
-        let mut soft = pair(
-            105, /* high_men_swordsmen */
-            104, /* high_men_spearmen */
-        );
-        soft.units[1].force(f4x_def::rules::stats::Stat::Resistance, 0);
-        soft.raise_field(Side::Attacker, Field::Terror, spell_for(Field::Terror));
-        let mut frozen = 0;
-        for seed in 0..40 {
-            let mut b = reseeded(&soft, seed);
-            end_turns(&mut b, 1);
-            if b.units[1].attacked && b.units[1].moves_left == 0 {
-                frozen += 1;
-            }
-        }
-        assert!(frozen > 30, "{frozen} of 40 froze");
-        // Death immunity (skeletons) is proof against it.
-        let mut deathless = pair(105 /* high_men_swordsmen */, 165 /* skeletons */);
-        deathless.units[1].force(f4x_def::rules::stats::Stat::Resistance, 0);
-        deathless.raise_field(Side::Attacker, Field::Terror, spell_for(Field::Terror));
-        for seed in 0..20 {
-            let mut b = reseeded(&deathless, seed);
-            end_turns(&mut b, 1);
-            assert!(!b.units[1].attacked, "seed {seed}");
-        }
-    }
-
     /// A battle of the real game in which the wizard of A has cast the spell `spell` (a number of
     /// the content) on the first unit of the other side, a `foe`. The unit has no resistance, so
     /// the spell takes hold.
@@ -2632,107 +1244,6 @@ mod fields {
         }
     }
 
-    #[test]
-    fn wrack_and_call_lightning_hurt_the_casters_enemies_at_the_start_of_each_turn() {
-        let mut b = pair(
-            105, /* high_men_swordsmen */
-            104, /* high_men_spearmen */
-        );
-        b.units[1].force(f4x_def::rules::stats::Stat::Resistance, 0);
-        b.raise_field(Side::Attacker, Field::Wrack, spell_for(Field::Wrack));
-        end_turns(&mut b, 2);
-        assert_eq!(b.turn, 2);
-        let hurt = b.units[1].max_hit_points() - b.units[1].hit_points();
-        assert!(hurt >= 1, "a figure with no resistance feels it");
-        assert_eq!(b.units[0].hit_points(), b.units[0].max_hit_points());
-        // Wraith Form is no shelter from it.
-        let mut b = pair(
-            105, /* high_men_swordsmen */
-            104, /* high_men_spearmen */
-        );
-        b.units[1].force(f4x_def::rules::stats::Stat::Resistance, 0);
-        b.units[1].put_enchantment(SpellId::new(181 /* wraith_form */));
-        b.raise_field(Side::Attacker, Field::Wrack, spell_for(Field::Wrack));
-        end_turns(&mut b, 4);
-        assert!(b.units[1].hit_points() < b.units[1].max_hit_points());
-        // Call Lightning: bolts of strength eight on the enemy only.
-        let mut b = pair(
-            105, /* high_men_swordsmen */
-            104, /* high_men_spearmen */
-        );
-        b.units[1].force(f4x_def::rules::stats::Stat::Defense, 0);
-        b.units[1].force(f4x_def::rules::stats::Stat::MaxHp, 100);
-        b.raise_field(
-            Side::Attacker,
-            Field::CallLightning,
-            spell_for(Field::CallLightning),
-        );
-        let events = end_turns(&mut b, 2);
-        let bolts = events
-            .iter()
-            .filter(|e| matches!(e, BattleEvent::SpellDamaged { unit: 1, .. }))
-            .count();
-        assert!(bolts <= 5, "{bolts}");
-        assert_eq!(b.units[0].hit_points(), b.units[0].max_hit_points());
-        // Each bolt is an event of its own, on the unit it fell on, ahead of what it did.
-        let struck: Vec<usize> = events
-            .iter()
-            .filter_map(|e| match e {
-                BattleEvent::LightningStruck { unit } => Some(*unit),
-                _ => None,
-            })
-            .collect();
-        assert!(struck.iter().all(|&u| u == 1), "{struck:?}");
-        assert!(
-            (3..=10).contains(&struck.len()),
-            "two turns of 3 to 5: {struck:?}"
-        );
-    }
-
-    /// What Wrack did to spearmen (eight figures) with plenty of hit points over ten turns: the
-    /// points of each of its strikes.
-    fn wrack_strikes(resistance: i32, abilities: &[u16]) -> Vec<i32> {
-        let mut b = pair(
-            105, /* high_men_swordsmen */
-            104, /* high_men_spearmen */
-        );
-        b.units[1].force(f4x_def::rules::stats::Stat::Resistance, resistance);
-        b.units[1].force(f4x_def::rules::stats::Stat::MaxHp, 1000);
-        for &a in abilities {
-            b.units[1].grant(Ability::new(a));
-        }
-        b.raise_field(Side::Attacker, Field::Wrack, spell_for(Field::Wrack));
-        end_turns(&mut b, 10)
-            .iter()
-            .filter_map(|e| match e {
-                BattleEvent::FieldStruck { unit: 1, dealt, .. } => Some(*dealt),
-                _ => None,
-            })
-            .collect()
-    }
-
-    #[test]
-    fn wrack_deals_one_point_for_each_figure_that_fails_its_roll_and_not_the_square_of_that() {
-        // The original deals n x n points when n figures fail (the wiki lists it as a bug).
-        let strikes = wrack_strikes(0, &[]);
-        assert!(strikes.len() >= 5, "{strikes:?}");
-        assert!(strikes.iter().all(|&d| (1..=8).contains(&d)), "{strikes:?}");
-    }
-
-    #[test]
-    fn wrack_spares_a_resistance_of_nine_and_the_immune_and_hurts_a_resistance_of_eight() {
-        assert!(
-            wrack_strikes(9, &[]).is_empty(),
-            "nine and the +1 cannot fail"
-        );
-        assert!(wrack_strikes(0, &[16 /* death_immunity */]).is_empty());
-        assert!(wrack_strikes(0, &[40 /* magic_immunity */]).is_empty());
-        assert!(
-            !wrack_strikes(8, &[]).is_empty(),
-            "a roll of ten still beats eight and the +1"
-        );
-    }
-
     /// Wraiths are non-corporeal and immune to normal weapons, as a unit under Wraith Form is:
     /// the bolts of Call Lightning are spells, and still hurt them.
     #[test]
@@ -2775,83 +1286,6 @@ mod fields {
         }
         assert!(struck > 0, "no bolt hurt the wraiths");
         Ok(())
-    }
-
-    #[test]
-    fn mana_leak_drains_the_enemy_wizard_and_its_spell_shots() -> TestResult {
-        // Beastmen magicians shoot spells; their wizard has a reserve.
-        let mut b = pair(
-            105, /* high_men_swordsmen */
-            51,  /* beastmen_magicians */
-        );
-        let ammo = b.units[1].ammo;
-        assert!(ammo > 0);
-        b.set_caster(Side::Defender, crate::battle::BattleCaster::new(20, 40, 10));
-        b.raise_field(Side::Attacker, Field::ManaLeak, spell_for(Field::ManaLeak));
-        end_turns(&mut b, 2);
-        assert_eq!(
-            b.caster(Side::Defender).ok_or("caster is missing")?.mana,
-            40 - rules().mana_leak_drain
-        );
-        assert_eq!(b.units[1].ammo, ammo - 1);
-        Ok(())
-    }
-
-    #[test]
-    fn blur_takes_one_off_the_chance_to_hit_unless_the_attacker_sees_through_illusions() {
-        let mut b = real_battle(
-            &[(105 /* high_men_swordsmen */, (5, 5))],
-            &[(104 /* high_men_spearmen */, (9, 5))],
-            3,
-        );
-        assert_eq!(b.blur_penalty(0, 1), 0);
-        b.raise_field(Side::Defender, Field::Blur, spell_for(Field::Blur));
-        assert_eq!(b.blur_penalty(0, 1), 1, "whatever the distance");
-        assert_eq!(
-            b.blur_penalty(1, 0),
-            0,
-            "only the blurred side's units are harder to hit"
-        );
-        // Skeletons see through illusions.
-        let mut b = real_battle(
-            &[(165 /* skeletons */, (5, 5))],
-            &[(104 /* high_men_spearmen */, (9, 5))],
-            3,
-        );
-        b.raise_field(Side::Defender, Field::Blur, spell_for(Field::Blur));
-        assert_eq!(b.blur_penalty(0, 1), 0);
-    }
-
-    #[test]
-    fn an_invisible_creature_is_harder_to_hit_unless_the_attacker_sees_through_illusions() {
-        // A night stalker is invisible.
-        let mut b = real_battle(
-            &[(105 /* high_men_swordsmen */, (5, 5))],
-            &[(167 /* night_stalker */, (6, 5))],
-            3,
-        );
-        assert_eq!(b.invisibility_penalty(0, 1), 1, "adjacent");
-        assert_eq!(b.invisibility_penalty(1, 0), 0);
-        b.units[0].cell = (1, 5);
-        assert_eq!(b.invisibility_penalty(0, 1), 5, "one for each square");
-        let b = real_battle(
-            &[(165 /* skeletons */, (5, 5))],
-            &[(167 /* night_stalker */, (6, 5))],
-            3,
-        );
-        assert_eq!(b.invisibility_penalty(0, 1), 0, "skeletons see through it");
-        // Mass Invisibility does the same for the caster's whole side.
-        let mut b = real_battle(
-            &[(105 /* high_men_swordsmen */, (5, 5))],
-            &[(104 /* high_men_spearmen */, (6, 5))],
-            3,
-        );
-        b.raise_field(
-            Side::Defender,
-            Field::MassInvisibility,
-            spell_for(Field::MassInvisibility),
-        );
-        assert_eq!(b.invisibility_penalty(0, 1), 1);
     }
 }
 
@@ -4100,179 +2534,6 @@ fn a_demon_appears_on_one_of_nine_squares_by_the_edge_and_all_nine_are_used() ->
 
 // ---- city enchantments ---------------------------------------------------------
 
-fn city_map() -> BattleMap {
-    BattleMap::open().with_city(false)
-}
-
-/// A battle of the real game at an open city, `ours` against `theirs`.
-fn city_battle(ours: &[(u16, Pos)], theirs: &[(u16, Pos)]) -> Battle {
-    let mut b = real_battle(ours, theirs, 5);
-    b.map = city_map();
-    b
-}
-
-#[test]
-fn a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers() -> TestResult {
-    let spot = wall_spot();
-    let far = (104 /* high_men_spearmen */, spot.distant);
-    for (number, burned) in [
-        (107 /* high_men_cavalry */, true),
-        (103 /* high_elf_pegasai */, false),
-    ] {
-        let mut b = city_battle(&[(number, spot.two_out)], &[far]);
-        let figures = b.units[0].figures;
-        b.wall_of_fire = true;
-        let events = b
-            .apply(BattleCommand::Move {
-                unit: 0,
-                to: spot.wall,
-            })
-            .map_err(|e| format!("{e:?}"))?;
-        let hurt = events
-            .iter()
-            .any(|e| matches!(e, BattleEvent::SpellDamaged { unit: 0, .. }));
-        assert_eq!(hurt, burned, "unit {number}");
-        assert_eq!(
-            b.unit(0).ok_or("unit is missing")?.figures < figures,
-            burned
-        );
-    }
-    // Walking about outside, or inside once there, costs nothing; so does a city without it.
-    let mut b = city_battle(&[(107 /* high_men_cavalry */, spot.behind)], &[far]);
-    b.wall_of_fire = true;
-    let events = b
-        .apply(BattleCommand::Move {
-            unit: 0,
-            to: spot.deeper,
-        })
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(!events
-        .iter()
-        .any(|e| matches!(e, BattleEvent::SpellDamaged { .. })));
-    let mut b = city_battle(&[(107 /* high_men_cavalry */, spot.two_out)], &[far]);
-    let events = b
-        .apply(BattleCommand::Move {
-            unit: 0,
-            to: spot.wall,
-        })
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(!events
-        .iter()
-        .any(|e| matches!(e, BattleEvent::SpellDamaged { .. })));
-    Ok(())
-}
-
-#[test]
-fn striking_into_a_city_behind_a_wall_of_fire_burns_the_attacker() -> TestResult {
-    let spot = wall_spot();
-    let mut b = city_battle(
-        &[(104 /* high_men_spearmen */, spot.outside)],
-        &[(104 /* high_men_spearmen */, spot.wall)],
-    );
-    b.wall_of_fire = true;
-    let events = b
-        .apply(BattleCommand::Attack { unit: 0, target: 1 })
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(matches!(
-        events.first(),
-        Some(BattleEvent::SpellDamaged { unit: 0, .. })
-    ));
-    Ok(())
-}
-
-#[test]
-fn a_wall_of_darkness_stops_shots_into_the_city_unless_the_shooter_sees_through() {
-    let spot = wall_spot();
-    // Longbowmen shoot into the city; shadow demons (illusion immune) see through the darkness.
-    let shoot = |shooter: u16, from: Pos, dark: bool| {
-        let mut b = city_battle(
-            &[(shooter, from)],
-            &[(104 /* high_men_spearmen */, spot.behind)],
-        );
-        b.wall_of_darkness = dark;
-        b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
-    };
-    let longbowmen = 101;
-    assert_eq!(
-        shoot(longbowmen, spot.distant, true),
-        Err(BattleError::WallOfDarkness)
-    );
-    assert!(
-        shoot(171 /* shadow_demons */, spot.distant, true).is_ok(),
-        "illusion immunity sees through"
-    );
-    assert!(
-        shoot(longbowmen, spot.distant, false).is_ok(),
-        "no wall, no darkness"
-    );
-    assert!(
-        shoot(longbowmen, spot.deeper, true).is_ok(),
-        "shooters inside the city are not stopped"
-    );
-}
-
-#[test]
-fn a_flying_fortress_shuts_the_city_to_walkers_and_its_walkers_in() {
-    let map = city_map().with_flying_fortress();
-    let mut b = real_battle(
-        &[
-            (107 /* high_men_cavalry */, (10, 11)),
-            (103 /* high_elf_pegasai */, (10, 12)),
-        ],
-        &[(107 /* high_men_cavalry */, (13, 11)), (103, (13, 12))],
-        5,
-    );
-    b.map = map.clone();
-    for u in &mut b.units {
-        u.force_moves(HalfInt::from_int(10));
-        u.refill_moves();
-    }
-    let area = |reach: &std::collections::HashMap<Pos, HalfInt>| {
-        reach.keys().any(|&p| map::in_city_area(p))
-    };
-    let ring = |reach: &std::collections::HashMap<Pos, HalfInt>| {
-        reach.keys().any(|&p| map::in_city_ring(p))
-    };
-    // A walker outside reaches the ring but not the city; a flier gets in.
-    let (out, fly) = (b.reachable(0), b.reachable(1));
-    assert!(ring(&out) && !area(&out));
-    assert!(area(&fly));
-    // A walker inside is kept in: it never reaches the ring; a flier inside gets out.
-    let (inn, fly_in) = (b.reachable(2), b.reachable(3));
-    assert!(area(&inn) && !ring(&inn));
-    assert!(ring(&fly_in));
-    assert!(map.is_flying_fortress());
-}
-
-#[test]
-fn the_legal_commands_cover_walls_crushers_and_darkness() -> TestResult {
-    let spot = wall_spot();
-    let mut b = siege(
-        &[
-            (37 /* catapult */, spot.outside),
-            (153 /* troll_war_mammoths */, spot.distant),
-        ],
-        &[
-            (104 /* high_men_spearmen */, spot.deeper),
-            (104 /* high_men_spearmen */, spot.behind),
-        ],
-        true,
-        3,
-    );
-    check_legal_list(&b);
-    assert!(b.legal_commands().contains(&BattleCommand::AttackWall {
-        unit: 0,
-        cell: spot.wall
-    }));
-    // A Wall of Darkness stops the shots from outside the city at a unit inside it.
-    b.wall_of_darkness = true;
-    check_legal_list(&b);
-    // A won battle allows nothing.
-    b.apply(BattleCommand::Flee).map_err(|e| format!("{e:?}"))?;
-    assert!(b.legal_commands().is_empty());
-    Ok(())
-}
-
 #[test]
 fn an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities() -> TestResult {
     let mut g = game();
@@ -4368,28 +2629,6 @@ fn a_battle_brain_plays_for_its_wizard_and_the_plain_ai_for_the_rest() -> TestRe
 }
 
 // ---- combat ability rules, spell shots, after the battle -------------
-
-#[test]
-fn a_large_shield_turns_missiles_but_not_blows() {
-    // Swordsmen carry large shields. Longbowmen shoot at them, and cavalry strikes them.
-    let shot = real_battle(
-        &[(101 /* high_elf_longbowmen */, (3, 10))],
-        &[(105 /* high_men_swordsmen */, (5, 10))],
-        1,
-    );
-    let open = damage_over_seeds(&without(&shot, 1, 34 /* large_shield */), true);
-    let shielded = damage_over_seeds(&shot, true);
-    assert!(shielded * 4 < open * 3, "{shielded} vs {open}");
-    // Two more dice of defence do not touch a melee blow.
-    let blow = real_battle(
-        &[(107 /* high_men_cavalry */, (3, 10))],
-        &[(105 /* high_men_swordsmen */, (4, 10))],
-        1,
-    );
-    let open = damage_over_seeds(&without(&blow, 1, 34 /* large_shield */), false);
-    let shielded = damage_over_seeds(&blow, false);
-    assert_eq!(open, shielded);
-}
 
 #[test]
 fn regenerating_units_heal_a_hit_as_their_sides_turn_begins() -> TestResult {
@@ -4886,26 +3125,6 @@ fn a_fallen_hero_costs_its_owner_half_its_level_rounded_down_counting_from_one()
 }
 
 #[test]
-fn vortices_wander_three_squares_each_turn_and_there_are_at_most_ten() {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        8,
-    );
-    for i in 0..10 {
-        assert!(b.can_make_vortex((6, 2 + i)));
-        b.make_vortex(Side::Defender, (6, 2 + i));
-    }
-    assert!(!b.can_make_vortex((8, 8)), "only ten at once");
-    let starts: Vec<_> = b.vortices.iter().map(|v| v.cell).collect();
-    b.vortex_round();
-    for (v, from) in b.vortices.iter().zip(starts) {
-        assert!(map::distance(v.cell, from) <= 3, "{from:?} -> {:?}", v.cell);
-        assert!(b.map.is_playable(v.cell));
-    }
-}
-
-#[test]
 fn magic_vortex_is_cast_on_a_free_square() -> TestResult {
     let mut g = hook_game(105 /* magic_vortex */);
     let enemy_cell = g
@@ -5003,37 +3222,36 @@ fn a_battle_fought_after_recording_began_plays_again_the_same() -> TestResult {
     Ok(())
 }
 
-#[test]
-fn an_invisible_unit_is_unseen_and_cannot_be_aimed_at_until_it_gives_itself_away() {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(167 /* night_stalker */, (17, 10))],
-        1,
-    );
-    assert!(!b.seen_by(Side::Attacker, 1), "hidden from the start");
-    assert!(b.seen_by(Side::Defender, 1), "its own side sees it");
-    assert_eq!(
-        b.apply(BattleCommand::Attack { unit: 0, target: 1 }),
-        Err(BattleError::Unseen)
-    );
-    assert!(!b.legal_commands().iter().any(|c| matches!(
-        c,
-        BattleCommand::Attack { target: 1, .. } | BattleCommand::Shoot { target: 1, .. }
-    )));
-    // An enemy unit next to it sees it, and any attacker may then aim at it.
-    b.units[0].cell = (16, 10);
-    assert!(b.seen_by(Side::Attacker, 1));
-    assert!(b
-        .legal_commands()
-        .iter()
-        .any(|c| matches!(c, BattleCommand::Attack { target: 1, .. })));
-}
-
 /// Dispel Magic with 1500 mana against the enemy's Darkness (difficulty 25) and the caster's own
 /// Prayer, after `burn` rolls of the game's dice: whether Darkness came down, and whether Prayer
 /// is still up.
 fn dispel_the_field(burn: usize) -> (bool, bool) {
     dispel_the_field_with(burn, 1500, false)
+}
+
+/// Strength per mana of Dispel Magic (spell 202).
+fn shipped_rules_dispel() -> u32 {
+    let c = shipped();
+    let def = c
+        .rules
+        .spells
+        .get(c.rules.spells.id_numbered(202).expect("id_of succeeds"));
+    let (_, strength) = crate::spell::dispel::CounterEffect::of(def).expect("a dispel");
+    strength / def.cost.max(1)
+}
+
+#[test]
+fn dispel_magic_takes_down_the_enemy_battlefield_spells_and_leaves_its_casters_own() {
+    // The roll misses one time in 250 whatever the strength, so look at several throws of the dice.
+    let throws: Vec<(bool, bool)> = (0..8).map(dispel_the_field).collect();
+    assert!(
+        throws.iter().filter(|&&(down, _)| down).count() >= 6,
+        "{throws:?}"
+    );
+    assert!(
+        throws.iter().all(|&(_, own)| own),
+        "a dispel never takes down the caster's own spells"
+    );
 }
 
 /// As [`dispel_the_field`] with `mana` put into the dispel, the caster a Runemaster or not.
@@ -5137,31 +3355,6 @@ fn a_runemasters_dispel_in_a_battle_is_twice_as_strong_and_a_plain_wizards_is_no
     assert!(
         (rune as f64 - 1.5 * plain as f64).abs() < 45.0,
         "about half again as many: plain {plain}, runemaster {rune}"
-    );
-}
-
-/// Strength per mana of Dispel Magic (spell 202).
-fn shipped_rules_dispel() -> u32 {
-    let c = shipped();
-    let def = c
-        .rules
-        .spells
-        .get(c.rules.spells.id_numbered(202).expect("id_of succeeds"));
-    let (_, strength) = crate::spell::dispel::CounterEffect::of(def).expect("a dispel");
-    strength / def.cost.max(1)
-}
-
-#[test]
-fn dispel_magic_takes_down_the_enemy_battlefield_spells_and_leaves_its_casters_own() {
-    // The roll misses one time in 250 whatever the strength, so look at several throws of the dice.
-    let throws: Vec<(bool, bool)> = (0..8).map(dispel_the_field).collect();
-    assert!(
-        throws.iter().filter(|&&(down, _)| down).count() >= 6,
-        "{throws:?}"
-    );
-    assert!(
-        throws.iter().all(|&(_, own)| own),
-        "a dispel never takes down the caster's own spells"
     );
 }
 
@@ -7712,37 +5905,6 @@ fn magic_immunity_spares_the_marked_spells_unless_the_exceptions_are_on() -> Tes
         }
     }
     Ok(())
-}
-
-/// The same for attacks: the content marks the attacks of the magic type that get through magic
-/// immunity, and the rule takes the magic type off exactly those.
-#[test]
-fn the_magic_type_of_the_marked_attacks_goes_when_the_exceptions_are_on() {
-    let rules = &crate::game::testutil::shipped().rules;
-    let marked: Vec<u16> = rules
-        .abilities
-        .iter()
-        .filter(|(_, d)| {
-            d.attack
-                .as_ref()
-                .is_some_and(|a| a.magic_immunity_exception)
-        })
-        .map(|(_, d)| d.num)
-        .collect();
-    assert!(!marked.is_empty(), "the content marks some attacks");
-    for num in marked {
-        let nature = |exceptions: bool| {
-            AttackNature::of_unit_attack(
-                Mode::Ranged,
-                &[Ability::new(num)],
-                false,
-                exceptions,
-                rules,
-            )
-        };
-        assert!(nature(false).types.contains(DamageType::Magic), "{num}");
-        assert!(!nature(true).types.contains(DamageType::Magic), "{num}");
-    }
 }
 
 /// Patch 1.50, note 159: every unit of the losing wizard that fell counts for his dislike of the

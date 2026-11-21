@@ -5,13 +5,16 @@
 
 use f4x_battle::attack::{spell_attack, Volley};
 use f4x_battle::attack::{Combatant, DefenderState};
+use f4x_battle::battlemagic::caster::BattleCaster;
 use f4x_battle::testutil::*;
 use f4x_battle::Side;
+use f4x_def::half_int::HalfInt;
 use f4x_def::rules::attack_nature::AttackNature;
 use f4x_def::rules::damage_type::DamageType;
 use f4x_def::rules::effects::DamageTraits;
 use f4x_def::rules::realm::Realm;
 use f4x_def::rules::SpellId;
+use f4x_def::testdir::TestResult;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
@@ -133,4 +136,79 @@ fn creatures_appear_only_on_a_free_square_of_the_casters_half() {
     assert!(b
         .first_summon_square(Side::Attacker)
         .is_some_and(|c| c.0 == 0));
+}
+
+#[test]
+fn a_mana_budget_caps_what_the_wizard_can_afford_and_is_used_up_by_casting() -> TestResult {
+    let mut near = BattleCaster::new(20, 100, 10);
+    assert_eq!(near.affordable(), 20);
+    near.budget = Some(HalfInt::from_int(8));
+    assert_eq!(near.affordable(), 8);
+    // Two mana for each point of skill: a budget of 8 pays for 4.
+    let mut far = BattleCaster::new(20, 100, 20);
+    far.budget = Some(HalfInt::from_int(8));
+    assert_eq!(far.affordable(), 4);
+    // Casting spends it.
+    let mut b = real_battle(
+        &[(104 /* high_men_spearmen */, (3, 10))],
+        &[(104 /* high_men_spearmen */, (17, 10))],
+        1,
+    );
+    // No wizard on either side to begin with (a battle of a game may have them).
+    b.casters = Default::default();
+    b.set_caster(Side::Attacker, BattleCaster::new(20, 100, 10));
+    b.set_mana_budget(Side::Attacker, Some(8));
+    assert_eq!(b.pay_for_spell(5), HalfInt::from_int(5));
+    let c = b.caster(Side::Attacker).ok_or("caster is missing")?;
+    assert_eq!(
+        (c.budget, c.mana, c.skill_left),
+        (Some(HalfInt::from_int(3)), HalfInt::from_int(95), 15)
+    );
+    assert_eq!(c.affordable(), 3);
+    // A side without a wizard has nothing to limit; no budget means no limit.
+    b.set_mana_budget(Side::Defender, Some(1));
+    assert!(b.caster(Side::Defender).is_none());
+    b.set_mana_budget(Side::Attacker, None);
+    assert_eq!(
+        b.caster(Side::Attacker)
+            .ok_or("caster is missing")?
+            .affordable(),
+        15
+    );
+    Ok(())
+}
+
+#[test]
+fn what_a_wizard_can_afford_is_the_lesser_of_skill_and_what_the_reserve_pays_for() {
+    let near = BattleCaster::new(20, 100, 10);
+    assert_eq!(near.affordable(), 20);
+    let far = BattleCaster::new(20, 30, 30);
+    assert_eq!(far.affordable(), 10, "30 mana at three times pays for 10");
+    assert_eq!(far.mana_for(10), HalfInt::from_int(30));
+    assert_eq!(
+        BattleCaster::new(20, 100, 5).mana_for(7),
+        HalfInt::from_raw(7),
+        "halved, to the half point"
+    );
+}
+
+#[test]
+fn a_fireball_hits_each_figure_and_none_loses_more_than_one_figure() {
+    let squad = target(6, 2, 0);
+    let ball = {
+        let mut c = bolt(5);
+        c.nature.types.insert(DamageType::Doom);
+        c
+    };
+    let mut state = squad.clone();
+    let mut rng = Pcg64Mcg::seed_from_u64(1);
+    let dmg = spell_attack(&rules(), &ball, Volley::Area, &mut state, &mut rng);
+    // Five points a figure, capped at its two hit points: a whole squad of six dies.
+    assert_eq!((dmg.points, dmg.kills, state.figures), (12, 6, 0));
+    let mut state = squad;
+    let single = spell_attack(&rules(), &ball, Volley::Bolt, &mut state, &mut rng);
+    assert_eq!(
+        single.kills, 2,
+        "a bolt of five kills two of them and no more"
+    );
 }

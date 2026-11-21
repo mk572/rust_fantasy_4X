@@ -4,3 +4,4 @@
 mod battle;
 mod casting;
 mod fields;
+mod wall;
