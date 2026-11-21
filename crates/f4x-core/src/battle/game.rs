@@ -14,10 +14,11 @@ use f4x_def::half_int::HalfInt;
 
 use super::field::Field;
 use super::immunity::Realm;
-use super::map::{city_deployment, deployment, deployment_order, layout, BattleMap, Pos};
+use super::map::{city_deployment, deployment, layout, BattleMap, Pos};
 use super::{
     Battle, BattleCommand, BattleError, BattleUnit, HeroSheet, Sheet, Side, Status, WizardSheet,
 };
+use f4x_battle::battle::setup::{place_side, Placement};
 
 /// A battle in progress and the overland units its fighters were copied from.
 pub struct ActiveBattle {
@@ -56,13 +57,6 @@ impl ShipDeckPlan {
             .chain(&self.defenders)
             .flat_map(|(_, c)| c.iter().copied())
             .collect()
-    }
-
-    fn covers(&self, cell: Pos) -> bool {
-        self.attackers
-            .iter()
-            .chain(&self.defenders)
-            .any(|(_, c)| c.contains(&cell))
     }
 }
 
@@ -563,56 +557,29 @@ impl Game {
                 }
                 bus.push(bu);
             }
-            // Melee units take the front squares, shooters the ones behind them.
-            let order = deployment_order(&bus);
-            let mut placed = vec![false; bus.len()];
-            let mut taken: Vec<Pos> = Vec::new();
-            // A ship is its deck: the ship stays at its bow and does not sail, and the land
-            // units it carries stand on the rest, the middle first.
-            for (ship, cells) in ship_decks {
-                let Some(si) = fighters.iter().position(|f| f == ship) else {
-                    continue;
-                };
-                bus[si].cell = cells[0];
-                bus[si]
-                    .sheet_mut()
-                    .modifiers
-                    .push(crate::rules::Modifier::new(
-                        Stat::Moves,
-                        crate::rules::ModOp::Set,
-                        0,
-                        crate::rules::Source::Other,
-                    ));
-                placed[si] = true;
-                taken.push(cells[0]);
-                let centre = (
-                    cells.iter().map(|c| c.0).sum::<i32>() / cells.len() as i32,
-                    cells.iter().map(|c| c.1).sum::<i32>() / cells.len() as i32,
-                );
-                let mut rest: Vec<Pos> = cells[1..].to_vec();
-                rest.sort_by_key(|c| (c.0 - centre.0).abs() + (c.1 - centre.1).abs());
-                let mut rest = rest.into_iter();
-                for (i, f) in fighters.iter().enumerate() {
-                    if self.economy().carrier_of(*f) == Some(*ship) {
-                        if let Some(cell) = rest.next() {
-                            bus[i].cell = cell;
-                            placed[i] = true;
-                            taken.push(cell);
-                        }
-                    }
-                }
-            }
-            let mut free = cells
-                .into_iter()
-                .filter(|c| !taken.contains(c) && !decks.covers(*c));
-            for &i in &order {
-                if !placed[i] {
-                    if let Some(cell) = free.next() {
-                        bus[i].cell = cell;
-                        placed[i] = true;
-                    }
-                }
-            }
+            // Where the units stand is the battle's rule; the world says who is on which ship.
+            let decks_here: Vec<(usize, Vec<Pos>)> = ship_decks
+                .iter()
+                .filter_map(|(ship, cells)| {
+                    Some((fighters.iter().position(|f| f == ship)?, cells.clone()))
+                })
+                .collect();
+            let carried_by: Vec<Option<usize>> = fighters
+                .iter()
+                .map(|&f| {
+                    let carrier = self.economy().carrier_of(f)?;
+                    fighters.iter().position(|&s| s == carrier)
+                })
+                .collect();
+            let placed = place_side(
+                &mut bus,
+                Placement {
+                    cells,
+                    decks: &decks_here,
+                    carried_by: &carried_by,
+                    deck_cells: &decks.cells(),
+                },
+            );
             for ((&unit, bu), placed) in fighters.iter().zip(bus).zip(placed) {
                 if placed {
                     sources.push(unit);
@@ -641,11 +608,7 @@ impl Game {
         }
         let mut battle = Battle::new(self.content.clone(), a_owner, d_owner, map, units, seed);
         battle.site = Some(site);
-        battle.melee_vs_fliers = self.settings.rules.melee_vs_fliers;
-        battle.walls_cover_city = self.settings.rules.walls_cover_city;
-        battle.death_immunity_exceptions = self.settings.rules.death_immunity_exceptions;
-        battle.magic_immunity_exceptions = self.settings.rules.magic_immunity_exceptions;
-        battle.max_side = self.settings.rules.max_battle_side;
+        battle.apply_settings(&self.settings.rules);
         (battle.node_aura, battle.node_site) = self.node_realms_at(site, city.is_none());
         for (side, owner) in [(Side::Attacker, a_owner), (Side::Defender, d_owner)] {
             battle.set_wizard(side, self.wizard_sheet(owner));

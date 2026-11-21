@@ -6669,6 +6669,91 @@ fn the_land_units_of_a_ship_start_a_sea_fight_on_its_deck() -> TestResult {
     Ok(())
 }
 
+/// Setup: a sea fight of a trireme with a cavalry unit aboard against another, on three squares of
+/// ocean. Action: the game starts the battle. Outcome: each ship stands at the bow of the deck the
+/// layout rules give its side and has no moves, its walker stands on the rest of that deck, and no
+/// two units share a square.
+#[test]
+fn a_ship_stands_at_the_bow_of_its_deck_and_its_walker_on_the_rest_of_it() -> TestResult {
+    use crate::battle::map::layout;
+    use crate::unit::transport::Aboard;
+    let mut g = game();
+    let ocean = g
+        .content
+        .terrains
+        .id_numbered(8 /* ocean */)
+        .ok_or("ocean is not in the content")?;
+    for x in 4..=6 {
+        g.map
+            .as_mut()
+            .ok_or("no map")?
+            .plane_mut(Plane::Arcanus)
+            .set(x, 4, ocean);
+    }
+    let ship_kind = unit_number(&g, 35 /* trireme */)?;
+    let walker_kind = unit_number(&g, 107 /* high_men_cavalry */)?;
+    let deck = g
+        .content
+        .rules
+        .units
+        .get(ship_kind)
+        .deck
+        .ok_or("the trireme has no deck")?;
+    let mut side = |owner, x| {
+        let ship = g.spawn_unit(owner, at(x, 4), ship_kind);
+        let walker = g.spawn_unit(owner, at(x, 4), walker_kind);
+        let serial = g.units().serial_of(ship);
+        crate::game::put_in(&mut g.world, walker, Aboard(serial));
+        (ship, walker)
+    };
+    let (ship_a, walker_a) = side(A, 4);
+    let (ship_d, walker_d) = side(D, 5);
+    // Fliers of the attackers sail no ship: they take squares of the open water.
+    let manticore = unit_number(&g, 55 /* beastmen_manticores */)?;
+    let fliers: Vec<_> = (0..7)
+        .map(|_| g.spawn_unit(A, at(4, 4), manticore))
+        .collect();
+    g.apply(Command::BeginBattle {
+        attackers: [vec![ship_a, walker_a], fliers].concat(),
+        defenders: vec![ship_d, walker_d],
+    });
+    let size = (i32::from(deck.0), i32::from(deck.1));
+    let laid = layout::ship_decks(&[size], &[size]);
+    let b = g.battle().ok_or("no battle")?;
+    for (side, decks) in [
+        (Side::Attacker, laid.attackers),
+        (Side::Defender, laid.defenders),
+    ] {
+        let deck = decks[0].clone().ok_or("the layout gives no deck")?;
+        let ours: Vec<_> = b.units.iter().filter(|u| u.side == side).collect();
+        let ship = ours.iter().find(|u| u.sails).ok_or("no ship")?;
+        let walker = ours
+            .iter()
+            .find(|u| !u.sails && !u.flag(UnitFlag::Flies))
+            .ok_or("no walker")?;
+        assert_eq!(ship.cell, deck[0], "{side:?}: the ship is at the bow");
+        assert_eq!(ship.moves, 0, "{side:?}: and does not sail");
+        assert!(
+            deck[1..].contains(&walker.cell),
+            "{side:?}: the walker is on the rest of the deck"
+        );
+        let from_middle = |c: &(i32, i32)| {
+            let n = deck.len() as i32;
+            (c.0 - deck.iter().map(|c| c.0).sum::<i32>() / n).abs()
+                + (c.1 - deck.iter().map(|c| c.1).sum::<i32>() / n).abs()
+        };
+        assert!(
+            deck[1..]
+                .iter()
+                .all(|c| from_middle(&walker.cell) <= from_middle(c)),
+            "{side:?}: the middle of the deck is filled first"
+        );
+    }
+    let cells: std::collections::HashSet<_> = b.units.iter().map(|u| u.cell).collect();
+    assert_eq!(cells.len(), b.units.len(), "no two units share a square");
+    Ok(())
+}
+
 /// 1.50 notes 655, 656: a dispel cannot be aimed at a dead unit, and Earth to Mud cannot be aimed at
 /// a square outside the field (a corner square or past the edge), so it makes no mud where nobody
 /// may walk.
@@ -8015,6 +8100,38 @@ fn a_hasted_unit_has_the_moves_for_more_blows_than_an_unhasted_one() -> TestResu
         }
     }
     assert!(blows >= 2, "{blows}");
+    Ok(())
+}
+
+/// Setup: each of the game's settings that change the rules of a fight, set to the other of its
+/// two values. Action: the game starts a battle. Outcome: the battle has all of them.
+#[test]
+fn a_battle_starts_with_the_games_fight_settings() -> TestResult {
+    let mut g = game();
+    let before = g.settings.rules;
+    let rules = &mut g.settings.rules;
+    rules.walls_cover_city = !before.walls_cover_city;
+    rules.death_immunity_exceptions = !before.death_immunity_exceptions;
+    rules.magic_immunity_exceptions = !before.magic_immunity_exceptions;
+    rules.max_battle_side = before.max_battle_side - 1;
+    let walker = unit_number(&g, 107 /* high_men_cavalry */)?;
+    let a = g.spawn_unit(A, at(4, 4), walker);
+    let d = g.spawn_unit(D, at(5, 4), walker);
+    g.apply(Command::BeginBattle {
+        attackers: vec![a],
+        defenders: vec![d],
+    });
+    let b = g.battle().ok_or("battle is missing")?;
+    assert_eq!(b.walls_cover_city, !before.walls_cover_city);
+    assert_eq!(
+        b.death_immunity_exceptions,
+        !before.death_immunity_exceptions
+    );
+    assert_eq!(
+        b.magic_immunity_exceptions,
+        !before.magic_immunity_exceptions
+    );
+    assert_eq!(b.max_side, before.max_battle_side - 1);
     Ok(())
 }
 
