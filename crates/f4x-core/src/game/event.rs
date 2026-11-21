@@ -240,7 +240,10 @@ pub enum Event {
     /// registry (a summon, a hire; they are treated as awaiting orders, and the code that makes
     /// them should register them), and `reset` units whose mission was over (target gone, order
     /// stopped) and that await orders again, and `waiting` units tagged for a ship that has not
-    /// yet taken them aboard (`f4x-ai/src/dispatch.rs`, `roles.rs`, `pickup.rs`).
+    /// yet taken them aboard (`f4x-ai/src/dispatch.rs`, `roles.rs`, `pickup.rs`), `bridges` ships
+    /// that hold the post of a bridge (on their way to it or parked, task 738) and
+    /// `waiting_bridge` units tagged for a bridge that does not yet lead to their target
+    /// (`f4x-ai/src/bridge.rs`).
     RolesAudited {
         player: player::PlayerId,
         adrift: u32,
@@ -248,6 +251,8 @@ pub enum Event {
         unregistered: u32,
         reset: u32,
         waiting: u32,
+        bridges: u32,
+        waiting_bridge: u32,
     },
     /// A Plane Shift took the stack `units` from the square `from` to the same square `to` on the
     /// other plane (the client fades the one into the other).

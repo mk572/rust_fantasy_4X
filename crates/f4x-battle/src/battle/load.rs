@@ -1,5 +1,6 @@
-//! Checks on a battle read back from a save: the spells it holds must be in the rules in force, and its
-//! item charges get their entities back. Nothing here needs the world.
+//! Checks on a battle read back from a save: the spells it holds must be in the rules in force, its
+//! two sides must be two players and its units numbered in order, and its item charges get their
+//! entities back. Nothing here needs the world.
 //!
 //! The spell ids inside a battle are the spells' numbers, which stay the same from one version of
 //! `spells.ron` to the next; loading only refuses a battle that holds a number the rules lack.
@@ -20,6 +21,10 @@ use crate::unit::BattleUnit;
 pub enum BattleLoadError {
     /// The battle holds a spell number the rules do not have.
     UnknownSpell(u16),
+    /// The same player is on both sides.
+    OnePlayerOnBothSides,
+    /// The units are not numbered 0, 1, 2 ... in the order they stand in the list.
+    UnitsOutOfOrder,
 }
 
 impl Battle {
@@ -39,6 +44,18 @@ impl Battle {
         }
         for unit in &self.units {
             check_unit_spells(unit, &mut check)?;
+        }
+        Ok(())
+    }
+
+    /// Check that the battle is a battle: two different players, and every unit numbered by its
+    /// place in the list (the rest of the battle reads the number as the place).
+    pub fn check_shape(&self) -> Result<(), BattleLoadError> {
+        if self.attacker == self.defender {
+            return Err(BattleLoadError::OnePlayerOnBothSides);
+        }
+        if self.units.iter().enumerate().any(|(i, u)| u.id != i) {
+            return Err(BattleLoadError::UnitsOutOfOrder);
         }
         Ok(())
     }

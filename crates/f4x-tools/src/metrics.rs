@@ -164,6 +164,12 @@ pub struct Metrics {
     /// Units tagged for a ship that had not yet taken them aboard, summed over turns (unit-turns
     /// of waiting for a ship, task 647).
     pub waiting_for_ship: u32,
+    /// Ships that held the post of a bridge (on their way to it or parked), summed over turns
+    /// (ship-turns of a bridge, task 738).
+    pub bridge_ships: u32,
+    /// Units tagged for a bridge that did not yet lead to their target, summed over turns
+    /// (unit-turns of waiting for a bridge, task 738).
+    pub waiting_for_bridge: u32,
     /// Cities with no unit in them but engineers, settlers, mana spirits and ships, summed over
     /// rounds (city-turns undefended).
     pub undefended_cities: u32,
@@ -206,7 +212,7 @@ impl Metrics {
     }
 
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 89] {
+    pub fn rows(&self) -> [(&'static str, u32); 91] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -288,6 +294,8 @@ impl Metrics {
                 self.missions_reset,
             ),
             ("unit-turns waiting for a ship", self.waiting_for_ship),
+            ("ship-turns held as a bridge", self.bridge_ships),
+            ("unit-turns waiting for a bridge", self.waiting_for_bridge),
             ("city-turns undefended", self.undefended_cities),
             ("settlers lost in battle", self.settlers_killed),
             ("settlers let go for lack of food", self.settlers_starved),
@@ -463,6 +471,8 @@ impl AddAssign for Metrics {
             units_unregistered,
             missions_reset,
             waiting_for_ship,
+            bridge_ships,
+            waiting_for_bridge,
             undefended_cities,
             settlers_killed,
             settlers_starved,
@@ -553,6 +563,8 @@ impl AddAssign for Metrics {
         self.units_unregistered += units_unregistered;
         self.missions_reset += missions_reset;
         self.waiting_for_ship += waiting_for_ship;
+        self.bridge_ships += bridge_ships;
+        self.waiting_for_bridge += waiting_for_bridge;
         self.undefended_cities += undefended_cities;
         self.settlers_killed += settlers_killed;
         self.settlers_starved += settlers_starved;
@@ -1127,12 +1139,16 @@ impl Tally {
                     unregistered,
                     reset,
                     waiting,
+                    bridges,
+                    waiting_bridge,
                 } => self.bump(*player, |m| {
                     m.units_adrift += adrift;
                     m.units_unassigned += unassigned;
                     m.units_unregistered += unregistered;
                     m.missions_reset += reset;
                     m.waiting_for_ship += waiting;
+                    m.bridge_ships += bridges;
+                    m.waiting_for_bridge += waiting_bridge;
                 }),
                 Event::PlaneShifted { player, units, .. } => self.bump(*player, |m| {
                     m.plane_shifts += 1;
@@ -1679,11 +1695,14 @@ mod tests {
             unregistered: 0,
             reset: 0,
             waiting,
+            bridges: 1,
+            waiting_bridge: waiting + 1,
         };
         tally.record(&game, None, &[audit(2, 4, 3), audit(1, 5, 2)]);
         let m = tally.of(player);
         assert_eq!((m.units_adrift, m.units_unassigned), (3, 9));
         assert_eq!(m.waiting_for_ship, 5);
+        assert_eq!((m.bridge_ships, m.waiting_for_bridge), (2, 7));
         Ok(())
     }
 

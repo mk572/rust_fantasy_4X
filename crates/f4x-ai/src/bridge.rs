@@ -398,6 +398,28 @@ mod tests {
         Ok(())
     }
 
+    /// The audit of the turn counts the ship that holds a bridge and the unit that waits for it,
+    /// for the soak's counters.
+    #[test]
+    fn the_audit_counts_the_bridge_ship_and_the_unit_waiting_for_it() -> TestResult {
+        let (mut g, mut ai, _, _) = waiting()?;
+        let mut events = Vec::new();
+        run(&mut ai, &mut g, &mut events);
+        crate::roles::audit(&mut ai, &mut g, &mut events);
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                Event::RolesAudited {
+                    bridges: 1,
+                    waiting_bridge: 1,
+                    ..
+                }
+            )),
+            "{events:?}"
+        );
+        Ok(())
+    }
+
     #[test]
     fn with_no_free_ship_the_unit_keeps_waiting_for_a_ferry() -> TestResult {
         let (mut g, mut ai, walker, ship) = waiting()?;

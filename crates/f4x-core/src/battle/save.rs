@@ -60,11 +60,13 @@ impl Game {
         let mut battle = save.battle;
         battle.content = super::content_ref::ContentRef::new(self.content.clone());
         battle.bind_units();
-        battle
-            .check_spells(&self.content.rules)
-            .map_err(|BattleLoadError::UnknownSpell(n)| {
-                LoadError::UnknownId("spell", n.to_string())
-            })?;
+        let refused = |e: BattleLoadError| match e {
+            BattleLoadError::UnknownSpell(n) => LoadError::UnknownId("spell", n.to_string()),
+            BattleLoadError::OnePlayerOnBothSides => bad("has one player on both sides"),
+            BattleLoadError::UnitsOutOfOrder => bad("numbers its units out of order"),
+        };
+        battle.check_spells(&self.content.rules).map_err(refused)?;
+        battle.check_shape().map_err(refused)?;
         for (side, player) in [
             (Side::Attacker, battle.attacker),
             (Side::Defender, battle.defender),
@@ -72,9 +74,6 @@ impl Game {
             if self.player_entity(player).is_none() {
                 return Err(bad(&format!("has a missing {side:?} player {}", player.0)));
             }
-        }
-        if battle.attacker == battle.defender {
-            return Err(bad("has one player on both sides"));
         }
         let unit_of = |game: &Game, serial: Serial| {
             game.units()
@@ -109,10 +108,7 @@ impl Game {
                     .ok_or_else(|| bad("assaults a lair that is gone"))
             })
             .transpose()?;
-        for (i, u) in battle.units.iter().enumerate() {
-            if u.id != i {
-                return Err(bad("numbers its units out of order"));
-            }
+        for u in &battle.units {
             let Some(source) = u.source else { continue };
             let entity = *sources
                 .get(source)

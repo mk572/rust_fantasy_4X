@@ -915,11 +915,15 @@ pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let (counted, unregistered) = counted;
     let reset = std::mem::take(&mut ai.missions_reset);
     let waiting = ai.roles.waiting_for_ship().len() as u32;
+    let bridges = ai.roles.count(Role::Bridge) as u32;
+    let waiting_bridge = ai.roles.needing(Crossing::Bridge).len() as u32;
     if counted.adrift.is_empty()
         && counted.unassigned == 0
         && unregistered == 0
         && reset == 0
         && waiting == 0
+        && bridges == 0
+        && waiting_bridge == 0
     {
         return;
     }
@@ -930,6 +934,8 @@ pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         unregistered,
         reset,
         waiting,
+        bridges,
+        waiting_bridge,
     });
     // Nothing more: a unit awaiting orders stays where it stands (task 645). The dispatcher
     // gives the waiting units their jobs.

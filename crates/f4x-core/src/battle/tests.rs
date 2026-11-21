@@ -8918,3 +8918,94 @@ fn the_window_of_a_battle_with_nothing_in_force_is_empty() -> TestResult {
     assert_eq!(info.side_rows(), 1);
     Ok(())
 }
+
+/// A game saved in the middle of a real battle, with one thing made wrong in the saved battle:
+/// loading it is refused, and the refusal says what is wrong.
+fn load_refusal(
+    spoil: impl FnOnce(&mut crate::battle::save::ActiveBattleSave),
+) -> Result<String, Box<dyn std::error::Error>> {
+    let (g, _) = battle_in_the_middle();
+    let mut snapshot = g.snapshot();
+    spoil(snapshot.battle.as_mut().ok_or("the save holds no battle")?);
+    match snapshot.restore(g.content.clone()) {
+        Err(crate::game::save::LoadError::Inconsistent(why)) => Ok(why),
+        Err(other) => Err(format!("refused for another reason: {other:?}").into()),
+        Ok(_) => Err("the spoiled save was loaded".into()),
+    }
+}
+
+/// A saved battle must agree with the world it is loaded into, and be a battle by itself: each
+/// way it can fail to is refused with its own reason, never loaded and never a crash later.
+#[test]
+fn a_saved_battle_that_disagrees_with_the_world_is_refused_with_the_reason() -> TestResult {
+    use crate::battle::save::ActiveBattleSave;
+    use crate::game::serial::Serial;
+    // What is made wrong in the save, and the reason the load gives.
+    type Spoil = fn(&mut ActiveBattleSave);
+    let cases: [(&str, Spoil, &str); 11] = [
+        (
+            "a player that is not in the world",
+            |b| b.battle.defender = PlayerId(77),
+            "has a missing Defender player 77",
+        ),
+        (
+            "one player on both sides",
+            |b| b.battle.defender = b.battle.attacker,
+            "has one player on both sides",
+        ),
+        (
+            "units out of order",
+            |b| b.battle.units[0].id = 1,
+            "numbers its units out of order",
+        ),
+        (
+            "a unit it fights with that is gone",
+            |b| b.sources[0] = Serial(u64::MAX),
+            "fights with a unit that is gone",
+        ),
+        (
+            "a unit left out that is gone",
+            |b| b.left_out.push((Side::Attacker, Serial(u64::MAX))),
+            "left a unit out that is gone",
+        ),
+        (
+            "a unit benched that is gone",
+            |b| b.benched.push(Serial(u64::MAX)),
+            "benched a unit that is gone",
+        ),
+        (
+            "a lair that is a unit, not a lair",
+            |b| b.lair = Some(b.sources[0]),
+            "assaults a lair that is gone",
+        ),
+        (
+            "a unit that fights for the other side",
+            |b| b.battle.units[0].side = Side::Defender,
+            "has a unit that belongs to the wrong player",
+        ),
+        (
+            "a unit copied from a place that is not listed",
+            |b| b.sources.clear(),
+            "copies a unit from a place that is not listed",
+        ),
+        (
+            "an item that is gone",
+            |b| b.battle.units[0].casting.item_charges[0].serial = Serial(u64::MAX),
+            "uses an item that is gone",
+        ),
+        (
+            "an item that is a unit, not an item",
+            |b| b.battle.units[0].casting.item_charges[0].serial = b.sources[1],
+            "uses an item that is gone",
+        ),
+    ];
+    for (what, spoil, reason) in cases {
+        let why = load_refusal(spoil).map_err(|e| format!("{what}: {e}"))?;
+        assert_eq!(
+            why,
+            format!("the saved battle {reason}"),
+            "a saved battle with {what}"
+        );
+    }
+    Ok(())
+}

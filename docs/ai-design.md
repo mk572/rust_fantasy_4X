@@ -828,7 +828,7 @@ ships and the others as `ships and other units with no role`, and stay where the
 task 645: no walk home, no wait on a shore; the role `Return` is gone). The soak shows
 `units adrift (no role)`, and `unit-turns waiting for a ship` (units tagged for a ship that has not
 taken them aboard, summed over turns; task 647). `troops landed` and `cities by sea` count from the
-unit moves and captures, so they read the same under the tag-based landings.
+unit moves and captures, so they read the same under the tag-based landings. The bridges (task 738) show as `ship-turns held as a bridge` (ships that hold the post of a bridge, on their way or parked, summed over turns) and `unit-turns waiting for a bridge` (units tagged `Crossing::Bridge` that no walk leads over yet); both zero means no bridge was ever asked for.
 
 **Why a settler failed** (`settler_fate.rs`, the soak line `settlers that failed`). The clock's count of dropped settler
 plans says only that a plan ended. Each place that ends one says why: never picked up by a ship (the settler was tagged for
