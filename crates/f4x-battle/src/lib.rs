@@ -12,6 +12,8 @@ pub mod resistance;
 pub mod rng;
 pub mod side;
 pub mod special;
+#[cfg(any(test, feature = "testutil"))]
+pub mod testutil;
 pub mod unit;
 pub mod weapon;
 

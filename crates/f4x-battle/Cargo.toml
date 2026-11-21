@@ -18,3 +18,4 @@ testutil = ["f4x-def/testutil"]
 
 [dev-dependencies]
 f4x-def = { workspace = true, features = ["testutil"] }
+f4x-battle = { path = ".", features = ["testutil"] }

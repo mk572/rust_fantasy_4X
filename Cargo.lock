@@ -2669,6 +2669,7 @@ dependencies = [
 name = "f4x-battle"
 version = "0.0.7"
 dependencies = [
+ "f4x-battle",
  "f4x-def",
  "hecs",
  "rand 0.8.8",

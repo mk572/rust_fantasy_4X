@@ -1,7 +1,5 @@
-use super::attack::DefenderState;
 use super::game::BattleStartError;
-use super::map::{distance, Cell, Mover, GRID_H, GRID_W, OPEN_COST};
-use super::special::SpecialAttacks;
+use super::map::{distance, Cell, Mover, OPEN_COST};
 use super::spell::SpellSource;
 use super::*;
 use crate::game::rng::GameRng;
@@ -9,9 +7,9 @@ use crate::game::save::Snapshot;
 use crate::game::testutil::shipped;
 use crate::rules::attack_nature::{AttackNature, Mode};
 use crate::rules::damage_type::DamageType;
-use crate::rules::damage_type::DamageTypes;
 use crate::rules::realm::Realm;
 use crate::rules::unit_flag::UnitFlag;
+use crate::rules::MovementType;
 use crate::rules::UnitId;
 use crate::rules::{Ability, SpellId};
 use f4x_battle::battlemagic::field::Field;
@@ -23,6 +21,7 @@ use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
 use crate::rules::RealmId;
 use crate::spell::target_error::TargetError;
+use f4x_battle::testutil::{bolt, check_legal_list, end_turns, merging_battle, target, without};
 use f4x_def::testdir::TestResult;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
@@ -87,6 +86,126 @@ fn real_battle(ours: &[(u16, Pos)], theirs: &[(u16, Pos)], seed: u64) -> Battle 
     b
 }
 
+/// Setup: every unit of the shipped content, spawned in a game (a ship at sea, the rest on land) and sent into a
+/// battle. Action: the game builds the battle unit from the overland one. Outcome: it equals the
+/// unit `f4x-battle` builds from the definition alone (`testutil::real_battle`, which the tests of
+/// that crate use), apart from where it stands and which overland unit it came from; so a test
+/// there fights the units the game fights.
+#[test]
+fn a_unit_the_game_builds_equals_the_one_built_from_its_definition_for_every_shipped_unit(
+) -> TestResult {
+    let mut checked = 0;
+    let units: Vec<_> = game()
+        .content
+        .rules
+        .units
+        .iter()
+        .map(|(id, d)| (id, d.num, d.movement == MovementType::Sailing))
+        .collect();
+    for (kind, num, at_sea) in units {
+        let mut g = game();
+        let ocean = g
+            .content
+            .terrains
+            .id_numbered(8 /* ocean */)
+            .ok_or("ocean is not in the content")?;
+        for x in 4..=5 {
+            if at_sea {
+                g.map
+                    .as_mut()
+                    .ok_or("no map")?
+                    .plane_mut(Plane::Arcanus)
+                    .set(x, 4, ocean);
+            }
+        }
+        let a = g.spawn_unit(A, at(4, 4), kind);
+        let foe = unit_number(&g, 104 /* high_men_spearmen */)?;
+        let d = g.spawn_unit(D, at(5, 4), foe);
+        g.apply(Command::BeginBattle {
+            attackers: vec![a],
+            defenders: vec![d],
+        });
+        let Some(active) = g.battle.as_ref() else {
+            return Err(format!("unit {num} starts no battle").into());
+        };
+        let Some(mut built) = active
+            .battle
+            .units
+            .iter()
+            .find(|u| u.side == Side::Attacker)
+            .cloned()
+        else {
+            continue; // it sits the fight out
+        };
+        let mut own = f4x_battle::testutil::real_battle(
+            &[(num, (0, 0))],
+            &[(104 /* high_men_spearmen */, (20, 20))],
+            1,
+        )
+        .units[0]
+            .clone();
+        if at_sea {
+            // A ship at sea is its deck: it has no moves (`place_side`).
+            built.sheet_mut().modifiers.retain(|m| {
+                !(m.stat == crate::rules::Stat::Moves
+                    && m.op == crate::rules::ModOp::Set
+                    && m.value == HalfInt::ZERO)
+            });
+        }
+        for u in [&mut built, &mut own] {
+            u.id = 0;
+            u.cell = (0, 0);
+            u.source = None;
+            u.attacked = false;
+        }
+        if built != own {
+            let (l, r) = (format!("{built:?}"), format!("{own:?}"));
+            let diff: Vec<_> = l
+                .split(", ")
+                .zip(r.split(", "))
+                .filter(|(a, b)| a != b)
+                .collect();
+            panic!("unit {num}: {diff:?}");
+        }
+        checked += 1;
+    }
+    assert!(checked > 100, "{checked} units compared");
+    Ok(())
+}
+
+/// A battle the game starts on open ground between two plain units has the same rules in force as
+/// the one `f4x-battle` builds for its tests: the settings, the wizards, the fields and the casters.
+#[test]
+fn a_battle_the_game_starts_has_the_rules_of_the_one_built_for_the_tests() -> TestResult {
+    let mut g = game();
+    let kind = unit_number(&g, 104 /* high_men_spearmen */)?;
+    let a = g.spawn_unit(A, at(4, 4), kind);
+    let d = g.spawn_unit(D, at(5, 4), kind);
+    g.apply(Command::BeginBattle {
+        attackers: vec![a],
+        defenders: vec![d],
+    });
+    let game_made = g.battle().ok_or("no battle")?;
+    let own = f4x_battle::testutil::real_battle(&[(104, (3, 10))], &[(104, (17, 10))], 1);
+    assert_eq!(game_made.melee_vs_fliers, own.melee_vs_fliers);
+    assert_eq!(game_made.walls_cover_city, own.walls_cover_city);
+    assert_eq!(
+        game_made.death_immunity_exceptions,
+        own.death_immunity_exceptions
+    );
+    assert_eq!(
+        game_made.magic_immunity_exceptions,
+        own.magic_immunity_exceptions
+    );
+    assert_eq!(game_made.max_side, own.max_side);
+    assert_eq!(game_made.wizards, own.wizards);
+    assert_eq!(game_made.fields, own.fields);
+    assert_eq!(game_made.casters, own.casters);
+    assert_eq!(game_made.attacker, own.attacker);
+    assert_eq!(game_made.defender, own.defender);
+    Ok(())
+}
+
 /// The unit `number` of the content, as a battle makes it, for a side to add.
 fn unit_numbered(number: u16) -> BattleUnit {
     let b = real_battle(
@@ -102,270 +221,6 @@ fn reseeded(b: &Battle, seed: u64) -> Battle {
     let mut c = b.clone();
     c.rng = GameRng::new(seed);
     c
-}
-
-#[test]
-fn a_new_battle_starts_with_the_attacker_and_full_moves() -> TestResult {
-    let b = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        1,
-    );
-    assert_eq!(b.active, Side::Attacker);
-    assert_eq!(b.turn, 1);
-    assert_eq!(b.winner, None);
-    assert_eq!(b.unit(0).ok_or("unit is missing")?.id, 0);
-    assert_eq!(b.unit(1).ok_or("unit is missing")?.id, 1);
-    assert_eq!(
-        b.unit(0).ok_or("unit is missing")?.moves_left,
-        b.unit(0).ok_or("unit is missing")?.moves
-    );
-    assert_eq!(b.player_of(Side::Attacker), A);
-    assert_eq!(b.player_of(Side::Defender), D);
-    assert_eq!(b.active_units(Side::Attacker).count(), 1);
-    assert_eq!(b.unit_at((17, 10)).ok_or("unit_at is missing")?.id, 1);
-    assert!(b.unit_at((9, 9)).is_none());
-    Ok(())
-}
-
-#[test]
-fn units_walk_within_their_moves_and_not_through_others() -> TestResult {
-    let mut b = real_battle(
-        &[(107 /* high_men_cavalry */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (5, 10))],
-        1,
-    );
-    // Cavalry has two moves: four half-moves, so two squares.
-    let reach = b.reachable(0);
-    assert_eq!(
-        reach.get(&(5, 11)),
-        Some(&HalfInt::from_raw(5)),
-        "one diagonal step costs half a move more"
-    );
-    assert!(!reach.contains_key(&(5, 10)), "occupied");
-    assert!(!reach.contains_key(&(6, 10)));
-    let events = b
-        .apply(BattleCommand::Move {
-            unit: 0,
-            to: (5, 11),
-        })
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(matches!(
-        &events[0],
-        BattleEvent::Moved { unit: 0, path } if path.last() == Some(&(5, 11)) && path.len() == 2
-    ));
-    assert_eq!(b.unit(0).ok_or("unit is missing")?.cell, (5, 11));
-    assert_eq!(b.unit(0).ok_or("unit is missing")?.moves_left, 0);
-    assert_eq!(
-        b.apply(BattleCommand::Move {
-            unit: 0,
-            to: (6, 11)
-        }),
-        Err(BattleError::NoMovesLeft)
-    );
-    Ok(())
-}
-
-#[test]
-fn bad_orders_are_refused() {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        1,
-    );
-    assert_eq!(
-        b.apply(BattleCommand::Move {
-            unit: 1,
-            to: (16, 10)
-        }),
-        Err(BattleError::NotYours)
-    );
-    assert_eq!(
-        b.apply(BattleCommand::Move {
-            unit: 7,
-            to: (4, 10)
-        }),
-        Err(BattleError::NoSuchUnit)
-    );
-    assert_eq!(
-        b.apply(BattleCommand::Move {
-            unit: 0,
-            to: (10, 10)
-        }),
-        Err(BattleError::Unreachable)
-    );
-    assert_eq!(
-        b.apply(BattleCommand::Attack { unit: 0, target: 1 }),
-        Err(BattleError::NotAdjacent)
-    );
-    assert_eq!(
-        b.apply(BattleCommand::Attack { unit: 0, target: 0 }),
-        Err(BattleError::BadTarget)
-    );
-    assert_eq!(
-        b.apply(BattleCommand::Shoot { unit: 0, target: 1 }),
-        Err(BattleError::NoRangedAttack)
-    );
-}
-
-#[test]
-fn a_melee_attack_hurts_both_sides_and_costs_half_the_allowance() -> TestResult {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (9, 10))],
-        &[(104 /* high_men_spearmen */, (10, 10))],
-        3,
-    );
-    let (ours, theirs) = (b.units[0].hit_points(), b.units[1].hit_points());
-    let events = b
-        .apply(BattleCommand::Attack { unit: 0, target: 1 })
-        .map_err(|e| format!("{e:?}"))?;
-    let BattleEvent::Attacked { dealt, taken, .. } = events[0] else {
-        return Err(format!("{events:?}").into());
-    };
-    assert_eq!(
-        b.unit(1).ok_or("unit is missing")?.hit_points(),
-        theirs - dealt
-    );
-    assert_eq!(
-        b.unit(0).ok_or("unit is missing")?.hit_points(),
-        ours - taken
-    );
-    // The blow costs half the allowance; what is left may strike again, and with none left
-    // there is no attack (ReMoM `Battle_Unit_Attack`, wiki "Melee Attack").
-    let me = b.unit(0).ok_or("unit is missing")?;
-    assert!(!me.attacked);
-    assert_eq!(me.moves_left, me.moves - me.moves.half());
-    while b.unit(0).ok_or("unit is missing")?.moves_left > 0 {
-        b.apply(BattleCommand::Attack { unit: 0, target: 1 })
-            .map_err(|e| format!("{e:?}"))?;
-        if !b.unit(1).ok_or("unit is missing")?.is_active() {
-            return Ok(());
-        }
-    }
-    assert_eq!(
-        b.apply(BattleCommand::Attack { unit: 0, target: 1 }),
-        Err(BattleError::NoMovesLeft)
-    );
-    Ok(())
-}
-
-#[test]
-fn killing_the_last_enemy_wins_and_ends_the_battle() -> TestResult {
-    // A golem against settlers, who cannot strike back.
-    let mut b = real_battle(
-        &[(81 /* dwarven_golem */, (9, 10))],
-        &[(111 /* high_men_settlers */, (10, 10))],
-        5,
-    );
-    let mut ended = None;
-    for _ in 0..30 {
-        let r = b.apply(BattleCommand::Attack { unit: 0, target: 1 });
-        match r {
-            Ok(events) => {
-                if let Some(BattleEvent::Ended { winner }) = events.last() {
-                    ended = Some(*winner);
-                    break;
-                }
-                b.apply(BattleCommand::EndTurn)
-                    .map_err(|e| format!("{e:?}"))?;
-                b.apply(BattleCommand::EndTurn)
-                    .map_err(|e| format!("{e:?}"))?;
-            }
-            Err(e) => return Err(format!("{e:?}").into()),
-        }
-    }
-    assert_eq!(ended, Some(Side::Attacker));
-    assert_eq!(b.winner, Some(Side::Attacker));
-    assert!(!b.unit(1).ok_or("unit is missing")?.is_active());
-    assert_eq!(b.apply(BattleCommand::EndTurn), Err(BattleError::Over));
-    Ok(())
-}
-
-#[test]
-fn turns_alternate_and_moves_come_back() -> TestResult {
-    let mut b = real_battle(
-        &[(107 /* high_men_cavalry */, (3, 10))],
-        &[(107 /* high_men_cavalry */, (17, 10))],
-        1,
-    );
-    b.apply(BattleCommand::Move {
-        unit: 0,
-        to: (5, 10),
-    })
-    .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(b.unit(0).ok_or("unit is missing")?.moves_left, 0);
-    let e = b
-        .apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(
-        e,
-        vec![BattleEvent::TurnStarted {
-            side: Side::Defender,
-            turn: 1
-        }]
-    );
-    assert_eq!(b.active, Side::Defender);
-    b.apply(BattleCommand::Move {
-        unit: 1,
-        to: (15, 10),
-    })
-    .map_err(|e| format!("{e:?}"))?;
-    let e = b
-        .apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(
-        e,
-        vec![BattleEvent::TurnStarted {
-            side: Side::Attacker,
-            turn: 2
-        }]
-    );
-    assert_eq!(b.turn, 2);
-    assert_eq!(
-        b.unit(0).ok_or("unit is missing")?.moves_left,
-        b.unit(0).ok_or("unit is missing")?.moves,
-        "refreshed"
-    );
-    Ok(())
-}
-
-#[test]
-fn fleeing_hands_the_battle_to_the_other_side() -> TestResult {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        1,
-    );
-    let e = b.apply(BattleCommand::Flee).map_err(|e| format!("{e:?}"))?;
-    assert_eq!(
-        e[0],
-        BattleEvent::Fled {
-            side: Side::Attacker
-        }
-    );
-    assert_eq!(
-        e.last(),
-        Some(&BattleEvent::Ended {
-            winner: Side::Defender
-        })
-    );
-    assert_eq!(b.unit(0).ok_or("unit is missing")?.status, Status::Fled);
-    Ok(())
-}
-
-/// 1.50 note 747: a ranged attack uses up all the unit's movement, as a melee attack does.
-#[test]
-fn a_ranged_attack_uses_up_the_rest_of_the_movement() -> TestResult {
-    let mut b = real_battle(
-        &[(101 /* high_elf_longbowmen */, (3, 10))],
-        &[(151 /* troll_settlers */, (8, 10))],
-        1,
-    );
-    assert!(b.unit(0).ok_or("no unit")?.moves_left > 0);
-    b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
-        .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(b.unit(0).ok_or("no unit")?.moves_left, 0);
-    Ok(())
 }
 
 #[test]
@@ -453,37 +308,6 @@ fn a_walkers_melee_against_a_flier_follows_the_setting_and_the_flier_hits_back()
     };
     assert_eq!(dealt, 0);
     Ok(())
-}
-
-#[test]
-fn a_battle_replays_exactly_from_the_same_seed() {
-    let start = real_battle(
-        &[(104 /* high_men_spearmen */, (9, 10))],
-        &[(104 /* high_men_spearmen */, (10, 10))],
-        0,
-    );
-    let run = |seed| {
-        let mut b = reseeded(&start, seed);
-        let mut log = Vec::new();
-        for _ in 0..10 {
-            for cmd in [
-                BattleCommand::Attack { unit: 0, target: 1 },
-                BattleCommand::EndTurn,
-                BattleCommand::Attack { unit: 1, target: 0 },
-                BattleCommand::EndTurn,
-            ] {
-                if let Ok(e) = b.apply(cmd) {
-                    log.extend(e)
-                }
-            }
-            if b.winner.is_some() {
-                break;
-            }
-        }
-        log
-    };
-    assert_eq!(run(11), run(11));
-    assert_ne!(run(11), run(12));
 }
 
 #[test]
@@ -601,28 +425,6 @@ fn the_stronger_side_usually_wins() {
         }
     }
     assert!(strong_wins > 50, "{strong_wins} of 60");
-}
-
-#[test]
-fn obstacles_shape_where_units_can_go() {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (9, 10))],
-        &[(104 /* high_men_spearmen */, (12, 10))],
-        1,
-    );
-    for y in 0..GRID_H {
-        b.map.set((10, y), Cell::Blocked);
-    }
-    assert!(
-        !b.reachable(0).contains_key(&(11, 10)),
-        "the wall of rock is in the way"
-    );
-    assert!(b
-        .apply(BattleCommand::Move {
-            unit: 0,
-            to: (11, 10)
-        })
-        .is_err());
 }
 
 // ---- joining the game ------------------------------------------------------------------
@@ -1074,32 +876,6 @@ fn auto_resolve_needs_an_adjacent_target() -> TestResult {
     Ok(())
 }
 
-/// A battle of one Merging unit and one spearman each side, and a second spearman for each
-/// side so that one unit lost does not end it.
-fn merging_battle() -> Battle {
-    real_battle(
-        &[
-            (189 /* great_wyrm */, (3, 10)),
-            (104 /* high_men_spearmen */, (3, 12)),
-        ],
-        &[
-            (104 /* high_men_spearmen */, (17, 10)),
-            (104 /* high_men_spearmen */, (17, 12)),
-        ],
-        1,
-    )
-}
-
-/// The unit of the content `number` as a battle makes it (taken from a battle that has one).
-fn unit_of(b: &Battle, number: u16) -> BattleUnit {
-    let kind = shipped().rules.units.id_numbered(number);
-    b.units
-        .iter()
-        .find(|u| u.unit_id == kind)
-        .expect("the battle has the unit")
-        .clone()
-}
-
 #[test]
 fn a_merged_unit_leaves_the_field_and_comes_up_on_the_next_turn_wherever_it_likes() -> TestResult {
     let mut b = merging_battle();
@@ -1178,259 +954,6 @@ fn a_merged_unit_leaves_the_field_and_comes_up_on_the_next_turn_wherever_it_like
 }
 
 #[test]
-fn merging_needs_the_ability_and_half_a_move() -> TestResult {
-    let mut b = merging_battle();
-    assert_eq!(
-        b.apply(BattleCommand::Merge { unit: 1 }),
-        Err(BattleError::CannotMerge),
-        "no Merging"
-    );
-    b.apply(BattleCommand::Done { unit: 0 })
-        .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(
-        b.apply(BattleCommand::Merge { unit: 0 }),
-        Err(BattleError::CannotMerge),
-        "no move left"
-    );
-    // Half a move is enough.
-    let mut b = merging_battle();
-    b.units[0].set_moves_left(HalfInt::from_raw(1));
-    assert!(b.units[0].moves_left > 0);
-    b.apply(BattleCommand::Merge { unit: 0 })
-        .map_err(|e| format!("{e:?}"))?;
-    Ok(())
-}
-
-#[test]
-fn a_side_with_only_merged_units_loses_and_they_get_away_whole() -> TestResult {
-    let mut b = real_battle(
-        &[(189 /* great_wyrm */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        1,
-    );
-    b.apply(BattleCommand::Merge { unit: 0 })
-        .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(
-        b.winner,
-        Some(Side::Defender),
-        "nothing of the side is on the field"
-    );
-    let u = b.unit(0).ok_or("no unit")?;
-    assert_eq!(u.status, Status::Fled);
-    assert!(u.slipped, "flight without the risk");
-    Ok(())
-}
-
-#[test]
-fn merged_units_of_the_winner_come_up_when_the_battle_is_won() -> TestResult {
-    // The wyrm goes under; the hammerhands beside the lone spearman win the battle.
-    let mut b = real_battle(
-        &[
-            (189 /* great_wyrm */, (3, 10)),
-            (79 /* dwarven_hammerhands */, (3, 12)),
-        ],
-        &[(104 /* high_men_spearmen */, (4, 12))],
-        1,
-    );
-    b.apply(BattleCommand::Merge { unit: 0 })
-        .map_err(|e| format!("{e:?}"))?;
-    for _ in 0..30 {
-        if b.winner.is_some() {
-            break;
-        }
-        b.apply(BattleCommand::Attack { unit: 1, target: 2 })
-            .map_err(|e| format!("{e:?}"))?;
-        for _ in 0..2 {
-            if b.winner.is_none() {
-                b.apply(BattleCommand::EndTurn)
-                    .map_err(|e| format!("{e:?}"))?;
-            }
-        }
-    }
-    assert_eq!(b.winner, Some(Side::Attacker));
-    assert_eq!(b.unit(0).ok_or("no unit")?.status, Status::Active);
-    Ok(())
-}
-
-#[test]
-fn teleporting_units_go_anywhere_free_for_one_move() -> TestResult {
-    let mut b = real_battle(
-        &[(175 /* unicorns */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        1,
-    );
-    b.map.set((10, 10), Cell::Blocked);
-    let reach = b.reachable(0);
-    assert_eq!(
-        reach.get(&(15, 3)),
-        Some(&HalfInt::from_int(1)),
-        "far away, one move"
-    );
-    assert!(!reach.contains_key(&(10, 10)), "not into rock");
-    assert!(!reach.contains_key(&(17, 10)), "not onto a unit");
-    assert!(!reach.contains_key(&(3, 10)), "not where it stands");
-    let events = b
-        .apply(BattleCommand::Move {
-            unit: 0,
-            to: (16, 10),
-        })
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(matches!(&events[0], BattleEvent::Moved { path, .. } if path == &vec![(16, 10)]));
-    assert_eq!(b.unit(0).ok_or("unit is missing")?.cell, (16, 10));
-    assert_eq!(
-        b.unit(0).ok_or("unit is missing")?.moves_left,
-        HalfInt::from_int(1),
-        "one of two moves used"
-    );
-    // It may teleport again with what is left, and then has nothing left.
-    b.apply(BattleCommand::Move {
-        unit: 0,
-        to: (16, 5),
-    })
-    .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(b.unit(0).ok_or("unit is missing")?.moves_left, 0);
-    assert_eq!(
-        b.apply(BattleCommand::Move {
-            unit: 0,
-            to: (3, 3)
-        }),
-        Err(BattleError::NoMovesLeft)
-    );
-    Ok(())
-}
-
-#[test]
-fn a_teleporter_cannot_go_into_rock_and_a_walker_cannot_teleport() {
-    let mut b = real_battle(
-        &[(175 /* unicorns */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        1,
-    );
-    b.map.set((10, 10), Cell::Blocked);
-    assert_eq!(
-        b.apply(BattleCommand::Move {
-            unit: 0,
-            to: (10, 10)
-        }),
-        Err(BattleError::Unreachable)
-    );
-    let mut w = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        1,
-    );
-    assert_eq!(
-        w.apply(BattleCommand::Move {
-            unit: 0,
-            to: (15, 3)
-        }),
-        Err(BattleError::Unreachable)
-    );
-}
-
-#[test]
-fn units_deploy_melee_first_and_shooters_behind_them() {
-    use super::map::deployment_order;
-    // Spearmen and bowmen, alternately.
-    let all = real_battle(
-        &[
-            (104 /* high_men_spearmen */, (3, 10)),
-            (106 /* high_men_bowmen */, (3, 11)),
-        ],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        1,
-    );
-    let (melee, shooter) = (
-        unit_of(&all, 104 /* high_men_spearmen */),
-        unit_of(&all, 106),
-    );
-    let units: Vec<BattleUnit> = (0..8)
-        .map(|i| {
-            if i % 2 == 0 {
-                shooter.clone()
-            } else {
-                melee.clone()
-            }
-        })
-        .collect();
-    assert_eq!(deployment_order(&units), vec![1, 3, 5, 7, 0, 2, 4, 6]);
-    // Six shooters and one melee unit: the two strongest in melee move up front. The shooters
-    // are bowmen of growing strength in melee: 1, 2, 3, 4, 8 and 10.
-    let shooters = [
-        106, // high_men_bowmen
-        49,  // beastmen_bowmen
-        86,  // gnoll_bowmen
-        123, // lizardman_javelineers
-        65,  // dark_elf_nightmares
-        126, // lizardman_dragon_turtle
-    ];
-    let mut army: Vec<(u16, Pos)> = vec![(104 /* high_men_spearmen */, (3, 9))];
-    army.extend(
-        shooters
-            .iter()
-            .enumerate()
-            .map(|(i, &n)| (n, (3, 10 + i as i32))),
-    );
-    let all = real_battle(&army, &[(104 /* high_men_spearmen */, (17, 10))], 1);
-    let mut units = vec![unit_of(&all, 104 /* high_men_spearmen */)];
-    units.extend(shooters.iter().map(|&n| unit_of(&all, n)));
-    let melee: Vec<i32> = units.iter().map(|u| u.melee).collect();
-    assert!(melee[1..].windows(2).all(|w| w[0] < w[1]), "{melee:?}");
-    assert_eq!(deployment_order(&units), vec![0, 6, 5, 1, 2, 3, 4]);
-}
-
-#[test]
-fn a_nodes_aura_helps_its_realms_creatures_on_both_sides() {
-    // A chaos creature with a ranged attack against a nature creature.
-    let mut b = real_battle(
-        &[(159 /* chaos_spawn */, (3, 10))],
-        &[(180 /* sprites */, (17, 10))],
-        4,
-    );
-    let (melee, ranged, defense, resist) = (
-        b.units[0].melee,
-        b.units[0].ranged,
-        b.units[0].defense,
-        b.units[0].resistance,
-    );
-    let theirs = (b.units[1].melee, b.units[1].defense);
-    b.node_aura = Some(Realm::Chaos);
-    b.refresh_fields();
-    assert_eq!(b.units[0].melee, melee + rules().node_aura_bonus);
-    assert_eq!(b.units[0].ranged, ranged + rules().node_aura_bonus);
-    assert_eq!(b.units[0].defense, defense + rules().node_aura_bonus);
-    assert_eq!(b.units[0].resistance, resist + rules().node_aura_bonus);
-    assert_eq!((b.units[1].melee, b.units[1].defense), theirs);
-    // Gone with the aura.
-    b.node_aura = None;
-    b.refresh_fields();
-    assert_eq!(b.units[0].melee, melee);
-}
-
-#[test]
-fn a_node_stops_spells_of_other_realms_but_not_its_own() {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        4,
-    );
-    assert!(
-        !b.node_stops(Some(Realm::Life), 1000),
-        "no node, no counter"
-    );
-    b.node_site = Some(Realm::Sorcery);
-    assert!(!b.node_stops(Some(Realm::Sorcery), 1000));
-    let stopped = (0..100)
-        .filter(|_| b.node_stops(Some(Realm::Life), 50))
-        .count();
-    assert!(
-        (30..=70).contains(&stopped),
-        "strength 50 against 50: {stopped}"
-    );
-    assert!(b.node_stops(Some(Realm::Life), 0));
-}
-
-#[test]
 fn counter_magic_resists_by_its_strength_and_loses_some_per_attempt() {
     let mut b = real_battle(
         &[(104 /* high_men_spearmen */, (3, 10))],
@@ -1487,15 +1010,6 @@ fn damage_over_seeds(start: &Battle, shoot: bool) -> i32 {
     total
 }
 
-/// The battle with the ability `number` taken off `unit`: the one difference between the unit
-/// as shipped and the same unit without it.
-fn without(b: &Battle, unit: usize, number: u16) -> Battle {
-    let mut c = b.clone();
-    let gone = Ability::new(number);
-    c.units[unit].strip(gone);
-    c
-}
-
 #[test]
 fn weapon_immunity_blunts_normal_blows_but_not_magical_ones() {
     // Swordsmen against werewolves, who are immune to weapons.
@@ -1532,42 +1046,6 @@ fn missile_immunity_stops_arrows_completely() {
     );
     assert!(open > 20, "{open}");
     assert_eq!(proof, 0);
-}
-
-#[test]
-fn the_log_names_the_immunity_that_stopped_a_shot() {
-    // Longbowmen against a necromancer: the arrow is stopped by missile immunity (a missile).
-    let proof = real_battle(
-        &[(101 /* high_elf_longbowmen */, (3, 10))],
-        &[(32 /* necromancer */, (5, 10))],
-        1,
-    );
-    let mut b = reseeded(&proof, 1);
-    let events = b
-        .apply(BattleCommand::Shoot { unit: 0, target: 1 })
-        .expect("apply succeeds");
-    assert!(
-        events.iter().any(|e| matches!(
-            e,
-            BattleEvent::Unharmed {
-                attacker: 0,
-                defender: 1,
-                by: DamageType::Missile
-            }
-        )),
-        "{events:?}"
-    );
-    // Without the immunity nothing is reported as stopped.
-    let open = without(&proof, 1, 44 /* missile_immunity */);
-    let events = reseeded(&open, 1)
-        .apply(BattleCommand::Shoot { unit: 0, target: 1 })
-        .expect("apply succeeds");
-    assert!(
-        !events
-            .iter()
-            .any(|e| matches!(e, BattleEvent::Unharmed { .. })),
-        "{events:?}"
-    );
 }
 
 #[test]
@@ -1626,76 +1104,6 @@ fn an_illusion_ignores_armor_unless_the_defender_sees_through_it() {
     let plain = damage_over_seeds(&without(&seen, 1, 31 /* illusion_immunity */), false);
     let seen = damage_over_seeds(&seen, false);
     assert!(plain > seen * 2, "{plain} vs {seen}");
-}
-
-#[test]
-fn a_defender_with_a_gaze_stones_the_attackers_before_they_strike() -> TestResult {
-    // Spearmen attack a basilisk.
-    let start = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(182 /* basilisk */, (4, 10))],
-        1,
-    );
-    let figures = start.units[0].figures;
-    let plain = without(&start, 1, 64 /* stoning_gaze */);
-    let (mut lost, mut gazeless_lost) = (0, 0);
-    for seed in 0..100 {
-        for (battle, total) in [(&start, &mut lost), (&plain, &mut gazeless_lost)] {
-            let mut b = reseeded(battle, seed);
-            b.apply(BattleCommand::Attack { unit: 0, target: 1 })
-                .map_err(|e| format!("{e:?}"))?;
-            *total += figures - b.unit(0).ok_or("unit is missing")?.figures;
-        }
-    }
-    // The basilisk's blows kill figures too; the gaze adds to them.
-    assert!(lost * 2 > gazeless_lost * 3, "{lost} vs {gazeless_lost}");
-    Ok(())
-}
-
-#[test]
-fn a_gaze_works_when_the_attack_strength_is_down_to_zero() -> TestResult {
-    // A basilisk under Weakness or Mind Storm has no ranged strength left, but its gaze does
-    // not need any (1.50 note 153).
-    let mut start = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(182 /* basilisk */, (4, 10))],
-        1,
-    );
-    start.units[1].force(f4x_def::rules::stats::Stat::Ranged, 0);
-    let mut plain = without(&start, 1, 64 /* stoning_gaze */);
-    plain.units[1].force(f4x_def::rules::stats::Stat::Ranged, 0);
-    let figures = start.units[0].figures;
-    let (mut lost, mut gazeless_lost) = (0, 0);
-    for seed in 0..100 {
-        for (battle, total) in [(&start, &mut lost), (&plain, &mut gazeless_lost)] {
-            let mut b = reseeded(battle, seed);
-            b.apply(BattleCommand::Attack { unit: 0, target: 1 })
-                .map_err(|e| format!("{e:?}"))?;
-            *total += figures - b.unit(0).ok_or("unit is missing")?.figures;
-        }
-    }
-    assert!(lost * 2 > gazeless_lost * 3, "{lost} vs {gazeless_lost}");
-    Ok(())
-}
-
-#[test]
-fn a_life_stealing_shot_heals_the_shooter() -> TestResult {
-    // A demon lord, hurt, shoots a spearman.
-    let mut start = real_battle(
-        &[(173 /* demon_lord */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (5, 10))],
-        1,
-    );
-    start.units[0].set_front_damage(8);
-    let mut healed = 0;
-    for seed in 0..50 {
-        let mut b = reseeded(&start, seed);
-        b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
-            .map_err(|e| format!("{e:?}"))?;
-        healed += 8 - b.unit(0).ok_or("unit is missing")?.front_damage;
-    }
-    assert!(healed > 0);
-    Ok(())
 }
 
 #[test]
@@ -2094,10 +1502,9 @@ fn attackers_inside_the_city_hurt_it_each_turn() -> TestResult {
 
 mod casting {
     use super::*;
-    use crate::battle::attack::{spell_attack, Combatant, Mode, Volley};
+    use crate::battle::attack::{spell_attack, Volley};
     use crate::battle::casting::{range_percent, BattleCaster};
-    use crate::battle::immunity::{AttackNature, Realm};
-    use crate::rules::effects::DamageTraits;
+
     use crate::rules::stats::Stat;
     use f4x_def::testdir::TestResult;
 
@@ -2195,66 +1602,6 @@ mod casting {
         );
     }
 
-    fn target(figures: u32, hits: i32, defense: i32) -> DefenderState {
-        DefenderState {
-            hits,
-            defense,
-            figures,
-            figures_max: figures,
-            ..Default::default()
-        }
-    }
-
-    fn bolt(strength: i32) -> Combatant {
-        Combatant {
-            strength,
-            to_hit: 0,
-            mode: Mode::Ranged,
-            ..Default::default()
-        }
-    }
-
-    fn mean(volley: Volley, spell: &Combatant, def: &DefenderState, trials: u64) -> f64 {
-        let total: i32 = (0..trials)
-            .map(|seed| {
-                let mut state = def.clone();
-                let mut rng = Pcg64Mcg::seed_from_u64(seed);
-                spell_attack(&rules(), spell, volley, &mut state, &mut rng).points
-            })
-            .sum();
-        total as f64 / trials as f64
-    }
-
-    #[test]
-    fn a_stronger_bolt_does_more_damage_and_defence_blocks_some_of_it() {
-        let soft = target(1, 100, 0);
-        let (weak, strong) = (
-            mean(Volley::Bolt, &bolt(5), &soft, 2000),
-            mean(Volley::Bolt, &bolt(15), &soft, 2000),
-        );
-        // A die hits three times in ten.
-        assert!((weak - 1.5).abs() < 0.2, "{weak}");
-        assert!((strong - 4.5).abs() < 0.4, "{strong}");
-        let armoured = mean(Volley::Bolt, &bolt(15), &target(1, 100, 6), 2000);
-        assert!(armoured < strong - 1.0, "{armoured} against {strong}");
-        // Armour piercing halves the defence; doom ignores it.
-        let piercing = Combatant {
-            nature: AttackNature {
-                armor_piercing: true,
-                ..Default::default()
-            },
-            ..bolt(15)
-        };
-        let doom = {
-            let mut doom = bolt(15);
-            doom.nature.types.insert(DamageType::Doom);
-            doom
-        };
-        let wall = target(1, 100, 6);
-        assert!(mean(Volley::Bolt, &piercing, &wall, 2000) > armoured + 0.5);
-        assert_eq!(mean(Volley::Bolt, &doom, &wall, 10), 15.0);
-    }
-
     #[test]
     fn a_fireball_hits_each_figure_and_none_loses_more_than_one_figure() {
         let squad = target(6, 2, 0);
@@ -2273,44 +1620,6 @@ mod casting {
         assert_eq!(
             single.kills, 2,
             "a bolt of five kills two of them and no more"
-        );
-    }
-
-    #[test]
-    fn warp_lightning_is_a_chain_of_weaker_and_weaker_bolts() {
-        let chain = {
-            let mut c = bolt(4);
-            c.nature.types.insert(DamageType::Doom);
-            c
-        };
-        let mut state = target(10, 5, 0);
-        let mut rng = Pcg64Mcg::seed_from_u64(1);
-        let dmg = spell_attack(&rules(), &chain, Volley::Chain, &mut state, &mut rng);
-        assert_eq!(dmg.points, 4 + 3 + 2 + 1);
-    }
-
-    #[test]
-    fn magic_immunity_and_righteousness_turn_spells_away() {
-        // A spell of the realm hits the unit `foe` of the content, blessed or not.
-        let strike = |foe: u16, blessed: bool, realm| {
-            let mut b = real_battle(
-                &[(104 /* high_men_spearmen */, (3, 5))],
-                &[(foe, (8, 5))],
-                1,
-            );
-            if blessed {
-                b.units[1].put_enchantment(SpellId::new(144));
-            }
-            let nature = AttackNature::magical(realm, &[]);
-            b.spell_damage(1, 10, &DamageTraits::default(), nature)
-        };
-        let paladins = 113; // high_men_paladins: magic immunity
-        assert!(strike(104 /* high_men_spearmen */, false, Realm::Chaos).is_some());
-        assert!(strike(paladins, false, Realm::Chaos).is_none());
-        assert!(strike(104 /* high_men_spearmen */, true, Realm::Death).is_none());
-        assert!(
-            strike(104 /* high_men_spearmen */, true, Realm::Nature).is_some(),
-            "only chaos and death"
         );
     }
 
@@ -2431,47 +1740,6 @@ mod casting {
         let (u, _, normal) = after_lionheart_goes(104 /* high_men_spearmen */, |_, max| max)?;
         assert_eq!((u.figures as i32, u.hit_points()), (8, normal));
         Ok(())
-    }
-
-    #[test]
-    fn healing_brings_figures_back_and_a_new_creature_arrives_ready_to_act() {
-        let mut b = real_battle(
-            &[(104 /* high_men_spearmen */, (3, 5))],
-            &[(104 /* high_men_spearmen */, (8, 5))],
-            1,
-        );
-        let hits = b.units[0].hits;
-        b.units[0].set_figures(1);
-        b.units[0].set_front_damage(0);
-        assert_eq!(b.units[0].hit_points(), hits);
-        // Each figure has `hits` hit points: five figures' worth heal five figures.
-        assert_eq!(b.spell_heal(0, 5 * hits), 5 * hits);
-        assert_eq!(b.units[0].figures, 6);
-        b.units[0].end_moves();
-        let fresh = unit_of(&b, 104 /* high_men_spearmen */);
-        let id = b.add_summoned(Side::Attacker, fresh, (4, 5));
-        assert_eq!(id, 2);
-        assert_eq!(b.units[2].moves_left, b.units[2].moves);
-        assert!(b.units[2].is_active());
-    }
-
-    #[test]
-    fn creatures_appear_only_on_a_free_square_of_the_casters_half() {
-        let b = real_battle(
-            &[(104 /* high_men_spearmen */, (3, 5))],
-            &[(104 /* high_men_spearmen */, (17, 5))],
-            1,
-        );
-        assert!(b.is_summon_square(Side::Attacker, (4, 5)));
-        assert!(!b.is_summon_square(Side::Attacker, (3, 5)), "occupied");
-        assert!(
-            !b.is_summon_square(Side::Attacker, (15, 5)),
-            "the other half"
-        );
-        assert!(b.is_summon_square(Side::Defender, (15, 5)));
-        assert!(b
-            .first_summon_square(Side::Attacker)
-            .is_some_and(|c| c.0 == 0));
     }
 }
 
@@ -3074,14 +2342,6 @@ mod fields {
         Ok(())
     }
 
-    fn end_turns(b: &mut Battle, n: usize) -> Vec<BattleEvent> {
-        let mut all = Vec::new();
-        for _ in 0..n {
-            all.extend(b.apply(BattleCommand::EndTurn).expect("apply succeeds"));
-        }
-        all
-    }
-
     #[test]
     fn entangle_costs_a_move_and_terror_can_freeze_the_enemy() {
         let mut b = pair(
@@ -3271,97 +2531,6 @@ mod fields {
     }
 
     #[test]
-    fn what_a_unit_brings_to_the_web_follows_its_attacks() {
-        // The strength of unit `number` as it ships; `ammo` of 0 for a unit that has shot its last.
-        let web = |number: u16, ammo: Option<i32>| {
-            let mut u = unit_numbered(number);
-            if let Some(ammo) = ammo {
-                u.set_ammo(ammo);
-            }
-            (u.web_strength(&shipped().rules), u.melee, u.ranged)
-        };
-        let (w, melee, _) = web(105 /* high_men_swordsmen */, None);
-        assert_eq!(w, melee, "melee alone");
-        // A bow, a sling or a magical shot is the better of the two, and needs a shot left.
-        let (w, melee, ranged) = web(101 /* high_elf_longbowmen */, None);
-        assert_eq!(w, melee.max(ranged));
-        let (w, melee, ranged) = web(103 /* high_elf_pegasai */, None);
-        assert_eq!(w, melee.max(ranged), "the better of the two");
-        let (w, melee, _) = web(101, Some(0));
-        assert_eq!(w, melee, "no arrows left");
-        let (w, melee, ranged) = web(94 /* halfling_slingers */, None);
-        assert_eq!(w, melee.max(ranged));
-        let (w, melee, ranged) = web(51 /* beastmen_magicians, fireball */, None);
-        assert_eq!(w, melee.max(ranged), "a magical attack");
-        // A boulder is bodily strength like melee: it does not count.
-        let (w, melee, _) = web(37 /* catapult */, None);
-        assert_eq!(w, melee);
-        // Thrown weapons, breath and gazes add to melee.
-        for number in [
-            40,  // barbarian_swordsmen, thrown
-            74,  // draconian_doom_drakes, fire breath
-            196, // sky_drake, lightning breath
-            182, // basilisk, stoning gaze
-        ] {
-            let (w, melee, ranged) = web(number, None);
-            assert_eq!(w, melee + ranged, "unit {number}");
-        }
-        // Immolation burns the web as well.
-        let (w, melee, _) = web(161 /* doom_bat */, None);
-        assert_eq!(w, melee + rules().immolation_strength);
-    }
-
-    #[test]
-    fn a_bound_unit_fights_for_the_caster_and_goes_home_when_the_battle_ends() {
-        let mut b = real_battle(
-            &[(105 /* high_men_swordsmen */, (3, 5))],
-            &[
-                (104 /* high_men_spearmen */, (17, 5)),
-                (104 /* high_men_spearmen */, (17, 7)),
-            ],
-            1,
-        );
-        b.change_sides(1, Side::Attacker);
-        let u = &b.units[1];
-        assert_eq!(
-            (u.side, u.bound_from),
-            (Side::Attacker, Some(Side::Defender))
-        );
-        assert!(
-            u.attacked && u.moves_left == 0,
-            "it acts from the next turn"
-        );
-        // A new turn does not hand it back, as confusion does.
-        end_turns(&mut b, 2);
-        assert_eq!(b.units[1].side, Side::Attacker);
-        // The last of the rival's own units falls: the caster wins, and the unit goes home.
-        b.units[2].status = Status::Dead;
-        b.check_winner();
-        assert_eq!(b.winner, Some(Side::Attacker));
-        assert_eq!(b.units[1].side, Side::Defender);
-        assert_eq!(b.units[1].bound_from, None);
-    }
-
-    #[test]
-    fn a_creature_still_bound_when_the_battle_ends_is_destroyed() {
-        let mut b = real_battle(
-            &[(105 /* high_men_swordsmen */, (3, 5))],
-            &[
-                (104 /* high_men_spearmen */, (17, 5)),
-                (104 /* high_men_spearmen */, (17, 7)),
-            ],
-            1,
-        );
-        b.units[1].put_enchantment(SpellId::new(73 /* creature_binding */));
-        b.change_sides(1, Side::Attacker);
-        b.units[2].status = Status::Dead;
-        b.check_winner();
-        let u = &b.units[1];
-        assert_eq!((u.status, u.side), (Status::Dead, Side::Defender));
-        assert_eq!(u.fate(), Fate::Gone);
-    }
-
-    #[test]
     fn confusion_picks_one_of_four_acts_and_can_lend_the_unit_to_the_enemy() {
         let start = cast_on_foe(104 /* high_men_spearmen */, 46 /* confusion */);
         let (mut idle, mut wandered, mut seized, mut free) = (0, 0, 0, 0);
@@ -3393,45 +2562,6 @@ mod fields {
         for n in [idle, wandered, seized, free] {
             assert!((25..=75).contains(&n), "{idle} {wandered} {seized} {free}");
         }
-    }
-
-    #[test]
-    fn a_seized_unit_acts_for_the_enemy_for_a_turn_and_goes_home_when_its_side_has_others() {
-        let mut seen = 0;
-        for seed in 0..200 {
-            let mut b = real_battle(
-                &[(105 /* high_men_swordsmen */, (3, 5))],
-                &[
-                    (104 /* high_men_spearmen */, (8, 5)),
-                    (104 /* high_men_spearmen */, (9, 5)),
-                ],
-                seed,
-            );
-            b.units[1].put_enchantment(SpellId::new(46 /* confusion */));
-            let events = end_turns(&mut b, 1);
-            let seized = events.iter().any(|e| {
-                matches!(
-                    e,
-                    BattleEvent::Confused {
-                        unit: 1,
-                        act: Confusion::Seized
-                    }
-                )
-            });
-            if !seized {
-                continue;
-            }
-            seen += 1;
-            assert!(b.winner.is_none(), "a side with another unit goes on");
-            assert!(b.units[1].attacked && b.units[1].seized);
-            // The enemy commands it on their turn, and it goes home after.
-            end_turns(&mut b, 1);
-            assert_eq!(b.units[1].side, Side::Attacker);
-            assert!(b.units[1].moves_left > 0 && !b.units[1].attacked);
-            end_turns(&mut b, 1);
-            assert_eq!(b.units[1].side, Side::Defender);
-        }
-        assert!(seen > 10, "{seen}");
     }
 
     #[test]
@@ -3654,54 +2784,6 @@ mod fields {
             spell_for(Field::MassInvisibility),
         );
         assert_eq!(b.invisibility_penalty(0, 1), 1);
-    }
-
-    #[test]
-    fn figures_that_fail_their_resistance_are_destroyed() -> TestResult {
-        let slay = |foe: u16, resistance: i32| {
-            let mut b = real_battle(
-                &[(105 /* high_men_swordsmen */, (5, 5))],
-                &[(foe, (6, 5))],
-                3,
-            );
-            b.units[1].force(f4x_def::rules::stats::Stat::Resistance, resistance);
-            b
-        };
-        let mut b = slay(104 /* high_men_spearmen */, 0);
-        let figures = b.units[1].figures;
-        let dmg = b
-            .spell_slay(1, Realm::Death, -9, &[], None)
-            .ok_or("spell_slay is missing")?;
-        assert_eq!(dmg.kills, figures, "no chance against a penalty of nine");
-        assert!(!b.units[1].is_active());
-        // A unit with the right immunity (skeletons) takes no harm; one with enough resistance
-        // resists.
-        let mut b = slay(165 /* skeletons */, 30);
-        assert!(b
-            .spell_slay(
-                1,
-                Realm::Death,
-                -2,
-                &[crate::rules::damage_type::DamageType::Death],
-                None
-            )
-            .is_none());
-        assert_eq!(
-            b.spell_slay(1, Realm::Death, -2, &[], None)
-                .ok_or("spell_slay is missing")?
-                .kills,
-            0
-        );
-        // Disintegrate: resistance under ten and the whole unit is gone.
-        let mut b = slay(104 /* high_men_spearmen */, 9);
-        b.spell_slay(1, Realm::Chaos, 0, &[], Some(10))
-            .ok_or("spell_slay is missing")?;
-        assert!(!b.units[1].is_active());
-        let mut b = slay(104 /* high_men_spearmen */, 10);
-        b.spell_slay(1, Realm::Chaos, 0, &[], Some(10))
-            .ok_or("spell_slay is missing")?;
-        assert!(b.units[1].is_active());
-        Ok(())
     }
 }
 
@@ -4530,20 +3612,6 @@ fn the_units_with_a_casting_ability_cast_its_spell_once_for_no_mana() -> TestRes
     Ok(())
 }
 
-#[test]
-fn a_spell_save_makes_the_resistance_checks_of_the_cast_harder() {
-    // War bears have a resistance of 6.
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (1, 1))],
-        &[(179 /* war_bears */, (5, 5))],
-        3,
-    );
-    let resisted = |b: &mut Battle| (0..200).filter(|_| !b.resist_fails(1, None, 0)).count();
-    assert!(resisted(&mut b) > 50);
-    b.save_penalty = 10;
-    assert_eq!(resisted(&mut b), 0);
-}
-
 /// A game whose hero (casting skill 4, so mana for several casts) has the real spell `id`. The
 /// battle is on; the enemy is battle unit 1.
 fn hook_game(id: u16) -> Game {
@@ -5096,66 +4164,6 @@ fn a_flying_fortress_shuts_the_city_to_walkers_and_its_walkers_in() {
     assert!(map.is_flying_fortress());
 }
 
-/// Every command that could be written, for the units and squares of a battle.
-fn every_command(b: &Battle) -> Vec<BattleCommand> {
-    let mut all = vec![BattleCommand::EndTurn, BattleCommand::Flee];
-    for unit in 0..b.units.len() + 1 {
-        all.push(BattleCommand::Done { unit });
-        for target in 0..b.units.len() + 1 {
-            all.push(BattleCommand::Attack { unit, target });
-            all.push(BattleCommand::Shoot { unit, target });
-        }
-        for y in 0..GRID_H {
-            for x in 0..GRID_W {
-                all.push(BattleCommand::Move { unit, to: (x, y) });
-                all.push(BattleCommand::AttackWall { unit, cell: (x, y) });
-                all.push(BattleCommand::ShootWall { unit, cell: (x, y) });
-            }
-        }
-    }
-    all
-}
-
-/// The list of legal commands is exactly what `apply` accepts.
-fn check_legal_list(b: &Battle) {
-    let legal = b.legal_commands();
-    for c in every_command(b) {
-        let accepted = b.clone().apply(c.clone()).is_ok();
-        assert_eq!(
-            accepted,
-            legal.contains(&c),
-            "{c:?}: apply says {accepted}, the list says otherwise"
-        );
-    }
-}
-
-#[test]
-fn the_legal_commands_are_exactly_what_apply_accepts() -> TestResult {
-    // An open field: a swordsman next to an enemy, two archers, a unit with no ammunition.
-    let longbowmen = 101;
-    let mut b = real_battle(
-        &[
-            (105 /* high_men_swordsmen */, (3, 10)),
-            (longbowmen, (3, 12)),
-            (longbowmen, (4, 14)),
-        ],
-        &[
-            (104 /* high_men_spearmen */, (4, 10)),
-            (longbowmen, (9, 12)),
-        ],
-        1,
-    );
-    b.units[2].set_ammo(0);
-    check_legal_list(&b);
-    // After the attacker's turn, the defender's.
-    b.apply(BattleCommand::Done { unit: 0 })
-        .map_err(|e| format!("{e:?}"))?;
-    b.apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    check_legal_list(&b);
-    Ok(())
-}
-
 #[test]
 fn the_legal_commands_cover_walls_crushers_and_darkness() -> TestResult {
     let spot = wall_spot();
@@ -5301,51 +4309,6 @@ fn a_large_shield_turns_missiles_but_not_blows() {
     let open = damage_over_seeds(&without(&blow, 1, 34 /* large_shield */), false);
     let shielded = damage_over_seeds(&blow, false);
     assert_eq!(open, shielded);
-}
-
-#[test]
-fn a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot() -> TestResult {
-    // An efreet casts fireballs: twenty mana, three a shot.
-    let mut b = real_battle(
-        &[(162 /* efreet */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (4, 10))],
-        1,
-    );
-    let (mana, ammo) = (b.units[0].mana, b.units[0].ammo);
-    assert!(mana >= 20 && ammo > 2);
-    b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
-        .map_err(|e| format!("{e:?}"))?;
-    let u = b.unit(0).ok_or("unit is missing")?;
-    let (shot, leak) = (rules().shot_mana, rules().mana_leak_drain);
-    assert_eq!(
-        (u.mana, u.ammo),
-        (mana - shot, ammo - 1),
-        "a shot costs mana"
-    );
-    // Mana leak takes mana, and the shots follow it.
-    b.units[0].leak_mana(leak, &shipped().rules);
-    let u = b.unit(0).ok_or("unit is missing")?;
-    assert_eq!(u.mana, mana - shot - leak);
-    assert_eq!(u.ammo, (ammo - 1).min((mana - shot - leak) / shot));
-    // With no mana left it cannot shoot.
-    b.units[0].leak_mana(1000, &shipped().rules);
-    assert_eq!(
-        (
-            b.unit(0).ok_or("unit is missing")?.mana,
-            b.unit(0).ok_or("unit is missing")?.ammo
-        ),
-        (0, 0)
-    );
-    // A unit with spell shots but no mana of its own (the magicians) simply loses one.
-    let mut plain = unit_numbered(51 /* beastmen_magicians */);
-    let shots = plain.ammo;
-    assert_eq!(plain.mana, 0);
-    plain.leak_mana(leak, &shipped().rules);
-    assert_eq!((plain.mana, plain.ammo), (0, shots - 1));
-    plain.put_ranged_kind(RangedKind::Missile);
-    plain.leak_mana(leak, &shipped().rules);
-    assert_eq!(plain.ammo, shots - 1, "arrows are not spell shots");
-    Ok(())
 }
 
 #[test]
@@ -5843,116 +4806,6 @@ fn a_fallen_hero_costs_its_owner_half_its_level_rounded_down_counting_from_one()
 }
 
 #[test]
-fn healing_cannot_bring_back_what_was_destroyed() {
-    // Four troll figures.
-    let mut u = unit_numbered(147 /* troll_spearmen */);
-    let (figures, h) = (u.figures_start, u.hits);
-    assert_eq!(u.figures, figures);
-    // One figure lost to destruction, one to ordinary blows.
-    u.set_figures(figures - 2);
-    u.record(attack::Damage {
-        points: 2 * h,
-        kills: 2,
-        gone: h,
-        ..Default::default()
-    });
-    assert_eq!(u.healable(), h);
-    assert_eq!(
-        u.heal_points(20 * h, false),
-        h,
-        "only the ordinary damage comes back"
-    );
-    assert_eq!(u.figures, figures - 1);
-    assert_eq!(u.healable(), 0);
-    assert_eq!(u.damage_kinds, [0, 0, h]);
-    // Life steal can overheal, but not past the figures it has: the surplus becomes extra hits.
-    let gained = u.heal_points(h + figures as i32, true);
-    // One figure comes back, the rest is one more hit point for each of the figures.
-    assert_eq!(
-        (gained, u.figures, u.extra_hits()),
-        (h + figures as i32, figures, 1)
-    );
-    assert_eq!(u.healable(), 0, "the destroyed damage is still there");
-}
-
-#[test]
-fn extra_hits_do_not_count_as_the_units_real_strength() {
-    // War bears: two figures.
-    let mut u = unit_numbered(179 /* war_bears */);
-    let max = u.max_hit_points();
-    assert_eq!(u.figures_start, 2);
-    u.heal_points(4, true);
-    assert_eq!(u.extra_hits(), 2);
-    assert_eq!(u.hit_points(), max + 4);
-    assert_eq!(u.max_hit_points(), max, "the real maximum stays");
-}
-
-#[test]
-fn a_vortex_crushes_the_unit_it_lands_on_and_is_steered_once_a_turn_by_its_owner() -> TestResult {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (11, 10))],
-        5,
-    );
-    let before = b.unit(1).ok_or("unit is missing")?.hit_points();
-    b.make_vortex(Side::Attacker, (10, 10));
-    assert!(b.is_occupied((10, 10)));
-    assert!(!b.can_make_vortex((10, 10)), "not on another vortex");
-    assert!(!b.can_make_vortex((11, 10)), "not on a unit");
-    // Only a square next to it, and only its owner.
-    assert_eq!(
-        b.apply(BattleCommand::MoveVortex {
-            index: 0,
-            to: (13, 10)
-        }),
-        Err(BattleError::Unreachable)
-    );
-    let events = b
-        .apply(BattleCommand::MoveVortex {
-            index: 0,
-            to: (11, 10),
-        })
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(events
-        .iter()
-        .any(|e| matches!(e, BattleEvent::VortexMoved { to: (11, 10), .. })));
-    let after = b.unit(1).map_or(0, |u| u.hit_points());
-    assert!(
-        after < before || !b.unit(1).ok_or("unit is missing")?.is_active(),
-        "{before} -> {after}"
-    );
-    // Once a turn.
-    assert_eq!(
-        b.apply(BattleCommand::MoveVortex {
-            index: 0,
-            to: (11, 11)
-        }),
-        Err(BattleError::NotYours)
-    );
-    Ok(())
-}
-
-/// Task 711: the Magic Vortex does nothing to a magic-immune unit it lands on or passes.
-#[test]
-fn a_vortex_does_nothing_to_a_magic_immune_unit() -> TestResult {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(113 /* high_men_paladins */, (11, 10))],
-        5,
-    );
-    let before = b.unit(1).ok_or("unit is missing")?.hit_points();
-    b.make_vortex(Side::Attacker, (10, 10));
-    b.apply(BattleCommand::MoveVortex {
-        index: 0,
-        to: (11, 10),
-    })
-    .map_err(|e| format!("{e:?}"))?;
-    let after = b.unit(1).ok_or("unit is missing")?.hit_points();
-    assert_eq!(after, before, "magic immunity turns the vortex away");
-    Ok(())
-}
-
-#[test]
 fn vortices_wander_three_squares_each_turn_and_there_are_at_most_ten() {
     let mut b = real_battle(
         &[(104 /* high_men_spearmen */, (3, 10))],
@@ -6094,69 +4947,6 @@ fn an_invisible_unit_is_unseen_and_cannot_be_aimed_at_until_it_gives_itself_away
         .legal_commands()
         .iter()
         .any(|c| matches!(c, BattleCommand::Attack { target: 1, .. })));
-}
-
-#[test]
-fn an_invisible_unit_shows_after_it_attacks_until_its_next_turn_and_to_those_who_see_through(
-) -> TestResult {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(167 /* night_stalker */, (5, 10))],
-        1,
-    );
-    b.apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    // The night stalker walks up to the spearman and strikes it.
-    b.apply(BattleCommand::Move {
-        unit: 1,
-        to: (4, 10),
-    })
-    .map_err(|e| format!("{e:?}"))?;
-    b.apply(BattleCommand::Attack { unit: 1, target: 0 })
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(b.units[1].revealed);
-    b.units[0].cell = (3, 3); // out of reach of its square, so only the strike shows it
-    assert!(b.seen_by(Side::Attacker, 1), "seen after attacking");
-    b.apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(b.seen_by(Side::Attacker, 1), "still seen on the enemy turn");
-    b.apply(BattleCommand::EndTurn)
-        .map_err(|e| format!("{e:?}"))?;
-    assert!(
-        !b.units[1].revealed,
-        "hidden again when its own turn begins"
-    );
-    assert!(!b.seen_by(Side::Attacker, 1));
-    // Skeletons are immune to illusions: they see it from the start.
-    let b = real_battle(
-        &[(165 /* skeletons */, (3, 10))],
-        &[(167 /* night_stalker */, (17, 10))],
-        1,
-    );
-    assert!(
-        b.seen_by(Side::Attacker, 1),
-        "a unit immune to illusions sees it"
-    );
-    Ok(())
-}
-
-#[test]
-fn invisibility_that_begins_in_battle_hides_the_unit_at_once() {
-    let mut b = real_battle(
-        &[(104 /* high_men_spearmen */, (3, 10))],
-        &[(104 /* high_men_spearmen */, (17, 10))],
-        1,
-    );
-    assert!(b.seen_by(Side::Attacker, 1));
-    b.units[1].revealed = true;
-    b.raise_field(
-        Side::Defender,
-        Field::MassInvisibility,
-        SpellId::new(74 /* mass_invisibility */),
-    );
-    b.refresh_fields();
-    assert!(!b.units[1].revealed);
-    assert!(!b.seen_by(Side::Attacker, 1));
 }
 
 /// Dispel Magic with 1500 mana against the enemy's Darkness (difficulty 25) and the caster's own
@@ -8913,38 +7703,6 @@ fn the_dislike_a_battle_breeds_counts_every_unit_that_fell() -> TestResult {
     Ok(())
 }
 
-/// Patch 1.50, note 177: a unit that resists Call Chaos's Disintegrate is not destroyed. The spell
-/// is Disintegrate's own effect (the whole unit goes when its resistance is under 10), and a Great
-/// Drake (resistance 12) shrugs it off while spearmen do not.
-#[test]
-fn disintegrate_as_call_chaos_throws_it_spares_the_unit_that_resists() -> TestResult {
-    let mut b = real_battle(
-        &[(164, (0, 0))],
-        &[(104 /* high_men_spearmen */, (20, 20))],
-        1,
-    );
-    let drake = b
-        .units
-        .iter()
-        .position(|u| u.side == Side::Attacker)
-        .ok_or("no drake")?;
-    let spearmen = b
-        .units
-        .iter()
-        .position(|u| u.side == Side::Defender)
-        .ok_or("no spearmen")?;
-    let spared = b
-        .spell_slay(drake, Realm::Chaos, 0, &[], Some(10))
-        .ok_or("immune")?;
-    assert_eq!(spared.points, 0, "the drake resists");
-    assert!(b.units[drake].is_active());
-    let slain = b
-        .spell_slay(spearmen, Realm::Chaos, 0, &[], Some(10))
-        .ok_or("immune")?;
-    assert!(slain.points > 0 && !b.units[spearmen].is_active());
-    Ok(())
-}
-
 /// Patch 1.50, note 261: Invulnerability can be dispelled in a battle, and the unit goes back to
 /// its own numbers.
 #[test]
@@ -8962,88 +7720,6 @@ fn invulnerability_can_be_dispelled_in_a_battle() -> TestResult {
     assert!(!after.has(Ability::new(72)), "the shield is gone");
     assert_eq!(numbers(after), pristine);
     Ok(())
-}
-
-/// 1.50 note 720: a reserve that holds exactly what a spell costs, halves included (x0.5, x1.5,
-/// x2.5 make them), casts it, and one half point less does not.
-#[test]
-fn a_reserve_that_exactly_pays_a_spell_casts_it_at_any_distance() {
-    let half = HalfInt::from_raw(1);
-    for range in [5, 10, 15, 20, 25, 30] {
-        for cost in 1..=20 {
-            let paying = BattleCaster::new(100, 0, range).mana_for(cost);
-            assert_eq!(
-                paying.raw(),
-                cost * range / 5,
-                "x{range}: {cost} costs exactly"
-            );
-            let caster = BattleCaster::with_mana(100, paying, range);
-            assert!(
-                caster.affordable() >= cost,
-                "x{range}: {paying} pays {cost}"
-            );
-            let short = BattleCaster::with_mana(100, paying - half, range);
-            assert!(
-                short.affordable() < cost,
-                "x{range}: less than {paying} pays {cost}"
-            );
-        }
-    }
-}
-
-#[test]
-fn flame_blade_and_the_flaming_power_add_fire_dice() {
-    use crate::rules::effects::Effect;
-    use crate::rules::stats::{ModOp, Stat};
-    let rules = &shipped().rules;
-    // Flame Blade: the dice it adds to the blow and to the shot are fire.
-    let spell = rules
-        .spells
-        .iter()
-        .find(|(_, s)| s.id == "flame_blade")
-        .map(|(_, s)| s)
-        .expect("the Flame Blade spell");
-    let fire = DamageTypes::of(&[DamageType::Fire]);
-    let added = |stat| {
-        spell
-            .effects
-            .iter()
-            .filter_map(|e| match &e.effect {
-                Effect::Modify {
-                    stat: s,
-                    op: ModOp::Add,
-                    value,
-                    types,
-                } if *s == stat => Some((value.floor(), *types)),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-    };
-    for stat in [Stat::Melee, Stat::Ranged] {
-        let dice = added(stat);
-        assert!(!dice.is_empty() && dice.iter().all(|(n, t)| *n > 0 && *t == fire));
-    }
-    // Flaming: its whole bonus is fire.
-    let flaming = rules
-        .item_powers
-        .iter()
-        .find(|(_, p)| p.id == "flaming")
-        .map(|(_, p)| p)
-        .expect("the Flaming power");
-    assert_eq!(flaming.bonus_types, vec![DamageType::Fire]);
-    assert!(flaming.melee_bonus > 0);
-}
-
-/// A Vampiric weapon (life steal given by an item) costs the target no more resistance than the
-/// unit's own level does, as in the original and on the wiki.
-#[test]
-fn an_item_gives_life_steal_no_extra_penalty() {
-    let life_steal = Ability::new(35 /* life_steal */);
-    let level = 3;
-    let innate = SpecialAttacks::of_unit(&[life_steal], &[], level);
-    let given = SpecialAttacks::of_unit(&[life_steal], &[life_steal], level);
-    assert_eq!(given.penalty, innate.penalty, "the same penalty");
-    assert_eq!(given.penalty, level, "the unit's own level, nothing more");
 }
 
 mod forecast {
