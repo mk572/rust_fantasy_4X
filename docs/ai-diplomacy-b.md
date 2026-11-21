@@ -106,7 +106,8 @@ turns each other wizard gets `Values { enemy, friend }`:
 * The others are **courted** once per `COURT_COOL` (20) turns: a pact at friend `PACT_MIN` 30, an alliance at
   `ALLY_MIN` 55, a gift (A's gold gift) where the relation is too low for a pact and friend is at `GIFT_MIN` 25.
 
-All numbers are first guesses, to be tuned against the soak.
+All numbers are first guesses, to be tuned against the soak. `soak --detail` prints a line per wizard: the system, and
+for B the main enemy, the weariness against each wizard at war and the ruthlessness seen (`Ai::diplomacy_note`).
 
 ## Friends and enemies
 

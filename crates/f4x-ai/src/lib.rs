@@ -405,6 +405,43 @@ impl Ai {
         self.memory.get().system
     }
 
+    /// The diplomacy system and, for B, the main enemy and what it has seen of the others, for the soak's
+    /// detail lines.
+    pub fn diplomacy_note(&self, game: &Game) -> String {
+        let m = self.memory.get();
+        if m.system != System::B {
+            return format!("diplomacy {}", m.system.name());
+        }
+        let enemy = m.enemy.map_or("-".to_string(), |(p, since)| {
+            format!("p{} since {since}", p.0)
+        });
+        let seen: Vec<String> = m
+            .acts
+            .iter()
+            .map(|a| {
+                format!(
+                    "p{} razed {} wars {} broken {} ({})",
+                    a.who.0,
+                    a.razed,
+                    a.wars,
+                    a.broken,
+                    m.ruthlessness(a.who, game.turn, diplo_b::Knobs::current().ruth_half)
+                )
+            })
+            .collect();
+        let weary: Vec<String> = m
+            .dealings
+            .iter()
+            .filter(|d| game.treaty(self.player, d.with) == f4x_core::diplomacy::Treaty::War)
+            .map(|d| format!("p{} {}", d.with.0, d.weary))
+            .collect();
+        format!(
+            "diplomacy B, enemy {enemy}, weary [{}], seen [{}]",
+            weary.join(", "),
+            seen.join("; ")
+        )
+    }
+
     /// Make the wizard play diplomacy system A or B.
     pub fn set_system(&mut self, system: System) {
         self.memory.put().system = system;

@@ -35,6 +35,11 @@ pub trait Contestant {
     fn take_refusals(&self) -> Vec<Refused>;
     /// The AI's own state for the soak's detail lines: the tail of the player's line.
     fn describe(&self) -> String;
+    /// The diplomacy system the wizard plays and its state, for the detail lines (empty for a version
+    /// without systems).
+    fn diplomacy_note(&self, _game: &Game) -> String {
+        String::new()
+    }
     /// The plans the AI's time limit has dropped, by kind (task 515); none for a version without it.
     fn plans_dropped(&self) -> Vec<(&'static str, u32)> {
         Vec::new()
@@ -120,6 +125,9 @@ macro_rules! contestant {
                 }
                 fn set_system(&mut self, system: f4x_ai::System) {
                     $krate::Ai::set_system(self, system);
+                }
+                fn diplomacy_note(&self, game: &Game) -> String {
+                    $krate::Ai::diplomacy_note(self, game)
                 }
             )?
             $(

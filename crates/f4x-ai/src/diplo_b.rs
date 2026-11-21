@@ -662,4 +662,20 @@ mod tests {
             "A's list is not used"
         );
     }
+
+    #[test]
+    fn the_detail_note_names_the_system_the_enemy_and_what_was_seen() {
+        let g = war(8, 8, 110);
+        let mut ai = Ai::new(P0);
+        assert_eq!(ai.diplomacy_note(&g), "diplomacy A");
+        ai.set_system(crate::System::B);
+        ai.notice(&g, &[razed()]);
+        ai.memory.put().enemy = Some((P1, 100));
+        let note = ai.diplomacy_note(&g);
+        assert!(
+            note.starts_with("diplomacy B, enemy p1 since 100"),
+            "{note}"
+        );
+        assert!(note.contains("p1 razed 1"), "{note}");
+    }
 }

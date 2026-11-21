@@ -1627,6 +1627,12 @@ fn detail_lines(game: &Game, ais: &[Box<dyn Contestant>]) -> Vec<String> {
                 .find(|a| a.player() == id)
                 .map_or(String::new(), |a| a.describe())
         ));
+        if let Some(a) = ais.iter().find(|a| a.player() == id) {
+            let note = a.diplomacy_note(game);
+            if !note.is_empty() {
+                out.push(format!("  p{}: {note}", id.0));
+            }
+        }
     }
     out
 }
