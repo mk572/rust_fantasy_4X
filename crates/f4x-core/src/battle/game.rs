@@ -979,6 +979,7 @@ impl Game {
         // lair as on the map.
         let mut drained = Vec::new();
         let mut zombified = std::collections::HashSet::new();
+        let mastery = self.winner_has_zombie_mastery(&battle);
         for u in &battle.units {
             let Some(entity) = u.source.and_then(|i| sources.get(i).copied()) else {
                 continue;
@@ -1000,9 +1001,10 @@ impl Game {
             if regenerates && (revived || u.status != Status::Dead) {
                 self.put(entity, Hurt(0));
             } else if u.status == Status::Dead {
-                if self.is_raised_by(&battle, u, entity) {
+                let kind = self.units().unit_def(entity).map(|d| d.kind);
+                if battle.is_raised_by(u, kind, mastery, &self.content.rules) {
                     drained.push(entity);
-                    if self.is_zombified(&battle, u, entity) {
+                    if battle.is_zombified(u, kind, mastery, &self.content.rules) {
                         zombified.insert(entity);
                     }
                 } else {
@@ -1080,61 +1082,23 @@ impl Game {
         events
     }
 
-    /// Whether the winner's Zombie Mastery turns this dead unit into a zombie: any normal unit
-    /// that fell on either side but was not destroyed.
-    fn is_zombified(&self, battle: &Battle, u: &BattleUnit, entity: hecs::Entity) -> bool {
-        use crate::rules::UnitKind;
-        let Some(winner) = battle.winner else {
-            return false;
-        };
-        u.fate() != super::Fate::Gone
-            && !u.is_immune_to(
-                &[crate::rules::damage_type::DamageType::Death],
-                &self.content.rules,
-            )
-            && self.units().unit_def(entity).map(|d| d.kind) == Some(UnitKind::Normal)
-            && self.has_global_effect(
-                battle.player_of(winner),
+    /// Whether the winner holds Zombie Mastery.
+    fn winner_has_zombie_mastery(&self, battle: &Battle) -> bool {
+        battle.winner.is_some_and(|side| {
+            self.has_global_effect(
+                battle.player_of(side),
                 crate::spell::global_enchantment::GlobalEffect::ZombieMastery,
             )
+        })
     }
 
-    /// Whether the winner takes this dead unit as an undead one: the loser's, drained to death
-    /// (life steal, a creator of undead), not a creature of the Death realm and not a hero; or
-    /// a zombie ([`Self::is_zombified`]).
-    fn is_raised_by(&self, battle: &Battle, u: &BattleUnit, entity: hecs::Entity) -> bool {
-        use crate::rules::UnitKind;
-        let Some(winner) = battle.winner else {
-            return false;
-        };
-        let kind = self.units().unit_def(entity).map(|d| d.kind);
-        self.is_zombified(battle, u, entity)
-            || (winner != u.side
-                && u.fate() == super::Fate::Drained
-                && u.realm != Some(Realm::Death)
-                && !u.is_immune_to(
-                    &[crate::rules::damage_type::DamageType::Death],
-                    &self.content.rules,
-                )
-                && kind.is_some_and(|k| k != UnitKind::Hero))
-    }
-
-    /// The winner's unit that made the undead: one with Life Steal or Create Undead, the costliest
-    /// of them.
+    /// The winner's unit that made the undead: the costliest with Life Steal or Create Undead.
     fn undead_creator(&self, battle: &Battle, sources: &[hecs::Entity]) -> Option<UnitId> {
-        let winner = battle.winner?;
-        battle
-            .units
-            .iter()
-            .filter(|u| u.side == winner)
-            .filter(|u| {
-                let special = u.special_attacks();
-                special.life_steal || special.create_undead
-            })
-            .filter_map(|u| u.source.and_then(|i| sources.get(i).copied()))
-            .filter_map(|e| Some((e, self.units().unit_def(e)?.cost)))
-            .max_by_key(|&(_, cost)| cost)
-            .and_then(|(e, _)| Some(self.world.get::<&crate::unit::Unit>(e).ok()?.0))
+        let index = battle.undead_creator(|i| {
+            let def = self.units().unit_def(*sources.get(i)?)?;
+            Some(def.cost)
+        })?;
+        Some(self.world.get::<&crate::unit::Unit>(sources[index]).ok()?.0)
     }
 
     /// Put the drained dead on the winner's square as undead units, as many as it has room for.

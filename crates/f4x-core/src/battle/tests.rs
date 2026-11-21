@@ -5478,6 +5478,136 @@ fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won(
     Ok(())
 }
 
+/// Start a battle of `attackers` against `defenders`, mark each `(battle id, how it fell)` as dead
+/// (and those in `of_death` as creatures of the Death realm) and end the turn so that the battle
+/// finds its winner.
+fn finish_with_fates(
+    g: &mut Game,
+    attackers: &[hecs::Entity],
+    defenders: &[hecs::Entity],
+    fallen: &[(usize, [i32; 3])],
+    of_death: &[usize],
+) -> Vec<Event> {
+    g.apply(Command::BeginBattle {
+        attackers: attackers.to_vec(),
+        defenders: defenders.to_vec(),
+    });
+    let b = &mut g.battle.as_mut().expect("as_mut succeeds").battle;
+    for &(i, kinds) in fallen {
+        b.units[i].set_figures(0);
+        b.units[i].status = Status::Dead;
+        b.units[i].damage_kinds = kinds;
+    }
+    for &i in of_death {
+        b.units[i].realm = Some(crate::battle::immunity::Realm::Death);
+    }
+    g.apply(Command::Battle(BattleCommand::EndTurn))
+}
+
+const SLAIN: [i32; 3] = [5, 0, 0];
+const DRAINED: [i32; 3] = [0, 5, 0];
+const DESTROYED: [i32; 3] = [0, 0, 5];
+
+fn unit_number(g: &Game, num: u16) -> Result<crate::rules::UnitId, String> {
+    g.content
+        .rules
+        .units
+        .id_numbered(num)
+        .ok_or(format!("unit {num} is not in the content"))
+}
+
+#[test]
+fn the_winner_takes_the_drained_dead_of_the_loser_as_undead_and_names_its_costliest_creator(
+) -> TestResult {
+    let mut g = game();
+    let walker = unit_number(&g, 107 /* high_men_cavalry */)?;
+    let hero = unit_number(&g, 0 /* dwarf */)?;
+    let ghoul = unit_number(&g, 166 /* ghouls: create undead */)?;
+    let wraith = unit_number(&g, 170 /* wraiths: life steal */)?;
+    let a_ghoul = g.spawn_unit(A, at(4, 4), ghoul);
+    let a_wraith = g.spawn_unit(A, at(4, 4), wraith);
+    let own_drained = g.spawn_unit(A, at(4, 4), walker);
+    let raised = g.spawn_unit(D, at(5, 4), walker);
+    let drained_hero = g.spawn_unit(D, at(5, 4), hero);
+    let drained_death = g.spawn_unit(D, at(5, 4), walker);
+    let slain = g.spawn_unit(D, at(5, 4), walker);
+    let events = finish_with_fates(
+        &mut g,
+        &[a_ghoul, a_wraith, own_drained],
+        &[raised, drained_hero, drained_death, slain],
+        &[
+            (2, DRAINED),
+            (3, DRAINED),
+            (4, DRAINED),
+            (5, DRAINED),
+            (6, SLAIN),
+        ],
+        &[5],
+    );
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            Event::UndeadRaised { player, units: 1, zombies: false, creator: Some(c) }
+                if *player == A && *c == wraith
+        )),
+        "{events:?}"
+    );
+    assert_eq!(g.units().unit_owner(raised), Some(A));
+    assert!(g.units().unit_is_undead(raised));
+    assert_eq!(g.units().unit_position(raised), Some(at(5, 4)));
+    assert!(!g.world.contains(drained_hero), "a hero is not raised");
+    assert!(
+        !g.world.contains(drained_death),
+        "nor a creature of the Death realm"
+    );
+    assert!(!g.world.contains(slain), "a slain one is no drained one");
+    Ok(())
+}
+
+#[test]
+fn zombie_mastery_raises_the_slain_normal_units_of_both_sides_but_not_the_destroyed() -> TestResult
+{
+    let mut g = game();
+    let walker = unit_number(&g, 107 /* high_men_cavalry */)?;
+    let hero = unit_number(&g, 0 /* dwarf */)?;
+    let mastery = g
+        .content
+        .rules
+        .spells
+        .id_numbered(188 /* zombie_mastery */)
+        .ok_or("zombie_mastery is not in the content")?;
+    g.add_global(A, mastery);
+    let alive = g.spawn_unit(A, at(4, 4), walker);
+    let own_slain = g.spawn_unit(A, at(4, 4), walker);
+    let foe_slain = g.spawn_unit(D, at(5, 4), walker);
+    let foe_destroyed = g.spawn_unit(D, at(5, 4), walker);
+    let foe_hero = g.spawn_unit(D, at(5, 4), hero);
+    let events = finish_with_fates(
+        &mut g,
+        &[alive, own_slain],
+        &[foe_slain, foe_destroyed, foe_hero],
+        &[(1, SLAIN), (2, SLAIN), (3, DESTROYED), (4, SLAIN)],
+        &[],
+    );
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            Event::UndeadRaised { player, units: 2, zombies: true, creator: None } if *player == A
+        )),
+        "{events:?}"
+    );
+    for zombie in [own_slain, foe_slain] {
+        assert!(g.units().unit_is_undead(zombie));
+        assert_eq!(g.units().unit_owner(zombie), Some(A));
+    }
+    assert!(
+        !g.world.contains(foe_destroyed),
+        "a destroyed unit is not raised"
+    );
+    assert!(!g.world.contains(foe_hero), "a hero is no normal unit");
+    Ok(())
+}
+
 #[test]
 fn a_regenerating_unit_that_was_destroyed_or_drained_stays_dead_though_its_side_won() -> TestResult
 {

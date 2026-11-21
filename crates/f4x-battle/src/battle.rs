@@ -16,6 +16,7 @@ pub mod info;
 pub mod legal_command;
 pub mod load;
 pub mod spoils;
+pub mod undead;
 
 use f4x_def::half_int::HalfInt;
 use f4x_def::id::PlayerId;
