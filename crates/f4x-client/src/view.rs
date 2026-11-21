@@ -179,7 +179,7 @@ pub struct App {
     /// off, the turn ends when the last one is given orders.
     pub(crate) units_waited: bool,
     /// Whether the selected stack can walk to the square under the pointer, for the boot.
-    pub(crate) pointer_walk: Option<((Position, Vec<hecs::Entity>), bool)>,
+    pub(crate) pointer_walk: Option<(crate::pointer::WalkKey, bool)>,
     /// A road being planned.
     pub(crate) road_plan: Option<crate::road_plan::RoadPlan>,
     /// The Surveyor is describing the square under the mouse (F1).

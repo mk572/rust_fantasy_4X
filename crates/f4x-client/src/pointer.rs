@@ -105,7 +105,7 @@ impl App {
             return FINGER;
         };
         // The boot is for the units that can move; the stack moves without the spent ones.
-        let key = (pos, self.units_that_can_move());
+        let key = (pos, self.units_that_can_move(), self.game.revision());
         if self.pointer_walk.as_ref().map(|(k, _)| k) != Some(&key) {
             let walk = self.game.find_path(&key.1, pos).is_some();
             self.pointer_walk = Some((key, walk));
@@ -116,6 +116,9 @@ impl App {
         }
     }
 }
+
+/// What a kept walk answer was made for: the square, the units that walk and the game revision.
+pub(crate) type WalkKey = (f4x_core::map::Position, Vec<hecs::Entity>, u64);
 
 #[cfg(test)]
 mod tests {
@@ -208,6 +211,44 @@ mod tests {
             }
         }
         assert!(boots > 0 && crosses > 0, "boots {boots}, crosses {crosses}");
+        Ok(())
+    }
+
+    #[test]
+    fn the_walk_under_the_pointer_is_made_again_only_when_the_pointer_selection_or_game_changes(
+    ) -> TestResult {
+        let mut app = App::for_test();
+        let unit = *app
+            .game
+            .units()
+            .player_units(HUMAN)
+            .first()
+            .ok_or("the human has no unit")?;
+        app.selection = vec![unit];
+        let input = over_the_map(&app);
+        app.overland_pointer(&input);
+        let first = app.pointer_walk.clone().ok_or("no walk kept")?;
+        // The same pointer, selection and game: the kept answer stays.
+        app.pointer_walk = app.pointer_walk.take().map(|(k, w)| (k, !w));
+        app.overland_pointer(&input);
+        assert_eq!(app.pointer_walk.as_ref().map(|(_, w)| *w), Some(!first.1));
+        // A change of the game makes it again.
+        app.game.set_undo(false);
+        app.overland_pointer(&input);
+        assert_eq!(app.pointer_walk.as_ref().map(|(_, w)| *w), Some(first.1));
+        // So does another square under the pointer.
+        let r = app.map_rect();
+        let moved = Input {
+            mouse: (r.x + 3.0, r.y + 3.0),
+            ..Input::default()
+        };
+        app.pointer_walk = app.pointer_walk.take().map(|(k, w)| (k, !w));
+        app.overland_pointer(&moved);
+        assert_ne!(
+            app.pointer_walk.as_ref().map(|(k, _)| k.0),
+            Some(first.0 .0),
+            "another square"
+        );
         Ok(())
     }
 
