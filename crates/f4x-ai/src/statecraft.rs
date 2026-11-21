@@ -483,6 +483,11 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     } else if k.on_wars {
         wars(ai, game, events, &k, &scene);
     }
+    if ai.system() == crate::System::B {
+        // System B chooses its enemy and its friends from the three values (`diplo_b_stance.rs`).
+        crate::diplo_b_stance::run(ai, game, events, &scene);
+        return;
+    }
     if k.on_appease {
         appease(ai, game, events, &k, &scene);
     }
@@ -716,7 +721,7 @@ fn end_coalitions(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, k: &Kno
 
 /// A gift of gold to win the wizard over, once in `appease_every` turns and only from a full
 /// treasury. Whether it was given.
-fn gift_gold(
+pub(crate) fn gift_gold(
     ai: &mut Ai,
     game: &mut Game,
     events: &mut Vec<Event>,
@@ -753,6 +758,38 @@ fn gift_gold(
         remark(ai, game, events, to, why);
     }
     given
+}
+
+/// Whether `me` could get an army to a city of `target`: one a fighter can walk to, or one on another
+/// land mass that a ship could land beside, from a port of its own.
+pub(crate) fn can_attack(game: &Game, me: PlayerId, scene: &Scene, target: PlayerId) -> bool {
+    // A city to march on that a unit can reach.
+    let reachable = {
+        let view = PlayerView::new(game, me);
+        let fighter = view
+            .my_units()
+            .into_iter()
+            .find(|&u| crate::view::is_fighter(&view, u));
+        fighter.is_some_and(|u| {
+            scene
+                .cities_of(target)
+                .into_iter()
+                .any(|c| view.can_reach(&[u], c))
+        })
+    };
+    // Or a city on another land mass that a ship could land beside, from a port of its own.
+    let by_sea = !reachable && {
+        let view = PlayerView::new(game, me);
+        let port = view
+            .my_cities()
+            .into_iter()
+            .any(|(_, p)| crate::view::is_coastal(&view, p));
+        port && scene
+            .cities_of(target)
+            .into_iter()
+            .any(|c| crate::naval::landing(&view, c).is_some())
+    };
+    reachable || by_sea
 }
 
 /// Part 1: war on a neighbour far ahead of in army and cities, with no treaty, once it can
@@ -818,33 +855,7 @@ fn dominant_war(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, k: &Knobs
     if (game.roll(100) as i32) > willing {
         return;
     }
-    // A city to march on that a unit can reach.
-    let reachable = {
-        let view = PlayerView::new(game, me);
-        let fighter = view
-            .my_units()
-            .into_iter()
-            .find(|&u| crate::view::is_fighter(&view, u));
-        fighter.is_some_and(|u| {
-            scene
-                .cities_of(target)
-                .into_iter()
-                .any(|c| view.can_reach(&[u], c))
-        })
-    };
-    // Or a city on another land mass that a ship could land beside, from a port of its own.
-    let by_sea = !reachable && {
-        let view = PlayerView::new(game, me);
-        let port = view
-            .my_cities()
-            .into_iter()
-            .any(|(_, p)| crate::view::is_coastal(&view, p));
-        port && scene
-            .cities_of(target)
-            .into_iter()
-            .any(|c| crate::naval::landing(&view, c).is_some())
-    };
-    if !reachable && !by_sea {
+    if !can_attack(game, me, scene, target) {
         return;
     }
     if ai

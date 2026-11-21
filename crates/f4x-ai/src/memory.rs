@@ -39,6 +39,9 @@ pub(crate) struct Dealing {
     /// The turn it last offered this one peace (system B's cool-down; 0: never).
     #[serde(default)]
     pub offered: u32,
+    /// The turn it last asked this one for a pact or an alliance or gave it a gift (system B; 0: never).
+    #[serde(default)]
+    pub courted: u32,
 }
 
 impl Dealing {
@@ -53,6 +56,7 @@ impl Dealing {
             weary: 0,
             war_since: 0,
             offered: 0,
+            courted: 0,
         }
     }
 }
@@ -98,6 +102,12 @@ pub(crate) struct Memory {
     /// What it has seen the others do (system B's fear).
     #[serde(default)]
     pub acts: Vec<Acts>,
+    /// The wizard it has chosen as its enemy and the turn it chose it, and the turn it last looked at the
+    /// others (system B's friends and enemies, `diplo_b_stance.rs`).
+    #[serde(default)]
+    pub enemy: Option<(PlayerId, u32)>,
+    #[serde(default)]
+    pub reviewed: u32,
 }
 
 impl Memory {
@@ -164,6 +174,11 @@ impl Memory {
                 a.points += k.ruth_broken;
             }
         }
+    }
+
+    /// Write down that `with` was courted (a pact asked for, a gift given) on this turn.
+    pub(crate) fn courted(&mut self, with: PlayerId, turn: u32) {
+        self.dealing(with).courted = turn;
     }
 
     /// Write down that peace was offered to `with` on this turn.

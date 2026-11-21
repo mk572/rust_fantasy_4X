@@ -20,6 +20,7 @@ mod controller;
 mod craft;
 mod crowd;
 mod diplo_b;
+mod diplo_b_stance;
 mod diplomacy;
 mod dispatch;
 mod economy;
@@ -567,7 +568,9 @@ impl Ai {
             }
         }
         diplomacy::answer(self, game, &mut events);
-        diplomacy::quarrel(self, game, &mut events);
+        if self.system() != System::B {
+            diplomacy::quarrel(self, game, &mut events);
+        }
         diplomacy::negotiate(self, game, &mut events);
         statecraft::run(self, game, &mut events);
         offer::answer(self, game, &mut events);

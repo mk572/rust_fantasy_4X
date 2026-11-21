@@ -754,6 +754,15 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
             _ => None,
         };
+        // System B asks for its pacts and alliances by its friend value (`diplo_b_stance.rs`).
+        let kind = match kind {
+            Some(ProposalKind::Pact | ProposalKind::Alliance)
+                if ai.system() == crate::System::B =>
+            {
+                None
+            }
+            kind => kind,
+        };
         let kind = kind.or_else(|| {
             (treaty != Treaty::War && stance.exchange_patience + 80 < score)
                 .then(|| crate::trade::offer(game, me, other))

@@ -68,16 +68,18 @@ peace_wish = weariness
   or the start of the war: a war with nothing in it wears down at 0.7 a turn.
 * **Fear** = nearness (100 minus `NEAR_PER_SQUARE` (5) for each square between the nearest cities, from 0 to 100) times
   their might (their power as a percent of ours, less 50, from 0 to 100), divided by 100. Power is the army plus a
-  city's worth (`statecraft` `CITY_POWER`) for each city, as the observer sees it. The ruthlessness it will add
-  (razing, wars declared, treaties broken) waits for the AI to be told of them: only battles and cities are told
-  today.
+  city's worth (`statecraft` `CITY_POWER`) for each city, as the observer sees it. Ruthlessness is added to it
+  (times the nearness): the memory notes a razed city (`RUTH_RAZE` 15), a war declared (`RUTH_WAR` 6) and a treaty
+  broken (`RUTH_BROKEN` 10) by a wizard it has met, fading by half every `RUTH_HALF` (150) turns, at most `RUTH_CAP`
+  (60). The strategic term also has the Mastery caster (`MASTERY` -60) and the leader (`LEADER` -15 against the
+  leader, +15 for the others while at war with it).
 * **Offer** at `OFFER` (80) with a cool-down of `COOL` (15) turns for each wizard, kept in the memory; **accept** at
   `ACCEPT` (60). The dice are gone from the decision.
 * **Where it plugs in:** `statecraft::run` calls `diplo_b::wars` in place of `statecraft::wars`;
   `diplomacy::rate` answers a peace by `diplo_b::accepts` from the judge's memory (in place of `peace_ok`);
   `diplomacy::negotiate` makes no peace roll for B; `approach_human` offers the human peace by `offer_due`. The
-  other parts of A (the dominant war, appeasing, the coalition, the hate rolls, the warnings) are still A's, for B
-  too, until task 763.
+  dominant war, appeasing and the coalition of A are replaced by part 2 below; the hate rolls, the warnings and
+  the human-directed parts are still A's.
 * **What a B wizard asks of an A wizard** is answered by A's rules, and the other way round: the two systems meet in
   one game through the same proposals.
 
@@ -85,6 +87,26 @@ By arithmetic (not measured), a stalled war between equals with nothing in it re
 a hundred quiet turns and the offer mark after about a hundred and twenty-five, moved by 10 or so either way by the
 friendship and the temper; a lost war reaches both much sooner. These are guesses to be read against a soak
 (task 761), not tuned values.
+
+## What is built (task 763: friends and enemies)
+
+`diplo_b_stance.rs`, run from `statecraft::run` for B in place of A's appeasing, coalition and dominant war (and
+`diplomacy::quarrel` is not called for B; `approach_human` does not ask for pacts for B). Every `REVIEW` (5)
+turns each other wizard gets `Values { enemy, friend }`:
+
+* **enemy** = prey (weaker and reachable, up to `PREY_VALUE` 60) + `HOSTILE_PCT` of the ill will + `LEADER_ENEMY` for
+  the leader + `MASTERY_ENEMY` for the Mastery caster + `AT_WAR` for the one already fought + half the fear if the
+  other is not stronger (strike first); less the share by which it is stronger once past `TOO_STRONG_PCT`, less 40
+  for a pact and 80 for an alliance; unreachable wizards stay below `ENEMY_MIN`.
+* **friend** = `STANCE_FRIEND_PCT` of the friendship + `COMMON_ENEMY` for a shared enemy + `GROVEL_PCT` of the fear of
+  a stronger one + `LEAGUE` while a leader leads (less it for the leader itself and the chosen enemy).
+* One **main enemy** (in the memory): chosen at `ENEMY_MIN` (40), kept for `HOLD` (40) turns and after that while its
+  value is at `KEEP` (20). War is declared on it at `DECLARE` (45) from turn `FROM_TURN` (60), when it is reachable,
+  there is no treaty, no young peace, and no war with someone the army is not 4 times as big as.
+* The others are **courted** once per `COURT_COOL` (20) turns: a pact at friend `PACT_MIN` 30, an alliance at
+  `ALLY_MIN` 55, a gift (A's gold gift) where the relation is too low for a pact and friend is at `GIFT_MIN` 25.
+
+All numbers are first guesses, to be tuned against the soak.
 
 ## Friends and enemies
 

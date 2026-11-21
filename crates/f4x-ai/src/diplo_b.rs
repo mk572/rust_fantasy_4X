@@ -68,6 +68,39 @@ pub(crate) struct Knobs {
     /// the game, peace with the others and war on the leader (a plus and a minus of this).
     pub mastery: i32,
     pub leader: i32,
+    // The choice of friends and enemies (`diplo_b_stance.rs`).
+    /// Turns between two looks at the others, the turns an enemy is kept at least, and the value below
+    /// which it is let go.
+    pub review: u32,
+    pub hold: u32,
+    pub keep: i32,
+    /// The enemy value a wizard needs to be chosen, and to be declared war on.
+    pub enemy_min: i32,
+    pub declare: i32,
+    /// The most a weak, reachable neighbour is worth as prey; and what an enemy already fought, the leader
+    /// and the Mastery caster add; percent of the hostility (negative friendship) that counts; the fear at
+    /// which an equal or weaker wizard strikes first.
+    pub prey_value: i32,
+    pub at_war: i32,
+    pub leader_enemy: i32,
+    pub mastery_enemy: i32,
+    pub hostile_pct: i32,
+    pub strike_fear: i32,
+    /// No war before this turn and not on someone this much stronger (percent).
+    pub from_turn: u32,
+    pub too_strong_pct: i32,
+    /// Friend value: percent of friendship, what a shared enemy adds, percent of the fear of a stronger
+    /// neighbour (grovelling), what the league against the leader adds.
+    pub stance_friend_pct: i32,
+    pub common_enemy: i32,
+    pub grovel_pct: i32,
+    pub league: i32,
+    /// The friend value at which it asks for a pact, for an alliance, and gives a gift; turns between two
+    /// advances to the same wizard.
+    pub pact_min: i32,
+    pub ally_min: i32,
+    pub gift_min: i32,
+    pub court_cool: u32,
 }
 
 impl Knobs {
@@ -102,6 +135,27 @@ impl Knobs {
             ruth_cap: k("RUTH_CAP", 60),
             mastery: k("MASTERY", 60),
             leader: k("LEADER", 15),
+            review: k("REVIEW", 5) as u32,
+            hold: k("HOLD", 40) as u32,
+            keep: k("KEEP", 20),
+            enemy_min: k("ENEMY_MIN", 40),
+            declare: k("DECLARE", 45),
+            prey_value: k("PREY_VALUE", 60),
+            at_war: k("AT_WAR", 30),
+            leader_enemy: k("LEADER_ENEMY", 25),
+            mastery_enemy: k("MASTERY_ENEMY", 60),
+            hostile_pct: k("HOSTILE_PCT", 30),
+            strike_fear: k("STRIKE_FEAR", 50),
+            from_turn: k("FROM_TURN", 60) as u32,
+            too_strong_pct: k("TOO_STRONG_PCT", 130),
+            stance_friend_pct: k("STANCE_FRIEND_PCT", 30),
+            common_enemy: k("COMMON_ENEMY", 30),
+            grovel_pct: k("GROVEL_PCT", 40),
+            league: k("LEAGUE", 20),
+            pact_min: k("PACT_MIN", 30),
+            ally_min: k("ALLY_MIN", 55),
+            gift_min: k("GIFT_MIN", 25),
+            court_cool: k("COURT_COOL", 20) as u32,
         }
     }
 }
