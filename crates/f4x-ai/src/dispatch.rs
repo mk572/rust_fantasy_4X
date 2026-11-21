@@ -85,7 +85,14 @@ fn mission_valid(
         }
         // A target with a city on it is dropped (a landing square of a voyage is no site: the settler
         // looks for one ashore).
-        Role::Settle => view.city_at(target).is_none(),
+        // The site must still take a city and a way lead to it (on foot or by ship); the way is
+        // worked out on the day of the site check only (`city_site.rs`).
+        Role::Settle => {
+            view.city_at(target).is_none()
+                && view.can_found_city(target)
+                && (!ai.sites.rebuilt_on(view.turn())
+                    || crate::city_site::site_reach(view, target).is_some())
+        }
         Role::Scout => !view.explored(target),
         Role::Meld => crate::meld::open_nodes(ai, view).contains(&target),
         Role::Reinforce => view.my_cities().into_iter().any(|(_, p)| p == target),
@@ -632,7 +639,13 @@ mod tests {
     fn a_settler_with_no_walk_to_its_site_waits_for_a_ship_and_keeps_the_site() {
         use crate::roles::{Crossing, Role};
         let mut g = game(COAST_CITY, 8 /* high_men */);
-        let site = at(30, 10);
+        g.reveal_map(P0);
+        // A site over the sea: a place for a city that no walk leads to.
+        let site = crate::city_site::scan(&f4x_core::player::view::PlayerView::new(&g, P0))
+            .into_iter()
+            .find(|s| s.reach == crate::city_site::Reach::Sea)
+            .expect("a site over the sea")
+            .at;
         let settler = spawn(&mut g, P0, at(9, 7), 111 /* high_men_settlers */, 1)[0];
         let mut ai = Ai::new(P0);
         crate::roles::register(&mut ai, &g);
@@ -672,12 +685,35 @@ mod tests {
         assert_eq!(said, [("site settled by someone else", 1)]);
     }
 
+    /// A settler whose site can no longer take a city (it lies by a city of its own) loses the site
+    /// and the role together and awaits orders.
+    #[test]
+    fn a_settler_whose_site_cannot_take_a_city_loses_the_role_with_the_site() {
+        use crate::roles::Role;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let site = at(COAST_CITY.0 + 1, COAST_CITY.1);
+        let settler = spawn(&mut g, P0, at(9, 7), 111 /* high_men_settlers */, 1)[0];
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
+        let serial = f4x_core::player::view::PlayerView::new(&g, P0).serial_of(settler);
+        let _ = ai.roles.claim(serial, Role::Settle, 1, Some(site));
+        assert_eq!(revalidate(&mut ai, &mut g, &mut Vec::new()), 1);
+        assert_eq!(ai.roles.role_of(serial), Some(Role::AwaitingOrders));
+        assert!(ai.roles.targets(Role::Settle).is_empty());
+    }
+
     /// An engineer that is not building and has no walk goes on to its square, one that is
     /// building is left alone, and an escort apart from its charge walks to it.
     #[test]
     fn an_engineer_and_an_escort_that_lost_their_walk_are_sent_on() {
         use crate::roles::Role;
         let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let site = crate::city_site::scan(&f4x_core::player::view::PlayerView::new(&g, P0))
+            .first()
+            .expect("a site")
+            .at;
         let engineer = spawn(&mut g, P0, at(9, 7), 110 /* high_men_engineers */, 1)[0];
         let charge = spawn(&mut g, P0, at(9, 6), 104, 1)[0];
         let escort = spawn(&mut g, P0, at(7, 6), 104, 1)[0];
@@ -690,7 +726,7 @@ mod tests {
             view.serial_of(escort),
         );
         let _ = ai.roles.claim(e, Role::Road, 1, Some(at(5, 9)));
-        let _ = ai.roles.claim(c, Role::Settle, 1, Some(at(5, 9)));
+        let _ = ai.roles.claim(c, Role::Settle, 1, Some(site));
         let _ = ai.roles.claim(s, Role::Escort, 1, None);
         ai.roles.group(&[s], Role::Escort, 1, Some(c));
         let mut events = Vec::new();

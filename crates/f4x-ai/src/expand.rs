@@ -1,16 +1,20 @@
 //! Settlers: choose a place for the next city, walk there and found it.
 
 use f4x_core::game::{Command, Event, Game};
-use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 
 use crate::city_site::Free;
-use crate::view::nearest_unexplored;
 use crate::Ai;
 
+/// A settler has the settle role only while a site is assigned to it. Where the site stops being
+/// one (a city stands on it, it cannot be founded, no way leads to it: `dispatch.rs`
+/// `mission_valid`), the role and the site go together and the settler awaits orders again. The
+/// site check (`city_site.rs`, the book is rebuilt every few turns) gives a site to each settler
+/// that has none, and at once to one that has just come into being.
 pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    use crate::roles::Role;
     let me = ai.player;
-    let mine: Vec<hecs::Entity> = {
+    let (mine, plan) = {
         let view = PlayerView::new(game, me);
         let mut mine: Vec<hecs::Entity> = view
             .my_units()
@@ -18,33 +22,17 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .filter(|&u| view.unit_is_settler(u))
             .collect();
         view.sort_by_serial(&mut mine);
-        // Forget the targets of settlers that are gone.
-        let alive: Vec<_> = mine.iter().map(|&u| view.serial_of(u)).collect();
-        ai.roles.prune(&{
-            let mut keep = alive.clone();
-            keep.extend(view.my_units().iter().map(|&u| view.serial_of(u)));
-            keep
-        });
-        for &s in &alive {
-            let _ = ai
-                .roles
-                .claim(s, crate::roles::Role::Settle, game.turn, None);
-        }
-        mine
-    };
-
-    // The free settlers get a site each, the best site to the nearest settler.
-    let mut avoid_now: Vec<Position> = Vec::new();
-    let plan: Vec<(hecs::Entity, Position, bool)> = {
-        let view = PlayerView::new(game, me);
-        let list = ai.sites.refreshed(&view).to_vec();
-        let taken = ai.roles.targets(crate::roles::Role::Settle);
+        // The site check is due when the book is rebuilt; a new settler does not wait for it.
+        let due = {
+            ai.sites.refreshed(&view);
+            ai.sites.rebuilt_on(game.turn)
+        };
         let free: Vec<Free> = mine
             .iter()
             .filter(|&&u| {
-                ai.roles
-                    .target_of(view.serial_of(u), crate::roles::Role::Settle)
-                    .is_none()
+                let serial = view.serial_of(u);
+                !ai.roles.has_role(serial)
+                    && (due || ai.roles.get(serial).is_some_and(|a| a.since == game.turn))
             })
             .filter_map(|&u| {
                 Some(Free {
@@ -54,8 +42,30 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 })
             })
             .collect();
-        crate::city_site::assign(&view, &list, &free, &taken, &[])
+        let list = ai.sites.refreshed(&view).to_vec();
+        let taken = ai.roles.targets(Role::Settle);
+        (
+            mine,
+            crate::city_site::assign(&view, &list, &free, &taken, &[]),
+        )
     };
+    // The sites go to the free settlers; the role comes with the site.
+    for &(unit, site, ship) in &plan {
+        let serial = PlayerView::new(game, me).serial_of(unit);
+        if ai
+            .roles
+            .claim(serial, Role::Settle, game.turn, Some(site))
+            .is_err()
+        {
+            continue;
+        }
+        // A site over the sea: the settler waits for a ship like any unit tagged so (the ship is
+        // built by the general rule, `economy.rs`).
+        if ship {
+            ai.roles
+                .set_crossing(serial, Some(crate::roles::Crossing::Sea));
+        }
+    }
 
     for unit in mine {
         let (pos, serial) = {
@@ -65,128 +75,62 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             (pos, view.serial_of(unit))
         };
-        // No walk leads to the site: the settler waits where it stands for the transport, the
-        // dispatcher (`revalidate`) has tagged it.
+        let Some(target) = ai.roles.target_of(serial, Role::Settle) else {
+            // Awaiting orders: no site, no role.
+            if !ai.roles.has_role(serial) {
+                ai.settler_fates
+                    .note(crate::settler_fate::SettlerFate::NoSite);
+            }
+            continue;
+        };
+        // Waiting for the transport that `pickup.rs` sends.
         if ai.roles.crossing_of(serial).is_some() {
             continue;
         }
-        if let Some(target) = ai.roles.target_of(serial, crate::roles::Role::Settle) {
-            if target == pos {
-                let (can_found, name) = {
-                    let view = PlayerView::new(game, me);
-                    (view.can_found_city(pos), city_name(&view, unit))
-                };
-                if can_found
-                    && ai
-                        .send(game, Command::SettleOutpost { unit, name }, events)
-                        .is_ok()
-                {
-                    ai.roles
-                        .set_target(serial, crate::roles::Role::Settle, None);
-                    continue;
-                }
-                // Blocked on arrival: the site is no place for a city after all.
-                ai.settler_fates
-                    .note(crate::settler_fate::SettlerFate::SiteUnusable);
-                ai.roles
-                    .set_target(serial, crate::roles::Role::Settle, None); // blocked: choose again below
-            } else if PlayerView::new(game, me).unit_has_order(unit) {
-                if ai.roles.track(serial, pos, true) >= 1 {
-                    // It did not move all turn: the way is blocked. Give this site up.
-                    ai.settler_fates
-                        .note(crate::settler_fate::SettlerFate::WayBlocked);
-                    avoid_now.push(target);
-                    ai.roles
-                        .set_target(serial, crate::roles::Role::Settle, None);
-                    ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
-                } else {
-                    continue; // still walking
-                }
-            }
-        }
-        ai.roles.track(serial, pos, false);
-        if ai
-            .roles
-            .target_of(serial, crate::roles::Role::Settle)
-            .is_none()
-        {
-            let (site, scout) = {
-                let view = PlayerView::new(game, me);
-                let given = plan
-                    .iter()
-                    .find(|&&(u, _, _)| u == unit)
-                    .map(|&(_, site, ship)| (site, ship))
-                    .filter(|&(site, _)| !avoid_now.contains(&site) && view.can_found_city(site));
-                // The planned site, or the best one left for this settler alone (a settler whose
-                // site just failed, or one that came after the plan was made).
-                let chosen = given.or_else(|| {
-                    let list = ai.sites.refreshed(&view).to_vec();
-                    let taken = ai.roles.targets(crate::roles::Role::Settle);
-                    let free = [Free {
-                        unit,
-                        at: pos,
-                        reach: view.reachable(&[unit]),
-                    }];
-                    crate::city_site::assign(&view, &list, &free, &taken, &avoid_now)
-                        .first()
-                        .map(|&(_, site, ship)| (site, ship))
-                });
-                match chosen {
-                    Some(chosen) => (Some(chosen), None),
-                    // No site on the explored map: walk to unexplored land to see more of it.
-                    None => (None, nearest_unexplored(&view, unit)),
-                }
-            };
-            match (site, scout) {
-                (Some((site, ship)), _) => {
-                    ai.roles
-                        .set_target(serial, crate::roles::Role::Settle, Some(site));
-                    // A site over the sea: the settler waits for a ship like any unit tagged so (the
-                    // ship is built by the general rule, `economy.rs`).
-                    if ship {
-                        ai.roles
-                            .set_crossing(serial, Some(crate::roles::Crossing::Sea));
-                        continue;
-                    }
-                }
-                (None, Some(to)) => {
-                    ai.order(
-                        game,
-                        Command::GoTo {
-                            units: vec![unit],
-                            to,
-                        },
-                        events,
-                    );
-                    continue;
-                }
-                (None, None) => {
-                    ai.settler_fates
-                        .note(crate::settler_fate::SettlerFate::NoSite);
-                    continue;
-                }
-            }
-        }
-        let Some(target) = ai.roles.target_of(serial, crate::roles::Role::Settle) else {
-            continue;
-        };
         if target == pos {
-            // Found it right here (next turn if the settlers just arrived and cannot).
-            let name = city_name(&PlayerView::new(game, me), unit);
-            if ai
-                .send(game, Command::SettleOutpost { unit, name }, events)
-                .is_ok()
+            let (can_found, name) = {
+                let view = PlayerView::new(game, me);
+                (view.can_found_city(pos), city_name(&view, unit))
+            };
+            if can_found
+                && ai
+                    .send(game, Command::SettleOutpost { unit, name }, events)
+                    .is_ok()
             {
-                ai.roles
-                    .set_target(serial, crate::roles::Role::Settle, None);
+                ai.roles.release(serial, Role::Settle);
+                continue;
             }
-        } else if !crate::escort::walk(ai, game, unit, target, events) {
+            // Blocked on arrival: the site is no place for a city after all.
+            ai.settler_fates
+                .note(crate::settler_fate::SettlerFate::SiteUnusable);
+            give_up(ai, game, unit, serial, events);
+            continue;
+        }
+        let walking = PlayerView::new(game, me).unit_has_order(unit);
+        if walking && ai.roles.track(serial, pos, true) < 1 {
+            continue; // still walking
+        }
+        if walking || !crate::escort::walk(ai, game, unit, target, events) {
+            // It did not move all turn, or no walk can be ordered: the way is blocked.
             ai.settler_fates
                 .note(crate::settler_fate::SettlerFate::WayBlocked);
-            ai.roles
-                .set_target(serial, crate::roles::Role::Settle, None);
+            give_up(ai, game, unit, serial, events);
         }
     }
+}
+
+/// The settler's site is no longer one it can reach: the role goes with the site, and the settler
+/// awaits orders until the next site check.
+fn give_up(
+    ai: &mut Ai,
+    game: &mut Game,
+    unit: hecs::Entity,
+    serial: crate::Serial,
+    events: &mut Vec<Event>,
+) {
+    ai.roles.release(serial, crate::roles::Role::Settle);
+    ai.roles.clear_track(serial);
+    ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
 }
 
 /// A name for the next city: the race's list, by how many cities the wizard has.
@@ -204,6 +148,7 @@ mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0};
     use crate::view::distance;
+    use f4x_core::map::Position;
     use f4x_def::half_int::HalfInt;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -296,15 +241,15 @@ mod tests {
     }
 
     #[test]
-    fn a_settler_that_did_not_move_all_turn_leaves_its_site_for_now_and_chooses_another(
-    ) -> TestResult {
+    fn a_settler_that_did_not_move_all_turn_loses_the_site_and_the_role() -> TestResult {
+        use crate::roles::Role;
         let (mut g, units) = island_with_settlers(1);
         let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
         settlers(&mut ai, &mut g, &mut Vec::new());
         let serial = PlayerView::new(&g, P0).serial_of(units[0]);
-        let first = ai
-            .roles
-            .target_of(serial, crate::roles::Role::Settle)
+        ai.roles
+            .target_of(serial, Role::Settle)
             .ok_or("the settler chose a site")?;
         // A whole turn went by without the settler leaving its square: the last look equals now.
         let here = PlayerView::new(&g, P0)
@@ -318,16 +263,12 @@ mod tests {
             "{:?}",
             ai.settler_failures()
         );
-        let second = ai
-            .roles
-            .target_of(serial, crate::roles::Role::Settle)
-            .ok_or("the settler chose another site")?;
-        assert_ne!(second, first);
+        assert_eq!(ai.roles.role_of(serial), Some(Role::AwaitingOrders));
+        assert!(ai.roles.targets(Role::Settle).is_empty());
         Ok(())
     }
-
     #[test]
-    fn a_settler_that_finds_no_site_scouts_instead() -> TestResult {
+    fn a_settler_that_finds_no_site_awaits_orders_with_no_role() -> TestResult {
         // Nothing but the squares round the capital is explored, and they are too near it.
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let units = spawn(
@@ -337,11 +278,16 @@ mod tests {
             111, /* high_men_settlers */
             1,
         );
+        let serial = PlayerView::new(&g, P0).serial_of(units[0]);
         let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &g);
         settlers(&mut ai, &mut g, &mut Vec::new());
-        let view = PlayerView::new(&g, P0);
+        assert!(!ai.roles.has_role(serial), "no site, no settle role");
         assert!(ai.roles.targets(crate::roles::Role::Settle).is_empty());
-        assert!(view.unit_has_order(units[0]), "it walks to unexplored land");
+        assert_eq!(
+            ai.roles.role_of(serial),
+            Some(crate::roles::Role::AwaitingOrders)
+        );
         Ok(())
     }
 

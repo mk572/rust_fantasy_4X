@@ -114,33 +114,6 @@ pub fn distance(view: &PlayerView, a: Position, b: Position) -> Option<u32> {
     view.distance(a, b)
 }
 
-/// The nearest square this wizard has not explored that the unit can walk to, looking outwards
-/// from where it stands (the rings are walked in steps of two, as the army's scouts do). Of
-/// the squares of the nearest ring that can be reached the last one in scan order is taken.
-pub fn nearest_unexplored(view: &PlayerView, unit: hecs::Entity) -> Option<Position> {
-    let from = view.unit_position(unit)?;
-    let reachable = view.reachable(&[unit]);
-    for radius in 3i32..=14 {
-        let mut found = None;
-        for dy in (-radius..=radius).step_by(2) {
-            for dx in (-radius..=radius).step_by(2) {
-                if dx.abs().max(dy.abs()) != radius {
-                    continue;
-                }
-                if let Some(p) = view.shift(from, dx, dy) {
-                    if !view.explored(p) && reachable.contains(&p) {
-                        found = Some(p);
-                    }
-                }
-            }
-        }
-        if found.is_some() {
-            return found;
-        }
-    }
-    None
-}
-
 /// Squares within which a city of a wizard at war counts as near.
 pub(crate) const BORDER_RANGE: u32 = 12;
 
@@ -364,20 +337,6 @@ mod tests {
         let view = PlayerView::new(&g, P0);
         assert_eq!(garrison_wanted(&view, city()), 2);
         assert_eq!(garrison_wanted(&view, inland), 1);
-        Ok(())
-    }
-
-    #[test]
-    fn the_nearest_unexplored_square_is_one_the_unit_can_walk_to_and_none_is_left_once_all_is_seen(
-    ) -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let walker = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
-        let view = PlayerView::new(&g, P0);
-        let to = nearest_unexplored(&view, walker).ok_or("something is unexplored")?;
-        assert!(!view.explored(to));
-        assert!(view.reachable(&[walker]).contains(&to));
-        g.reveal_map(P0);
-        assert_eq!(nearest_unexplored(&PlayerView::new(&g, P0), walker), None);
         Ok(())
     }
 }

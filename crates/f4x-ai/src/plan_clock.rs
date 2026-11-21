@@ -13,10 +13,6 @@ use crate::Ai;
 /// Turns a plan may stand before it is dropped.
 pub const PLAN_TIMEOUT_TURNS: u32 = 100;
 
-/// Turns a settler may take to reach the site it chose and found its city (it needs far less
-/// than a campaign: a few dozen squares on foot).
-pub const SETTLER_TIMEOUT_TURNS: u32 = 30;
-
 /// Turns a scout may walk to one target before the target is given up (a scout that finds new
 /// squares gets new targets and so a new clock).
 pub const SCOUT_TIMEOUT_TURNS: u32 = 50;
@@ -33,8 +29,6 @@ pub enum PlanKind {
     Landing,
     /// A unit out on a raid of a tower, node, encounter site or neutral city.
     Raid,
-    /// A settler on its way to the site it chose (key: the settler and the site).
-    Settler,
     /// A scout on its way to a target (key: the scout and the target).
     Scout,
     /// The search for the rest of the world by ship (and the fighters it puts ashore).
@@ -47,11 +41,10 @@ pub enum PlanKind {
 // its clock, and `military.rs` calls the stack back every `MARCH_TURNS` and sends it out again.
 
 impl PlanKind {
-    pub const ALL: [PlanKind; 7] = [
+    pub const ALL: [PlanKind; 6] = [
         PlanKind::Campaign,
         PlanKind::Landing,
         PlanKind::Raid,
-        PlanKind::Settler,
         PlanKind::Scout,
         PlanKind::SeaScout,
         PlanKind::Planar,
@@ -60,7 +53,6 @@ impl PlanKind {
     /// Turns a plan of this kind may stand.
     pub fn timeout(self) -> u32 {
         match self {
-            PlanKind::Settler => SETTLER_TIMEOUT_TURNS,
             PlanKind::Scout => SCOUT_TIMEOUT_TURNS,
             _ => PLAN_TIMEOUT_TURNS,
         }
@@ -71,7 +63,6 @@ impl PlanKind {
             PlanKind::Campaign => "campaign",
             PlanKind::Landing => "landing",
             PlanKind::Raid => "raid",
-            PlanKind::Settler => "settler",
             PlanKind::Scout => "scout",
             PlanKind::SeaScout => "sea scout",
             PlanKind::Planar => "planar",
@@ -158,8 +149,7 @@ pub(crate) struct Dropped {
 }
 
 impl Ai {
-    /// Drop every plan that has stood for its time ([`PLAN_TIMEOUT_TURNS`], or less for a settler
-    /// and a scout); its target goes on the list of failures, to be tried again later, and the AI
+    /// Drop every plan that has stood for its time ([`PLAN_TIMEOUT_TURNS`], or less for a scout); its target goes on the list of failures, to be tried again later, and the AI
     /// chooses anew. Called at the start of a turn.
     pub(crate) fn drop_stale_plans(&mut self, turn: u32) -> Dropped {
         let mut out = Dropped::default();
@@ -196,21 +186,6 @@ impl Ai {
             self.roles
                 .retain_role(crate::roles::Role::Raid, |s| s != serial);
             clock.count(PlanKind::Raid);
-        }
-        for (serial, _) in self.expired_plans(crate::roles::Role::Settle, PlanKind::Settler, turn) {
-            // Waiting for a ship is a fault of its own, not a walk that took too long.
-            self.settler_fates.note(
-                if self.roles.crossing_of(serial) == Some(crate::roles::Crossing::Sea) {
-                    crate::settler_fate::SettlerFate::NoShip
-                } else {
-                    crate::settler_fate::SettlerFate::TooSlow
-                },
-            );
-            self.roles
-                .set_target(serial, crate::roles::Role::Settle, None);
-            self.roles.clear_track(serial);
-            out.release.push(serial);
-            clock.count(PlanKind::Settler);
         }
         for (serial, target) in self
             .expired_plans(crate::roles::Role::Scout, PlanKind::Scout, turn)
@@ -371,65 +346,6 @@ mod tests {
         ai.drop_stale_plans(turn);
         ai.drop_stale_plans(turn + PLAN_TIMEOUT_TURNS);
         assert!(!ai.roles.any(crate::roles::Role::March) && ai.march_target.is_none());
-    }
-
-    #[test]
-    fn a_settler_that_does_not_get_there_gives_its_site_up_and_is_released() {
-        let (mut ai, turn) = ai_at(10);
-        let s = crate::Serial(5);
-        let _ = ai
-            .roles
-            .claim(s, crate::roles::Role::Settle, turn, Some(at(9, 9)));
-        ai.roles.track(s, at(1, 1), false);
-        ai.drop_stale_plans(turn);
-        let early = ai.drop_stale_plans(turn + SETTLER_TIMEOUT_TURNS - 1);
-        assert!(
-            early.release.is_empty() && ai.roles.target_of(s, crate::roles::Role::Settle).is_some()
-        );
-        let out = ai.drop_stale_plans(turn + SETTLER_TIMEOUT_TURNS);
-        assert_eq!(out.release, vec![s]);
-        assert!(ai.roles.targets(crate::roles::Role::Settle).is_empty());
-        assert_eq!(ai.roles.get(s).map(|a| a.stuck), Some(0));
-        assert_eq!(ai.clock.dropped(PlanKind::Settler), 1);
-        assert_eq!(fates(&ai), [("did not arrive in time", 1)]);
-    }
-
-    /// The reasons that have been noted, with their counts.
-    fn fates(ai: &Ai) -> Vec<(&'static str, u32)> {
-        ai.settler_failures()
-            .into_iter()
-            .filter(|&(_, n)| n > 0)
-            .collect()
-    }
-
-    #[test]
-    fn a_settler_that_waited_for_a_ship_is_dropped_as_never_picked_up() {
-        let (mut ai, turn) = ai_at(10);
-        let s = crate::Serial(5);
-        let _ = ai
-            .roles
-            .claim(s, crate::roles::Role::Settle, turn, Some(at(9, 9)));
-        ai.roles.set_crossing(s, Some(crate::roles::Crossing::Sea));
-        ai.drop_stale_plans(turn);
-        ai.drop_stale_plans(turn + SETTLER_TIMEOUT_TURNS);
-        assert_eq!(fates(&ai), [("never picked up by a ship", 1)]);
-    }
-
-    #[test]
-    fn a_settler_that_keeps_getting_new_sites_is_never_dropped() {
-        let (mut ai, turn) = ai_at(10);
-        let s = crate::Serial(5);
-        for t in 0..3 * SETTLER_TIMEOUT_TURNS {
-            // A new site every twenty turns: each is a new plan with its own clock.
-            let _ = ai
-                .roles
-                .claim(s, crate::roles::Role::Settle, turn + t, None);
-            ai.roles
-                .set_target(s, crate::roles::Role::Settle, Some(at(2 + t / 20, 2)));
-            let out = ai.drop_stale_plans(turn + t);
-            assert!(out.release.is_empty(), "turn {t}");
-        }
-        assert_eq!(ai.clock.dropped(PlanKind::Settler), 0);
     }
 
     #[test]

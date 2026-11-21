@@ -75,6 +75,11 @@ fn explored_squares(view: &PlayerView) -> usize {
 }
 
 impl SiteBook {
+    /// Whether the list was rebuilt on `turn`: the day of the site check.
+    pub fn rebuilt_on(&self, turn: u32) -> bool {
+        self.built == Some(turn)
+    }
+
     /// The list, best first, rebuilt when it is old or a city has been founded, lost or found.
     pub fn refreshed(&mut self, view: &PlayerView) -> &[Site] {
         let cities = view.my_cities().len() + view.known_cities().len();
@@ -192,13 +197,79 @@ fn shores_by_sea(view: &PlayerView, own: &[Position]) -> HashSet<Position> {
     shores
 }
 
+/// What the wizard knows that decides whether a settler can reach a square: its own and the known
+/// cities, the land it stands on, the shores a ship can reach.
+struct Ground {
+    own: Vec<Position>,
+    cities: Vec<Position>,
+    home: HashSet<Position>,
+    shores: HashSet<Position>,
+    /// Landmass already judged from the sea: every square of it, and whether a ship can land on it.
+    by_sea: std::collections::HashMap<Position, bool>,
+}
+
+impl Ground {
+    fn of(view: &PlayerView) -> Ground {
+        let own: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
+        let cities: Vec<Position> = own
+            .iter()
+            .copied()
+            .chain(view.known_cities().iter().map(|&(_, _, p)| p))
+            .collect();
+        let home = landmass(view, &own);
+        let shores = shores_by_sea(view, &own);
+        Ground {
+            own,
+            cities,
+            home,
+            shores,
+            by_sea: std::collections::HashMap::new(),
+        }
+    }
+
+    /// How a settler gets to `at` if a city can be founded there: on foot, or by ship; `None` when
+    /// no city can stand there or no way leads to it.
+    fn reach(&mut self, view: &PlayerView, at: Position) -> Option<Reach> {
+        if !view.can_found_city(at)
+            || view.has_lair(at)
+            || view.in_node(at)
+            || self.cities.iter().any(|&c| {
+                view.distance(c, at)
+                    .is_some_and(|d| d < view.min_city_distance())
+            })
+        {
+            return None;
+        }
+        if self.home.contains(&at) {
+            return Some(Reach::Land);
+        }
+        let landing = match self.by_sea.get(&at) {
+            Some(&ok) => ok,
+            None => {
+                let mass = landmass(view, &[at]);
+                let ok = mass.iter().any(|p| self.shores.contains(p));
+                for p in mass {
+                    self.by_sea.insert(p, ok);
+                }
+                ok
+            }
+        };
+        landing.then_some(Reach::Sea)
+    }
+}
+
+/// How a settler gets to `at` (a site given to it earlier): `None` when no city can stand there
+/// any more or no way, on foot or by ship, leads to it.
+pub fn site_reach(view: &PlayerView, at: Position) -> Option<Reach> {
+    Ground::of(view).reach(view, at)
+}
+
 /// Every place where a city could be founded on what the wizard has explored, best first, with
 /// only the better of two sites that are too close to each other.
 pub fn scan(view: &PlayerView) -> Vec<Site> {
     let Some((width, height)) = view.map_size() else {
         return Vec::new();
     };
-    let own: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
     let known = view.known_cities();
     let at_war = view.rivals_at_war();
     let rivals: Vec<(Position, bool)> = known
@@ -206,53 +277,19 @@ pub fn scan(view: &PlayerView) -> Vec<Site> {
         .filter(|&&(_, owner, _)| view.is_rival_wizard(owner))
         .map(|&(_, owner, p)| (p, at_war.contains(&owner)))
         .collect();
-    let cities: Vec<Position> = own
-        .iter()
-        .copied()
-        .chain(known.iter().map(|&(_, _, p)| p))
-        .collect();
-    let home = landmass(view, &own);
-    let shores = shores_by_sea(view, &own);
-    // Landmass already judged from the sea: every square of it, and whether a ship can land on it.
-    let mut by_sea: std::collections::HashMap<Position, bool> = std::collections::HashMap::new();
+    let mut ground = Ground::of(view);
     let mut found: Vec<Site> = Vec::new();
     for plane in [Plane::Arcanus, Plane::Myrror] {
         // Not the first or last row: nothing can be founded there.
         for y in 1..height.saturating_sub(1) {
             for x in 0..width {
                 let at = Position { plane, x, y };
-                if !view.can_found_city(at)
-                    || view.has_lair(at)
-                    || view.in_node(at)
-                    || cities.iter().any(|&c| {
-                        view.distance(c, at)
-                            .is_some_and(|d| d < view.min_city_distance())
-                    })
-                {
+                let Some(reach) = ground.reach(view, at) else {
                     continue;
-                }
-                let reach = if home.contains(&at) {
-                    Reach::Land
-                } else {
-                    let landing = match by_sea.get(&at) {
-                        Some(&ok) => ok,
-                        None => {
-                            let mass = landmass(view, &[at]);
-                            let ok = mass.iter().any(|p| shores.contains(p));
-                            for p in mass {
-                                by_sea.insert(p, ok);
-                            }
-                            ok
-                        }
-                    };
-                    if !landing {
-                        continue;
-                    }
-                    Reach::Sea
                 };
                 found.push(Site {
                     at,
-                    score: score(view, at, reach, &own, &rivals, &cities),
+                    score: score(view, at, reach, &ground.own, &rivals, &ground.cities),
                     reach,
                 });
             }
