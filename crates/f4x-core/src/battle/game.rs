@@ -965,7 +965,7 @@ impl Game {
                 .into_iter()
                 .map(|(player, units)| Event::BattleCasualties { player, units }),
         );
-        let spoils = self.battle_spoils(&battle, &sources);
+        let spoils = battle.spoils(&self.content.rules);
         self.battle_loss_relations(&battle, &sources);
         let survivors: Vec<hecs::Entity> = battle
             .units
