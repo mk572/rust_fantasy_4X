@@ -4,28 +4,37 @@
 //! made again only when either differs. The values are derived data: never saved. The cells are
 //! `Cell`s so a screen that holds only `&App` can ask.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 use f4x_core::game::Game;
+use f4x_core::map::Plane;
 use f4x_core::player::finance::Budget;
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::magic_income::Income;
 
 /// A value made for a player at a revision of the game.
 #[derive(Clone, Copy)]
-struct Stamped<T: Copy> {
+struct Stamped<T> {
     revision: u64,
     player: PlayerId,
     value: T,
 }
 
+/// One plane's flags, shared by the readers of a frame.
+type Layer = Rc<Vec<bool>>;
+
 #[derive(Default)]
 pub(crate) struct FrameCache {
     budget: Cell<Option<Stamped<Budget>>>,
     income: Cell<Option<Stamped<Income>>>,
+    /// The squares the human sees, a layer for each plane (task 694).
+    vision: RefCell<[Option<Stamped<Layer>>; 2]>,
     /// How often each value was made, for the tests.
     #[cfg(test)]
     pub(crate) made: Cell<(u32, u32)>,
+    #[cfg(test)]
+    pub(crate) vision_made: Cell<u32>,
 }
 
 impl FrameCache {
@@ -49,6 +58,33 @@ impl FrameCache {
             |g| g.income(player),
             |m| m.1 += 1,
         )
+    }
+
+    /// The squares `player` sees on `plane`, as `Economy::visibility` says them for the revision: row
+    /// major, `width * height` flags, shared by every reader of the frame.
+    pub(crate) fn visibility(
+        &self,
+        game: &super::revised::Revised<Game>,
+        player: PlayerId,
+        plane: Plane,
+    ) -> Layer {
+        let layer = plane as usize;
+        let revision = game.revision();
+        let mut cache = self.vision.borrow_mut();
+        if let Some(s) = &cache[layer] {
+            if s.revision == revision && s.player == player {
+                return Rc::clone(&s.value);
+            }
+        }
+        let value = Rc::new(game.economy().visibility(player, plane));
+        cache[layer] = Some(Stamped {
+            revision,
+            player,
+            value: Rc::clone(&value),
+        });
+        #[cfg(test)]
+        self.vision_made.set(self.vision_made.get() + 1);
+        value
     }
 
     fn get<T: Copy>(
@@ -87,6 +123,13 @@ mod tests {
     use f4x_core::game::Command;
 
     fn same_as_fresh(app: &App) {
+        use f4x_core::map::Plane;
+        for plane in [Plane::Arcanus, Plane::Myrror] {
+            assert_eq!(
+                *app.cache.visibility(&app.game, HUMAN, plane),
+                app.game.economy().visibility(HUMAN, plane)
+            );
+        }
         assert_eq!(app.cache.budget(&app.game, HUMAN), app.game.budget(HUMAN));
         assert_eq!(app.cache.income(&app.game, HUMAN), app.game.income(HUMAN));
     }
@@ -107,6 +150,14 @@ mod tests {
             same_as_fresh(&app);
         }
         assert_ne!(app.cache.made.get(), made, "a change makes them again");
+        let seen = app.cache.vision_made.get();
+        app.cache
+            .visibility(&app.game, HUMAN, f4x_core::map::Plane::Arcanus);
+        assert_eq!(
+            app.cache.vision_made.get(),
+            seen,
+            "asked again: not made again"
+        );
 
         // A direct call the client makes: a new unit costs upkeep.
         let (_, at) = app.game.economy().cities_of(HUMAN)[0];

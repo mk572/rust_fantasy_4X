@@ -223,9 +223,8 @@ impl App {
     fn guard_names(&self, pos: Position) -> Vec<String> {
         let width = self.game.map().map_or(0, |m| m.width());
         let seen = self
-            .game
-            .economy()
-            .visibility(HUMAN, pos.plane)
+            .cache
+            .visibility(&self.game, HUMAN, pos.plane)
             .get((pos.y * width + pos.x) as usize)
             .copied()
             .unwrap_or(false);

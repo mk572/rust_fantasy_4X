@@ -2601,7 +2601,7 @@ impl App {
             (self.cam.y - y0 as f32) * t.y,
         );
         let width = grid.width();
-        let visible = self.game.economy().visibility(HUMAN, self.plane);
+        let visible = self.cache.visibility(&self.game, HUMAN, self.plane);
         let cities = self.game.economy().cities();
         let anim = (get_time() * 2.5) as usize;
 

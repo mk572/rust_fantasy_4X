@@ -242,7 +242,7 @@ impl Page for CartographerPage {
             }
         }
         // Units: the player's, and those of others where they can be seen.
-        let seen = app.game.economy().visibility(HUMAN, plane);
+        let seen = app.cache.visibility(&app.game, HUMAN, plane);
         for u in app.game.units().all_units() {
             let (Some(at), Some(owner)) = (
                 app.game.units().unit_position(u),
