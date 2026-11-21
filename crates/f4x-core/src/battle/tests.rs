@@ -1330,7 +1330,7 @@ fn a_teleporter_cannot_go_into_rock_and_a_walker_cannot_teleport() {
 
 #[test]
 fn units_deploy_melee_first_and_shooters_behind_them() {
-    use super::game::deployment_order;
+    use super::map::deployment_order;
     // Spearmen and bowmen, alternately.
     let all = real_battle(
         &[
@@ -5475,6 +5475,53 @@ fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won(
         Some(at(5, 4)),
         "and moves in"
     );
+    Ok(())
+}
+
+#[test]
+fn a_regenerating_unit_that_was_destroyed_or_drained_stays_dead_though_its_side_won() -> TestResult
+{
+    let mut g = game();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_numbered(107)
+        .ok_or("high_men_cavalry is not in the content")?;
+    let troll = g
+        .content
+        .rules
+        .units
+        .id_numbered(152)
+        .ok_or("troll_war_trolls is not in the content")?;
+    let alive = g.spawn_unit(A, at(4, 4), walker);
+    let destroyed = g.spawn_unit(A, at(4, 4), troll);
+    let drained = g.spawn_unit(A, at(4, 4), troll);
+    let slain = g.spawn_unit(A, at(4, 4), troll);
+    let foe = g.spawn_unit(D, at(5, 4), walker);
+    g.apply(Command::BeginBattle {
+        attackers: vec![alive, destroyed, drained, slain],
+        defenders: vec![foe],
+    });
+    let b = &mut g.battle.as_mut().expect("as_mut succeeds").battle;
+    for (i, kinds) in [
+        (1, [0, 0, 5]),
+        (2, [0, 5, 0]),
+        (3, [5, 0, 0]),
+        (4, [5, 0, 0]),
+    ] {
+        b.units[i].set_figures(0);
+        b.units[i].status = Status::Dead;
+        b.units[i].damage_kinds = kinds;
+    }
+    g.apply(Command::Battle(BattleCommand::EndTurn));
+    assert!(g.world.contains(alive));
+    assert!(
+        g.world.contains(slain),
+        "a slain troll of the winner comes back"
+    );
+    assert!(!g.world.contains(destroyed), "a destroyed one does not");
+    assert!(!g.world.contains(drained), "nor a drained one");
     Ok(())
 }
 

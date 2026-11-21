@@ -86,3 +86,14 @@ impl Battle {
         out
     }
 }
+
+impl Battle {
+    /// Whether a unit that regenerates and was slain comes back to life: its side won (a unit
+    /// drained or destroyed does not).
+    pub fn revived(&self, u: &BattleUnit) -> bool {
+        u.status == Status::Dead
+            && u.regenerates()
+            && self.winner == Some(u.side)
+            && u.fate() == crate::unit::Fate::Slain
+    }
+}

@@ -21,6 +21,8 @@ use f4x_def::half_int::HalfInt;
 use layout::{Layout, Look, Set, Spec};
 use rand::Rng;
 
+use crate::unit::BattleUnit;
+
 /// Moves to jump the square of water between two ships' decks.
 pub const JUMP_COST: HalfInt = HalfInt::from_int(2);
 
@@ -696,6 +698,30 @@ pub fn deployment(
         .collect();
     out.truncate(count);
     out
+}
+
+/// The order a side's units take their squares in, front first (`Deploy_Battle_Units`): the
+/// units without a ranged attack, then the shooters. With more than five shooters the strongest
+/// in melee move forward, until the front has four units or four shooters are left.
+pub fn deployment_order(units: &[BattleUnit]) -> Vec<usize> {
+    let shoots = |u: &BattleUnit| u.ranged > 0 && u.ammo > 0;
+    let mut melee: Vec<usize> = (0..units.len()).filter(|&i| !shoots(&units[i])).collect();
+    let mut ranged: Vec<usize> = (0..units.len()).filter(|&i| shoots(&units[i])).collect();
+    if ranged.len() > 5 {
+        let to_move = ranged.len() - 4;
+        for _ in 0..to_move {
+            if melee.len() >= 4 {
+                break;
+            }
+            // The strongest is taken from the shooters. The first of equals goes.
+            let best = (0..ranged.len())
+                .max_by_key(|&k| (units[ranged[k]].melee, std::cmp::Reverse(k)))
+                .unwrap_or(0);
+            melee.push(ranged.remove(best));
+        }
+    }
+    melee.extend(ranged);
+    melee
 }
 
 /// The square of a lair's structure, an outpost's or a tower's, in the rules' frame.

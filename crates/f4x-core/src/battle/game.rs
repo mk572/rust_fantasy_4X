@@ -14,7 +14,7 @@ use f4x_def::half_int::HalfInt;
 
 use super::field::Field;
 use super::immunity::Realm;
-use super::map::{city_deployment, deployment, layout, BattleMap, Pos};
+use super::map::{city_deployment, deployment, deployment_order, layout, BattleMap, Pos};
 use super::{
     Battle, BattleCommand, BattleError, BattleUnit, HeroSheet, Sheet, Side, Status, WizardSheet,
 };
@@ -955,7 +955,7 @@ impl Game {
         for u in &battle.units {
             if u.source.is_some()
                 && u.status == Status::Dead
-                && !(u.regenerates() && revived(&battle, u))
+                && !(u.regenerates() && battle.revived(u))
             {
                 *fallen.entry(battle.player_of(u.side)).or_default() += 1;
             }
@@ -971,7 +971,7 @@ impl Game {
             .units
             .iter()
             .filter(|u| {
-                Some(u.side) == battle.winner && (u.status == Status::Active || revived(&battle, u))
+                Some(u.side) == battle.winner && (u.status == Status::Active || battle.revived(u))
             })
             .filter_map(|u| u.source.and_then(|i| sources.get(i).copied()))
             .collect();
@@ -996,7 +996,7 @@ impl Game {
             // Regeneration heals the unit completely after the fight, and brings back one that
             // was slain (not drained or destroyed) if its side won.
             let regenerates = u.regenerates();
-            let revived = revived(&battle, u);
+            let revived = battle.revived(u);
             if regenerates && (revived || u.status != Status::Dead) {
                 self.put(entity, Hurt(0));
             } else if u.status == Status::Dead {
@@ -1278,7 +1278,7 @@ impl Game {
             .units
             .iter()
             .filter(|u| {
-                u.side == Side::Attacker && (u.status == Status::Active || revived(battle, u))
+                u.side == Side::Attacker && (u.status == Status::Active || battle.revived(u))
             })
             .filter_map(source_of)
             .filter(|&u| self.units().unit_position(u).is_some())
@@ -1387,37 +1387,4 @@ impl Game {
         self.finish_if_over(&mut events);
         events
     }
-}
-
-/// A unit that regenerates and was slain comes back to life if its side won (a unit drained or
-/// destroyed does not).
-fn revived(battle: &Battle, u: &BattleUnit) -> bool {
-    u.status == Status::Dead
-        && u.regenerates()
-        && battle.winner == Some(u.side)
-        && u.fate() == super::Fate::Slain
-}
-
-/// The order a side's units take their squares in, front first (`Deploy_Battle_Units`): the
-/// units without a ranged attack, then the shooters. With more than five shooters the strongest
-/// in melee move forward, until the front has four units or four shooters are left.
-pub(super) fn deployment_order(units: &[BattleUnit]) -> Vec<usize> {
-    let shoots = |u: &BattleUnit| u.ranged > 0 && u.ammo > 0;
-    let mut melee: Vec<usize> = (0..units.len()).filter(|&i| !shoots(&units[i])).collect();
-    let mut ranged: Vec<usize> = (0..units.len()).filter(|&i| shoots(&units[i])).collect();
-    if ranged.len() > 5 {
-        let to_move = ranged.len() - 4;
-        for _ in 0..to_move {
-            if melee.len() >= 4 {
-                break;
-            }
-            // The strongest is taken from the shooters. The first of equals goes.
-            let best = (0..ranged.len())
-                .max_by_key(|&k| (units[ranged[k]].melee, std::cmp::Reverse(k)))
-                .unwrap_or(0);
-            melee.push(ranged.remove(best));
-        }
-    }
-    melee.extend(ranged);
-    melee
 }
