@@ -1268,14 +1268,21 @@ impl Default for SpellEffectRules {
 }
 
 /// The rows a setting of the game changes: the retorts that cost two picks under Adamant Alchemy
-/// and 2-Pick Myrran, and the ships whose capacity the player sets (numbers of `retorts.ron` and
-/// `units.ron`).
+/// and 2-Pick Myrran, the ships whose capacity the player sets, and the cavalry and halberdier
+/// units that the setting `cavalry_halberdier_abilities` gives First Strike and Negate First
+/// Strike (numbers of `retorts.ron`, `units.ron` and `abilities.ron`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SettingTargets {
     pub alchemy_retort: u16,
     pub myrran_retort: u16,
     pub trireme_unit: u16,
     pub galley_unit: u16,
+    /// The cavalry units: the setting gives each of them `first_strike`.
+    pub cavalry_units: Vec<u16>,
+    /// The halberdier units: the setting gives each of them `negate_first_strike`.
+    pub halberdier_units: Vec<u16>,
+    pub first_strike: u16,
+    pub negate_first_strike: u16,
 }
 
 impl Default for SettingTargets {
@@ -1285,6 +1292,10 @@ impl Default for SettingTargets {
             myrran_retort: 9,
             trireme_unit: 35,
             galley_unit: 36,
+            cavalry_units: vec![42, 60, 98, 107, 141],
+            halberdier_units: vec![48, 59, 68, 77, 85, 97, 116, 122, 139, 149],
+            first_strike: 23,
+            negate_first_strike: 48,
         }
     }
 }

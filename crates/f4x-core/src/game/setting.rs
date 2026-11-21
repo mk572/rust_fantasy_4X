@@ -43,6 +43,22 @@ impl crate::game::Game {
                 );
             }
         }
+        // Cavalry strike first and halberdiers negate it, whatever their rows say.
+        if rules.cavalry_halberdier_abilities {
+            for (list, ability) in [
+                (&targets.cavalry_units, targets.first_strike),
+                (&targets.halberdier_units, targets.negate_first_strike),
+            ] {
+                let ability = crate::rules::Ability::new(ability);
+                for &num in list {
+                    if let Some(unit) = content.rules.units.by_num_mut(num) {
+                        if !unit.abilities.contains(&ability) {
+                            unit.abilities.push(ability);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Give each computer wizard its difficulty bonuses from the settings (a human wizard and

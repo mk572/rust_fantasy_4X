@@ -79,6 +79,13 @@
     ),
     // The retorts that cost two picks under the Adamant Alchemy and 2-Pick Myrran settings, and the
     // ships whose capacity the player sets.
-    targets: (alchemy_retort: 0, myrran_retort: 9, trireme_unit: 35, galley_unit: 36),
+    // The cavalry and halberdier units of the setting `cavalry_halberdier_abilities`, and the abilities
+    // it gives them (first_strike, negate_first_strike).
+    targets: (
+        alchemy_retort: 0, myrran_retort: 9, trireme_unit: 35, galley_unit: 36,
+        cavalry_units: [42 /* barbarian_cavalry */, 60 /* dark_elf_cavalry */, 98 /* high_elf_cavalry */, 107 /* high_men_cavalry */, 141 /* orc_cavalry */],
+        halberdier_units: [48 /* beastmen */, 59 /* dark_elf */, 68 /* draconian */, 77 /* dwarven */, 85 /* gnoll */, 97 /* high_elf */, 116 /* klackon */, 122 /* lizardman */, 139 /* orc */, 149 /* troll */],
+        first_strike: 23, negate_first_strike: 48,
+    ),
     autobuild_order: [29, 32, 26, 16, 23, 3, 8, 15, 22, 30, 17, 31, 34, 27, 35, 20, 4, 19, 9, 18, 24, 25, 28, 33, 14, 5, 21],
 )

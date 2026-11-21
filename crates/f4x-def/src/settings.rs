@@ -546,6 +546,13 @@ pub struct RuleSettings {
     /// garrison does), so that an assault in waves wears a lair down.
     #[serde(default = "fb_lair_full_heal")]
     pub lair_full_heal: bool,
+    /// Every cavalry unit has First Strike and every halberdier unit has Negate First Strike,
+    /// whatever its own row says (`rules.ron` `targets` lists them). Off (the shipped rows): the
+    /// rows as they are, where the orc cavalry lacks First Strike and the halberdiers of six
+    /// races lack Negate First Strike. The setting only adds the ability, it never takes one
+    /// away. Off in every rule set.
+    #[serde(default = "fb_cavalry_halberdier_abilities")]
+    pub cavalry_halberdier_abilities: bool,
     /// Who may research and cast the Spell of Mastery (the spell that wins the game). All: every
     /// wizard. Human only: the AI wizards never get it. Off: nobody does, and a game is won by
     /// conquest only.
@@ -720,6 +727,10 @@ fn fb_defeat_loot() -> bool {
 
 fn fb_lair_full_heal() -> bool {
     fallback(|g| g.rules.lair_full_heal, true)
+}
+
+fn fb_cavalry_halberdier_abilities() -> bool {
+    fallback(|g| g.rules.cavalry_halberdier_abilities, false)
 }
 
 fn fb_roads_at_start() -> bool {

@@ -529,6 +529,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.rules.lair_full_heal.into(),
             |s, v| s.rules.lair_full_heal = v != 0,
         ),
+        flag(
+            "custom.cavalry_halberdier_abilities",
+            |s| s.rules.cavalry_halberdier_abilities.into(),
+            |s, v| s.rules.cavalry_halberdier_abilities = v != 0,
+        ),
         Row::Field(Field {
             label: "custom.farmer_food",
             kind: Kind::Half { min: 0, max: 20 },

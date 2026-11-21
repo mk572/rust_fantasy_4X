@@ -81,6 +81,7 @@
     "custom.miners_guild_half_ore": "Miner's Guild adds half to iron and coal (not double)",
     "custom.spell_binding_always_succeeds": "Spell Binding always succeeds",
     "custom.lair_full_heal": "Monsters in lairs fully healed after battle",
+    "custom.cavalry_halberdier_abilities": "Cavalry have First Strike and halberdiers Negate First Strike (all races)",
     "custom.farmer_food": "Food of a farmer (races with their own keep it)",
     "custom.worker_production": "Production of a worker (races with their own keep it)",
     "custom.roads_at_start": "Roads between independent cities at the start",
