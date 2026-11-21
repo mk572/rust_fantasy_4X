@@ -57,6 +57,17 @@ pub(crate) struct Knobs {
     pub mood_div: i32,
     /// Nearness: 100 minus this for each square of distance between the nearest cities.
     pub near_per_square: i32,
+    /// What a city razed, a war declared and a treaty broken add to a wizard's ruthlessness, and the
+    /// turns it takes to fade by half. The most of it that counts, in fear points.
+    pub ruth_raze: i32,
+    pub ruth_war: i32,
+    pub ruth_broken: i32,
+    pub ruth_half: u32,
+    pub ruth_cap: i32,
+    /// The wizard casting the Spell of Mastery is not made peace with (a minus), and, with a leader in
+    /// the game, peace with the others and war on the leader (a plus and a minus of this).
+    pub mastery: i32,
+    pub leader: i32,
 }
 
 impl Knobs {
@@ -84,6 +95,13 @@ impl Knobs {
             young: k("YOUNG", 40),
             mood_div: k("MOOD_DIV", 3).max(1),
             near_per_square: k("NEAR_PER_SQUARE", 5),
+            ruth_raze: k("RUTH_RAZE", 15),
+            ruth_war: k("RUTH_WAR", 6),
+            ruth_broken: k("RUTH_BROKEN", 10),
+            ruth_half: k("RUTH_HALF", 150) as u32,
+            ruth_cap: k("RUTH_CAP", 60),
+            mastery: k("MASTERY", 60),
+            leader: k("LEADER", 15),
         }
     }
 }
@@ -115,7 +133,13 @@ pub(crate) fn weariness(game: &Game, me: PlayerId, other: PlayerId, memory: &Mem
 }
 
 /// How `me` regards `other`.
-pub(crate) fn regard(game: &Game, me: PlayerId, other: PlayerId, scene: &Scene) -> Regard {
+pub(crate) fn regard(
+    game: &Game,
+    me: PlayerId,
+    other: PlayerId,
+    scene: &Scene,
+    memory: &Memory,
+) -> Regard {
     let k = Knobs::current();
     let sk = crate::statecraft::Knobs::current();
     let stance = game
@@ -129,8 +153,26 @@ pub(crate) fn regard(game: &Game, me: PlayerId, other: PlayerId, scene: &Scene) 
     let distance = nearest(game, scene, me, other);
     let near = distance.map_or(0, |d| (100 - k.near_per_square * d as i32).clamp(0, 100));
     let might = (t * 100 / m - 50).clamp(0, 100);
-    let fear = near * might / 100;
+    // Ruthlessness is felt in proportion to how near the ruthless one is.
+    let ruth = memory
+        .ruthlessness(other, game.turn, k.ruth_half)
+        .min(k.ruth_cap);
+    let fear = (near * might / 100 + near * ruth / 100).clamp(0, 100);
     let mut strategic = 0;
+    // The wizard that is about to win by the Spell of Mastery must be stopped; and with a leader
+    // in the game the weaker make peace among themselves and keep the war on the leader.
+    if PlayerView::new(game, me)
+        .rival_mastery_casters()
+        .iter()
+        .any(|&(p, _)| p == other)
+    {
+        strategic -= k.mastery;
+    }
+    match crate::statecraft::leader_of(game, me) {
+        Some(leader) if leader == other => strategic -= k.leader,
+        Some(leader) if game.treaty(me, leader) == Treaty::War => strategic += k.leader,
+        _ => {}
+    }
     if distance.is_some_and(|d| d <= k.prey_distance) && m * 100 >= k.prey_pct * t.max(1) {
         strategic -= k.prey;
     }
@@ -174,7 +216,7 @@ pub(crate) fn peace_wish(game: &Game, me: PlayerId, other: PlayerId, memory: &Me
     let k = Knobs::current();
     let sk = crate::statecraft::Knobs::current();
     let scene = Scene::new(game, me);
-    let r = regard(game, me, other, &scene);
+    let r = regard(game, me, other, &scene, memory);
     let (m, t) = (
         scene.power(game, me).score(&sk).max(1),
         scene.power(game, other).score(&sk),
@@ -391,8 +433,8 @@ mod tests {
         let g = war(1, 30, 140);
         let scene0 = Scene::new(&g, P0);
         let scene1 = Scene::new(&g, P1);
-        let weak = regard(&g, P0, P1, &scene0);
-        let strong = regard(&g, P1, P0, &scene1);
+        let weak = regard(&g, P0, P1, &scene0, &Memory::default());
+        let strong = regard(&g, P1, P0, &scene1, &Memory::default());
         assert!(weak.fear > 0, "near and strong: {weak:?}");
         assert_eq!(strong.fear, 0, "a weak neighbour is no fear: {strong:?}");
         // The same wizard with nothing to fear wants the peace less.
@@ -450,5 +492,120 @@ mod tests {
         let mut at_peace = war(1, 30, 160);
         at_peace.declare_peace(P0, P1);
         assert!(accepts(&at_peace, P1, P0, &winner));
+    }
+
+    fn razed() -> Event {
+        Event::CityRazed {
+            player: P1,
+            gold: 0,
+            fame_lost: 0,
+        }
+    }
+
+    #[test]
+    fn what_a_wizard_met_does_is_noted_as_ruthlessness_and_fades() {
+        use f4x_core::diplomacy::DiplomacyEvent;
+        let k = Knobs::current();
+        let g = war(8, 8, 110);
+        let mut m = Memory::default();
+        m.notice(
+            P0,
+            &g,
+            &[
+                razed(),
+                Event::Diplomacy(DiplomacyEvent::WarDeclared {
+                    attacker: P1,
+                    defender: f4x_core::player::MONSTERS,
+                }),
+                Event::Diplomacy(DiplomacyEvent::TreatyBroken {
+                    breaker: P1,
+                    victim: f4x_core::player::MONSTERS,
+                    treaty: Treaty::Pact,
+                }),
+            ],
+        );
+        let all = k.ruth_raze + k.ruth_war + k.ruth_broken;
+        assert_eq!(m.ruthlessness(P1, 110, k.ruth_half), all);
+        assert_eq!(m.ruthlessness(P1, 110 + k.ruth_half, k.ruth_half), all / 2);
+        assert!(m.ruthlessness(P1, 110 + 40 * k.ruth_half, k.ruth_half) <= 1);
+        // The acts of a wizard that has not been met are not its business.
+        let stranger = game(COAST_CITY, 8 /* high_men */);
+        let mut m = Memory::default();
+        m.notice(P0, &stranger, &[razed()]);
+        assert_eq!(m.ruthlessness(P1, stranger.turn, k.ruth_half), 0);
+    }
+
+    #[test]
+    fn a_ruthless_neighbour_is_feared_more() {
+        let g = war(10, 10, 140);
+        let scene = Scene::new(&g, P0);
+        let calm = regard(&g, P0, P1, &scene, &Memory::default());
+        let mut m = Memory::default();
+        m.notice(P0, &g, &[razed(), razed()]);
+        let ruthless = regard(&g, P0, P1, &scene, &m);
+        assert!(ruthless.fear > calm.fear, "{ruthless:?} against {calm:?}");
+    }
+
+    use crate::{answer_proposals, Diplomats};
+
+    /// `asker` proposes peace to `judge`, who answers through the game's table; whether the war is over.
+    fn asked_for_peace(g: &mut Game, asker: PlayerId, judge: PlayerId, table: &Diplomats) -> bool {
+        g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
+            from: asker,
+            to: judge,
+            kind: ProposalKind::Peace,
+        }));
+        answer_proposals(g, judge, table);
+        g.treaty(asker, judge) != Treaty::War
+    }
+
+    #[test]
+    fn a_peace_is_answered_by_the_judges_system_and_memory_through_the_table() {
+        // P0 is far behind, P1 far ahead.
+        // A judge on system B that is winning answers by the score and says no.
+        let mut b = war(1, 30, 160);
+        let table = Diplomats::new();
+        let mut p1 = Ai::new(P1);
+        p1.join(&table);
+        p1.set_system(crate::System::B);
+        assert!(!asked_for_peace(&mut b, P0, P1, &table), "B says no");
+        // And P1 asking P0, which has lost a lot and is on B, is taken.
+        let mut c = war(1, 30, 160);
+        let table = Diplomats::new();
+        let mut p0 = Ai::new(P0);
+        p0.join(&table);
+        p0.set_system(crate::System::B);
+        p0.notice(
+            &c,
+            &[battle_lost(), city_lost(), city_lost(), battle_lost()],
+        );
+        assert!(
+            asked_for_peace(&mut c, P1, P0, &table),
+            "the loser on B says yes"
+        );
+    }
+
+    #[test]
+    fn the_statecraft_of_a_wizard_on_b_offers_peace_by_the_score_and_a_on_a_does_not_use_it() {
+        let k = Knobs::current();
+        let mut g = war(1, 30, 200);
+        let mut ai = Ai::new(P0);
+        ai.set_system(crate::System::B);
+        ai.notice(
+            &g,
+            &[battle_lost(), city_lost(), city_lost(), battle_lost()],
+        );
+        assert!(peace_wish(&g, P0, P1, &ai.memory.get()) >= k.offer);
+        let mut events = Vec::new();
+        crate::statecraft::run(&mut ai, &mut g, &mut events);
+        assert_eq!(
+            ai.memory.get().with(P1).map(|d| d.offered),
+            Some(200),
+            "B asked"
+        );
+        assert!(
+            ai.statecraft.peace_offered.is_empty(),
+            "A's list is not used"
+        );
     }
 }

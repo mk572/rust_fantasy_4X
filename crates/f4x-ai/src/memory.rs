@@ -14,6 +14,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
+use f4x_core::diplomacy::DiplomacyEvent;
 use f4x_core::game::{Event, Game};
 use f4x_core::player::PlayerId;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -74,6 +75,19 @@ impl System {
     }
 }
 
+/// What a wizard has seen another do that the others dislike (system B's fear): cities razed, wars
+/// declared, treaties broken. `points` fade by half every `Knobs::ruth_half` turns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Acts {
+    pub who: PlayerId,
+    pub razed: u32,
+    pub wars: u32,
+    pub broken: u32,
+    /// The ruthlessness it adds up to, as of turn `stamp`.
+    pub points: i32,
+    pub stamp: u32,
+}
+
 /// Everything a wizard keeps of the others.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Memory {
@@ -81,6 +95,9 @@ pub(crate) struct Memory {
     #[serde(default)]
     pub system: System,
     pub dealings: Vec<Dealing>,
+    /// What it has seen the others do (system B's fear).
+    #[serde(default)]
+    pub acts: Vec<Acts>,
 }
 
 impl Memory {
@@ -101,6 +118,54 @@ impl Memory {
         &mut self.dealings[i]
     }
 
+    /// How ruthless `who` has been, as `me` saw it, faded to turn `now`.
+    pub(crate) fn ruthlessness(&self, who: PlayerId, now: u32, half: u32) -> i32 {
+        self.acts.iter().find(|a| a.who == who).map_or(0, |a| {
+            let halvings = (now.saturating_sub(a.stamp) / half.max(1)).min(30);
+            a.points >> halvings
+        })
+    }
+
+    fn acts_of(&mut self, who: PlayerId) -> &mut Acts {
+        let i = match self.acts.iter().position(|a| a.who == who) {
+            Some(i) => i,
+            None => {
+                self.acts.push(Acts {
+                    who,
+                    razed: 0,
+                    wars: 0,
+                    broken: 0,
+                    points: 0,
+                    stamp: 0,
+                });
+                self.acts.len() - 1
+            }
+        };
+        &mut self.acts[i]
+    }
+
+    /// Write down what a wizard met did: it razed a city, declared a war or broke a treaty.
+    fn ruthless(&mut self, who: PlayerId, now: u32, kind: Ruth) {
+        let k = crate::diplo_b::Knobs::current();
+        let a = self.acts_of(who);
+        a.points = (a.points >> (now.saturating_sub(a.stamp) / k.ruth_half.max(1)).min(30)).max(0);
+        a.stamp = now;
+        match kind {
+            Ruth::Razed => {
+                a.razed += 1;
+                a.points += k.ruth_raze;
+            }
+            Ruth::War => {
+                a.wars += 1;
+                a.points += k.ruth_war;
+            }
+            Ruth::Broken => {
+                a.broken += 1;
+                a.points += k.ruth_broken;
+            }
+        }
+    }
+
     /// Write down that peace was offered to `with` on this turn.
     pub(crate) fn offered_peace(&mut self, with: PlayerId, turn: u32) {
         self.dealing(with).offered = turn;
@@ -116,6 +181,23 @@ impl Memory {
             |p: PlayerId| p != me && (game.is_wizard(p) || game.race_of_player(p).is_some());
         let k = Knobs::current();
         for event in events {
+            // What the others do that is ruthless, seen when they are known to it.
+            let act = match *event {
+                Event::CityRazed { player, .. } => Some((player, Ruth::Razed)),
+                Event::Diplomacy(DiplomacyEvent::WarDeclared { attacker, .. }) => {
+                    Some((attacker, Ruth::War))
+                }
+                Event::Diplomacy(DiplomacyEvent::TreatyBroken { breaker, .. }) => {
+                    Some((breaker, Ruth::Broken))
+                }
+                _ => None,
+            };
+            if let Some((who, kind)) = act {
+                if known(who) && game.have_met(me, who) {
+                    self.ruthless(who, turn, kind);
+                }
+                continue;
+            }
             let (with, battle, won, city) = match *event {
                 Event::BattleEnded { winner, loser } if winner == me => (loser, true, true, false),
                 Event::BattleEnded { winner, loser } if loser == me => (winner, true, false, false),
@@ -150,6 +232,13 @@ impl Memory {
             d.weary = (d.weary + if won { -down } else { up }).max(0);
         }
     }
+}
+
+/// The acts a wizard counts against another.
+enum Ruth {
+    Razed,
+    War,
+    Broken,
 }
 
 /// A memory behind a handle, shared by the wizard and the table. A copy of the wizard (`Clone`) has
