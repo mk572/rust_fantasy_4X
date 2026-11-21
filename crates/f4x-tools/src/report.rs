@@ -267,6 +267,75 @@ fn print_systems(played: &[Played]) {
         columns[0].1.wizards, columns[1].1.wizards, alive[0], alive[1]
     );
     print_rows(&columns);
+    print_paired(played);
+}
+
+/// The mean of a seat system's counts per wizard in one game, one value per row of the tables
+/// (`Metrics` rows, then `Standing` rows); `None` when the game had no seat of that system.
+fn game_means(game: &Played, system: System) -> Option<Vec<f64>> {
+    let mut col = Column::default();
+    col.add(game.result, |p| game.system_of(p) == system);
+    if col.wizards == 0 {
+        return None;
+    }
+    let n = col.wizards as f64;
+    Some(
+        col.metrics
+            .rows()
+            .iter()
+            .map(|(_, v)| f64::from(*v))
+            .chain(col.standing.iter().map(|&v| v as f64))
+            .map(|v| v / n)
+            .collect(),
+    )
+}
+
+/// The mean of the values and the standard error of that mean (zero for fewer than two values).
+fn mean_and_se(values: &[f64]) -> (f64, f64) {
+    let n = values.len() as f64;
+    if values.len() < 2 {
+        return (values.first().copied().unwrap_or(0.0), 0.0);
+    }
+    let mean = values.iter().sum::<f64>() / n;
+    let var = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
+    (mean, (var / n).sqrt())
+}
+
+/// B minus A inside each game that had both, per row: the mean difference, its standard error and a
+/// star when it is over two standard errors, so a difference can be told from the noise of the games
+/// (the A-against-A runs differ by tens of percent at 24 games).
+fn print_paired(played: &[Played]) {
+    let pairs: Vec<(Vec<f64>, Vec<f64>)> = played
+        .iter()
+        .filter_map(|g| Some((game_means(g, System::A)?, game_means(g, System::B)?)))
+        .collect();
+    if pairs.len() < 2 {
+        return;
+    }
+    let labels: Vec<&str> = Metrics::default()
+        .rows()
+        .iter()
+        .map(|(l, _)| *l)
+        .chain(Standing::default().rows().iter().map(|(l, _)| *l))
+        .collect();
+    println!();
+    println!(
+        "== B minus A inside the same game ({} games with both; * is over two standard errors) ==",
+        pairs.len()
+    );
+    println!("{:<34}{:>9}{:>9}{:>9}", "", "A", "B-A", "+-se");
+    let n = pairs.len() as f64;
+    for (i, label) in labels.iter().enumerate() {
+        let diffs: Vec<f64> = pairs.iter().map(|(a, b)| b[i] - a[i]).collect();
+        let (mean, se) = mean_and_se(&diffs);
+        let a = pairs.iter().map(|(a, _)| a[i]).sum::<f64>() / n;
+        let star = if se > 0.0 && mean.abs() > 2.0 * se {
+            "*"
+        } else {
+            ""
+        };
+        println!("{label:<34}{a:>9.1}{mean:>+9.1}{se:>9.1} {star}");
+    }
 }
 
 /// The counts per wizard and game for each kind of seat, then the standing at the end.
@@ -406,6 +475,16 @@ fn print_divergence(opts: &Options, seeds: &[u64], played: &[Played]) {
 mod tests {
     use super::*;
     use crate::metrics::Tally;
+
+    #[test]
+    fn the_standard_error_of_the_mean_shrinks_with_agreeing_values() {
+        let (mean, se) = mean_and_se(&[2.0, 4.0, 6.0]);
+        assert!((mean - 4.0).abs() < 1e-9);
+        // sample sd 2, over sqrt(3)
+        assert!((se - 2.0 / 3f64.sqrt()).abs() < 1e-9);
+        assert_eq!(mean_and_se(&[3.0, 3.0, 3.0]), (3.0, 0.0));
+        assert_eq!(mean_and_se(&[5.0]), (5.0, 0.0));
+    }
 
     /// The result of a game that was only set up (no turn played), with these fingerprints.
     fn result(fingerprints: Vec<(u32, u64)>) -> GameResult {

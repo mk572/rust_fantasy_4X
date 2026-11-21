@@ -106,7 +106,9 @@ turns each other wizard gets `Values { enemy, friend }`:
 * The others are **courted** once per `COURT_COOL` (20) turns: a pact at friend `PACT_MIN` 30, an alliance at
   `ALLY_MIN` 55, a gift (A's gold gift) where the relation is too low for a pact and friend is at `GIFT_MIN` 25.
 
-All numbers are first guesses, to be tuned against the soak. `soak --detail` prints a line per wizard: the system, and
+All numbers are first guesses, to be tuned against the soak. The soak report ends its "By diplomacy system" table with "B minus A
+ inside the same game": per row the mean difference over the games with both systems, its standard error, and a star past two
+standard errors (`report::print_paired`); read the tuning from that, not from the plain means. `soak --detail` prints a line per wizard: the system, and
 for B the main enemy, the weariness against each wizard at war and the ruthlessness seen (`Ai::diplomacy_note`).
 
 ## Friends and enemies
