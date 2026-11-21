@@ -164,6 +164,9 @@ pub struct Metrics {
     /// Units tagged for a ship that had not yet taken them aboard, summed over turns (unit-turns
     /// of waiting for a ship, task 647).
     pub waiting_for_ship: u32,
+    /// Cities with no unit in them but engineers, settlers, mana spirits and ships, summed over
+    /// rounds (city-turns undefended).
+    pub undefended_cities: u32,
     /// Settlers that left the map without founding a city: killed (in a battle, or otherwise gone
     /// with no word from the game), let go for lack of food, let go for lack of gold.
     pub settlers_killed: u32,
@@ -187,9 +190,23 @@ pub struct Metrics {
     pub defense_lost_lair: u32,
 }
 
+/// The counts that mean nothing for a neutral player: it has no magic, so no spells cast or
+/// learned and no research. It follows the wizards' rules for everything else (heroes, items,
+/// diplomacy, trades).
+const WIZARD_ONLY: &[&str] = &["spells cast", "spells learned", "research stalled turns"];
+
 impl Metrics {
+    /// The counts that apply to a neutral player, in the order of [`Metrics::rows`]: all but the
+    /// ones only a wizard has (`WIZARD_ONLY`).
+    pub fn neutral_rows(&self) -> Vec<(&'static str, u32)> {
+        self.rows()
+            .into_iter()
+            .filter(|(label, _)| !WIZARD_ONLY.contains(label))
+            .collect()
+    }
+
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 88] {
+    pub fn rows(&self) -> [(&'static str, u32); 89] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -271,6 +288,7 @@ impl Metrics {
                 self.missions_reset,
             ),
             ("unit-turns waiting for a ship", self.waiting_for_ship),
+            ("city-turns undefended", self.undefended_cities),
             ("settlers lost in battle", self.settlers_killed),
             ("settlers let go for lack of food", self.settlers_starved),
             ("settlers let go for lack of gold", self.settlers_unpaid),
@@ -445,6 +463,7 @@ impl AddAssign for Metrics {
             units_unregistered,
             missions_reset,
             waiting_for_ship,
+            undefended_cities,
             settlers_killed,
             settlers_starved,
             settlers_unpaid,
@@ -534,6 +553,7 @@ impl AddAssign for Metrics {
         self.units_unregistered += units_unregistered;
         self.missions_reset += missions_reset;
         self.waiting_for_ship += waiting_for_ship;
+        self.undefended_cities += undefended_cities;
         self.settlers_killed += settlers_killed;
         self.settlers_starved += settlers_starved;
         self.settlers_unpaid += settlers_unpaid;
@@ -613,6 +633,10 @@ pub struct Tally {
     /// owner and the plane (index).
     #[serde(default)]
     far_captures: Vec<(u32, u8, u8, usize)>,
+    /// Each city (outposts too) found undefended at a sample: the turn, the owner and the city's
+    /// square.
+    #[serde(default)]
+    undefended: Vec<(u32, u8, f4x_core::map::Position)>,
     /// The settlers on the map at the last sample, with their owner and square, to see which one
     /// has gone, and the settlers the game let go of for lack of food or gold since then (by owner).
     #[serde(skip)]
@@ -666,6 +690,7 @@ impl Tally {
                 })
                 .collect(),
             far_captures: Vec::new(),
+            undefended: Vec::new(),
             settlers_seen: Vec::new(),
             settlers_let_go: Vec::new(),
             founded_now: Vec::new(),
@@ -707,6 +732,7 @@ impl Tally {
     pub fn sample_mana(&mut self, game: &Game) {
         self.sample_wars(game);
         self.sample_settlers(game);
+        self.sample_cities(game);
         let now = self.mana_now(game);
         for p in game.player_ids() {
             if game.wizard(p).is_none() {
@@ -795,6 +821,29 @@ impl Tally {
         self.settlers_seen = now;
     }
 
+    /// Count each city (a neutral one too: it is the neutrals' share) that holds no unit but
+    /// engineers, settlers, mana spirits and ships (the units that cannot defend it), once per round, and keep which city on which turn. An
+    /// outpost is a city, so it counts.
+    fn sample_cities(&mut self, game: &Game) {
+        // A ship defends nothing, and neither do the workers.
+        let defends = |u| {
+            game.units()
+                .unit_def(u)
+                .is_some_and(|d| !d.is_worker() && !is_ship(d))
+        };
+        for (_, info, at) in game.economy().cities() {
+            let held = game
+                .economy()
+                .army_at(at)
+                .into_iter()
+                .any(|u| game.units().unit_owner(u) == Some(info.owner) && defends(u));
+            if !held {
+                self.bump(info.owner, |m| m.undefended_cities += 1);
+                self.undefended.push((game.turn, info.owner.0, at));
+            }
+        }
+    }
+
     fn sample_wars(&mut self, game: &Game) {
         let wizards: Vec<PlayerId> = game
             .player_ids()
@@ -850,6 +899,11 @@ impl Tally {
     /// taker, the former owner and the plane (index).
     pub fn far_captures(&self) -> &[(u32, u8, u8, usize)] {
         &self.far_captures
+    }
+
+    /// The cities found undefended, in order: the turn, the owner and the city's square.
+    pub fn undefended(&self) -> &[(u32, u8, f4x_core::map::Position)] {
+        &self.undefended
     }
 
     /// The mana each wizard spent over the game and holds now, by player number.
@@ -1468,6 +1522,101 @@ mod tests {
         tally.sample_settlers(&game);
         assert_eq!(tally.of(PlayerId(0)).settlers_killed, 1);
         Ok(())
+    }
+
+    /// A city that holds only settlers, engineers and mana spirits is undefended: it is counted
+    /// each time the tally samples; a unit that fights in it ends the count.
+    #[test]
+    fn a_city_with_no_unit_but_workers_is_counted_as_undefended() -> TestResult {
+        let content = shipped();
+        let mut game = new_game(
+            content,
+            &NewGame {
+                seed: 4,
+                all_ai: true,
+                ..NewGame::with_wizards(2)
+            },
+        )?;
+        let home = game
+            .wizard(PlayerId(0))
+            .and_then(|w| w.fortress())
+            .ok_or("no fortress")?;
+        let kind_of = |keep: &dyn Fn(&f4x_def::rules::UnitDef) -> bool| {
+            content
+                .rules
+                .units
+                .defs()
+                .iter()
+                .find(|d| keep(d))
+                .and_then(|d| content.rules.units.id_numbered(d.num))
+                .ok_or("no such unit in the content")
+        };
+        // Empty the city of everything it holds.
+        for u in game.units().units_at(home) {
+            game.scenario_remove_unit(u);
+        }
+        let mut tally = Tally::new(&game);
+        tally.sample_cities(&game);
+        assert_eq!(tally.of(PlayerId(0)).undefended_cities, 1, "an empty city");
+        let ours: Vec<_> = tally.undefended().iter().filter(|u| u.1 == 0).collect();
+        assert_eq!(ours, [&(game.turn, 0, home)], "turn and square");
+        assert!(
+            tally.undefended().iter().any(|u| u.1 >= 100),
+            "a neutral city with no garrison counts too: {:?}",
+            tally.undefended()
+        );
+        // A settler is no defender.
+        let settler = kind_of(&|d| d.is_settler())?;
+        game.apply(f4x_core::game::Command::CreateUnit {
+            owner: PlayerId(0),
+            pos: home,
+            unit: settler,
+        });
+        tally.sample_cities(&game);
+        assert_eq!(tally.of(PlayerId(0)).undefended_cities, 2, "a settler only");
+        // Nor is a ship.
+        let ship = kind_of(&|d| is_ship(d))?;
+        game.apply(f4x_core::game::Command::CreateUnit {
+            owner: PlayerId(0),
+            pos: home,
+            unit: ship,
+        });
+        tally.sample_cities(&game);
+        assert_eq!(tally.of(PlayerId(0)).undefended_cities, 3, "a ship too");
+        // A soldier is.
+        let soldier = kind_of(&|d| d.is_fighter())?;
+        game.apply(f4x_core::game::Command::CreateUnit {
+            owner: PlayerId(0),
+            pos: home,
+            unit: soldier,
+        });
+        tally.sample_cities(&game);
+        assert_eq!(tally.of(PlayerId(0)).undefended_cities, 3, "defended now");
+        Ok(())
+    }
+
+    /// A neutral player is shown all but the magic: no spells or research, but the heroes, the
+    /// diplomacy, the battles, the cities and the city-turns without a defender. Every name in the wizard-only list is a real
+    /// row.
+    #[test]
+    fn a_neutral_player_is_shown_the_rows_that_apply_to_it() {
+        let m = Metrics::default();
+        let all: Vec<&str> = m.rows().iter().map(|r| r.0).collect();
+        for label in WIZARD_ONLY {
+            assert!(all.contains(label), "no such row: {label}");
+        }
+        let neutral: Vec<&str> = m.neutral_rows().iter().map(|r| r.0).collect();
+        assert!(!neutral.contains(&"spells cast"));
+        for kept in [
+            "units built",
+            "battles won",
+            "heroes joined",
+            "trades done",
+            "wars declared",
+            "city-turns undefended",
+        ] {
+            assert!(neutral.contains(&kept), "{kept}");
+        }
     }
 
     /// A city taken on the plane the taker did not start on is a far capture, with its turn,

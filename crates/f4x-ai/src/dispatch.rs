@@ -329,8 +329,9 @@ fn free_soldiers(ai: &Ai, game: &Game) -> Vec<hecs::Entity> {
 /// One turn of the jobs, in the order of the checklist.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::roles::register(ai, game);
-    // The sanity check of the units booked on ships, before any job moves one of them.
-    crate::pickup::check_passengers(ai, game);
+    // The sweep of the ship ties (and the sanity check of the passengers), before any job moves
+    // one of them.
+    crate::pickup::tidy_unit_registry(ai, game);
     // Quick strikes come first: no unit has used a move or got an order yet.
     crate::strike::run(ai, game, events);
     // First the units whose mission is over, so the jobs below see them waiting.

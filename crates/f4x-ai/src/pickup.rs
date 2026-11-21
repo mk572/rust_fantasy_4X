@@ -290,80 +290,9 @@ fn plan_group(
     best.map(|(_, plan)| plan)
 }
 
-/// The check at the start of the turn, before any job has moved a unit: every unit booked on a
-/// ship (it has a boarding tile and a ship) must
-///
-/// * be where a passenger is: aboard that ship, or on its way to the boarding tile (standing on
-///   it, under an order, or waiting because the tile is full), and the ship must exist;
-/// * have a target that needs a sea crossing (`Crossing::Sea` and a destination);
-/// * need the ship: be a walker (`PlayerView::is_walker`).
-///
-/// A unit that fails is let off the plan and the refused-order log says which rule it broke, so a
-/// soak shows the job that left it behind (the strike that walked a passenger into a city,
-/// say) instead of a ship that waits for it for hundreds of turns.
-pub(crate) fn check_passengers(ai: &mut Ai, game: &Game) {
-    let mut broken: Vec<(Serial, String)> = Vec::new();
-    {
-        let view = PlayerView::new(game, ai.player);
-        let mine = view.my_units();
-        for &u in &mine {
-            let s = view.serial_of(u);
-            let (Some(tile), Some(ship_serial)) = (ai.roles.boarding_of(s), ai.roles.with_of(s))
-            else {
-                continue;
-            };
-            let mut faults: Vec<String> = Vec::new();
-            // A: on its ship, or on the way to board it.
-            match mine
-                .iter()
-                .copied()
-                .find(|&x| view.serial_of(x) == ship_serial)
-            {
-                None => faults.push(format!("its ship {ship_serial:?} is gone")),
-                Some(ship) => {
-                    let pos = view.unit_position(u);
-                    let aboard = pos.is_some() && pos == view.unit_position(ship);
-                    let on_its_way =
-                        pos == Some(tile) || view.unit_has_order(u) || !Ai::room_at(game, tile, 1);
-                    if !aboard && !on_its_way {
-                        faults.push(format!(
-                            "not aboard ship {ship_serial:?} and not on the way to its boarding tile {tile:?} (at {pos:?})"
-                        ));
-                    }
-                }
-            }
-            // B: the target needs the sea.
-            if ai.roles.crossing_of(s) != Some(Crossing::Sea)
-                || ai.roles.destination_of(s).is_none()
-            {
-                faults.push(format!(
-                    "its target {:?} needs no sea crossing ({:?})",
-                    ai.roles.destination_of(s),
-                    ai.roles.crossing_of(s)
-                ));
-            }
-            // C: it needs a ship at all (`is_walker`: no flight, no Wind Walking, and so on).
-            if !view.is_walker(u) {
-                faults.push("it is no walker (it flies, walks on water or the like)".to_string());
-            }
-            if !faults.is_empty() {
-                broken.push((s, faults.join("; ")));
-            }
-        }
-    }
-    for (s, why) in broken {
-        ai.note_failure(
-            game,
-            format!("passenger {s:?} booked on a ship"),
-            crate::with_detail("BadPassenger".to_string(), Some(why)),
-        );
-        ai.roles.unboard(s);
-    }
-}
-
 /// One turn of the waiting units and the ships that fetch them.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
-    tidy(ai, game);
+    tidy_unit_registry(ai, game);
     if ai.roles.waiting_for_ship().is_empty() && voyages(ai).is_empty() {
         return;
     }
@@ -410,15 +339,83 @@ fn call_off_a_scout_ship(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) 
     ai.order(game, Command::ClearOrders { units: vec![ship] }, events);
 }
 
-/// Forget the ties of units that no longer wait (their tag is gone: the target changed, they got
-/// there another way) and the ships that have nobody left to fetch.
-fn tidy(ai: &mut Ai, game: &Game) {
-    let view = PlayerView::new(game, ai.player);
-    for u in view.my_units() {
-        let s = view.serial_of(u);
-        if ai.roles.boarding_of(s).is_some() && ai.roles.crossing_of(s) != Some(Crossing::Sea) {
-            ai.roles.unboard(s);
+/// The sweep of the ship ties in the unit registry, at the start of the turn (before any job has
+/// moved a unit) and again before the pickups. Every unit booked on a ship (it has a boarding tile
+/// and a ship) must
+///
+/// * be where a passenger is: aboard that ship, or on its way to the boarding tile (standing on
+///   it, under an order, or waiting because the tile is full), and the ship must exist;
+/// * have a target that needs a sea crossing (`Crossing::Sea` and a destination);
+/// * need the ship: be a walker (`PlayerView::is_walker`, the unit alone: a stack with a Wind
+///   Walker is left out on purpose, it would give false alarms).
+///
+/// A unit that fails is taken off the passenger list (`Registry::unboard`). When its target is
+/// simply gone (the job ended: no destination, no crossing) that is the ordinary end of a plan and
+/// is silent; any other fault goes into the refused-order log (`BadPassenger`), so a soak shows
+/// the job that left a passenger behind (the strike that walked one into a city) instead of a ship
+/// that waits for it for hundreds of turns. The sweep then releases the ships that have nobody
+/// left to fetch.
+pub(crate) fn tidy_unit_registry(ai: &mut Ai, game: &Game) {
+    let mut broken: Vec<(Serial, Option<String>)> = Vec::new();
+    {
+        let view = PlayerView::new(game, ai.player);
+        let mine = view.my_units();
+        for &u in &mine {
+            let s = view.serial_of(u);
+            let (Some(tile), Some(ship_serial)) = (ai.roles.boarding_of(s), ai.roles.with_of(s))
+            else {
+                continue;
+            };
+            // The tag is gone: the target changed or the unit got there another way.
+            let (crossing, to) = (ai.roles.crossing_of(s), ai.roles.destination_of(s));
+            if crossing.is_none() && to.is_none() {
+                broken.push((s, None));
+                continue;
+            }
+            let mut faults: Vec<String> = Vec::new();
+            // A: on its ship, or on the way to board it.
+            match mine
+                .iter()
+                .copied()
+                .find(|&x| view.serial_of(x) == ship_serial)
+            {
+                None => faults.push(format!("its ship {ship_serial:?} is gone")),
+                Some(ship) => {
+                    let pos = view.unit_position(u);
+                    let aboard = pos.is_some() && pos == view.unit_position(ship);
+                    let on_its_way =
+                        pos == Some(tile) || view.unit_has_order(u) || !Ai::room_at(game, tile, 1);
+                    if !aboard && !on_its_way {
+                        faults.push(format!(
+                            "not aboard ship {ship_serial:?} and not on the way to its boarding tile {tile:?} (at {pos:?})"
+                        ));
+                    }
+                }
+            }
+            // B: the target needs the sea.
+            if crossing != Some(Crossing::Sea) || to.is_none() {
+                faults.push(format!(
+                    "its target {to:?} needs no sea crossing ({crossing:?})"
+                ));
+            }
+            // C: it needs a ship at all (`is_walker`: no flight, no Wind Walking, and so on).
+            if !view.is_walker(u) {
+                faults.push("it is no walker (it flies, walks on water or the like)".to_string());
+            }
+            if !faults.is_empty() {
+                broken.push((s, Some(faults.join("; "))));
+            }
         }
+    }
+    for (s, why) in broken {
+        if let Some(why) = why {
+            ai.note_failure(
+                game,
+                format!("passenger {s:?} booked on a ship"),
+                crate::with_detail("BadPassenger".to_string(), Some(why)),
+            );
+        }
+        ai.roles.unboard(s);
     }
     let mut planned = ai.roles.members(Role::TransportSpace);
     planned.extend(ai.roles.members(Role::TransportReady));
@@ -1282,7 +1279,7 @@ mod tests {
         let mut ai = Ai::new(P0);
         ai.record_refusals(true);
         let soldier = booked(&mut g, &mut ai, land, land);
-        check_passengers(&mut ai, &g);
+        tidy_unit_registry(&mut ai, &g);
         let s = PlayerView::new(&g, P0).serial_of(soldier);
         assert!(said(&ai).is_empty());
         assert!(ai.roles.boarding_of(s).is_some(), "still booked");
@@ -1298,7 +1295,7 @@ mod tests {
         ai.record_refusals(true);
         // It stands in the port with no order, far from its boarding tile and not on the ship.
         let soldier = booked(&mut g, &mut ai, at(5, 8), land);
-        check_passengers(&mut ai, &g);
+        tidy_unit_registry(&mut ai, &g);
         let s = PlayerView::new(&g, P0).serial_of(soldier);
         let said = said(&ai);
         assert!(
@@ -1319,12 +1316,32 @@ mod tests {
         let soldier = booked(&mut g, &mut ai, land, land);
         let s = PlayerView::new(&g, P0).serial_of(soldier);
         ai.roles.set_crossing(s, None);
-        check_passengers(&mut ai, &g);
+        tidy_unit_registry(&mut ai, &g);
         let said = said(&ai);
         assert!(
             said.iter().any(|r| r.contains("needs no sea crossing")),
             "{said:?}"
         );
+        assert_eq!(ai.roles.boarding_of(s), None);
+        Ok(())
+    }
+
+    /// A plan that simply ended (its target is gone) is no fault: the passenger is taken off the
+    /// list and nothing is logged.
+    #[test]
+    fn a_passenger_whose_plan_ended_is_let_off_without_a_word() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let land = shore(&g)?;
+        let mut ai = Ai::new(P0);
+        ai.record_refusals(true);
+        let soldier = booked(&mut g, &mut ai, land, land);
+        let s = PlayerView::new(&g, P0).serial_of(soldier);
+        ai.roles.set_crossing(s, None);
+        let _ = ai.roles.claim(s, Role::Reinforce, g.turn, None);
+        ai.roles.set_target(s, Role::Reinforce, None);
+        tidy_unit_registry(&mut ai, &g);
+        assert!(said(&ai).is_empty());
         assert_eq!(ai.roles.boarding_of(s), None);
         Ok(())
     }
@@ -1338,7 +1355,7 @@ mod tests {
         ai.record_refusals(true);
         let flier = booked(&mut g, &mut ai, land, land);
         g.scenario_enchant_unit(flier, f4x_def::rules::SpellId::new(56 /* flight */), P0);
-        check_passengers(&mut ai, &g);
+        tidy_unit_registry(&mut ai, &g);
         let said_flier = said(&ai);
         assert!(
             said_flier.iter().any(|r| r.contains("no walker")),

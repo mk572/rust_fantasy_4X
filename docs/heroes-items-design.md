@@ -338,7 +338,7 @@ items are destroyed" and, for Disintegrate and the like, "gone for good" in the 
   hero component, the battle writes the new count back).
 - **Spoils** (`battle/spoils.rs`): `Spoils` gains `items: Vec<Item>` (the loser's heroes that fell,
   their three slots) and the heroes lost; the game then places them in the winner's
-  armory (`give_item`). A neutral winner takes nothing. Fame for heroes is unchanged.
+  armory (`give_item`); a neutral race player takes them into its vault like any other player. Fame for heroes is unchanged.
 - **Fate.** `Fate::Gone` is what Disintegrate, Banish and the other removal spells leave (items
   destroyed, hero gone for good); `Slain` leaves the hero Dead (revivable, items to the winner).
 - **Recall Hero.** A battle action: the hero leaves the field to the fortress at once (status like

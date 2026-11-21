@@ -30,9 +30,10 @@ peace), and among themselves they make treaties, trade spells and declare wars.
 The neutral player of each race (task 522, `Game::race_player`) takes part in diplomacy like a
 wizard: `Game::takes_part_in_diplomacy` (wizards and race players, not the monsters) is the one
 predicate the rules ask, and `PlayerView::is_diplomat` is the AI's. They meet by sight, hold
-relations and treaties, declare war, make peace, and answer proposals with the same `rate`. The
-differences: they have no spells, so no spell swaps or gifts (the exchange row is not on the
-diplomacy screen, the core refuses the proposal); they have no objective (`quarrel` picks fights
+relations and treaties, declare war, make peace, and answer proposals with the same `rate`. They
+trade gold, items, units and heroes by the same rules as a wizard (an item goes into the vault
+every player has). The differences: they have no magic, so no spell swaps or gifts (the exchange
+row is not on the diplomacy screen, the core refuses the proposal); they have no objective (`quarrel` picks fights
 only on the strength rule) and the temper that a player without a wizard gets by default (`Personality::Chaotic`, as the human counts); a banished
 wizard's early returns do not apply to them; and they greet the human by their race's picture
 (`crates/f4x-client/assets/neutral/`), named "Neutral {race}". The human opens the talk by clicking
@@ -228,7 +229,7 @@ Special value `-10000` means "declare this on the record": no numbers change, th
 
 ## 6. War, peace and breaking treaties
 
-**`Declare_War(attacker, defender)`**: refused if either is neutral or they are already at war.
+**`Declare_War(attacker, defender)`**: refused if either is neutral (the original's neutral owner, which has no player; ours is the monsters' owner: the neutral player of a race may declare war and be declared on, see above) or they are already at war.
 Breaks treaties (below). `default_rel` of both drops by 5. The relation becomes `-75 - Random(25)`
 (the code writes the war constant 3 into the second direction by mistake, which the mirror fixes
 later). Treaty and exchange patience become -200, peace patience -130, hostility 3, and both
@@ -355,8 +356,8 @@ on a pact or alliance partner asks "You have a treaty with X. Do you still wish 
 cannot be chosen are greyed instead of dark.
 
 **Statecraft (task 510, `f4x-ai/src/statecraft.rs`).** What the AI plans, for the wizards and the neutral races alike
-(`PlayerView::is_diplomat`; a neutral race has no spells, so no trades, gifts of spells or Mastery; everything else
-applies). Each part reads only what a human can see: the army scores of the Astrologer (`army_strength`), the cities it
+(`PlayerView::is_diplomat`; a neutral race has no magic, so no trades or gifts of spells and no Mastery; everything else,
+the trades of gold, items, units and heroes too, applies). Each part reads only what a human can see: the army scores of the Astrologer (`army_strength`), the cities it
 has seen, the treaties and the proposals.
 1. *Dominant war.* From turn 40, with no war on and no treaty, it declares war on the weakest neighbour it holds 160
    percent of the army and 150 percent of the known cities of (and at least three cities of its own), once one of its

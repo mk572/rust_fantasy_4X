@@ -80,7 +80,7 @@ built, that costs 600 or more); the loser loses the same two points for the same
 `(level + 1) / 2` fame for each hero it lost (half the level counted from 1, rounded down: a
 Myrmidon or Captain 1, a Commander or Champion 2). These are the rules of the Master of Magic wiki's
 article on Fame (`reference/Fame ... .html`, 7 November 2026); the original's extra point for a human
-loser above 20 fame is gone. A neutral winner gets nothing. The fallen heroes' items are loot in the original (task 221).
+loser above 20 fame is gone. A neutral race player earns no fame of its own: it counts as the average of the living wizards' (`Units::fame`), so its offers keep pace with the game. The fallen heroes' items are loot in the original (task 221).
 
 ### 2.1 Immunities and resistance (task 35)
 

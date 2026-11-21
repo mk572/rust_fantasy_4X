@@ -177,8 +177,8 @@ pub fn delivery_square(view: &Game, receiver: PlayerId, from: Position) -> Optio
 }
 
 /// Whether `owner` could hand `goods` to `receiver` now (a bundle may be empty). Gold needs the
-/// treasury, a spell the books of the receiver, an item the vault, a unit a city and the receiver
-/// a square with room.
+/// treasury, a spell the books of the receiver (a wizard's), an item the vault (the receiver's
+/// too: every player has one), a unit a city and the receiver a square with room.
 pub fn can_hand_over(view: &Game, owner: PlayerId, receiver: PlayerId, goods: Goods) -> bool {
     if goods.gold < 0 {
         return false;
@@ -201,7 +201,8 @@ pub fn can_hand_over(view: &Game, owner: PlayerId, receiver: PlayerId, goods: Go
         }
     }
     if let Some(item) = goods.item {
-        if view.wizard(receiver).is_none() || armory_item(view, owner, item).is_none() {
+        // Any player with a vault may take it: a wizard or the neutral player of a race.
+        if view.player(receiver).is_none() || armory_item(view, owner, item).is_none() {
             return false;
         }
     }

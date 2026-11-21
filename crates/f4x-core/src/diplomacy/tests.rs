@@ -1899,6 +1899,50 @@ fn trade(give: Goods, get: Goods) -> ProposalKind {
     ProposalKind::Trade { give, get }
 }
 
+/// The neutral player of a race trades like a wizard, whatever it has no magic for: it takes an
+/// item into its vault and pays for it in gold.
+#[test]
+fn a_neutral_race_buys_an_item_for_gold() -> TestResult {
+    let mut g = world();
+    let race = g.content.rules.races.id_numbered(7).ok_or("a race")?;
+    let neutral = g.race_player(race);
+    met(&mut g, P0, neutral);
+    set_gold(&mut g, P0, 0)?;
+    set_gold(&mut g, neutral, 500)?;
+    city(&mut g, neutral, at(5, 5));
+    city(&mut g, P0, at(1, 1));
+    g.give_item(P0, sword());
+    let blade = g
+        .items()
+        .held(|h| matches!(h, crate::item::entity::HeldBy::Vault(p, _) if p == P0))
+        .first()
+        .map(|(e, _)| g.units().serial_of(*e))
+        .ok_or("an item serial")?;
+    let kind = trade(Goods::item(blade), Goods::gold(50));
+    assert_eq!(g.check_proposal(P0, neutral, kind), Ok(()));
+    command(
+        &mut g,
+        DiplomacyCommand::Propose {
+            from: P0,
+            to: neutral,
+            kind,
+        },
+    );
+    let events = command(
+        &mut g,
+        DiplomacyCommand::Answer {
+            player: neutral,
+            from: P0,
+            accept: true,
+        },
+    );
+    assert!(rejected(&events).is_none(), "{events:?}");
+    assert_eq!(gold_of(&g, P0)?, 50);
+    assert_eq!(g.items().armory(neutral).items().count(), 1);
+    assert_eq!(g.items().armory(P0).items().count(), 0);
+    Ok(())
+}
+
 #[test]
 fn goods_are_worth_the_baseline_and_a_modifier() -> TestResult {
     let mut g = world();

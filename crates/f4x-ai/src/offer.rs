@@ -238,7 +238,7 @@ pub fn answer_resales(game: &mut Game) -> Vec<Event> {
         let waiting: Vec<_> = game
             .player_ids()
             .into_iter()
-            .filter(|&p| Some(p) != game.human() && !game.is_neutral_player(p))
+            .filter(|&p| Some(p) != game.human())
             .filter(|&p| {
                 PlayerView::new(game, p)
                     .offers()

@@ -74,9 +74,11 @@ Decided with task 31; code in `f4x-newgame/src/neutral.rs`, `city/neutral.rs`, `
 - **Played by the standard AI, not a caretaker.** The race player runs the same `Ai::play_kept` as a
   wizard, without the wizard's parts (no spells, research, crafting or spell swaps): it builds,
   trains, explores, attacks and holds diplomacy by the ordinary commands and rules. The whole power
-  of its cities is mana, which it turns into gold by Alchemy each turn at the standard rate.
+  of its cities is mana, which it turns into gold by Alchemy each turn at the standard rate. Offers
+  (heroes, mercenaries, merchants' items), the vault, heroes and the trades of gold, items, units
+  and heroes follow the same rules as for a wizard; only magic (spells, mana, research) is left out.
 - **They are in diplomacy**: they can talk, make treaties and declare war like a wizard, with no
-  spell trades (`diplomacy.md`). They are not wizards (`is_wizard`, `living_wizards`): no fog of
+  spell trades (`diplomacy.md`), though they trade everything else. They are not wizards (`is_wizard`, `living_wizards`): no fog of
   their own beyond exploring, no victory. The monsters are always at war with every neutral player.
 - **Monsters and lair guards keep the shared owner `MONSTERS`** (255, `unit::NEUTRAL`): they have no
   treasury and no upkeep to pay and are in no list of players.

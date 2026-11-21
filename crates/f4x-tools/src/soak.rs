@@ -706,6 +706,9 @@ pub fn game(
     }
     logln!(log, "defeats: {}", defeat_line(&game, &tally));
     logln!(log, "far captures: {}", far_capture_line(&tally));
+    for line in undefended_lines(&game, &tally) {
+        logln!(log, "{line}");
+    }
     logln!(log, "wars: {}", war_line(&tally));
     for (p, place, count) in tally.worst_places(3) {
         logln!(
@@ -728,6 +731,30 @@ pub fn game(
             tally
                 .of(p)
                 .rows()
+                .into_iter()
+                .map(|(label, n)| format!("{label} = {n}"))
+                .collect::<Vec<_>>()
+                .join("; ")
+        );
+    }
+    // The same for each race's neutral player, without what only a wizard has. The prefix keeps
+    // them apart from the wizards for the report script.
+    // (a race whose cities are all gone has no player any more, but its counts stay)
+    let races = game.content().rules.races.iter().count();
+    for race in 0..races {
+        let race = f4x_core::rules::RaceId::new(race as u16);
+        let p = f4x_core::player::race_player::race_player_id(race);
+        if tally.of(p) == Default::default() {
+            continue;
+        }
+        logln!(
+            log,
+            "neutral stats p{} ({}): {}",
+            p.0,
+            game.content().rules.races.get(race).id,
+            tally
+                .of(p)
+                .neutral_rows()
                 .into_iter()
                 .map(|(label, n)| format!("{label} = {n}"))
                 .collect::<Vec<_>>()
@@ -1275,14 +1302,15 @@ fn neutral_lines(game: &Game, tally: &Tally) -> Vec<String> {
                 .count();
             let units = game.units().player_units(p).len();
             format!(
-                "{name} {cities}c/{units}u (founded {}, lost {}, taken {}, battles won {} lost {}, units lost in battle {} outside {})",
+                "{name} {cities}c/{units}u (founded {}, lost {}, taken {}, battles won {} lost {}, units lost in battle {} outside {}, city-turns undefended {})",
                 m.cities_founded,
                 m.cities_lost,
                 m.cities_captured,
                 m.battles_won,
                 m.battles_lost,
                 m.units_lost_in_battle,
-                m.units_lost
+                m.units_lost,
+                m.undefended_cities
             )
         })
         .collect();
@@ -1353,6 +1381,47 @@ fn far_capture_line(tally: &Tally) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// The cities (outposts too) that held no unit but engineers, settlers and mana spirits: one line
+/// for each run of turns in a row, `undefended: p1 Arcanus (12, 7) turns 30-45 (16)`; `undefended:
+/// none` when there was none.
+fn undefended_lines(game: &Game, tally: &Tally) -> Vec<String> {
+    use std::collections::BTreeMap;
+    let mut by_city: BTreeMap<(u8, usize, u32, u32), Vec<u32>> = BTreeMap::new();
+    for &(turn, owner, at) in tally.undefended() {
+        by_city
+            .entry((owner, at.plane.index(), at.y, at.x))
+            .or_default()
+            .push(turn);
+    }
+    if by_city.is_empty() {
+        return vec!["undefended: none".to_string()];
+    }
+    let mut lines = Vec::new();
+    for ((owner, plane, y, x), turns) in by_city {
+        let name = if plane == 0 { "Arcanus" } else { "Myrror" };
+        let mut runs: Vec<(u32, u32)> = Vec::new();
+        for t in turns {
+            match runs.last_mut() {
+                Some((_, end)) if t <= *end + 1 => *end = t,
+                _ => runs.push((t, t)),
+            }
+        }
+        for (first, last) in runs {
+            // A neutral player is a race: its name follows the number.
+            let who = game
+                .race_of_player(PlayerId(owner))
+                .map_or(format!("p{owner}"), |r| {
+                    format!("p{owner} ({})", game.content().rules.races.get(r).id)
+                });
+            lines.push(format!(
+                "undefended: {who} {name} ({x}, {y}) turns {first}-{last} ({})",
+                last - first + 1
+            ));
+        }
+    }
+    lines
 }
 
 /// The wars declared, `p1>p3@88` for the turn: who declared on whom. `none` without a war.
