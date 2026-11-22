@@ -846,6 +846,49 @@ impl Game {
 
     /// Capture everything needed to continue this game later.
     pub fn snapshot(&self) -> Snapshot {
+        // Every field of the game is named here, so a new one breaks the build until it is put on a
+        // side: kept in the snapshot, or left out for the reason given. A field forgotten here is lost
+        // by every save, and shows only when a loaded game plays differently.
+        let Game {
+            // Kept (the world is read in parts: players, units, cities, wizards).
+            world: _,
+            turn: _,
+            map: _,
+            fog: _,
+            next_serial: _,
+            rng: _,
+            settings: _,
+            battle: _,
+            game_over: _,
+            diplomacy: _,
+            events: _,
+            threat: _,
+            flow: _,
+            plans: _,
+            locations: _,
+            override_log: _,
+            prefab_taken: _,
+            // The content is named by its fingerprint and given again at the load.
+            content: _,
+            // Given by the caller after a load (the name bundle of the language).
+            names: _,
+            // Found again from the world.
+            monsters: _,
+            player_index: _,
+            // Caches, rebuilt on use.
+            vision: _,
+            net_gold_memo: _,
+            budget_parts: _,
+            // What belongs to the session, not the game: learned battle players, the recording, the
+            // undo history and the switch for it, the confirmation of one command, and the items of the
+            // last command that the client has yet to tell about.
+            battle_brains: _,
+            recording: _,
+            undo_on: _,
+            undo_stack: _,
+            confirmed: _,
+            item_awards: _,
+        } = self;
         let map = self.map.as_ref().map(|map| {
             let (mut terrains, mut features) = (Vec::new(), Vec::new());
             let planes = crate::map::Plane::all()

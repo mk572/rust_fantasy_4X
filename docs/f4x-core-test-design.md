@@ -94,8 +94,10 @@ that restores everything but the random stream or the fog.
 Guard:
 - **Round trip over everything**: for each fresh save and for games played on for N turns, `snapshot -> text ->
   restore` gives an equal snapshot, and playing both on gives equal events (the saved game against the live one).
-- **A field census**: a test that fails when a new field of `Game` is neither saved nor named as derived, so a new
-  field cannot be forgotten silently.
+- **A field census**, as a compile-time guard rather than a test: `Game::snapshot` destructures `Game` with every
+  field named and none left to `..`, so a new field breaks the build until it is put on a side (kept, or left out
+  for a reason given there: a cache, the session, given again at the load). The census states what is left out;
+  the round-trip tests below show that what is kept is kept whole.
 - **Replay**: a recorded game replays to the same state; commands name units by creation number; a command naming
   nothing is reported.
 - **Undo**: after each undoable command, `undo` gives the snapshot from before it; a command that draws, explores or
@@ -190,6 +192,5 @@ says in its header that it belongs to this design. Names follow the project's si
   against `docs/design.md` and the code as the checker is written.
 - Whether the long plays belong in `f4x-ai/tests/it` or in a crate of their own that sees core, newgame and the AI
   (`f4x-tools` has the soaks but is a binary); `f4x-ai` is the start because it has the dependencies today.
-- Whether the field census (class 4) can be done by a derive or a test over `Serialize` output.
 - How much of class 9 survives the first pass: the rebuild decides by need, and a subsystem that already has its needs
   covered by classes 1 to 8 gets few tests of its own.
