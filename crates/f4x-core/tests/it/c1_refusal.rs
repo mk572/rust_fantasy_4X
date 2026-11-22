@@ -171,3 +171,30 @@ fn every_command_is_in_the_sweep_or_named_as_missing() {
         "{gone:?} are on the list of missing commands but are no commands"
     );
 }
+
+#[test]
+fn a_refused_move_leaves_the_standby_of_the_unit() {
+    use crate::support::around;
+    use f4x_core::unit::Standby;
+    let mut refused = 0;
+    for (name, mut g) in worlds() {
+        for u in g.units().all_units().into_iter().take(40) {
+            let Some(at) = g.units().unit_position(u) else {
+                continue;
+            };
+            for to in around(&g, at) {
+                g.apply(f4x_core::game::Command::SetStandby {
+                    units: vec![u],
+                    standby: Some(Standby::Done),
+                });
+                let before = text(&g);
+                let events = g.apply(f4x_core::game::Command::MoveStack { units: vec![u], to });
+                if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
+                    refused += 1;
+                    assert_eq!(text(&g), before, "{name}: a refused move to {to:?}");
+                }
+            }
+        }
+    }
+    assert!(refused > 20, "only {refused} moves were refused");
+}

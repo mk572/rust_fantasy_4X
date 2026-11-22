@@ -594,11 +594,22 @@ impl Game {
                 vec![Event::UnitCreated { unit, pos }]
             }
             Command::MoveStack { units, to } => {
+                // Moving ends a unit's standby, but a move the game refuses changes nothing.
+                let standing: Vec<_> = units
+                    .iter()
+                    .filter_map(|&u| Some((u, self.units().unit_standby(u)?)))
+                    .collect();
                 for &u in &units {
                     let _ = self.world.remove_one::<unit::Standby>(u);
                 }
                 self.start_from_tower_on(&units, to);
-                self.do_move(&units, to)
+                let events = self.do_move(&units, to);
+                if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
+                    for (u, standby) in standing {
+                        let _ = self.world.insert_one(u, standby);
+                    }
+                }
+                events
             }
             Command::SetStandby { units, standby } => {
                 for u in units {
@@ -950,71 +961,115 @@ impl Game {
                 None => groups.push(vec![u]),
             }
         }
-        for group in groups {
-            // The lead unit of a group may have been lost to a battle that an earlier group's
-            // move brought on: then the group has no order to follow any more.
-            let Ok(order) = self
-                .world
-                .get::<&unit::Order>(group[0])
-                .map(|o| (*o).clone())
-            else {
-                continue;
-            };
-            let unit::Order::GoTo(mut path) = order;
-            while let Some(&next) = path.first() {
-                // A stack that settled in a vacant lair on the last step is gone from the map.
-                let Some(from) = self.units().unit_position(group[0]) else {
-                    path.clear();
-                    break;
-                };
-                match self.move_stack(&group, next) {
-                    Ok(unit::movement::Entry::Free) => {
-                        path.remove(0);
-                        events.push(Event::UnitsMoved {
-                            units: group.clone(),
-                            from,
-                            to: next,
-                        });
-                        events.extend(self.collect_site(&group, next));
-                    }
-                    Ok(unit::movement::Entry::Site(lair)) => {
-                        events.push(Event::SiteEncounter {
-                            units: group.clone(),
-                            from,
-                            to: next,
-                            lair,
-                        });
-                        path.clear();
-                    }
-                    Ok(unit::movement::Entry::Hostile(defenders)) => {
-                        events.extend(self.hostile_entry(&group, from, next, defenders));
-                        path.clear();
-                    }
-                    Err(unit::movement::MoveError::NoMovesLeft) => break,
-                    Err(why) => {
-                        // The order is over, and the caller is told why.
-                        if let Some(player) = self.units().unit_owner(group[0]) {
-                            events.push(Event::OrderFailed {
-                                player,
-                                units: group.clone(),
-                                at: from,
-                                to: next,
-                                why,
-                            });
-                        }
-                        path.clear();
-                    }
+        // A group whose next square is full waits for the others to move (they may be the ones
+        // standing on it) and tries again; what is still blocked when nothing more moves has its
+        // order end with the reason, as before. So a column of big stacks walking one way clears
+        // from its head, whatever the order of their serial numbers.
+        let mut waiting = groups;
+        loop {
+            let mut blocked = Vec::new();
+            let mut moved = false;
+            for group in waiting {
+                let (went, stuck) = self.follow_group(&group, false, &mut events);
+                moved |= went;
+                if stuck {
+                    blocked.push(group);
                 }
             }
-            for &u in &group {
-                if path.is_empty() {
-                    let _ = self.world.remove_one::<unit::Order>(u);
-                } else {
-                    let _ = self.world.insert_one(u, unit::Order::GoTo(path.clone()));
+            if blocked.is_empty() || !moved {
+                for group in blocked {
+                    self.follow_group(&group, true, &mut events);
+                }
+                break;
+            }
+            waiting = blocked;
+        }
+        events
+    }
+
+    /// One group of units that walk together, as far as its moves and its path go. Returns whether
+    /// it moved, and whether it stopped for lack of room on the next square (`StackFull`,
+    /// `NoRoom`): unless `last`, such a group keeps its order for another try; with `last` its
+    /// order ends with the reason.
+    fn follow_group(
+        &mut self,
+        group: &[hecs::Entity],
+        last: bool,
+        events: &mut Vec<Event>,
+    ) -> (bool, bool) {
+        let (mut went, mut stuck) = (false, false);
+        // The lead unit of a group may have been lost to a battle that an earlier group's
+        // move brought on: then the group has no order to follow any more.
+        let Ok(order) = self
+            .world
+            .get::<&unit::Order>(group[0])
+            .map(|o| (*o).clone())
+        else {
+            return (false, false);
+        };
+        let unit::Order::GoTo(mut path) = order;
+        while let Some(&next) = path.first() {
+            // A stack that settled in a vacant lair on the last step is gone from the map.
+            let Some(from) = self.units().unit_position(group[0]) else {
+                path.clear();
+                break;
+            };
+            match self.move_stack(group, next) {
+                Ok(unit::movement::Entry::Free) => {
+                    went = true;
+                    path.remove(0);
+                    events.push(Event::UnitsMoved {
+                        units: group.to_vec(),
+                        from,
+                        to: next,
+                    });
+                    events.extend(self.collect_site(group, next));
+                }
+                Ok(unit::movement::Entry::Site(lair)) => {
+                    went = true;
+                    events.push(Event::SiteEncounter {
+                        units: group.to_vec(),
+                        from,
+                        to: next,
+                        lair,
+                    });
+                    path.clear();
+                }
+                Ok(unit::movement::Entry::Hostile(defenders)) => {
+                    went = true;
+                    events.extend(self.hostile_entry(group, from, next, defenders));
+                    path.clear();
+                }
+                Err(unit::movement::MoveError::NoMovesLeft) => break,
+                Err(unit::movement::MoveError::StackFull | unit::movement::MoveError::NoRoom)
+                    if !last =>
+                {
+                    stuck = true;
+                    break;
+                }
+                Err(why) => {
+                    // The order is over, and the caller is told why.
+                    if let Some(player) = self.units().unit_owner(group[0]) {
+                        events.push(Event::OrderFailed {
+                            player,
+                            units: group.to_vec(),
+                            at: from,
+                            to: next,
+                            why,
+                        });
+                    }
+                    path.clear();
                 }
             }
         }
-        events
+        for &u in group {
+            if path.is_empty() {
+                let _ = self.world.remove_one::<unit::Order>(u);
+            } else {
+                let _ = self.world.insert_one(u, unit::Order::GoTo(path.clone()));
+            }
+        }
+        (went, stuck)
     }
 
     /// The path of a go-to order, from the tower square of the destination's plane when the stack

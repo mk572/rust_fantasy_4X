@@ -341,3 +341,176 @@ fn a_game_with_undo_off_keeps_no_history() {
     assert!(!g.can_undo());
     assert_eq!(g.undo(), Err(UndoError::NothingToUndo));
 }
+
+/// FNV-1a of the bytes, worked out here from its definition.
+fn fnv1a(text: &str) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in text.bytes() {
+        h ^= u64::from(b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    h
+}
+
+#[test]
+fn the_checksum_of_a_save_is_the_fnv_hash_of_the_rest() {
+    for (name, g) in worlds() {
+        let full = text(&g);
+        let (first, body) = full.split_once('\n').expect("a first line");
+        let sum = first.rsplit_once("checksum ").expect("a checksum").1;
+        assert_eq!(sum, format!("{:016x}", fnv1a(body)), "{name}");
+    }
+}
+
+#[test]
+fn a_save_that_contradicts_itself_is_refused() {
+    let full = saved();
+    // A change made inside the one list (`units: [(` or `cities: [(`) of the save.
+    let in_list = |list: &str, from: &str, to: &str| {
+        let at = full.find(list).expect("the list");
+        let rest = &full[at..];
+        assert!(rest.contains(from), "{from} is not in {list}");
+        format!("{}{}", &full[..at], rest.replacen(from, to, 1))
+    };
+    // The values of the first two cities and the first unit, read from the save.
+    let value = |list: &str, nth: usize, key: &str| -> String {
+        let at = full.find(list).expect("the list");
+        let line = full[at..]
+            .lines()
+            .filter(|l| {
+                l.trim().starts_with(key)
+                    || l.trim()
+                        .starts_with(&format!("pos: (plane: Arcanus, {key}"))
+            })
+            .nth(nth)
+            .unwrap_or_else(|| panic!("no {key} in {list}"));
+        line.trim().to_string()
+    };
+    let serial_line = |nth| value("cities: [(", nth, "serial: ");
+    let (first, second) = (serial_line(0), serial_line(1));
+    let next = full
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("next_serial: "))
+        .expect("the next serial")
+        .to_string();
+    let city_pos = value("cities: [(", 0, "pos: (plane");
+    let unit_pos = value("units: [(", 0, "pos: (plane");
+    let farmers = value("cities: [(", 0, "farmers: ");
+    let off = |pos: &str| {
+        pos.replacen(
+            pos.split("x: ").nth(1).unwrap().split(',').next().unwrap(),
+            "9999",
+            1,
+        )
+    };
+    let cases = [
+        (
+            "a creation number of zero",
+            in_list("cities: [(", &first, "serial: 0,"),
+        ),
+        (
+            "a creation number not yet given out",
+            in_list("cities: [(", &first, &format!("serial: {next}")),
+        ),
+        (
+            "one creation number twice",
+            in_list("cities: [(", &second, &first),
+        ),
+        (
+            "a unit off the map",
+            in_list("units: [(", &unit_pos, &off(&unit_pos)),
+        ),
+        (
+            "a city off the map",
+            in_list("cities: [(", &city_pos, &off(&city_pos)),
+        ),
+        (
+            "more farmers than citizens",
+            in_list("cities: [(", &farmers, "farmers: 99,"),
+        ),
+        (
+            "a hundred tens of people",
+            in_list("cities: [(", "tens: 0,", "tens: 100,"),
+        ),
+    ];
+    for (what, edited) in cases {
+        match load(&edited, what) {
+            Err(LoadError::Inconsistent(_)) => {}
+            other => panic!("{what}: {:?}", other.map(|_| "it loaded")),
+        }
+    }
+}
+
+#[test]
+fn a_refusal_says_what_is_wrong_in_words() {
+    let full = saved();
+    let err = load(&full.replacen("farmers: ", "farmers: 99", 1), "farmers")
+        .err()
+        .expect("refused");
+    let said = err.to_string();
+    assert!(said.contains("impossible population"), "{said}");
+    let said = load("nonsense", "nonsense")
+        .err()
+        .expect("refused")
+        .to_string();
+    assert!(said.contains("not a readable save"), "{said}");
+    // A save of other content names the fingerprints, cut to a length a person can read.
+    let snapshot = Snapshot::from_text(&full).expect("reads");
+    let mut other = content();
+    other.fingerprint = "abcdef0123456789".repeat(4);
+    let Err(LoadError::Content(e)) = snapshot.restore(other) else {
+        panic!("other content loaded")
+    };
+    let said = format!("{e:?}");
+    assert!(said.contains("abcdef012345"), "{said}");
+    assert!(!said.contains("abcdef0123456"), "{said}");
+}
+
+#[test]
+fn a_recording_runs_from_its_start_to_its_stop_and_takes_back_what_undo_takes_back() {
+    let (_, mut g) = worlds().remove(0);
+    assert!(!g.is_recording());
+    g.start_recording().expect("starts");
+    assert!(g.is_recording());
+    g.set_undo(true);
+    assert!(g.undo_enabled());
+    assert!(!g.can_undo());
+    let before = g.replay_so_far().expect("recording").commands.len();
+    a_change_that_can_be_taken_back(&mut g).expect("a change");
+    assert_eq!(g.undo_label(), Some("SetTaxRate"));
+    let during = g.replay_so_far().expect("recording").commands.len();
+    assert!(during > before, "the change was not recorded");
+    assert_eq!(g.undo().as_deref(), Ok("SetTaxRate"));
+    assert_eq!(
+        g.replay_so_far().expect("recording").commands.len(),
+        before,
+        "what was taken back is still in the recording"
+    );
+    g.set_undo(false);
+    assert!(!g.undo_enabled());
+    assert!(!g.can_undo());
+    let replay = g.stop_recording().expect("a recording");
+    assert_eq!(replay.commands.len(), before);
+    assert!(!g.is_recording());
+    assert!(g.stop_recording().is_none());
+}
+
+#[test]
+fn the_units_a_recorded_command_names_are_told_apart() {
+    let (_, mut g) = worlds().remove(0);
+    g.start_recording().expect("starts");
+    busy_round(&mut g, 6);
+    let replay = g.stop_recording().expect("a recording");
+    let moves: std::collections::BTreeSet<&str> = replay
+        .commands
+        .iter()
+        .filter(|c| c.starts_with("MoveStack"))
+        .map(|c| c.as_str())
+        .collect();
+    assert!(moves.len() >= 3, "{moves:?}");
+    let units: std::collections::BTreeSet<&str> = moves
+        .iter()
+        .filter_map(|c| c.split("units:[").nth(1)?.split(']').next())
+        .collect();
+    assert!(units.len() >= 3, "the moves name too few units: {units:?}");
+}

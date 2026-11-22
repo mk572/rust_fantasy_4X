@@ -371,6 +371,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::bridge::run(ai, game, events);
     crate::naval::run(ai, game, events);
     crate::pickup::run(ai, game, events);
+    // The orders a full square stopped go again, now that the units that could move have moved.
+    ai.retry_blocked(game, events);
     crate::roles::audit(ai, game, events);
 }
 

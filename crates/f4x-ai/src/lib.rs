@@ -319,6 +319,14 @@ pub struct Ai {
     record_refusals: bool,
     #[serde(skip)]
     refusals: RefCell<Vec<Refusal>>,
+    /// The walking orders this turn that the game stopped for lack of room on a square (a full
+    /// stack): `dispatch::run` sends them again once the other jobs have moved their units
+    /// (`Ai::retry_blocked`).
+    #[serde(skip)]
+    blocked: RefCell<Vec<Command>>,
+    /// Set while the blocked orders are being sent again, so that one still blocked is not kept twice.
+    #[serde(skip)]
+    retrying: std::cell::Cell<bool>,
     /// The one place a unit's role lives (`roles.rs`). It holds each unit's role, its
     /// target and, for a unit that cannot walk there, what it needs (`Crossing`).
     #[serde(default)]
@@ -496,6 +504,8 @@ impl Ai {
             missions_reset: 0,
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
+            blocked: RefCell::new(Vec::new()),
+            retrying: std::cell::Cell::new(false),
             roles: roles::Registry::default(),
             clock: plan_clock::PlanClock::default(),
             defended_by: Vec::new(),
@@ -722,6 +732,8 @@ impl Ai {
             } => Some(Aim::Fight(attackers.clone(), defenders.clone())),
             _ => None,
         };
+        let walk_command = matches!(command, Command::GoTo { .. } | Command::MoveStack { .. })
+            .then(|| command.clone());
         let out = game.apply(command);
         // A refusal first; else an order that was taken and stopped on its first step.
         let refused = out
@@ -775,7 +787,40 @@ impl Ai {
             }
         }
         events.extend(out);
+        if let (Some(why), Some(Aim::Walk(..)), false) = (refused, &target, self.retrying.get()) {
+            if why.is_no_room() {
+                self.blocked
+                    .borrow_mut()
+                    .push(walk_command.expect("a walking order"));
+            }
+        }
         refused.map_or(Ok(()), Err)
+    }
+
+    /// Send again the walking orders the game stopped for lack of room, now that the other jobs
+    /// have moved their units: the units that could move did, and a square they left has room for
+    /// those that waited. Unblocked first, then the blocked, as long as one more gets through, so a
+    /// column of big stacks walking one way clears from its head.
+    pub(crate) fn retry_blocked(&self, game: &mut Game, events: &mut Vec<Event>) {
+        let mut waiting = std::mem::take(&mut *self.blocked.borrow_mut());
+        self.retrying.set(true);
+        while !waiting.is_empty() {
+            let mut still = Vec::new();
+            let mut sent = false;
+            for command in waiting {
+                match self.submit(game, command.clone(), events, false) {
+                    Err(why) if why.is_no_room() => still.push(command),
+                    Ok(()) => sent = true,
+                    // Refused for another reason (the units have no moves left, say): over.
+                    Err(_) => {}
+                }
+            }
+            if !sent {
+                break;
+            }
+            waiting = still;
+        }
+        self.retrying.set(false);
     }
 }
 
@@ -978,6 +1023,42 @@ mod send_tests {
         );
         assert_eq!(sent, Err(SendError::Stopped(MoveError::StackFull)));
         Ok(())
+    }
+
+    #[test]
+    fn an_order_stopped_by_a_full_square_goes_again_once_the_stack_on_it_has_moved_on() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let rear = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 1);
+        let limit = g.max_tile();
+        let head = spawn(&mut g, P0, at(5, 9), 113, limit);
+        let ai = Ai::new(P0);
+        let mut events = Vec::new();
+        // The rear stack is sent first and finds the square full; the head stack then moves on.
+        let first = ai.send(
+            &mut g,
+            Command::GoTo {
+                units: rear.clone(),
+                to: at(5, 9),
+            },
+            &mut events,
+        );
+        assert_eq!(first, Err(SendError::Stopped(MoveError::StackFull)));
+        assert_eq!(g.units().unit_position(rear[0]), Some(at(5, 8)));
+        ai.order(
+            &mut g,
+            Command::GoTo {
+                units: head.clone(),
+                to: at(5, 10),
+            },
+            &mut events,
+        );
+        assert_eq!(g.units().unit_position(head[0]), Some(at(5, 10)));
+        ai.retry_blocked(&mut g, &mut events);
+        assert_eq!(g.units().unit_position(rear[0]), Some(at(5, 9)));
+        // What went through is not kept to be sent again.
+        let before = g.units().unit_position(rear[0]);
+        ai.retry_blocked(&mut g, &mut events);
+        assert_eq!(g.units().unit_position(rear[0]), before);
     }
 
     #[test]
