@@ -753,6 +753,59 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             player(game, *to),
             spell(game, *s)
         ),
+        D::BattleLosses {
+            attacker,
+            defender,
+            heroes,
+            others,
+            ..
+        } => format!(
+            "{} holds the losses of {} heroes and {} other units against {}",
+            player(game, *defender),
+            heroes,
+            others,
+            player(game, *attacker)
+        ),
+        D::AssaultFailed {
+            attacker,
+            defender,
+            fortress,
+        } => format!(
+            "{}'s assault on {}'s {} failed",
+            player(game, *attacker),
+            player(game, *defender),
+            if *fortress { "fortress city" } else { "city" }
+        ),
+        D::FortressTaken { winner, loser } => format!(
+            "{} took the fortress of {}",
+            player(game, *winner),
+            player(game, *loser)
+        ),
+        D::WizardDestroyed { winner, loser } => format!(
+            "{} destroyed {}",
+            player(game, *winner),
+            player(game, *loser)
+        ),
+        D::EnchantmentCast { caster, spell: s } => format!(
+            "the other wizards take note of {} by {}",
+            spell(game, *s),
+            player(game, *caster)
+        ),
+        D::CitySpellCast {
+            caster,
+            owner,
+            spell: s,
+        } => format!(
+            "{} takes note of {} by {} on its city",
+            player(game, *owner),
+            spell(game, *s),
+            player(game, *caster)
+        ),
+        D::Subverted { caster, target } => format!(
+            "{} subverts the standing of {}",
+            player(game, *caster),
+            player(game, *target)
+        ),
     }
 }
 

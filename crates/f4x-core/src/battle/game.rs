@@ -871,6 +871,21 @@ impl Game {
                 (hero, u.is_settler())
             })
             .collect();
+        let (mut heroes, mut others, mut settlers) = (0, 0, 0);
+        for &(hero, settler) in &lost {
+            heroes += u32::from(hero);
+            others += u32::from(!hero);
+            settlers += u32::from(settler);
+        }
+        if heroes + others > 0 {
+            self.report_diplomacy(crate::diplomacy::DiplomacyEvent::BattleLosses {
+                attacker,
+                defender,
+                heroes,
+                others,
+                settlers,
+            });
+        }
         let mut value = 0;
         for (hero, settler) in lost {
             value += if hero { 20 } else { self.roll(20) as i32 };

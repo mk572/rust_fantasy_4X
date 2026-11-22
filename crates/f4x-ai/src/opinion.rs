@@ -269,6 +269,58 @@ impl Memory {
                 }
                 _ => {}
             },
+            Event::Diplomacy(DiplomacyEvent::BattleLosses {
+                attacker,
+                defender,
+                heroes,
+                others,
+                settlers,
+            }) if defender == me => {
+                // A hero counts 20, another unit `Random(20)` and a settler `Random(10)` more: the
+                // rolls at their averages (19/2 and 9/2).
+                let lost = 20 * heroes + (19 * others + 9 * settlers) / 2;
+                self.change(game, me, attacker, -(lost as i32), Action::BattleLosses);
+            }
+            Event::Diplomacy(DiplomacyEvent::AssaultFailed {
+                attacker,
+                defender,
+                fortress,
+            }) if defender == me => {
+                let value = if fortress { -60 } else { -20 };
+                self.change(game, me, attacker, value, Action::AttackedCity);
+            }
+            Event::Diplomacy(DiplomacyEvent::FortressTaken { winner, loser })
+                if me != winner && me != loser =>
+            {
+                self.change(game, me, winner, -20, Action::Threat);
+            }
+            Event::Diplomacy(DiplomacyEvent::WizardDestroyed { winner, loser })
+                if me != winner && me != loser =>
+            {
+                self.change(game, me, winner, -40, Action::Threat);
+            }
+            Event::Diplomacy(DiplomacyEvent::EnchantmentCast { caster, spell }) if caster != me => {
+                if let Some((value, action)) = enchantment_reaction(game, spell.num(), me) {
+                    self.change(game, me, caster, value, action);
+                }
+            }
+            Event::Diplomacy(DiplomacyEvent::CitySpellCast {
+                caster,
+                owner,
+                spell,
+            }) if owner == me => {
+                if let Some(value) = bad_city_spell(spell.num()) {
+                    self.change(game, me, caster, value, Action::BadCitySpell);
+                }
+            }
+            Event::Diplomacy(DiplomacyEvent::Subverted { target, .. })
+                if me != target && game.have_met(me, target) =>
+            {
+                // Not through `change`: the original takes the penalty off the relation outright.
+                let penalty = game.content().rules.config.diplomacy.subversion_penalty;
+                let o = self.slot(game, me, target);
+                o.friendship = (o.friendship - penalty).max(-100);
+            }
             _ => {}
         }
     }
@@ -289,6 +341,51 @@ impl Memory {
             o.war = false;
         }
     }
+}
+
+/// What the overland enchantment `spell` (by number) does to `me`'s feeling for its caster
+/// (`Change_Relations_For_Enchantments`): some are disliked only by wizards of certain books.
+fn enchantment_reaction(game: &Game, spell: u16, me: PlayerId) -> Option<(i32, Action)> {
+    let books = |realm: u16| {
+        game.wizard(me)
+            .map_or(0, |m| m.books_in(RealmId::new(realm)))
+    };
+    let (nature, chaos, life, death) = (0, 2, 3, 4);
+    Some(match spell {
+        213 /* spell_of_mastery */ => (-50, Action::SpellOfMastery),
+        197 /* eternal_night */ => (-12, Action::Enchantment),
+        198 /* evil_omens */ if books(life) > 0 || books(nature) > 0 => (-20, Action::Enchantment),
+        188 /* zombie_mastery */ => (-14, Action::Enchantment),
+        59 /* aura_of_majesty */ => (10, Action::Friendship),
+        57 /* wind_mastery */ | 79 /* suppress_magic */ => (-4, Action::Enchantment),
+        40 /* natures_wrath */ if books(chaos) > 0 || books(death) > 0 => (-20, Action::Enchantment),
+        116 /* chaos_surge */ if books(chaos) == 0 => (-10, Action::Enchantment),
+        117 /* doom_mastery */ => (-8, Action::Enchantment),
+        114 /* great_wasting */ => (-20, Action::Enchantment),
+        113 /* meteor_storm */ => (-15, Action::Enchantment),
+        120 /* armageddon */ => (-25, Action::Enchantment),
+        157 /* tranquility */ if books(chaos) > 0 => (-20, Action::Enchantment),
+        156 /* life_force */ if books(death) > 0 => (-20, Action::Enchantment),
+        158 /* crusade */ => (-10, Action::Enchantment),
+        154 /* holy_arms */ => (-5, Action::Enchantment),
+        _ => return None,
+    })
+}
+
+/// What a curse on a city costs its owner's feeling for the caster (`Change_Relations_For_Bad_City_Spell`).
+fn bad_city_spell(spell: u16) -> Option<i32> {
+    Some(match spell {
+        26 /* earthquake */ => -9,
+        85 /* corruption */ => -25,
+        98 /* raise_volcano */ => -50,
+        110 /* chaos_rift */ => -5,
+        119 /* call_the_void */ => -20,
+        183 /* evil_presence */ => -5,
+        189 /* famine */ => -5,
+        190 /* cursed_lands */ => -5,
+        196 /* pestilence */ => -8,
+        _ => return None,
+    })
 }
 
 /// The first opinion of `other`: what the core's table holds (a game that went on before this task,
@@ -508,5 +605,102 @@ mod tests {
         assert_eq!(m.friendship(&g, P0, P1), 0);
         m.feel(&g, P0, &demand(false));
         assert!(m.friendship(&g, P0, P1) < 0);
+    }
+
+    fn felt(g: &Game, event: DiplomacyEvent) -> i32 {
+        let mut m = mind(g, 0);
+        m.feel(g, P0, &Event::Diplomacy(event));
+        m.friendship(g, P0, P1)
+    }
+
+    #[test]
+    fn what_a_battle_cost_is_held_against_the_attacker_by_the_defender_only() {
+        let g = pair(8, 8, 100);
+        let lost = |defender| DiplomacyEvent::BattleLosses {
+            attacker: P1,
+            defender,
+            heroes: 1,
+            others: 2,
+            settlers: 0,
+        };
+        assert_eq!(felt(&g, lost(P0)), -(20 + 19), "a hero and two units");
+        assert_eq!(
+            felt(&g, lost(P1)),
+            0,
+            "the attacker does not hold it against itself"
+        );
+    }
+
+    #[test]
+    fn a_failed_assault_costs_more_when_it_was_the_fortress() {
+        let g = pair(8, 8, 100);
+        let assault = |fortress| DiplomacyEvent::AssaultFailed {
+            attacker: P1,
+            defender: P0,
+            fortress,
+        };
+        assert_eq!(felt(&g, assault(false)), -20);
+        assert_eq!(felt(&g, assault(true)), -60);
+    }
+
+    #[test]
+    fn a_fortress_taken_or_a_wizard_destroyed_alarms_the_others_but_not_the_loser() {
+        let g = pair(8, 8, 100);
+        // P0 is a bystander: P1 won against a third wizard.
+        let third = PlayerId(7);
+        let taken = DiplomacyEvent::FortressTaken {
+            winner: P1,
+            loser: third,
+        };
+        let destroyed = DiplomacyEvent::WizardDestroyed {
+            winner: P1,
+            loser: third,
+        };
+        assert_eq!(felt(&g, taken), -20);
+        assert_eq!(felt(&g, destroyed), -40);
+        let own = DiplomacyEvent::WizardDestroyed {
+            winner: P1,
+            loser: P0,
+        };
+        assert_eq!(
+            felt(&g, own),
+            0,
+            "the loser has no feelings left to change here"
+        );
+    }
+
+    #[test]
+    fn a_curse_on_a_city_and_a_hated_enchantment_are_held_against_the_caster() {
+        let g = pair(8, 8, 100);
+        let spell = |n| f4x_core::rules::SpellId::new(n);
+        let curse = |n| DiplomacyEvent::CitySpellCast {
+            caster: P1,
+            owner: P0,
+            spell: spell(n),
+        };
+        assert_eq!(felt(&g, curse(85)), -25, "corruption");
+        assert_eq!(felt(&g, curse(1)), 0, "a spell that is no curse");
+        let cast = |n| DiplomacyEvent::EnchantmentCast {
+            caster: P1,
+            spell: spell(n),
+        };
+        assert_eq!(felt(&g, cast(213)), -50, "the Spell of Mastery");
+        assert_eq!(felt(&g, cast(120)), -25, "armageddon");
+        assert!(felt(&g, cast(59)) > 0, "the Aura of Majesty pleases");
+        assert_eq!(felt(&g, cast(1)), 0, "an enchantment nobody minds");
+    }
+
+    #[test]
+    fn subversion_costs_the_target_the_set_penalty_with_everyone_who_met_it() {
+        let g = pair(8, 8, 100);
+        let penalty = g.content().rules.config.diplomacy.subversion_penalty;
+        let by = |target| DiplomacyEvent::Subverted { caster: P1, target };
+        // P0 has met P1 in the pair world: subverting P1 (by P1 itself or any caster) costs P1.
+        assert_eq!(felt(&g, by(P1)), -penalty);
+        assert_eq!(
+            felt(&g, by(P0)),
+            0,
+            "its own target does not change its feeling"
+        );
     }
 }

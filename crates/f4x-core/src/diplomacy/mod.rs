@@ -289,6 +289,49 @@ pub enum DiplomacyEvent {
         owner: PlayerId,
         intruder: PlayerId,
     },
+    /// A battle's end: what `defender` lost to `attacker` (task 782). A fact, not a feeling: the
+    /// AI weighs it (`docs/diplomacy.md` section 5). Units that were summoned in the fight and
+    /// the ones that were never in it do not count; `others` includes the `settlers`.
+    BattleLosses {
+        attacker: PlayerId,
+        defender: PlayerId,
+        heroes: u32,
+        others: u32,
+        settlers: u32,
+    },
+    /// An attack of `attacker` on a city of `defender` failed; `fortress` is whether it held the
+    /// defender's fortress.
+    AssaultFailed {
+        attacker: PlayerId,
+        defender: PlayerId,
+        fortress: bool,
+    },
+    /// `winner` took the fortress of `loser`, who goes on (the Spell of Return).
+    FortressTaken {
+        winner: PlayerId,
+        loser: PlayerId,
+    },
+    /// `winner` destroyed the wizard `loser`.
+    WizardDestroyed {
+        winner: PlayerId,
+        loser: PlayerId,
+    },
+    /// `caster` cast a lasting enchantment on itself (the Spell of Mastery as it is begun).
+    EnchantmentCast {
+        caster: PlayerId,
+        spell: SpellId,
+    },
+    /// `caster` cast a curse on a city of `owner`.
+    CitySpellCast {
+        caster: PlayerId,
+        owner: PlayerId,
+        spell: SpellId,
+    },
+    /// `caster` cast Subversion on `target`.
+    Subverted {
+        caster: PlayerId,
+        target: PlayerId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -1457,7 +1500,14 @@ impl Diplomacy {
     /// falls by `subversion_penalty` (`rules.ron`), and the peace between them is over. The original's code
     /// then overwrites the new relation with the old one, which leaves only the peace ended; the
     /// help's rule is followed here (`docs/help-vs-implementation-conflicts.md`, B33).
-    pub(crate) fn subvert(&mut self, ctx: &mut DiplomacyCtx<'_>, target: PlayerId) {
+    pub(crate) fn subvert(
+        &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
+        caster: PlayerId,
+        target: PlayerId,
+    ) {
+        self.queue
+            .push(DiplomacyEvent::Subverted { caster, target });
         let others: Vec<PlayerId> = ctx
             .view
             .player_ids()
@@ -1504,6 +1554,13 @@ impl Diplomacy {
         if let (Some(value), Some(owner)) = (Self::bad_city_spell_value(spell), target_owner) {
             self.change_relations(ctx, value, caster, owner, Action::BadCitySpell, Some(spell));
         }
+        if let Some(owner) = target_owner {
+            self.queue.push(DiplomacyEvent::CitySpellCast {
+                caster,
+                owner,
+                spell,
+            });
+        }
         // Lasting enchantments on the wizard are noticed as they are cast (the Spell of Mastery
         // as it is begun, see `start_cast`).
         if !ctx
@@ -1511,6 +1568,12 @@ impl Diplomacy {
             .spell_has_hook(spell, crate::spell::special::SPELL_OF_MASTERY)
         {
             self.enchantment_relations(ctx, caster, spell, 1);
+            if ctx.view.content().rules.spells.get(spell).duration
+                != crate::rules::Duration::Instant
+            {
+                self.queue
+                    .push(DiplomacyEvent::EnchantmentCast { caster, spell });
+            }
         }
     }
 
@@ -1526,6 +1589,10 @@ impl Diplomacy {
             .spell_has_hook(spell, crate::spell::special::SPELL_OF_MASTERY)
         {
             self.enchantment_relations(ctx, player, spell, 1);
+            self.queue.push(DiplomacyEvent::EnchantmentCast {
+                caster: player,
+                spell,
+            });
         }
     }
 
@@ -1576,6 +1643,11 @@ impl Diplomacy {
         }
         let value = if fortress_city { -60 } else { -20 };
         self.change_relations(ctx, value, attacker, defender, Action::AttackedCity, None);
+        self.queue.push(DiplomacyEvent::AssaultFailed {
+            attacker,
+            defender,
+            fortress: fortress_city,
+        });
     }
 
     /// A wizard's fortress fell (-20 with every other wizard) or the wizard was destroyed (-40,
@@ -1590,6 +1662,11 @@ impl Diplomacy {
         if winner == loser {
             return;
         }
+        self.queue.push(if destroyed {
+            DiplomacyEvent::WizardDestroyed { winner, loser }
+        } else {
+            DiplomacyEvent::FortressTaken { winner, loser }
+        });
         for other in wizards(ctx.view) {
             if other == loser {
                 continue;
@@ -2039,8 +2116,13 @@ impl Game {
     /// Subversion on `target`: every other wizard who has met them thinks 25 points worse of them
     /// and will not hold to a peace with them. The human's own feelings are left alone, as in the
     /// original (`Apply_Subversion`).
-    pub(crate) fn subvert(&mut self, target: PlayerId) {
-        self.with_diplomacy(|d, ctx| d.subvert(ctx, target));
+    pub(crate) fn subvert(&mut self, caster: PlayerId, target: PlayerId) {
+        self.with_diplomacy(|d, ctx| d.subvert(ctx, caster, target));
+    }
+
+    /// A fact for the AI's feelings (task 782).
+    pub(crate) fn report_diplomacy(&mut self, event: DiplomacyEvent) {
+        self.diplomacy.queue.push(event);
     }
 
     /// A pact or an alliance between two wizards (`Start_Treaty`).
@@ -2297,5 +2379,69 @@ impl Game {
             _ => true,
         });
         self.diplomacy.restore(save);
+    }
+}
+
+#[cfg(test)]
+mod fact_tests {
+    use super::*;
+    use crate::game::testutil::fresh;
+
+    /// The diplomacy events a closure raises.
+    fn raised(g: &mut Game, f: impl FnOnce(&mut Game)) -> Vec<DiplomacyEvent> {
+        g.drain_diplomacy_events();
+        f(g);
+        g.drain_diplomacy_events()
+            .into_iter()
+            .filter_map(|e| match e {
+                Event::Diplomacy(d) => Some(d),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_hooks_report_what_happened_for_the_ais_opinions() {
+        let mut g = fresh(3, 3).expect("a game");
+        let w = g.wizards();
+        let (a, b, c) = (w[0], w[1], w[2]);
+        for &x in &w {
+            for &y in &w {
+                g.make_contact(x, y);
+            }
+        }
+        let spell = SpellId::new(85);
+        let events = raised(&mut g, |g| g.city_held_relations(a, b, true));
+        assert!(events.contains(&DiplomacyEvent::AssaultFailed {
+            attacker: a,
+            defender: b,
+            fortress: true
+        }));
+        let events = raised(&mut g, |g| g.conquest_relations(a, b, false));
+        assert!(events.contains(&DiplomacyEvent::FortressTaken {
+            winner: a,
+            loser: b
+        }));
+        let events = raised(&mut g, |g| g.conquest_relations(a, c, true));
+        assert!(events.contains(&DiplomacyEvent::WizardDestroyed {
+            winner: a,
+            loser: c
+        }));
+        let events = raised(&mut g, |g| g.cast_relations(a, spell, Some(b)));
+        assert!(events.contains(&DiplomacyEvent::CitySpellCast {
+            caster: a,
+            owner: b,
+            spell
+        }));
+        let events = raised(&mut g, |g| g.subvert(a, b));
+        assert!(events.contains(&DiplomacyEvent::Subverted {
+            caster: a,
+            target: b
+        }));
+        // A spell nobody was hit by says nothing about a city.
+        let events = raised(&mut g, |g| g.cast_relations(a, spell, None));
+        assert!(!events
+            .iter()
+            .any(|e| matches!(e, DiplomacyEvent::CitySpellCast { .. })));
     }
 }

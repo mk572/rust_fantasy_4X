@@ -1097,7 +1097,7 @@ impl Game {
             if crate::spell::wizard::WizardEffect::Subversion
                 .is_in(self.content.rules.spells.get(spell))
             {
-                self.subvert(wizard);
+                self.subvert(player, wizard);
             }
         }
         events.extend(hook_events);
