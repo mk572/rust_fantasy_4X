@@ -10,9 +10,7 @@ use f4x_def::rules::global_effect::{GlobalEffect, GLOBAL_EFFECT};
 use f4x_def::rules::realm::Realm;
 use f4x_def::rules::unit_effect::{UnitEffect, UNIT_EFFECT};
 use f4x_def::rules::{Ability, AbilityId, Id, RealmId, SpellDef, UnitKind};
-use f4x_def::settings::{
-    BasicSettings, GameSettings, SpellLibraryDef, DEFAULT_DIFFICULTY, LEVELS, MAX_DIFFICULTY,
-};
+use f4x_def::settings::{GameSettings, DEFAULT_DIFFICULTY, LEVELS, MAX_DIFFICULTY};
 use f4x_def::testdir::shipped;
 use strum::IntoEnumIterator;
 
@@ -300,24 +298,9 @@ fn the_default_game_is_the_default_level_of_the_shipped_file() {
 }
 
 #[test]
-fn the_fallbacks_of_the_code_are_what_the_shipped_file_says() {
-    let def = &shipped().settings;
-    assert_eq!(
-        &SpellLibraryDef::default(),
-        &def.spell_library,
-        "SpellLibraryDef::default"
-    );
-    assert_eq!(
-        BasicSettings::default(),
-        def.new_game,
-        "BasicSettings::default"
-    );
-}
-
-#[test]
-fn every_spell_retort_and_realm_the_builtin_spell_library_names_exists_in_the_content() {
+fn every_spell_retort_and_realm_the_spell_library_names_exists_in_the_content() {
     let rules = &shipped().rules;
-    let lib = SpellLibraryDef::default();
+    let lib = &shipped().settings.spell_library;
     let spells = lib
         .always_known
         .iter()

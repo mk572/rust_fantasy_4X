@@ -304,9 +304,9 @@ fn every_file_damaged_in_every_way_is_refused_without_a_panic_and_the_error_name
                     // A list that may be empty (no items) and a file of defaults only may be damaged to
                     // "nothing" and still mean something; the rest must not survive the damage.
                     let may_be_empty = file == "items.ron" && what == "an empty list";
-                    // `rules.ron` and `rules_settings.ron` still hold fields that have a default in
-                    // the code (task 766 goes on with them); a file with no quote has none to remove.
-                    let all_default = ["rules.ron", "rules_settings.ron"].contains(&file.as_str())
+                    // `rules.ron` still holds fields that have a default in the code (task 766 goes on
+                    // with it); a file with no quote has none to remove.
+                    let all_default = file == "rules.ron"
                         && ["unit", "an empty struct", "every quote removed"].contains(&what)
                         || (what == "every quote removed" && !original.contains('"'));
                     if REQUIRED.contains(&file.as_str())
@@ -954,4 +954,31 @@ fn damage_in_several_files_is_reported_for_all_of_them_in_one_load() {
             "{file} is not reported: {issues:#?}"
         );
     }
+}
+
+// ---- settings a file leaves out ----
+
+#[test]
+fn a_settings_file_must_state_every_setting_and_a_missing_one_is_named() {
+    use f4x_def::load::load_settings;
+    // Every setting that a save may lack is one the file must state: take each out of the shipped
+    // file in turn (a line of its own in the `new_game` block, or the first level's `rules`).
+    let dir = copy_of_shipped("c2-gap");
+    let text = read(&dir, "rules_settings.ron");
+    for key in [
+        "map_width",
+        "map_height",
+        "combat_forecast",
+        "ban_life_and_death",
+        "monster_start_turn",
+        "start_turn",
+        "frequency",
+    ] {
+        let cut = text.replace(&format!("{key}: "), &format!("not_{key}: "));
+        write(&dir, "rules_settings.ron", &cut);
+        let e = load_settings(&[&dir]).expect_err(key);
+        assert!(!e.issues.is_empty(), "{key}");
+    }
+    write(&dir, "rules_settings.ron", &text);
+    load_settings(&[&dir]).expect("the shipped file is whole");
 }

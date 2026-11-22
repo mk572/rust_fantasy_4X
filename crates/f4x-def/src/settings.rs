@@ -82,6 +82,10 @@ pub const DEFAULT_MAGIC_STRENGTH: u8 = 1;
 thread_local! {
     /// The settings a save file falls back on for a setting it does not name; see [`with_fallback`].
     static FALLBACK: std::cell::Cell<Option<GameSettings>> = const { std::cell::Cell::new(None) };
+    /// Set while the shipped file is read for [`GameSettings::default`]: it must state everything.
+    static BUILDING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The settings a read did not find and had no fallback for; see [`collecting_gaps`].
+    static GAPS: std::cell::RefCell<Vec<&'static str>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 /// Run `read` (a load of a save file) so that a setting the file does not name takes its value
@@ -93,9 +97,35 @@ pub fn with_fallback<R>(defaults: GameSettings, read: impl FnOnce() -> R) -> R {
     out
 }
 
-/// What a missing setting becomes: the fallback's value when one is set, else `builtin`.
-fn fallback<T>(get: impl Fn(&GameSettings) -> T, builtin: T) -> T {
-    FALLBACK.with(|f| f.get()).map_or(builtin, |g| get(&g))
+/// Run `read` (the load of a settings file) and give the names of the settings it did not state: a
+/// file must state every setting it holds, so each name is a `Missing` issue of the caller. Inside
+/// `read` a missing setting is read as the shipped one, only so the read can finish.
+pub fn collecting_gaps<R>(read: impl FnOnce() -> R) -> (R, Vec<&'static str>) {
+    let before = GAPS.with(|g| g.take());
+    let out = read();
+    let gaps = GAPS.with(|g| g.replace(before));
+    (out, gaps)
+}
+
+/// Whether a [`with_fallback`] is in force.
+pub fn has_fallback() -> bool {
+    FALLBACK.with(|f| f.get()).is_some()
+}
+
+/// What a missing setting becomes: the fallback's value when one is set (a save from before the
+/// setting existed takes the player's default), else the shipped one, and the gap is noted.
+fn fallback<T>(name: &'static str, get: impl Fn(&GameSettings) -> T) -> T {
+    match FALLBACK.with(|f| f.get()) {
+        Some(g) => get(&g),
+        None => {
+            assert!(
+                !BUILDING.with(|b| b.get()),
+                "crates/f4x-def/content/rules_settings.ron does not state `{name}`"
+            );
+            GAPS.with(|g| g.borrow_mut().push(name));
+            get(&GameSettings::default())
+        }
+    }
 }
 
 /// The options step: difficulty, opponents, land size and magic power.
@@ -140,44 +170,27 @@ pub struct BasicSettings {
 }
 
 fn default_difficulty() -> u8 {
-    DEFAULT_DIFFICULTY
+    fallback("difficulty", |g| g.basic.difficulty)
 }
 
 fn default_opponents() -> u8 {
-    1
+    fallback("opponents", |g| g.basic.opponents)
 }
 
 fn default_land() -> u8 {
-    LAND_LARGE
+    fallback("land_percent", |g| g.basic.land_percent)
 }
 
 fn default_magic() -> u8 {
-    DEFAULT_MAGIC_STRENGTH
+    fallback("magic_strength", |g| g.basic.magic_strength)
 }
 
 fn default_map_width() -> u16 {
-    MAP_WIDTH
+    fallback("map_width", |g| g.basic.map_width)
 }
 
 fn default_map_height() -> u16 {
-    MAP_HEIGHT
-}
-
-impl Default for BasicSettings {
-    fn default() -> Self {
-        Self {
-            difficulty: DEFAULT_DIFFICULTY,
-            opponents: 1,
-            land_percent: LAND_LARGE,
-            magic_strength: DEFAULT_MAGIC_STRENGTH,
-            map_width: MAP_WIDTH,
-            map_height: MAP_HEIGHT,
-            towers: None,
-            neutral_cities: None,
-            diagonal_extra_cost: false,
-            original_map_generator: false,
-        }
-    }
+    fallback("map_height", |g| g.basic.map_height)
 }
 
 impl BasicSettings {
@@ -281,14 +294,11 @@ pub const BOOKS_TOTAL_RANGE: std::ops::RangeInclusive<u8> = 12..=65;
 pub const BOOKS_PER_REALM_RANGE: std::ops::RangeInclusive<u8> = 5..=13;
 
 fn fb_max_books_total() -> u8 {
-    fallback(|g| g.wizards.max_books_total, DEFAULT_MAX_BOOKS_TOTAL)
+    fallback("max_books_total", |g| g.wizards.max_books_total)
 }
 
 fn fb_max_books_per_realm() -> u8 {
-    fallback(
-        |g| g.wizards.max_books_per_realm,
-        DEFAULT_MAX_BOOKS_PER_REALM,
-    )
+    fallback("max_books_per_realm", |g| g.wizards.max_books_per_realm)
 }
 
 /// How the computer wizards are made (`docs/game-settings.md` 4.8, from the original's
@@ -386,7 +396,7 @@ pub struct RuleSettings {
     pub safe_flee: Split<bool>,
     /// Building Settlers costs a citizen. On: a city needs two citizens to build Settlers and loses
     /// one when they are finished. Off: Settlers cost production only.
-    #[serde(default = "yes")]
+    #[serde(default = "fb_settlers_cost_citizen")]
     pub settlers_cost_citizen: bool,
     /// How hard a walking unit hits a flying one in melee.
     #[serde(default = "fb_melee_vs_fliers")]
@@ -454,7 +464,7 @@ pub struct RuleSettings {
     /// Illusion immunity protects from the Sorcery battle spells that name the illusion type
     /// (Confusion, Vertigo, Mind Storm and Creature Binding: `types: [Illusion]` in `spells.ron`).
     /// Off: they affect an illusion-immune unit; the immunity still sees through illusion attacks.
-    #[serde(default = "yes")]
+    #[serde(default = "fb_illusion_immunity_protects")]
     pub illusion_immunity_protects: bool,
     /// The food each farmer grows (the original: 2). A race that names its own `farmer_food` in
     /// `races.ron` (halflings: 3) keeps it.
@@ -592,15 +602,15 @@ impl SpellAccess {
 }
 
 fn fb_spell_of_mastery() -> SpellAccess {
-    fallback(|g| g.rules.spell_of_mastery, SpellAccess::default())
+    fallback("spell_of_mastery", |g| g.rules.spell_of_mastery)
 }
 
 fn fb_spell_of_return() -> SpellAccess {
-    fallback(|g| g.rules.spell_of_return, SpellAccess::default())
+    fallback("spell_of_return", |g| g.rules.spell_of_return)
 }
 
 fn fb_limit_ai_races() -> bool {
-    fallback(|g| g.rules.limit_ai_races, false)
+    fallback("limit_ai_races", |g| g.rules.limit_ai_races)
 }
 
 // The Arcanus races a computer wizard may have above Normal difficulty when
@@ -618,51 +628,51 @@ pub const MONSTER_START_TURN: u8 = 50;
 pub const MONSTER_START_EARLIEST: u8 = 30;
 
 fn default_monster_start() -> u8 {
-    fallback(|g| g.world.monster_start_turn, MONSTER_START_TURN)
+    fallback("monster_start_turn", |g| g.world.monster_start_turn)
 }
 
 fn default_trireme() -> u8 {
-    fallback(|g| g.rules.trireme_capacity, TRIREME_CAPACITY)
+    fallback("trireme_capacity", |g| g.rules.trireme_capacity)
 }
 
 fn default_galley() -> u8 {
-    fallback(|g| g.rules.galley_capacity, GALLEY_CAPACITY)
+    fallback("galley_capacity", |g| g.rules.galley_capacity)
 }
 
 fn default_max_tile() -> usize {
-    fallback(|g| g.rules.max_tile, MAX_TILE_LIMIT)
+    fallback("max_tile", |g| g.rules.max_tile)
 }
 
 fn default_max_battle_side() -> usize {
-    fallback(|g| g.rules.max_battle_side, MAX_STACK)
+    fallback("max_battle_side", |g| g.rules.max_battle_side)
 }
 
 fn fb_diagonal_extra_cost() -> bool {
-    fallback(|g| g.basic.diagonal_extra_cost, false)
+    fallback("diagonal_extra_cost", |g| g.basic.diagonal_extra_cost)
 }
 
 fn fb_original_map_generator() -> bool {
-    fallback(|g| g.basic.original_map_generator, false)
+    fallback("original_map_generator", |g| g.basic.original_map_generator)
 }
 
 fn fb_melee_vs_fliers() -> MeleeVsFliers {
-    fallback(|g| g.rules.melee_vs_fliers, MeleeVsFliers::default())
+    fallback("melee_vs_fliers", |g| g.rules.melee_vs_fliers)
 }
 
 fn fb_half_upkeep() -> bool {
-    fallback(|g| g.rules.half_upkeep, false)
+    fallback("half_upkeep", |g| g.rules.half_upkeep)
 }
 
 fn fb_combat_forecast() -> bool {
-    fallback(|g| g.rules.combat_forecast, false)
+    fallback("combat_forecast", |g| g.rules.combat_forecast)
 }
 
 fn fb_arcane_candidate_cap() -> u8 {
-    fallback(|g| g.rules.arcane_candidate_cap, 0)
+    fallback("arcane_candidate_cap", |g| g.rules.arcane_candidate_cap)
 }
 
 fn fb_ban_life_and_death() -> bool {
-    fallback(|g| g.rules.ban_life_and_death, true)
+    fallback("ban_life_and_death", |g| g.rules.ban_life_and_death)
 }
 
 /// The base food of a farmer when nothing says otherwise.
@@ -673,117 +683,127 @@ pub const DEFAULT_WORKER_PRODUCTION: HalfInt = HalfInt::from_int(2);
 pub const FARMER_WORKER_MOST: HalfInt = HalfInt::from_int(10);
 
 fn fb_farmer_food() -> HalfInt {
-    fallback(|g| g.rules.farmer_food, DEFAULT_FARMER_FOOD)
+    fallback("farmer_food", |g| g.rules.farmer_food)
 }
 
 fn fb_worker_production() -> HalfInt {
-    fallback(|g| g.rules.worker_production, DEFAULT_WORKER_PRODUCTION)
+    fallback("worker_production", |g| g.rules.worker_production)
 }
 
 fn fb_walls_cover_city() -> bool {
-    fallback(|g| g.rules.walls_cover_city, false)
+    fallback("walls_cover_city", |g| g.rules.walls_cover_city)
 }
 
 fn fb_original_battlefield() -> bool {
-    fallback(|g| g.rules.original_battlefield, false)
+    fallback("original_battlefield", |g| g.rules.original_battlefield)
 }
 
 fn fb_magic_immunity_exceptions() -> bool {
-    fallback(|g| g.rules.magic_immunity_exceptions, false)
+    fallback("magic_immunity_exceptions", |g| {
+        g.rules.magic_immunity_exceptions
+    })
 }
 
 fn fb_death_immunity_exceptions() -> bool {
-    fallback(|g| g.rules.death_immunity_exceptions, false)
+    fallback("death_immunity_exceptions", |g| {
+        g.rules.death_immunity_exceptions
+    })
 }
 
 fn fb_miners_guild_half_ore() -> bool {
-    fallback(|g| g.rules.miners_guild_half_ore, false)
+    fallback("miners_guild_half_ore", |g| g.rules.miners_guild_half_ore)
 }
 
 fn fb_spell_binding_always_succeeds() -> bool {
-    fallback(|g| g.rules.spell_binding_always_succeeds, false)
+    fallback("spell_binding_always_succeeds", |g| {
+        g.rules.spell_binding_always_succeeds
+    })
 }
 
 fn fb_two_pick_myrran() -> bool {
-    fallback(|g| g.rules.two_pick_myrran, false)
+    fallback("two_pick_myrran", |g| g.rules.two_pick_myrran)
 }
 
 fn fb_extend_tiny_islands() -> bool {
-    fallback(|g| g.rules.extend_tiny_islands, false)
+    fallback("extend_tiny_islands", |g| g.rules.extend_tiny_islands)
 }
 
 fn fb_mix_neutral_races() -> bool {
-    fallback(|g| g.rules.mix_neutral_races, false)
+    fallback("mix_neutral_races", |g| g.rules.mix_neutral_races)
 }
 
 fn fb_adamant_alchemy() -> bool {
-    fallback(|g| g.rules.adamant_alchemy, false)
+    fallback("adamant_alchemy", |g| g.rules.adamant_alchemy)
 }
 
 fn fb_color_wheel_relations() -> bool {
-    fallback(|g| g.rules.color_wheel_relations, false)
+    fallback("color_wheel_relations", |g| g.rules.color_wheel_relations)
 }
 
 fn fb_defeat_loot() -> bool {
-    fallback(|g| g.rules.defeat_loot, true)
+    fallback("defeat_loot", |g| g.rules.defeat_loot)
 }
 
 fn fb_lair_full_heal() -> bool {
-    fallback(|g| g.rules.lair_full_heal, true)
+    fallback("lair_full_heal", |g| g.rules.lair_full_heal)
 }
 
 fn fb_cavalry_halberdier_abilities() -> bool {
-    fallback(|g| g.rules.cavalry_halberdier_abilities, false)
+    fallback("cavalry_halberdier_abilities", |g| {
+        g.rules.cavalry_halberdier_abilities
+    })
 }
 
 fn fb_roads_at_start() -> bool {
-    fallback(|g| g.rules.roads_at_start, true)
+    fallback("roads_at_start", |g| g.rules.roads_at_start)
 }
 
 fn fb_stronger_lairs() -> bool {
-    fallback(|g| g.rules.stronger_lairs, false)
+    fallback("stronger_lairs", |g| g.rules.stronger_lairs)
 }
 
 fn fb_treasure_patch_150() -> bool {
-    fallback(|g| g.rules.treasure_patch_150, false)
+    fallback("treasure_patch_150", |g| g.rules.treasure_patch_150)
 }
 
 fn fb_suppress_spares_return() -> bool {
-    fallback(|g| g.rules.suppress_spares_return, false)
+    fallback("suppress_spares_return", |g| g.rules.suppress_spares_return)
 }
 
 fn fb_max_city_size() -> u8 {
-    fallback(|g| g.rules.max_city_size, DEFAULT_MAX_CITY_SIZE)
+    fallback("max_city_size", |g| g.rules.max_city_size)
 }
 
 fn fb_min_city_distance() -> u8 {
-    fallback(|g| g.rules.min_city_distance, DEFAULT_MIN_CITY_DISTANCE)
+    fallback("min_city_distance", |g| g.rules.min_city_distance)
 }
 
 fn fb_event_start_turn() -> u8 {
-    fallback(|g| g.events.start_turn, DEFAULT_EVENT_START_TURN)
+    fallback("start_turn", |g| g.events.start_turn)
 }
 
 fn fb_mineral_arcanus() -> u8 {
-    fallback(
-        |g| g.world.mineral_percent_arcanus,
-        DEFAULT_MINERAL_PERCENT[0],
-    )
+    fallback("mineral_percent_arcanus", |g| {
+        g.world.mineral_percent_arcanus
+    })
 }
 
 fn fb_mineral_myrror() -> u8 {
-    fallback(
-        |g| g.world.mineral_percent_myrror,
-        DEFAULT_MINERAL_PERCENT[1],
-    )
+    fallback("mineral_percent_myrror", |g| g.world.mineral_percent_myrror)
 }
 
 fn fb_frequency() -> EventFrequency {
-    fallback(|g| g.events.frequency, EventFrequency::default())
+    fallback("frequency", |g| g.events.frequency)
 }
 
-fn yes() -> bool {
-    fallback(|g| g.rules.settlers_cost_citizen, true)
+fn fb_settlers_cost_citizen() -> bool {
+    fallback("settlers_cost_citizen", |g| g.rules.settlers_cost_citizen)
+}
+
+fn fb_illusion_immunity_protects() -> bool {
+    fallback("illusion_immunity_protects", |g| {
+        g.rules.illusion_immunity_protects
+    })
 }
 
 /// A walking unit's melee attack against a flying unit (divergence 26). The flier hits back at
@@ -1015,8 +1035,7 @@ pub const MIN_SQUARES_PER_PLAYER: u32 = 900;
 /// Which troops cost half the upkeep, and whether they do. Upkeep is whole food and gold for
 /// each unit, so about every second unit costs nothing: the ones with an even serial number pay
 /// (the number is the order the game made the units in, kept for each unit for good).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct HalfUpkeep {
     pub enabled: bool,
@@ -1025,20 +1044,10 @@ pub struct HalfUpkeep {
     pub units: Vec<String>,
 }
 
-impl Default for HalfUpkeep {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            units: vec!["spearmen".into(), "swordsmen".into()],
-        }
-    }
-}
-
 /// `crates/f4x-def/content/rules_settings.ron`: the difficulty levels, the defaults of the new-game choices, the
 /// map and land sizes and the spell library. A file without it (the test content) leaves `levels`
 /// empty, and a game then plays the default game.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct SettingsDef {
     /// The new-game choices before the player changes them.
@@ -1075,8 +1084,7 @@ pub struct Rarities {
 /// number of books in a realm, `0` to [`SpellLibraryDef::MAX_BOOKS`] (so they have 12 rows). A
 /// count above what the realm has means all of them. The original's numbers are in
 /// `INITGAME.c` (`Init_Computer_Players_Spell_Library`) and `NewGame.c`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct SpellLibraryDef {
     /// Spells of the realm the wizard knows at the start: the realm's chosen spells first, then
@@ -1144,107 +1152,10 @@ impl SpellLibraryDef {
     }
 }
 
-impl Default for SpellLibraryDef {
+/// The new-game choices of the shipped `rules_settings.ron` (the Average level).
+impl Default for BasicSettings {
     fn default() -> Self {
-        let r = |common, uncommon, rare, very_rare| Rarities {
-            common,
-            uncommon,
-            rare,
-            very_rare,
-        };
-        let books = |f: &dyn Fn(u8) -> Rarities| (0..=Self::MAX_BOOKS as u8).map(f).collect();
-        const COMMON: &[u8] = &[0, 3, 5, 6, 7, 8, 9, 10, 10, 10, 10, 99];
-        const UNCOMMON: &[u8] = &[0, 1, 2, 3, 4, 5, 6, 8, 99, 99, 99, 99];
-        const RARE: &[u8] = &[0, 0, 1, 2, 3, 4, 5, 6, 7, 9, 99, 99];
-        const VERY_RARE: &[u8] = &[0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 99, 99];
-        Self {
-            known: books(&|n| match n {
-                0 => r(0, 0, 0, 0),
-                11 => r(10, 2, 1, 0),
-                n => r(n - 1, 0, 0, 0),
-            }),
-            researchable: books(&|n| {
-                let i = usize::from(n);
-                r(COMMON[i], UNCOMMON[i], RARE[i], VERY_RARE[i])
-            }),
-            chosen: books(&|n| match n {
-                0 => r(0, 0, 0, 0),
-                11 => r(0, 2, 1, 0),
-                n => r(n - 1, 0, 0, 0),
-            }),
-            always_known: vec![
-                SpellId::new(201), /* magic_spirit */
-                SpellId::new(214), /* spell_of_return */
-            ],
-            retort_known: [(
-                Retort::new(17), /* artificer */
-                vec![
-                    SpellId::new(207), /* enchant_item */
-                    SpellId::new(211), /* create_artifact */
-                ],
-            )]
-            .into(),
-            arcane_closed: vec![
-                SpellId::new(213), /* spell_of_mastery */
-                SpellId::new(214), /* spell_of_return */
-            ],
-            ai_main_realm_known: [
-                (RealmId::new(0), SpellId::new(9)),   // nature: sprites
-                (RealmId::new(1), SpellId::new(49)),  // sorcery: nagas
-                (RealmId::new(2), SpellId::new(84)),  // chaos: hell_hounds
-                (RealmId::new(3), SpellId::new(129)), // life: guardian_spirit
-                (RealmId::new(4), SpellId::new(166)), // death: ghouls
-            ]
-            .into(),
-            ai_main_realm_researchable: [
-                (RealmId::new(0), SpellId::new(20)),  // nature: basilisk
-                (RealmId::new(1), SpellId::new(60)),  // sorcery: phantom_beast
-                (RealmId::new(2), SpellId::new(100)), // chaos: chimeras
-                (RealmId::new(3), SpellId::new(136)), // life: unicorns
-                (RealmId::new(4), SpellId::new(180)), // death: shadow_demons
-            ]
-            .into(),
-            ai_main_realm_researchable_from: 3,
-            arcane_candidate_cap: 0,
-        }
-    }
-}
-
-impl Default for SettingsDef {
-    /// Content without a `rules_settings.ron`: three land sizes and four opponents.
-    fn default() -> Self {
-        let size = |id: &str, land_percent| LandSize {
-            id: id.into(),
-            land_percent,
-        };
-        Self {
-            new_game: BasicSettings::default(),
-            max_opponents: MAX_OPPONENTS,
-            half_upkeep: HalfUpkeep::default(),
-            myrror_fortress_power: 5,
-            land_sizes: vec![
-                size("small", LAND_SMALL),
-                size("medium", LAND_MEDIUM),
-                size("large", LAND_LARGE),
-            ],
-            map_sizes: [
-                ("small", 45, 30, 3, 8),
-                ("medium", 60, 40, 6, 15),
-                ("large", 75, 50, 9, 23),
-                ("huge", 90, 60, 14, 34),
-            ]
-            .into_iter()
-            .map(|(id, width, height, towers, neutral_cities)| MapSize {
-                id: id.into(),
-                width,
-                height,
-                towers,
-                neutral_cities,
-            })
-            .collect(),
-            levels: Vec::new(),
-            spell_library: SpellLibraryDef::default(),
-        }
+        GameSettings::default().basic
     }
 }
 
@@ -1790,8 +1701,10 @@ impl Default for GameSettings {
     fn default() -> Self {
         static AVERAGE: std::sync::OnceLock<GameSettings> = std::sync::OnceLock::new();
         *AVERAGE.get_or_init(|| {
+            BUILDING.with(|b| b.set(true));
             let def: SettingsDef = ron::from_str(include_str!("../content/rules_settings.ron"))
                 .expect("crates/f4x-def/content/rules_settings.ron parses");
+            BUILDING.with(|b| b.set(false));
             GameSettings::for_difficulty(&def, 2)
         })
     }

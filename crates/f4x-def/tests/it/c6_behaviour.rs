@@ -593,7 +593,7 @@ fn the_spell_library_row_of_a_number_of_books_is_that_row_and_the_last_for_more(
 }
 
 #[test]
-fn a_setting_a_file_does_not_name_takes_the_fallback_and_else_the_built_in_value() {
+fn a_setting_a_save_does_not_name_takes_the_fallback_and_else_the_shipped_value() {
     use f4x_def::settings::{with_fallback, GameSettings};
     let text =
         ron::ser::to_string_pretty(&GameSettings::default(), ron::ser::PrettyConfig::default())
@@ -610,7 +610,7 @@ fn a_setting_a_file_does_not_name_takes_the_fallback_and_else_the_built_in_value
     let named: GameSettings = ron::from_str(&text).expect("read");
     let read =
         |t: &str| ron::from_str::<GameSettings>(t).expect("a file without the setting still reads");
-    assert!(!read(&without).rules.combat_forecast, "the built-in value");
+    assert!(!read(&without).rules.combat_forecast, "the shipped value");
     assert_eq!(
         with_fallback(chosen, || read(&without))
             .rules
@@ -1040,4 +1040,24 @@ fn a_hero_with_an_ability_has_its_modifier_and_a_modifier_of_nothing_is_left_out
         rules.hero_value("might", with.tier("might").expect("tier"), 3)
     );
     assert!(melee.value != HalfInt::ZERO && mods.iter().all(|m| m.value != HalfInt::ZERO));
+}
+
+#[test]
+fn a_setting_the_player_default_does_not_name_either_is_still_read_as_the_shipped_one() {
+    use f4x_def::settings::{collecting_gaps, GameSettings};
+    let text =
+        ron::ser::to_string_pretty(&GameSettings::default(), Default::default()).expect("written");
+    let (whole, gaps) = collecting_gaps(|| ron::from_str::<GameSettings>(&text));
+    assert!(
+        whole.is_ok() && gaps.is_empty(),
+        "a whole record has no gap"
+    );
+    let without: String = text
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("max_city_size"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let (read, gaps) = collecting_gaps(|| ron::from_str::<GameSettings>(&without));
+    assert!(read.is_ok());
+    assert_eq!(gaps, ["max_city_size"], "the gap is named");
 }

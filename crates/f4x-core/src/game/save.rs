@@ -1189,8 +1189,15 @@ impl Snapshot {
 
     pub fn from_text(text: &str) -> Result<Self, LoadError> {
         check_snapshot_text(text)?;
-        let mut snapshot: Self =
-            ron::from_str(text).map_err(|e| LoadError::Parse(e.to_string()))?;
+        // A save from before a setting existed has no value for it: it takes the player's default
+        // (`with_fallback` set by the caller), else the shipped one. A save that lacks anything else
+        // fails to parse.
+        let read = || ron::from_str::<Self>(text).map_err(|e| LoadError::Parse(e.to_string()));
+        let mut snapshot = if f4x_def::settings::has_fallback() {
+            read()?
+        } else {
+            f4x_def::settings::with_fallback(f4x_def::settings::GameSettings::default(), read)?
+        };
         snapshot.upgrade();
         Ok(snapshot)
     }

@@ -20,6 +20,8 @@
                                     // for movement and for sight
         original_map_generator: false, // false: this game's noise-based land;
                                        // true: random-walk continents
+        map_width: 60,       // squares of each plane
+        map_height: 40,
     ),
 
     // Half the upkeep for the basic troops of every race, a divergence inspired by the Caster of
@@ -104,9 +106,12 @@
                 monsters_enabled: true,
                 raider_percent: 0,
                 start_reveal_radius: 2.5,
+                monster_start_turn: 50,
+                mineral_percent_arcanus: 6,
+                mineral_percent_myrror: 10,
             ),
-            rules: (safe_flee: (human: true, ai: true), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9, farmer_food: 2, worker_production: 2), // farmer_food, worker_production: the base food of a farmer and production of a worker, 0 to 10 in halves; a race that names its own value in races.ron keeps it; settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
-            events: (random_events: false, pressure_percent: 50, frequency: Normal),
+            rules: (safe_flee: (human: true, ai: true), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9, farmer_food: 2, worker_production: 2, spell_of_mastery: all, spell_of_return: all, limit_ai_races: false, trireme_capacity: 2, galley_capacity: 5, half_upkeep: false, combat_forecast: false, arcane_candidate_cap: 0, ban_life_and_death: true, walls_cover_city: false, original_battlefield: false, magic_immunity_exceptions: false, death_immunity_exceptions: false, miners_guild_half_ore: false, spell_binding_always_succeeds: false, two_pick_myrran: false, extend_tiny_islands: false, mix_neutral_races: false, adamant_alchemy: false, color_wheel_relations: false, defeat_loot: true, lair_full_heal: true, cavalry_halberdier_abilities: false, roads_at_start: true, stronger_lairs: false, treasure_patch_150: false, suppress_spares_return: false, max_city_size: 25, min_city_distance: 4, illusion_immunity_protects: true,), // farmer_food, worker_production: the base food of a farmer and production of a worker, 0 to 10 in halves; a race that names its own value in races.ron keeps it; settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
+            events: (random_events: false, pressure_percent: 50, frequency: Normal, start_turn: 6,),
             scoring: (score_percent: 50),
         ),
         // 1: Easy
@@ -144,9 +149,12 @@
                 monsters_enabled: true,
                 raider_percent: 17,
                 start_reveal_radius: 2.5,
+                monster_start_turn: 50,
+                mineral_percent_arcanus: 6,
+                mineral_percent_myrror: 10,
             ),
-            rules: (safe_flee: (human: true, ai: true), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9, farmer_food: 2, worker_production: 2), // farmer_food, worker_production: the base food of a farmer and production of a worker, 0 to 10 in halves; a race that names its own value in races.ron keeps it; settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
-            events: (random_events: true, pressure_percent: 66, frequency: Normal),
+            rules: (safe_flee: (human: true, ai: true), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9, farmer_food: 2, worker_production: 2, spell_of_mastery: all, spell_of_return: all, limit_ai_races: false, trireme_capacity: 2, galley_capacity: 5, half_upkeep: false, combat_forecast: false, arcane_candidate_cap: 0, ban_life_and_death: true, walls_cover_city: false, original_battlefield: false, magic_immunity_exceptions: false, death_immunity_exceptions: false, miners_guild_half_ore: false, spell_binding_always_succeeds: false, two_pick_myrran: false, extend_tiny_islands: false, mix_neutral_races: false, adamant_alchemy: false, color_wheel_relations: false, defeat_loot: true, lair_full_heal: true, cavalry_halberdier_abilities: false, roads_at_start: true, stronger_lairs: false, treasure_patch_150: false, suppress_spares_return: false, max_city_size: 25, min_city_distance: 4, illusion_immunity_protects: true,), // farmer_food, worker_production: the base food of a farmer and production of a worker, 0 to 10 in halves; a race that names its own value in races.ron keeps it; settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
+            events: (random_events: true, pressure_percent: 66, frequency: Normal, start_turn: 6,),
             scoring: (score_percent: 75),
         ),
         // 2: Average
@@ -184,9 +192,12 @@
                 monsters_enabled: true,
                 raider_percent: 33,
                 start_reveal_radius: 2.5,
+                monster_start_turn: 50,
+                mineral_percent_arcanus: 6,
+                mineral_percent_myrror: 10,
             ),
-            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9, farmer_food: 2, worker_production: 2), // farmer_food, worker_production: the base food of a farmer and production of a worker, 0 to 10 in halves; a race that names its own value in races.ron keeps it; settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
-            events: (random_events: true, pressure_percent: 75, frequency: Normal),
+            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9, farmer_food: 2, worker_production: 2, spell_of_mastery: all, spell_of_return: all, limit_ai_races: false, trireme_capacity: 2, galley_capacity: 5, half_upkeep: false, combat_forecast: false, arcane_candidate_cap: 0, ban_life_and_death: true, walls_cover_city: false, original_battlefield: false, magic_immunity_exceptions: false, death_immunity_exceptions: false, miners_guild_half_ore: false, spell_binding_always_succeeds: false, two_pick_myrran: false, extend_tiny_islands: false, mix_neutral_races: false, adamant_alchemy: false, color_wheel_relations: false, defeat_loot: true, lair_full_heal: true, cavalry_halberdier_abilities: false, roads_at_start: true, stronger_lairs: false, treasure_patch_150: false, suppress_spares_return: false, max_city_size: 25, min_city_distance: 4, illusion_immunity_protects: true,), // farmer_food, worker_production: the base food of a farmer and production of a worker, 0 to 10 in halves; a race that names its own value in races.ron keeps it; settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
+            events: (random_events: true, pressure_percent: 75, frequency: Normal, start_turn: 6,),
             scoring: (score_percent: 100),
         ),
         // 3: Hard
@@ -224,9 +235,12 @@
                 monsters_enabled: true,
                 raider_percent: 50,
                 start_reveal_radius: 2.5,
+                monster_start_turn: 50,
+                mineral_percent_arcanus: 6,
+                mineral_percent_myrror: 10,
             ),
-            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9, farmer_food: 2, worker_production: 2), // farmer_food, worker_production: the base food of a farmer and production of a worker, 0 to 10 in halves; a race that names its own value in races.ron keeps it; settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
-            events: (random_events: true, pressure_percent: 80, frequency: Normal),
+            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9, farmer_food: 2, worker_production: 2, spell_of_mastery: all, spell_of_return: all, limit_ai_races: false, trireme_capacity: 2, galley_capacity: 5, half_upkeep: false, combat_forecast: false, arcane_candidate_cap: 0, ban_life_and_death: true, walls_cover_city: false, original_battlefield: false, magic_immunity_exceptions: false, death_immunity_exceptions: false, miners_guild_half_ore: false, spell_binding_always_succeeds: false, two_pick_myrran: false, extend_tiny_islands: false, mix_neutral_races: false, adamant_alchemy: false, color_wheel_relations: false, defeat_loot: true, lair_full_heal: true, cavalry_halberdier_abilities: false, roads_at_start: true, stronger_lairs: false, treasure_patch_150: false, suppress_spares_return: false, max_city_size: 25, min_city_distance: 4, illusion_immunity_protects: true,), // farmer_food, worker_production: the base food of a farmer and production of a worker, 0 to 10 in halves; a race that names its own value in races.ron keeps it; settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
+            events: (random_events: true, pressure_percent: 80, frequency: Normal, start_turn: 6,),
             scoring: (score_percent: 200),
         ),
         // 4: Extreme (patch 1.40), between Hard and Impossible. The AI's bonuses are the patch's
@@ -267,9 +281,12 @@
                 monsters_enabled: true,
                 raider_percent: 60,
                 start_reveal_radius: 2.5,
+                monster_start_turn: 50,
+                mineral_percent_arcanus: 6,
+                mineral_percent_myrror: 10,
             ),
-            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9, farmer_food: 2, worker_production: 2), // farmer_food, worker_production: the base food of a farmer and production of a worker, 0 to 10 in halves; a race that names its own value in races.ron keeps it; settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
-            events: (random_events: true, pressure_percent: 90, frequency: Normal),
+            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9, farmer_food: 2, worker_production: 2, spell_of_mastery: all, spell_of_return: all, limit_ai_races: false, trireme_capacity: 2, galley_capacity: 5, half_upkeep: false, combat_forecast: false, arcane_candidate_cap: 0, ban_life_and_death: true, walls_cover_city: false, original_battlefield: false, magic_immunity_exceptions: false, death_immunity_exceptions: false, miners_guild_half_ore: false, spell_binding_always_succeeds: false, two_pick_myrran: false, extend_tiny_islands: false, mix_neutral_races: false, adamant_alchemy: false, color_wheel_relations: false, defeat_loot: true, lair_full_heal: true, cavalry_halberdier_abilities: false, roads_at_start: true, stronger_lairs: false, treasure_patch_150: false, suppress_spares_return: false, max_city_size: 25, min_city_distance: 4, illusion_immunity_protects: true,), // farmer_food, worker_production: the base food of a farmer and production of a worker, 0 to 10 in halves; a race that names its own value in races.ron keeps it; settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
+            events: (random_events: true, pressure_percent: 90, frequency: Normal, start_turn: 6,),
             scoring: (score_percent: 250),
         ),
         // 5: Impossible
@@ -307,9 +324,12 @@
                 monsters_enabled: true,
                 raider_percent: 67,
                 start_reveal_radius: 2.5,
+                monster_start_turn: 50,
+                mineral_percent_arcanus: 6,
+                mineral_percent_myrror: 10,
             ),
-            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9, farmer_food: 2, worker_production: 2), // farmer_food, worker_production: the base food of a farmer and production of a worker, 0 to 10 in halves; a race that names its own value in races.ron keeps it; settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
-            events: (random_events: true, pressure_percent: 100, frequency: Normal),
+            rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12, max_battle_side: 9, farmer_food: 2, worker_production: 2, spell_of_mastery: all, spell_of_return: all, limit_ai_races: false, trireme_capacity: 2, galley_capacity: 5, half_upkeep: false, combat_forecast: false, arcane_candidate_cap: 0, ban_life_and_death: true, walls_cover_city: false, original_battlefield: false, magic_immunity_exceptions: false, death_immunity_exceptions: false, miners_guild_half_ore: false, spell_binding_always_succeeds: false, two_pick_myrran: false, extend_tiny_islands: false, mix_neutral_races: false, adamant_alchemy: false, color_wheel_relations: false, defeat_loot: true, lair_full_heal: true, cavalry_halberdier_abilities: false, roads_at_start: true, stronger_lairs: false, treasure_patch_150: false, suppress_spares_return: false, max_city_size: 25, min_city_distance: 4, illusion_immunity_protects: true,), // farmer_food, worker_production: the base food of a farmer and production of a worker, 0 to 10 in halves; a race that names its own value in races.ron keeps it; settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9; v1.6 takes 20), from max_battle_side to 20; max_battle_side: units one side fights with in a battle, 1 to 9, nine in every rule set
+            events: (random_events: true, pressure_percent: 100, frequency: Normal, start_turn: 6,),
             scoring: (score_percent: 300),
         ),
     ],

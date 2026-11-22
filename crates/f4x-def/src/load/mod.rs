@@ -329,8 +329,19 @@ pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
         .with(["the file"])]));
     };
     let text = std::fs::read_to_string(&path).map_err(|e| ContentError::io(&path, &e))?;
-    let settings: SettingsDef =
-        ron::from_str(&text).map_err(|e| ContentError::parse("rules_settings.ron", &e))?;
+    // The file states every setting; one it leaves out is not filled from a built-in (only a save
+    // from before the setting existed is: `settings::with_fallback`).
+    let (read, gaps) = crate::settings::collecting_gaps(|| ron::from_str::<SettingsDef>(&text));
+    let settings = read.map_err(|e| ContentError::parse("rules_settings.ron", &e))?;
+    if !gaps.is_empty() {
+        return Err(ContentError::new(
+            gaps.into_iter()
+                .map(|name| {
+                    ContentIssue::new("rules_settings.ron", name, IssueKind::Missing).with([name])
+                })
+                .collect(),
+        ));
+    }
     // The settings types are shared with the save files, which must go on reading a field a
     // later version dropped; so the unknown keys of this file are looked for here.
     let unknown = unknown_keys(&text, &settings);

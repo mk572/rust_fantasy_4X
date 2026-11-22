@@ -993,3 +993,29 @@ fn explored_flags_are_written_as_runs_and_older_forms_still_read() {
         assert!(ron::from_str::<Bits>(bad).is_err(), "{bad}");
     }
 }
+
+#[test]
+fn a_save_from_before_a_setting_existed_takes_the_players_default_and_else_the_shipped_one(
+) -> TestResult {
+    use f4x_def::settings::{with_fallback, GameSettings};
+    let text = Game::new(5).snapshot().to_text()?;
+    let key = "max_city_size";
+    assert!(text.contains(key), "the save states the setting");
+    // The key under another name: the save as an older version wrote it, without the setting.
+    let old = text.replace(&format!("{key}:"), &format!("was_{key}:"));
+    assert_ne!(old, text);
+    let shipped = GameSettings::default().rules.max_city_size;
+    assert_eq!(
+        Snapshot::from_text(&old)?.settings.rules.max_city_size,
+        shipped,
+        "no default of the player's: the shipped one"
+    );
+    let mut chosen = GameSettings::default();
+    chosen.rules.max_city_size = shipped - 1;
+    let back = with_fallback(chosen, || Snapshot::from_text(&old))?;
+    assert_eq!(back.settings.rules.max_city_size, shipped - 1);
+    // Anything else a save lacks cannot be filled in: the load fails.
+    let broken = text.replacen("turn:", "not_turn:", 1);
+    assert!(Snapshot::from_text(&broken).is_err());
+    Ok(())
+}
