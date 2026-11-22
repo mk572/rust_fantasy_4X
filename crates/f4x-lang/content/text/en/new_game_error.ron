@@ -1,0 +1,25 @@
+// Why a new game could not be made (`crates/f4x-newgame/src/error.rs`, `NewGameError`). The `{...}` values are the
+// ones `NewGameError::args` gives; `why` is the detail of the settings, content or map generator.
+{
+    "new_game_error.settings": "A setting is out of its range: {why}",
+    "new_game_error.content": "The game's files are not fit to start a game: {why}",
+    "new_game_error.too_many_opponents": "{asked} opponents is more than this game allows, {most}.",
+    "new_game_error.choices_without_human": "A game with no human player has no wizard or race to choose.",
+    "new_game_error.no_preset": "There is no ready-made wizard number {num}.",
+    "new_game_error.too_many_picks": "The wizard spends {spent} picks, more than there are.",
+    "new_game_error.unspent_picks": "The wizard has {left} picks left; all of them must be spent.",
+    "new_game_error.too_many_retorts": "The wizard has more retorts than allowed.",
+    "new_game_error.retort_not_available": "The wizard does not have the books a chosen retort needs.",
+    "new_game_error.unknown_realm": "The wizard has books of a realm the game does not have.",
+    "new_game_error.too_many_books": "The wizard has more books in one realm than allowed.",
+    "new_game_error.too_many_books_in_all": "The wizard has more books in all than allowed.",
+    "new_game_error.bad_spell": "A chosen spell is not one the wizard's books allow.",
+    "new_game_error.wizard_magic": "The wizard's magic is not valid.",
+    "new_game_error.race_not_on_arcanus": "Race {race} does not live on Arcanus.",
+    "new_game_error.race_not_on_myrror": "Race {race} does not live on Myrror.",
+    "new_game_error.no_races": "The game has no race for a wizard to be.",
+    "new_game_error.no_race": "The game has no race number {race}.",
+    "new_game_error.map": "The map could not be made: {why}",
+    "new_game_error.no_map": "There is no map to start on.",
+    "new_game_error.no_fortress_place": "There is no place for a wizard's fortress on this map.",
+}

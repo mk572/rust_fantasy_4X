@@ -685,10 +685,6 @@ fn a_pole_of_grass_is_found() {
 
 use f4x_newgame::mapgen::land_percent;
 
-/// The land share the original generator reaches on every map the matrix tries, with room to spare
-/// (it saturates between 53 and 61 percent: `docs/f4x-newgame-test-design.md`, Findings).
-const ORIGINAL_REACH: u32 = 50;
-
 #[test]
 fn the_land_is_the_share_asked_for_or_a_little_more() {
     // The noise generator takes the top share of the open sea and adds the polar caps on top; the
@@ -698,15 +694,9 @@ fn the_land_is_the_share_asked_for_or_a_little_more() {
         let g = generated(world);
         for plane in Plane::all() {
             let got = land_percent(g.map.plane(plane), &content().terrains);
-            // The original's walks fill about 55 to 60 percent at most whatever is asked (a
-            // finding, not a rule): up to ORIGINAL_REACH the ask is met.
-            let asked = if world.variant == Variant::OriginalGenerator {
-                u32::from(world.land).min(ORIGINAL_REACH)
-            } else {
-                u32::from(world.land)
-            };
+            let asked = u32::from(world.settings().basic.land_percent);
             if got + 1 < asked {
-                failures.push(format!("{world:?} {plane:?}: {got}% for {}", world.land));
+                failures.push(format!("{world:?} {plane:?}: {got}% for {asked}"));
             }
         }
     }
@@ -729,17 +719,12 @@ fn more_land_asked_for_is_more_land_made() {
         .map(|l| share(Variant::Plain, l))
         .into();
     assert!(noise.windows(2).all(|p| p[0] < p[1]), "{noise:?}");
-    // The original's walks stay clear of the sides and the poles, so they run out of room: the
-    // land grows with the ask, then stops (a finding of `docs/f4x-newgame-test-design.md`).
-    let original: Vec<u32> = [10, 20, 30, 60, 90, 99]
+    // The original's walks, up to the most the settings let it be asked for.
+    let most = f4x_def::settings::ORIGINAL_GENERATOR_MAX_LAND;
+    let original: Vec<u32> = [10, 20, 30, most]
         .map(|l| share(Variant::OriginalGenerator, l))
         .into();
-    assert!(original.windows(2).all(|p| p[0] <= p[1]), "{original:?}");
-    assert!(original[0] < original[2], "{original:?}");
-    // Never more than was asked for, by more than the poles' tundra.
-    for (&ask, &got) in [10u32, 20, 30, 60, 90, 99].iter().zip(&original) {
-        assert!(got <= ask + 10, "asked {ask}, made {got}");
-    }
+    assert!(original.windows(2).all(|p| p[0] < p[1]), "{original:?}");
 }
 
 #[test]

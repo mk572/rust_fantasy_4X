@@ -2,8 +2,10 @@
 //! counts of towers and cities, the picks, the book limits), through the public interface only.
 
 use f4x_core::game::{Command, Event, Game};
+use f4x_core::wizard::BuildError;
 use f4x_def::content::Content;
 use f4x_def::testdir::TestResult;
+use f4x_newgame::error::NewGameError;
 use f4x_newgame::setup::{new_game, NewGame};
 
 fn shipped() -> &'static Content {
@@ -19,7 +21,7 @@ fn game_with_counts(
     seed: u64,
     towers: Option<u8>,
     neutral_cities: Option<u8>,
-) -> Result<Game, String> {
+) -> Result<Game, NewGameError> {
     let mut spec = NewGame {
         seed,
         all_ai: true,
@@ -195,7 +197,13 @@ fn a_ready_made_human_wizard_over_the_most_books_is_asked_to_spend_the_picks() -
     };
     assert!(make(11).is_ok());
     let refused = make(8).err().ok_or("Ariel is made with surplus picks")?;
-    assert!(refused.contains("UnspentPicks"), "{refused}");
+    assert!(
+        matches!(
+            refused,
+            NewGameError::Wizard(BuildError::UnspentPicks { .. })
+        ),
+        "{refused:?}"
+    );
     Ok(())
 }
 

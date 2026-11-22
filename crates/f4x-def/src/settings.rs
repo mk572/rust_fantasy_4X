@@ -67,6 +67,11 @@ pub const LAND_SMALL: u8 = 15;
 pub const LAND_MEDIUM: u8 = 20;
 pub const LAND_LARGE: u8 = 30;
 
+/// The most land the original map generator makes: its walks keep clear of the sides and the poles
+/// and run out of room at 53 to 61 percent whatever is asked, so the setting stops here for it
+/// (the noise generator takes up to 99).
+pub const ORIGINAL_GENERATOR_MAX_LAND: u8 = 50;
+
 /// The difficulty a game gets when nothing says otherwise ("Average").
 pub const DEFAULT_DIFFICULTY: u8 = 2;
 /// The map a game gets when nothing says otherwise: 60 by 40 squares.
@@ -1394,11 +1399,16 @@ impl GameSettings {
             &b.opponents,
             format!("1 to {MAX_OPPONENTS}"),
         );
+        let most_land = if b.original_map_generator {
+            ORIGINAL_GENERATOR_MAX_LAND
+        } else {
+            99
+        };
         check(
-            (1..=99).contains(&b.land_percent),
+            (1..=most_land).contains(&b.land_percent),
             "land_percent",
             &b.land_percent,
-            "1 to 99".into(),
+            format!("1 to {most_land}"),
         );
         check(
             b.magic_strength <= 2,

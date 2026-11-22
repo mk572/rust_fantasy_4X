@@ -86,6 +86,13 @@ impl World {
         s.basic.map_height = self.height;
         s.basic.land_percent = self.land;
         self.variant.apply(&mut s);
+        // The original generator takes no more land than its limit (the settings refuse more).
+        if s.basic.original_map_generator {
+            s.basic.land_percent = s
+                .basic
+                .land_percent
+                .min(f4x_def::settings::ORIGINAL_GENERATOR_MAX_LAND);
+        }
         s
     }
 

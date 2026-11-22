@@ -351,7 +351,8 @@ impl App {
         let options = OptionsState::from_settings(&content.settings);
         let default_game = f4x_def::settings::DefaultGame::factory(&content.settings);
         let prefs = crate::preferences::Preferences::default();
-        let game = Self::new_game(seed, &options, &content, &names.bundle(), None, race, true)?;
+        let game = Self::new_game(seed, &options, &content, &names.bundle(), None, race, true)
+            .map_err(|e| e.to_string())?;
         let mut app = Self {
             game: crate::revised::Revised::new(game),
             art,
@@ -443,7 +444,7 @@ impl App {
         human: Option<(&WizardBuild, Option<usize>)>,
         race: usize,
         random_events: bool,
-    ) -> Result<Game, String> {
+    ) -> Result<Game, f4x_newgame::error::NewGameError> {
         let (human, preset) = human.map_or((None, None), |(b, p)| (Some(b), p));
         let preset = human
             .filter(|b| b.preset)
@@ -1655,7 +1656,13 @@ impl App {
                 }
             }
             Err(e) => {
-                let args = Args::new().text("why", e.to_string());
+                // The reason in the player's language, then the line that says the map failed.
+                let reason = e
+                    .args()
+                    .into_iter()
+                    .fold(Args::new(), |args, (name, value)| args.text(name, value));
+                let why = self.text_with(e.text_key(), &reason);
+                let args = Args::new().text("why", why);
                 self.log.push(self.text_with("log.map_failed", &args));
             }
         }

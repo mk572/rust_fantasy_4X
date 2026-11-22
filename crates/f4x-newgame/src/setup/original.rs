@@ -85,7 +85,7 @@ mod tests {
     use f4x_def::testdir::shipped;
     use f4x_def::testdir::TestResult;
 
-    fn original(seed: u64, wizards: u8) -> Result<Game, String> {
+    fn original(seed: u64, wizards: u8) -> Result<Game, crate::error::NewGameError> {
         let mut spec = NewGame::with_wizards(wizards);
         spec.seed = seed;
         spec.all_ai = true;

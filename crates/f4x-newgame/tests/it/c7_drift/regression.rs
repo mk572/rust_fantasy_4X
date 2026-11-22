@@ -27,7 +27,7 @@ fn end_turns(g: &mut Game, n: usize) {
     }
 }
 
-fn fresh(seed: u64) -> Result<Game, String> {
+fn fresh(seed: u64) -> Result<Game, f4x_newgame::error::NewGameError> {
     new_game(
         shipped(),
         &NewGame {

@@ -379,11 +379,12 @@ fn best_site_near(game: &Game, at: Position, height: u32, chosen: &[Position]) -
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::NewGameError;
     use crate::setup::{new_game, NewGame};
     use f4x_def::testdir::shipped;
     use f4x_def::testdir::TestResult;
 
-    fn world(seed: u64) -> Result<Game, String> {
+    fn world(seed: u64) -> Result<Game, NewGameError> {
         new_game(
             shipped(),
             &NewGame {
@@ -690,7 +691,7 @@ mod tests {
     fn the_races_rolled_from_are_those_with_a_weight_on_the_plane_and_only_with_the_mix_setting(
     ) -> TestResult {
         // `neutral_weight` of each row of `races.ron`.
-        let game = |mix: bool| -> Result<Game, String> {
+        let game = |mix: bool| -> Result<Game, NewGameError> {
             let mut spec = NewGame {
                 seed: 1,
                 all_ai: true,

@@ -158,7 +158,15 @@ pub(crate) fn rows() -> Vec<Row> {
             (1, 99, 1),
             "%",
             |s| s.basic.land_percent.into(),
-            |s, v| s.basic.land_percent = v as u8,
+            |s, v| {
+                // The original generator cannot make more land than its limit.
+                let most = if s.basic.original_map_generator {
+                    f4x_def::settings::ORIGINAL_GENERATOR_MAX_LAND
+                } else {
+                    99
+                };
+                s.basic.land_percent = (v as u8).min(most);
+            },
         ),
         num(
             "custom.map_width",
@@ -247,7 +255,15 @@ pub(crate) fn rows() -> Vec<Row> {
         flag(
             "custom.original_generator",
             |s| s.basic.original_map_generator.into(),
-            |s, v| s.basic.original_map_generator = v != 0,
+            |s, v| {
+                s.basic.original_map_generator = v != 0;
+                if v != 0 {
+                    s.basic.land_percent = s
+                        .basic
+                        .land_percent
+                        .min(f4x_def::settings::ORIGINAL_GENERATOR_MAX_LAND);
+                }
+            },
         ),
         flag(
             "custom.diagonal_extra_cost",

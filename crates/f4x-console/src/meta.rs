@@ -517,7 +517,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         spec.settings.events.frequency = f;
     }
     let content = ctx.game.content().clone();
-    let game = new_game(&content, &spec).map_err(ConsoleError::Failed)?;
+    let game = new_game(&content, &spec).map_err(|e| ConsoleError::Failed(e.to_string()))?;
     *ctx.game = game;
     ctx.session.player = crate::setup::HUMAN;
     ctx.say(format!("new game, seed {}", spec.seed));

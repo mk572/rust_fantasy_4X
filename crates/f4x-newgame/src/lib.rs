@@ -6,6 +6,7 @@
 
 pub mod computer_wizard;
 pub mod coupling;
+pub mod error;
 pub mod island;
 pub mod lair;
 pub mod main_realm_spell;

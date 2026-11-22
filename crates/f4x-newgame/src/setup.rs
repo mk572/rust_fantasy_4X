@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod original;
 
+use crate::error::NewGameError;
 use crate::mapgen::{generate, GenParams, PlaneParams};
 use f4x_core::game::setting::GameSettings;
 use f4x_core::map::{Plane, Position};
@@ -118,31 +119,27 @@ pub fn gen_params(settings: &GameSettings) -> GenParams {
     }
 }
 
-pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
+pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError> {
     let problems = spec.settings.validate();
     if !problems.is_empty() {
-        return Err(problems
-            .iter()
-            .map(|p| p.to_string())
-            .collect::<Vec<_>>()
-            .join("; "));
+        return Err(NewGameError::Settings(problems));
     }
     // The hooks and special spells the code implements are the only ones the content may name.
     let hooks = f4x_core::hook::problems(&content.rules);
     if !hooks.is_empty() {
-        return Err(hooks.join("; "));
+        return Err(NewGameError::Content(hooks));
     }
     // The numbers this crate names (the Myrran retort, the five realms, ...) must lead to the rows
     // of their aliases, or the wizards would be made with other retorts than the code means.
     let coupling = crate::coupling::problems(&content.rules);
     if !coupling.is_empty() {
-        return Err(coupling.join("; "));
+        return Err(NewGameError::Content(coupling));
     }
     if spec.settings.basic.opponents > content.settings.max_opponents {
-        return Err(format!(
-            "{} opponents is over the most this content allows, {}",
-            spec.settings.basic.opponents, content.settings.max_opponents
-        ));
+        return Err(NewGameError::TooManyOpponents {
+            asked: spec.settings.basic.opponents,
+            most: content.settings.max_opponents,
+        });
     }
     // Every wizard of an all-AI game is a ready-made one: the choices for player 0 have nobody to
     // go to, and one of them (the race) used to be taken while the others were dropped.
@@ -154,16 +151,12 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
             || !spec.books.is_empty()
             || !spec.retorts.is_empty())
     {
-        return Err(
-            "an all-AI game has no player 0 to choose a wizard or a race for: the preset, build, \
-             race, name, books and retorts are for a game with a human"
-                .into(),
-        );
+        return Err(NewGameError::ChoicesWithoutHuman);
     }
     let settings = spec.settings;
     let wizards = settings.basic.opponents + 1;
     let params = gen_params(&settings);
-    let map = generate(spec.seed, &params, content).map_err(|e| e.to_string())?;
+    let map = generate(spec.seed, &params, content)?;
     let mut game = Game::begin_world(
         spec.seed,
         settings,
@@ -214,7 +207,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                 taken.push(num);
                 let mut build = game
                     .preset_build(num)
-                    .ok_or_else(|| format!("no ready-made wizard {num}"))?;
+                    .ok_or(NewGameError::NoPreset { num })?;
                 // Over the most books in a realm, it loses the surplus and has picks to spend:
                 // the pick rules then ask for them.
                 build.trim_books(settings.wizards.max_books_per_realm);
@@ -299,8 +292,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         );
     }
     for (k, build) in builds.iter().enumerate() {
-        game.create_wizard(PlayerId(k as u8), build)
-            .map_err(|e| format!("{e:?}"))?;
+        game.create_wizard(PlayerId(k as u8), build)?;
     }
     // Every wizard has a banner of their own.
     let mut used = BTreeSet::new();
@@ -357,10 +349,10 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
             Some(want) => {
                 let ok = race_defs.iter().filter(on_plane).any(|r| r.num == *want);
                 if !ok {
-                    return Err(format!(
-                        "race {want} is not one of the {} races",
-                        if myrran { "Myrror" } else { "Arcanus" }
-                    ));
+                    return Err(NewGameError::RaceNotOnPlane {
+                        race: *want,
+                        myrror: myrran,
+                    });
                 }
                 *want
             }
@@ -381,7 +373,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                 let pool = if free.is_empty() { all } else { free };
                 pool.get(seed_offset(spec.seed, k * 3) % pool.len().max(1))
                     .copied()
-                    .ok_or("no races")?
+                    .ok_or(NewGameError::NoRaces)?
             }
         };
         races.push(id);
@@ -565,12 +557,12 @@ fn start_player(
     count: u8,
     race: u16,
     site: Option<Position>,
-) -> Result<(), String> {
+) -> Result<(), NewGameError> {
     let rules = &game.content().rules;
     let race_def = rules
         .races
         .by_num(race)
-        .ok_or_else(|| format!("no race {race}"))?;
+        .ok_or(NewGameError::NoRace { race })?;
     let race_id = rules.races.id_numbered(race_def.num);
     let name = game.names().city(race_def.num, &race_def.id, 0);
     let army = race_def.start_army.clone();
@@ -583,7 +575,7 @@ fn start_player(
     let (width, height) = game
         .map()
         .map(|m| (m.width(), m.height()))
-        .ok_or("no map")?;
+        .ok_or(NewGameError::NoMap)?;
     // Wizards on the same plane are spread round it, whatever the others do on the other.
     let (mates, index) = {
         let same: Vec<u8> = (0..count)
@@ -668,7 +660,7 @@ fn start_player(
             return Ok(());
         }
     }
-    Err("no place for a fortress".into())
+    Err(NewGameError::NoFortressPlace)
 }
 
 #[cfg(test)]
@@ -921,8 +913,16 @@ mod tests {
         assert!(new_game(c, &bad).is_err());
         let mut many = spec(1, 3);
         many.settings.basic.opponents = c.settings.max_opponents + 1;
-        let err = new_game(c, &many).err().unwrap_or_default();
-        assert!(err.contains("opponents"), "{err}");
+        let err = new_game(c, &many).err();
+        // The setting's own range refuses it first; the content's most is the second line.
+        let refused = match &err {
+            Some(NewGameError::TooManyOpponents { .. }) => true,
+            Some(NewGameError::Settings(issues)) => issues
+                .iter()
+                .any(|i| i.detail.first().map(String::as_str) == Some("opponents")),
+            _ => false,
+        };
+        assert!(refused, "{err:?}");
     }
 
     /// With `extend_tiny_islands` on no wizard starts on a speck of land: the town stands on a land

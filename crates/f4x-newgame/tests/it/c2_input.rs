@@ -15,6 +15,7 @@ use f4x_def::settings::{
     BOOKS_PER_REALM_RANGE, BOOKS_TOTAL_RANGE, MAX_DIFFICULTY, MAX_OPPONENTS, MINERAL_PERCENT_RANGE,
     NODES_RANGE, SITES_RANGE,
 };
+use f4x_newgame::error::NewGameError;
 use f4x_newgame::mapgen::{generate, GenParams};
 use f4x_newgame::setup::{gen_params, new_game, NewGame};
 use std::sync::mpsc;
@@ -202,6 +203,13 @@ fn every_setting_at_either_end_makes_a_game_that_keeps_the_rules() {
                 let world = World { variant, ..std };
                 let mut settings = world.settings();
                 set(&mut settings);
+                // The original generator is asked for no more land than it can make.
+                if settings.basic.original_map_generator {
+                    settings.basic.land_percent = settings
+                        .basic
+                        .land_percent
+                        .min(f4x_def::settings::ORIGINAL_GENERATOR_MAX_LAND);
+                }
                 let wizards = settings.basic.opponents + 1;
                 let seed = 17;
                 let result = bounded(120, move || {
@@ -289,7 +297,15 @@ fn every_setting_just_outside_its_range_is_refused_by_name() {
         };
         let result = bounded(30, move || new_game(content(), &spec).map(|_| ()));
         let error = result.expect_err(name);
-        assert!(error.contains(name), "{name}: {error}");
+        let NewGameError::Settings(issues) = &error else {
+            panic!("{name}: {error:?}");
+        };
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.detail.first().is_some_and(|d| d.ends_with(name))),
+            "{name}: {issues:?}"
+        );
     }
 }
 
@@ -312,7 +328,7 @@ fn a_preset_that_is_not_there_is_refused_by_number() {
     };
     let error =
         bounded(30, move || new_game(content(), &spec).map(|_| ())).expect_err("no such wizard");
-    assert!(error.contains(&u16::MAX.to_string()), "{error}");
+    assert_eq!(error, NewGameError::NoPreset { num: u16::MAX });
 }
 
 #[test]
@@ -349,8 +365,8 @@ fn a_race_that_is_not_there_or_of_the_other_plane_is_refused() {
         let error =
             bounded(30, move || new_game(content(), &spec).map(|_| ())).expect_err("a bad race");
         assert!(
-            error.contains(&race.to_string()) || error.contains("race"),
-            "{race}: {error}"
+            matches!(error, NewGameError::RaceNotOnPlane { race: r, myrror: false } if r == race),
+            "{race}: {error:?}"
         );
     }
 }
@@ -409,7 +425,7 @@ fn choices_for_a_player_who_is_not_there_are_refused_and_not_half_taken() {
         };
         let error =
             bounded(30, move || new_game(content(), &spec).map(|_| ())).expect_err("refused");
-        assert!(error.contains("all-AI"), "{error}");
+        assert_eq!(error, NewGameError::ChoicesWithoutHuman);
     }
 }
 
@@ -677,4 +693,62 @@ fn content_without_ready_made_wizards_heroes_or_a_retort_is_refused_or_played_ne
         answer.contains("retort 9 as myrran"),
         "without the Myrran retort: {answer}"
     );
+}
+
+#[test]
+fn the_original_generator_is_refused_more_land_than_it_can_make() {
+    let most = f4x_def::settings::ORIGINAL_GENERATOR_MAX_LAND;
+    let make = |land: u8, original: bool| {
+        let mut settings = standard().settings();
+        settings.basic.original_map_generator = original;
+        settings.basic.land_percent = land;
+        let spec = NewGame {
+            settings,
+            all_ai: true,
+            ..Default::default()
+        };
+        bounded(30, move || new_game(content(), &spec).map(|_| ()))
+    };
+    // The limit is the original generator's own: the noise generator takes the same land.
+    assert!(make(most, true).is_ok());
+    assert!(make(most + 1, false).is_ok());
+    assert!(make(99, false).is_ok());
+    for land in [most + 1, 75, 99] {
+        let error = make(land, true).expect_err("more land than the walks can make");
+        let NewGameError::Settings(issues) = &error else {
+            panic!("{land}: {error:?}");
+        };
+        assert!(
+            issues.iter().any(|i| i
+                .detail
+                .first()
+                .is_some_and(|d| d.ends_with("land_percent"))),
+            "{land}: {issues:?}"
+        );
+    }
+}
+
+#[test]
+fn the_original_generator_makes_the_land_it_may_be_asked_for_on_every_size() {
+    // The limit is only as good as the reach: at the limit, on every corner size and many seeds,
+    // each plane has the share asked (less a point).
+    let most = f4x_def::settings::ORIGINAL_GENERATOR_MAX_LAND;
+    for (width, height) in sizes() {
+        for seed in 0..40u64 {
+            let world = World {
+                seed,
+                width,
+                height,
+                land: most,
+                variant: Variant::OriginalGenerator,
+                ..standard()
+            };
+            let g = generated(world);
+            for plane in f4x_core::map::Plane::all() {
+                let got =
+                    f4x_newgame::mapgen::land_percent(g.map.plane(plane), &content().terrains);
+                assert!(got + 1 >= u32::from(most), "{world:?} {plane:?}: {got}%");
+            }
+        }
+    }
 }

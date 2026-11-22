@@ -148,3 +148,108 @@ fn every_number_in_the_source_is_on_the_list_with_the_alias_written_beside_it() 
         );
     }
 }
+
+// ---- the messages of `NewGameError` ----
+
+/// One of each reason `new_game` can give, with the values it names.
+fn every_error() -> Vec<f4x_newgame::error::NewGameError> {
+    use f4x_core::wizard::BuildError as B;
+    use f4x_newgame::error::NewGameError as E;
+    let realm = f4x_core::rules::RealmId::new(0);
+    let issue = f4x_def::issue::ContentIssue::new(
+        "rules_settings.ron",
+        "basic",
+        f4x_def::issue::IssueKind::OutOfRange,
+    );
+    vec![
+        E::Settings(vec![issue]),
+        E::Content(vec!["a problem".into()]),
+        E::TooManyOpponents { asked: 9, most: 5 },
+        E::ChoicesWithoutHuman,
+        E::NoPreset { num: 7 },
+        E::Wizard(B::TooManyPicks { spent: 12 }),
+        E::Wizard(B::UnspentPicks { left: 2 }),
+        E::Wizard(B::TooManyRetorts),
+        E::Wizard(B::RetortNotAvailable(f4x_core::wizard::magic::Retort::new(
+            9,
+        ))),
+        E::Wizard(B::UnknownRealm(realm)),
+        E::Wizard(B::TooManyBooks(realm)),
+        E::Wizard(B::TooManyBooksInAll),
+        E::Wizard(B::Magic(f4x_core::wizard::magic::MagicError::UnknownPlayer)),
+        E::Wizard(B::BadSpell(f4x_core::rules::SpellId::new(1))),
+        E::RaceNotOnPlane {
+            race: 3,
+            myrror: false,
+        },
+        E::RaceNotOnPlane {
+            race: 3,
+            myrror: true,
+        },
+        E::NoRaces,
+        E::NoRace { race: 4 },
+        E::Map(f4x_newgame::mapgen::GenError::BadParams("x".into())),
+        E::NoMap,
+        E::NoFortressPlace,
+    ]
+}
+
+fn error_texts() -> std::collections::BTreeMap<String, String> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../f4x-lang/content/text/en/new_game_error.ron");
+    ron::from_str(&std::fs::read_to_string(path).expect("the file")).expect("a map of texts")
+}
+
+#[test]
+fn every_new_game_error_has_its_message_and_the_message_names_only_what_the_error_gives() {
+    let texts = error_texts();
+    for e in every_error() {
+        let key = e.text_key();
+        assert!(
+            f4x_newgame::error::NewGameError::KEYS.contains(&key),
+            "{key} is not listed"
+        );
+        let text = texts
+            .get(key)
+            .unwrap_or_else(|| panic!("{key} has no message"));
+        let given: Vec<&str> = e.args().iter().map(|a| a.0).collect();
+        let mut rest = text.as_str();
+        while let Some(open) = rest.find('{') {
+            let close = rest[open..].find('}').expect("a closed brace") + open;
+            let name = &rest[open + 1..close];
+            assert!(
+                given.contains(&name),
+                "{key} names {{{name}}}, the error gives {given:?}"
+            );
+            rest = &rest[close + 1..];
+        }
+        for name in given {
+            assert!(
+                text.contains(&format!("{{{name}}}")),
+                "{key} does not show {name}"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_file_of_messages_holds_exactly_the_keys_the_error_can_give() {
+    let mut in_file: Vec<String> = error_texts().into_keys().collect();
+    let mut listed: Vec<String> = f4x_newgame::error::NewGameError::KEYS
+        .iter()
+        .map(|k| k.to_string())
+        .collect();
+    in_file.sort();
+    listed.sort();
+    assert_eq!(in_file, listed);
+    let mut used: Vec<String> = every_error()
+        .iter()
+        .map(|e| e.text_key().to_string())
+        .collect();
+    used.sort();
+    used.dedup();
+    assert_eq!(
+        used, listed,
+        "a key no error gives, or an error the test does not build"
+    );
+}

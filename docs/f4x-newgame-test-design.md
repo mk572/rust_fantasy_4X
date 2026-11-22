@@ -186,9 +186,8 @@ the world, as the arguments to repeat it.
   uses the shipped content too.
 - Restate the implementation. A checker that does the same computation as the code proves nothing; where the only
   way to say what is expected is to repeat the code, the test is dropped and a property of the result stays.
-- Match the wording of an error. `new_game` returns `String` today; the tests assert that it is `Err` and that it
-  names the thing (`"7"` in "no ready-made wizard 7"), as `f4x-def` asserts the parts of an issue. If the error
-  becomes typed (see Findings), the tests take the type.
+- Match the wording of an error. `new_game` returns a `NewGameError`; the tests match the variant and its values, as
+  `f4x-def` asserts the parts of an issue. The English wording is `Display`, for logs only.
 
 ## Negative tests: the checkers must be able to fail
 
@@ -258,11 +257,11 @@ test that fails without the fix, unless "left" is in the last column (then see t
 | 2 | `setup::anchor` used `f32` trig; `sin(PI)` is not 0, so the odd-height first start row (x.5) rounded by a half-ulp | 1 | inline `a_start_row_that_is_exactly_a_half_goes_up_on_every_odd_height`, `the_start_spot_is_stable_over_every_size` | fixed: `f64`, 0 and 1 snapped, half rounds up (the margin otherwise is at least 6.3e-4) |
 | 3 | `race` was applied and `preset` ignored in an all-AI game | 2 | `c2_input` all-AI choices refused | fixed: `new_game` refuses the combination |
 | 4 | 1000 by 1000 at 1 percent land took 10 to 21 s (site check scanned all placements) | 2 | `c2_input` 1000x1000 under 10 s | fixed: `Taken` occupancy grid (0.36 s) |
-| 5 | `new_game` returns `String` | 2 | | left, owner's decision |
+| 5 | `new_game` returned `String`: a bad input could not be told from an unfit content, and the client could not key the message | 2 | `c2_input` (variants asserted), `c6_coupling` (every error has its message, names only what it gives) | fixed: `NewGameError` (`error.rs`) with `text_key()` and `args()`, messages in `new_game_error.ron`, the client shows them keyed |
 | 6 | Towers and sites fell short with free squares left (200 random tries, then quiet) | 3 | `c3_map` matrix at 1 percent land | fixed: a fallback scan over a shuffled list of the squares; maps without shortfall are unchanged |
 | 7 | A river could be flagged on open-sea squares (a later river's path over water made by an earlier one); a river may cross a lake, so lakes stay allowed | 3 | `c3_map` rule `river` (open sea only) | fixed in `mapgen` |
 | 8 | Content without a named retort or realm started a game that silently misbehaved | 6 | `c6_coupling`, `c2_input` damaged content | fixed: `coupling::problems` makes `new_game` refuse |
-| 9 | The original generator reaches only 53 to 61 percent land whatever is asked | 3 | `c3_map` `more_land_asked_for_is_more_land_made` | left (see below) |
+| 9 | The original generator reaches only 53 to 61 percent land whatever is asked | 3 | `c2_input` refusal above the limit, `...makes_the_land_it_may_be_asked_for_on_every_size` | fixed: `ORIGINAL_GENERATOR_MAX_LAND` (50) in `f4x-def`; the settings refuse more for that generator and the custom screen clamps |
 
 Fixtures: none moved in the end (the river fix, narrowed to open sea, leaves the pinned games as they were). The three played
 scenarios of `c7_drift` did not move either.
@@ -280,9 +279,6 @@ scenarios of `c7_drift` did not move either.
 
 ## Left as they are, on purpose
 
-- `new_game` returns `String`: a typed error is the owner's decision (finding 5).
-- The original generator's land share saturates at about 55 to 60 percent (walks keep clear of sides and poles, as in
-  the original); the matrix asks for no more than 50 of it, and checks the order only.
 - Desert on pole rows of the original generator stays as the original has it; the pole rule is for the noise generator.
 - `GenParams::default()` carries tuning numbers; the suite uses `gen_params(&settings)`.
 - The `OPPOSED` table of the temperament has no counterpart in the content.
