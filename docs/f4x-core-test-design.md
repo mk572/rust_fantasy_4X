@@ -186,7 +186,23 @@ says in its header that it belongs to this design. Names follow the project's si
 4. The subsystems of class 9, biggest risk first (turn, city, unit, spell, battle), each with a mutation pass.
 5. Mapping table of old tests to new ones, and the findings, added to this document as they come.
 
+## Findings
+
+Found by the rebuilt tests, each fixed in the code with the test that found it:
+
+1. `CreateUnit` for a player the game does not have panicked (class 1 sweep). Every command now goes through a
+   gate: a command that acts for a player the game lacks is refused with `Rejection::NoSuchPlayer`.
+2. A command naming a square off the map (`GoTo`, `CreateUnit`, `FoundCity`, `PlaceFortress`, `EnterSite`,
+   `EarthGate`, `BuildRoad`) panicked in the path grid or the map (class 1 sweep). Refused with `MoveError::OffMap`.
+3. A refused lifecycle command (`StartPlayerTurn` for no player, `EndPlayerTurn` and so on) wiped the undo history
+   although it changed nothing (class 1 with undo on).
+
 ## Open questions
+
+- A command that is refused in part: `forget_if_rejected` drops the whole command from the replay when any event is
+  a `Rejected`, but a standing order (`GoTo`) can move units and then report a refused step in the same answer. If
+  that can happen the replay misses a command that changed the game. No test reaches it yet; the sweep found no
+  refusal that also changed the game.
 
 - Which invariants of class 2 the rules really demand: the list above is a start from reading names, to be checked
   against `docs/design.md` and the code as the checker is written.

@@ -5,311 +5,29 @@
 //! buildings) in every pairing that makes sense and some that do not, so most of them are refused, and
 //! each refusal is checked against the text of the game from before.
 
-use crate::support::{text, worlds};
-use f4x_core::game::{Command, Event, Game};
-use f4x_core::map::{Plane, Position};
-use f4x_core::player::PlayerId;
-use f4x_core::rules::{BuildingId, SpellId, UnitId};
-
-/// The commands of a game, in a fixed order that does not depend on its entity handles, so the
-/// same list is made again from a game that was restored.
-fn commands(g: &Game) -> Vec<Command> {
-    let rules = &g.content().rules;
-    let mut out = Vec::new();
-
-    let mut players: Vec<PlayerId> = g.player_ids();
-    players.push(PlayerId(250));
-    let wizard = players
-        .iter()
-        .copied()
-        .find(|&p| !g.is_neutral_player(p) && g.wizard(p).is_some())
-        .expect("a wizard");
-
-    let all = g.units().all_units();
-    let step = (all.len() / 5).max(1);
-    let units: Vec<_> = all.iter().copied().step_by(step).take(6).collect();
-    let cities: Vec<_> = g
-        .economy()
-        .cities()
-        .into_iter()
-        .map(|c| c.0)
-        .take(4)
-        .collect();
-
-    let map = g.map().expect("a map");
-    let mut squares: Vec<Position> = Vec::new();
-    // The squares that are not an ordinary neighbour come first, so that cutting the list keeps them:
-    // a corner, a square off the east edge, one off the south edge.
-    squares.push(Position {
-        x: 0,
-        y: 0,
-        plane: Plane::Arcanus,
-    });
-    squares.push(Position {
-        x: map.width() + 3,
-        y: 1,
-        plane: Plane::Arcanus,
-    });
-    squares.push(Position {
-        x: 1,
-        y: map.height() + 3,
-        plane: Plane::Myrror,
-    });
-    for &u in &units {
-        if let Some(at) = g.units().unit_position(u) {
-            squares.push(at);
-            squares.extend(crate::support::around(g, at).into_iter().take(3));
-            squares.push(Position {
-                plane: if at.plane == Plane::Arcanus {
-                    Plane::Myrror
-                } else {
-                    Plane::Arcanus
-                },
-                ..at
-            });
-        }
-    }
-    squares.dedup();
-    squares.truncate(10);
-
-    let spells: Vec<SpellId> = rules
-        .spells
-        .defs()
-        .iter()
-        .map(|d| SpellId::new(d.num))
-        .collect();
-    let buildings: Vec<BuildingId> = rules
-        .buildings
-        .defs()
-        .iter()
-        .map(|d| BuildingId::new(d.num))
-        .collect();
-    let unit_ids: Vec<UnitId> = rules
-        .units
-        .defs()
-        .iter()
-        .step_by(7)
-        .map(|d| UnitId::new(d.num))
-        .collect();
-
-    for &p in &players {
-        out.push(Command::StartPlayerTurn { player: p });
-        out.push(Command::EndPlayerTurn { player: p });
-        out.push(Command::Resign { player: p });
-        out.push(Command::CancelCast { player: p });
-        for rate in [0u8, 3, 255] {
-            out.push(Command::SetTaxRate { player: p, rate });
-        }
-        out.push(Command::SetGrandVizier {
-            player: p,
-            on: true,
-        });
-        for (m, r, s) in [(0u8, 0u8, 0u8), (100, 0, 0), (50, 50, 50), (255, 255, 255)] {
-            out.push(Command::SetPowerSplit {
-                player: p,
-                mana: m,
-                research: r,
-                skill: s,
-            });
-        }
-        for (amount, gold_to_mana) in [(0, true), (5, true), (-5, false), (i32::MAX, true)] {
-            out.push(Command::Alchemy {
-                player: p,
-                amount,
-                gold_to_mana,
-            });
-        }
-        out.push(Command::ReleaseUpkeep {
-            player: p,
-            items: Vec::new(),
-        });
-        out.push(Command::ReleaseTroops {
-            player: p,
-            units: units.clone(),
-            scrap: Vec::new(),
-        });
-        out.push(Command::AcceptOffer {
-            player: p,
-            index: 0,
-            name: None,
-        });
-        out.push(Command::RejectOffer {
-            player: p,
-            index: 0,
-        });
-        for &u in &units {
-            for &s in spells.iter().step_by(40) {
-                out.push(Command::TurnOffUnitSpell {
-                    player: p,
-                    unit: u,
-                    spell: s,
-                });
-            }
-        }
-        for &c in &cities {
-            out.push(Command::RazeCity { player: p, city: c });
-        }
-    }
-    for &s in &spells {
-        out.push(Command::SetResearch {
-            player: wizard,
-            spell: s,
-        });
-        out.push(Command::CastSpell {
-            player: wizard,
-            spell: s,
-            target: None,
-            extra: 0,
-        });
-        out.push(Command::TurnOffSpell {
-            player: wizard,
-            spell: s,
-        });
-    }
-    out.push(Command::ResolveCast {
-        player: wizard,
-        target: f4x_core::rules::exec::Target::Player(wizard),
-    });
-
-    for &u in &units {
-        out.push(Command::ClearOrders { units: vec![u] });
-        out.push(Command::Purify { units: vec![u] });
-        out.push(Command::Meld { units: vec![u] });
-        out.push(Command::ShiftPlane { units: vec![u] });
-        out.push(Command::DismissUnit { unit: u });
-        out.push(Command::SetBridge { unit: u, on: true });
-        out.push(Command::SettleOutpost {
-            unit: u,
-            name: "Nowhere".into(),
-        });
-        for standby in [
-            None,
-            Some(f4x_core::unit::Standby::Done),
-            Some(f4x_core::unit::Standby::Patrol),
-        ] {
-            out.push(Command::SetStandby {
-                units: vec![u],
-                standby,
-            });
-        }
-        for &to in &squares {
-            out.push(Command::MoveStack { units: vec![u], to });
-            out.push(Command::GoTo { units: vec![u], to });
-            out.push(Command::EnterSite { units: vec![u], to });
-            out.push(Command::EarthGate { units: vec![u], to });
-            out.push(Command::BuildRoad {
-                units: vec![u],
-                path: vec![to],
-            });
-        }
-    }
-    out.push(Command::MoveStack {
-        units: Vec::new(),
-        to: squares[0],
-    });
-    out.push(Command::MoveStack {
-        units: units.clone(),
-        to: squares[0],
-    });
-    for pair in units.windows(2) {
-        out.push(Command::BeginBattle {
-            attackers: vec![pair[0]],
-            defenders: vec![pair[1]],
-        });
-        out.push(Command::AutoResolve {
-            attackers: vec![pair[0]],
-            defenders: vec![pair[1]],
-            mana_budget: None,
-        });
-    }
-    out.push(Command::BeginBattle {
-        attackers: Vec::new(),
-        defenders: units.clone(),
-    });
-
-    for &p in &players {
-        for &at in &squares {
-            out.push(Command::FoundCity {
-                owner: p,
-                pos: at,
-                name: "Newtown".into(),
-                race: None,
-                population: 1,
-            });
-            out.push(Command::PlaceFortress {
-                player: p,
-                pos: at,
-                name: "Keep".into(),
-                race: None,
-                population: 1,
-            });
-            for &u in unit_ids.iter().take(3) {
-                out.push(Command::CreateUnit {
-                    owner: p,
-                    pos: at,
-                    unit: u,
-                });
-            }
-        }
-    }
-    for &c in &cities {
-        out.push(Command::BuyProduction { city: c });
-        out.push(Command::RenameCity {
-            city: c,
-            name: String::new(),
-        });
-        out.push(Command::SetAutoBuild {
-            city: c,
-            plan: None,
-        });
-        for farmers in [0u32, 1, 9999] {
-            out.push(Command::SetFarmers { city: c, farmers });
-        }
-        for &b in buildings.iter().step_by(3) {
-            out.push(Command::SellBuilding {
-                city: c,
-                building: b,
-            });
-            out.push(Command::SetProduction {
-                city: c,
-                item: f4x_core::city::production::ProductionItem::Building(b),
-            });
-        }
-        for &u in &unit_ids {
-            out.push(Command::SetProduction {
-                city: c,
-                item: f4x_core::city::production::ProductionItem::Unit(u),
-            });
-        }
-        out.push(Command::SetProduction {
-            city: c,
-            item: f4x_core::city::production::ProductionItem::TradeGoods,
-        });
-        out.push(Command::SetProduction {
-            city: c,
-            item: f4x_core::city::production::ProductionItem::Housing,
-        });
-        for &s in spells.iter().step_by(40) {
-            out.push(Command::TurnOffCitySpell {
-                player: wizard,
-                city: c,
-                spell: s,
-            });
-        }
-    }
-    out
-}
+use crate::support::{commands, text, worlds};
+use f4x_core::game::Event;
 
 #[test]
 fn a_refused_command_changes_nothing() {
     let mut tried = 0;
     let mut refused = 0;
+    let mut recorded = 0;
     for (name, mut g) in worlds().into_iter().step_by(2) {
+        // Recording and undo are on, so that a refused command is also checked for what it leaves
+        // there: nothing in the replay, nothing to undo.
+        g.start_recording().expect("recording starts");
+        g.set_undo(true);
         // The game goes on changing as commands are accepted (a unit is dismissed, a city founded), so
         // later commands name things that are gone: a stale handle is one more kind of bad input.
         for command in commands(&g) {
             let label = format!("{command:?}");
             let before = text(&g);
+            let history = (
+                g.replay_so_far().ok().map(|r| r.commands.len()),
+                g.can_undo(),
+                g.undo_label().map(str::to_owned),
+            );
             let events =
                 std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.apply(command)))
                     .unwrap_or_else(|_| panic!("{name}: {label} panicked"));
@@ -321,9 +39,28 @@ fn a_refused_command_changes_nothing() {
                     before,
                     "{name}: {label} was refused, and changed the game"
                 );
+                // A command that cannot be written down (it names a unit that is gone) ends the
+                // recording; as long as there is one, a refusal adds nothing to it.
+                if let (Some(was), Ok(now)) = (history.0, g.replay_so_far()) {
+                    recorded += 1;
+                    assert_eq!(
+                        now.commands.len(),
+                        was,
+                        "{name}: {label} was refused and recorded"
+                    );
+                }
+                assert_eq!(
+                    (g.can_undo(), g.undo_label().map(str::to_owned)),
+                    (history.1, history.2),
+                    "{name}: {label} was refused and changed the undo history"
+                );
             }
         }
     }
+    assert!(
+        recorded > tried / 10,
+        "the recording was checked only {recorded} times in {tried}"
+    );
     assert!(
         refused > tried / 4,
         "only {refused} of {tried} commands were refused: the sweep is not reaching the refusals"

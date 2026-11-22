@@ -104,13 +104,15 @@ impl Game {
         let events = self.execute(command);
         self.forget_if_rejected(&events);
         let rejected = events.iter().any(|e| matches!(e, Event::Rejected(_)));
-        let irreversible = ends_history
-            || self.rng.draws() != draws
-            || self.explored_total() != explored
-            || self.battle.is_some()
-            || events
-                .iter()
-                .any(|e| matches!(e, Event::BattleStarted { .. }));
+        // A refused command changed nothing, so it leaves the history as it is.
+        let irreversible = !rejected
+            && (ends_history
+                || self.rng.draws() != draws
+                || self.explored_total() != explored
+                || self.battle.is_some()
+                || events
+                    .iter()
+                    .any(|e| matches!(e, Event::BattleStarted { .. })));
         if irreversible {
             self.undo_stack.clear();
         } else if !rejected {
