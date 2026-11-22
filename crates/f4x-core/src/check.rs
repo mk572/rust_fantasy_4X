@@ -20,7 +20,11 @@ pub fn world_problems(g: &Game) -> Vec<String> {
         }
         return bad;
     };
-    let players: HashSet<_> = g.player_ids().into_iter().collect();
+    // The monsters' owner is a player of the world that `player_ids` does not list.
+    let mut players: HashSet<_> = g.player_ids().into_iter().collect();
+    if g.player_entity(crate::player::MONSTERS).is_some() {
+        players.insert(crate::player::MONSTERS);
+    }
     let on_map = |p: Position| p.x < map.width() && p.y < map.height();
 
     // Units: an owner that exists, a square on the map, room on the square, a number of their own.

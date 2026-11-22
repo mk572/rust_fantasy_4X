@@ -70,6 +70,32 @@ fn from_int_saturates_instead_of_wrapping() {
 }
 
 #[test]
+fn sums_and_products_stop_at_the_ends_of_the_range() {
+    let (top, bottom) = (HalfInt::from_raw(i32::MAX), HalfInt::from_raw(i32::MIN));
+    assert_eq!(top + HalfInt::from_int(1), top);
+    assert_eq!(bottom - HalfInt::from_int(1), bottom);
+    assert_eq!(-bottom, top);
+    assert_eq!(top * 2, top);
+    assert_eq!(bottom * 2, bottom);
+    let mut held = top;
+    held += HalfInt::HALF;
+    assert_eq!(held, top);
+    held = bottom;
+    held -= HalfInt::HALF;
+    assert_eq!(held, bottom);
+    assert_eq!([top, top].into_iter().sum::<HalfInt>(), top);
+    // Away from the ends they are the plain arithmetic.
+    for raw in edge_raws()
+        .into_iter()
+        .filter(|r| r.unsigned_abs() < 1 << 20)
+    {
+        let v = HalfInt::from_raw(raw);
+        assert_eq!((v + v).raw(), 2 * raw);
+        assert_eq!((v * 3 - v).raw(), 2 * raw);
+    }
+}
+
+#[test]
 fn floor_and_ceil_bracket_the_value_and_meet_on_wholes() {
     let mut rng = Rng::new(1);
     for _ in 0..5000 {

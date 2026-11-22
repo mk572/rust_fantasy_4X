@@ -131,11 +131,13 @@ pub mod raw {
     }
 }
 
+/// Sums and products stop at the ends of the range instead of wrapping or panicking: an amount of
+/// gold or mana at the limit stays there.
 impl Add for HalfInt {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self(self.0 + rhs.0)
+        Self(self.0.saturating_add(rhs.0))
     }
 }
 
@@ -143,7 +145,7 @@ impl Sub for HalfInt {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self(self.0 - rhs.0)
+        Self(self.0.saturating_sub(rhs.0))
     }
 }
 
@@ -151,7 +153,7 @@ impl Neg for HalfInt {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        Self(-self.0)
+        Self(self.0.saturating_neg())
     }
 }
 
@@ -200,7 +202,7 @@ impl Mul<i32> for HalfInt {
     type Output = Self;
 
     fn mul(self, rhs: i32) -> Self::Output {
-        Self(self.0 * rhs)
+        Self(self.0.saturating_mul(rhs))
     }
 }
 
@@ -216,13 +218,13 @@ impl Div<i32> for HalfInt {
 
 impl AddAssign for HalfInt {
     fn add_assign(&mut self, rhs: Self) {
-        self.0 += rhs.0;
+        self.0 = self.0.saturating_add(rhs.0);
     }
 }
 
 impl SubAssign for HalfInt {
     fn sub_assign(&mut self, rhs: Self) {
-        self.0 -= rhs.0;
+        self.0 = self.0.saturating_sub(rhs.0);
     }
 }
 
