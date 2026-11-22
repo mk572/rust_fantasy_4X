@@ -285,6 +285,21 @@ scenarios of `c7_drift` did not move either.
 - No negative test for the hero count (no public way to change it).
 - `f32` trig elsewhere cannot be tested across platforms.
 
+## No copied numbers
+
+A review of the new tests for values copied from the game (22 November 2026) changed these:
+
+- The ends of the settings are found by asking `GameSettings::validate` (`support::knobs`, `limits`): the lowest and highest
+  value it takes, and the value just outside. No range is written in a test.
+- The generator's own limits are constants of `mapgen` (`SIDE_RANGE`, `LAND_RANGE`, `MINERAL_MOST`) and of `node`
+  (`AURA_REACH`) that the tests read.
+- The pick tests read the picks, the books and the cost of Myrran from the settings and the content (the fewest picks a
+  ready-made wizard spends, the ready-made wizard with the most books in a realm).
+- The tests that restated a range (`a_number_out_of_range_is_refused`) or the default wizard are gone.
+
+What stays: the numbers of the retorts and realms the code names (`c6_coupling` checks them against the content), the
+seeds and sizes that are samples, not rules.
+
 ## Mutation pass
 
 `cargo mutants -p f4x-newgame --shard 1/10` (155 of 1544 mutants, 22 November 2026): 140 caught, 6 timeouts (an endless

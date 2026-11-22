@@ -207,7 +207,10 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
             );
         }
         for &(ax, ay) in &aura {
-            if ax >= w || ay >= h || chebyshev(w, (ax, ay), (x, y)) > 2 {
+            if ax >= w
+                || ay >= h
+                || chebyshev(w, (ax, ay), (x, y)) > f4x_newgame::node::AURA_REACH as u32
+            {
                 say("aura", format!("the aura of {x},{y} reaches {ax},{ay}"));
             }
         }
@@ -869,7 +872,13 @@ fn the_setting_scales_the_guards_of_the_sites() {
             .map(|l| l.guards.iter().map(|&(_, n)| n as usize).sum::<usize>())
             .sum()
     };
-    let (none, normal, most) = (guards(0), guards(100), guards(300));
+    // The content's own percent is the normal; none and double are either side of it.
+    let normal_percent = standard().settings().world.lair_guard_percent;
+    let (none, normal, most) = (
+        guards(0),
+        guards(normal_percent),
+        guards(normal_percent * 2),
+    );
     assert_eq!(none, 0, "no guards at 0 percent");
     assert!(none < normal && normal < most, "{none} {normal} {most}");
 }

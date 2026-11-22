@@ -15,18 +15,16 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 31 tests. Part 2: 6 tests. Of 2620 in all.**
+**Part 1: 16 tests. Part 2: 6 tests. Of 2943 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
 | File | Tests |
 |---|---|
-| `crates/f4x-def/src/load/rules.rs` | 13 |
-| `crates/f4x-def/src/rules/stats.rs` | 7 |
-| `crates/f4x-def/src/rules/registry.rs` | 4 |
+| `crates/f4x-def/tests/it/c4_values.rs` | 9 |
 | `crates/f4x-core/src/game/save/tests.rs` | 2 |
 | `crates/f4x-core/src/hook.rs` | 2 |
-| `crates/f4x-def/src/settings/tests.rs` | 2 |
+| `crates/f4x-def/tests/it/c2_loading.rs` | 2 |
 | `crates/f4x-core/src/map/vision.rs` | 1 |
 
 ## `crates/f4x-core/src/game/save/tests.rs` (2)
@@ -36,7 +34,7 @@ The `Decision` column is for the walk through the list.
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
 | `an_empty_game_round_trips` | 407 | empty content (`Content::default`) | itself | |
-| `a_save_with_out_of_range_settings_is_brought_into_range` | 588 | empty content (`Content::default`) | itself | |
+| `a_save_with_out_of_range_settings_is_refused_and_says_which` | 588 | empty content (`Content::default`) | itself | |
 
 ## `crates/f4x-core/src/hook.rs` (2)
 
@@ -44,8 +42,8 @@ The `Decision` column is for the walk through the list.
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_hook_with_arguments_it_does_not_take_is_reported` | 396 | hand-built registry (`Registry::new`) | itself | |
-| `a_hook_without_code_is_reported` | 422 | hand-built registry (`Registry::new`) | itself | |
+| `a_hook_with_arguments_it_does_not_take_is_reported` | 346 | hand-built registry (`Registry::new`) | itself | |
+| `a_hook_without_code_is_reported` | 372 | hand-built registry (`Registry::new`) | itself | |
 
 ## `crates/f4x-core/src/map/vision.rs` (1)
 
@@ -53,57 +51,28 @@ The `Decision` column is for the walk through the list.
 |---|---|---|---|---|
 | `oracle_walls_and_natures_eye_widen_a_citys_sight` | 421 | hand-made spell modifier (`Modifier::new`) | itself | |
 
-## `crates/f4x-def/src/load/rules.rs` (13)
-
-Helpers that make things up: `problems` (line 986), `problems_after` (line 959), `rules_with` (line 895).
+## `crates/f4x-def/tests/it/c2_loading.rs` (2)
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `bad_hero_formulas_are_refused` | 995 | hand-built registry (`Registry::new`) | `problems` | |
-| `a_race_in_a_buildings_list_that_cannot_build_what_it_needs_is_refused` | 1011 | hand-built registry (`Registry::new`) | `problems` | |
-| `the_shipped_site_weights_are_the_default_and_bad_ones_are_refused` | 1024 | hand-built registry (`Registry::new`) | `rules_with`, `problems` | |
-| `the_shipped_lair_table_is_the_default_and_bad_ones_are_refused` | 1044 | hand-built registry (`Registry::new`) | `rules_with`, `problems` | |
-| `shipped_rules_are_valid` | 1068 | hand-built registry (`Registry::new`) | `problems` | |
-| `catches_item_problems` | 1093 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `catches_unknown_references` | 1110 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `catches_hero_template_problems` | 1132 | hand-built registry (`Registry::new`) | `rules_with` | |
-| `catches_unit_rule_violations` | 1165 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `catches_a_building_replacing_nothing` | 1182 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `catches_building_problems` | 1191 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `catches_spell_and_effect_problems` | 1216 | hand-built registry (`Registry::new`) | `problems_after` | |
-| `catches_bad_level_paths` | 1235 | hand-built registry (`Registry::new`) | `problems_after` | |
+| `a_key_no_type_has_is_refused_wherever_it_is_put` | 674 | hand-built definition (struct literal) | itself | |
+| `a_file_with_more_rows_than_a_table_holds_is_an_error_and_not_a_panic` | 783 | hand-built definition (struct literal) | itself | |
 
-## `crates/f4x-def/src/rules/registry.rs` (4)
+## `crates/f4x-def/tests/it/c4_values.rs` (9)
 
-Helpers that make things up: `table` (line 150).
+Helpers that make things up: `modifier` (line 465), `random_mods` (line 504).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_definition_is_found_by_number` | 155 | hand-built registry (`Registry::new`) | `table` | |
-| `a_number_the_table_lacks_is_none` | 166 | hand-built registry (`Registry::new`) | `table` | |
-| `numbers_out_of_order_are_refused` | 186 | hand-built registry (`Registry::new`) | itself | |
-| `a_repeated_alias_is_refused_in_tests` | 192 | hand-built registry (`Registry::new`) | itself | |
-
-## `crates/f4x-def/src/rules/stats.rs` (7)
-
-Helpers that make things up: `m` (line 305).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `adds_then_percent` | 310 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `order_of_modifiers_does_not_matter` | 319 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `percent_rounds_down_including_negatives` | 330 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `bounds_and_set` | 344 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `floors_apply_only_where_defined` | 387 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `other_stats_are_ignored_and_contributions_filter` | 399 | hand-made spell modifier (`Modifier::new`) | `m` | |
-| `extreme_values_do_not_overflow` | 409 | hand-made spell modifier (`Modifier::new`) | `m` | |
-
-## `crates/f4x-def/src/settings/tests.rs` (2)
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `the_units_per_square_stay_between_a_battle_side_and_the_ceiling` | 93 | the setting's upper bound (`MAX_TILE_LIMIT`, `MAX_STACK`) in place of the game's own limit (`max_tile()`, `max_battle_side()`) | itself | |
-| `a_battle_side_is_one_to_the_ceiling_and_a_square_holds_at_least_a_side` | 103 | the setting's upper bound (`MAX_TILE_LIMIT`, `MAX_STACK`) in place of the game's own limit (`max_tile()`, `max_battle_side()`) | itself | |
+| `a_stat_is_computed_as_its_definition_says` | 528 | hand-made spell modifier (`Modifier::new`) | `random_mods` | |
+| `the_order_the_modifiers_come_in_does_not_matter` | 544 | hand-made spell modifier (`Modifier::new`) | `random_mods` | |
+| `modifiers_of_other_stats_change_nothing` | 567 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
+| `a_stat_with_a_floor_never_goes_below_it_and_one_without_may` | 584 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
+| `a_percent_below_minus_a_hundred_counts_as_nothing_not_as_a_negative_stat` | 595 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
+| `the_lowest_set_wins_and_set_beats_every_other_op` | 607 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
+| `compute_does_not_overflow_at_the_edges_of_the_base_and_of_a_modifier` | 619 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
+| `the_half_form_agrees_with_the_whole_form_on_whole_amounts` | 641 | hand-made spell modifier (`Modifier::new`) | `random_mods` | |
+| `half_amounts_are_added_exactly_and_the_percent_rounds_down_to_a_half` | 662 | hand-made spell modifier (`Modifier::new`) | itself | |
 
 # Part 2: hand-built game objects and entities
 
@@ -115,13 +84,13 @@ Helpers that make things up: `m` (line 305).
 
 ## `crates/f4x-core/src/city/economy.rs` (3)
 
-Helpers that make things up: `production_of` (line 1587).
+Helpers that make things up: `production_of` (line 1588).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_cities_yields_come_from_a_world_a_map_and_the_content_alone` | 1533 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `the_base_of_a_farmer_and_a_worker_is_the_setting_and_a_races_own_value_wins` | 1634 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `production_of` | |
-| `a_computer_wizards_bonuses_multiply_its_cities_and_nobody_elses` | 1674 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `a_cities_yields_come_from_a_world_a_map_and_the_content_alone` | 1534 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
+| `the_base_of_a_farmer_and_a_worker_is_the_setting_and_a_races_own_value_wins` | 1635 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `production_of` | |
+| `a_computer_wizards_bonuses_multiply_its_cities_and_nobody_elses` | 1675 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
 
 ## `crates/f4x-core/src/game/tests.rs` (1)
 

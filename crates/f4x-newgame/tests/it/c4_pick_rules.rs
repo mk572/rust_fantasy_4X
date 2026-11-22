@@ -1,9 +1,11 @@
 //! Class 4 (`docs/f4x-newgame-test-design.md`): the rules of the start that the settings name (the
 //! counts of towers and cities, the picks, the book limits), through the public interface only.
 
+use crate::support::{knobs, limits};
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::wizard::BuildError;
 use f4x_def::content::Content;
+use f4x_def::settings::{BOOKS_PER_REALM_RANGE, BOOKS_TOTAL_RANGE};
 use f4x_def::testdir::TestResult;
 use f4x_newgame::error::NewGameError;
 use f4x_newgame::setup::{new_game, NewGame};
@@ -102,40 +104,64 @@ fn the_settings_cap_the_neutral_cities_of_each_plane() -> TestResult {
 }
 
 #[test]
-fn a_myrran_wizard_of_nine_books_needs_the_two_pick_option_to_be_made() -> TestResult {
+fn a_myrran_wizard_that_fits_only_at_the_option_s_cost_needs_the_option_to_be_made() -> TestResult {
     use f4x_core::rules::RealmId as Realm;
     use f4x_core::wizard::magic::Retort;
+    let myrran = Retort::new(9 /* myrran */);
+    let picks = NewGame::default().settings.wizards.picks.human;
+    // The cost the option gives Myrran, read from a game made with it.
+    let optional = {
+        let mut spec = NewGame {
+            seed: 5,
+            all_ai: true,
+            ..Default::default()
+        };
+        spec.settings.rules.two_pick_myrran = true;
+        f4x_core::wizard::retort_cost(&new_game(shipped(), &spec)?.content().rules, myrran)
+    };
+    let normal = f4x_core::wizard::retort_cost(&shipped().rules, myrran);
+    assert!(optional < normal, "the option makes Myrran cheaper");
+    // Books that use up the picks together with the cheaper Myrran, and overspend with the dearer.
+    let books = picks - optional;
     let make = |two_pick: bool| {
         let mut spec = NewGame {
             seed: 5,
-            books: [(Realm::new(3 /* nature */), 9)].into(),
-            retorts: [Retort::new(9 /* myrran */)].into(),
+            books: [(Realm::new(3 /* life */), books)].into(),
+            retorts: [myrran].into(),
             ..Default::default()
         };
         spec.settings.rules.two_pick_myrran = two_pick;
         new_game(shipped(), &spec)
     };
-    // The books and the retort at the row's cost must overspend the picks, or the test shows
-    // nothing; two picks is what the option is named for.
-    let rules = &f4x_def::testdir::shipped().rules;
-    let picks = NewGame::default().settings.wizards.picks.human;
-    assert!(
-        9 + f4x_core::wizard::retort_cost(rules, Retort::new(9 /* myrran */)) > picks,
-        "nine books and Myrran must be more than the {picks} picks"
-    );
-    assert!(9 + 2 <= picks, "nine books and a two-pick Myrran fit");
-    assert!(make(false).is_err(), "nine books and Myrran overspend");
-    let g = make(true)?;
-    assert_eq!(
-        f4x_core::wizard::retort_cost(&g.content().rules, Retort::new(9)),
-        2
-    );
+    assert!(make(false).is_err(), "the books and Myrran overspend");
+    make(true)?;
     Ok(())
+}
+
+/// The most picks a game's settings let a wizard have (what the validator takes).
+fn most_picks() -> u8 {
+    let picks = knobs()
+        .into_iter()
+        .find(|k| k.name == "wizards.picks.human")
+        .expect("the picks are a knob");
+    u8::try_from(limits(&picks).1).expect("picks fit a byte")
+}
+
+/// The fewest picks a ready-made wizard spends (the computer's wizards are no poorer than these).
+fn fewest_ready_made_picks() -> u8 {
+    let rules = &shipped().rules;
+    (rules.wizards.defs().iter())
+        .filter_map(|d| f4x_core::wizard::preset_build_of(rules.wizards.defs(), d.num))
+        .map(|b| b.picks_spent(rules))
+        .min()
+        .expect("the content has ready-made wizards")
 }
 
 #[test]
 fn no_wizard_starts_with_more_books_in_a_realm_than_the_setting_allows() -> TestResult {
-    for most in [5u8, 6, 8, 13] {
+    let (lo, hi) = (*BOOKS_PER_REALM_RANGE.start(), *BOOKS_PER_REALM_RANGE.end());
+    let picks = most_picks();
+    for most in [lo, (lo + hi) / 2, hi] {
         for randomise in [true, false] {
             for seed in 1..8 {
                 let mut spec = NewGame {
@@ -145,8 +171,8 @@ fn no_wizard_starts_with_more_books_in_a_realm_than_the_setting_allows() -> Test
                 };
                 spec.settings.basic.opponents = 5;
                 spec.settings.wizards.max_books_per_realm = most;
-                spec.settings.wizards.max_books_total = 65;
-                spec.settings.wizards.picks.ai = 15;
+                spec.settings.wizards.max_books_total = *BOOKS_TOTAL_RANGE.end();
+                spec.settings.wizards.picks.ai = picks;
                 spec.settings.ai.wizards.randomise = randomise;
                 let g = new_game(shipped(), &spec)?;
                 let wizards: Vec<_> = g
@@ -156,8 +182,8 @@ fn no_wizard_starts_with_more_books_in_a_realm_than_the_setting_allows() -> Test
                     .collect();
                 assert_eq!(
                     wizards.len(),
-                    6,
-                    "five opponents and the one who would be you"
+                    usize::from(spec.settings.basic.opponents) + 1,
+                    "the opponents and the one who would be you"
                 );
                 for w in wizards {
                     let books = w.books();
@@ -170,11 +196,10 @@ fn no_wizard_starts_with_more_books_in_a_realm_than_the_setting_allows() -> Test
                             .iter()
                             .map(|&r| f4x_core::wizard::retort_cost(&g.content().rules, r))
                             .sum::<u8>();
-                    // Whatever the cap took off is spent again, so no wizard has fewer picks
-                    // spent than the ready-made ones (ten or eleven), and none more than there
-                    // are.
+                    // Whatever the cap took off is spent again: no wizard spends fewer picks
+                    // than the poorest ready-made one, nor more than there are.
                     assert!(
-                        (10..=15).contains(&spent),
+                        (fewest_ready_made_picks()..=picks).contains(&spent),
                         "seed {seed}, at most {most}: {books:?} spent {spent}"
                     );
                 }
@@ -186,17 +211,31 @@ fn no_wizard_starts_with_more_books_in_a_realm_than_the_setting_allows() -> Test
 
 #[test]
 fn a_ready_made_human_wizard_over_the_most_books_is_asked_to_spend_the_picks() -> TestResult {
+    // A ready-made wizard with a realm of many books (a number of the content).
+    let rules = &shipped().rules;
+    let (preset, books) = rules
+        .wizards
+        .defs()
+        .iter()
+        .filter_map(|d| {
+            let most = d.books.iter().map(|&(_, n)| n).max()?;
+            Some((d.num, most))
+        })
+        .max_by_key(|&(_, most)| most)
+        .ok_or("the content has no ready-made wizard")?;
     let make = |most: u8| {
         let mut spec = NewGame {
             seed: 3,
-            preset: Some(11), // Ariel, ten Life books
+            preset: Some(preset),
             ..Default::default()
         };
         spec.settings.wizards.max_books_per_realm = most;
         new_game(shipped(), &spec)
     };
-    assert!(make(11).is_ok());
-    let refused = make(8).err().ok_or("Ariel is made with surplus picks")?;
+    assert!(make(books).is_ok());
+    let refused = make(books - 1)
+        .err()
+        .ok_or("the wizard is made with surplus picks")?;
     assert!(
         matches!(
             refused,
@@ -208,7 +247,8 @@ fn a_ready_made_human_wizard_over_the_most_books_is_asked_to_spend_the_picks() -
 }
 
 #[test]
-fn wizards_with_twelve_or_thirteen_books_in_a_realm_play_on() -> TestResult {
+fn wizards_with_more_books_in_a_realm_than_the_default_allows_play_on() -> TestResult {
+    use f4x_def::settings::DEFAULT_MAX_BOOKS_PER_REALM;
     let mut most_seen = 0;
     for seed in 1..40 {
         let mut spec = NewGame {
@@ -217,9 +257,9 @@ fn wizards_with_twelve_or_thirteen_books_in_a_realm_play_on() -> TestResult {
             ..Default::default()
         };
         spec.settings.basic.opponents = 5;
-        spec.settings.wizards.max_books_per_realm = 13;
-        spec.settings.wizards.max_books_total = 65;
-        spec.settings.wizards.picks.ai = 20;
+        spec.settings.wizards.max_books_per_realm = *BOOKS_PER_REALM_RANGE.end();
+        spec.settings.wizards.max_books_total = *BOOKS_TOTAL_RANGE.end();
+        spec.settings.wizards.picks.ai = most_picks();
         let mut g = new_game(shipped(), &spec)?;
         for p in g.player_ids() {
             if let Some(w) = g.wizard(p) {
@@ -233,8 +273,8 @@ fn wizards_with_twelve_or_thirteen_books_in_a_realm_play_on() -> TestResult {
         assert!(refused.is_empty(), "seed {seed}: {refused:?}");
     }
     assert!(
-        most_seen > 11,
-        "no wizard reached 12 books in 39 games: {most_seen}"
+        most_seen > DEFAULT_MAX_BOOKS_PER_REALM,
+        "no wizard went over the default most of {DEFAULT_MAX_BOOKS_PER_REALM} books in a realm in 39 games: {most_seen}"
     );
     Ok(())
 }

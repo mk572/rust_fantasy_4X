@@ -154,25 +154,37 @@ pub struct Generated {
     pub placements: Vec<Placement>,
 }
 
+/// What the generator takes on a side of the map (the settings allow far less).
+pub const SIDE_RANGE: std::ops::RangeInclusive<u32> = 8..=1024;
+/// The share of land it takes.
+pub const LAND_RANGE: std::ops::RangeInclusive<u8> = 1..=99;
+/// The most it takes for the share of minerals.
+pub const MINERAL_MOST: u8 = 100;
+
 pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Generated, GenError> {
     let terrains = &content.terrains;
-    if params.width < 8 || params.height < 8 {
-        return Err(GenError::BadParams(
-            "width and height must be at least 8".into(),
-        ));
+    if !SIDE_RANGE.contains(&params.width) || !SIDE_RANGE.contains(&params.height) {
+        return Err(GenError::BadParams(format!(
+            "width and height must be {} to {}",
+            SIDE_RANGE.start(),
+            SIDE_RANGE.end()
+        )));
     }
-    if params.width > 1024 || params.height > 1024 {
-        return Err(GenError::BadParams(
-            "width and height must be at most 1024".into(),
-        ));
+    if !LAND_RANGE.contains(&params.land_percent) {
+        return Err(GenError::BadParams(format!(
+            "land_percent must be in {}..={}",
+            LAND_RANGE.start(),
+            LAND_RANGE.end()
+        )));
     }
-    if !(1..=99).contains(&params.land_percent) {
-        return Err(GenError::BadParams("land_percent must be in 1..=99".into()));
-    }
-    if params.planes.iter().any(|p| p.mineral_percent > 100) {
-        return Err(GenError::BadParams(
-            "mineral_percent must be at most 100".into(),
-        ));
+    if params
+        .planes
+        .iter()
+        .any(|p| p.mineral_percent > MINERAL_MOST)
+    {
+        return Err(GenError::BadParams(format!(
+            "mineral_percent must be at most {MINERAL_MOST}"
+        )));
     }
     let [arcanus, myrror] =
         [Plane::Arcanus, Plane::Myrror].map(|p| generate_plane(seed, p, params, terrains));

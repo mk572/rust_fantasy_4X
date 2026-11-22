@@ -14,6 +14,9 @@ use f4x_core::feature::node::Node;
 use f4x_core::map::{Map, Plane, Position};
 use f4x_def::content::Content;
 
+/// How far from the node a square of its aura can be: two rings round it.
+pub const AURA_REACH: i32 = 2;
+
 /// Squares of a node's aura: its own tile, then up to eight of the squares around it, then
 /// the rest from the ring two squares out; fewer if the map edge leaves no room.
 fn make_aura(
@@ -26,7 +29,7 @@ fn make_aura(
 ) -> Vec<(u32, u32)> {
     let (w, h) = (map.width() as i32, map.height() as i32);
     let mut aura = vec![(x, y)];
-    for radius in [1i32, 2] {
+    for radius in 1..=AURA_REACH {
         let mut ring: Vec<(u32, u32)> = Vec::new();
         for dy in -radius..=radius {
             for dx in -radius..=radius {

@@ -102,7 +102,7 @@ fn names_do_not_move_the_map_or_the_sites() {
     let std = standard();
     let plain = fresh_game(std);
     let mut spec = std.spec();
-    spec.names.rivals = vec![vec![("Ana".into(), Default::default())]; 12];
+    spec.names.rivals = vec![vec![("Ana".into(), Default::default())]; usize::from(most_wizards())];
     spec.names.cities.insert(0, vec!["A".into(), "B".into()]);
     let named = f4x_newgame::setup::new_game(content(), &spec).expect("a game");
     let (pm, nm) = (plain.map().expect("a map"), named.map().expect("a map"));

@@ -49,18 +49,6 @@ fn a_number_in_the_settings_replaces_the_scaled_default() {
 }
 
 #[test]
-fn a_number_out_of_range_is_refused() {
-    let mut s = GameSettings::default();
-    s.world.nodes_arcanus = Some(41);
-    s.world.mineral_percent_myrror = 31;
-    s.world.strong_sites = Some(101);
-    s.rules.max_city_size = 4;
-    s.rules.min_city_distance = 9;
-    s.events.start_turn = 0;
-    assert_eq!(s.validate().len(), 6, "{:?}", s.validate());
-}
-
-#[test]
 fn the_generated_map_has_as_many_nodes_as_the_settings_name() -> TestResult {
     use f4x_def::feature::FeatureKind;
     let content = f4x_def::testdir::shipped();

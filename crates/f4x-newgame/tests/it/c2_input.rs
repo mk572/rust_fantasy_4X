@@ -9,14 +9,8 @@
 use crate::c3_map::map_problems;
 use crate::c4_start::start_problems;
 use crate::support::*;
-use f4x_core::game::setting::GameSettings;
-use f4x_def::half_int::HalfInt;
-use f4x_def::settings::{
-    BOOKS_PER_REALM_RANGE, BOOKS_TOTAL_RANGE, MAX_DIFFICULTY, MAX_OPPONENTS, MINERAL_PERCENT_RANGE,
-    NODES_RANGE, SITES_RANGE,
-};
 use f4x_newgame::error::NewGameError;
-use f4x_newgame::mapgen::{generate, GenParams};
+use f4x_newgame::mapgen::{generate, GenParams, LAND_RANGE, MINERAL_MOST, SIDE_RANGE};
 use f4x_newgame::setup::{gen_params, new_game, NewGame};
 use std::sync::mpsc;
 use std::time::Duration;
@@ -64,145 +58,18 @@ fn every_seed_makes_a_game_for_every_kind_of_game() {
 
 // ---- settings at their ends ----
 
-type Set = fn(&mut GameSettings);
-
-/// Each setting the placement or the start reads, at the low and the high end of what it allows.
-fn ends() -> Vec<(&'static str, Set, Set)> {
-    vec![
-        (
-            "difficulty",
-            |s| s.basic.difficulty = 0,
-            |s| s.basic.difficulty = MAX_DIFFICULTY,
-        ),
-        (
-            "magic_strength",
-            |s| s.basic.magic_strength = 0,
-            |s| s.basic.magic_strength = 2,
-        ),
-        (
-            "towers",
-            |s| s.basic.towers = Some(0),
-            |s| s.basic.towers = Some(255),
-        ),
-        (
-            "neutral_cities",
-            |s| s.basic.neutral_cities = Some(0),
-            |s| s.basic.neutral_cities = Some(255),
-        ),
-        (
-            "nodes",
-            |s| {
-                s.world.nodes_arcanus = Some(*NODES_RANGE.start());
-                s.world.nodes_myrror = Some(*NODES_RANGE.start());
-            },
-            |s| {
-                s.world.nodes_arcanus = Some(*NODES_RANGE.end());
-                s.world.nodes_myrror = Some(*NODES_RANGE.end());
-            },
-        ),
-        (
-            "sites",
-            |s| {
-                s.world.strong_sites = Some(*SITES_RANGE.start());
-                s.world.weak_sites = Some(*SITES_RANGE.start());
-            },
-            |s| {
-                s.world.strong_sites = Some(*SITES_RANGE.end());
-                s.world.weak_sites = Some(*SITES_RANGE.end());
-            },
-        ),
-        (
-            "minerals",
-            |s| {
-                s.world.mineral_percent_arcanus = *MINERAL_PERCENT_RANGE.start();
-                s.world.mineral_percent_myrror = *MINERAL_PERCENT_RANGE.start();
-            },
-            |s| {
-                s.world.mineral_percent_arcanus = *MINERAL_PERCENT_RANGE.end();
-                s.world.mineral_percent_myrror = *MINERAL_PERCENT_RANGE.end();
-            },
-        ),
-        (
-            "lair percents",
-            |s| {
-                s.world.lair_guard_percent = 0;
-                s.world.lair_treasure_percent = 0;
-            },
-            |s| {
-                s.world.lair_guard_percent = 300;
-                s.world.lair_treasure_percent = 500;
-            },
-        ),
-        (
-            "start view",
-            |s| s.world.start_reveal_radius = HalfInt::ZERO,
-            |s| s.world.start_reveal_radius = HalfInt::from_int(10),
-        ),
-        (
-            "picks",
-            |s| {
-                s.wizards.picks.human = 5;
-                s.wizards.picks.ai = 5;
-            },
-            |s| {
-                s.wizards.picks.human = 20;
-                s.wizards.picks.ai = 20;
-            },
-        ),
-        (
-            "books",
-            |s| {
-                s.wizards.max_books_per_realm = *BOOKS_PER_REALM_RANGE.start();
-                s.wizards.max_books_total = *BOOKS_TOTAL_RANGE.start();
-            },
-            |s| {
-                s.wizards.max_books_per_realm = *BOOKS_PER_REALM_RANGE.end();
-                s.wizards.max_books_total = *BOOKS_TOTAL_RANGE.end();
-            },
-        ),
-        (
-            "purse",
-            |s| {
-                s.wizards.starting_gold.human = 0;
-                s.wizards.starting_gold.ai = 0;
-                s.wizards.starting_mana.human = 0;
-                s.wizards.starting_mana.ai = 0;
-            },
-            |s| {
-                s.wizards.starting_gold.human = 2000;
-                s.wizards.starting_gold.ai = 2000;
-                s.wizards.starting_mana.human = 2000;
-                s.wizards.starting_mana.ai = 2000;
-            },
-        ),
-        (
-            "city distance",
-            |s| s.rules.min_city_distance = *f4x_def::settings::MIN_CITY_DISTANCE_RANGE.start(),
-            |s| s.rules.min_city_distance = *f4x_def::settings::MIN_CITY_DISTANCE_RANGE.end(),
-        ),
-        (
-            "opponents",
-            |s| s.basic.opponents = 1,
-            |s| s.basic.opponents = MAX_OPPONENTS,
-        ),
-        (
-            "land",
-            |s| s.basic.land_percent = 1,
-            |s| s.basic.land_percent = 99,
-        ),
-    ]
-}
-
 #[test]
 fn every_setting_at_either_end_makes_a_game_that_keeps_the_rules() {
     let std = standard();
     let mut failures = Vec::new();
-    for (name, low, high) in ends() {
-        for (end, set) in [("low", low), ("high", high)] {
+    for knob in knobs() {
+        let (low, high) = limits(&knob);
+        let name = knob.name;
+        for (end, value) in [("low", low), ("high", high)] {
             for variant in [Variant::Plain, Variant::OriginalGenerator] {
                 let world = World { variant, ..std };
                 let mut settings = world.settings();
-                set(&mut settings);
+                (knob.set)(&mut settings, value);
                 // The original generator is asked for no more land than it can make.
                 if settings.basic.original_map_generator {
                     settings.basic.land_percent = settings
@@ -244,52 +111,26 @@ fn every_setting_at_either_end_makes_a_game_that_keeps_the_rules() {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
-/// Each setting just outside its range: refused, with the name of the setting in the message.
+/// Each setting just outside the range the validator takes, and at the most its field holds:
+/// refused, with the name of the setting in the issue.
 #[test]
 fn every_setting_just_outside_its_range_is_refused_by_name() {
-    let outside: Vec<(&str, Set)> = vec![
-        ("opponents", |s| s.basic.opponents = 0),
-        ("opponents", |s| s.basic.opponents = MAX_OPPONENTS + 1),
-        ("opponents", |s| s.basic.opponents = u8::MAX),
-        ("land_percent", |s| s.basic.land_percent = 0),
-        ("land_percent", |s| s.basic.land_percent = 100),
-        ("land_percent", |s| s.basic.land_percent = u8::MAX),
-        ("magic_strength", |s| s.basic.magic_strength = 3),
-        ("difficulty", |s| s.basic.difficulty = MAX_DIFFICULTY + 1),
-        ("map_width", |s| {
-            s.basic.map_width = f4x_def::settings::MAP_WIDTHS.start() - 1
-        }),
-        ("map_width", |s| {
-            s.basic.map_width = f4x_def::settings::MAP_WIDTHS.end() + 1
-        }),
-        ("map_width", |s| s.basic.map_width = 0),
-        ("map_width", |s| s.basic.map_width = u16::MAX),
-        ("map_height", |s| {
-            s.basic.map_height = f4x_def::settings::MAP_HEIGHTS.start() - 1
-        }),
-        ("map_height", |s| {
-            s.basic.map_height = f4x_def::settings::MAP_HEIGHTS.end() + 1
-        }),
-        ("map_height", |s| s.basic.map_height = 0),
-        ("nodes_arcanus", |s| {
-            s.world.nodes_arcanus = Some(NODES_RANGE.end() + 1)
-        }),
-        ("strong_sites", |s| {
-            s.world.strong_sites = Some(SITES_RANGE.end() + 1)
-        }),
-        ("mineral_percent_arcanus", |s| {
-            s.world.mineral_percent_arcanus = MINERAL_PERCENT_RANGE.end() + 1
-        }),
-        ("max_books_per_realm", |s| {
-            s.wizards.max_books_per_realm = BOOKS_PER_REALM_RANGE.end() + 1
-        }),
-        ("max_books_total", |s| {
-            s.wizards.max_books_total = BOOKS_TOTAL_RANGE.end() + 1
-        }),
-    ];
-    for (name, set) in outside {
+    let mut cases = Vec::new();
+    for knob in knobs() {
+        let (low, high) = limits(&knob);
+        if low > 0 {
+            cases.push((knob.name, knob.set, low - 1));
+            cases.push((knob.name, knob.set, 0));
+        }
+        if high < knob.cap {
+            cases.push((knob.name, knob.set, high + 1));
+            cases.push((knob.name, knob.set, knob.cap));
+        }
+    }
+    assert!(cases.len() > 10, "the validator bounds hardly any setting");
+    for (name, set, value) in cases {
         let mut settings = standard().settings();
-        set(&mut settings);
+        set(&mut settings, value);
         let spec = NewGame {
             settings,
             all_ai: true,
@@ -298,13 +139,13 @@ fn every_setting_just_outside_its_range_is_refused_by_name() {
         let result = bounded(30, move || new_game(content(), &spec).map(|_| ()));
         let error = result.expect_err(name);
         let NewGameError::Settings(issues) = &error else {
-            panic!("{name}: {error:?}");
+            panic!("{name} {value}: {error:?}");
         };
         assert!(
             issues
                 .iter()
                 .any(|i| i.detail.first().is_some_and(|d| d.ends_with(name))),
-            "{name}: {issues:?}"
+            "{name} {value}: {issues:?}"
         );
     }
 }
@@ -454,7 +295,7 @@ fn name_lists_that_are_empty_or_odd_give_a_game() {
     let bundles: Vec<NameBundle> = vec![
         NameBundle::default(),
         NameBundle {
-            rivals: vec![vec![]; 12],
+            rivals: vec![vec![]; usize::from(most_wizards())],
             ..Default::default()
         },
         NameBundle {
@@ -493,12 +334,19 @@ fn name_lists_that_are_empty_or_odd_give_a_game() {
 
 #[test]
 fn the_map_generator_takes_the_ends_of_its_sizes_and_shares() {
-    // The generator takes 8 to 1024 on a side (the settings allow far less); a land of 1 and 99
-    // and a mineral share of 100.
-    let sizes = [(8, 8), (9, 13), (8, 1024), (1024, 8), (200, 150)];
+    // Each end of a side, the ends of the land share and of the minerals, and a size in between.
+    let (lo, hi) = (*SIDE_RANGE.start(), *SIDE_RANGE.end());
+    let sizes = [
+        (lo, lo),
+        (lo + 1, lo + 5),
+        (lo, hi),
+        (hi, lo),
+        (lo * 25, lo * 19),
+    ];
     for (w, h) in sizes {
-        for land in [1u8, 50, 99] {
-            for minerals in [0u8, 100] {
+        let land_middle = (LAND_RANGE.start() + LAND_RANGE.end()) / 2;
+        for land in [*LAND_RANGE.start(), land_middle, *LAND_RANGE.end()] {
+            for minerals in [0u8, MINERAL_MOST] {
                 let outcome = bounded(60, move || {
                     let mut p = GenParams {
                         land_percent: land,
@@ -523,12 +371,13 @@ fn the_map_generator_takes_the_ends_of_its_sizes_and_shares() {
 #[test]
 fn a_size_or_a_share_outside_the_generators_range_is_an_error() {
     let content = content();
+    let (lo, hi) = (*SIDE_RANGE.start(), *SIDE_RANGE.end());
     for (w, h) in [
         (0, 0),
-        (7, 50),
-        (50, 7),
-        (1025, 50),
-        (50, 1025),
+        (lo - 1, 50),
+        (50, lo - 1),
+        (hi + 1, 50),
+        (50, hi + 1),
         (u32::MAX, u32::MAX),
     ] {
         let r = bounded(10, move || {
@@ -536,7 +385,7 @@ fn a_size_or_a_share_outside_the_generators_range_is_an_error() {
         });
         assert!(r.is_err(), "{w}x{h}");
     }
-    for land in [0u8, 100, u8::MAX] {
+    for land in [LAND_RANGE.start() - 1, LAND_RANGE.end() + 1, u8::MAX] {
         let p = GenParams {
             land_percent: land,
             ..GenParams::default()
@@ -544,8 +393,8 @@ fn a_size_or_a_share_outside_the_generators_range_is_an_error() {
         assert!(generate(1, &p, content).is_err(), "land {land}");
     }
     let mut p = GenParams::default();
-    p.planes[0].mineral_percent = 101;
-    assert!(generate(1, &p, content).is_err(), "minerals 101");
+    p.planes[0].mineral_percent = MINERAL_MOST + 1;
+    assert!(generate(1, &p, content).is_err(), "minerals over the most");
 }
 
 #[test]
