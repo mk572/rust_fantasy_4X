@@ -667,7 +667,7 @@ pub fn game(
     let total = tally.total();
     let seconds = started.elapsed().as_secs_f32();
     logln!(log,
-        "{outcome}; {}; {} battles, {} cities taken, {} wars declared, {} wizards met, {} diplomatic actions started, {} refused orders{open}; {seconds:.1}s",
+        "{outcome}; {}; {} battles, {} cities taken, {} wars declared, {} wizards met, {} diplomatic actions started, {} refused orders ({} by a treaty){open}; {seconds:.1}s",
         status(&game),
         total.battles_won,
         total.cities_captured,
@@ -675,6 +675,7 @@ pub fn game(
         total.contacts_made,
         total.diplomacy_started,
         total.refused_orders,
+        total.treaty_refusals,
     );
     logln!(log, "diplomacy: {}", diplomacy_line(&total));
     logln!(

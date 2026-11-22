@@ -106,6 +106,16 @@ pub(crate) fn stacks(
     list
 }
 
+/// Whether the defenders belong to a wizard the AI has a pact or an alliance with: the game refuses an
+/// attack on them until a player has broken the treaty, and the AI declares war (which breaks it) before it
+/// chooses to attack, never by a stray order (task 776).
+pub(crate) fn held_by_treaty(ai: &Ai, game: &Game, defenders: &[hecs::Entity]) -> bool {
+    defenders
+        .first()
+        .and_then(|&d| game.units().unit_owner(d))
+        .is_some_and(|owner| game.bound_by_treaty(ai.player, owner))
+}
+
 /// Attack: a human defender fights the battle in person (kept for the client), any other is
 /// resolved at once.
 pub(crate) fn engage(
@@ -115,6 +125,9 @@ pub(crate) fn engage(
     defenders: Vec<hecs::Entity>,
     events: &mut Vec<Event>,
 ) {
+    if held_by_treaty(ai, game, &defenders) {
+        return;
+    }
     let defended_in_person = defenders
         .first()
         .and_then(|&d| game.units().unit_owner(d))
@@ -138,6 +151,9 @@ pub(crate) fn resolve(
     defenders: Vec<hecs::Entity>,
     events: &mut Vec<Event>,
 ) {
+    if held_by_treaty(ai, game, &defenders) {
+        return;
+    }
     let mana_budget =
         crate::budget::for_attack(&PlayerView::new(game, ai.player), &attackers, &defenders);
     ai.order(
@@ -263,5 +279,53 @@ mod tests {
         g.turn = 400;
         let late = campaign_ratio(&g, crate::testworld::P0);
         assert!(late < early, "{late} against {early}");
+    }
+
+    /// An attack on a pact or alliance partner is never sent (the game would refuse it); at war it is.
+    #[test]
+    fn no_attack_is_sent_on_a_treaty_partner() {
+        use crate::testworld::{at, spawn, COAST_CITY, P0, P1};
+        use f4x_core::diplomacy::Treaty;
+        let mut g = crate::diplo_b_stance::tests::pair(8, 8, 100);
+        let units = |g: &Game, p| g.units_of(p).len();
+        assert!(units(&g, P0) > 0 && units(&g, P1) > 0);
+        let attackers: Vec<hecs::Entity> = g
+            .units()
+            .all_units()
+            .into_iter()
+            .filter(|&u| g.units().unit_owner(u) == Some(P0))
+            .collect();
+        spawn(&mut g, P1, at(COAST_CITY.0 + 1, COAST_CITY.1), 95, 1);
+        let defenders: Vec<hecs::Entity> = g
+            .units()
+            .all_units()
+            .into_iter()
+            .filter(|&u| g.units().unit_owner(u) == Some(P1))
+            .collect();
+        for treaty in [Treaty::Pact, Treaty::Alliance] {
+            g.start_treaty(P0, P1, treaty);
+            let mut ai = Ai::new(P0);
+            let mut events = Vec::new();
+            engage(
+                &mut ai,
+                &mut g,
+                attackers.clone(),
+                defenders.clone(),
+                &mut events,
+            );
+            crate::assault::strike(
+                &mut ai,
+                &mut g,
+                attackers.clone(),
+                defenders.clone(),
+                &mut events,
+            );
+            assert!(events.is_empty(), "{treaty:?}: {events:?}");
+        }
+        g.declare_war(P0, P1);
+        let mut ai = Ai::new(P0);
+        let mut events = Vec::new();
+        engage(&mut ai, &mut g, attackers, defenders, &mut events);
+        assert!(!events.is_empty(), "at war the attack is sent");
     }
 }

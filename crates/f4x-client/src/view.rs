@@ -737,7 +737,6 @@ impl App {
                                 attackers,
                                 defenders,
                                 defending: false,
-                                treaty_asked: false,
                             },
                         ));
                     }

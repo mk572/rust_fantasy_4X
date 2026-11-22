@@ -146,7 +146,6 @@
     "diplomacy.trespass": "{wizard} warns you to keep your units away from its cities",
     "diplomacy.gives_gold": "{wizard} gives you {gold} gold",
     "diplomacy.gives_spell": "{wizard} gives you the spell {spell}",
-    "diplomacy.attack_partner": "You have a treaty with {wizard}. Do you still wish to attack?",
     "diplomacy.attack_is_war": "Attacking {wizard} is a declaration of war, and ends any treaty you have with them. Do you still wish to attack?",
     "diplomacy.have_pact": "You have a wizard pact with {wizard}",
     "diplomacy.list_title": "Diplomacy Of {owner}",

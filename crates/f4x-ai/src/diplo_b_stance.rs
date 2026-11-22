@@ -131,8 +131,11 @@ fn choose_enemy(
 ) -> Option<(PlayerId, u32)> {
     let k = Knobs::current();
     let value = |p| values(game, me, p, scene, memory, reach(p)).enemy;
+    // A pact or alliance partner is no enemy: the AI breaks no treaty to attack (the game refuses it), and
+    // a treaty is ended by the talk (`diplo_b_talk`) before a war is chosen (task 776).
+    let free = |p: PlayerId| !game.bound_by_treaty(me, p);
     if let Some((e, since)) = memory.enemy {
-        let alive = scene.others.contains(&e);
+        let alive = scene.others.contains(&e) && free(e);
         if alive && (game.turn < since + k.hold || value(e) >= k.keep) {
             return Some((e, since));
         }
@@ -141,6 +144,7 @@ fn choose_enemy(
         .others
         .iter()
         .copied()
+        .filter(|&p| free(p))
         .map(|p| (value(p), p))
         .filter(|&(v, _)| v >= k.enemy_min)
         .max_by_key(|&(v, p)| (v, std::cmp::Reverse(p.0)))
@@ -347,6 +351,31 @@ pub(crate) mod tests {
     fn value(g: &Game, me: PlayerId, other: PlayerId, reach: bool) -> Values {
         let scene = Scene::new(g, me);
         values(g, me, other, &scene, &Memory::default(), reach)
+    }
+
+    #[test]
+    fn a_pact_or_alliance_partner_is_never_chosen_as_the_enemy() {
+        let mut g = pair(30, 1, 100);
+        let enemy = |g: &Game, memory: &Memory| {
+            let scene = Scene::new(g, P0);
+            choose_enemy(g, P0, &scene, memory, &|_| true).map(|(p, _)| p)
+        };
+        assert_eq!(
+            enemy(&g, &Memory::default()),
+            Some(P1),
+            "prey with no treaty"
+        );
+        for treaty in [Treaty::Pact, Treaty::Alliance] {
+            g.start_treaty(P0, P1, treaty);
+            assert_eq!(enemy(&g, &Memory::default()), None, "{treaty:?}");
+            let mut kept = Memory::default();
+            kept.enemy = Some((P1, g.turn));
+            assert_eq!(
+                enemy(&g, &kept),
+                None,
+                "an enemy of before, now a {treaty:?} partner"
+            );
+        }
     }
 
     #[test]

@@ -132,7 +132,14 @@ pub(crate) fn war_target(ai: &Ai) -> Option<PlayerId> {
 /// The wizard whose cities the armies go for: the one the plan names, else a wizard it is at
 /// war with (whoever declared the war) that has a city it knows.
 pub(crate) fn enemy(ai: &Ai, view: &PlayerView) -> Option<PlayerId> {
-    war_target(ai).or_else(|| {
+    // Never a wizard it has a pact or an alliance with: the game refuses the attack (task 776).
+    let partner = |p: &PlayerId| {
+        !matches!(
+            view.treaty_with(*p),
+            f4x_core::diplomacy::Treaty::Pact | f4x_core::diplomacy::Treaty::Alliance
+        )
+    };
+    war_target(ai).filter(partner).or_else(|| {
         view.known_cities()
             .into_iter()
             .map(|(_, owner, _)| owner)

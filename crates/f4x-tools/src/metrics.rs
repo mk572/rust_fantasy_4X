@@ -107,6 +107,9 @@ pub struct Metrics {
     pub coalition_asks: u32,
     pub weary_peace_offers: u32,
     pub refused_orders: u32,
+    /// Orders the game refused because of a pact or an alliance (an attack or a move onto a partner): the AI
+    /// declares war first, so this stays at zero (task 776).
+    pub treaty_refusals: u32,
     pub ships_built: u32,
     pub ships_lost: u32,
     /// Land units that stepped from a ship onto land.
@@ -212,7 +215,7 @@ impl Metrics {
     }
 
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 91] {
+    pub fn rows(&self) -> [(&'static str, u32); 92] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -257,6 +260,7 @@ impl Metrics {
             ("coalition requests", self.coalition_asks),
             ("war-weary peace offers", self.weary_peace_offers),
             ("refused orders", self.refused_orders),
+            ("refused by a treaty", self.treaty_refusals),
             ("ships built", self.ships_built),
             ("ships lost", self.ships_lost),
             ("troops landed", self.troops_landed),
@@ -441,6 +445,7 @@ impl AddAssign for Metrics {
             coalition_asks,
             weary_peace_offers,
             refused_orders,
+            treaty_refusals,
             ships_built,
             ships_lost,
             troops_landed,
@@ -534,6 +539,7 @@ impl AddAssign for Metrics {
         self.coalition_asks += coalition_asks;
         self.weary_peace_offers += weary_peace_offers;
         self.refused_orders += refused_orders;
+        self.treaty_refusals += treaty_refusals;
         self.ships_built += ships_built;
         self.ships_lost += ships_lost;
         self.troops_landed += troops_landed;
@@ -1338,9 +1344,19 @@ impl Tally {
                 Event::OrderFailed { player, .. } => {
                     self.bump(*player, |m| m.refused_orders += 1);
                 }
-                Event::Rejected(_) => {
+                Event::Rejected(why) => {
                     if let Some(p) = source {
                         self.bump(p, |m| m.refused_orders += 1);
+                        if matches!(
+                            why,
+                            f4x_core::game::Rejection::Move(
+                                f4x_core::unit::movement::MoveError::Treaty
+                            ) | f4x_core::game::Rejection::BattleStart(
+                                f4x_core::battle::game::BattleStartError::Treaty
+                            )
+                        ) {
+                            self.bump(p, |m| m.treaty_refusals += 1);
+                        }
                     }
                 }
                 _ => {}

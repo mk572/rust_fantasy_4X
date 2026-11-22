@@ -69,11 +69,18 @@ pub(crate) fn unarmed_share(view: &PlayerView, units: &[hecs::Entity]) -> f32 {
     normal / total * (1.0 - crate::spellhelper::arming_share(view, units.len()))
 }
 
-/// Is there a city of the neutral cities (no wizard's) on the square?
+/// Is there a city of the neutral cities (no wizard's) on the square that it may attack? One it has a
+/// pact or an alliance with is not: the game refuses the attack until a player has broken the treaty
+/// (`Game::bound_by_treaty`), and the AI breaks no treaty to raid (task 776).
 pub(crate) fn neutral_city(view: &PlayerView, p: Position) -> bool {
-    view.known_cities()
-        .iter()
-        .any(|&(_, owner, q)| q == p && !view.is_rival_wizard(owner))
+    view.known_cities().iter().any(|&(_, owner, q)| {
+        q == p
+            && !view.is_rival_wizard(owner)
+            && !matches!(
+                view.treaty_with(owner),
+                f4x_core::diplomacy::Treaty::Pact | f4x_core::diplomacy::Treaty::Alliance
+            )
+    })
 }
 
 /// What a neutral city's defenders are worth (a city is stronger than the same men outside).

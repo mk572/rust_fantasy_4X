@@ -19,9 +19,6 @@ pub struct PendingAttack {
     /// A rival wizard attacks the human: defend in person or leave it to the computer, no
     /// calling it off.
     pub defending: bool,
-    /// Whether the player has been asked about the treaty with the defenders' owner, if there is
-    /// one (`Combat.c`: "You have a treaty with X. Do you still wish to attack?").
-    pub treaty_asked: bool,
 }
 
 /// The second step of an automatic fight: how much mana the wizard may spend in it.
@@ -125,7 +122,6 @@ impl App {
             attackers,
             defenders: vec![defender],
             defending: false,
-            treaty_asked: true,
         };
         let ask = if question_only {
             Some(AttackAsk::new(attack))
@@ -171,7 +167,6 @@ impl App {
             attackers,
             defenders: vec![defender],
             defending: false,
-            treaty_asked: true,
         };
         self.modals.open(AttackAsk {
             attack,
@@ -331,34 +326,6 @@ impl App {
                     self.fight_or_auto(attack, auto)
                 }
             };
-        }
-        if !attack.treaty_asked {
-            let partner = attack
-                .defenders
-                .first()
-                .and_then(|&u| self.game.units().unit_owner(u))
-                .filter(|&p| {
-                    matches!(
-                        self.game.treaty(HUMAN, p),
-                        f4x_core::diplomacy::Treaty::Pact | f4x_core::diplomacy::Treaty::Alliance
-                    )
-                });
-            match partner {
-                None => attack.treaty_asked = true,
-                Some(p) => {
-                    let lay = crate::frame::Layout::new();
-                    let text = self.text_with(
-                        "diplomacy.attack_partner",
-                        &Args::new().text("wizard", self.diplo_name(p)),
-                    );
-                    match self.confirmation_box(&lay, &text, input) {
-                        Some(true) => attack.treaty_asked = true,
-                        Some(false) => return None,
-                        None => {}
-                    }
-                }
-            }
-            return Some(AttackAsk::new(attack));
         }
         // The original's box (`resource` 0 and 1, as `Confirmation_Box`) with the question and
         // three of its red buttons; the original asks nothing before a fight, so this is the
@@ -532,7 +499,6 @@ mod tests {
             attackers,
             defenders,
             defending,
-            treaty_asked: false,
         })
     }
 

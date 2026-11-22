@@ -42,7 +42,6 @@ fn queue(defences: &RefCell<VecDeque<PendingAttack>>, attacks: Vec<Attack>) {
             attackers: attack.attackers,
             defenders: attack.defenders,
             defending: true,
-            treaty_asked: true,
         });
     }
 }

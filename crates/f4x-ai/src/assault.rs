@@ -242,6 +242,9 @@ pub(crate) fn strike(
     defenders: Vec<hecs::Entity>,
     events: &mut Vec<Event>,
 ) {
+    if crate::military::held_by_treaty(ai, game, &defenders) {
+        return;
+    }
     let in_person = defenders
         .first()
         .and_then(|&d| game.units().unit_owner(d))
