@@ -70,7 +70,9 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
 
 #[test]
 fn a_refused_command_changes_nothing() {
-    let (tried, refused) = sweep(2, 0);
+    // One of the four worlds in the normal run, all four in the deep one.
+    let every = if f4x_def::testdir::deep() { 1 } else { 4 };
+    let (tried, refused) = sweep(every, 0);
     assert!(
         refused > tried / 4,
         "only {refused} of {tried} commands were refused: the sweep is not reaching the refusals"

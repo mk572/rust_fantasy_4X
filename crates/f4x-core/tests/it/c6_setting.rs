@@ -125,7 +125,8 @@ fn the_most_units_on_a_square_follows_its_setting() {
     }
     let (unit, to) = found.expect("some unit walks to some neighbour of the city");
     let low = base.settings().rules.max_battle_side;
-    for limit in low..=f4x_def::settings::MAX_TILE_LIMIT {
+    let default = f4x_def::settings::DEFAULT_MAX_TILE;
+    for limit in f4x_def::testdir::spread(low..=f4x_def::settings::MAX_TILE_LIMIT, &default) {
         let mut g = fresh(wizards, seed).expect("a fresh game");
         g.scenario_change_settings(|s| s.rules.max_tile = limit);
         let here = g.units().units_at(to).len();

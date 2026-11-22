@@ -545,12 +545,13 @@ fn a_language_name_cannot_make_the_help_read_another_folder() {
 
 // ---- every number of every file, made into something else ----
 
-/// How many numbers to try per kind of change: a few hundred in a normal run, `F4X_ATTACKS=n` for more.
+/// How many numbers to try per kind of change: forty in a normal run, 250 in the deep run
+/// (`F4X_DEEP=1`), `F4X_ATTACKS=n` for any other count.
 fn attack_count() -> usize {
     std::env::var("F4X_ATTACKS")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(250)
+        .unwrap_or_else(|| f4x_def::testdir::sample(250, 40))
 }
 
 /// Replace one number at a time by each of `values`; whatever the loader does, it does not panic, it

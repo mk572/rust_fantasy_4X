@@ -52,7 +52,9 @@ fn nothing_can_be_done_once_the_game_is_over() {
 
 #[test]
 fn commands_naming_units_that_are_gone_are_refused() {
-    for (name, mut g) in worlds().into_iter().step_by(2) {
+    // One world in the normal run, every other one in the deep run.
+    let every = if f4x_def::testdir::deep() { 2 } else { 4 };
+    for (name, mut g) in worlds().into_iter().step_by(every) {
         let list = commands(&g);
         for u in g.units().all_units() {
             g.scenario_remove_unit(u);

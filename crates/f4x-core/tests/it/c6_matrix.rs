@@ -8,6 +8,7 @@ use crate::support::{busy_round, commands, content, text, worlds};
 use f4x_core::check::world_problems;
 use f4x_core::game::save::Snapshot;
 use f4x_core::game::{Event, Game};
+use f4x_def::testdir::{deep, sample};
 
 /// The `rules: (...)` line of a save, as its pairs `(name, value)`.
 fn rule_pairs(full: &str) -> (String, Vec<(String, String)>) {
@@ -104,11 +105,19 @@ fn others(value: &str, choices: &[Vec<String>]) -> Vec<String> {
             .map(|c| c.to_string())
             .collect()
         }
-        v if v.parse::<f64>().is_ok() => [0, 1, 3, 6, 9, 20, 255]
-            .iter()
-            .map(|n| n.to_string())
-            .filter(|n| n != v)
-            .collect(),
+        v if v.parse::<f64>().is_ok() => {
+            // A spread in the normal run, every number to a hundred in the deep one.
+            let tried: Vec<u32> = if deep() {
+                (0..=100).chain([255]).collect()
+            } else {
+                vec![0, 1, 3, 6, 9, 20, 255]
+            };
+            tried
+                .iter()
+                .map(|n| n.to_string())
+                .filter(|n| n != v)
+                .collect()
+        }
         v => choices
             .iter()
             .find(|c| c.iter().any(|x| x == v))
@@ -132,12 +141,15 @@ fn play(mut g: Game, at: &str) {
             g.scenario_set_citizens(city, cap);
         }
     }
-    for round in 0..2 {
+    for round in 0..sample(4, 2) {
         busy_round(&mut g, 6);
         let bad = world_problems(&g);
         assert!(bad.is_empty(), "{at}, after round {round}: {bad:#?}");
     }
-    for command in commands(&g).into_iter().step_by(6) {
+    for command in commands(&g)
+        .into_iter()
+        .step_by(if deep() { 2 } else { 25 })
+    {
         let label: String = format!("{command:?}").chars().take(100).collect();
         let before = text(&g);
         let events = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.apply(command)))
@@ -180,7 +192,7 @@ fn the_game_holds_under_every_value_of_every_rule_setting() {
     let mut without_value = Vec::new();
     let mut played = 0;
     for (name, value) in &pairs {
-        let mut accepted = 0;
+        let mut ok = Vec::new();
         for other in others(value, &choices) {
             let edited_line =
                 line.replacen(&format!("{name}: {value}"), &format!("{name}: {other}"), 1);
@@ -189,16 +201,29 @@ fn the_game_holds_under_every_value_of_every_rule_setting() {
                 Snapshot::from_text(&edited).and_then(|s| s.restore(content()))
             })
             .unwrap_or_else(|_| panic!("loading panicked with {name}: {other}"));
-            let Ok(game) = loaded else { continue };
-            accepted += 1;
-            played += 1;
-            play(game, &format!("{name}: {other}"));
+            if let Ok(game) = loaded {
+                ok.push((other, game));
+            }
+        }
+        let accepted = ok.len();
+        // The ends of what the game accepts, in the normal run; every value in the deep run.
+        let last = ok.len().saturating_sub(1);
+        for (i, (other, game)) in ok.into_iter().enumerate() {
+            if deep() || i == 0 || i == last {
+                played += 1;
+                play(
+                    game,
+                    &format!(
+                        "{name}: {other} (F4X_DEEP=1 tries every value, to find where it breaks)"
+                    ),
+                );
+            }
         }
         if accepted == 0 {
             without_value.push(name.clone());
         }
     }
-    assert!(played > 40, "only {played} settings were played");
+    assert!(played >= pairs.len(), "only {played} settings were played");
     assert!(
         without_value.is_empty(),
         "the game accepts no other value of {without_value:?}"

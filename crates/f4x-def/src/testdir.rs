@@ -27,6 +27,44 @@ pub fn shipped() -> &'static crate::content::Content {
     })
 }
 
+/// Whether the deep run is on (`F4X_DEEP=1`, `scripts/test_deep.sh`). A normal run, the one after each
+/// change, tries the ends of a range and the default; the deep run tries every value, every world, every
+/// damage, to find where something breaks. A test that sweeps takes its values from [`spread`] and its
+/// size from here.
+pub fn deep() -> bool {
+    std::env::var_os("F4X_DEEP").is_some_and(|v| v != "0" && !v.is_empty())
+}
+
+/// The values of a sweep to try: all of them in the deep run, else the lowest, the default and the
+/// highest (each once, in order). `all` is in ascending order.
+pub fn spread<T: Clone + PartialEq>(all: impl IntoIterator<Item = T>, default: &T) -> Vec<T> {
+    let all: Vec<T> = all.into_iter().collect();
+    if deep() {
+        return all;
+    }
+    let mut out: Vec<T> = Vec::new();
+    for v in all
+        .first()
+        .into_iter()
+        .chain(Some(default))
+        .chain(all.last())
+    {
+        if !out.contains(v) {
+            out.push(v.clone());
+        }
+    }
+    out
+}
+
+/// How many of `n` things to try: all of them in the deep run, else `normal`.
+pub fn sample(n: usize, normal: usize) -> usize {
+    if deep() {
+        n
+    } else {
+        normal.min(n)
+    }
+}
+
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
 /// An empty, new folder in the temp folder, removed again when this is dropped. It derefs to

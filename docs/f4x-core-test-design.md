@@ -212,3 +212,21 @@ Found by the rebuilt tests, each fixed in the code with the test that found it:
   (`f4x-tools` has the soaks but is a binary); `f4x-ai` is the start because it has the dependencies today.
 - How much of class 9 survives the first pass: the rebuild decides by need, and a subsystem that already has its needs
   covered by classes 1 to 8 gets few tests of its own.
+
+## Normal and deep runs
+
+The suite is run after every change, so it has to be short (about eleven seconds with nextest). A test that
+sweeps a range does not run every value there: two sizes of the same test.
+
+- **Normal:** the lowest value, the highest and the default of a range (`f4x_def::testdir::spread`), one world of
+  the four, a sample of the damages, a stride through the commands (`sample`).
+- **Deep:** every value, every world, every damage (`F4X_DEEP=1`, `scripts/test_deep.sh`, about four minutes). Run
+  it when a normal run breaks and the breaking point is wanted, and now and then before a release. A sweep's failure
+  message names the value, and the matrix's says to rerun deep.
+- **Mutation tests** (`scripts/test_deep.sh --mutants CRATE FILE...`) are not part of either: they take hours,
+  run under `cool_run.sh`, and are run on the files a class of tests was written for, to see what the tests
+  miss. The missed mutants that matter become tests; the equivalent ones are left.
+- A new sweep: take the values from `spread(range, &default)` and its breadth from `deep()` / `sample(all, normal)`;
+  never `for v in range` over a range of more than a handful of values.
+
+`F4X_ATTACKS=n` still sets the number of numbers attacked in the content loading tests, for any count.
