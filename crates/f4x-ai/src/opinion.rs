@@ -31,6 +31,16 @@ pub(crate) struct Opinion {
     pub broken: bool,
     /// The two are at war (the opinion was last moved by a war).
     pub war: bool,
+    /// What the per-turn look has added up in hundredths of a point (a rule that the original rolls a
+    /// die for, at its average, is a small part of a point a turn: task 783).
+    #[serde(default)]
+    pub carry: i32,
+    /// Turns in a row the other has had units next to one of its cities, while they have a pact or an alliance.
+    #[serde(default)]
+    pub trespass: u32,
+    /// The last turn the other changed this feeling by what it did (the drift waits for a turn).
+    #[serde(default)]
+    pub moved: u32,
 }
 
 /// How a book of realm `x` stands to a book of realm `y` on the colour wheel (kin, next to it, opposed).
@@ -154,6 +164,9 @@ impl Memory {
         }
         let treaty = game.treaty(me, from);
         let o = self.slot(game, me, from);
+        if game.human() == Some(from) && action != Action::AuraOfMajesty {
+            o.moved = game.turn;
+        }
         // Wars are not made worse by what one does in them.
         if !(treaty == Treaty::War && action != Action::Trespass && v < 0) {
             o.friendship = (o.friendship + v).clamp(-100, 100);
@@ -342,6 +355,171 @@ impl Memory {
         self.change(game, me, winner, value, Action::Threat);
     }
 
+    /// A part of a point, in hundredths, that adds up until it is a whole one and then moves the feeling.
+    fn drip(
+        &mut self,
+        game: &Game,
+        me: PlayerId,
+        other: PlayerId,
+        hundredths: i32,
+        action: Action,
+    ) {
+        if hundredths == 0 || !game.have_met(me, other) {
+            return;
+        }
+        let o = self.slot(game, me, other);
+        o.carry += hundredths;
+        let whole = o.carry / 100;
+        if whole != 0 {
+            o.carry -= whole * 100;
+            self.change(game, me, other, whole, action);
+        }
+    }
+
+    /// What `me` sees each turn in the game that moves its feeling for the others (`Next_Turn_Calc`'s
+    /// diplomacy part, task 783): the treaty it keeps, the enchantments in force, an army or an empire
+    /// grown too large, units next to its cities, and the drift back to where the feeling started. The
+    /// original rolls a die for most of it; here each rule gives its average, with parts of a point added
+    /// up from turn to turn (`Opinion::carry`). Called once a turn.
+    pub(crate) fn look(&mut self, game: &Game, me: PlayerId) {
+        if self.looked == Some(game.turn) || !game.is_wizard(me) {
+            return;
+        }
+        self.looked = Some(game.turn);
+        let turn = game.turn;
+        let mine = game.army_strength(me);
+        let view = f4x_core::player::view::PlayerView::new(game, me);
+        let my_cities = view.my_cities();
+        for other in game.wizards() {
+            if other == me || !game.have_met(me, other) {
+                continue;
+            }
+            let treaty = game.treaty(me, other);
+            // A treaty grows the feeling: `Random(3)` on half the turns for a pact, `Random(6)` for an alliance.
+            match treaty {
+                Treaty::Pact if turn.is_multiple_of(2) => {
+                    self.change(game, me, other, 1, Action::Friendship);
+                }
+                Treaty::Alliance => {
+                    let v = 1 + i32::from(turn.is_multiple_of(4));
+                    self.change(game, me, other, v, Action::Friendship);
+                }
+                _ => {}
+            }
+            // The enchantments it keeps going, a tenth of the value of the cast each turn; the Spell of
+            // Mastery while it is cast, a half.
+            if let Some(w) = game.wizard(other) {
+                let mut active: Vec<(u16, i32)> =
+                    w.global().iter().map(|s| (s.num(), 10)).collect();
+                if let Some(c) = w.casting().filter(|c| c.spell.num() == 213) {
+                    active.push((c.spell.num(), 2));
+                }
+                for (spell, divisor) in active {
+                    if let Some((value, action)) = enchantment_reaction(game, spell, me) {
+                        self.change(game, me, other, value / divisor, action);
+                    }
+                }
+            }
+            // An army much stronger than its own: `roll(100) >= strength * 50 / its own`, then one in twenty, -10.
+            let theirs = game.army_strength(other);
+            if mine > 0 && theirs > mine {
+                let threshold = theirs * 50 / mine;
+                if threshold <= 100 {
+                    self.drip(game, me, other, -(101 - threshold) / 2, Action::Threat);
+                }
+            }
+            // Too many cities, looked at every second turn: one in four, the surplus over the allowance.
+            let cities = game.city_count(other) as i32;
+            let allowance = game.city_allowance();
+            if turn.is_multiple_of(2) && allowance < cities && treaty != Treaty::Alliance {
+                let divisor = (game.land_size() + 6 - i32::from(game.difficulty())).max(1);
+                let value = (-(cities - allowance) / divisor * 2).min(-15);
+                self.drip(game, me, other, value * 25, Action::Overextension);
+            }
+            // Units next to its cities (`DIPL_GetOffMyLawn`).
+            self.watch_lawn(game, &view, &my_cities, me, other, treaty);
+            // Drift back to where the feeling started, unless the other has just changed it.
+            let o = self.opinion(game, me, other);
+            if o.moved.saturating_add(1) < turn {
+                // `Random(105) > |feeling|` then `Random(2)`: half a point at most each turn.
+                let want = (105 - o.friendship.abs()).max(0) * 50 / 105;
+                if o.friendship < o.default {
+                    self.drift(game, me, other, want, o.default);
+                } else if turn.is_multiple_of(10) && o.friendship > o.default {
+                    self.drift(game, me, other, want * 10, o.default);
+                }
+            }
+        }
+    }
+
+    /// Move the feeling towards `to` by `hundredths` (a whole point at a time, without passing it).
+    fn drift(&mut self, game: &Game, me: PlayerId, other: PlayerId, hundredths: i32, to: i32) {
+        let o = self.slot(game, me, other);
+        o.carry += if o.friendship < to {
+            hundredths
+        } else {
+            -hundredths
+        };
+        let whole = o.carry / 100;
+        if whole != 0 {
+            o.carry -= whole * 100;
+            o.friendship = if o.friendship < to {
+                (o.friendship + whole).min(to)
+            } else {
+                (o.friendship + whole).max(to)
+            };
+        }
+    }
+
+    /// Non-settler units of `other` within two squares of one of `me`'s cities (that `me` sees).
+    fn watch_lawn(
+        &mut self,
+        game: &Game,
+        view: &f4x_core::player::view::PlayerView,
+        cities: &[(hecs::Entity, f4x_core::map::Position)],
+        me: PlayerId,
+        other: PlayerId,
+        treaty: Treaty,
+    ) {
+        let trespassing = treaty != Treaty::War
+            && cities.iter().any(|&(_, city)| {
+                (-2..=2).any(|dy| {
+                    (-2..=2).any(|dx| {
+                        view.shift(city, dx, dy)
+                            .and_then(|square| view.hostile_at(square))
+                            .is_some_and(|units| {
+                                units.into_iter().any(|u| {
+                                    game.units().unit_owner(u) == Some(other)
+                                        && !game.units().unit_is_settler(u)
+                                })
+                            })
+                    })
+                })
+            });
+        if !trespassing {
+            if let Some(o) = self.opinions.iter_mut().find(|o| o.with == other) {
+                o.trespass = 0;
+            }
+            return;
+        }
+        if matches!(treaty, Treaty::Pact | Treaty::Alliance) {
+            // A warning (`Random(5)`: 2), a turn of grace, then 5 (the original also breaks the treaty).
+            let step = self.slot(game, me, other).trespass + 1;
+            self.slot(game, me, other).trespass = step;
+            match step {
+                1 => self.change(game, me, other, -2, Action::Trespass),
+                2 => {}
+                _ => {
+                    self.change(game, me, other, -5, Action::Trespass);
+                    self.slot(game, me, other).trespass = 0;
+                }
+            }
+        } else {
+            // A turn in sixteen costs `Random(5)`: 2 / 16.
+            self.drip(game, me, other, -12, Action::Trespass);
+        }
+    }
+
     /// A war with `other` began: the feeling falls to the middle of the original's `-75 - Random(25)`.
     pub(crate) fn war_began(&mut self, game: &Game, me: PlayerId, other: PlayerId) {
         let o = self.slot(game, me, other);
@@ -423,6 +601,9 @@ fn first_opinion(game: &Game, me: PlayerId, other: PlayerId) -> Opinion {
             .stance(me, other)
             .is_some_and(|s| s.broken.is_some()),
         war: game.treaty(me, other) == Treaty::War,
+        carry: 0,
+        trespass: 0,
+        moved: 0,
     }
 }
 
@@ -679,8 +860,14 @@ mod tests {
             loser: third,
         };
         assert_eq!(judged(taken.clone(), 0, 0), 0, "it cares for neither");
-        assert!(judged(taken.clone(), 50, -50) > 0, "a friend rids it of an enemy");
-        assert!(judged(taken.clone(), -50, 50) < 0, "an enemy strikes a friend");
+        assert!(
+            judged(taken.clone(), 50, -50) > 0,
+            "a friend rids it of an enemy"
+        );
+        assert!(
+            judged(taken.clone(), -50, 50) < 0,
+            "an enemy strikes a friend"
+        );
         assert!(
             judged(destroyed.clone(), 50, -50) > judged(taken.clone(), 50, -50),
             "destroying counts for more than a fortress"
@@ -756,5 +943,115 @@ mod tests {
             0,
             "its own target does not change its feeling"
         );
+    }
+
+    /// P0's feeling for P1 over `turns` looks, from `start` (a fresh turn each time).
+    fn looks(g: &mut Game, m: &mut Memory, turns: u32) {
+        for _ in 0..turns {
+            g.turn += 1;
+            m.look(g, P0);
+        }
+    }
+
+    #[test]
+    fn a_treaty_in_force_grows_the_feeling_and_an_alliance_faster_than_a_pact() {
+        let grown = |treaty| {
+            let mut g = pair(8, 8, 100);
+            g.start_treaty(P0, P1, treaty);
+            let mut m = mind(&g, 0);
+            looks(&mut g, &mut m, 8);
+            m.friendship(&g, P0, P1)
+        };
+        let (pact, alliance) = (grown(Treaty::Pact), grown(Treaty::Alliance));
+        assert!(pact > 0, "{pact}");
+        assert!(alliance > pact, "{alliance} against {pact}");
+        let mut g = pair(8, 8, 100);
+        let mut m = mind(&g, 0);
+        m.slot(&g, P0, P1).default = 0;
+        looks(&mut g, &mut m, 8);
+        assert_eq!(m.friendship(&g, P0, P1), 0, "no treaty, no growth");
+    }
+
+    #[test]
+    fn an_enchantment_kept_up_sours_the_feeling_every_turn_and_one_look_a_turn_counts() {
+        let mut g = pair(8, 8, 100);
+        g.scenario_add_global(P1, f4x_core::rules::SpellId::new(120 /* armageddon */));
+        let mut m = mind(&g, 0);
+        looks(&mut g, &mut m, 3);
+        assert!(
+            m.friendship(&g, P0, P1) <= -4,
+            "{}",
+            m.friendship(&g, P0, P1)
+        );
+        // A second look in the same turn changes nothing.
+        let before = m.friendship(&g, P0, P1);
+        m.look(&g, P0);
+        assert_eq!(m.friendship(&g, P0, P1), before);
+    }
+
+    #[test]
+    fn the_feeling_drifts_back_to_where_it_started_up_quickly_and_down_slowly() {
+        let mut g = pair(8, 8, 100);
+        let mut low = mind(&g, -30);
+        low.slot(&g, P0, P1).default = 0;
+        looks(&mut g, &mut low, 20);
+        assert!(low.friendship(&g, P0, P1) > -30, "it climbs back");
+        let mut g = pair(8, 8, 100);
+        let mut high = mind(&g, 30);
+        high.slot(&g, P0, P1).default = 0;
+        looks(&mut g, &mut high, 9);
+        assert_eq!(
+            high.friendship(&g, P0, P1),
+            30,
+            "it comes down only every tenth turn"
+        );
+        looks(&mut g, &mut high, 12);
+        assert!(high.friendship(&g, P0, P1) < 30);
+    }
+
+    #[test]
+    fn units_next_to_its_city_cost_a_partner_a_warning_a_grace_and_a_fine() {
+        let mut g = pair(8, 8, 100);
+        g.start_treaty(P0, P1, Treaty::Pact);
+        crate::testworld::spawn(&mut g, P1, crate::testworld::at(11, 10), 95, 2);
+        g.explore(
+            P0,
+            crate::testworld::at(11, 10),
+            f4x_def::half_int::HalfInt::from_raw(3),
+        );
+        let mut m = mind(&g, 0);
+        let step = |g: &mut Game, m: &mut Memory| {
+            g.turn += 1;
+            m.look(g, P0);
+            (m.opinion(g, P0, P1).trespass, m.friendship(g, P0, P1))
+        };
+        let (n1, f1) = step(&mut g, &mut m);
+        assert_eq!(n1, 1, "the first turn is a warning");
+        let first = f1;
+        assert!(f1 <= 0);
+        let (_, f2) = step(&mut g, &mut m);
+        assert!(f2 >= first, "a turn of grace (the pact's growth may add)");
+        let (n3, f3) = step(&mut g, &mut m);
+        assert_eq!(n3, 0, "the third turn is the fine");
+        assert!(f3 < f2, "{f3} against {f2}");
+    }
+
+    #[test]
+    fn an_army_a_little_stronger_than_its_own_is_disliked_and_a_weaker_one_is_not() {
+        let after = |mine, theirs| {
+            let mut g = pair(mine, theirs, 101);
+            let mut m = mind(&g, 0);
+            m.slot(&g, P0, P1).default = -100;
+            looks(&mut g, &mut m, 9);
+            m.friendship(&g, P0, P1)
+        };
+        // The drift towards the default (-100) is the same for both: only the army differs.
+        assert!(
+            after(8, 12) < after(8, 8),
+            "{} against {}",
+            after(8, 12),
+            after(8, 8)
+        );
+        assert_eq!(after(12, 8), after(8, 8));
     }
 }

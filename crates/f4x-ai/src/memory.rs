@@ -112,6 +112,9 @@ pub(crate) struct Memory {
     /// What it feels about each of the others (task 780, `opinion.rs`).
     #[serde(default)]
     pub opinions: Vec<crate::opinion::Opinion>,
+    /// The turn of the last per-turn look at the others (`Memory::look`, task 783).
+    #[serde(default)]
+    pub looked: Option<u32>,
 }
 
 impl Memory {

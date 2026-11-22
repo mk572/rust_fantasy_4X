@@ -2145,6 +2145,16 @@ impl Game {
         self.with_diplomacy(|d, ctx| d.declare_peace(ctx, a, b));
     }
 
+    /// The land size of the game (0 small, 1 medium, 2 large) and the cities a wizard may hold before
+    /// the others take it amiss: facts of the game for the AI's look (task 783).
+    pub fn land_size(&self) -> i32 {
+        land_size(self)
+    }
+
+    pub fn city_allowance(&self) -> i32 {
+        city_allowance(self)
+    }
+
     /// The total cost of a wizard's units.
     pub fn army_strength(&self, player: PlayerId) -> i32 {
         army_strength(self, player)

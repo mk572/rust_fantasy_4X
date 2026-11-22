@@ -598,6 +598,7 @@ impl Ai {
                 self.order(game, Command::ClearOrders { units }, &mut events);
             }
         }
+        self.memory.put().look(game, self.player);
         diplomacy::answer(self, game, &mut events);
         diplo_b_talk::negotiate(self, game, &mut events);
         statecraft::run(self, game, &mut events);
