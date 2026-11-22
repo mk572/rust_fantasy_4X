@@ -287,3 +287,77 @@ fn a_stack_moves_together_and_each_unit_pays_its_own_cost() {
     }
     assert!(mixed >= 2, "{mixed} mixed stacks were moved");
 }
+
+/// The moves a new walking unit spends on a move from `from` to `to`; `None` when it does not get there.
+fn spent(
+    g: &mut Game,
+    owner: f4x_core::player::PlayerId,
+    from: Position,
+    to: Position,
+) -> Option<HalfInt> {
+    let u = make_plain(g, owner, from, MovementType::Walking)?;
+    let left = g.units().unit_moves_left(u);
+    g.apply(Command::MoveStack { units: vec![u], to });
+    let got = (g.units().unit_position(u) == Some(to))
+        .then(|| left.saturating_sub(g.units().unit_moves_left(u)));
+    g.scenario_remove_unit(u);
+    got
+}
+
+#[test]
+fn a_step_between_two_river_squares_costs_half_a_move_with_the_river_roads_setting() {
+    let mut checked = 0;
+    for (name, mut g) in worlds() {
+        let wizard = g
+            .player_ids()
+            .into_iter()
+            .find(|&p| !g.is_neutral_player(p) && g.wizard(p).is_some())
+            .expect("a wizard");
+        let city = g.economy().cities_of(wizard)[0].1;
+        for first in open_neighbours(&g, city) {
+            // Three squares in a line: the city's neighbour and the one beyond it.
+            let beyond = Position {
+                x: (2 * first.x + g.map().expect("a map").width() - city.x)
+                    % g.map().expect("a map").width(),
+                y: (2 * first.y).wrapping_sub(city.y),
+                plane: city.plane,
+            };
+            if beyond.y >= g.map().expect("a map").height()
+                || !open_neighbours(&g, first).contains(&beyond)
+            {
+                continue;
+            }
+            let (a, b) = (first, beyond);
+            for p in [city, a, b] {
+                g.scenario_set_road(p, false);
+            }
+            // Only plain land walks: a river square with the road gone costs its terrain.
+            let Some(off) = spent(&mut g, wizard, a, b) else {
+                continue;
+            };
+            g.cheat_set_river(a, true);
+            g.cheat_set_river(b, true);
+            let still_off = spent(&mut g, wizard, a, b).expect("a move");
+            assert_eq!(still_off, off, "{name}: a river changes nothing by itself");
+            g.scenario_change_settings(|s| s.rules.river_roads = true);
+            let on = spent(&mut g, wizard, a, b).expect("a move");
+            assert!(
+                on == HalfInt::HALF.min(off),
+                "{name}: {a:?} to {b:?} along a river: {on:?} (off: {off:?})"
+            );
+            // One end off the river: the plain cost again.
+            g.cheat_set_river(b, false);
+            assert_eq!(
+                spent(&mut g, wizard, a, b),
+                Some(off),
+                "{name}: one bank only"
+            );
+            checked += 1;
+            break;
+        }
+    }
+    assert!(
+        checked >= 2,
+        "only {checked} worlds had a line of open land"
+    );
+}

@@ -58,8 +58,13 @@ impl Economy<'_> {
                 costs.by_enchanted_road.push(by_enchanted_road);
             }
         }
-        PathGrid::new(width, height, costs, roads, self.diagonal_extra)
-            .map_err(|_| MoveError::OffMap)
+        let grid = PathGrid::new(width, height, costs, roads, self.diagonal_extra)
+            .map_err(|_| MoveError::OffMap)?;
+        Ok(if self.river_roads {
+            grid.with_rivers(ground.rivers())
+        } else {
+            grid
+        })
     }
 }
 

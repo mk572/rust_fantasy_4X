@@ -260,9 +260,15 @@ impl Economy<'_> {
         let Some(map) = self.map else {
             return Err(MoveError::NoMap);
         };
-        let from_road = map.plane(from.plane).has_road(from.x as i32, from.y as i32);
-        if !(from_road && map.plane(to.plane).has_road(to.x as i32, to.y as i32)) {
-            return Ok(terrain_cost);
+        let road = |p: Position| map.plane(p.plane).has_road(p.x as i32, p.y as i32);
+        let river = |p: Position| map.plane(p.plane).has_river(p.x as i32, p.y as i32);
+        if !(road(from) && road(to)) {
+            // A river to a river is a road step of half a move, never an enchanted one.
+            return Ok(if self.river_roads && river(from) && river(to) {
+                terrain_cost.min(ROAD_MOVE)
+            } else {
+                terrain_cost
+            });
         }
         // Roads halve the cost; enchanted roads (all roads on Myrror) make it nothing. The
         // abilities that cap a cost cap it at one move at most, so a road step is not touched.

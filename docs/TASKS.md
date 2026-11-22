@@ -130,7 +130,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 778 | High | Testing | The rest of the `f4x-core` test rebuild: class 9 of the remaining subsystems (battle, turn, spell, item, feature, map, world event, threat, hero, rules, path grid, hook, game), class 6 leftovers, the old-to-new table, the sweep gaps (`docs/f4x-core-test-design.md`) |
 | 781 | Medium | Client | Show the AI's fear and strategic regard besides its friendliness: "Scared", "Pitying", "Plotting", "Cooperative" *Needs:* 784 |
 | 785 | Medium | Spell | Diplomacy review for spells: find spells that should cause a diplomatic reaction and do not; allow beneficial spells on another wizard's cities and units (Gaia's Blessing on an allied city) to improve relations *Needs:* 782 |
-| 786 | Low | Movement | Faster movement along rivers |
 | 787 | Low | Content | Rules changes and new items from the community patch and the Caster of Magic expansion |
 | 788 | Low | Platform | Modding support |
 | 789 | Low | Client | Upscaled graphics |
@@ -434,15 +433,6 @@ Not here: the mutation passes (task 774, after this), the long AI plays with the
 **781. Show fear and strategic regard.** Asked for by the user, 23 November 2026. Until now (780) the human sees only the AI wizard's friendliness for them. Refine it with the other two values of `Regard` (`diplo_b.rs`): when the fear value is extreme the word says so ("Scared" for high fear, "Pitying" for deep negative, the AI far stronger than the human's side), when the strategic value is extreme ("Plotting" for strongly against the human, "Cooperative" for strongly in favour). Thresholds are knobs; the words are keys in `crates/f4x-client/content/text/en/*.ron` with their forms (`docs/text.md`); the AI exposes a read-only view of the three values for the client and the console; tests on the shipped content. *Needs:* 784.
 
 **785. Diplomacy review for spells.** Asked for by the user, 23 November 2026. (1) Go through every spell of the shipped content (overland enchantments, city and unit spells, wizard spells, battle spells cast on a wizard's own units or cities) and list those that should make another wizard feel something about the caster and do not: `enchantment_reaction` and `bad_city_spell` in `f4x-ai/src/opinion.rs` cover only the original's table (`docs/diplomacy.md` section 5); curses on units, cursed lands, disjunction and the like are missing. Decide each one with its value and add it to the AI's table, with a test on the shipped content. (2) Let a wizard cast a beneficial spell (Gaia's Blessing, Heavenly Light, a protection or a healing spell) on a city or unit of another wizard that is not at war with them, where the rules now refuse it: the owner is pleased (`CitySpellCast` and a new event for a unit, 782; the AI weighs it by the spell's worth to the owner), the upkeep stays the caster's, and the spell is lost or kept by a stated rule when the treaty ends. Check the target rules in `spell/cast.rs`, the client's target picker and the AI's choice of spells to cast on allies. *Needs:* 782.
-
-**786. Faster movement along rivers.** Rivers exist as a tile flag (T1, done) but do not affect
-movement. Add a rule that a step between two river tiles (or from a river tile to the shore at
-its mouth) costs less, like roads do (half a move; decide whether it stacks with roads, which
-should not give a quarter move), for land units and perhaps cheaper still for boats-on-rivers if
-ships ever sail them. Make it a rule in data (a movement cost modifier per river step) so it can
-be switched off, and show river-assisted paths in the path preview. Needs a decision on
-direction (up or down stream) before any asymmetric rule; the river layer currently has no flow
-direction.
 
 **787. Community patch and Caster of Magic content.** Collect the rule changes of the community
 patch (its files are in `reference/mom-classic/Master of Magic Community Patch/`) and of the

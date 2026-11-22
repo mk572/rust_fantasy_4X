@@ -573,6 +573,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.roads_at_start = v != 0,
         ),
         flag(
+            "custom.river_roads",
+            |s| s.rules.river_roads.into(),
+            |s, v| s.rules.river_roads = v != 0,
+        ),
+        flag(
             "custom.mix_neutral_races",
             |s| s.rules.mix_neutral_races.into(),
             |s, v| s.rules.mix_neutral_races = v != 0,

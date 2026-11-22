@@ -198,6 +198,8 @@ pub struct Economy<'a> {
     pub(crate) events: &'a crate::world_event::Events,
     /// A diagonal step costs half as much again (`BasicSettings::diagonal_extra_cost`).
     pub(crate) diagonal_extra: bool,
+    /// A step between two river squares costs what a road step does (`RuleSettings::river_roads`).
+    pub(crate) river_roads: bool,
     /// Settlers cost a citizen (`RuleSettings::settlers_cost_citizen`).
     pub(crate) settlers_cost_citizen: bool,
     /// Most units on one square (`RuleSettings::max_tile`).
@@ -236,6 +238,7 @@ impl<'a> Economy<'a> {
             content,
             events: &crate::world_event::NONE,
             diagonal_extra: false,
+            river_roads: false,
             settlers_cost_citizen: true,
             max_tile: f4x_def::settings::DEFAULT_MAX_TILE,
             max_city_size: u32::from(f4x_def::settings::DEFAULT_MAX_CITY_SIZE),
@@ -315,6 +318,12 @@ impl<'a> Economy<'a> {
     /// says they cost none.
     pub fn costs_a_citizen(&self, unit: crate::rules::UnitId) -> bool {
         self.settlers_cost_citizen && self.content.rules.units.get(unit).is_settler()
+    }
+
+    /// The same view with a step from river to river costing half a move, or not.
+    pub fn with_river_roads(mut self, on: bool) -> Self {
+        self.river_roads = on;
+        self
     }
 
     /// The same view with diagonal steps costing half as much again, or not.
@@ -1404,6 +1413,7 @@ impl Game {
         Economy::new(&self.world, self.map.as_ref(), &self.content)
             .with_events(&self.events)
             .with_diagonal_extra(self.settings.basic.diagonal_extra_cost)
+            .with_river_roads(self.settings.rules.river_roads)
             .with_settlers_cost_citizen(self.settings.rules.settlers_cost_citizen)
             .with_max_tile(self.settings.rules.max_tile)
             .with_max_battle_side(self.settings.rules.max_battle_side)

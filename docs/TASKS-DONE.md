@@ -656,6 +656,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 782 | Core | (done) New core events carrying the facts an opinion needs (battle losses, destroyed wizard with its winner, fortress taken, enchantment divisor, Subversion, failed assault); the AI applies them *Needs:* 780 |
 | 783 | AI | (done) The AI's own per-turn look: treaty growth, army too strong, too many cities, trespass, Aura of Majesty, AI-to-AI gravitation, drift and returning patience; no dice *Needs:* 780 |
 | 784 | Client | (done) The client and the console read the AI's friendliness for the human (diplomacy list and screen, wizard sheet, `talk`, `describe`); a parity test of the AI's opinion against the core's table *Needs:* 780, 782, 783 |
+| 786 | Movement | (done) Faster movement along rivers |
 
 ## Descriptions
 
@@ -1137,3 +1138,12 @@ Make the numbers a function of the battle, not of a stored copy: `field_bonus_fo
 **783. (done) The AI's per-turn look.** Split from 780. What the table does each turn from the game's state, now done by the AI from what it can see: a pact or an alliance in force grows the friendship, an army too strong, too many cities (the surplus over `(landsize + 1) * 3`), units of a partner next to its cities (warning, a turn of grace, then the loss), the enchantments in force each turn (a tenth of the value at cast, from the caster's global list; the Spell of Mastery being cast counts a half; 782 feeds only the cast itself), Aura of Majesty, the AI-to-AI gravitation, the drift back to the default and the patience that returns. No dice (780). *Needs:* 780.
 
 **784. (done) The client and the console read the AI's opinion.** Split from 780. The "will not see you" rule of `diplomacy_screen.rs` (the worst of the three patience counters of the core) is the AI's too: it goes by the AI's peace score or its warnings, not by the core's patience. The diplomacy list and screen, the wizard sheet, `talk` and `describe` show the AI wizard's *friendliness* for the human, read from the AI's `Opinion` through `Diplomats` (the human sees friendliness only, 781 refines it); the demo helpers that call `change_relations` (`diplomacy_screen.rs`, `diplomacy_list_screen.rs`) set the AI's opinion instead. A **parity test** plays scripted games with the core's table still running and asserts that the AI's opinion equals the core's after every event, so 775 can remove the table. *Needs:* 780, 782, 783.
+
+**786. (done) Faster movement along rivers.** Built as the rules setting `river_roads` (off by default): a step between two river squares costs half a move, `docs/game-settings.md`. The path preview and the pathfinder follow it. Boats on rivers and a stacking rule with roads were not part of it. Original text: Rivers exist as a tile flag (T1, done) but do not affect
+movement. Add a rule that a step between two river tiles (or from a river tile to the shore at
+its mouth) costs less, like roads do (half a move; decide whether it stacks with roads, which
+should not give a quarter move), for land units and perhaps cheaper still for boats-on-rivers if
+ships ever sail them. Make it a rule in data (a movement cost modifier per river step) so it can
+be switched off, and show river-assisted paths in the path preview. Needs a decision on
+direction (up or down stream) before any asymmetric rule; the river layer currently has no flow
+direction.

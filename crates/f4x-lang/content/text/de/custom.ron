@@ -86,6 +86,7 @@
     "custom.farmer_food": "Nahrung eines Bauern (Völker mit eigenem Wert behalten ihn)",
     "custom.worker_production": "Produktion eines Arbeiters (Völker mit eigenem Wert behalten ihn)",
     "custom.roads_at_start": "Straßen zwischen unabhängigen Städten zu Beginn",
+    "custom.river_roads": "Entlang eines Flusses kostet ein Schritt einen halben Zug, wie auf einer Straße",
     "custom.mix_neutral_races": "Unabhängige Städte der Völker beider Ebenen auf jeder Ebene",
     "custom.extend_tiny_islands": "Winzige Inseln unter Startstädten, neutralen Städten, Türmen und Knoten ausbauen",
     "custom.two_pick_myrran": "Myrraner kostet zwei Wahlpunkte und seine Festung bringt kein zusätzliches Mana",

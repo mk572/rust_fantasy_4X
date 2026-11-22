@@ -507,6 +507,11 @@ pub struct RuleSettings {
     /// had).
     #[serde(default = "fb_roads_at_start")]
     pub roads_at_start: bool,
+    /// A step from a river square to a river square next to it costs half a move, as a step along
+    /// a road does (task 786; never enchanted, whatever the plane; a road already there is not
+    /// changed). Off (the original): a river does not touch movement.
+    #[serde(default = "fb_river_roads")]
+    pub river_roads: bool,
     /// What defeating a wizard (taking the fortress of one who has no other way back, or the last
     /// city) brings the victor: half the loser's gold and half their mana reserve
     /// (`Conquer_Player`, patch 1.52 note 771). On in v1.31 and v1.6; off, the victor gets
@@ -780,6 +785,10 @@ fn fb_multiple_summoning_circles() -> bool {
     fallback("multiple_summoning_circles", |g| {
         g.rules.multiple_summoning_circles
     })
+}
+
+fn fb_river_roads() -> bool {
+    fallback("river_roads", |g| g.rules.river_roads)
 }
 
 fn fb_roads_at_start() -> bool {

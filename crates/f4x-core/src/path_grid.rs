@@ -79,6 +79,8 @@ pub struct PathGrid {
     height: u32,
     costs: Costs,
     roads: Vec<Road>,
+    /// A river runs through the square (empty: the rivers do not help a step, `with_rivers`).
+    rivers: Vec<bool>,
     diagonal_extra: bool,
     /// The connected piece of the squares a walker can enter each square lies in (not counting
     /// what stops a walk); `NONE` for a blocked square. Labelled at the first question, as a grid
@@ -98,12 +100,14 @@ impl PartialEq for PathGrid {
             self.diagonal_extra,
             &self.costs,
             &self.roads,
+            &self.rivers,
         ) == (
             other.width,
             other.height,
             other.diagonal_extra,
             &other.costs,
             &other.roads,
+            &other.rivers,
         )
     }
 }
@@ -139,6 +143,7 @@ impl PathGrid {
             height,
             costs,
             roads,
+            rivers: Vec::new(),
             diagonal_extra,
             region: std::cell::OnceCell::new(),
             min_step: Cost::ZERO,
@@ -146,6 +151,21 @@ impl PathGrid {
         };
         grid.measure();
         Ok(grid)
+    }
+
+    /// The same grid where a step between two river squares costs what a road step does, never
+    /// more than entering the square (`rivers` has one entry per square; the wrong size is
+    /// ignored).
+    pub fn with_rivers(mut self, rivers: Vec<bool>) -> Self {
+        if rivers.len() == self.squares() {
+            self.rivers = rivers;
+            self.measure();
+        }
+        self
+    }
+
+    fn river(&self, square: Square) -> bool {
+        self.rivers.get(square as usize).copied().unwrap_or(false)
     }
 
     pub fn width(&self) -> u32 {
@@ -183,6 +203,11 @@ impl PathGrid {
         let i = to as usize;
         self.costs.enter[i]?;
         let cost = match (self.roads[from as usize], self.roads[i]) {
+            (Road::None, _) | (_, Road::None) if self.river(from) && self.river(to) => {
+                self.costs.enter[i]
+                    .zip(self.costs.by_road[i])
+                    .map(|(a, b)| a.min(b))
+            }
             (Road::None, _) | (_, Road::None) => self.costs.enter[i],
             (Road::Enchanted, Road::Enchanted) => self.costs.by_enchanted_road[i],
             _ => self.costs.by_road[i],
@@ -226,6 +251,9 @@ impl PathGrid {
                 continue;
             }
             note(enter);
+            if self.river(i as Square) {
+                note(self.costs.by_road[i]);
+            }
             // A road step needs a road at both ends: the cheaper kind only where there is one.
             match self.roads[i] {
                 Road::None => {}
@@ -259,6 +287,7 @@ impl PathGrid {
             if (part.width, part.height, part.diagonal_extra)
                 != (first.width, first.height, first.diagonal_extra)
                 || part.roads != first.roads
+                || part.rivers != first.rivers
             {
                 return Err(PathGridError::Mismatch);
             }
@@ -280,6 +309,13 @@ impl PathGrid {
             first.roads.clone(),
             first.diagonal_extra,
         )
+        .map(|grid| {
+            if first.rivers.is_empty() {
+                grid
+            } else {
+                grid.with_rivers(first.rivers.clone())
+            }
+        })
     }
 
     fn regions(&self) -> &[u32] {
