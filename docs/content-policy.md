@@ -102,6 +102,12 @@ Rules for a drop:
 3. A file that is unreadable or whole-file corrupt is Refuse, also for these elements (there is no row to drop).
 4. A degraded game is marked as such in the save, so a later load can say it was played without the element.
 
+Built (task 765): `assemble` and `Help::repaired`. A row of a degradable file that is out of order or twice keeps the
+longest rising run of numbers; the other rows are dropped. The rules are checked again without the dropped rows, and an
+issue that then appears refuses the game. The issues of the dropped rows are in `Rules::degraded` (and `load_help_checked`
+for the help), each with `Outcome::Degrade`. Not built: the mark in the save (task 767) and the client screen (task 768).
+No shipped file refers to a droppable row, so the refusal for a referred row is not tested (task 770).
+
 Open: whether `heroes.ron` is degradable (not chosen; it stays Refuse).
 
 ### R7. Mods (decided: in this work)

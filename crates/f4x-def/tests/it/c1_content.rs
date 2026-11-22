@@ -269,11 +269,9 @@ fn a_rule_row_with_a_bad_or_repeated_id_is_refused() {
     refused::<Vec<BuildingDef>>("buildings.ron", "", |u| u[1].id = u[0].id.clone());
     refused::<Vec<RaceDef>>("races.ron", "", |u| u[1].id = u[0].id.clone());
     refused::<Vec<RealmDef>>("realms.ron", "", |u| u[1].id = u[0].id.clone());
-    refused::<Vec<ItemDef>>("items.ron", "", |u| u[1].id = u[0].id.clone());
     refused::<Vec<ItemPowerDef>>("item_powers.ron", "", |u| u[1].id = u[0].id.clone());
     refused::<Vec<LevelPathDef>>("level_paths.ron", "", |u| u[1].id = u[0].id.clone());
     refused::<Vec<RetortDef>>("retorts.ron", "", |u| u[1].id = u[0].id.clone());
-    refused::<Vec<WizardDef>>("wizards.ron", "", |u| u[1].id = u[0].id.clone());
 }
 
 // ---- races ----
@@ -668,9 +666,6 @@ fn a_bad_effect_is_found_on_every_kind_of_carrier() {
         |v| v[0].effects.push(bad()),
     );
     refused::<Vec<RaceDef>>("races.ron", &race().id, |v| v[0].effects.push(bad()));
-    refused::<Vec<ItemDef>>("items.ron", &shipped().rules.items.defs()[0].id, |v| {
-        v[0].effects.push(bad())
-    });
     refused::<Vec<LevelPathDef>>(
         "level_paths.ron",
         &shipped().rules.level_paths.defs()[0].id,
@@ -682,22 +677,6 @@ fn a_bad_effect_is_found_on_every_kind_of_carrier() {
 }
 
 // ---- wizards, retorts, realms ----
-
-#[test]
-fn a_wizard_with_unknown_picks_or_the_wrong_number_of_picks_is_refused() {
-    let w = shipped().rules.wizards.defs()[0].clone();
-    refused::<Vec<WizardDef>>("wizards.ron", &w.id, |v| {
-        v[0].books.push((Id::new(NOWHERE), 1))
-    });
-    refused::<Vec<WizardDef>>("wizards.ron", &w.id, |v| {
-        v[0].retorts.push(Id::new(NOWHERE))
-    });
-    refused::<Vec<WizardDef>>("wizards.ron", &w.id, |v| {
-        let realm = v[0].books[0].0;
-        v[0].books.push((realm, 1));
-    });
-    refused::<Vec<WizardDef>>("wizards.ron", &w.id, |v| v[0].books.clear());
-}
 
 #[test]
 fn a_retort_or_realm_that_names_something_unknown_is_refused() {
@@ -759,38 +738,7 @@ fn a_level_path_with_no_levels_or_bad_thresholds_is_refused() {
 // ---- items ----
 
 #[test]
-fn an_item_or_a_power_that_makes_no_sense_is_refused() {
-    let item = shipped()
-        .rules
-        .items
-        .defs()
-        .iter()
-        .find(|i| !i.powers.is_empty())
-        .expect("an item")
-        .clone();
-    let at = shipped()
-        .rules
-        .items
-        .defs()
-        .iter()
-        .position(|i| i.id == item.id)
-        .expect("row");
-    refused::<Vec<ItemDef>>("items.ron", &item.id, |v| {
-        v[at].powers.push(Id::new(NOWHERE))
-    });
-    refused::<Vec<ItemDef>>("items.ron", &item.id, |v| {
-        v[at].charges = Some((Id::new(NOWHERE), 1))
-    });
-    refused::<Vec<ItemDef>>("items.ron", &item.id, |v| {
-        v[at].charges = Some((Id::new(shipped().rules.spells.defs()[0].num), 0))
-    });
-    refused::<Vec<ItemDef>>("items.ron", &item.id, |v| {
-        v[at].effects.clear();
-        v[at].powers.clear();
-        v[at].charges = None;
-        v[at].spell_skill = 0;
-        v[at].spell_save = 0;
-    });
+fn an_item_power_that_makes_no_sense_is_refused() {
     let power = shipped().rules.item_powers.defs()[0].clone();
     refused::<Vec<ItemPowerDef>>("item_powers.ron", &power.id, |v| {
         v[0].realm = Some(Id::new(NOWHERE))
@@ -836,40 +784,13 @@ fn a_hero_template_that_does_not_match_its_hero_is_refused() {
 // ---- ratings and efficiency ----
 
 #[test]
-fn ratings_and_efficiencies_that_are_out_of_order_unknown_or_not_positive_are_refused() {
+fn a_hero_factor_that_is_not_above_zero_is_refused() {
     refused::<UnitRatings>("unit_ratings.ron", "unit_ratings", |r| r.hero_factor = 0.0);
     refused::<UnitRatings>("unit_ratings.ron", "unit_ratings", |r| {
         r.hero_factor = f32::NAN
     });
     refused::<UnitRatings>("unit_ratings.ron", "unit_ratings", |r| {
         r.hero_factor = f32::INFINITY
-    });
-    refused::<UnitRatings>("unit_ratings.ron", "unit_ratings", |r| {
-        r.units[1].num = r.units[0].num
-    });
-    refused::<UnitRatings>("unit_ratings.ron", "unit_ratings", |r| {
-        r.units[0].num = NOWHERE
-    });
-    refused::<UnitRatings>("unit_ratings.ron", "unit_ratings", |r| {
-        r.units[0].levels.clear()
-    });
-    refused::<UnitRatings>("unit_ratings.ron", "unit_ratings", |r| {
-        r.units[0].levels[0] = -1.0
-    });
-    refused::<UnitRatings>("unit_ratings.ron", "unit_ratings", |r| {
-        r.units[0].levels[0] = f32::NAN
-    });
-    refused::<UnitEfficiencies>("unit_efficiency.ron", "unit_efficiency", |r| {
-        r.units[1].num = r.units[0].num
-    });
-    refused::<UnitEfficiencies>("unit_efficiency.ron", "unit_efficiency", |r| {
-        r.units[0].num = NOWHERE
-    });
-    refused::<UnitEfficiencies>("unit_efficiency.ron", "unit_efficiency", |r| {
-        r.units[0].cost = 0.0
-    });
-    refused::<UnitEfficiencies>("unit_efficiency.ron", "unit_efficiency", |r| {
-        r.units[0].per_100 = f32::NAN
     });
 }
 
@@ -1200,27 +1121,6 @@ fn a_per_level_fraction_of_a_hero_ability_must_have_a_positive_denominator_a_non
         });
     });
     load(&dir).expect("1 over 1 with offset 0 is a fraction");
-}
-
-#[test]
-fn a_unit_rating_must_name_a_unit_and_hold_positive_finite_numbers() {
-    let first = shipped().rules.ratings.units[0].num;
-    refused::<UnitRatings>("unit_ratings.ron", "unit_ratings.ron", |r| {
-        r.units.last_mut().expect("a row").num = u16::MAX;
-    });
-    for bad in [0.0_f32, -1.0, f32::INFINITY] {
-        refused::<UnitRatings>("unit_ratings.ron", &first.to_string(), |r| {
-            r.units[0].levels = vec![bad]
-        });
-    }
-    refused::<UnitRatings>("unit_ratings.ron", &first.to_string(), |r| {
-        r.units[0].levels = vec![]
-    });
-    let dir = copy_of_shipped("c1-rating");
-    edit::<UnitRatings>(&dir, "unit_ratings.ron", |r| {
-        r.units[0].levels = vec![f32::MIN_POSITIVE]
-    });
-    load(&dir).expect("a small positive worth is a worth");
 }
 
 #[test]

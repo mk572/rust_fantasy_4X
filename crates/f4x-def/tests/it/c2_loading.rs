@@ -296,6 +296,9 @@ fn every_file_damaged_in_every_way_is_refused_without_a_panic_and_the_error_name
                         ));
                     }
                 }
+                // The damage made rows of a degradable file bad (an emptied file of powers leaves the
+                // items that name them without a power): the game plays on and says what it left out.
+                Outcome::Loaded(c) if !c.rules.degraded.is_empty() => {}
                 Outcome::Loaded(_) => {
                     // Accepted: only fine for a file whose damage leaves it meaning the same, or an optional file.
                     // A list that may be empty (no items) and a file of defaults only may be damaged to
@@ -744,7 +747,7 @@ fn a_key_no_type_has_is_refused_wherever_it_is_put() {
 
 #[test]
 fn rows_out_of_the_order_of_their_numbers_or_with_a_number_twice_are_an_error_and_not_a_panic() {
-    use f4x_def::rules::{AbilityDef, BuildingDef, ItemDef, RealmDef, SpellDef, UnitDef};
+    use f4x_def::rules::{AbilityDef, BuildingDef, RealmDef, SpellDef, UnitDef};
     fn swap_and_repeat<T: serde::de::DeserializeOwned + serde::Serialize>(
         file: &str,
         num_of: fn(&mut T) -> &mut u16,
@@ -770,7 +773,6 @@ fn rows_out_of_the_order_of_their_numbers_or_with_a_number_twice_are_an_error_an
     swap_and_repeat::<BuildingDef>("buildings.ron", |d| &mut d.num);
     swap_and_repeat::<RealmDef>("realms.ron", |d| &mut d.num);
     swap_and_repeat::<SpellDef>("spells.ron", |d| &mut d.num);
-    swap_and_repeat::<ItemDef>("items.ron", |d| &mut d.num);
 }
 
 #[test]

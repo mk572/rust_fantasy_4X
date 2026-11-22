@@ -100,51 +100,110 @@ impl Help {
     /// written yet (see [`Help::unwritten`]); it then opens nothing. A topic number is used once,
     /// and no two topics repeat the same title and text.
     pub fn problems(&self) -> Vec<crate::issue::ContentIssue> {
-        const F: &str = "help.ron";
         let mut p = crate::issue::Issues::new();
+        for i in self.twice() {
+            p.push(duplicate_number(self.topics[i].index));
+        }
+        for (i, o) in self.same_words() {
+            p.push(same_words(self.topics[i].index, self.topics[o].index));
+        }
+        for i in self.unknown_includes() {
+            p.push(unknown_include(&self.topics[i]));
+        }
+        for i in self.circles() {
+            p.push(circle(self.topics[i].index));
+        }
+        for i in self.bad_pictures() {
+            p.push(bad_picture(&self.topics[i]));
+        }
+        p.into_vec()
+    }
+
+    /// The help with every bad part left out, and what was left out (each a `Degrade` issue of
+    /// [`Element::Help`]): a topic that repeats a number or another topic's words is dropped, the first
+    /// stays; an `include` of nothing or in a circle, and a picture that is not a plain file name, are
+    /// cleared. The area of a screen that opens a topic that is gone opens nothing.
+    pub fn repaired(mut self) -> (Help, Vec<crate::issue::ContentIssue>) {
+        use crate::issue::Element;
+        let mut out = Vec::new();
+        let degrade = |i: crate::issue::ContentIssue| i.degrading(Element::Help);
+        // Topics out: repeated numbers and repeated words (the later of the two).
+        let twice = self.twice();
+        let same: Vec<usize> = self.same_words().into_iter().map(|(i, _)| i).collect();
+        for &i in &twice {
+            out.push(degrade(duplicate_number(self.topics[i].index)));
+        }
+        for (i, o) in self.same_words() {
+            if !twice.contains(&i) {
+                out.push(degrade(same_words(
+                    self.topics[i].index,
+                    self.topics[o].index,
+                )));
+            }
+        }
+        let mut at = 0;
+        self.topics.retain(|_| {
+            at += 1;
+            !twice.contains(&(at - 1)) && !same.contains(&(at - 1))
+        });
+        // Includes of nothing (also of a topic that has just gone).
+        for i in self.unknown_includes() {
+            out.push(degrade(unknown_include(&self.topics[i])));
+            self.topics[i].include = None;
+        }
+        // Circles: clear the include of one topic of a circle until none is left.
+        while let Some(&i) = self.circles().first() {
+            out.push(degrade(circle(self.topics[i].index)));
+            self.topics[i].include = None;
+        }
+        for i in self.bad_pictures() {
+            out.push(degrade(bad_picture(&self.topics[i])));
+            self.topics[i].picture = None;
+        }
+        (self, out)
+    }
+
+    /// The topics (by position) whose number an earlier topic has.
+    fn twice(&self) -> Vec<usize> {
         let mut seen = std::collections::HashSet::new();
-        for t in &self.topics {
-            if !seen.insert(t.index) {
-                p.duplicate(
-                    F,
-                    format!("help topic {}", t.index),
-                    "the topic number",
-                    t.index,
-                );
-            }
-        }
+        (0..self.topics.len())
+            .filter(|&i| !seen.insert(self.topics[i].index))
+            .collect()
+    }
+
+    /// `(later, earlier)` topics that have the same title and text.
+    fn same_words(&self) -> Vec<(usize, usize)> {
+        let mut out = Vec::new();
         for (i, t) in self.topics.iter().enumerate() {
-            if let Some(other) = self.topics[..i]
+            if let Some(o) = self.topics[..i]
                 .iter()
-                .find(|o| o.title.eq_ignore_ascii_case(&t.title) && o.text == t.text)
+                .position(|o| o.title.eq_ignore_ascii_case(&t.title) && o.text == t.text)
             {
-                p.conflict(
-                    F,
-                    format!("help topic {}", t.index),
-                    format!("it has the same title and text as topic {}", other.index),
-                );
+                out.push((i, o));
             }
         }
-        for t in &self.topics {
-            if let Some(inc) = t.include {
-                if self.topic(inc).is_none() {
-                    p.dangling(
-                        F,
-                        format!("help topic {}", t.index),
-                        "include",
-                        "help topic",
-                        inc,
-                    );
-                }
-            }
-        }
-        // A chain of includes that comes back to where it began would never end.
-        for t in &self.topics {
+        out
+    }
+
+    fn unknown_includes(&self) -> Vec<usize> {
+        (0..self.topics.len())
+            .filter(|&i| {
+                self.topics[i]
+                    .include
+                    .is_some_and(|inc| self.topic(inc).is_none())
+            })
+            .collect()
+    }
+
+    /// The topics whose chain of includes comes back to them.
+    fn circles(&self) -> Vec<usize> {
+        let mut out = Vec::new();
+        for (i, t) in self.topics.iter().enumerate() {
             let mut at = t;
             for _ in 0..self.topics.len() {
-                match at.include.and_then(|i| self.topic(i)) {
+                match at.include.and_then(|n| self.topic(n)) {
                     Some(next) if next.index == t.index => {
-                        p.conflict(F, format!("help topic {}", t.index), "it includes itself");
+                        out.push(i);
                         break;
                     }
                     Some(next) => at = next,
@@ -152,23 +211,85 @@ impl Help {
                 }
             }
         }
-        // The picture is a file name, not a path: it is looked up in one folder.
-        for t in &self.topics {
-            if let Some((file, _)) = &t.picture {
-                let plain = !file.is_empty()
-                    && !file.contains(['/', '\\', '\0', ':'])
-                    && !file.starts_with('.');
-                if !plain {
-                    p.out_of_range(
-                        F,
-                        format!("help topic {}", t.index),
-                        "picture",
-                        format!("{file:?}"),
-                        "a plain file name",
-                    );
-                }
-            }
-        }
-        p.into_vec()
+        out
     }
+
+    /// The picture is a file name, not a path: it is looked up in one folder.
+    fn bad_pictures(&self) -> Vec<usize> {
+        (0..self.topics.len())
+            .filter(|&i| {
+                self.topics[i].picture.as_ref().is_some_and(|(file, _)| {
+                    file.is_empty()
+                        || file.contains(['/', '\\', '\0', ':'])
+                        || file.starts_with('.')
+                })
+            })
+            .collect()
+    }
+}
+
+const F: &str = "help.ron";
+
+fn duplicate_number(index: u16) -> crate::issue::ContentIssue {
+    crate::issue::ContentIssue::new(
+        F,
+        format!("help topic {index}"),
+        crate::issue::IssueKind::Duplicate,
+    )
+    .with(["the topic number".to_string(), index.to_string()])
+    .about_row(index)
+}
+
+fn same_words(index: u16, other: u16) -> crate::issue::ContentIssue {
+    crate::issue::ContentIssue::new(
+        F,
+        format!("help topic {index}"),
+        crate::issue::IssueKind::Conflict,
+    )
+    .with([format!("it has the same title and text as topic {other}")])
+    .about_row(index)
+}
+
+fn unknown_include(t: &HelpTopic) -> crate::issue::ContentIssue {
+    let inc = t.include.unwrap_or_default();
+    crate::issue::ContentIssue::new(
+        F,
+        format!("help topic {}", t.index),
+        crate::issue::IssueKind::Dangling,
+    )
+    .with([
+        "include".to_string(),
+        "help topic".to_string(),
+        inc.to_string(),
+    ])
+    .about_row(t.index)
+}
+
+fn circle(index: u16) -> crate::issue::ContentIssue {
+    crate::issue::ContentIssue::new(
+        F,
+        format!("help topic {index}"),
+        crate::issue::IssueKind::Conflict,
+    )
+    .with(["it includes itself".to_string()])
+    .about_row(index)
+}
+
+fn bad_picture(t: &HelpTopic) -> crate::issue::ContentIssue {
+    let file = t
+        .picture
+        .as_ref()
+        .map(|(f, _)| f.as_str())
+        .unwrap_or_default();
+    crate::issue::ContentIssue::new(
+        F,
+        format!("help topic {}", t.index),
+        crate::issue::IssueKind::OutOfRange,
+    )
+    .with([
+        "picture".to_string(),
+        format!("{file:?}"),
+        "a plain file name".to_string(),
+    ])
+    .about_row(t.index)
 }

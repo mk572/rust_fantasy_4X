@@ -163,7 +163,10 @@ pub fn validate_features(defs: &[FeatureDef]) -> Vec<ContentIssue> {
 /// language's when a language has no file) and the screens' areas (`help_screens.ron`, no words),
 /// each from the first of `dirs` that has it. The help text is ours: nothing else is read, so the
 /// original's text is never a fallback. Directories without the files give an empty [`Help`].
-pub fn load_help(dirs: &[&Path], lang: &str) -> Result<crate::help::Help, ContentError> {
+pub fn load_help_checked(
+    dirs: &[&Path],
+    lang: &str,
+) -> Result<(crate::help::Help, Vec<ContentIssue>), ContentError> {
     use crate::text::FALLBACK_LANGUAGE;
     let first = |name: &str| {
         dirs.iter()
@@ -176,12 +179,14 @@ pub fn load_help(dirs: &[&Path], lang: &str) -> Result<crate::help::Help, Conten
         topics: read_list(topics_file.as_deref())?,
         screens: read_list(first("help_screens.ron").as_deref())?,
     };
-    let problems = help.problems();
-    if problems.is_empty() {
-        Ok(help)
-    } else {
-        Err(ContentError::new(problems))
-    }
+    // A bad topic, include or picture is left out, and said so: the help is not the game.
+    Ok(help.repaired())
+}
+
+/// [`load_help_checked`] without the list of what was left out, for a caller that is not told yet.
+/// The client reads the list (task 768); until then use the checked form.
+pub fn load_help(dirs: &[&Path], lang: &str) -> Result<crate::help::Help, ContentError> {
+    load_help_checked(dirs, lang).map(|(help, _)| help)
 }
 
 /// The rows of a `.ron` list; no file gives none.

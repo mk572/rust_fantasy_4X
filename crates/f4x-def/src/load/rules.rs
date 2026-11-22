@@ -1,7 +1,7 @@
 //! Loading and cross-reference validation of the rules definitions.
 
 use crate::half_int::HalfInt;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::Path;
 
 use crate::rules::effects::{Condition, Effect, EffectRule, Trigger};
@@ -12,7 +12,7 @@ use crate::rules::{
 };
 
 use super::{id_problem, ContentError};
-use crate::issue::{ContentIssue, Issues};
+use crate::issue::{ContentIssue, Element, IssueKind, Issues};
 
 /// The first of `dirs` that has the file `name`.
 fn find(dirs: &[&Path], name: &str) -> Option<std::path::PathBuf> {
@@ -110,41 +110,224 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
     if !issues.is_empty() {
         return Err(ContentError::new(issues.into_vec()));
     }
-    // The rows of a file are in the order of their numbers; a file that is not is refused here, as
-    // a registry cannot be built from it.
+    let parts = Parts {
+        config: config.unwrap_or_default(),
+        races: races.unwrap_or_default(),
+        units: units.unwrap_or_default(),
+        abilities: abilities.unwrap_or_default(),
+        buildings: buildings.unwrap_or_default(),
+        realms: realms.unwrap_or_default(),
+        spells: spells.unwrap_or_default(),
+        items: items.unwrap_or_default(),
+        item_powers: item_powers.unwrap_or_default(),
+        level_paths: level_paths.unwrap_or_default(),
+        wizards: wizards.unwrap_or_default(),
+        retorts: retorts.unwrap_or_default(),
+        hero_templates: hero_templates.unwrap_or_default(),
+        ratings: ratings.unwrap_or_default(),
+        efficiency: efficiency.unwrap_or_default(),
+        battle: battle.unwrap_or_default(),
+        lairs: lairs.unwrap_or_default(),
+        ai_sites: ai_sites.unwrap_or_default(),
+    };
+    assemble(parts)
+}
+
+/// What the files hold, before the tables are built.
+struct Parts {
+    config: RulesConfig,
+    races: Vec<RaceDef>,
+    units: Vec<UnitDef>,
+    abilities: Vec<AbilityDef>,
+    buildings: Vec<BuildingDef>,
+    realms: Vec<RealmDef>,
+    spells: Vec<SpellDef>,
+    items: Vec<ItemDef>,
+    item_powers: Vec<ItemPowerDef>,
+    level_paths: Vec<LevelPathDef>,
+    wizards: Vec<WizardDef>,
+    retorts: Vec<RetortDef>,
+    hero_templates: Vec<HeroTemplate>,
+    ratings: crate::rules::UnitRatings,
+    efficiency: crate::rules::UnitEfficiencies,
+    battle: crate::rules::BattleRules,
+    lairs: crate::rules::lair::LairRules,
+    ai_sites: crate::rules::ai_site::SiteRules,
+}
+
+/// The part of the content a file's rows are, when a bad row of the file may be dropped.
+fn element_of(file: &str) -> Option<Element> {
+    match file {
+        "wizards.ron" => Some(Element::Wizard),
+        "unit_ratings.ron" => Some(Element::Rating),
+        "unit_efficiency.ron" => Some(Element::Efficiency),
+        "items.ron" => Some(Element::Item),
+        _ => None,
+    }
+}
+
+/// The rows of a degradable file that cannot stay in a table: the table needs rising numbers, so the
+/// rows that stay are the longest run of rising numbers (the first of two rows with one number stays),
+/// and every other row is dropped. One row with a number far too big goes alone, not everything after it.
+fn out_of_order<T>(
+    file: &str,
+    element: Element,
+    rows: &mut Vec<T>,
+    num: impl Fn(&T) -> u16,
+    degraded: &mut Vec<ContentIssue>,
+) {
+    let nums: Vec<u16> = rows.iter().map(&num).collect();
+    // `tails[k]`: the row that ends the best rising run of length k + 1; `before[i]`: the row before row i in its run.
+    let mut tails: Vec<usize> = Vec::new();
+    let mut before: Vec<Option<usize>> = vec![None; nums.len()];
+    for (i, &n) in nums.iter().enumerate() {
+        let k = tails.partition_point(|&t| nums[t] < n);
+        before[i] = k.checked_sub(1).map(|k| tails[k]);
+        if k == tails.len() {
+            tails.push(i);
+        } else {
+            tails[k] = i;
+        }
+    }
+    let mut stays = vec![false; nums.len()];
+    let mut at = tails.last().copied();
+    while let Some(i) = at {
+        stays[i] = true;
+        at = before[i];
+    }
+    for (i, &n) in nums.iter().enumerate().filter(|(i, _)| !stays[*i]) {
+        degraded.push(
+            ContentIssue::new(
+                file,
+                format!("row {} (numbered {n})", i + 1),
+                IssueKind::Duplicate,
+            )
+            .with([
+                "the number of a row (rows must rise)".to_string(),
+                n.to_string(),
+            ])
+            .about_row(n)
+            .degrading(element),
+        );
+    }
+    let mut i = 0;
+    rows.retain(|_| {
+        i += 1;
+        stays[i - 1]
+    });
+}
+
+/// Build the rules from the files' rows, drop what may be dropped, and check.
+///
+/// A bad row of a degradable file (`element_of`) is dropped and reported with a `Degrade` outcome; the
+/// game plays without it. A row is dropped only when nothing refers to it: the rules are checked
+/// again without it, and an issue that appears (a reference to the dropped row) refuses the game.
+/// Every other issue refuses it at once.
+fn assemble(mut parts: Parts) -> Result<Rules, ContentError> {
+    let mut dropped: BTreeSet<(Element, u16)> = BTreeSet::new();
+    let mut degraded: Vec<ContentIssue> = Vec::new();
+    out_of_order(
+        "wizards.ron",
+        Element::Wizard,
+        &mut parts.wizards,
+        |w| w.num,
+        &mut degraded,
+    );
+    out_of_order(
+        "items.ron",
+        Element::Item,
+        &mut parts.items,
+        |i| i.num,
+        &mut degraded,
+    );
+    out_of_order(
+        "unit_ratings.ron",
+        Element::Rating,
+        &mut parts.ratings.units,
+        |r| r.num,
+        &mut degraded,
+    );
+    out_of_order(
+        "unit_efficiency.ron",
+        Element::Efficiency,
+        &mut parts.efficiency.units,
+        |r| r.num,
+        &mut degraded,
+    );
+    let parts = &parts;
+    let rules = build(parts, &dropped)?;
+    let found = validate_rules(&rules);
+    let (droppable, fatal): (Vec<ContentIssue>, Vec<ContentIssue>) = found
+        .into_iter()
+        .partition(|i| i.row.is_some() && element_of(&i.file).is_some());
+    if !fatal.is_empty() {
+        // Refused: the whole list, the rows that could have been dropped with it.
+        let all = degraded.into_iter().chain(droppable).chain(fatal).collect();
+        return Err(ContentError::new(all));
+    }
+    if droppable.is_empty() {
+        let mut rules = rules;
+        rules.degraded = degraded;
+        return Ok(rules);
+    }
+    for issue in droppable {
+        if let (Some(element), Some(row)) = (element_of(&issue.file), issue.row) {
+            dropped.insert((element, row));
+            degraded.push(issue.degrading(element));
+        }
+    }
+    let mut rules = build(parts, &dropped)?;
+    // Without the rows, something that referred to one has nothing to point at: refuse.
+    let again = validate_rules(&rules);
+    if !again.is_empty() {
+        return Err(ContentError::new(again));
+    }
+    rules.degraded = degraded;
+    Ok(rules)
+}
+
+/// The tables from the rows, less the rows dropped.
+fn build(p: &Parts, dropped: &BTreeSet<(Element, u16)>) -> Result<Rules, ContentError> {
     let mut problems = Issues::new();
-    let races = table("races.ron", races.unwrap_or_default(), &mut problems);
-    let units = table("units.ron", units.unwrap_or_default(), &mut problems);
-    let abilities = table(
-        "abilities.ron",
-        abilities.unwrap_or_default(),
+    let keep = |element: Element, num: u16| !dropped.contains(&(element, num));
+    let races = table("races.ron", p.races.clone(), &mut problems);
+    let units = table("units.ron", p.units.clone(), &mut problems);
+    let abilities = table("abilities.ron", p.abilities.clone(), &mut problems);
+    let buildings = table("buildings.ron", p.buildings.clone(), &mut problems);
+    let realms = table("realms.ron", p.realms.clone(), &mut problems);
+    let spells = table("spells.ron", p.spells.clone(), &mut problems);
+    let items = table(
+        "items.ron",
+        p.items
+            .iter()
+            .filter(|i| keep(Element::Item, i.num))
+            .cloned()
+            .collect(),
         &mut problems,
     );
-    let buildings = table(
-        "buildings.ron",
-        buildings.unwrap_or_default(),
+    let item_powers = table("item_powers.ron", p.item_powers.clone(), &mut problems);
+    let level_paths = table("level_paths.ron", p.level_paths.clone(), &mut problems);
+    let wizards = table(
+        "wizards.ron",
+        p.wizards
+            .iter()
+            .filter(|w| keep(Element::Wizard, w.num))
+            .cloned()
+            .collect(),
         &mut problems,
     );
-    let realms = table("realms.ron", realms.unwrap_or_default(), &mut problems);
-    let spells = table("spells.ron", spells.unwrap_or_default(), &mut problems);
-    let items = table("items.ron", items.unwrap_or_default(), &mut problems);
-    let item_powers = table(
-        "item_powers.ron",
-        item_powers.unwrap_or_default(),
-        &mut problems,
-    );
-    let level_paths = table(
-        "level_paths.ron",
-        level_paths.unwrap_or_default(),
-        &mut problems,
-    );
-    let wizards = table("wizards.ron", wizards.unwrap_or_default(), &mut problems);
-    let retorts = table("retorts.ron", retorts.unwrap_or_default(), &mut problems);
+    let retorts = table("retorts.ron", p.retorts.clone(), &mut problems);
     if !problems.is_empty() {
         return Err(ContentError::new(problems.into_vec()));
     }
-    let rules = Rules {
-        config: config.unwrap_or_default(),
+    let mut ratings = p.ratings.clone();
+    ratings.units.retain(|r| keep(Element::Rating, r.num));
+    let mut efficiency = p.efficiency.clone();
+    efficiency
+        .units
+        .retain(|r| keep(Element::Efficiency, r.num));
+    Ok(Rules {
+        config: p.config.clone(),
         races,
         units,
         abilities,
@@ -154,33 +337,23 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         items,
         item_powers,
         level_paths,
-        // Ready-made wizards are optional: a rule set without them just has no presets.
         wizards,
         retorts,
-        // The starting records of the hero types, also optional.
-        hero_templates: hero_templates.unwrap_or_default(),
-        // The unit combat ratings, also optional: without the file no unit has one.
-        ratings: ratings.unwrap_or_default(),
-        // What the ratings buy per resource, also optional.
-        efficiency: efficiency.unwrap_or_default(),
-        // The rules of the battle, also optional: without the file the original's numbers.
-        battle: battle.unwrap_or_default(),
-        // The lair rules, also optional: a rule set may leave the file out.
-        lairs: lairs.unwrap_or_default(),
-        ai_sites: ai_sites.unwrap_or_default(),
-    };
-    let problems = validate_rules(&rules);
-    if problems.is_empty() {
-        Ok(rules)
-    } else {
-        Err(ContentError::new(problems))
-    }
+        hero_templates: p.hero_templates.clone(),
+        ratings,
+        efficiency,
+        degraded: Vec::new(),
+        battle: p.battle.clone(),
+        lairs: p.lairs.clone(),
+        ai_sites: p.ai_sites.clone(),
+    })
 }
 
 fn check_ids<T: Def>(kind: &str, reg: &Registry<T>, problems: &mut Issues) {
     let file = file_of(kind);
     let mut seen = HashSet::new();
     for d in reg.defs() {
+        problems.row(Some(d.num()));
         problems.extend_opt(id_problem(file, kind, d.id()));
         if !seen.insert(d.id()) {
             problems.duplicate(
@@ -191,6 +364,7 @@ fn check_ids<T: Def>(kind: &str, reg: &Registry<T>, problems: &mut Issues) {
             );
         }
     }
+    problems.row(None);
 }
 
 /// The file a kind of row comes from.
@@ -328,15 +502,18 @@ fn check_ratings(r: &Rules, p: &mut Issues) {
     const E: &str = "unit_efficiency.ron";
     for w in r.efficiency.units.windows(2) {
         if w[0].num >= w[1].num {
+            p.row(Some(w[1].num));
             p.duplicate(
                 E,
                 format!("unit {}", w[1].num),
                 "the unit number (a row is out of order or twice)",
                 w[1].num,
             );
+            p.row(None);
         }
     }
     for row in &r.efficiency.units {
+        p.row(Some(row.num));
         let at = format!("unit {}", row.num);
         if !unit_exists(row.num) {
             p.dangling(E, &at, "num", "unit", row.num);
@@ -352,6 +529,7 @@ fn check_ratings(r: &Rules, p: &mut Issues) {
             }
         }
     }
+    p.row(None);
     const R: &str = "unit_ratings.ron";
     if !positive(&r.ratings.hero_factor) {
         p.out_of_range(
@@ -364,15 +542,18 @@ fn check_ratings(r: &Rules, p: &mut Issues) {
     }
     for w in r.ratings.units.windows(2) {
         if w[0].num >= w[1].num {
+            p.row(Some(w[1].num));
             p.duplicate(
                 R,
                 format!("unit {}", w[1].num),
                 "the unit number (a row is out of order or twice)",
                 w[1].num,
             );
+            p.row(None);
         }
     }
     for row in &r.ratings.units {
+        p.row(Some(row.num));
         let at = format!("unit {}", row.num);
         if !unit_exists(row.num) {
             p.dangling(R, &at, "num", "unit", row.num);
@@ -384,6 +565,7 @@ fn check_ratings(r: &Rules, p: &mut Issues) {
             p.out_of_range(R, &at, "levels", v, "numbers above 0");
         }
     }
+    p.row(None);
 }
 
 /// The hero templates: one for each hero unit, no more, with real abilities and spells.
@@ -464,6 +646,7 @@ fn check_items(r: &Rules, p: &mut Issues) {
         }
     }
     for item in r.items.defs() {
+        p.row(Some(item.num));
         let who = format!("item {:?}", item.id);
         if item.kind.slot() != item.slot {
             p.conflict(
@@ -494,6 +677,7 @@ fn check_items(r: &Rules, p: &mut Issues) {
             }
         }
     }
+    p.row(None);
 }
 
 /// Returns a human-readable list of problems; empty means valid.
@@ -616,9 +800,20 @@ pub fn validate_rules(r: &Rules) -> Vec<ContentIssue> {
         }
     }
     for (owner, rules) in carriers {
+        // The effects of a premade item are the item's: a bad one drops the item.
+        if owner.starts_with("item ") {
+            p.row(
+                r.items
+                    .defs()
+                    .iter()
+                    .find(|i| owner == format!("item {:?}", i.id))
+                    .map(|i| i.num),
+            );
+        }
         for rule in rules {
             check_rule(r, &owner, rule, &mut p);
         }
+        p.row(None);
     }
     p.into_vec()
 }
@@ -941,6 +1136,7 @@ fn check_wizards(r: &Rules, p: &mut Issues) {
     }
     const F: &str = "wizards.ron";
     for w in r.wizards.defs() {
+        p.row(Some(w.num));
         let at = format!("wizard {:?}", w.id);
         let mut picks: u32 = 0;
         for (realm, n) in &w.books {
@@ -966,6 +1162,7 @@ fn check_wizards(r: &Rules, p: &mut Issues) {
             );
         }
     }
+    p.row(None);
 }
 
 fn check_level_paths(r: &Rules, p: &mut Issues) {

@@ -2039,6 +2039,9 @@ pub struct Rules {
     pub ratings: UnitRatings,
     /// What the ratings buy per resource (`unit_efficiency.ron`, optional).
     pub efficiency: UnitEfficiencies,
+    /// What the load left out so that the game can still play (`docs/content-policy.md`): one issue
+    /// for each row dropped, each with a `Degrade` outcome. Empty for a game with nothing wrong.
+    pub degraded: Vec<crate::issue::ContentIssue>,
     /// The rules of the battle (`battle.ron`, optional: without it the original's numbers).
     pub battle: BattleRules,
     /// The guard and treasure rules of the sites (`lairs.ron`).

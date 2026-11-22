@@ -86,7 +86,7 @@ The results are in the section **Findings** below.
 `crates/f4x-def/tests/it/`, one test program, one module per class: `c1_content.rs` (the validator on the
 shipped content, one negative test per rule), `c2_loading.rs` (missing, damaged, mistyped, unknown, layered,
 extreme input), `c3_drift.rs` (the hash guard), `c4_values.rs` (fixed-point numbers, stats, bit sets, settings
-arithmetic), `c5_coupling.rs` (code against content). `support.rs` has the copy of the shipped content that a
+arithmetic), `c5_coupling.rs` (code against content), `c6_behaviour.rs` (the small rules the definitions answer with), `c7_degrade.rs` (the rows that may be dropped, and the help). `support.rs` has the copy of the shipped content that a
 test breaks one file of (`edit::<Vec<UnitDef>>(dir, "units.ron", |rows| ...)` changes the rows through their
 type and writes the file again) and `dangling`, an independent walk over loaded content that finds every
 reference that leads to no row.

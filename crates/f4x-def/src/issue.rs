@@ -64,7 +64,7 @@ impl IssueKind {
 }
 
 /// The parts of the content that a bad row may be dropped from without refusing the game.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Element {
     Wizard,
     Rating,
@@ -91,6 +91,9 @@ pub struct ContentIssue {
     /// for a syntax error, empty for the whole file.
     pub at: String,
     pub kind: IssueKind,
+    /// The number of the row the issue is about, for the files whose rows may be dropped
+    /// ([`Element`]); `None` when the issue is about the file or about no row.
+    pub row: Option<u16>,
     /// The values the sentence of the kind needs, in order: what was found, what is allowed, the name
     /// that does not exist.
     pub detail: Vec<String>,
@@ -104,9 +107,22 @@ impl ContentIssue {
             file: file.into(),
             at: at.into(),
             kind,
+            row: None,
             detail: Vec::new(),
             outcome: Outcome::Refuse,
         }
+    }
+
+    /// The same, about the row numbered `row`.
+    pub fn about_row(mut self, row: u16) -> Self {
+        self.row = Some(row);
+        self
+    }
+
+    /// The same, with the game playing on without the element.
+    pub fn degrading(mut self, element: Element) -> Self {
+        self.outcome = Outcome::Degrade(element);
+        self
     }
 
     /// The same with its values.
@@ -143,15 +159,21 @@ impl fmt::Display for ContentIssue {
 
 /// The issues a check finds, with a method for each kind that fixes what the details are.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct Issues(Vec<ContentIssue>);
+pub struct Issues(Vec<ContentIssue>, Option<u16>);
 
 impl Issues {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn push(&mut self, issue: ContentIssue) {
+    pub fn push(&mut self, mut issue: ContentIssue) {
+        issue.row = issue.row.or(self.1);
         self.0.push(issue);
+    }
+
+    /// The row the issues pushed from now on are about, until it is set to `None`.
+    pub fn row(&mut self, row: Option<u16>) {
+        self.1 = row;
     }
 
     /// A reference to a row that does not exist: `field` of the row `at` names a `target` numbered
@@ -213,15 +235,21 @@ impl Issues {
 
     /// The issues of a failed step.
     pub fn extend_error(&mut self, e: ContentError) {
-        self.0.extend(e.issues);
+        for i in e.issues {
+            self.push(i);
+        }
     }
 
     pub fn extend_opt(&mut self, issue: Option<ContentIssue>) {
-        self.0.extend(issue);
+        if let Some(i) = issue {
+            self.push(i);
+        }
     }
 
     pub fn extend(&mut self, other: Issues) {
-        self.0.extend(other.0);
+        for i in other.0 {
+            self.push(i);
+        }
     }
 
     pub fn is_empty(&self) -> bool {

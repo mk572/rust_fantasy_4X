@@ -8,4 +8,5 @@ mod c3_drift;
 mod c4_values;
 mod c5_coupling;
 mod c6_behaviour;
+mod c7_degrade;
 mod support;
