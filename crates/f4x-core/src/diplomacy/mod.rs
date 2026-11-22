@@ -1551,8 +1551,9 @@ impl Diplomacy {
         }
     }
 
-    /// `winner` took a city of `loser` that had people in it: -40, and the war the original
-    /// declares with it.
+    /// `winner` took a city of `loser` that had people in it: -40. The original also declares war
+    /// here; the game does not: only a player's decision changes a treaty (`docs/design.md` section 8,
+    /// `docs/diplomacy.md` 9.2).
     pub(crate) fn city_taken_relations(
         &mut self,
         ctx: &mut DiplomacyCtx<'_>,
@@ -1564,7 +1565,6 @@ impl Diplomacy {
         }
         self.make_contact(ctx, winner, loser);
         self.change_relations(ctx, -40, winner, loser, Action::AttackedCity, None);
-        self.declare_war(ctx, winner, loser);
     }
 
     /// An attack on a city failed: -60 if it held the wizard's fortress, else -20.
@@ -1629,7 +1629,6 @@ impl Diplomacy {
             s.peace_duration = s.peace_duration.saturating_sub(1);
         }
         self.enchantments_in_force(ctx);
-        self.pick_sides(ctx);
         self.trespass(ctx);
         self.diplomacy_growth(ctx);
         self.contact_sweep(ctx);
@@ -1672,36 +1671,6 @@ impl Diplomacy {
             s.last_action = None;
             if mended {
                 s.warnings = 0;
-            }
-        }
-    }
-
-    /// An alliance does not outlast one ally's war with the other's ally
-    /// (`G_DIPL_PickSides`): the one who stands with the enemy breaks it.
-    fn pick_sides(&mut self, ctx: &mut DiplomacyCtx<'_>) {
-        let wizards = wizards(ctx.view);
-        for (i, &a) in wizards.iter().enumerate() {
-            for &b in &wizards[i + 1..] {
-                if self.treaty(a, b) != Treaty::Alliance {
-                    continue;
-                }
-                let split = wizards.iter().copied().find_map(|c| {
-                    if c == a || c == b {
-                        return None;
-                    }
-                    if self.treaty(a, c) == Treaty::War && self.treaty(b, c) == Treaty::Alliance {
-                        Some((b, a))
-                    } else if self.treaty(b, c) == Treaty::War
-                        && self.treaty(a, c) == Treaty::Alliance
-                    {
-                        Some((a, b))
-                    } else {
-                        None
-                    }
-                });
-                if let Some((breaker, victim)) = split {
-                    self.break_treaties(ctx, breaker, victim);
-                }
             }
         }
     }
@@ -1781,7 +1750,7 @@ impl Diplomacy {
                                     Action::Trespass,
                                     None,
                                 );
-                                self.break_treaties(ctx, intruder, owner);
+                                // The original breaks the treaty here; the game leaves that to the owner.
                                 self.stance_mut(owner, intruder).trespass = 0;
                             }
                         }

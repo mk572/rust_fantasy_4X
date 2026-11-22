@@ -216,7 +216,7 @@ Special value `-10000` means "declare this on the record": no numbers change, th
 | Army too strong (any wizard's, towards the AI wizards that have met it; the original: the human's only) | `-10` when `Random(100) >= strength * 50 / ai_strength` and a d20 = 1 (as written this never happens once the human has twice the AI's strength, unlike the OSG text, which says the penalty is certain at double strength) | 7 | `Diplomacy_Growth` |
 | Too many cities (on even turns; any wizard's, the original: the human's only) | negative, grows with the surplus over `(landsize + 1) * 3`; AI-to-AI changes halved; at least -15 | 14 | `Diplomacy_Growth` |
 | Attacking a wizard you have a pact or alliance with (a confirm box "You have a treaty with X. Do you still wish to attack?"; on yes the treaty is broken, see §6) | `-40` | 5 | `Combat.c` |
-| Taking a city of another wizard (any city with population) | `-40`, **and the attacker declares war** (`Declare_War`) | 9 | `Combat.c` |
+| Taking a city of another wizard (any city with population) | `-40`. The original also makes the attacker declare war; the game does not (a war is a player's decision, see "The game never changes a treaty" in 9.2) | 9 | `Combat.c` |
 | Attacking a city of another wizard and failing (the defender wins) | `-60` if it is the defender's fortress city, else `-20` (only when the defender wins, as the code is written; the document had both added up) | 9 | `Combat.c` |
 | Battle against an AI wizard's units ("defensive battle losses") | `-diplomatic_value`: for each of the defender's units that fell or fled, 20 for a hero, `Random(20)` for another unit, and `Random(10)` more for a settler (built 24 October 2026, `battle_loss_relations`), only when the defender is an AI | 8 | `Combat.c` |
 | A wizard is destroyed / a fortress is taken | `-40` / `-20` from the winner to every other wizard (two code paths in `CONQUEST.c`; the first also erases contact with the loser) | 7 | `CONQUEST.c` |
@@ -224,7 +224,7 @@ Special value `-10000` means "declare this on the record": no numbers change, th
 | Overland enchantment (Spell of Mastery -50, Eternal Night -12, Evil Omens -20 vs Life/Nature wizards, Zombie Mastery -14, Wind Mastery -4, Suppress Magic -4, Time Stop ...) | divided at cast-time divisor | 10, 12 | `Spells128.c` |
 | Aura of Majesty | `+10 / divisor` to everyone | 0 | `Spells128.c` |
 | AI-to-AI friendly gravitation | `+5 + Random(5)` one in 20 turns | 1 | `NPC_To_NPC_Treaty_Negotiations` |
-| Units of another wizard within two squares of a city (not settlers or builders) | pact or alliance: `-Random(5)` and a warning, a turn of grace, then `-5` and both treaties broken; no treaty: 6 percent a turn of `-Random(5)` | 73, 5, 0 | `DIPL_GetOffMyLawn` |
+| Units of another wizard within two squares of a city (not settlers or builders) | pact or alliance: `-Random(5)` and a warning, a turn of grace, then `-5` (the original also breaks both treaties; the game leaves that to the owner); no treaty: 6 percent a turn of `-Random(5)` | 73, 5, 0 | `DIPL_GetOffMyLawn` |
 | Gift of gold or a spell | positive (§4) | direct | talk |
 
 ## 6. War, peace and breaking treaties
@@ -249,8 +249,8 @@ patience counters -200, and the broken treaty is recorded.
 **Peace** (§4) and AI-to-AI peace: two AIs at war sign peace when `x + peace_patience > 100`,
 where the code uses a leftover message index for `x` (a bug; intended is probably a random roll).
 
-**Alliances pull in friends:** `G_DIPL_PickSides` breaks an alliance when one ally is at war with
-the other's ally. In `NPC_To_NPC_Treaty_Negotiations`, an AI allied with another declares war on
+**Alliances pull in friends:** the original's `G_DIPL_PickSides` breaks an alliance when one ally is at war with
+the other's ally; the game does not (a treaty ends only by a player's decision). In `NPC_To_NPC_Treaty_Negotiations`, an AI allied with another declares war on
 whoever that ally is at war with. `NPC_Required_Alliances`: with 10 percent a turn, an AI ally of
 the human who is at war with another wizard the human is not at war with asks the human to join.
 
@@ -310,8 +310,7 @@ and caps the relation to 30.
 
 **Get off my lawn (`DIPL_GetOffMyLawn`)**: non-settler units of a wizard inside two squares of
 another's city (on its plane, or in a tower) trigger a warning sequence: first a mild relation
-loss `-Random(5)` and a warning, a second step of nothing, and a third step the treaty is broken
-with `-5`. Wizards at war ignore it.
+loss `-Random(5)` and a warning, a second step of nothing, and a third step `-5`; the treaty is not broken by the game. Wizards at war ignore it.
 
 *System A* is what follows; a new design, *system B* (friendship, fear and strategy, one peace score), is built beside it for a soak to compare: [`ai-diplomacy-b.md`](ai-diplomacy-b.md). A wizard of B makes and accepts peace by one score (weariness of the war, the gap in strength, fear, friendship, the strategic value, its temper) in place of the three paths below that end a war.
 
@@ -348,10 +347,9 @@ score of section 7 step 4 decides an alliance (above 150 with relation above 50)
 (`peace_patience + Random(100) > 100`); the other wizard answers at once with `rate`; an ally joins the wars of its
 friend one turn in ten.
 
-In the rules (`diplomacy/mod.rs`, once a turn): `pick_sides` breaks an alliance when one ally is at war with the other's
-ally (the one who stands with the enemy breaks it); `trespass` is `DIPL_GetOffMyLawn` for every wizard but the human
+In the rules (`diplomacy/mod.rs`, once a turn): `trespass` is `DIPL_GetOffMyLawn` for every wizard but the human
 as the owner (non-settlers within two squares of a city on the same plane; towers are not counted): with a pact or
-alliance a warning and `-Random(5)` on the first turn, nothing on the second, `-5` and a broken treaty on the third,
+alliance a warning and `-Random(5)` on the first turn, nothing on the second, `-5` on the third (no treaty is broken),
 with no treaty 6 percent a turn of `-Random(5)`; the "too many cities" reaction counts the allowance as
 `(landsize + 1) * 3` scaled by the map's area against 60 by 40. In the client: the room fades in and out, an attack
 on a pact or alliance partner asks "You have a treaty with X. Do you still wish to attack?" first, and menu rows that
@@ -465,7 +463,7 @@ touching the rules. What the core does offer is data and helpers the AI may use:
 relation, what a wizard may know about the other (never the hidden terms of another player), and
 the original's rating of a proposal (`Diplomacy_Test`, §4) lives in `f4x-ai` (`diplomacy::rate`; moved out of the core in October 2026). The default AI
 uses that function and the §8 rules as its starting logic, kept as AI code with its numbers in
-data, not as rules of the game. The core's own automatic parts remain rules: relation changes from
+data, not as rules of the game. **The game never changes a treaty or starts or ends a war by itself** (rule restated 23 November 2026, after copies of the original's code broke it: war on taking a city, `G_DIPL_PickSides`, the break after trespassing, removed). Treaties and war change only by a player's command (`DeclareWar`, `BreakTreaty`, an answered proposal) and by the consequences of what a player chose to do (attacking a treaty partner breaks the treaty first). The core's own automatic parts remain rules: relation changes from
 events (§5), drift and growth (§7), and the effects of an accepted treaty or declared war (§6).
 Pending proposals are saved with the game; if the receiver does not answer in the same turn the
 proposal lapses as refused.

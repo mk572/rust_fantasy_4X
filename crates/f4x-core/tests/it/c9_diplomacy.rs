@@ -519,3 +519,55 @@ fn a_banished_wizard_starts_nothing_but_still_answers() {
         );
     }
 }
+
+#[test]
+fn the_game_never_changes_a_treaty_by_itself() {
+    use f4x_core::game::Command;
+    // Taking a city costs the winner standing but starts no war (`docs/diplomacy.md` 9.2).
+    for (name, mut g, w) in met() {
+        let (a, b) = (w[0], w[1]);
+        let city = g
+            .economy()
+            .cities()
+            .into_iter()
+            .find(|c| c.1.owner == b && g.economy().citizens(c.0) > 0)
+            .expect("a city with people")
+            .0;
+        g.conquer_city(city, a, 0);
+        assert_eq!(
+            g.treaty(a, b),
+            Treaty::None,
+            "{name}: a city taken is no war"
+        );
+        // Nor do the turns that follow start one: a pact is ended only by a player.
+        g.start_treaty(a, b, Treaty::Pact);
+        for _ in 0..6 {
+            g.apply(Command::EndTurn);
+        }
+        assert_ne!(g.treaty(a, b), Treaty::War, "{name}: war came by itself");
+    }
+}
+
+#[test]
+fn an_alliance_stands_though_one_ally_is_at_war_with_the_others_ally() {
+    use f4x_core::game::Command;
+    for (name, mut g, w) in met().into_iter().filter(|m| m.2.len() >= 3) {
+        let (a, b, c) = (w[0], w[1], w[2]);
+        g.start_treaty(a, b, Treaty::Alliance);
+        g.start_treaty(b, c, Treaty::Alliance);
+        g.declare_war(a, c);
+        for _ in 0..3 {
+            g.apply(Command::EndTurn);
+        }
+        assert_eq!(
+            g.treaty(a, b),
+            Treaty::Alliance,
+            "{name}: the game split it"
+        );
+        assert_eq!(
+            g.treaty(b, c),
+            Treaty::Alliance,
+            "{name}: the game split it"
+        );
+    }
+}
