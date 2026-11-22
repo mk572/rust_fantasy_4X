@@ -5,4 +5,5 @@ mod c2_invariant;
 mod c3_determinism;
 mod c4_persist;
 mod c5_input;
+mod c6_setting;
 mod support;
