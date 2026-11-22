@@ -111,6 +111,17 @@ impl UnitView<'_> {
 impl Game {
     /// Hire the free hero `kind` for gold: it joins at the summoning circle.
     pub fn hire_hero(&mut self, player: PlayerId, kind: usize) -> Result<hecs::Entity, HeroError> {
+        self.hire_hero_at(player, kind, None)
+    }
+
+    /// [`hire_hero`](Self::hire_hero), joining at the summoning circle in `at` when the wizard has one
+    /// there (the first circle otherwise).
+    pub fn hire_hero_at(
+        &mut self,
+        player: PlayerId,
+        kind: usize,
+        at: Option<Position>,
+    ) -> Result<hecs::Entity, HeroError> {
         let hero = self.units().hero_entity(kind).ok_or(HeroError::Unknown)?;
         if self.units().hero_state(hero) != Some(HeroState::Free) {
             return Err(HeroError::NotAvailable);
@@ -126,23 +137,15 @@ impl Game {
         {
             return Err(HeroError::NoGold);
         }
-        let unit = self.arrive(player, kind)?;
+        let unit = self.arrive_at(player, kind, at)?;
         if let Some(t) = self.treasury_mut(player) {
             t.gold -= price;
         }
         Ok(unit)
     }
 
-    /// Bring the hero `kind` in at the summoning circle, with nothing charged.
-    pub(crate) fn arrive(
-        &mut self,
-        player: PlayerId,
-        kind: usize,
-    ) -> Result<hecs::Entity, HeroError> {
-        self.arrive_at(player, kind, None)
-    }
-
-    /// [`arrive`](Self::arrive) at the summoning circle in `at`, when the wizard has one there.
+    /// Bring the hero `kind` in at the summoning circle in `at`, when the wizard has one there (else the
+    /// first circle), with nothing charged.
     pub(crate) fn arrive_at(
         &mut self,
         player: PlayerId,
@@ -171,6 +174,7 @@ impl Game {
         // The circle the wizard chose, when they have several.
         let at = match who {
             crate::rules::exec::Target::City(c) => self.circle_in(player, c),
+            crate::rules::exec::Target::HeroAt(_, at) => Some(at),
             _ => None,
         };
         let standing = self.units().hero_standing(player);
@@ -186,7 +190,12 @@ impl Game {
                 // Nobody to raise if the hero is not dead any more: the spell is lost, with a warning.
                 let dead = self.units().raisable_heroes();
                 match who {
-                    crate::rules::exec::Target::Hero(k) if dead.contains(&k) => Some(k),
+                    crate::rules::exec::Target::Hero(k)
+                    | crate::rules::exec::Target::HeroAt(k, _)
+                        if dead.contains(&k) =>
+                    {
+                        Some(k)
+                    }
                     _ => None,
                 }
             }

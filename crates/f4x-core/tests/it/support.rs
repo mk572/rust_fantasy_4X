@@ -228,6 +228,7 @@ pub fn commands(g: &Game) -> Vec<Command> {
             player: p,
             index: 0,
             name: None,
+            at: None,
         });
         out.push(Command::RejectOffer {
             player: p,

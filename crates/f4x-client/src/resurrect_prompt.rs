@@ -54,8 +54,16 @@ fn decide(row: usize, clicked: Option<usize>, dead: usize, input: &Input) -> (us
 
 /// The command that raises this hero: the answer to a cast that waits for its target, or a
 /// new cast aimed at the hero.
-fn raise_command(spell: SpellId, resolve: bool, hero: usize) -> Command {
-    let target = Target::Hero(hero);
+fn raise_command(
+    spell: SpellId,
+    resolve: bool,
+    hero: usize,
+    circle: Option<f4x_core::map::Position>,
+) -> Command {
+    let target = match circle {
+        Some(at) => Target::HeroAt(hero, at),
+        None => Target::Hero(hero),
+    };
     if resolve {
         Command::ResolveCast {
             player: HUMAN,
@@ -127,8 +135,24 @@ impl App {
         let mut left = None;
         match verdict {
             Step::Cancel => self.log.push(self.text("log.cast_cancelled")),
+            Step::Raise if self.game.has_several_circles(HUMAN) => {
+                // With several summoning circles the hero comes back to the one the wizard picks.
+                let (hero, cities) = (dead[pick], self.circle_cities());
+                let prompt = self.text("offer.choose_circle");
+                self.pick_city(prompt, cities, move |app, city| {
+                    match city.and_then(|c| app.circle_position(c)) {
+                        Some(at) => {
+                            let events =
+                                app.game
+                                    .apply(raise_command(spell, resolve, hero, Some(at)));
+                            app.note(events);
+                        }
+                        None => app.log.push(app.text("log.cast_cancelled")),
+                    }
+                });
+            }
             Step::Raise => {
-                let command = raise_command(spell, resolve, dead[pick]);
+                let command = raise_command(spell, resolve, dead[pick], None);
                 let events = self.game.apply(command);
                 self.note(events);
             }
@@ -244,14 +268,14 @@ mod tests {
             .id_numbered(133)
             .ok_or("resurrection is not in the content")?;
         assert!(matches!(
-            raise_command(spell, true, 7),
+            raise_command(spell, true, 7, None),
             Command::ResolveCast {
                 target: Target::Hero(7),
                 ..
             }
         ));
         assert!(matches!(
-            raise_command(spell, false, 7),
+            raise_command(spell, false, 7, None),
             Command::CastSpell {
                 extra: 0,
                 target: Some(Target::Hero(7)),

@@ -207,6 +207,7 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 player: ai.player,
                 index,
                 name: None,
+                at: crate::wizardry::best_circle(&PlayerView::new(game, ai.player)),
             }
         } else {
             Command::RejectOffer {
@@ -270,6 +271,7 @@ pub fn answer_resales(game: &mut Game) -> Vec<Event> {
                     player,
                     index,
                     name: None,
+                    at: None,
                 }
             } else {
                 Command::RejectOffer { player, index }

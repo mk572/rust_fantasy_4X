@@ -230,10 +230,35 @@ impl App {
                 self.offer_ui.naming = true;
             } else {
                 let name = hero.then(|| self.offer_ui.name.clone());
+                let comes_to_a_circle = matches!(
+                    offer,
+                    Offer::Hero { .. }
+                        | Offer::Mercenaries { .. }
+                        | Offer::Summoned { at: None, .. }
+                );
+                if comes_to_a_circle && self.game.has_several_circles(HUMAN) {
+                    // With several summoning circles the wizard says which one it comes to.
+                    let cities = self.circle_cities();
+                    let prompt = self.text("offer.choose_circle");
+                    self.pick_city(prompt, cities, move |app, city| {
+                        let at = city.and_then(|c| app.circle_position(c));
+                        if at.is_some() {
+                            let events = app.game.apply(Command::AcceptOffer {
+                                player: HUMAN,
+                                index: 0,
+                                name,
+                                at,
+                            });
+                            app.note(events);
+                        }
+                    });
+                    return;
+                }
                 let events = self.game.apply(Command::AcceptOffer {
                     player: HUMAN,
                     index: 0,
                     name,
+                    at: None,
                 });
                 self.note(events);
             }

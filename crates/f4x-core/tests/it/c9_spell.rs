@@ -193,7 +193,7 @@ fn refusal(events: &[Event]) -> Option<Rejection> {
 }
 
 /// A wizard with two cities, the circle in the first, and a summoning spell they know.
-fn two_cities(g: &mut Game) -> (PlayerId, hecs::Entity, hecs::Entity, SpellId) {
+pub(crate) fn two_cities(g: &mut Game) -> (PlayerId, hecs::Entity, hecs::Entity, SpellId) {
     let p = g
         .player_ids()
         .into_iter()

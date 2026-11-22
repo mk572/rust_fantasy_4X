@@ -740,8 +740,9 @@ impl Game {
                 player,
                 index,
                 name,
+                at,
             } => self
-                .accept_offer(player, index, name)
+                .accept_offer(player, index, name, at)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Offer(e))]),
             Command::RejectOffer { player, index } => match self.reject_offer(player, index) {
                 Ok(events) => events,

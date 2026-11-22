@@ -124,6 +124,22 @@ impl App {
         })
     }
 
+    /// The cities of the human wizard that hold a summoning circle.
+    pub(crate) fn circle_cities(&self) -> Vec<hecs::Entity> {
+        self.game
+            .economy()
+            .cities_of(HUMAN)
+            .into_iter()
+            .map(|c| c.0)
+            .filter(|&c| self.game.circle_in(HUMAN, c).is_some())
+            .collect()
+    }
+
+    /// Where the summoning circle of `city` stands.
+    pub(crate) fn circle_position(&self, city: hecs::Entity) -> Option<f4x_core::map::Position> {
+        self.game.circle_in(HUMAN, city)
+    }
+
     /// Choose the city for `spell` from the list and cast it there.
     pub(crate) fn pick_city_for(&mut self, t: Targeting, cities: Vec<hecs::Entity>) {
         let term = self

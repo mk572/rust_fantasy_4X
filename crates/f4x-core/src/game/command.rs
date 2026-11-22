@@ -164,6 +164,10 @@ pub enum Command {
         player: player::PlayerId,
         index: usize,
         name: Option<String>,
+        /// The summoning circle a hero or the mercenaries come to; asked for when the wizard has
+        /// several (`multiple_summoning_circles`), else left out.
+        #[serde(default)]
+        at: Option<crate::map::Position>,
     },
     /// Turn one of the offers down.
     RejectOffer {

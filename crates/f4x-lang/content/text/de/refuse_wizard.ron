@@ -42,6 +42,7 @@
     "refuse_wizard.offer_error_no_offer": "Dieses Angebot ist nicht mehr offen.",
     "refuse_wizard.offer_error_no_gold": "Du hast nicht genug Gold.",
     "refuse_wizard.offer_error_no_room": "In deinem Beschwörungskreis ist kein Platz für die Söldner.",
+    "refuse_wizard.offer_error_circle": "Du hast mehrere Beschwörungskreise: wähle den, zu dem sie kommen.",
     "refuse_wizard.item_error_no_such_place": "Es gibt keinen solchen Platz, oder er gehört nicht deinem Helden.",
     "refuse_wizard.item_error_empty": "Dort gibt es nichts zu bewegen.",
     "refuse_wizard.item_error_wrong_slot": "Dieser Gegenstand passt nicht an diesen Platz.",

@@ -762,9 +762,10 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         f4x_core::spell::hero::HeroSummon::Resurrection.is_in(game.content().rules.spells.get(s))
     }) {
         if let Some(kind) = game.units().ai_resurrection_pick() {
+            let target = raise_target(&PlayerView::new(game, ai.player), kind);
             let command = Command::ResolveCast {
                 player: ai.player,
-                target: Target::Hero(kind),
+                target,
             };
             ai.order(game, command, events);
         }
@@ -909,14 +910,11 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
     }
 }
 
-/// The city whose summoning circle a creature appears at, when the wizard has several: the one with
-/// the most enemy stacks near it, the first made when none is threatened. `None` with one circle.
-fn summon_circle(view: &PlayerView) -> Option<Target> {
-    let circles = view.wizard()?.summon_circles();
-    if circles.len() < 2 {
-        return None;
-    }
-    circles
+/// The summoning circle a creature, hero or company of mercenaries comes to: the one with the most
+/// enemy stacks near it, the first made when none is threatened. `None` without a circle.
+pub(crate) fn best_circle(view: &PlayerView) -> Option<Position> {
+    view.wizard()?
+        .summon_circles()
         .into_iter()
         .max_by_key(|&at| {
             (
@@ -924,8 +922,27 @@ fn summon_circle(view: &PlayerView) -> Option<Target> {
                 std::cmp::Reverse(view.city_at(at).map(|c| view.serial_of(c))),
             )
         })
+}
+
+/// The city of the circle a summoning is aimed at, when the wizard has several; `None` with one,
+/// where no target is asked.
+fn summon_circle(view: &PlayerView) -> Option<Target> {
+    if view.wizard()?.summon_circles().len() < 2 {
+        return None;
+    }
+    best_circle(view)
         .and_then(|at| view.city_at(at))
         .map(Target::City)
+}
+
+/// The aim of Resurrection at the dead hero `kind`: with several circles, the one it comes back to.
+fn raise_target(view: &PlayerView, kind: usize) -> Target {
+    match best_circle(view) {
+        Some(at) if view.wizard().is_some_and(|w| w.summon_circles().len() > 1) => {
+            Target::HeroAt(kind, at)
+        }
+        _ => Target::Hero(kind),
+    }
 }
 
 /// The fewest fighters beyond the garrison that Plane Shift is cast for.
@@ -1275,11 +1292,12 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     else {
         return false;
     };
+    let target = raise_target(&PlayerView::new(game, me), kind);
     let command = Command::CastSpell {
         extra: 0,
         player: me,
         spell,
-        target: Some(Target::Hero(kind)),
+        target: Some(target),
     };
     ai.send(game, command, events).is_ok()
 }

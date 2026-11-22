@@ -42,6 +42,7 @@
     "refuse_wizard.offer_error_no_offer": "That offer is no longer open.",
     "refuse_wizard.offer_error_no_gold": "You do not have enough gold.",
     "refuse_wizard.offer_error_no_room": "Your summoning circle has no room for the mercenaries.",
+    "refuse_wizard.offer_error_circle": "You have several summoning circles: choose the one it comes to.",
     "refuse_wizard.item_error_no_such_place": "There is no such place, or it is not your hero's.",
     "refuse_wizard.item_error_empty": "There is nothing there to move.",
     "refuse_wizard.item_error_wrong_slot": "That item does not fit that place.",

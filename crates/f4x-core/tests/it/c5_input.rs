@@ -144,6 +144,7 @@ fn numbers_at_the_ends_of_their_range_are_refused_or_handled() {
                 player: wizard,
                 index: usize::MAX,
                 name: None,
+                at: None,
             },
             Command::RejectOffer {
                 player: wizard,

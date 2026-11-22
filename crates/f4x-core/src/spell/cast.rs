@@ -114,7 +114,7 @@ impl EffectHost for GameHost<'_> {
                 .spells()
                 .caster_player(i)
                 .and_then(|p| self.game.summon_point(p)),
-            Target::Hero(_) => None,
+            Target::Hero(_) | Target::HeroAt(..) => None,
         }
     }
 
@@ -124,7 +124,7 @@ impl EffectHost for GameHost<'_> {
             Target::City(c) | Target::CityRealm(c, _) => self.game.economy().city_owner(c),
             Target::Player(p) => Some(p),
             Target::Spell(i) => self.game.spells().caster_player(i),
-            Target::Tile(_) | Target::Hero(_) => None,
+            Target::Tile(_) | Target::Hero(_) | Target::HeroAt(..) => None,
         }
     }
 
@@ -598,8 +598,17 @@ impl Game {
     ) -> Result<(), MagicError> {
         if crate::spell::hero::HeroSummon::Resurrection.is_in(self.content.rules.spells.get(spell))
         {
+            let raisable = self.units().raisable_heroes();
+            let circles = self.summon_circles(player);
             return match target {
-                Some(Target::Hero(kind)) if self.units().raisable_heroes().contains(&kind) => {
+                // With several circles the wizard says which one the hero comes back to.
+                Some(Target::Hero(kind)) if raisable.contains(&kind) && circles.len() < 2 => Ok(()),
+                Some(Target::Hero(kind)) if raisable.contains(&kind) => {
+                    Err(MagicError::NeedsTarget)
+                }
+                Some(Target::HeroAt(kind, at))
+                    if raisable.contains(&kind) && circles.contains(&at) =>
+                {
                     Ok(())
                 }
                 _ => Err(MagicError::Target(TargetError::WrongTarget)),
@@ -892,7 +901,7 @@ impl Game {
                 self.add_global(p, spell);
                 self.reveal_for_globals(p);
             }
-            Target::Tile(_) | Target::Spell(_) | Target::Hero(_) => {}
+            Target::Tile(_) | Target::Spell(_) | Target::Hero(_) | Target::HeroAt(..) => {}
         }
     }
 

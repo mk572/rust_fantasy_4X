@@ -34,6 +34,9 @@ pub enum Target {
     Player(PlayerId),
     /// A dead hero, by its type (a roster index): what Resurrection is aimed at.
     Hero(usize),
+    /// A dead hero and the summoning circle it comes back to, when the wizard has several
+    /// (`multiple_summoning_circles`).
+    HeroAt(usize, Position),
     /// A spell instance: an enemy wizard's global enchantment (`docs/ecs-structure.md` 3.4).
     Spell(#[serde(with = "crate::game::replay::stable_ref::one")] hecs::Entity),
 }

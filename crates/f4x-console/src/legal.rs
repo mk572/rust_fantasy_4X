@@ -612,6 +612,7 @@ fn accept(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         player,
         index,
         name,
+        at: None,
     })
 }
 

@@ -92,6 +92,9 @@ pub enum OfferError {
     NoGold,
     /// The summoning circle's square is too full for the mercenaries.
     NoRoom,
+    /// The wizard has several summoning circles and the one the hero or mercenaries come to is not
+    /// given, or is none of theirs.
+    Circle,
     Hero(HeroError),
 }
 
@@ -102,6 +105,7 @@ impl OfferError {
             Self::NoOffer => "refuse_wizard.offer_error_no_offer",
             Self::NoGold => "refuse_wizard.offer_error_no_gold",
             Self::NoRoom => "refuse_wizard.offer_error_no_room",
+            Self::Circle => "refuse_wizard.offer_error_circle",
             Self::Hero(e) => e.key(),
         }
     }
@@ -447,6 +451,7 @@ impl Game {
         player: PlayerId,
         index: usize,
         name: Option<String>,
+        at: Option<Position>,
     ) -> Result<Vec<Event>, OfferError> {
         let offer = self
             .player_component::<Offers>(player)
@@ -459,12 +464,28 @@ impl Game {
         {
             return Err(OfferError::NoGold);
         }
+        // Heroes and mercenaries come to a circle: one of several is asked for.
+        let comes_to_a_circle = matches!(
+            offer,
+            Offer::Hero { .. } | Offer::Summoned { .. } | Offer::Mercenaries { .. }
+        );
+        let at = match offer {
+            Offer::Summoned {
+                at: Some(chosen), ..
+            } => Some(chosen),
+            _ => at,
+        };
+        if comes_to_a_circle && self.has_several_circles(player) {
+            if !at.is_some_and(|a| self.summon_circles(player).contains(&a)) {
+                return Err(OfferError::Circle);
+            }
+        }
         let taken = offer.clone();
         let events = match offer {
             Offer::Hero { .. } | Offer::Summoned { .. } => {
-                let (kind, price, at) = match offer {
-                    Offer::Hero { kind, price } => (kind, price, None),
-                    Offer::Summoned { kind, at, .. } => (kind, 0, at),
+                let (kind, price) = match offer {
+                    Offer::Hero { kind, price } => (kind, price),
+                    Offer::Summoned { kind, .. } => (kind, 0),
                     _ => return Err(OfferError::NoOffer),
                 };
                 // Another wizard may have hired the hero meanwhile.
@@ -482,7 +503,7 @@ impl Game {
                 let unit = if price == 0 {
                     self.arrive_at(player, kind, at)
                 } else {
-                    self.hire_hero(player, kind)
+                    self.hire_hero_at(player, kind, at)
                 }
                 .map_err(OfferError::Hero)?;
                 vec![Event::HeroJoined { player, unit, kind }]
@@ -493,7 +514,10 @@ impl Game {
                 level,
                 price,
             } => {
-                let at = self.summon_point(player).ok_or(OfferError::NoRoom)?;
+                let at = at
+                    .filter(|a| self.summon_circles(player).contains(a))
+                    .or_else(|| self.summon_point(player))
+                    .ok_or(OfferError::NoRoom)?;
                 let id = self
                     .content
                     .rules

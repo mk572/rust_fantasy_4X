@@ -1,6 +1,7 @@
 // Texte der Angebote (Helden, Söldner, Händlergegenstände).
 // Ein Schlüssel steht nur in einer Datei (docs/text.md).
 {
+    "offer.choose_circle": "Wähle den Beschwörungskreis, zu dem es kommt",
     "offer.resale": "Ein rivalisierender Magier bietet {item:a_acc} zum Verkauf an.  Dein Preis beträgt {price} Goldstücke.",
     "offer.merchant": "Ein Händler kommt und bietet {item:a_acc} zum Verkauf an.  Der Preis beträgt nur {price} Goldstücke.",
     "offer.hero": "Held zu mieten: {price} Gold",

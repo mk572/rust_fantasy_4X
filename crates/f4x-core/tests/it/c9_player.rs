@@ -3,6 +3,7 @@
 use crate::support::{content, text, worlds};
 use f4x_core::game::save::Snapshot;
 use f4x_core::game::{Command, Event, Game, Rejection};
+use f4x_core::map::Position;
 use f4x_core::player::offer::{Offer, OfferError};
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::magic::{MagicError, Retort};
@@ -170,7 +171,8 @@ fn mercenaries_offered_are_hired_for_their_price_or_turned_down_for_nothing() {
         refusal(&g.apply(Command::AcceptOffer {
             player: p,
             index: 0,
-            name: None
+            name: None,
+            at: None
         })),
         Some(Rejection::Offer(OfferError::NoGold))
     );
@@ -181,6 +183,7 @@ fn mercenaries_offered_are_hired_for_their_price_or_turned_down_for_nothing() {
         player: p,
         index: 0,
         name: None,
+        at: None,
     });
     let hired = events
         .iter()
@@ -201,7 +204,8 @@ fn mercenaries_offered_are_hired_for_their_price_or_turned_down_for_nothing() {
         refusal(&g.apply(Command::AcceptOffer {
             player: p,
             index: 0,
-            name: None
+            name: None,
+            at: None
         })),
         Some(Rejection::Offer(OfferError::NoOffer))
     );
@@ -267,4 +271,133 @@ fn an_offer_that_is_not_answered_lapses_at_the_turn_change() {
         })
         .unwrap_or(false);
     assert!(!kept, "an offer from the last turn is still waiting");
+}
+
+#[test]
+fn with_several_circles_a_hired_hero_and_mercenaries_come_to_the_circle_asked_for() {
+    use crate::c9_spell::two_cities;
+    use f4x_core::rules::UnitId;
+    let (_, mut g) = worlds().remove(0);
+    g.scenario_change_settings(|s| s.rules.multiple_summoning_circles = true);
+    let (p, first, second, _) = two_cities(&mut g);
+    g.move_summoning_circle(p, second).expect("moved");
+    let circles = g.wizard(p).expect("a wizard").summon_circles();
+    assert_eq!(circles.len(), 2);
+    let (a, b) = (circles[0], circles[1]);
+    let _ = first;
+    let unit = g
+        .content()
+        .rules
+        .units
+        .defs()
+        .iter()
+        .find(|d| d.hireable && d.kind == f4x_def::rules::UnitKind::Normal && !d.is_settler())
+        .map(|d| UnitId::new(d.num))
+        .expect("a unit for hire");
+    let kind = (0..g.content().rules.hero_templates.len())
+        .find(|&k| {
+            g.units()
+                .hero_entity(k)
+                .is_some_and(|h| g.units().hero_state(h) == Some(f4x_core::hero::HeroState::Free))
+        })
+        .expect("a free hero");
+    for offer in [
+        Offer::Mercenaries {
+            unit,
+            count: 2,
+            level: 1,
+            price: 1,
+        },
+        Offer::Hero { kind, price: 1 },
+    ] {
+        let mut g = with_offers(&g, p, vec![offer.clone()]);
+        g.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100_000);
+        let accept = |g: &mut Game, at| {
+            g.apply(Command::AcceptOffer {
+                player: p,
+                index: 0,
+                name: None,
+                at,
+            })
+        };
+        let was = text(&g);
+        // No circle named, or one that is none of the wizard's: refused, nothing changes.
+        let elsewhere = Position {
+            x: a.x.wrapping_add(1),
+            ..a
+        };
+        for at in [None, Some(elsewhere)] {
+            assert_eq!(
+                refusal(&accept(&mut g, at)),
+                Some(Rejection::Offer(OfferError::Circle)),
+                "{offer:?} at {at:?}"
+            );
+            assert_eq!(text(&g), was);
+        }
+        // The second circle: whoever joins appears there, and not at the first.
+        let (here_a, here_b) = (g.units().units_at(a).len(), g.units().units_at(b).len());
+        let events = accept(&mut g, Some(b));
+        assert_eq!(refusal(&events), None, "{events:?}");
+        assert!(
+            g.units().units_at(b).len() > here_b,
+            "{offer:?}: nobody came to {b:?}"
+        );
+        assert_eq!(
+            g.units().units_at(a).len(),
+            here_a,
+            "{offer:?}: someone came to {a:?}"
+        );
+    }
+}
+
+#[test]
+fn with_several_circles_resurrection_asks_for_the_circle_the_hero_comes_back_to() {
+    use crate::c9_spell::two_cities;
+    use f4x_core::rules::exec::Target;
+    use f4x_core::spell::hero::HeroSummon;
+    let (_, mut g) = worlds().remove(0);
+    g.scenario_change_settings(|s| s.rules.multiple_summoning_circles = true);
+    let (p, _, second, _) = two_cities(&mut g);
+    g.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100_000);
+    let kind = (0..g.content().rules.hero_templates.len())
+        .find(|&k| g.hire_hero(p, k).is_ok())
+        .expect("a hero can be hired");
+    let hero = g.units().hero_entity(kind).expect("the hero");
+    g.cheat_slay_unit(hero);
+    let spell = HeroSummon::Resurrection
+        .spell_in(&g.content().rules)
+        .expect("a Resurrection spell");
+    assert!(
+        g.units().raisable_heroes().contains(&kind),
+        "the hero is not dead"
+    );
+    // One circle: the dead hero is the target. Two: the circle is named too.
+    assert_eq!(g.check_target(p, spell, Some(Target::Hero(kind))), Ok(()));
+    g.move_summoning_circle(p, second).expect("moved");
+    let circles = g.wizard(p).expect("a wizard").summon_circles();
+    assert!(g.check_target(p, spell, Some(Target::Hero(kind))).is_err());
+    let elsewhere = Position {
+        x: circles[0].x.wrapping_add(1),
+        ..circles[0]
+    };
+    assert!(g
+        .check_target(p, spell, Some(Target::HeroAt(kind, elsewhere)))
+        .is_err());
+    for &at in &circles {
+        assert_eq!(
+            g.check_target(p, spell, Some(Target::HeroAt(kind, at))),
+            Ok(())
+        );
+    }
+    // And the hero comes back to the circle named.
+    g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+    g.scenario_casting(p, spell, 0);
+    let at = circles[1];
+    let events = g.apply(Command::ResolveCast {
+        player: p,
+        target: Target::HeroAt(kind, at),
+    });
+    assert_eq!(refusal(&events), None, "{events:?}");
+    let back = g.units().hero_entity(kind).expect("the hero");
+    assert_eq!(g.units().unit_position(back), Some(at));
 }
