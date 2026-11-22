@@ -921,8 +921,9 @@ pub struct RulesConfig {
     /// `RuleSettings::limit_ai_races` is on.
     pub limited_ai_races: Vec<u16>,
     /// The pairs of realms (realm numbers) a computer wizard's books may be merged in, when the
-    /// setting `ai.wizards.consolidate_percent` asks for it: the one of the pair that is picked
-    /// takes the books of the other. A pair is listed once, in no order.
+    /// setting `ai.wizards.consolidate_percent` asks for it, in the order they are tried (ReMoM
+    /// `Consolidate_Spell_Book_Realms`, `INITGAME.c`). A coin flip says which of a pair takes the
+    /// books of the other: heads, the first. A pair is listed once.
     pub mergeable_realms: Vec<(u16, u16)>,
     /// The minerals (feature numbers) a world event can put on the map.
     pub event_ores: Vec<u16>,
