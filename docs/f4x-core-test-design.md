@@ -36,9 +36,13 @@ value in a test, a test performs an action and checks what the player sees.
 - **No `new_game`.** The crate that makes worlds sits above core. Core tests load the four saved fresh games
   `testutil::fresh(wizards, seed)` (`tests/saves/fresh_w{2,3}_s*.save`), which `f4x-newgame`'s `fixtures` test keeps
   equal to what it makes. They carry a content fingerprint: any change of a `.ron` file means a refresh.
-- **No AI.** The battle player of core's tests is `testutil::battle_policy`. A driver that plays whole games for
-  the invariant checks (class 2) has to be core's own: legal commands picked from the game's own views, at random
-  from the seed, not an AI.
+- **No AI.** The battle player of core's tests is `testutil::battle_policy`.
+- **Long plays are not core's tests.** A game played for many turns with `new_game` and the AI uses several
+  crates, so it is an integration test of a crate that sees them all: `f4x-ai/tests/it` (which already depends on
+  `f4x-newgame`) and the soaks of `f4x-tools`. Core's tests stay to what core can do alone: fixtures, short
+  scripted plays and hand-made situations. What core gives those multi-crate tests is the **checkers**:
+  `world_problems` (class 2) and the digest of a game (class 8) are public in core (behind the `testutil`
+  feature), so the long plays call them after every command or turn without carrying a copy.
 - **Small worlds by hand** are made by the `put_*` helpers on a `Game` loaded from a fresh save, never by
   editing the rule set.
 
@@ -65,9 +69,10 @@ books and retorts fit the sheet; no hero holds an item twice; battle units are i
 queues name things that exist.
 
 Guard: an **independent checker** `world_problems(&Game) -> Vec<Problem>`, written from the rules and not from the
-code under test, with negative tests (each invariant broken on purpose is found). It runs after every command of long
-seeded plays (the driver above) over a matrix of worlds: the four fresh saves, several seeds, every setting that
-changes the rules (`F4X_WORLDS=N` for more).
+code under test, with negative tests in core (each invariant broken on purpose is found). Core runs it after every
+command of short scripted plays on the four fresh saves; the **long seeded plays** (many turns, the AI, a matrix of
+worlds and rule settings, `F4X_WORLDS=N` for more) are integration tests in `f4x-ai/tests/it` that call the same
+checker after every command.
 
 ### 3. The same inputs give another game
 
@@ -135,9 +140,10 @@ the game played on past the usual end.
 
 ### 8. A change moves the game without being seen
 
-Guard: seeded plays (the driver, N turns, the fresh saves) whose digest (not the whole text) is pinned in a file, so a
-rule change that moves a game is a visible, deliberate act: the file is regenerated and the diff reviewed. The pinned
-digests are not a rule; they record what the game does today.
+Guard: seeded plays whose digest (not the whole text) is pinned in a file, so a rule change that moves a game is a
+visible, deliberate act: the file is regenerated and the diff reviewed. The pinned digests are not a rule; they
+record what the game does today. The digest function is core's; the plays that need `new_game` and the AI are
+integration tests in `f4x-ai/tests/it`, and core pins only its own short scripted plays on the fresh saves.
 
 ### 9. Subsystem behaviour
 
@@ -164,12 +170,15 @@ The subsystems, with the old suite's size (tests), as the order to work in once 
 
 `crates/f4x-core/tests/it/`, one binary: `main.rs` lists a module per class and subsystem (`c1_refusal`,
 `c2_invariants`, `c3_determinism`, `c4_persist`, `c5_input`, `c6_coupling`, `c7_arithmetic`, `c8_drift`, then one per
-subsystem), and `support` holds the world loader, the matrix (`World`), the checker, the command driver and the
-refusal table. Names follow the project's singular rule.
+subsystem), and `support` holds the world loader, the matrix of fresh saves, a short scripted driver and the refusal
+table. The checkers (`world_problems`, the digest) live in core itself behind the `testutil` feature. The long plays
+with several crates are in `f4x-ai/tests/it`, a module of their own (`c2_core_invariants`, `c8_core_drift`) that
+says in its header that it belongs to this design. Names follow the project's singular rule.
 
 ## Order of work
 
-1. `support`: the matrix, the checker `world_problems` with its negative tests, the driver.
+1. `support` and the checkers: the fresh-save matrix, `world_problems` with its negative tests, the digest, the
+   short scripted driver.
 2. Classes 4 and 1 first (the surfaces everything else leans on), then 5, 2, 3.
 3. Classes 6, 7, 8.
 4. The subsystems of class 9, biggest risk first (turn, city, unit, spell, battle), each with a mutation pass.
@@ -179,6 +188,8 @@ refusal table. Names follow the project's singular rule.
 
 - Which invariants of class 2 the rules really demand: the list above is a start from reading names, to be checked
   against `docs/design.md` and the code as the checker is written.
+- Whether the long plays belong in `f4x-ai/tests/it` or in a crate of their own that sees core, newgame and the AI
+  (`f4x-tools` has the soaks but is a binary); `f4x-ai` is the start because it has the dependencies today.
 - Whether the field census (class 4) can be done by a derive or a test over `Serialize` output.
 - How much of class 9 survives the first pass: the rebuild decides by need, and a subsystem that already has its needs
   covered by classes 1 to 8 gets few tests of its own.
