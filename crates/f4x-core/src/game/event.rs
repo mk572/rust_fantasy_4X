@@ -621,6 +621,8 @@ pub enum Rejection {
     Offer(player::offer::OfferError),
     /// The game has ended; nothing more can be done.
     GameOver,
+    /// The command acts for a player the game does not have.
+    NoSuchPlayer,
 }
 
 impl Rejection {
@@ -647,6 +649,7 @@ impl Rejection {
             Self::Hero(e) => e.key(),
             Self::Offer(e) => e.key(),
             Self::GameOver => "refuse_map.game_over",
+            Self::NoSuchPlayer => "refuse_map.no_such_player",
         }
     }
 }

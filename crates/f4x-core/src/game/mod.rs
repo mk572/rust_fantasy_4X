@@ -528,6 +528,30 @@ impl Game {
     }
 
     fn execute(&mut self, cmd: Command) -> Vec<Event> {
+        // A command for a player the game does not have is refused before anything runs.
+        if self
+            .command_actor(&cmd)
+            .is_some_and(|p| self.player_entity(p).is_none())
+        {
+            return vec![Event::Rejected(Rejection::NoSuchPlayer)];
+        }
+        // So is one that names a square off the map.
+        let squares: Vec<map::Position> = match &cmd {
+            Command::CreateUnit { pos, .. }
+            | Command::FoundCity { pos, .. }
+            | Command::PlaceFortress { pos, .. } => vec![*pos],
+            Command::MoveStack { to, .. }
+            | Command::GoTo { to, .. }
+            | Command::EnterSite { to, .. }
+            | Command::EarthGate { to, .. } => vec![*to],
+            Command::BuildRoad { path, .. } => path.clone(),
+            _ => Vec::new(),
+        };
+        if squares.iter().any(|&at| !self.on_map(at)) {
+            return vec![Event::Rejected(Rejection::Move(
+                unit::movement::MoveError::OffMap,
+            ))];
+        }
         let vision = map::vision::VisionEffect::of(&cmd);
         let mut events = self.execute_command(cmd);
         events.extend(self.remove_units_without_hit_points());

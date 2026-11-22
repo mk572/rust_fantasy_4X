@@ -56,4 +56,5 @@
     "refuse_map.fortress_error_wrong_state": "Dieser Zauber wirkt in deinem jetzigen Zustand nicht.",
     "refuse_map.fortress_error_cannot_destroy_fortress": "Eine Festungsstadt kann nicht zerstört werden.",
     "refuse_map.game_over": "Das Spiel ist vorbei.",
+    "refuse_map.no_such_player": "Diesen Spieler gibt es in diesem Spiel nicht.",
 }

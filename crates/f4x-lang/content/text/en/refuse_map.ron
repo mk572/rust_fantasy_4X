@@ -56,4 +56,5 @@
     "refuse_map.fortress_error_wrong_state": "That spell does not work in your present state.",
     "refuse_map.fortress_error_cannot_destroy_fortress": "A fortress city cannot be destroyed.",
     "refuse_map.game_over": "The game is over.",
+    "refuse_map.no_such_player": "There is no such player in this game.",
 }
