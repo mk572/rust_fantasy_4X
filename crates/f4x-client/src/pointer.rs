@@ -95,7 +95,7 @@ impl App {
         if !matches!(self.screen, Screen::Map) || self.game.in_battle() {
             return FINGER;
         }
-        if self.targeting.is_some() {
+        if self.targeting.is_some() || self.city_select.is_some() {
             return WAND;
         }
         if self.selection.is_empty() || self.road_plan.is_some() || self.surveyor {

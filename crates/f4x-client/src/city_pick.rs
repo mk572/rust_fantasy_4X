@@ -99,29 +99,40 @@ impl App {
         });
     }
 
-    /// The cities `spell` may be cast on by the human wizard when the game asks for a city and the
-    /// player chooses it from a list, or `None` when the spell is aimed in another way.
+    /// The cities `spell` may be cast on by the human wizard when it is aimed at a city and the player
+    /// chooses it in the side panel (`city_select`), or `None` when the spell is aimed in another way.
+    /// Only the cities the game accepts are listed; an enemy city must have been explored.
     pub(crate) fn city_choices(&self, spell: SpellId) -> Option<Vec<hecs::Entity>> {
         use f4x_core::spell::special;
+        use f4x_def::rules::SpellTarget;
         let def = self.game.content().rules.spells.get(spell);
-        let by_list = def.has_hook(special::MOVE_BUILDING)
-            || def.has_hook(special::SPELL_OF_RETURN)
-            || (self.game.spell_summons(spell)
-                && self.game.has_several_circles(HUMAN)
-                && !f4x_core::spell::hero::HeroSummon::Resurrection.is_in(def));
-        by_list.then(|| {
+        let summons_to_a_circle = self.game.spell_summons(spell)
+            && self.game.has_several_circles(HUMAN)
+            && !f4x_core::spell::hero::HeroSummon::Resurrection.is_in(def);
+        let by_target = matches!(def.target, SpellTarget::OwnCity | SpellTarget::EnemyCity);
+        let by_hook =
+            def.has_hook(special::MOVE_BUILDING) || def.has_hook(special::SPELL_OF_RETURN);
+        if !(summons_to_a_circle || by_target || by_hook) {
+            return None;
+        }
+        let ward = f4x_core::spell::city::CityEffect::SpellWard.is_in(def);
+        Some(
             self.game
                 .economy()
-                .cities_of(HUMAN)
+                .cities()
                 .into_iter()
-                .map(|c| c.0)
-                .filter(|&c| {
-                    self.game
-                        .check_target(HUMAN, spell, Some(Target::City(c)))
-                        .is_ok()
+                .filter(|&(c, _, at)| {
+                    let mine = self.game.economy().city_owner(c) == Some(HUMAN);
+                    (mine || self.game.is_explored(HUMAN, at))
+                        && !(ward && self.game.fully_warded(c))
+                        && self
+                            .game
+                            .check_target(HUMAN, spell, Some(Target::City(c)))
+                            .is_ok()
                 })
-                .collect()
-        })
+                .map(|(c, ..)| c)
+                .collect(),
+        )
     }
 
     /// The cities of the human wizard that hold a summoning circle.
@@ -140,13 +151,30 @@ impl App {
         self.game.circle_in(HUMAN, city)
     }
 
-    /// Choose the city for `spell` from the list and cast it there.
+    /// Choose the city for `spell` in the side panel and cast it there once OK is clicked. A Spell
+    /// Ward then asks for its realm.
     pub(crate) fn pick_city_for(&mut self, t: Targeting, cities: Vec<hecs::Entity>) {
+        self.screen = Screen::Map;
+        if cities.is_empty() {
+            self.log.push(self.text("spell.no_valid_target"));
+            return;
+        }
         let term = self
             .names
             .spell_term(self.game.content().rules.spells.get(t.spell).num);
         let prompt = self.text_with("spell.choose_city", &Args::new().term("spell", term));
-        self.pick_city(prompt, cities, move |app, city| match city {
+        let title = self.text("spell.casting_title");
+        self.select_city(title, prompt, cities, move |app, city| match city {
+            Some(city)
+                if f4x_core::spell::city::CityEffect::SpellWard
+                    .is_in(app.game.content().rules.spells.get(t.spell)) =>
+            {
+                app.modals.open(crate::view::Ward {
+                    spell: t.spell,
+                    city,
+                    resolve: t.resolve,
+                });
+            }
             Some(city) => app.cast_on(t, Target::City(city)),
             None => app.log.push(app.text("log.cast_cancelled")),
         });

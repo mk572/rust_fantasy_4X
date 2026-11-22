@@ -26,6 +26,7 @@ mod city_list_screen;
 mod city_pick;
 mod city_screen;
 mod city_scroll;
+mod city_select;
 mod cityscape;
 mod client_settings;
 mod combat_result;
@@ -243,6 +244,8 @@ struct Options {
     intro: Option<usize>,
     /// With `--advisor 0`: describe the square at this column and row.
     survey_at: Option<(u32, u32)>,
+    /// With `--shot`, open the city picker in the side panel, listing every city.
+    pick_city: bool,
     /// With `--shot`, show the Chancellor's scroll with made-up news (`--long` for a tall one).
     scroll: Option<bool>,
     /// Skip the creation screen and play the default wizard.
@@ -384,6 +387,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
         help_at: None,
         help_building: None,
         survey_at: None,
+        pick_city: false,
         scroll: None,
         reveal: false,
         at: None,
@@ -593,6 +597,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
                 o.create_step = Some(value("--create-step")?);
             }
             "--menu" => o.menu = true,
+            "--pick-city" => o.pick_city = true,
             "--options" => o.options = true,
             "--custom" => o.custom = true,
             "--slots" => o.slots = true,
@@ -1111,6 +1116,9 @@ async fn main() {
     }
     if let Some(n) = options.sheet {
         app.open_test_sheet(n, options.sheet_spell.as_deref(), options.sheet_ask);
+    }
+    if options.pick_city {
+        app.open_test_city_select();
     }
     if let Some((x, y)) = options.survey_at {
         app.start_surveyor();

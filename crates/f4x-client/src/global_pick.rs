@@ -186,7 +186,7 @@ impl App {
     }
 
     /// An arrow button at `at` (7 x 9 or the resource arrows' own size); true when it was clicked.
-    fn arrow(
+    pub(crate) fn arrow(
         &mut self,
         lay: &Layout,
         (lbx, entry): (&str, usize),

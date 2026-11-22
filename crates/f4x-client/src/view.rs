@@ -187,6 +187,8 @@ pub struct App {
     pub(crate) pointer_walk: Option<(crate::pointer::WalkKey, bool)>,
     /// A road being planned.
     pub(crate) road_plan: Option<crate::road_plan::RoadPlan>,
+    /// The city picker in the side panel, while it is open.
+    pub(crate) city_select: Option<crate::city_select::CitySelect>,
     /// The Surveyor is describing the square under the mouse (F1).
     pub(crate) surveyor: bool,
     /// For screenshots: the square the Surveyor describes instead of the one under the mouse.
@@ -405,6 +407,7 @@ impl App {
             units_waited: false,
             pointer_walk: None,
             road_plan: None,
+            city_select: None,
             surveyor: false,
             survey_probe: None,
             human_build: None,
@@ -1835,7 +1838,9 @@ impl App {
             Screen::Slots => self.page_frame(input),
             Screen::Map => {
                 if input.key_pressed(KeyCode::Escape) {
-                    if self.targeting.take().is_some() {
+                    if self.city_select.is_some() {
+                        // The panel takes the key itself (Cancel).
+                    } else if self.targeting.take().is_some() {
                         self.log.push(self.text("log.cast_cancelled"));
                     } else if self.road_plan.is_some() {
                         self.road_plan_cancel();
@@ -1851,6 +1856,7 @@ impl App {
                 self.draw_bars(input);
                 self.road_plan_bar(input);
                 self.surveyor_bar(input);
+                self.city_select_bar(input);
             }
         }
         true
@@ -2452,7 +2458,8 @@ impl App {
             if input.mouse_pressed(MouseButton::Left) {
                 self.click(pos, input);
             }
-            if input.mouse_pressed(MouseButton::Right) && self.surveyor {
+            if input.mouse_pressed(MouseButton::Right) && self.city_select_open(pos) {
+            } else if input.mouse_pressed(MouseButton::Right) && self.surveyor {
                 self.stop_surveyor();
             } else if input.mouse_pressed(MouseButton::Right) && self.road_plan.is_some() {
                 self.road_plan_cancel();
@@ -2516,6 +2523,10 @@ impl App {
     }
 
     fn click(&mut self, pos: Position, input: &Input) {
+        if self.city_select.is_some() {
+            self.city_select_click(pos);
+            return;
+        }
         if let Some(t) = self.targeting.take() {
             self.aim_at(t, pos);
             return;
