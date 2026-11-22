@@ -23,6 +23,7 @@ mod built_popup;
 mod cast_anyway;
 mod chancellor;
 mod city_list_screen;
+mod city_pick;
 mod city_screen;
 mod city_scroll;
 mod cityscape;

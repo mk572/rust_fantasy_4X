@@ -15,6 +15,7 @@
     "spell.select_to_disjunct": "Wähle einen Zauber zum Auflösen.",
     "spell.select_to_bind": "Wähle einen Zauber zum Binden.",
     "spell.choose_dead": "{spell}: wähle einen Helden zum Erwecken",
+    "spell.choose_city": "{spell}: wähle eine Stadt",
     "spell.no_dead": "Es ist kein Held gefallen, der erweckt werden kann",
     "spell.you_completed": "Du hast das Wirken beendet von...",
     "spell.rival_cast": "{wizard} hat gewirkt...",

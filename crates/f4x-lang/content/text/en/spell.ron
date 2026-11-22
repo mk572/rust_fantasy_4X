@@ -18,6 +18,7 @@
     "spell.select_to_disjunct": "Select a spell to disjunct.",
     "spell.select_to_bind": "Select a spell to bind.",
     "spell.choose_dead": "{spell}: choose a hero to raise",
+    "spell.choose_city": "{spell}: choose a city",
     "spell.no_dead": "No hero has fallen who can be raised",
     "spell.you_completed": "You have completed casting...",
     "spell.rival_cast": "{wizard} has cast...",

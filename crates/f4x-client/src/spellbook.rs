@@ -279,10 +279,15 @@ impl App {
             self.open_global_pick(spell, true);
             return;
         }
-        self.targeting = Some(Targeting {
+        let t = Targeting {
             spell,
             resolve: true,
-        });
+        };
+        if let Some(cities) = self.city_choices(spell) {
+            self.pick_city_for(t, cities);
+            return;
+        }
+        self.targeting = Some(t);
     }
 
     /// Start casting `spell`: one that needs a target and is paid for at once is aimed on the
@@ -342,10 +347,15 @@ impl App {
                 self.open_global_pick(spell, false);
                 return;
             }
-            self.targeting = Some(Targeting {
+            let t = Targeting {
                 spell,
                 resolve: false,
-            });
+            };
+            if let Some(cities) = self.city_choices(spell) {
+                self.pick_city_for(t, cities);
+                return;
+            }
+            self.targeting = Some(t);
             self.screen = Screen::Map;
             return;
         }
@@ -401,13 +411,7 @@ impl App {
     /// The player clicked `pos` while choosing a target.
     pub(crate) fn aim_at(&mut self, t: Targeting, pos: f4x_core::map::Position) {
         let def = self.game.content().rules.spells.get(t.spell);
-        // A summoning with several circles (`multiple_summoning_circles`) asks for the city it comes to.
-        let circle_city = self.game.has_several_circles(HUMAN)
-            && self.game.spell_needs_target(HUMAN, t.spell)
-            && !f4x_core::spell::hero::HeroSummon::Resurrection.is_in(def)
-            && self.game.spell_summons(t.spell);
         let target = match def.target {
-            _ if circle_city => self.game.economy().city_at(pos).map(Target::City),
             SpellTarget::OwnUnit | SpellTarget::EnemyUnit | SpellTarget::AnyUnit => {
                 let units = self.game.units().units_at(pos);
                 let wanted = units.into_iter().find(|&u| {
@@ -467,6 +471,11 @@ impl App {
             self.targeting = Some(t);
             return;
         };
+        self.cast_on(t, target);
+    }
+
+    /// Cast the spell of `t` on `target`: the answer to a cast that waits for its target, or a new cast.
+    pub(crate) fn cast_on(&mut self, t: Targeting, target: Target) {
         let cmd = if t.resolve {
             Command::ResolveCast {
                 player: HUMAN,
