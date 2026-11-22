@@ -353,7 +353,7 @@ pub(crate) fn declare_war_on_city(
                 )
                 .is_ok()
             {
-                ai.quarrel = Some(owner);
+                ai.memory.put().enemy = Some((owner, game.turn));
             }
             true
         }

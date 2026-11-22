@@ -107,6 +107,30 @@ pub(crate) struct Knobs {
     pub ally_min: i32,
     pub gift_min: i32,
     pub court_cool: u32,
+    // Answering and talking (`diplo_b_talk.rs`).
+    /// The friend value at which a pact, an alliance is accepted; the friendship at which a war is
+    /// accepted on a third wizard (with the enemy value of the third); the lead in friendship over the
+    /// third that makes it break an alliance for the asker.
+    pub pact_accept: i32,
+    pub ally_accept: i32,
+    pub war_accept: i32,
+    pub break_accept: i32,
+    /// The friendship at which it warns a treaty partner, breaks the treaty, and declares war on someone it
+    /// has no treaty with.
+    pub warn_below: i32,
+    pub break_below: i32,
+    pub war_below: i32,
+    /// Turns between two warnings, demands, gifts and trade offers to the same player.
+    pub warn_cool: u32,
+    pub demand_cool: u32,
+    pub gift_cool: u32,
+    pub trade_cool: u32,
+    /// The friendship from which a treaty partner is given gifts; the fear from which a wizard yields
+    /// to a threat or a demand.
+    pub gift_friend: i32,
+    pub yield_fear: i32,
+    /// What an ally at war with a wizard adds to the enemy value of that wizard.
+    pub ally_war: i32,
 }
 
 impl Knobs {
@@ -164,6 +188,20 @@ impl Knobs {
             ally_min: k("ALLY_MIN", 55),
             gift_min: k("GIFT_MIN", 25),
             court_cool: k("COURT_COOL", 20) as u32,
+            pact_accept: k("PACT_ACCEPT", 20),
+            ally_accept: k("ALLY_ACCEPT", 45),
+            war_accept: k("WAR_ACCEPT", 60),
+            break_accept: k("BREAK_ACCEPT", 40),
+            warn_below: k("WARN_BELOW", -30),
+            break_below: k("BREAK_BELOW", -50),
+            war_below: k("WAR_BELOW", -75),
+            warn_cool: k("WARN_COOL", 10) as u32,
+            demand_cool: k("DEMAND_COOL", 20) as u32,
+            gift_cool: k("GIFT_COOL", 30) as u32,
+            trade_cool: k("TRADE_COOL", 15) as u32,
+            gift_friend: k("GIFT_FRIEND", 60),
+            yield_fear: k("YIELD_FEAR", 50),
+            ally_war: k("ALLY_WAR", 30),
         }
     }
 }
@@ -509,7 +547,6 @@ mod tests {
         let k = Knobs::current();
         let mut g = war(10, 10, 110);
         let mut ai = Ai::new(P0);
-        ai.set_system(crate::System::B);
         let mut turn = 110;
         // Until the wish reaches the mark nothing is offered.
         while peace_wish(&g, P0, P1, &ai.memory.get()) < k.offer {
@@ -620,14 +657,12 @@ mod tests {
         let table = Diplomats::new();
         let mut p1 = Ai::new(P1);
         p1.join(&table);
-        p1.set_system(crate::System::B);
         assert!(!asked_for_peace(&mut b, P0, P1, &table), "B says no");
         // And P1 asking P0, which has lost a lot and is on B, is taken.
         let mut c = war(1, 30, 160);
         let table = Diplomats::new();
         let mut p0 = Ai::new(P0);
         p0.join(&table);
-        p0.set_system(crate::System::B);
         p0.notice(
             &c,
             &[battle_lost(), city_lost(), city_lost(), battle_lost()],
@@ -643,7 +678,6 @@ mod tests {
         let k = Knobs::current();
         let mut g = war(1, 30, 200);
         let mut ai = Ai::new(P0);
-        ai.set_system(crate::System::B);
         ai.notice(
             &g,
             &[battle_lost(), city_lost(), city_lost(), battle_lost()],
@@ -656,18 +690,16 @@ mod tests {
             Some(200),
             "B asked"
         );
-        assert!(
-            ai.statecraft.peace_offered.is_empty(),
-            "A's list is not used"
-        );
     }
 
     #[test]
     fn the_detail_note_names_the_system_the_enemy_and_what_was_seen() {
         let g = war(8, 8, 110);
         let mut ai = Ai::new(P0);
-        assert_eq!(ai.diplomacy_note(&g), "diplomacy A");
-        ai.set_system(crate::System::B);
+        assert_eq!(
+            ai.diplomacy_note(&g),
+            "diplomacy B, enemy -, weary [], seen []"
+        );
         ai.notice(&g, &[razed()]);
         ai.memory.put().enemy = Some((P1, 100));
         let note = ai.diplomacy_note(&g);

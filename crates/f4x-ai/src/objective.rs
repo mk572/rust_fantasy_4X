@@ -179,15 +179,6 @@ pub fn army_bias(personality: Personality, difficulty: u8) -> i32 {
     base + over
 }
 
-/// Whether this wizard may start a war on a weaker neighbour of its own accord: a militarist or
-/// an expansionist whose temper is not lawful or peaceful (`DIPLOMAC.c`).
-pub fn picks_fights(objective: Option<Objective>, personality: Personality) -> bool {
-    matches!(
-        objective,
-        Some(Objective::Militarist | Objective::Expansionist)
-    ) && !matches!(personality, Personality::Lawful | Personality::Peaceful)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,30 +262,5 @@ mod tests {
         let bias: Vec<i32> = TEMPERS.iter().map(|&p| army_bias(p, 2)).collect();
         assert!(bias.windows(2).all(|w| w[0] <= w[1]), "{bias:?}");
         assert!(bias[0] < 0 && bias[5] > 0);
-    }
-
-    #[test]
-    fn only_a_fierce_militarist_or_expansionist_picks_fights() {
-        assert!(picks_fights(
-            Some(Objective::Militarist),
-            Personality::Aggressive
-        ));
-        assert!(picks_fights(
-            Some(Objective::Expansionist),
-            Personality::Chaotic
-        ));
-        assert!(!picks_fights(
-            Some(Objective::Militarist),
-            Personality::Peaceful
-        ));
-        assert!(!picks_fights(
-            Some(Objective::Expansionist),
-            Personality::Lawful
-        ));
-        assert!(!picks_fights(
-            Some(Objective::Theurgist),
-            Personality::Maniacal
-        ));
-        assert!(!picks_fights(None, Personality::Maniacal));
     }
 }

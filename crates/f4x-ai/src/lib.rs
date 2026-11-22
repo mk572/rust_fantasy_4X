@@ -20,6 +20,7 @@ mod controller;
 mod craft;
 mod diplo_b;
 mod diplo_b_stance;
+mod diplo_b_talk;
 mod diplomacy;
 mod dispatch;
 mod economy;
@@ -299,11 +300,6 @@ pub struct Ai {
     /// it cannot beat to it.
     racing: bool,
     war_on: Option<PlayerId>,
-    /// The wizard this one went to war on by temper (`diplomacy::quarrel`).
-    quarrel: Option<PlayerId>,
-    /// What the statecraft (`statecraft.rs`, task 510) keeps between turns.
-    #[serde(default)]
-    statecraft: statecraft::State,
     /// What it remembers of its dealings with the others (`memory.rs`, task 760); shared with the
     /// game's [`Diplomats`] table when the host joined it.
     #[serde(default, with = "memory::shared")]
@@ -407,18 +403,10 @@ impl Ai {
         self.diplomats = diplomats.clone();
     }
 
-    /// The diplomacy this wizard plays (`memory::System`).
-    pub fn system(&self) -> System {
-        self.memory.get().system
-    }
-
     /// The diplomacy system and, for B, the main enemy and what it has seen of the others, for the soak's
     /// detail lines.
     pub fn diplomacy_note(&self, game: &Game) -> String {
         let m = self.memory.get();
-        if m.system != System::B {
-            return format!("diplomacy {}", m.system.name());
-        }
         let enemy = m.enemy.map_or("-".to_string(), |(p, since)| {
             format!("p{} since {since}", p.0)
         });
@@ -449,20 +437,10 @@ impl Ai {
         )
     }
 
-    /// Make the wizard play diplomacy system A or B.
-    pub fn set_system(&mut self, system: System) {
-        self.memory.put().system = system;
-    }
-
     /// Tell the wizard what has happened (the events of a turn): the battles it fought and the
     /// cities it won or lost go into its memory. What a human would be told of, and no more.
     pub fn notice(&mut self, game: &Game, events: &[Event]) {
         self.memory.put().notice(self.player, game, events);
-    }
-
-    /// Whether the AI keeps out of this player's way, for being much stronger and near.
-    pub(crate) fn is_appeasing(&self, other: PlayerId) -> bool {
-        self.statecraft.appeased.contains(&other)
     }
 
     pub fn new(player: PlayerId) -> Self {
@@ -497,8 +475,6 @@ impl Ai {
             mastery_seen: HashMap::new(),
             racing: false,
             war_on: None,
-            quarrel: None,
-            statecraft: Default::default(),
             memory: Default::default(),
             diplomats: Diplomats::default(),
             missions_reset: 0,
@@ -571,7 +547,7 @@ impl Ai {
     /// rival after the turn has changed, so the proposals wait for the human's answer in that turn.
     pub fn approach_human(&mut self, game: &mut Game) -> Vec<Event> {
         let mut events = Vec::new();
-        diplomacy::approach_human(self, game, &mut events);
+        diplo_b_talk::approach_human(self, game, &mut events);
         events
     }
 
@@ -614,10 +590,7 @@ impl Ai {
             }
         }
         diplomacy::answer(self, game, &mut events);
-        if self.system() != System::B {
-            diplomacy::quarrel(self, game, &mut events);
-        }
-        diplomacy::negotiate(self, game, &mut events);
+        diplo_b_talk::negotiate(self, game, &mut events);
         statecraft::run(self, game, &mut events);
         offer::answer(self, game, &mut events);
         offer::equip(self, game, &mut events);
@@ -625,7 +598,6 @@ impl Ai {
         economy::taxes(self, game, &mut events);
         alchemy::run(self, game, &mut events);
         race::run(self, game, &mut events);
-        diplomacy::mastery_scare(self, game, &mut events);
         self.tower_blocked = site::blocked_planes(
             &PlayerView::new(game, self.player),
             &self.unreachable,
@@ -889,7 +861,7 @@ pub fn settle(game: &mut Game, from: PlayerId, to: PlayerId, diplomats: &Diploma
 pub use offer::answer_resales;
 
 pub use controller::{play_round, AiSeat, NeutralSeat};
-pub use memory::{Diplomats, System};
+pub use memory::Diplomats;
 
 /// A tuning number that an experiment may set from the environment (`AIK_<NAME>`).
 pub(crate) fn knob(name: &str, default: f32) -> f32 {
@@ -953,20 +925,6 @@ mod memory_tests {
         Ai::recall(&g, &mut fresh);
         assert_eq!(battles_lost(&fresh[0].memory.get()), Some(1));
         assert_eq!(battles_lost(&table.of(ME)), Some(1));
-        Ok(())
-    }
-
-    #[test]
-    fn the_system_of_a_wizard_is_a_unless_set_and_is_saved_with_its_plans(
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut ai = Ai::new(ME);
-        assert_eq!(ai.system(), System::A);
-        ai.set_system(System::B);
-        let back = Ai::from_text(&ai.to_text()?)?;
-        assert_eq!(back.system(), System::B);
-        // Plans written before the tag existed have none: A.
-        let old = ai.to_text()?.replace("system:B,", "");
-        assert_eq!(Ai::from_text(&old)?.system(), System::A);
         Ok(())
     }
 

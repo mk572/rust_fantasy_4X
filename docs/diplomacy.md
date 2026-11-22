@@ -312,7 +312,7 @@ and caps the relation to 30.
 another's city (on its plane, or in a tower) trigger a warning sequence: first a mild relation
 loss `-Random(5)` and a warning, a second step of nothing, and a third step `-5`; the treaty is not broken by the game. Wizards at war ignore it.
 
-*System A* is what follows; a new design, *system B* (friendship, fear and strategy, one peace score), is built beside it for a soak to compare: [`ai-diplomacy-b.md`](ai-diplomacy-b.md). A wizard of B makes and accepts peace by one score (weariness of the war, the gap in strength, fear, friendship, the strategic value, its temper) in place of the three paths below that end a war.
+**System A is removed (23 November 2026, task 779).** What follows describes the original's AI and the first design of this game's (*system A*), kept as the record of where the numbers came from; the code is gone. The AI plays *system B* only (friendship, fear and strategy, one peace score, no dice): [`ai-diplomacy-b.md`](ai-diplomacy-b.md), `crates/f4x-ai/src/diplo_b*.rs`. Rating a proposal and talking to the human are `diplo_b_talk.rs`; the human is treated like any wizard.
 
 **What the AI does today (tasks 361, 384 and 385).** Towards the human, at the start of the human's turn
 (`Ai::approach_human`, called by the client after the turn change; proposals wait in a yes-or-no box and lapse when

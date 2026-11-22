@@ -1,11 +1,6 @@
 # Diplomacy system B (design, 21 November 2026)
 
-The AI's statecraft today (`statecraft.rs`, `diplomacy.rs`; `diplomacy.md` section 8) is **system A**. It
-decides peace in three places with three formulas (a losing war in `statecraft::wars`, a roll of peace patience in
-`diplomacy::negotiate`, the original's formula towards the human), refuses a peace by a fourth (`peace_ok`) and
-chooses its friends and enemies by separate parts that do not know each other (`dominant_war`, `appease`,
-`coalition`, the hate rolls). **System B** is a new design, built beside A, so that a soak can say which one plays
-better: each wizard has one of the two (task 761), the rest of the AI is the same.
+**System B is the AI's only diplomacy since 23 November 2026 (task 779).** System A, the AI's statecraft as it was before (`statecraft.rs`, `diplomacy.rs`: the original's rating `Diplomacy_Test` with its dice and patience, the dominant war, appeasing, the coalition, the hate rolls, three formulas for peace), was removed; it was too much the original's way of doing things. B has no dice: every answer and every offer follows from three values for each other player, and the numbers are knobs (`AIK_DIPLO_B_<NAME>`, `diplo_b.rs`). The human is treated like any wizard (`diplo_b_talk.rs`). Its memory still reads the core's relation table until task 780 moves that into the AI.
 
 ## Three values for each other player (`Regard`)
 
@@ -124,3 +119,21 @@ A soak with the two systems in one game (task 761): wizards alternate between A 
 seed, so a seat is no advantage. It prints for each system the games, the wins, the mean survival turn and cities
 held at the end, the wars, the peace made and the stalled war turns. A system needs many games to be told from
 chance (24 seeds at 3 wizards, 400 turns, is the first run).
+
+## Answering and talking (task 779, `diplo_b_talk.rs`)
+
+* A **pact** is accepted when the friend value (`diplo_b_stance::values`, plus the personality's mood) reaches
+  `PACT_ACCEPT` and the friendship is above the rules' floor; an **alliance** at `ALLY_ACCEPT` over its floor.
+* **War on a third wizard**: friendship with the asker plus the enemy value of the third reaches `WAR_ACCEPT`, never
+  against one much stronger (`TOO_STRONG_PCT`) unless already at war with it. **Break an alliance with a third**: the asker is
+  liked `BREAK_ACCEPT` more than the ally.
+* **A threat**: a wizard that fears the asker (`YIELD_FEAR`) pays and yields, one clearly stronger than the asker declares war,
+  else it refuses. **A demand** is yielded to by one that fears the asker. **A trade** is by worth (`trade.rs`).
+* **Peace** is the peace score (`peace_wish`). Nothing is rolled.
+* **To the human** (`approach_human`, at the start of the human's turn): peace by `offer_due`; war on someone it hates
+  (`WAR_BELOW`) with no treaty; a warning to a partner whose friendship fell to `WARN_BELOW` (every `WARN_COOL` turns) and the
+  treaty broken at `BREAK_BELOW`; courting (pacts, alliances, a gift for a low relation) by `court`; a demand of gold from
+  a weaker player it dislikes (every `DEMAND_COOL` turns); a gift from a close friend with a treaty (`GIFT_FRIEND`, every
+  `GIFT_COOL` turns). The wars it picks on its own turn come from the enemy value (`diplo_b_stance::run`), which also counts
+  an ally's war (`ALLY_WAR`), so an ally joins the wars of its friend.
+* Among the AIs, trades are offered every `TRADE_COOL` turns (`negotiate`).

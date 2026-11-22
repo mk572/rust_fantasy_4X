@@ -67,6 +67,15 @@ pub(crate) fn values(
     if treaty == Treaty::War {
         enemy += k.at_war;
     }
+    // An ally of mine fights it: a friend's war is joined.
+    if game.player_ids().into_iter().any(|a| {
+        a != me
+            && a != other
+            && game.treaty(me, a) == Treaty::Alliance
+            && game.treaty(a, other) == Treaty::War
+    }) {
+        enemy += k.ally_war;
+    }
     // Afraid of an equal or a weaker one: strike before it does.
     if t * 100 <= m * 110 && r.fear >= k.strike_fear {
         enemy += r.fear / 2;
@@ -166,7 +175,27 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, scene: 
         if Some(w) == chosen.map(|(e, _)| e) || game.treaty(me, w) == Treaty::War {
             continue;
         }
-        court(ai, game, events, w, reaches(w));
+        if game.human() != Some(w) {
+            court(ai, game, events, w, reaches(w));
+        }
+    }
+}
+
+/// War on `enemy` now, without the choice of `run` (the friendship has fallen too far).
+pub(crate) fn declare_on(ai: &Ai, game: &mut Game, events: &mut Vec<Event>, enemy: PlayerId) {
+    let me = ai.player;
+    if ai
+        .send(
+            game,
+            Command::Diplomacy(DiplomacyCommand::DeclareWar {
+                player: me,
+                on: enemy,
+            }),
+            events,
+        )
+        .is_ok()
+    {
+        remark(ai, game, events, enemy, Remark::DominantWar);
     }
 }
 
@@ -224,12 +253,15 @@ fn declare(
 
 /// Court a wizard that is no enemy by its friend value: a pact, then an alliance, or a gift where the
 /// relation is too low for a pact; once in `court_cool` turns.
-fn court(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, other: PlayerId, reachable: bool) {
+pub(crate) fn court(
+    ai: &Ai,
+    game: &mut Game,
+    events: &mut Vec<Event>,
+    other: PlayerId,
+    reachable: bool,
+) {
     let me = ai.player;
     let k = Knobs::current();
-    if game.human() == Some(other) {
-        return;
-    }
     let (friend, due) = {
         let memory = ai.memory.get();
         let scene = Scene::new(game, me);
@@ -258,8 +290,7 @@ fn court(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, other: PlayerId,
         Some(kind) => propose(ai, game, events, other, kind),
         // Too low a relation for a pact: a gift wins it over.
         None if game.treaty(me, other) == Treaty::None && relation <= pact_floor => {
-            let sk = crate::statecraft::Knobs::current();
-            crate::statecraft::gift_gold(ai, game, events, &sk, other, Remark::Appeasing)
+            crate::statecraft::gift_gold(ai, game, events, other, Remark::Appeasing)
         }
         None => false,
     };
@@ -269,13 +300,13 @@ fn court(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, other: PlayerId,
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
     use f4x_core::rules::RealmId;
     use f4x_def::half_int::HalfInt;
 
-    const RIVAL: (u32, u32) = (3, 8);
+    pub(crate) const RIVAL: (u32, u32) = (3, 8);
 
     fn found(g: &mut Game, owner: PlayerId, x: u32, y: u32) {
         let race = g.content().rules.races.id_numbered(8);
@@ -290,7 +321,7 @@ mod tests {
 
     /// P0 and P1 have met, no treaty, armies of these sizes, a city each on the west island (P1's
     /// at `RIVAL`) and one more for P0; turn `turn`.
-    fn pair(army0: usize, army1: usize, turn: u32) -> Game {
+    pub(crate) fn pair(army0: usize, army1: usize, turn: u32) -> Game {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         found(&mut g, P0, 10, 10);
         found(&mut g, P1, RIVAL.0, RIVAL.1);
@@ -361,7 +392,6 @@ mod tests {
     fn a_wizard_on_b_declares_war_on_the_prey_it_can_reach() {
         let mut g = pair(30, 1, 100);
         let mut ai = Ai::new(P0);
-        ai.set_system(crate::System::B);
         let scene = Scene::new(&g, P0);
         run(&mut ai, &mut g, &mut Vec::new(), &scene);
         assert_eq!(g.treaty(P0, P1), Treaty::War, "the prey is declared war on");

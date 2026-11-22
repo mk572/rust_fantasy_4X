@@ -19,6 +19,15 @@ use f4x_core::game::{Event, Game};
 use f4x_core::player::PlayerId;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+/// What a wizard does to another now and then, with a cool-down between two (`Memory::did`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Did {
+    Warn,
+    Demand,
+    Gift,
+    Trade,
+}
+
 /// The dealings of one wizard with another: what it has been told of the fighting between them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Dealing {
@@ -42,6 +51,15 @@ pub(crate) struct Dealing {
     /// The turn it last asked this one for a pact or an alliance or gave it a gift (system B; 0: never).
     #[serde(default)]
     pub courted: u32,
+    /// The turn it last warned, demanded of, gave a gift to and offered a trade to this one (0: never).
+    #[serde(default)]
+    pub warned: u32,
+    #[serde(default)]
+    pub demanded: u32,
+    #[serde(default)]
+    pub gifted: u32,
+    #[serde(default)]
+    pub traded: u32,
 }
 
 impl Dealing {
@@ -57,24 +75,10 @@ impl Dealing {
             war_since: 0,
             offered: 0,
             courted: 0,
-        }
-    }
-}
-
-/// Which diplomacy a wizard plays: A is the AI's statecraft as it was before task 761, B the new design
-/// of `docs/ai-diplomacy-b.md` (tasks 762 and 763), built beside it so that a soak can compare them.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum System {
-    #[default]
-    A,
-    B,
-}
-
-impl System {
-    pub fn name(self) -> &'static str {
-        match self {
-            System::A => "A",
-            System::B => "B",
+            warned: 0,
+            demanded: 0,
+            gifted: 0,
+            traded: 0,
         }
     }
 }
@@ -95,9 +99,6 @@ pub(crate) struct Acts {
 /// Everything a wizard keeps of the others.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Memory {
-    /// The diplomacy it plays; A for a save that has none.
-    #[serde(default)]
-    pub system: System,
     pub dealings: Vec<Dealing>,
     /// What it has seen the others do (system B's fear).
     #[serde(default)]
@@ -179,6 +180,28 @@ impl Memory {
     /// Write down that `with` was courted (a pact asked for, a gift given) on this turn.
     pub(crate) fn courted(&mut self, with: PlayerId, turn: u32) {
         self.dealing(with).courted = turn;
+    }
+
+    /// Write down that something was done to `with` on this turn (a warning, a demand, a gift, a trade offer).
+    pub(crate) fn did(&mut self, with: PlayerId, what: Did, turn: u32) {
+        let d = self.dealing(with);
+        match what {
+            Did::Warn => d.warned = turn,
+            Did::Demand => d.demanded = turn,
+            Did::Gift => d.gifted = turn,
+            Did::Trade => d.traded = turn,
+        }
+    }
+
+    /// Whether `cool` turns have passed since `what` was done to `with`.
+    pub(crate) fn due(&self, with: PlayerId, what: Did, turn: u32, cool: u32) -> bool {
+        let last = self.with(with).map_or(0, |d| match what {
+            Did::Warn => d.warned,
+            Did::Demand => d.demanded,
+            Did::Gift => d.gifted,
+            Did::Trade => d.traded,
+        });
+        last == 0 || turn >= last + cool
     }
 
     /// Write down that peace was offered to `with` on this turn.

@@ -1015,10 +1015,10 @@ The shipped unit rows (`units.ron`, taken from the original's table) give First 
 
 The original's AI ends a war in three places with three formulas (its peace patience against a roll, the peace
 patience against `30 + Random(100)` towards the human, and a loss test of this game's own `statecraft`). A wizard of
-**system B** (`soak --diplomacy`, `ai-diplomacy-b.md`) has one score for offering and accepting peace, for the AI
+**system B** (the only one since task 779, `ai-diplomacy-b.md`) has one score for offering and accepting peace, for the AI
 wizards among themselves and for the peace the human offers it or asks of it: the weariness of the war (what the
 battles and cities it was told of moved it by, and the turns since the last clash), the gap in strength, fear,
 friendship, the strategic value and its temper. A human who offers peace to a wizard of B is answered by the score, not
 by the original's patience and a roll, and the wizard offers the human peace by it, with a cool-down, not one turn in
-eight. System A, the default, is unchanged; B is for the soak to compare and is not offered to the player.
+eight. System A, the original's way and our first design, was removed on 23 November 2026 (task 779): B decides every answer and every offer, with no dice (`diplo_b_talk.rs`).
 

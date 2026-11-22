@@ -126,7 +126,7 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 /// The wizard whose cities the armies should go for, if any.
 pub(crate) fn war_target(ai: &Ai) -> Option<PlayerId> {
-    ai.war_on.or(ai.quarrel)
+    ai.war_on.or(ai.memory.get().enemy.map(|(p, _)| p))
 }
 
 /// The wizard whose cities the armies go for: the one the plan names, else a wizard it is at

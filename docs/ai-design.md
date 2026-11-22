@@ -479,7 +479,7 @@ The same run per seed, from the soak lines (cities `c`, units `u` at the end):
 
 `soak --mastery off` or `--return off` closes the spell to every wizard of a soak (no human plays there; `human` is the same as `off`); see task 584.
 
-`soak --diplomacy A|B|AB` gives the wizards diplomacy system A (the statecraft as it is), B (the new design of `ai-diplomacy-b.md`) or both in turn, the order rotated by the seed; the summary then has a "By diplomacy system" table (wins, wizards alive at the end, every count per wizard and game for each system; task 761). While B is a copy of A the two columns differ only by seat and chance: that is the size of the noise to read the first real difference against.
+`soak --diplomacy` is gone (23 November 2026, task 779): every wizard plays diplomacy system B (`ai-diplomacy-b.md`); the "By diplomacy system" table of the summary went with it. What it said until then: the option gave the wizards system A, B or both in turn; the summary had a "By diplomacy system" table (wins, wizards alive at the end, every count per wizard and game for each system; task 761). While B is a copy of A the two columns differ only by seat and chance: that is the size of the noise to read the first real difference against.
 
 `soak --grant-mastery 40` gives every wizard the Spell of Mastery and its mana at turn 40: the
 AI starts it at once and finishes it (seed 1: turn 134; seed 2: turn 136), so the cast path works
