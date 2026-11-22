@@ -77,6 +77,12 @@ pub(crate) struct Knobs {
     /// The enemy value a wizard needs to be chosen, and to be declared war on.
     pub enemy_min: i32,
     pub declare: i32,
+    /// A war already fought keeps the wizard from declaring another unless its army is this many times
+    /// the size of that enemy's army.
+    pub busy_army_x: i32,
+    /// What each war the wizard already fights takes off its willingness to declare another (from the enemy
+    /// value the declaration needs `declare` of).
+    pub war_damp: i32,
     /// The most a weak, reachable neighbour is worth as prey; and what an enemy already fought, the leader
     /// and the Mastery caster add; percent of the hostility (negative friendship) that counts; the fear at
     /// which an equal or weaker wizard strikes first.
@@ -138,15 +144,17 @@ impl Knobs {
             review: k("REVIEW", 5) as u32,
             hold: k("HOLD", 40) as u32,
             keep: k("KEEP", 20),
-            enemy_min: k("ENEMY_MIN", 40),
-            declare: k("DECLARE", 45),
+            enemy_min: k("ENEMY_MIN", 25),
+            declare: k("DECLARE", 30),
+            busy_army_x: k("BUSY_ARMY_X", 2),
+            war_damp: k("WAR_DAMP", 15),
             prey_value: k("PREY_VALUE", 60),
             at_war: k("AT_WAR", 30),
             leader_enemy: k("LEADER_ENEMY", 25),
             mastery_enemy: k("MASTERY_ENEMY", 60),
             hostile_pct: k("HOSTILE_PCT", 30),
             strike_fear: k("STRIKE_FEAR", 50),
-            from_turn: k("FROM_TURN", 60) as u32,
+            from_turn: k("FROM_TURN", 5) as u32,
             too_strong_pct: k("TOO_STRONG_PCT", 130),
             stance_friend_pct: k("STANCE_FRIEND_PCT", 30),
             common_enemy: k("COMMON_ENEMY", 30),

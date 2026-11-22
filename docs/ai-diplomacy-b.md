@@ -100,9 +100,9 @@ turns each other wizard gets `Values { enemy, friend }`:
   for a pact and 80 for an alliance; unreachable wizards stay below `ENEMY_MIN`.
 * **friend** = `STANCE_FRIEND_PCT` of the friendship + `COMMON_ENEMY` for a shared enemy + `GROVEL_PCT` of the fear of
   a stronger one + `LEAGUE` while a leader leads (less it for the leader itself and the chosen enemy).
-* One **main enemy** (in the memory): chosen at `ENEMY_MIN` (40), kept for `HOLD` (40) turns and after that while its
-  value is at `KEEP` (20). War is declared on it at `DECLARE` (45) from turn `FROM_TURN` (60), when it is reachable,
-  there is no treaty, no young peace, and no war with someone the army is not 4 times as big as.
+* One **main enemy** (in the memory): chosen at `ENEMY_MIN` (25), kept for `HOLD` (40) turns and after that while its
+  value is at `KEEP` (20). War is declared on it when its enemy value, less `WAR_DAMP` (15) for each war already fought, is at `DECLARE` (30), from turn `FROM_TURN` (5), when it is reachable,
+  there is no treaty, no young peace, and no war with someone the army is not `BUSY_ARMY_X` (2) times as big as.
 * The others are **courted** once per `COURT_COOL` (20) turns: a pact at friend `PACT_MIN` 30, an alliance at
   `ALLY_MIN` 55, a gift (A's gold gift) where the relation is too low for a pact and friend is at `GIFT_MIN` 25.
 

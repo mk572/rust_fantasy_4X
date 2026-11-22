@@ -195,9 +195,14 @@ fn declare(
     let sk = crate::statecraft::Knobs::current();
     let busy = scene.others.iter().any(|&p| {
         game.treaty(me, p) == Treaty::War
-            && scene.power(game, me).army < 4 * scene.power(game, p).army.max(1)
+            && scene.power(game, me).army < k.busy_army_x * scene.power(game, p).army.max(1)
     });
-    let v = values(game, me, enemy, scene, &ai.memory.get(), reachable).enemy;
+    let wars = scene
+        .others
+        .iter()
+        .filter(|&&p| game.treaty(me, p) == Treaty::War)
+        .count() as i32;
+    let v = values(game, me, enemy, scene, &ai.memory.get(), reachable).enemy - wars * k.war_damp;
     let _ = sk;
     if busy || !reachable || v < k.declare {
         return;
