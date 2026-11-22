@@ -10,6 +10,7 @@ mod army_screen;
 mod art;
 mod asset_check;
 mod attack_prompt;
+mod attack_war;
 mod audio;
 mod autobuild_dialog;
 mod battle_anim;

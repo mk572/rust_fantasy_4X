@@ -145,6 +145,7 @@
     "diplomacy.gives_gold": "{wizard} gibt dir {gold} Gold",
     "diplomacy.gives_spell": "{wizard} gibt dir den Zauber {spell}",
     "diplomacy.attack_partner": "Du hast einen Vertrag mit {wizard}. Willst du trotzdem angreifen?",
+    "diplomacy.attack_is_war": "Ein Angriff auf {wizard} ist eine Kriegserklärung und beendet jeden Vertrag mit ihnen. Willst du trotzdem angreifen?",
     "diplomacy.have_pact": "Du hast einen Magierpakt mit {wizard}",
     "diplomacy.list_title": "Diplomatie von {owner}",
     "diplomacy.list_name": "Name",

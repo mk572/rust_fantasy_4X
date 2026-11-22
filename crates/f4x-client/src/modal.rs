@@ -50,6 +50,7 @@ pub(crate) mod kind {
     pub(crate) const COMBAT_RESULT: &str = "combat_result";
     pub(crate) const CHANCELLOR: &str = "chancellor";
     pub(crate) const CAST_ANYWAY: &str = "cast_anyway";
+    pub(crate) const ATTACK_WAR: &str = "attack_war";
     pub(crate) const BREAKDOWN: &str = "breakdown";
 }
 

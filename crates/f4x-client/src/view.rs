@@ -2115,8 +2115,7 @@ impl App {
             y: y as u32,
         };
         let units = self.units_that_can_move();
-        let events = self.game.apply(Command::MoveStack { units, to });
-        self.note(events);
+        self.send_attack_checked(Command::MoveStack { units, to }, to);
         // A stack with nothing left to do hands over to the next one waiting for orders.
         let spent = self
             .selection
@@ -2518,8 +2517,7 @@ impl App {
             return;
         }
         let units = self.units_that_can_move();
-        let events = self.game.apply(Command::GoTo { units, to: pos });
-        self.note(events);
+        self.send_attack_checked(Command::GoTo { units, to: pos }, pos);
     }
 
     fn click(&mut self, pos: Position, input: &Input) {
