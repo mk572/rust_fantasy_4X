@@ -341,7 +341,7 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
         }
     }
 
-    // Rivers run on land; a lake touches no sea (only land, or another lake); the poles are
+    // Rivers run on land or cross a lake, never on open sea; a lake touches no sea (only land, or another lake); the poles are
     // tundra or sea.
     for plane in Plane::all() {
         let grid = g.map.plane(plane);
@@ -350,8 +350,9 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
                 let (xi, yi) = (x as i32, y as i32);
                 if grid.has_river(xi, yi)
                     && class_at(g, c, plane, x, y) == Some(TerrainClass::Ocean)
+                    && !grid.is_lake(xi, yi)
                 {
-                    say("river", format!("{plane:?} {x},{y} runs on water"));
+                    say("river", format!("{plane:?} {x},{y} runs on open sea"));
                 }
                 if grid.is_lake(xi, yi) {
                     for (ox, oy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {

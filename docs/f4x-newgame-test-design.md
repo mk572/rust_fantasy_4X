@@ -260,12 +260,12 @@ test that fails without the fix, unless "left" is in the last column (then see t
 | 4 | 1000 by 1000 at 1 percent land took 10 to 21 s (site check scanned all placements) | 2 | `c2_input` 1000x1000 under 10 s | fixed: `Taken` occupancy grid (0.36 s) |
 | 5 | `new_game` returns `String` | 2 | | left, owner's decision |
 | 6 | Towers and sites fell short with free squares left (200 random tries, then quiet) | 3 | `c3_map` matrix at 1 percent land | fixed: a fallback scan over a shuffled list of the squares; maps without shortfall are unchanged |
-| 7 | A river was flagged on lake and ocean squares | 3 | `c3_map` rule `river` | fixed in `mapgen` |
+| 7 | A river could be flagged on open-sea squares (a later river's path over water made by an earlier one); a river may cross a lake, so lakes stay allowed | 3 | `c3_map` rule `river` (open sea only) | fixed in `mapgen` |
 | 8 | Content without a named retort or realm started a game that silently misbehaved | 6 | `c6_coupling`, `c2_input` damaged content | fixed: `coupling::problems` makes `new_game` refuse |
 | 9 | The original generator reaches only 53 to 61 percent land whatever is asked | 3 | `c3_map` `more_land_asked_for_is_more_land_made` | left (see below) |
 
-Fixtures: `fresh_w3_s3.save` of `f4x-core` moved by the river fix and was refreshed on purpose
-(`F4X_REFRESH_FIXTURES=1`). The three played scenarios of `c7_drift` did not move.
+Fixtures: none moved in the end (the river fix, narrowed to open sea, leaves the pinned games as they were). The three played
+scenarios of `c7_drift` did not move either.
 
 ## What was done with the old tests
 

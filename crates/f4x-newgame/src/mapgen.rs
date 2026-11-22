@@ -462,11 +462,14 @@ fn place_rivers(
             continue;
         }
         for (x, y) in flagged {
+            // Never on open sea; a lake (ocean ground with the lake flag) may be crossed.
+            let open_sea =
+                grid.get(x as i32, y as i32) == Some(ocean) && !grid.is_lake(x as i32, y as i32);
             if grid
                 .get(x as i32, y as i32)
-                .is_some_and(|t| !steep.contains(&t) && t != ocean)
+                .is_some_and(|t| !steep.contains(&t))
+                && !open_sea
             {
-                // Not on a lake: a river that runs through one ends in it.
                 grid.set_river(x, y, true);
             }
         }
