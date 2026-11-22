@@ -59,13 +59,13 @@ fn an_ally_takes_a_trade_a_little_short_of_fair_and_a_stranger_does_not() -> Tes
     // a stranger says no and an ally yes.
     let short = Goods::gold(worth * 92 / 100);
     assert_eq!(
-        verdict(&g, P1, P0, short, Goods::spell(dear)),
+        verdict(&g, &Diplomats::new(), P1, P0, short, Goods::spell(dear)),
         Verdict::Refused
     );
     ally(&mut g);
-    assert!(margin(&g, P1, P0) <= 92);
+    assert!(margin(&g, &Diplomats::new(), P1, P0) <= 92);
     assert_eq!(
-        verdict(&g, P1, P0, short, Goods::spell(dear)),
+        verdict(&g, &Diplomats::new(), P1, P0, short, Goods::spell(dear)),
         Verdict::Accepted
     );
     Ok(())
@@ -74,7 +74,7 @@ fn an_ally_takes_a_trade_a_little_short_of_fair_and_a_stranger_does_not() -> Tes
 #[test]
 fn the_margin_eases_with_a_treaty_and_with_goodwill() -> TestResult {
     let (mut g, _) = world()?;
-    let stranger = margin(&g, P1, P0);
+    let stranger = margin(&g, &Diplomats::new(), P1, P0);
     g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
         from: P0,
         to: P1,
@@ -85,10 +85,10 @@ fn the_margin_eases_with_a_treaty_and_with_goodwill() -> TestResult {
         from: P0,
         accept: true,
     }));
-    let pact = margin(&g, P1, P0);
+    let pact = margin(&g, &Diplomats::new(), P1, P0);
     assert!(pact < stranger, "{pact} < {stranger}");
     ally(&mut g);
-    assert!(margin(&g, P1, P0) < pact);
+    assert!(margin(&g, &Diplomats::new(), P1, P0) < pact);
     Ok(())
 }
 
@@ -97,20 +97,23 @@ fn a_spell_is_sold_for_gold_to_a_wizard_that_has_the_books_and_not_to_one_that_h
 ) -> TestResult {
     let (mut g, dear) = world()?;
     ally(&mut g);
-    let Some(ProposalKind::Trade { give, get }) = offer(&g, P0, P1) else {
+    let Some(ProposalKind::Trade { give, get }) = offer(&g, &Diplomats::new(), P0, P1) else {
         return Err("an allied wizard with a spell to sell makes an offer".into());
     };
     assert_eq!(give.spell, Some(dear));
     assert!(get.gold > 0 && get.spell.is_none(), "{get:?}");
     // The price is one the buyer takes.
-    assert_eq!(verdict(&g, P1, P0, give, get), Verdict::Accepted);
+    assert_eq!(
+        verdict(&g, &Diplomats::new(), P1, P0, give, get),
+        Verdict::Accepted
+    );
     // No books of the realm: nothing to sell it.
     g.wizard_mut(P1)
         .ok_or("a wizard")?
         .get_mut::<f4x_core::wizard::sheet::Books>()
         .0
         .clear();
-    assert_eq!(offer(&g, P0, P1), None);
+    assert_eq!(offer(&g, &Diplomats::new(), P0, P1), None);
     Ok(())
 }
 
@@ -129,15 +132,18 @@ fn a_spell_is_bought_when_the_price_is_one_the_seller_takes() -> TestResult {
         .get_mut::<f4x_core::wizard::sheet::KnownSpells>()
         .known
         .insert(dear);
-    let Some(ProposalKind::Trade { give, get }) = offer(&g, P0, P1) else {
+    let Some(ProposalKind::Trade { give, get }) = offer(&g, &Diplomats::new(), P0, P1) else {
         return Err("a wizard with gold to spare buys a spell it lacks".into());
     };
     assert_eq!(get.spell, Some(dear));
     assert!(give.gold > 0);
-    assert_eq!(verdict(&g, P1, P0, give, get), Verdict::Accepted);
+    assert_eq!(
+        verdict(&g, &Diplomats::new(), P1, P0, give, get),
+        Verdict::Accepted
+    );
     // Without the gold to spare there is no purchase.
     g.treasury_mut(P0).ok_or("treasury")?.gold = HalfInt::from_int(10);
-    assert_eq!(offer(&g, P0, P1), None);
+    assert_eq!(offer(&g, &Diplomats::new(), P0, P1), None);
     Ok(())
 }
 
@@ -148,7 +154,7 @@ fn no_trade_with_an_enemy_and_nothing_to_give_an_enemys_friend() -> TestResult {
         player: P0,
         on: P1,
     }));
-    assert_eq!(offer(&g, P0, P1), None);
+    assert_eq!(offer(&g, &Diplomats::new(), P0, P1), None);
     assert_eq!(spell_to_give(&g, P0, P1), None);
     Ok(())
 }
@@ -167,16 +173,20 @@ fn an_open_ask_is_answered_with_a_price_the_asker_would_take() -> TestResult {
     let (g, dear) = world()?;
     // P1 wants the spell and names no price: P0 names one.
     let ask = proposal(P1, P0, Goods::NONE, Goods::spell(dear), 0);
-    let Reply::Counter(ProposalKind::Trade { give, get }) = respond(&g, P0, ask) else {
+    let Reply::Counter(ProposalKind::Trade { give, get }) = respond(&g, &Diplomats::new(), P0, ask)
+    else {
         return Err("a price is named".into());
     };
     assert_eq!(give, Goods::spell(dear));
     let worth = f4x_core::diplomacy::trade::worth(&g, P0, give);
     assert!(
-        get.gold >= worth * margin(&g, P0, P1) / 100,
+        get.gold >= worth * margin(&g, &Diplomats::new(), P0, P1) / 100,
         "{get:?} for a spell worth {worth}"
     );
-    assert_eq!(verdict(&g, P1, P0, give, get), Verdict::Accepted);
+    assert_eq!(
+        verdict(&g, &Diplomats::new(), P1, P0, give, get),
+        Verdict::Accepted
+    );
     Ok(())
 }
 
@@ -185,7 +195,9 @@ fn a_short_offer_is_countered_with_more_and_the_last_round_only_accepts_or_refus
     let (g, dear) = world()?;
     let worth = f4x_core::diplomacy::trade::worth(&g, P0, Goods::spell(dear));
     let short = proposal(P1, P0, Goods::gold(worth * 80 / 100), Goods::spell(dear), 0);
-    let Reply::Counter(ProposalKind::Trade { give, get }) = respond(&g, P0, short) else {
+    let Reply::Counter(ProposalKind::Trade { give, get }) =
+        respond(&g, &Diplomats::new(), P0, short)
+    else {
         return Err("a counter".into());
     };
     assert_eq!(give, Goods::spell(dear));
@@ -198,7 +210,7 @@ fn a_short_offer_is_countered_with_more_and_the_last_round_only_accepts_or_refus
         Goods::spell(dear),
         g.content().rules.config.diplomacy.max_rounds - 1,
     );
-    assert_eq!(respond(&g, P0, last), Reply::Reject);
+    assert_eq!(respond(&g, &Diplomats::new(), P0, last), Reply::Reject);
     let fair = proposal(
         P1,
         P0,
@@ -206,7 +218,7 @@ fn a_short_offer_is_countered_with_more_and_the_last_round_only_accepts_or_refus
         Goods::spell(dear),
         g.content().rules.config.diplomacy.max_rounds - 1,
     );
-    assert_eq!(respond(&g, P0, fair), Reply::Accept);
+    assert_eq!(respond(&g, &Diplomats::new(), P0, fair), Reply::Accept);
     Ok(())
 }
 
@@ -215,7 +227,9 @@ fn an_offer_with_nothing_asked_is_answered_with_what_the_ai_would_give() -> Test
     let (g, dear) = world()?;
     // P1 offers 720 gold and asks nothing: P0 names the spell (the one thing it can hand over).
     let offer = proposal(P1, P0, Goods::gold(720), Goods::NONE, 0);
-    let Reply::Counter(ProposalKind::Trade { give, get }) = respond(&g, P0, offer) else {
+    let Reply::Counter(ProposalKind::Trade { give, get }) =
+        respond(&g, &Diplomats::new(), P0, offer)
+    else {
         return Err("an offer is named".into());
     };
     assert_eq!((give.spell, get.gold), (Some(dear), 720));
@@ -241,7 +255,7 @@ fn a_unit_over_the_garrison_is_for_sale_and_the_last_defender_is_not() -> TestRe
     };
     assert!(core::giveable_unit(&g, P0, serial).is_some());
     ally(&mut g);
-    let Some(sale) = sell(&g, P0, P1) else {
+    let Some(sale) = sell(&g, &Diplomats::new(), P0, P1) else {
         return Err("a surplus unit is sold to an ally".into());
     };
     assert_eq!(sale.give.unit, Some(serial));

@@ -109,6 +109,9 @@ pub(crate) struct Memory {
     pub enemy: Option<(PlayerId, u32)>,
     #[serde(default)]
     pub reviewed: u32,
+    /// What it feels about each of the others (task 780, `opinion.rs`).
+    #[serde(default)]
+    pub opinions: Vec<crate::opinion::Opinion>,
 }
 
 impl Memory {
@@ -219,6 +222,7 @@ impl Memory {
             |p: PlayerId| p != me && (game.is_wizard(p) || game.race_of_player(p).is_some());
         let k = Knobs::current();
         for event in events {
+            self.feel(game, me, event);
             // What the others do that is ruthless, seen when they are known to it.
             let act = match *event {
                 Event::CityRazed { player, .. } => Some((player, Ruth::Razed)),
@@ -331,6 +335,31 @@ impl Diplomats {
 
     pub(crate) fn add(&self, player: PlayerId, memory: &Shared) {
         self.0.borrow_mut().insert(player, Rc::clone(&memory.0));
+    }
+
+    pub(crate) fn add_if_absent(&self, player: PlayerId, memory: &Shared) {
+        self.0
+            .borrow_mut()
+            .entry(player)
+            .or_insert_with(|| Rc::clone(&memory.0));
+    }
+
+    /// What `me` feels about `other` (`Memory::opinion`); the start when it has no memory in the table.
+    pub(crate) fn opinion(
+        &self,
+        game: &Game,
+        me: PlayerId,
+        other: PlayerId,
+    ) -> crate::opinion::Opinion {
+        match self.0.borrow().get(&me) {
+            Some(m) => m.borrow().opinion(game, me, other),
+            None => Memory::default().opinion(game, me, other),
+        }
+    }
+
+    /// How friendly `me` feels about `other`.
+    pub(crate) fn friendship(&self, game: &Game, me: PlayerId, other: PlayerId) -> i32 {
+        self.opinion(game, me, other).friendship
     }
 
     /// What `player` remembers; an empty memory when it has none in the table.

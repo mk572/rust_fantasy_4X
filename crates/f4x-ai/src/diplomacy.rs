@@ -12,7 +12,7 @@ pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let pending = PlayerView::new(game, ai.player).proposals_to_me();
     for proposal in pending {
         if matches!(proposal.kind, ProposalKind::Trade { .. }) {
-            match crate::trade::respond(game, ai.player, proposal) {
+            match crate::trade::respond(game, &ai.minds(), ai.player, proposal) {
                 crate::trade::Reply::Counter(kind) => {
                     let sent = ai.send(
                         game,
@@ -41,13 +41,9 @@ pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
             }
         }
-        let accept = crate::diplo_b_talk::rate(
-            game,
-            proposal.from,
-            proposal.to,
-            proposal.kind,
-            &ai.memory.get(),
-        ) == Verdict::Accepted;
+        let accept =
+            crate::diplo_b_talk::rate(game, proposal.from, proposal.to, proposal.kind, &ai.minds())
+                == Verdict::Accepted;
         ai.order(
             game,
             Command::Diplomacy(DiplomacyCommand::Answer {

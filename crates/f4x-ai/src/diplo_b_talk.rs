@@ -23,7 +23,7 @@ use f4x_core::player::PlayerId;
 use crate::diplo_b::{regard, Knobs, Regard};
 use crate::diplo_b_stance::{court, declare_on, values};
 use crate::diplomacy::Verdict;
-use crate::memory::{Did, Memory};
+use crate::memory::{Did, Diplomats};
 use crate::statecraft::{can_attack, propose, remark, Scene};
 use crate::Ai;
 
@@ -38,8 +38,9 @@ pub(crate) fn rate(
     asker: PlayerId,
     judge: PlayerId,
     kind: ProposalKind,
-    memory: &Memory,
+    minds: &Diplomats,
 ) -> Verdict {
+    let memory = &minds.of(judge);
     let k = Knobs::current();
     let scene = Scene::new(game, judge);
     let r = regard(game, judge, asker, &scene, memory);
@@ -77,7 +78,9 @@ pub(crate) fn rate(
             let other = regard(game, judge, third, &scene, memory);
             yes(r.friendship - other.friendship >= k.break_accept)
         }
-        ProposalKind::Trade { give, get } => crate::trade::verdict(game, judge, asker, give, get),
+        ProposalKind::Trade { give, get } => {
+            crate::trade::verdict(game, minds, judge, asker, give, get)
+        }
         ProposalKind::Threat => yes(yields_to_threat(game, judge, asker, &r, &k)),
         // The tribute is paid by one who fears the asker; the game pays it only if the gold is there.
         ProposalKind::Demand { .. } => yes(r.fear >= k.yield_fear),
@@ -301,7 +304,7 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             continue;
         }
         ai.memory.put().did(other, Did::Trade, game.turn);
-        if let Some(kind) = crate::trade::offer(game, me, other) {
+        if let Some(kind) = crate::trade::offer(game, &ai.minds(), me, other) {
             if propose(ai, game, events, other, kind) {
                 // `propose` has the other answer at once.
             }
@@ -314,48 +317,50 @@ mod tests {
     use super::*;
     use crate::diplo_b_stance::tests::pair;
     use crate::testworld::{P0, P1};
-    use f4x_core::diplomacy::Action;
 
-    /// What `P0` feels about `P1`, moved by `value` (P1 did it).
-    fn feel(g: &mut Game, value: i32) {
-        g.change_relations(value, P1, P0, Action::Friendship, None);
+    /// What `P0` feels about `P1`, set outright in the memory of the `Ai` the test holds for P0.
+    fn feel(g: &mut Game, ai: &Ai, value: i32) {
+        ai.memory.put().set_friendship(g, P0, P1, value);
     }
 
-    fn verdict(g: &mut Game, kind: ProposalKind) -> Verdict {
-        let ai = Ai::new(P0);
-        let memory = ai.memory.get().clone();
-        rate(g, P1, P0, kind, &memory)
+    fn verdict(g: &mut Game, ai: &Ai, kind: ProposalKind) -> Verdict {
+        rate(g, P1, P0, kind, &ai.minds())
     }
 
     #[test]
     fn a_friendly_wizard_accepts_a_pact_and_a_hostile_one_does_not() {
+        let ai = Ai::new(P0);
         let mut g = pair(8, 8, 100);
         assert_eq!(
-            verdict(&mut g, ProposalKind::Pact),
+            verdict(&mut g, &ai, ProposalKind::Pact),
             Verdict::Refused,
             "a stranger"
         );
-        feel(&mut g, 80);
+        feel(&mut g, &ai, 80);
         assert_eq!(
-            verdict(&mut g, ProposalKind::Pact),
+            verdict(&mut g, &ai, ProposalKind::Pact),
             Verdict::Accepted,
             "a friend"
         );
-        feel(&mut g, -200);
+        feel(&mut g, &ai, -200);
         assert_eq!(
-            verdict(&mut g, ProposalKind::Pact),
+            verdict(&mut g, &ai, ProposalKind::Pact),
             Verdict::Refused,
             "a foe"
         );
-        assert_eq!(verdict(&mut g, ProposalKind::Alliance), Verdict::Refused);
+        assert_eq!(
+            verdict(&mut g, &ai, ProposalKind::Alliance),
+            Verdict::Refused
+        );
     }
 
     #[test]
     fn an_alliance_needs_more_than_a_pact() {
+        let ai = Ai::new(P0);
         let mut g = pair(8, 8, 100);
-        feel(&mut g, 50);
-        let pact = verdict(&mut g, ProposalKind::Pact);
-        let alliance = verdict(&mut g, ProposalKind::Alliance);
+        feel(&mut g, &ai, 50);
+        let pact = verdict(&mut g, &ai, ProposalKind::Pact);
+        let alliance = verdict(&mut g, &ai, ProposalKind::Alliance);
         assert!(
             !(alliance == Verdict::Accepted && pact == Verdict::Refused),
             "{pact:?} {alliance:?}"
@@ -364,25 +369,27 @@ mod tests {
 
     #[test]
     fn the_answer_is_the_same_every_time_no_dice() {
+        let ai = Ai::new(P0);
         let mut g = pair(8, 8, 100);
-        feel(&mut g, 30);
-        let first = verdict(&mut g, ProposalKind::Pact);
+        feel(&mut g, &ai, 30);
+        let first = verdict(&mut g, &ai, ProposalKind::Pact);
         for _ in 0..20 {
-            assert_eq!(verdict(&mut g, ProposalKind::Pact), first);
+            assert_eq!(verdict(&mut g, &ai, ProposalKind::Pact), first);
         }
     }
 
     #[test]
     fn a_wizard_that_fears_the_asker_yields_to_a_demand_and_one_that_does_not_refuses() {
+        let ai = Ai::new(P0);
         let mut g = pair(2, 40, 100);
         assert_eq!(
-            verdict(&mut g, ProposalKind::Demand { gold: 50 }),
+            verdict(&mut g, &ai, ProposalKind::Demand { gold: 50 }),
             Verdict::Accepted,
             "outclassed and near"
         );
         let mut g = pair(40, 2, 100);
         assert_eq!(
-            verdict(&mut g, ProposalKind::Demand { gold: 50 }),
+            verdict(&mut g, &ai, ProposalKind::Demand { gold: 50 }),
             Verdict::Refused,
             "the stronger one"
         );
@@ -390,8 +397,9 @@ mod tests {
 
     #[test]
     fn a_threat_from_a_much_weaker_asker_is_answered_by_war() {
+        let ai = Ai::new(P0);
         let mut g = pair(40, 2, 100);
-        assert_eq!(verdict(&mut g, ProposalKind::Threat), Verdict::Refused);
+        assert_eq!(verdict(&mut g, &ai, ProposalKind::Threat), Verdict::Refused);
         assert_eq!(
             g.treaty(P0, P1),
             Treaty::War,
@@ -407,12 +415,12 @@ mod tests {
 
     #[test]
     fn a_wizard_that_hates_the_human_declares_war_and_a_stranger_does_nothing() {
-        let mut g = with_human(pair(8, 8, 100));
         let ai = Ai::new(P0);
+        let mut g = with_human(pair(8, 8, 100));
         let mut events = Vec::new();
         approach_human(&ai, &mut g, &mut events);
         assert_ne!(g.treaty(P0, P1), Treaty::War, "a stranger is left alone");
-        feel(&mut g, -200);
+        feel(&mut g, &ai, -200);
         approach_human(&ai, &mut g, &mut events);
         assert_eq!(g.treaty(P0, P1), Treaty::War);
     }
@@ -420,12 +428,12 @@ mod tests {
     #[test]
     fn a_close_friend_with_a_treaty_gives_the_human_gold_and_one_whose_friendship_fell_breaks_the_pact(
     ) {
+        let ai = Ai::new(P0);
         let mut g = with_human(pair(8, 8, 100));
         g.start_treaty(P0, P1, Treaty::Pact);
-        feel(&mut g, 100);
+        feel(&mut g, &ai, 100);
         g.treasury_mut(P0).expect("a treasury").gold = f4x_def::half_int::HalfInt::from_int(500);
         let before = g.player(P1).expect("a player").treasury().gold;
-        let ai = Ai::new(P0);
         let mut events = Vec::new();
         approach_human(&ai, &mut g, &mut events);
         assert!(
@@ -441,7 +449,7 @@ mod tests {
         );
         let mut g = with_human(pair(8, 8, 100));
         g.start_treaty(P0, P1, Treaty::Pact);
-        feel(&mut g, -150);
+        feel(&mut g, &ai, -150);
         let mut events = Vec::new();
         approach_human(&ai, &mut g, &mut events);
         assert_eq!(g.treaty(P0, P1), Treaty::None, "the pact stands");
@@ -449,18 +457,16 @@ mod tests {
 
     #[test]
     fn a_wizard_warns_a_partner_it_is_tiring_of_and_not_again_at_once() {
+        let ai = Ai::new(P0);
         let mut g = with_human(pair(8, 8, 100));
         g.start_treaty(P0, P1, Treaty::Pact);
         // Down to between the marks for a warning and for breaking the treaty.
         let k = Knobs::current();
-        let ai = Ai::new(P0);
         let friendship = |g: &Game| {
             let scene = Scene::new(g, P0);
             regard(g, P0, P1, &scene, &ai.memory.get()).friendship
         };
-        while friendship(&g) > k.warn_below {
-            feel(&mut g, -3);
-        }
+        feel(&mut g, &ai, k.warn_below - 1);
         assert!(
             friendship(&g) > k.break_below,
             "went past the mark for breaking"

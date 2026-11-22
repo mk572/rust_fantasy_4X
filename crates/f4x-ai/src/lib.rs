@@ -37,6 +37,7 @@ mod monster;
 mod naval;
 mod objective;
 mod offer;
+mod opinion;
 mod perimeter;
 mod persist;
 mod phase;
@@ -391,9 +392,17 @@ impl Ai {
     /// The wizard as it answers a proposal made to it: a new one with the memory the table holds
     /// of the real wizard.
     fn answering(player: PlayerId, diplomats: &Diplomats) -> Self {
-        let ai = Ai::new(player);
+        let mut ai = Ai::new(player);
         ai.memory.replace(diplomats.of(player));
+        ai.diplomats = diplomats.clone();
         ai
+    }
+
+    /// The memories of every wizard of the game, this one's among them (a host that did not join a table
+    /// has only this one's): what a trade needs to weigh the other side's answer too.
+    pub(crate) fn minds(&self) -> Diplomats {
+        self.diplomats.add_if_absent(self.player, &self.memory);
+        self.diplomats.clone()
     }
 
     /// Join the game's table of memories: the wizard's memory is shared with it, so a proposal made to

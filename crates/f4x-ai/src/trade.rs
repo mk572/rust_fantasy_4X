@@ -20,6 +20,7 @@ use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
 
 use crate::diplomacy::Verdict;
+use crate::memory::Diplomats;
 use crate::statecraft::{arms_enemy, goodwill};
 
 /// The numbers of a trade, in one place (`AIK_DIPLO_<NAME>` for a soak).
@@ -64,21 +65,21 @@ impl Knobs {
 }
 
 /// What a trade must bring `judge` in percent of what it gives `other`: the margin.
-pub(crate) fn margin(game: &Game, judge: PlayerId, other: PlayerId) -> i32 {
+pub(crate) fn margin(game: &Game, minds: &Diplomats, judge: PlayerId, other: PlayerId) -> i32 {
     let k = Knobs::current();
     let base = match game.treaty(judge, other) {
         Treaty::Alliance => k.margin_alliance,
         Treaty::Pact => k.margin_pact,
         _ => k.margin_none,
     };
-    let relation = game.relation(judge, other);
+    let relation = minds.friendship(game, judge, other);
     let kind = ProposalKind::Trade {
         give: Goods::NONE,
         get: Goods::NONE,
     };
     let eased = base
         - k.margin_per_relation * relation / 10
-        - k.margin_per_goodwill * goodwill(game, judge, other, kind) / 10;
+        - k.margin_per_goodwill * goodwill(game, minds, judge, other, kind) / 10;
     eased.clamp(k.margin_least, k.margin_most)
 }
 
@@ -92,6 +93,7 @@ fn arms(game: &Game, from: PlayerId, to: PlayerId, goods: Goods) -> bool {
 /// judge gets it), `get` what it asks of the judge.
 pub(crate) fn verdict(
     game: &Game,
+    minds: &Diplomats,
     judge: PlayerId,
     asker: PlayerId,
     give: Goods,
@@ -105,7 +107,7 @@ pub(crate) fn verdict(
     }
     let gets = core::worth(game, judge, give);
     let costs = core::worth(game, judge, get);
-    if gets * 100 >= costs * margin(game, judge, asker) {
+    if gets * 100 >= costs * margin(game, minds, judge, asker) {
         Verdict::Accepted
     } else {
         Verdict::Refused
@@ -195,14 +197,19 @@ pub(crate) enum Reply {
 /// - an open question is answered by naming a price (the asker named only what it wants), or by
 ///   naming what it would give (the asker named only what it gives);
 /// - anything else is refused, and so is every counter past the last round.
-pub(crate) fn respond(game: &Game, judge: PlayerId, proposal: Proposal) -> Reply {
+pub(crate) fn respond(
+    game: &Game,
+    minds: &Diplomats,
+    judge: PlayerId,
+    proposal: Proposal,
+) -> Reply {
     let ProposalKind::Trade { give, get } = proposal.kind else {
         return Reply::Reject;
     };
     let asker = proposal.from;
     if !give.is_empty()
         && !get.is_empty()
-        && verdict(game, judge, asker, give, get) == Verdict::Accepted
+        && verdict(game, minds, judge, asker, give, get) == Verdict::Accepted
     {
         return Reply::Accept;
     }
@@ -214,11 +221,11 @@ pub(crate) fn respond(game: &Game, judge: PlayerId, proposal: Proposal) -> Reply
         return Reply::Reject;
     }
     let counter = if give.is_empty() {
-        name_price(game, judge, asker, get)
+        name_price(game, minds, judge, asker, get)
     } else if get.is_empty() {
-        name_offer(game, judge, asker, give)
+        name_offer(game, minds, judge, asker, give)
     } else {
-        counter_short(game, judge, asker, give, get)
+        counter_short(game, minds, judge, asker, give, get)
     };
     // The counter is the judge's own proposal: it gives what the asker asked for.
     counter
@@ -229,23 +236,26 @@ pub(crate) fn respond(game: &Game, judge: PlayerId, proposal: Proposal) -> Reply
 /// Whether the asker, if an AI, would take what the judge counters with; a human decides alone.
 fn asker_would_take(
     game: &Game,
+    minds: &Diplomats,
     judge: PlayerId,
     asker: PlayerId,
     gives: Goods,
     gets: Goods,
 ) -> bool {
-    Some(asker) == game.human() || verdict(game, asker, judge, gives, gets) == Verdict::Accepted
+    Some(asker) == game.human()
+        || verdict(game, minds, asker, judge, gives, gets) == Verdict::Accepted
 }
 
 /// A full offer that is a little short: ask for one more category from the asker.
 fn counter_short(
     game: &Game,
+    minds: &Diplomats,
     judge: PlayerId,
     asker: PlayerId,
     give: Goods,
     get: Goods,
 ) -> Option<ProposalKind> {
-    let need = core::worth(game, judge, get) * margin(game, judge, asker) / 100;
+    let need = core::worth(game, judge, get) * margin(game, minds, judge, asker) / 100;
     let clears = |new_give: Goods| core::worth(game, judge, new_give) >= need;
     let ask = holdings(game, asker, judge)
         .into_iter()
@@ -262,7 +272,7 @@ fn counter_short(
             (more > give.gold && core::can_hand_over(game, asker, judge, Goods::gold(more)))
                 .then_some(Goods { gold: more, ..give })
         })
-        .filter(|&g| clears(g) && asker_would_take(game, judge, asker, get, g))
+        .filter(|&g| clears(g) && asker_would_take(game, minds, judge, asker, get, g))
         .min_by_key(|&g| core::worth(game, asker, g));
     if let Some(new_give) = ask {
         return Some(ProposalKind::Trade {
@@ -283,9 +293,9 @@ fn counter_short(
         .filter(|&g| g != get && !g.is_empty())
         .filter(|&g| {
             core::worth(game, judge, give)
-                >= core::worth(game, judge, g) * margin(game, judge, asker) / 100
+                >= core::worth(game, judge, g) * margin(game, minds, judge, asker) / 100
         })
-        .filter(|&g| asker_would_take(game, judge, asker, g, give))
+        .filter(|&g| asker_would_take(game, minds, judge, asker, g, give))
         .max_by_key(|&g| core::worth(game, asker, g))
         .map(|less| ProposalKind::Trade {
             give: less,
@@ -295,10 +305,16 @@ fn counter_short(
 
 /// The asker wants `get` and names nothing: name a price it can pay, the cheapest for it that
 /// the judge takes (gold, one of its things, or a thing and the gold that makes it up).
-fn name_price(game: &Game, judge: PlayerId, asker: PlayerId, get: Goods) -> Option<ProposalKind> {
+fn name_price(
+    game: &Game,
+    minds: &Diplomats,
+    judge: PlayerId,
+    asker: PlayerId,
+    get: Goods,
+) -> Option<ProposalKind> {
     let k = Knobs::current();
-    let need =
-        (core::worth(game, judge, get) * margin(game, judge, asker) / 100).max(k.least_price);
+    let need = (core::worth(game, judge, get) * margin(game, minds, judge, asker) / 100)
+        .max(k.least_price);
     let paid_in = holdings(game, asker, judge)
         .into_iter()
         .map(|c| {
@@ -309,7 +325,7 @@ fn name_price(game: &Game, judge: PlayerId, asker: PlayerId, get: Goods) -> Opti
     let price = paid_in
         .filter(|&g| core::can_hand_over(game, asker, judge, g))
         .filter(|&g| core::worth(game, judge, g) >= need)
-        .filter(|&g| asker_would_take(game, judge, asker, get, g))
+        .filter(|&g| asker_would_take(game, minds, judge, asker, get, g))
         .min_by_key(|&g| core::worth(game, asker, g))?;
     Some(ProposalKind::Trade {
         give: get,
@@ -319,9 +335,15 @@ fn name_price(game: &Game, judge: PlayerId, asker: PlayerId, get: Goods) -> Opti
 
 /// The asker gives `give` and names nothing: name what the judge would give for it, the thing
 /// worth the most to the asker that costs the judge no more than its margin leaves.
-fn name_offer(game: &Game, judge: PlayerId, asker: PlayerId, give: Goods) -> Option<ProposalKind> {
+fn name_offer(
+    game: &Game,
+    minds: &Diplomats,
+    judge: PlayerId,
+    asker: PlayerId,
+    give: Goods,
+) -> Option<ProposalKind> {
     let k = Knobs::current();
-    let budget = core::worth(game, judge, give) * 100 / margin(game, judge, asker);
+    let budget = core::worth(game, judge, give) * 100 / margin(game, minds, judge, asker);
     let gold = budget.min(spendable(game, judge));
     let cheap = |g: Goods| {
         core::worth(game, judge, g) <= budget
@@ -334,7 +356,7 @@ fn name_offer(game: &Game, judge: PlayerId, asker: PlayerId, give: Goods) -> Opt
         .chain((gold >= k.least_price).then(|| Goods::gold(gold)))
         .filter(|&g| core::can_hand_over(game, judge, asker, g))
         .filter(|&g| !(g.is_only_gold() && give.is_only_gold()))
-        .filter(|&g| asker_would_take(game, judge, asker, g, give))
+        .filter(|&g| asker_would_take(game, minds, judge, asker, g, give))
         .max_by_key(|&g| core::worth(game, asker, g))?;
     Some(ProposalKind::Trade {
         give: pay,
@@ -345,12 +367,18 @@ fn name_offer(game: &Game, judge: PlayerId, asker: PlayerId, give: Goods) -> Opt
 /// The cheapest gold price at which `seller`'s thing is worth selling to `buyer`: the seller's
 /// own worth with its margin (a seller is paid more than it values the thing at), and at most
 /// what the buyer would pay at its margin. None when the two do not meet.
-fn price(game: &Game, seller: PlayerId, buyer: PlayerId, thing: Goods) -> Option<i32> {
+fn price(
+    game: &Game,
+    minds: &Diplomats,
+    seller: PlayerId,
+    buyer: PlayerId,
+    thing: Goods,
+) -> Option<i32> {
     let k = Knobs::current();
     // Rounded up, so that the price clears the seller's own margin (`meets` checks it in hundredths).
-    let ask = (core::worth(game, seller, thing) * margin(game, seller, buyer) + 99) / 100;
+    let ask = (core::worth(game, seller, thing) * margin(game, minds, seller, buyer) + 99) / 100;
     let ask = ask.max(k.least_price);
-    let most = core::worth(game, buyer, thing) * 100 / margin(game, buyer, seller);
+    let most = core::worth(game, buyer, thing) * 100 / margin(game, minds, buyer, seller);
     (ask <= most).then_some(ask)
 }
 
@@ -370,7 +398,7 @@ struct Offer {
 /// A spell swap: of every pair of a spell `me` could give and one it could get, the one that
 /// leaves the less content of the two the most content (each side judges the worth to itself);
 /// the swap must clear both margins.
-fn swap(game: &Game, me: PlayerId, other: PlayerId) -> Option<Offer> {
+fn swap(game: &Game, minds: &Diplomats, me: PlayerId, other: PlayerId) -> Option<Offer> {
     let (mine, theirs) = (game.wizard(me)?, game.wizard(other)?);
     let spells = &game.content().rules.spells;
     let gives: Vec<_> = spells
@@ -401,17 +429,23 @@ fn swap(game: &Game, me: PlayerId, other: PlayerId) -> Option<Offer> {
         get: Goods::spell(get),
         gain: 0,
     };
-    meets(game, me, other, offer)
+    meets(game, minds, me, other, offer)
 }
 
 /// The offer with its gain for `me`, when both `me` and `other` would accept it.
-fn meets(game: &Game, me: PlayerId, other: PlayerId, offer: Offer) -> Option<Offer> {
+fn meets(
+    game: &Game,
+    minds: &Diplomats,
+    me: PlayerId,
+    other: PlayerId,
+    offer: Offer,
+) -> Option<Offer> {
     let (gets, costs) = (
         core::worth(game, me, offer.get),
         core::worth(game, me, offer.give),
     );
-    let ok_me = gets * 100 >= costs * margin(game, me, other);
-    let ok_other = verdict(game, other, me, offer.give, offer.get) == Verdict::Accepted;
+    let ok_me = gets * 100 >= costs * margin(game, minds, me, other);
+    let ok_other = verdict(game, minds, other, me, offer.give, offer.get) == Verdict::Accepted;
     (ok_me
         && ok_other
         && core::can_hand_over(game, me, other, offer.give)
@@ -424,7 +458,7 @@ fn meets(game: &Game, me: PlayerId, other: PlayerId, offer: Offer) -> Option<Off
 }
 
 /// Buy a spell `other` knows with gold.
-fn buy_spell(game: &Game, me: PlayerId, other: PlayerId) -> Option<Offer> {
+fn buy_spell(game: &Game, minds: &Diplomats, me: PlayerId, other: PlayerId) -> Option<Offer> {
     let (mine, theirs) = (game.wizard(me)?, game.wizard(other)?);
     let budget = spendable(game, me);
     game.content()
@@ -434,20 +468,20 @@ fn buy_spell(game: &Game, me: PlayerId, other: PlayerId) -> Option<Offer> {
         .filter(|&(id, def)| theirs.knows(id) && !mine.knows(id) && mine.books_allow(def))
         .filter_map(|(id, _)| {
             let thing = Goods::spell(id);
-            let gold = price(game, other, me, thing)?;
+            let gold = price(game, minds, other, me, thing)?;
             (gold <= budget).then(|| Offer {
                 give: Goods::gold(gold),
                 get: thing,
                 gain: 0,
             })
         })
-        .filter_map(|o| meets(game, me, other, o))
+        .filter_map(|o| meets(game, minds, me, other, o))
         .max_by_key(|o| o.gain)
 }
 
 /// Sell something of `me`'s to `other` for gold: a spell, an item from the armory or a unit that
 /// is in a city.
-fn sell(game: &Game, me: PlayerId, other: PlayerId) -> Option<Offer> {
+fn sell(game: &Game, minds: &Diplomats, me: PlayerId, other: PlayerId) -> Option<Offer> {
     let budget = spendable(game, other) + Knobs::current().reserve;
     let mut things: Vec<Goods> = Vec::new();
     if let (Some(mine), Some(theirs)) = (game.wizard(me), game.wizard(other)) {
@@ -477,14 +511,14 @@ fn sell(game: &Game, me: PlayerId, other: PlayerId) -> Option<Offer> {
     things
         .into_iter()
         .filter_map(|thing| {
-            let gold = price(game, me, other, thing)?;
+            let gold = price(game, minds, me, other, thing)?;
             (gold <= budget).then(|| Offer {
                 give: thing,
                 get: Goods::gold(gold),
                 gain: 0,
             })
         })
-        .filter_map(|o| meets(game, me, other, o))
+        .filter_map(|o| meets(game, minds, me, other, o))
         .max_by_key(|o| o.gain)
 }
 
@@ -516,7 +550,12 @@ fn surplus_unit(game: &Game, me: PlayerId) -> Option<f4x_core::game::serial::Ser
 
 /// The trade `me` would offer `other` now: the one that gains it most of a swap, a purchase and
 /// a sale. None when nothing clears the margins.
-pub(crate) fn offer(game: &Game, me: PlayerId, other: PlayerId) -> Option<ProposalKind> {
+pub(crate) fn offer(
+    game: &Game,
+    minds: &Diplomats,
+    me: PlayerId,
+    other: PlayerId,
+) -> Option<ProposalKind> {
     if !Knobs::current().on
         || game.treaty(me, other) == Treaty::War
         || !PlayerView::new(game, me).is_diplomat(other)
@@ -524,9 +563,9 @@ pub(crate) fn offer(game: &Game, me: PlayerId, other: PlayerId) -> Option<Propos
         return None;
     }
     [
-        swap(game, me, other),
-        buy_spell(game, me, other),
-        sell(game, me, other),
+        swap(game, minds, me, other),
+        buy_spell(game, minds, me, other),
+        sell(game, minds, me, other),
     ]
     .into_iter()
     .flatten()

@@ -276,7 +276,7 @@ pub(crate) fn court(
     if !due || friend < k.gift_min {
         return;
     }
-    let relation = game.relation(me, other);
+    let relation = ai.memory.get().friendship(game, me, other);
     let rules = &game.content().rules.config.diplomacy;
     let (pact_floor, ally_floor) = (rules.pact_relation, rules.alliance_relation);
     let kind = match game.treaty(me, other) {

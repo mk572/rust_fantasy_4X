@@ -242,12 +242,8 @@ pub(crate) fn regard(
 ) -> Regard {
     let k = Knobs::current();
     let sk = crate::statecraft::Knobs::current();
-    let stance = game
-        .diplomacy
-        .stance(other, me)
-        .cloned()
-        .unwrap_or_default();
-    let friendship = stance.hidden + game.relation(me, other);
+    let opinion = memory.opinion(game, me, other);
+    let friendship = opinion.hidden + opinion.friendship;
     let (mine, theirs) = (scene.power(game, me), scene.power(game, other));
     let (m, t) = (mine.score(&sk).max(1), theirs.score(&sk));
     let distance = nearest(game, scene, me, other);

@@ -1022,3 +1022,6 @@ friendship, the strategic value and its temper. A human who offers peace to a wi
 by the original's patience and a roll, and the wizard offers the human peace by it, with a cool-down, not one turn in
 eight. System A, the original's way and our first design, was removed on 23 November 2026 (task 779): B decides every answer and every offer, with no dice (`diplo_b_talk.rs`).
 
+## 52. The AI's table of relations has no dice (task 780)
+
+The original rolls inside `Change_Relations` and its callers (`Random(3)` for a pact's growth, `Random(20)` for a broken oath, `Random(25)` for a war, `Random(10)` for a refused demand, `Random(8)+Random(8)` for a gift of a spell, and so on). The AI of this game keeps its own opinion of each player (`f4x-ai/src/opinion.rs`) and uses the average of each roll, rounded: a war sets the feeling to -87, a broken oath takes 10, a refused demand 6, a threat 7, a gift of a spell `base * 7 / 10` and a regard of 5. The same events always give the same opinion.

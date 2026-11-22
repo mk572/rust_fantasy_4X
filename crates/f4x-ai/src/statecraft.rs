@@ -29,6 +29,7 @@ use f4x_core::player::PlayerId;
 use f4x_core::rules::RaceId;
 use f4x_core::wizard::magic::Retort;
 
+use crate::memory::Diplomats;
 use crate::Ai;
 
 /// Every number of the statecraft in one place.
@@ -216,7 +217,7 @@ fn race_of(game: &Game, who: PlayerId) -> Option<RaceId> {
 /// The modest bonus `me` gives `other`'s standing, to its willingness for a pact, an alliance, a
 /// trade or a peace: the other's fame, a Charismatic retort, the same race, books in the same
 /// realms, less a treaty the other broke with it. None of these decides alone.
-pub(crate) fn affinity(game: &Game, me: PlayerId, other: PlayerId) -> i32 {
+pub(crate) fn affinity(game: &Game, minds: &Diplomats, me: PlayerId, other: PlayerId) -> i32 {
     let k = Knobs::current();
     let mut a = 0;
     if let Some(w) = game.wizard(other) {
@@ -251,11 +252,7 @@ pub(crate) fn affinity(game: &Game, me: PlayerId, other: PlayerId) -> i32 {
         }
     }
     // The memory of a broken treaty.
-    if game
-        .diplomacy
-        .stance(me, other)
-        .is_some_and(|s| s.broken.is_some())
-    {
+    if minds.opinion(game, me, other).broken {
         a -= k.broken_memory;
     }
     a
@@ -276,12 +273,18 @@ pub(crate) fn self_interest(game: &Game, judge: PlayerId, asker: PlayerId) -> i3
 }
 
 /// The sum of the factors and the self-interest, in the willingness of `judge` toward `asker`.
-pub(crate) fn goodwill(game: &Game, judge: PlayerId, asker: PlayerId, kind: ProposalKind) -> i32 {
+pub(crate) fn goodwill(
+    game: &Game,
+    minds: &Diplomats,
+    judge: PlayerId,
+    asker: PlayerId,
+    kind: ProposalKind,
+) -> i32 {
     let k = Knobs::current();
     if !k.on_factors {
         return 0;
     }
-    let mut g = affinity(game, judge, asker) - self_interest(game, judge, asker);
+    let mut g = affinity(game, minds, judge, asker) - self_interest(game, judge, asker);
     if matches!(kind, ProposalKind::Pact | ProposalKind::Alliance) {
         // Two wizards that fear the same leader get on better.
         if let Some(leader) = leader_of(game, judge) {

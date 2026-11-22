@@ -73,7 +73,8 @@ fn lopsided_at(rival: Option<(u32, u32)>) -> Result<Game, Box<dyn std::error::Er
 #[test]
 fn the_factors_ease_a_treaty_a_little_and_a_broken_one_is_remembered() -> TestResult {
     let mut g = lopsided()?;
-    let plain = affinity(&g, P0, P1);
+    let mut ai = Ai::new(P0);
+    let plain = affinity(&g, &ai.minds(), P0, P1);
     // The same race is a bonus (both are high men), a Charismatic retort another.
     wizard(
         &mut g,
@@ -82,11 +83,11 @@ fn the_factors_ease_a_treaty_a_little_and_a_broken_one_is_remembered() -> TestRe
         &[Retort::new(16) /* charismatic */],
         None,
     );
-    let charismatic = affinity(&g, P0, P1);
+    let charismatic = affinity(&g, &ai.minds(), P0, P1);
     assert_eq!(charismatic, plain + Knobs::current().charismatic);
     // Life against Death do not get on.
     wizard(&mut g, P1, &[(RealmId::new(4 /* death */), 3)], &[], None);
-    assert!(affinity(&g, P0, P1) < plain);
+    assert!(affinity(&g, &ai.minds(), P0, P1) < plain);
     wizard(&mut g, P1, &[(RealmId::new(3 /* life */), 3)], &[], None);
     // A treaty the other broke with it counts against it.
     g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
@@ -100,13 +101,14 @@ fn the_factors_ease_a_treaty_a_little_and_a_broken_one_is_remembered() -> TestRe
         accept: true,
     }));
     assert_eq!(g.treaty(P0, P1), Treaty::Pact);
-    let before = affinity(&g, P0, P1);
-    g.apply(Command::Diplomacy(DiplomacyCommand::BreakTreaty {
+    let before = affinity(&g, &ai.minds(), P0, P1);
+    let events = g.apply(Command::Diplomacy(DiplomacyCommand::BreakTreaty {
         player: P1,
         with: P0,
     }));
+    ai.notice(&g, &events);
     assert_eq!(
-        affinity(&g, P0, P1),
+        affinity(&g, &ai.minds(), P0, P1),
         before - Knobs::current().broken_memory
     );
     Ok(())
@@ -121,7 +123,7 @@ fn no_trade_arms_an_enemy() -> TestResult {
         player: P0,
         on: P1,
     }));
-    assert!(crate::trade::offer(&g, P0, P1).is_none());
+    assert!(crate::trade::offer(&g, &Ai::new(P0).minds(), P0, P1).is_none());
     assert!(arms_enemy(&g, P0, P1));
     Ok(())
 }
