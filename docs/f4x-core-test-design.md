@@ -230,3 +230,13 @@ sweeps a range does not run every value there: two sizes of the same test.
   never `for v in range` over a range of more than a handful of values.
 
 `F4X_ATTACKS=n` still sets the number of numbers attacked in the content loading tests, for any count.
+
+## Class 8 in use: the pinned digests
+
+`check::digest(&game)` cuts the saved text at the fields of the snapshot and hashes each (the versions left out).
+`tests/it/c8_drift.rs` plays short scripts on the four fresh saves (rounds of the scripted walk, bare turns, every
+command of the sweep then three turns), digests the game at the checkpoints and compares with
+`crates/f4x-core/tests/pins/core_drift.txt`. A failure names each checkpoint and the fields that moved. Regenerate
+on purpose (`F4X_REFRESH_PINS=1 cargo test -p f4x-core --features testutil --test it c8_`) and review the diff: the
+fields that moved should be the ones the change is about. A content change moves the pins too (after
+`F4X_REFRESH_FIXTURES=1 ...`, refresh the pins). The pins record what the game does today; they are not a rule.

@@ -126,6 +126,44 @@ pub fn world_problems(g: &Game) -> Vec<String> {
     bad
 }
 
+/// The digest of a game: its saved text cut at the fields of the snapshot, each field hashed (FNV-1a,
+/// sixteen hex digits). Two games that are the same have the same digest, and a game that drifted shows
+/// which fields moved (`units`, `cities`, `draws`) without a whole text to compare. The pinned digests of
+/// `tests/it/c8_drift.rs` are made from it (`docs/f4x-core-test-design.md`, class 8).
+pub fn digest(g: &Game) -> Vec<(String, String)> {
+    let text = g.snapshot().to_text().expect("a game writes as text");
+    // The first line carries the checksum of the rest; the fields start at four spaces.
+    let body = text.split_once('\n').map_or("", |(_, b)| b);
+    let mut fields: Vec<(String, String)> = Vec::new();
+    for line in body.lines() {
+        let key = line
+            .strip_prefix("    ")
+            .filter(|rest| !rest.starts_with(' '))
+            .and_then(|rest| rest.split_once(':'))
+            .map(|(k, _)| k)
+            .filter(|k| !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'));
+        match (key, fields.last_mut()) {
+            (Some(k), _) => fields.push((k.to_string(), format!("{line}\n"))),
+            (None, Some((_, text))) => {
+                text.push_str(line);
+                text.push('\n');
+            }
+            (None, None) => {}
+        }
+    }
+    // The versions are no drift of the game: a release moves every pin otherwise.
+    fields
+        .into_iter()
+        .filter(|(k, _)| !matches!(k.as_str(), "version" | "game_version"))
+        .map(|(k, text)| {
+            let hash = text.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, b| {
+                (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+            });
+            (k, format!("{hash:016x}"))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
