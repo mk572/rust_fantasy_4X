@@ -199,11 +199,13 @@ Found by the rebuilt tests, each fixed in the code with the test that found it:
 
 ## Open questions
 
-- A command that is refused in part: `forget_if_rejected` drops the whole command from the replay when any event is
-  a `Rejected`, but a standing order (`GoTo`) can move units and then report a refused step in the same answer. If
-  that can happen the replay misses a command that changed the game. No test reaches it yet; the sweep found no
-  refusal that also changed the game.
-
+- A command that is refused in part (looked for, not found): `forget_if_rejected` drops a whole command from the
+  replay when any event is a `Rejected`, which would lose a command that changed the game and also reported a
+  refusal. The code does not seem to do that: a standing order that cannot go on reports `OrderFailed`, and the only
+  two places that build a `Rejected` after other work (diplomacy, moving a building by spell) report it for an
+  `Err` alone. The refusal sweep, which now includes every diplomacy command, found no refusal that changed the
+  game on the four worlds, at the start and after 4, 12 and 25 rounds of play (the slow variant, `--ignored`).
+  If a command ever mixes the two, this sweep is where it shows.
 - Which invariants of class 2 the rules really demand: the list above is a start from reading names, to be checked
   against `docs/design.md` and the code as the checker is written.
 - Whether the long plays belong in `f4x-ai/tests/it` or in a crate of their own that sees core, newgame and the AI

@@ -348,6 +348,86 @@ pub fn commands(g: &Game) -> Vec<Command> {
             }
         }
     }
+    // Diplomacy between each pair of players, the unknown one among them.
+    {
+        use f4x_core::diplomacy::trade::Goods;
+        use f4x_core::diplomacy::{DiplomacyCommand as D, ProposalKind as K, Remark};
+        let spell = spells.first().copied().expect("a spell");
+        let parties: Vec<PlayerId> = players
+            .iter()
+            .copied()
+            .filter(|&p| p == PlayerId(250) || (!g.is_neutral_player(p) && g.wizard(p).is_some()))
+            .collect();
+        for &a in &parties {
+            for &b in &parties {
+                let kinds = [
+                    K::Pact,
+                    K::Alliance,
+                    K::Peace,
+                    K::WarOn(b),
+                    K::BreakAllianceWith(b),
+                    K::Trade {
+                        give: Goods::gold(10),
+                        get: Goods::gold(5),
+                    },
+                    K::Trade {
+                        give: Goods::gold(i32::MAX),
+                        get: Goods::gold(i32::MIN),
+                    },
+                    K::Threat,
+                    K::Demand { gold: 0 },
+                    K::Demand { gold: i32::MAX },
+                    K::Demand { gold: -5 },
+                ];
+                let mut diplomacy = vec![
+                    D::Greeted { player: a, with: b },
+                    D::Answer {
+                        player: a,
+                        from: b,
+                        accept: true,
+                    },
+                    D::Answer {
+                        player: a,
+                        from: b,
+                        accept: false,
+                    },
+                    D::BreakTreaty { player: a, with: b },
+                    D::DeclareWar { player: a, on: b },
+                    D::GiveSpell {
+                        from: a,
+                        to: b,
+                        spell,
+                    },
+                    D::Warn { from: a, to: b },
+                    D::Remark {
+                        from: a,
+                        to: b,
+                        why: Remark::Coalition,
+                    },
+                ];
+                for amount in [0, 5, -5, i32::MAX, i32::MIN] {
+                    diplomacy.push(D::GiveGold {
+                        from: a,
+                        to: b,
+                        amount,
+                    });
+                }
+                for kind in kinds {
+                    diplomacy.push(D::Propose {
+                        from: a,
+                        to: b,
+                        kind,
+                    });
+                    diplomacy.push(D::Counter {
+                        player: a,
+                        from: b,
+                        kind,
+                    });
+                }
+                out.extend(diplomacy.into_iter().map(Command::Diplomacy));
+            }
+        }
+    }
     for &c in &cities {
         out.push(Command::BuyProduction { city: c });
         out.push(Command::RenameCity {

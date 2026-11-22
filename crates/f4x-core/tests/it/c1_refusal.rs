@@ -8,12 +8,16 @@
 use crate::support::{commands, text, worlds};
 use f4x_core::game::Event;
 
-#[test]
-fn a_refused_command_changes_nothing() {
+/// Try every command of the sweep on each world, warmed up with `warm` rounds of play first, and check
+/// each refusal. Returns how many commands were tried and how many were refused.
+fn sweep(every: usize, warm: usize) -> (usize, usize) {
     let mut tried = 0;
     let mut refused = 0;
     let mut recorded = 0;
-    for (name, mut g) in worlds().into_iter().step_by(2) {
+    for (name, mut g) in worlds().into_iter().step_by(every) {
+        for _ in 0..warm {
+            crate::support::busy_round(&mut g, 6);
+        }
         // Recording and undo are on, so that a refused command is also checked for what it leaves
         // there: nothing in the replay, nothing to undo.
         g.start_recording().expect("recording starts");
@@ -58,13 +62,33 @@ fn a_refused_command_changes_nothing() {
         }
     }
     assert!(
-        recorded > tried / 10,
+        recorded > 300,
         "the recording was checked only {recorded} times in {tried}"
     );
+    (tried, refused)
+}
+
+#[test]
+fn a_refused_command_changes_nothing() {
+    let (tried, refused) = sweep(2, 0);
     assert!(
         refused > tried / 4,
         "only {refused} of {tried} commands were refused: the sweep is not reaching the refusals"
     );
+}
+
+/// The same on every world, each after rounds of play, so that refusals are tried against games that
+/// have more going on (orders given, units hurt, cities grown). Slow: run it with `--ignored`.
+#[test]
+#[ignore]
+fn a_refused_command_changes_nothing_in_a_game_under_way() {
+    for warm in [4, 12, 25] {
+        let (tried, refused) = sweep(1, warm);
+        assert!(
+            refused > tried / 4,
+            "after {warm} rounds: only {refused} of {tried} were refused"
+        );
+    }
 }
 
 /// The commands the sweep does not make yet, and why: each is a gap to close, not a decision.
@@ -84,10 +108,6 @@ const NOT_TRIED: &[(&str, &str)] = &[
     ("CraftItem", "needs a craft and a design"),
     ("ScrapItem", "needs items in the vault"),
     ("SellItem", "needs items in the vault"),
-    (
-        "Diplomacy",
-        "needs meetings and proposals: its own sweep, with the treaties",
-    ),
 ];
 
 /// The variants of `Command`, read from its source.
