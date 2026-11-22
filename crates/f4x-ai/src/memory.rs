@@ -177,6 +177,8 @@ impl Memory {
                 a.broken += 1;
                 a.points += k.ruth_broken;
             }
+            Ruth::Fortress => a.points += k.ruth_fortress,
+            Ruth::Destroyed => a.points += k.ruth_destroyed,
         }
     }
 
@@ -232,6 +234,17 @@ impl Memory {
                 Event::Diplomacy(DiplomacyEvent::TreatyBroken { breaker, .. }) => {
                     Some((breaker, Ruth::Broken))
                 }
+                // Whoever the winner was to the one who fell, it is a power to fear.
+                Event::Diplomacy(DiplomacyEvent::FortressTaken { winner, loser })
+                    if loser != me =>
+                {
+                    Some((winner, Ruth::Fortress))
+                }
+                Event::Diplomacy(DiplomacyEvent::WizardDestroyed { winner, loser })
+                    if loser != me =>
+                {
+                    Some((winner, Ruth::Destroyed))
+                }
                 _ => None,
             };
             if let Some((who, kind)) = act {
@@ -281,6 +294,8 @@ enum Ruth {
     Razed,
     War,
     Broken,
+    Fortress,
+    Destroyed,
 }
 
 /// A memory behind a handle, shared by the wizard and the table. A copy of the wizard (`Clone`) has

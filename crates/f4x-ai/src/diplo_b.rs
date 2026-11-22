@@ -62,6 +62,9 @@ pub(crate) struct Knobs {
     pub ruth_raze: i32,
     pub ruth_war: i32,
     pub ruth_broken: i32,
+    /// A fortress taken and a wizard destroyed (task 782): fear in every wizard that has met the winner.
+    pub ruth_fortress: i32,
+    pub ruth_destroyed: i32,
     pub ruth_half: u32,
     pub ruth_cap: i32,
     /// The wizard casting the Spell of Mastery is not made peace with (a minus), and, with a leader in
@@ -161,6 +164,8 @@ impl Knobs {
             ruth_raze: k("RUTH_RAZE", 15),
             ruth_war: k("RUTH_WAR", 6),
             ruth_broken: k("RUTH_BROKEN", 10),
+            ruth_fortress: k("RUTH_FORTRESS", 10),
+            ruth_destroyed: k("RUTH_DESTROYED", 20),
             ruth_half: k("RUTH_HALF", 150) as u32,
             ruth_cap: k("RUTH_CAP", 60),
             mastery: k("MASTERY", 60),

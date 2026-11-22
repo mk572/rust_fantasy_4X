@@ -292,12 +292,12 @@ impl Memory {
             Event::Diplomacy(DiplomacyEvent::FortressTaken { winner, loser })
                 if me != winner && me != loser =>
             {
-                self.change(game, me, winner, -20, Action::Threat);
+                self.conquest(game, me, winner, loser, 20);
             }
             Event::Diplomacy(DiplomacyEvent::WizardDestroyed { winner, loser })
                 if me != winner && me != loser =>
             {
-                self.change(game, me, winner, -40, Action::Threat);
+                self.conquest(game, me, winner, loser, 40);
             }
             Event::Diplomacy(DiplomacyEvent::EnchantmentCast { caster, spell }) if caster != me => {
                 if let Some((value, action)) = enchantment_reaction(game, spell.num(), me) {
@@ -323,6 +323,23 @@ impl Memory {
             }
             _ => {}
         }
+    }
+
+    /// `winner` took the fortress of `loser` or destroyed it (`base`: 20 or 40 in the original, which
+    /// took that much off every bystander's feeling). Here it goes by whom `me` likes: a friend of the
+    /// winner who dislikes the loser is pleased, a friend of the loser is angry, a wizard that cares for
+    /// neither feels nothing. (The fear of the winner grows either way: `Memory::notice`.)
+    fn conquest(
+        &mut self,
+        game: &Game,
+        me: PlayerId,
+        winner: PlayerId,
+        loser: PlayerId,
+        base: i32,
+    ) {
+        let gap = self.friendship(game, me, loser) - self.friendship(game, me, winner);
+        let value = (-base * gap / 100).clamp(-base, base);
+        self.change(game, me, winner, value, Action::Threat);
     }
 
     /// A war with `other` began: the feeling falls to the middle of the original's `-75 - Random(25)`.
@@ -644,10 +661,15 @@ mod tests {
     }
 
     #[test]
-    fn a_fortress_taken_or_a_wizard_destroyed_alarms_the_others_but_not_the_loser() {
+    fn a_fortress_taken_or_a_wizard_destroyed_is_judged_by_whom_one_likes() {
         let g = pair(8, 8, 100);
-        // P0 is a bystander: P1 won against a third wizard.
         let third = PlayerId(7);
+        let judged = |event: DiplomacyEvent, winner: i32, loser: i32| {
+            let mut m = mind(&g, winner);
+            m.set_friendship(&g, P0, third, loser);
+            m.feel(&g, P0, &Event::Diplomacy(event));
+            m.friendship(&g, P0, P1) - winner
+        };
         let taken = DiplomacyEvent::FortressTaken {
             winner: P1,
             loser: third,
@@ -656,17 +678,49 @@ mod tests {
             winner: P1,
             loser: third,
         };
-        assert_eq!(felt(&g, taken), -20);
-        assert_eq!(felt(&g, destroyed), -40);
+        assert_eq!(judged(taken.clone(), 0, 0), 0, "it cares for neither");
+        assert!(judged(taken.clone(), 50, -50) > 0, "a friend rids it of an enemy");
+        assert!(judged(taken.clone(), -50, 50) < 0, "an enemy strikes a friend");
+        assert!(
+            judged(destroyed.clone(), 50, -50) > judged(taken.clone(), 50, -50),
+            "destroying counts for more than a fortress"
+        );
         let own = DiplomacyEvent::WizardDestroyed {
             winner: P1,
             loser: P0,
         };
         assert_eq!(
-            felt(&g, own),
+            judged(own, 0, 0),
             0,
             "the loser has no feelings left to change here"
         );
+    }
+
+    #[test]
+    fn a_conquest_makes_the_winner_feared_whatever_one_thinks_of_it() {
+        let g = pair(8, 8, 100);
+        let k = crate::diplo_b::Knobs::current();
+        let third = PlayerId(7);
+        for (event, points) in [
+            (
+                DiplomacyEvent::FortressTaken {
+                    winner: P1,
+                    loser: third,
+                },
+                k.ruth_fortress,
+            ),
+            (
+                DiplomacyEvent::WizardDestroyed {
+                    winner: P1,
+                    loser: third,
+                },
+                k.ruth_destroyed,
+            ),
+        ] {
+            let mut m = mind(&g, 50);
+            m.notice(P0, &g, &[Event::Diplomacy(event)]);
+            assert_eq!(m.ruthlessness(P1, g.turn, k.ruth_half), points);
+        }
     }
 
     #[test]
