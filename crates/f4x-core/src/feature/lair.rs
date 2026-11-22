@@ -123,7 +123,7 @@ pub struct Loot {
     pub mana: u32,
     /// The magic items found, made from the values in the hoard; they are in the armory.
     pub items: Vec<crate::item::Item>,
-    /// A prisoner hero was found: a free offer of the hero waits on the wizard's offers.
+    /// A prisoner hero was found and freed: it now serves the winner on the square of the lair.
     pub prisoner: bool,
     pub spell: Option<SpellId>,
     /// Spell books gained, by realm.
@@ -273,15 +273,6 @@ pub(crate) fn award_special(
     }
 }
 
-/// Where a freed prisoner serves.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Prisoner {
-    /// A free offer of the hero on the wizard's offers.
-    Offer,
-    /// The hero stands in this city of a neutral player.
-    Join(Position),
-}
-
 impl Game {
     /// Fight the guards of the site on `to`, which a stack next to it has been stopped at.
     /// The guards are created as neutral units on the site for the battle.
@@ -378,35 +369,11 @@ impl Game {
         Some(lair)
     }
 
-    /// Where a freed prisoner can serve `player`: a wizard gets a free offer; a neutral player
-    /// gets the hero in the nearest of its cities that has room. `None` when no hero is left to
-    /// free (every one serves, or is gone for good) or there is no room: the prisoner is then
-    /// rerolled into the hoard.
-    fn prisoner_place(&self, player: PlayerId, near: Position) -> Option<Prisoner> {
-        if !self
-            .units()
+    /// Whether a prisoner of the lair can be freed for `player`: a hero is left to free (every one
+    /// serves, or is gone for good). Otherwise the prisoner is rerolled into the hoard.
+    fn can_free_prisoner(&self, player: PlayerId) -> bool {
+        self.units()
             .hero_summonable(player, crate::hero::kind::Class::Any)
-        {
-            return None;
-        }
-        if self.wizard(player).is_some() {
-            return Some(Prisoner::Offer);
-        }
-        let economy = self.economy();
-        let mut homes: Vec<Position> = economy
-            .cities()
-            .into_iter()
-            .filter(|(_, c, _)| c.owner == player)
-            .map(|(_, _, p)| p)
-            .filter(|&p| self.units().units_at(p).len() < self.tile_limit(p))
-            .collect();
-        homes.sort_by_key(|p| {
-            (
-                p.plane != near.plane,
-                p.x.abs_diff(near.x) + p.y.abs_diff(near.y),
-            )
-        });
-        homes.first().map(|&p| Prisoner::Join(p))
     }
 
     /// Clear a lair and give `player` its treasure. What the winner cannot use is rerolled from
@@ -418,10 +385,10 @@ impl Game {
         let pos = lair.pos;
         let wizard = self.wizard(player).is_some();
         let mut unused = 0i32;
-        let mut prisoner = None;
+        let mut prisoner = false;
         if lair.prisoner {
-            prisoner = self.prisoner_place(player, pos);
-            if prisoner.is_none() {
+            prisoner = self.can_free_prisoner(player);
+            if !prisoner {
                 unused += 1000;
             }
         }
@@ -442,9 +409,7 @@ impl Game {
             }
             lair.special = 0;
         }
-        let has_hero = wizard
-            || matches!(prisoner, Some(Prisoner::Join(_)))
-            || !self.units().hero_units(player).is_empty();
+        let has_hero = wizard || prisoner || !self.units().hero_units(player).is_empty();
         if !has_hero {
             unused += lair.items.iter().map(|&v| v as i32).sum::<i32>();
             lair.items.clear();
@@ -547,22 +512,11 @@ impl Game {
             self.give_item(player, item.clone());
         }
         loot.items = items;
-        // A prisoner is a hero for nothing: offered to a wizard, in service at once for a
-        // neutral player.
-        if let Some(place) = prisoner {
+        // A prisoner is a hero for nothing: freed on the square of the lair, in the service of the
+        // winner, as in the original. The square may hold more than a stack walks in with.
+        if prisoner {
             if let Some(kind) = self.pick_hero(player, true, crate::hero::kind::Class::Any) {
-                match place {
-                    Prisoner::Offer => {
-                        if let Some(o) = self.player_component_mut::<crate::player::Offers>(player)
-                        {
-                            o.0.insert(0, crate::player::offer::Offer::Hero { kind, price: 0 });
-                            loot.prisoner = true;
-                        }
-                    }
-                    Prisoner::Join(at) => {
-                        loot.prisoner = self.spawn_hero(player, at, kind).is_ok();
-                    }
-                }
+                loot.prisoner = self.spawn_hero(player, pos, kind).is_ok();
             }
         }
         let mut events = vec![Event::SiteCleared {

@@ -1,5 +1,5 @@
 //! How many units stand in a city: what its defence wants (`wanted_strength`, `post`), the
-//! late-game dismissal of cheap units (`thin_out`). Which unit steps off a full square is `crowd.rs`. Sending soldiers to a
+//! late-game dismissal of cheap units (`thin_out`). Sending soldiers to a
 //! city that holds too little is `reinforce.rs`.
 //!
 //! Tests: below, on the shipped content, with a second city.
@@ -11,21 +11,9 @@ use f4x_core::player::view::PlayerView;
 use crate::view::{garrison_wanted, is_fighter, unit_strength};
 use crate::Ai;
 
-/// The square the wizard's summoned creatures appear on.
-fn circle(view: &PlayerView) -> Option<Position> {
-    view.wizard().and_then(|w| w.summon_point())
-}
-
-/// How many units the AI lets stand on `at`: what a square holds (the game's `max_tile`), less
-/// one at the summoning circle.
+/// How many units the AI lets stand on `at`: what a square lets in (the game's `tile_limit`).
 pub fn city_cap(view: &PlayerView, at: Position) -> usize {
-    let limit = view.max_tile();
-    let cap = limit;
-    if circle(view) == Some(at) {
-        cap.min(limit.saturating_sub(1))
-    } else {
-        cap
-    }
+    view.tile_limit(at)
 }
 
 /// Moves from which a unit is fast: it serves the scouting and the war better than the defence

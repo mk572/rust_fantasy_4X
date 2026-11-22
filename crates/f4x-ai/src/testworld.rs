@@ -129,6 +129,9 @@ fn build_game_in(
         .expect("the race exists");
     let mut game = Game::new(seed);
     game.set_content(content);
+    // The tests of the AI play with the default stack limit, which is higher than a battle side;
+    // the v1.31 rule set of the content takes the original's nine, with no reserve to test.
+    game.scenario_change_settings(|s| s.rules.max_tile = f4x_core::game::setting::DEFAULT_MAX_TILE);
     game.set_map(Map::new(build(rivers), build(&[])));
     game.add_player(P0, "West");
     game.add_player(P1, "East");

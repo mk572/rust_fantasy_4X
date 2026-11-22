@@ -181,3 +181,74 @@ fn a_crowded_save_is_put_right_by_the_next_command() {
     });
     assert!(loaded.crowded_anywhere().is_empty());
 }
+
+/// A prisoner of a cleared lair is freed where the lair stands, in the winner's service, even when the
+/// army that freed it is a full stack: nothing is offered, nothing is refused for room.
+#[test]
+fn a_freed_prisoner_stands_on_the_square_of_the_lair() {
+    use crate::support::around;
+    use f4x_core::game::testutil::battle_policy;
+    let mut freed = 0;
+    for (w, seed) in crate::support::WORLDS {
+        let name = format!("{w} wizards, seed {seed}");
+        let base = f4x_core::game::testutil::fresh(w, seed).expect("a fresh game");
+        let (wizard, _) = wizard_and_city(&base);
+        let strong = {
+            let mut defs: Vec<_> = base
+                .content()
+                .rules
+                .units
+                .defs()
+                .iter()
+                .filter(|d| d.kind != f4x_core::rules::UnitKind::Hero)
+                .collect();
+            defs.sort_by_key(|d| std::cmp::Reverse(d.cost));
+            f4x_core::rules::UnitId::new(defs[0].num)
+        };
+        for lair in base.economy().lairs().into_iter().filter(|l| l.prisoner) {
+            let mut g = f4x_core::game::testutil::fresh(w, seed).expect("a fresh game");
+            let Some(from) = around(&g, lair.pos).into_iter().next() else {
+                continue;
+            };
+            let side = g.max_battle_side();
+            for _ in 0..side + 1 {
+                g.apply(Command::CreateUnit {
+                    owner: wizard,
+                    pos: from,
+                    unit: strong,
+                });
+            }
+            let stack = g.units().units_at(from);
+            let heroes = g.units().hero_units(wizard).len();
+            let mut events = g.apply(Command::EnterSite {
+                units: stack,
+                to: lair.pos,
+            });
+            let mut steps = 0;
+            while g.battle().is_some() && steps < 5000 {
+                let Some(c) = battle_policy(&g) else { break };
+                events.extend(g.apply(Command::Battle(c)));
+                steps += 1;
+            }
+            let loot = events.iter().find_map(|e| match e {
+                Event::SiteCleared { loot, .. } => Some(loot.clone()),
+                _ => None,
+            });
+            if loot.is_some_and(|l| l.prisoner) {
+                freed += 1;
+                let here = g.units().units_at(lair.pos);
+                assert_eq!(
+                    g.units().hero_units(wizard).len(),
+                    heroes + 1,
+                    "{name}: the hero serves the winner"
+                );
+                assert!(
+                    here.iter()
+                        .any(|&u| g.units().hero_units(wizard).contains(&u)),
+                    "{name}: the hero stands on the lair's square"
+                );
+            }
+        }
+    }
+    assert!(freed > 0, "no prisoner was freed in any world");
+}

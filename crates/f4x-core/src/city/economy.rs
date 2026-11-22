@@ -237,7 +237,7 @@ impl<'a> Economy<'a> {
             events: &crate::world_event::NONE,
             diagonal_extra: false,
             settlers_cost_citizen: true,
-            max_tile: crate::unit::MAX_TILE_LIMIT,
+            max_tile: f4x_def::settings::DEFAULT_MAX_TILE,
             max_city_size: u32::from(f4x_def::settings::DEFAULT_MAX_CITY_SIZE),
             min_city_distance: u32::from(f4x_def::settings::DEFAULT_MIN_CITY_DISTANCE),
             max_battle_side: crate::unit::MAX_STACK,

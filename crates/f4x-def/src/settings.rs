@@ -51,9 +51,14 @@ pub const STRONG_SITES_PER_REFERENCE_AREA: u32 = 25;
 pub const WEAK_SITES_PER_REFERENCE_AREA: u32 = 32;
 pub const SITES_RANGE: std::ops::RangeInclusive<u8> = 0..=100;
 
-/// The most units a game may let stand on one tile: the ceiling of the `max_tile` setting and its
-/// default. Read the game's own limit with `Game::max_tile()`.
-pub const MAX_TILE_LIMIT: usize = 20;
+/// The default of the `max_tile` setting (the community patch's and the mod's): units that may
+/// walk onto one square. The rule set of v1.31 takes the original's nine (`rules_settings.ron`).
+/// Read the game's own limit with `Game::max_tile()`.
+pub const DEFAULT_MAX_TILE: usize = 20;
+
+/// The ceiling of the `max_tile` setting: half the sanity limit, because a tower takes twice the
+/// walking limit and the sanity limit must stay above that (`Economy::tile_limit`).
+pub const MAX_TILE_LIMIT: usize = TILE_SANITY_LIMIT / 2;
 
 /// The most units that may stand on one tile whatever the setting and however they got there (a
 /// hire, a summoning, a prisoner freed, a unit built, a stack moved in). Past it the game disbands
@@ -412,7 +417,7 @@ pub struct RuleSettings {
     /// How hard a walking unit hits a flying one in melee.
     #[serde(default = "fb_melee_vs_fliers")]
     pub melee_vs_fliers: MeleeVsFliers,
-    /// Most units on one square, from `max_battle_side` up to `MAX_TILE_LIMIT`: 12 in v1.31, 20 in
+    /// Most units on one square, from `max_battle_side` up to `MAX_TILE_LIMIT`: 9 in v1.31 (the original's), 20 in
     /// v1.6. Units above a battle side on a defended square are a reserve.
     #[serde(default = "default_max_tile")]
     pub max_tile: usize,
@@ -984,7 +989,7 @@ impl RuleSet {
             rules: RuleSettings {
                 trireme_capacity: MAX_SHIP_CAPACITY,
                 galley_capacity: MAX_SHIP_CAPACITY,
-                max_tile: MAX_TILE_LIMIT,
+                max_tile: DEFAULT_MAX_TILE,
                 walls_cover_city: true,
                 miners_guild_half_ore: true,
                 spell_binding_always_succeeds: true,
