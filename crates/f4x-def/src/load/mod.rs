@@ -7,6 +7,7 @@ use std::path::Path;
 
 use crate::content::Content;
 use crate::feature::{FeatureDef, FeatureKind, Features};
+use crate::issue::Issues;
 use crate::map::Plane;
 use crate::map::{TerrainClass, TerrainDef, Terrains, REQUIRED_CLASSES};
 use crate::settings::SettingsDef;
@@ -20,7 +21,7 @@ pub fn parse_terrains(src: &str) -> Result<Terrains, ContentError> {
     if problems.is_empty() {
         Ok(Terrains::new(defs))
     } else {
-        Err(ContentError::invalid(problems))
+        Err(ContentError::new(problems))
     }
 }
 
@@ -29,41 +30,33 @@ pub fn load_terrains(path: &Path) -> Result<Terrains, ContentError> {
     parse_terrains(&src)
 }
 
-/// Returns a human-readable list of problems; empty means valid.
-pub fn validate_terrains(defs: &[TerrainDef]) -> Vec<String> {
-    let mut problems = Vec::new();
+/// Every problem of the terrain rows; empty means valid.
+pub fn validate_terrains(defs: &[TerrainDef]) -> Vec<ContentIssue> {
+    const F: &str = "terrain.ron";
+    let mut problems = Issues::new();
     let mut seen = HashSet::new();
     let mut nums = HashSet::new();
     for d in defs {
-        let id_ok = !d.id.is_empty()
-            && d.id
-                .chars()
-                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
-        if !id_ok {
-            problems.push(format!(
-                "terrain id {:?} must be lowercase [a-z0-9_] and non-empty",
-                d.id
-            ));
-        }
+        let at = format!("terrain {:?}", d.id);
+        problems.extend_opt(id_problem(F, "terrain", &d.id));
         if !seen.insert(d.id.as_str()) {
-            problems.push(format!("duplicate terrain id {:?}", d.id));
+            problems.duplicate(F, &at, "the id", format!("{:?}", d.id));
         }
-        if d.num == 0 || !nums.insert(d.num) {
-            problems.push(format!(
-                "terrain {:?} needs a number that no other has",
-                d.id
-            ));
+        if d.num == 0 {
+            problems.out_of_range(F, &at, "num", 0, "above 0");
+        } else if !nums.insert(d.num) {
+            problems.duplicate(F, &at, "the number", d.num);
         }
         if d.planes.is_empty() {
-            problems.push(format!("terrain {:?} is available on no plane", d.id));
+            problems.missing(F, &at, "planes (it is available on no plane)");
         }
         match (d.class == TerrainClass::Ocean, d.walkable) {
-            (true, true) => problems.push(format!("ocean terrain {:?} must not be walkable", d.id)),
-            (false, false) => problems.push(format!("land terrain {:?} must be walkable", d.id)),
+            (true, true) => problems.conflict(F, &at, "an ocean terrain must not be walkable"),
+            (false, false) => problems.conflict(F, &at, "a land terrain must be walkable"),
             _ => {}
         }
         if d.walkable && d.move_cost == 0 {
-            problems.push(format!("walkable terrain {:?} needs move_cost >= 1", d.id));
+            problems.out_of_range(F, &at, "move_cost", 0, "at least 1 for a walkable terrain");
         }
     }
     for plane in Plane::all() {
@@ -72,19 +65,26 @@ pub fn validate_terrains(defs: &[TerrainDef]) -> Vec<String> {
                 .iter()
                 .any(|d| d.class == class && d.planes.contains(&plane))
             {
-                problems.push(format!("no {class:?} terrain defined for {plane:?}"));
+                problems.missing(F, "", &format!("a {class:?} terrain for {plane:?}"));
             }
         }
     }
-    problems
+    problems.into_vec()
 }
 
-pub(crate) fn id_problem(kind: &str, id: &str) -> Option<String> {
+/// The issue for an id that is not a plain lowercase word, if it is not one.
+pub(crate) fn id_problem(file: &str, kind: &str, id: &str) -> Option<ContentIssue> {
     let ok = !id.is_empty()
         && id
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
-    (!ok).then(|| format!("{kind} id {id:?} must be lowercase [a-z0-9_] and non-empty"))
+    (!ok).then(|| {
+        ContentIssue::new(file, format!("{kind} {id:?}"), IssueKind::OutOfRange).with([
+            "the id".to_string(),
+            format!("{id:?}"),
+            "lowercase [a-z0-9_] and not empty".to_string(),
+        ])
+    })
 }
 
 pub fn parse_features(src: &str) -> Result<Features, ContentError> {
@@ -94,49 +94,49 @@ pub fn parse_features(src: &str) -> Result<Features, ContentError> {
     if problems.is_empty() {
         Ok(Features::new(defs))
     } else {
-        Err(ContentError::invalid(problems))
+        Err(ContentError::new(problems))
     }
 }
 
-/// Returns a human-readable list of problems; empty means valid.
-pub fn validate_features(defs: &[FeatureDef]) -> Vec<String> {
-    let mut problems = Vec::new();
+/// Every problem of the feature rows; empty means valid.
+pub fn validate_features(defs: &[FeatureDef]) -> Vec<ContentIssue> {
+    const F: &str = "features.ron";
+    let mut problems = Issues::new();
     let mut seen = HashSet::new();
     let mut nums = HashSet::new();
     for d in defs {
-        problems.extend(id_problem("feature", &d.id));
+        let at = format!("feature {:?}", d.id);
+        problems.extend_opt(id_problem(F, "feature", &d.id));
         if !seen.insert(d.id.as_str()) {
-            problems.push(format!("duplicate feature id {:?}", d.id));
+            problems.duplicate(F, &at, "the id", format!("{:?}", d.id));
         }
-        if d.num == 0 || !nums.insert(d.num) {
-            problems.push(format!(
-                "feature {:?} needs a number that no other has",
-                d.id
-            ));
+        if d.num == 0 {
+            problems.out_of_range(F, &at, "num", 0, "above 0");
+        } else if !nums.insert(d.num) {
+            problems.duplicate(F, &at, "the number", d.num);
         }
         if d.kind != FeatureKind::Tower && d.spawn.is_empty() {
-            problems.push(format!(
-                "feature {:?} ({:?}) has no spawn rules",
-                d.id, d.kind
-            ));
+            problems.missing(
+                F,
+                &at,
+                &format!("spawn rules (a {:?} feature needs some)", d.kind),
+            );
         }
         for (i, r) in d.spawn.iter().enumerate() {
             let at = format!("feature {:?} spawn rule {i}", d.id);
             if r.weight == 0 {
-                problems.push(format!("{at}: weight must be at least 1"));
+                problems.out_of_range(F, &at, "weight", 0, "at least 1");
             }
             if r.planes.is_empty() || r.terrain.is_empty() {
-                problems.push(format!(
-                    "{at}: needs at least one terrain class and one plane"
-                ));
+                problems.missing(F, &at, "a terrain class and a plane (at least one of each)");
             }
             if r.terrain.contains(&TerrainClass::Ocean) {
-                problems.push(format!("{at}: features cannot spawn on Ocean"));
+                problems.conflict(F, &at, "features cannot spawn on Ocean");
             }
         }
     }
     if !defs.iter().any(|d| d.kind == FeatureKind::Tower) {
-        problems.push("no Tower feature defined".into());
+        problems.missing(F, "", "a Tower feature");
     }
     for plane in Plane::all() {
         for kind in [
@@ -148,11 +148,15 @@ pub fn validate_features(defs: &[FeatureDef]) -> Vec<String> {
                 .iter()
                 .any(|d| d.kind == kind && d.spawn.iter().any(|r| r.planes.contains(&plane)));
             if !any {
-                problems.push(format!("no {kind:?} feature can spawn on {plane:?}"));
+                problems.missing(
+                    F,
+                    "",
+                    &format!("a {kind:?} feature that can spawn on {plane:?}"),
+                );
             }
         }
     }
-    problems
+    problems.into_vec()
 }
 
 /// Load the game's help: the topics' text in `lang` (`text/<lang>/help/help.ron`, the fallback
@@ -176,7 +180,7 @@ pub fn load_help(dirs: &[&Path], lang: &str) -> Result<crate::help::Help, Conten
     if problems.is_empty() {
         Ok(help)
     } else {
-        Err(ContentError::invalid(problems))
+        Err(ContentError::new(problems))
     }
 }
 
@@ -187,6 +191,17 @@ fn read_list<T: serde::de::DeserializeOwned>(path: Option<&Path>) -> Result<Vec<
     };
     let text = std::fs::read_to_string(path).map_err(|e| ContentError::io(path, &e))?;
     ron::from_str(&text).map_err(|e| ContentError::parse(&path.display().to_string(), &e))
+}
+
+/// The value of a step that worked; the issues of one that did not go to `issues`.
+fn step_of<T>(r: Result<T, ContentError>, issues: &mut crate::issue::Issues) -> Option<T> {
+    match r {
+        Ok(v) => Some(v),
+        Err(e) => {
+            issues.extend_error(e);
+            None
+        }
+    }
 }
 
 /// Load and validate all content files from a content directory.
@@ -205,10 +220,23 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
             .unwrap_or_else(|| dirs.first().map_or_else(|| name.into(), |d| d.join(name)));
         std::fs::read_to_string(&path).map_err(|e| ContentError::io(&path, &e))
     };
-    let terrains = parse_terrains(&read("terrain.ron")?)?;
-    let features = parse_features(&read("features.ron")?)?;
-    let settings = load_settings(dirs)?;
-    let rules = rules::load_rules(dirs)?;
+    // Every file gets its turn, so one run reports the problems of all of them.
+    let mut issues = crate::issue::Issues::new();
+    let terrains = step_of(
+        read("terrain.ron").and_then(|t| parse_terrains(&t)),
+        &mut issues,
+    );
+    let features = step_of(
+        read("features.ron").and_then(|t| parse_features(&t)),
+        &mut issues,
+    );
+    let settings = step_of(load_settings(dirs), &mut issues);
+    let rules = step_of(rules::load_rules(dirs), &mut issues);
+    let (Some(terrains), Some(features), Some(settings), Some(rules)) =
+        (terrains, features, settings, rules)
+    else {
+        return Err(ContentError::new(issues.into_vec()));
+    };
     check_feature_references(&features, &rules)?;
     if dirs
         .iter()
@@ -232,40 +260,30 @@ fn check_feature_references(
     rules: &crate::rules::Rules,
 ) -> Result<(), ContentError> {
     let has_feature = |num: u16| features.defs().iter().any(|f| f.num == num);
-    let mut problems = Vec::new();
+    let mut problems = Issues::new();
     for f in features.defs() {
+        let at = format!("feature {:?}", f.id);
         for realm in f.realm.iter().chain(&f.reward) {
             if rules.realms.try_get(*realm).is_none() {
-                problems.push(format!(
-                    "feature {:?} names unknown realm {}",
-                    f.id,
-                    realm.num()
-                ));
+                problems.dangling("features.ron", &at, "realm or reward", "realm", realm.num());
             }
         }
         if let Some(n) = f.transmute.filter(|n| !has_feature(*n)) {
-            problems.push(format!(
-                "feature {:?} transmutes into unknown feature {n}",
-                f.id
-            ));
+            problems.dangling("features.ron", &at, "transmute", "feature", n);
         }
     }
     for &n in rules.config.event_ores.iter().filter(|n| !has_feature(**n)) {
-        problems.push(format!("rules.ron: event_ores names unknown feature {n}"));
+        problems.dangling("rules.ron", "", "event_ores", "feature", n);
     }
-    if problems.is_empty() {
-        Ok(())
-    } else {
-        Err(ContentError::invalid(problems))
-    }
+    problems.into_result(())
 }
 
-/// The spells and realms the `spell_library` of `rules_settings.ron` names must exist.
 fn check_spell_library(
     library: &crate::settings::SpellLibraryDef,
     rules: &crate::rules::Rules,
 ) -> Result<(), ContentError> {
-    let mut problems = Vec::new();
+    const F: &str = "rules_settings.ron";
+    let mut problems = Issues::new();
     let spells = library
         .always_known
         .iter()
@@ -275,12 +293,12 @@ fn check_spell_library(
         .chain(library.ai_main_realm_researchable.values());
     for spell in spells {
         if rules.spells.try_get(*spell).is_none() {
-            problems.push(format!("spell_library: unknown spell {}", spell.num()));
+            problems.dangling(F, "spell_library", "spells", "spell", spell.num());
         }
     }
     for retort in library.retort_known.keys() {
         if rules.retorts.try_get(*retort).is_none() {
-            problems.push(format!("spell_library: unknown retort {}", retort.num()));
+            problems.dangling(F, "spell_library", "retort_known", "retort", retort.num());
         }
     }
     for realm in library
@@ -289,14 +307,10 @@ fn check_spell_library(
         .chain(library.ai_main_realm_researchable.keys())
     {
         if rules.realms.try_get(*realm).is_none() {
-            problems.push(format!("spell_library: unknown realm {}", realm.num()));
+            problems.dangling(F, "spell_library", "ai_main_realm", "realm", realm.num());
         }
     }
-    if problems.is_empty() {
-        Ok(())
-    } else {
-        Err(ContentError::invalid(problems))
-    }
+    problems.into_result(())
 }
 
 /// Read `rules_settings.ron` from the first of `dirs` that has it. The file is optional (content
@@ -316,10 +330,13 @@ pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
     // later version dropped; so the unknown keys of this file are looked for here.
     let unknown = unknown_keys(&text, &settings);
     if !unknown.is_empty() {
-        return Err(ContentError::invalid(
+        return Err(ContentError::new(
             unknown
                 .into_iter()
-                .map(|k| format!("rules_settings.ron: {k} is not a setting"))
+                .map(|k| {
+                    ContentIssue::new("rules_settings.ron", k.clone(), IssueKind::UnknownKey)
+                        .with([k])
+                })
                 .collect(),
         ));
     }
@@ -327,7 +344,7 @@ pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
     if problems.is_empty() {
         Ok(settings)
     } else {
-        Err(ContentError::invalid(problems))
+        Err(ContentError::new(problems))
     }
 }
 

@@ -94,9 +94,18 @@ fn unreadable(o: &Outcome) -> bool {
     matches!(o, Outcome::Refused(e) if e.has(IssueKind::Missing) || e.has(IssueKind::Unreadable))
 }
 
-/// A refusal that comes from the validator's checks of what was read, not from reading or parsing.
+/// A refusal that comes from the checks of what was read (a reference to a row the damage took away,
+/// a contradiction), not from reading or parsing: it may name another file than the damaged one.
 fn only_conflicts(e: &ContentError) -> bool {
-    e.issues.iter().all(|i| i.kind == IssueKind::Conflict)
+    e.issues.iter().all(|i| {
+        matches!(
+            i.kind,
+            IssueKind::Conflict
+                | IssueKind::Dangling
+                | IssueKind::Duplicate
+                | IssueKind::OutOfRange
+        )
+    })
 }
 
 // ---- files that are not there ----
@@ -917,4 +926,28 @@ fn each_way_a_file_can_be_wrong_gives_its_own_kind_and_names_file_and_place() {
         .any(|i| i.kind == IssueKind::Unreadable && i.file.ends_with("spells.ron")));
     // Whatever the cause, today every issue refuses the game.
     assert!(issues_of(&dir).iter().all(|i| i.outcome == Out::Refuse));
+}
+
+#[test]
+fn damage_in_several_files_is_reported_for_all_of_them_in_one_load() {
+    let dir = copy_of_shipped("c2-many");
+    for (file, what) in [
+        ("units.ron", "cut"),
+        ("spells.ron", "key"),
+        ("terrain.ron", "gone"),
+    ] {
+        let text = read(&dir, file);
+        match what {
+            "cut" => write(&dir, file, &text[..text.len() / 2]),
+            "key" => write(&dir, file, &text.replacen("(num:", "(nmu: 1, num:", 1)),
+            _ => std::fs::remove_file(dir.join(file)).expect("removed"),
+        }
+    }
+    let issues = issues_of(&dir);
+    for file in ["units.ron", "spells.ron", "terrain.ron"] {
+        assert!(
+            issues.iter().any(|i| i.file.ends_with(file)),
+            "{file} is not reported: {issues:#?}"
+        );
+    }
 }

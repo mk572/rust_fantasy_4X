@@ -12,6 +12,7 @@ use crate::rules::{
 };
 
 use super::{id_problem, ContentError};
+use crate::issue::{ContentIssue, Issues};
 
 /// The first of `dirs` that has the file `name`.
 fn find(dirs: &[&Path], name: &str) -> Option<std::path::PathBuf> {
@@ -35,65 +36,115 @@ fn parse<T: serde::de::DeserializeOwned>(dirs: &[&Path], name: &str) -> Result<T
 }
 
 /// The registry of the rows of a file; the problem is noted when the rows cannot make one.
-fn table<T: Def>(file: &str, defs: Vec<T>, problems: &mut Vec<String>) -> Registry<T> {
+fn table<T: Def>(file: &str, defs: Vec<T>, problems: &mut Issues) -> Registry<T> {
     Registry::try_new(defs).unwrap_or_else(|e| {
-        problems.push(format!("{file}: {e}"));
+        problems.duplicate(file, "", "the number of a row (rows must rise)", e);
         Registry::default()
     })
+}
+
+/// A file that must be there: its rows, or the issue that says why not.
+fn parse_into<T: serde::de::DeserializeOwned>(
+    dirs: &[&Path],
+    name: &str,
+    issues: &mut Issues,
+) -> Option<T> {
+    match parse(dirs, name) {
+        Ok(v) => Some(v),
+        Err(e) => {
+            issues.extend_error(e);
+            None
+        }
+    }
+}
+
+/// A file that may be left out: the type's default when it is not there.
+fn optional<T: serde::de::DeserializeOwned + Default>(
+    dirs: &[&Path],
+    name: &str,
+    issues: &mut Issues,
+) -> Option<T> {
+    if find(dirs, name).is_some() {
+        parse_into(dirs, name, issues)
+    } else {
+        Some(T::default())
+    }
 }
 
 /// Load and validate every rules file. Each file comes from the first of `dirs` that has it,
 /// so a local directory can replace single files of the committed one.
 pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
     let dir = dirs;
-    let races = parse::<Vec<RaceDef>>(dir, "races.ron")?;
-    let hero_templates = if find(dir, "heroes.ron").is_some() {
-        parse::<Vec<HeroTemplate>>(dir, "heroes.ron")?
-    } else {
-        Vec::new()
-    };
-    let wizards = if find(dir, "wizards.ron").is_some() {
-        parse::<Vec<WizardDef>>(dir, "wizards.ron")?
-    } else {
-        Vec::new()
-    };
-    let units = parse::<Vec<UnitDef>>(dir, "units.ron")?;
-    let abilities = parse::<Vec<AbilityDef>>(dir, "abilities.ron")?;
-    let buildings = parse::<Vec<BuildingDef>>(dir, "buildings.ron")?;
-    let realms = parse::<Vec<RealmDef>>(dir, "realms.ron")?;
-    let retorts = parse::<Vec<RetortDef>>(dir, "retorts.ron")?;
-    let spells = parse::<Vec<SpellDef>>(dir, "spells.ron")?;
-    let items = parse::<Vec<ItemDef>>(dir, "items.ron")?;
-    let item_powers = parse::<Vec<ItemPowerDef>>(dir, "item_powers.ron")?;
-    let level_paths = parse::<Vec<LevelPathDef>>(dir, "level_paths.ron")?;
-    let config = parse::<RulesConfig>(dir, "rules.ron")?;
-    let range = &config.casting_range;
-    if range.beyond.windows(2).any(|w| w[0] >= w[1])
-        || range.beyond.last().is_some_and(|&l| l >= range.far)
-    {
-        return Err(ContentError::invalid(vec![
-            "rules.ron: casting_range.beyond must rise and end below `far`".to_string(),
-        ]));
+    // Every file is read and parsed, and every failure is kept: the player sees all of them at once.
+    let mut issues = Issues::new();
+    let races = parse_into::<Vec<RaceDef>>(dir, "races.ron", &mut issues);
+    let hero_templates = optional::<Vec<HeroTemplate>>(dir, "heroes.ron", &mut issues);
+    let wizards = optional::<Vec<WizardDef>>(dir, "wizards.ron", &mut issues);
+    let units = parse_into::<Vec<UnitDef>>(dir, "units.ron", &mut issues);
+    let abilities = parse_into::<Vec<AbilityDef>>(dir, "abilities.ron", &mut issues);
+    let buildings = parse_into::<Vec<BuildingDef>>(dir, "buildings.ron", &mut issues);
+    let realms = parse_into::<Vec<RealmDef>>(dir, "realms.ron", &mut issues);
+    let retorts = parse_into::<Vec<RetortDef>>(dir, "retorts.ron", &mut issues);
+    let spells = parse_into::<Vec<SpellDef>>(dir, "spells.ron", &mut issues);
+    let items = parse_into::<Vec<ItemDef>>(dir, "items.ron", &mut issues);
+    let item_powers = parse_into::<Vec<ItemPowerDef>>(dir, "item_powers.ron", &mut issues);
+    let level_paths = parse_into::<Vec<LevelPathDef>>(dir, "level_paths.ron", &mut issues);
+    let config = parse_into::<RulesConfig>(dir, "rules.ron", &mut issues);
+    let ratings = optional::<crate::rules::UnitRatings>(dir, "unit_ratings.ron", &mut issues);
+    let efficiency =
+        optional::<crate::rules::UnitEfficiencies>(dir, "unit_efficiency.ron", &mut issues);
+    let battle = optional::<crate::rules::BattleRules>(dir, "battle.ron", &mut issues);
+    let lairs = optional::<crate::rules::lair::LairRules>(dir, "lairs.ron", &mut issues);
+    let ai_sites = optional::<crate::rules::ai_site::SiteRules>(dir, "ai_sites.ron", &mut issues);
+    if let Some(range) = config.as_ref().map(|c| &c.casting_range) {
+        if range.beyond.windows(2).any(|w| w[0] >= w[1])
+            || range.beyond.last().is_some_and(|&l| l >= range.far)
+        {
+            issues.conflict(
+                "rules.ron",
+                "casting_range",
+                "beyond must rise and end below `far`",
+            );
+        }
+    }
+    if !issues.is_empty() {
+        return Err(ContentError::new(issues.into_vec()));
     }
     // The rows of a file are in the order of their numbers; a file that is not is refused here, as
     // a registry cannot be built from it.
-    let mut problems = Vec::new();
-    let races = table("races.ron", races, &mut problems);
-    let units = table("units.ron", units, &mut problems);
-    let abilities = table("abilities.ron", abilities, &mut problems);
-    let buildings = table("buildings.ron", buildings, &mut problems);
-    let realms = table("realms.ron", realms, &mut problems);
-    let spells = table("spells.ron", spells, &mut problems);
-    let items = table("items.ron", items, &mut problems);
-    let item_powers = table("item_powers.ron", item_powers, &mut problems);
-    let level_paths = table("level_paths.ron", level_paths, &mut problems);
-    let wizards = table("wizards.ron", wizards, &mut problems);
-    let retorts = table("retorts.ron", retorts, &mut problems);
+    let mut problems = Issues::new();
+    let races = table("races.ron", races.unwrap_or_default(), &mut problems);
+    let units = table("units.ron", units.unwrap_or_default(), &mut problems);
+    let abilities = table(
+        "abilities.ron",
+        abilities.unwrap_or_default(),
+        &mut problems,
+    );
+    let buildings = table(
+        "buildings.ron",
+        buildings.unwrap_or_default(),
+        &mut problems,
+    );
+    let realms = table("realms.ron", realms.unwrap_or_default(), &mut problems);
+    let spells = table("spells.ron", spells.unwrap_or_default(), &mut problems);
+    let items = table("items.ron", items.unwrap_or_default(), &mut problems);
+    let item_powers = table(
+        "item_powers.ron",
+        item_powers.unwrap_or_default(),
+        &mut problems,
+    );
+    let level_paths = table(
+        "level_paths.ron",
+        level_paths.unwrap_or_default(),
+        &mut problems,
+    );
+    let wizards = table("wizards.ron", wizards.unwrap_or_default(), &mut problems);
+    let retorts = table("retorts.ron", retorts.unwrap_or_default(), &mut problems);
     if !problems.is_empty() {
-        return Err(ContentError::invalid(problems));
+        return Err(ContentError::new(problems.into_vec()));
     }
     let rules = Rules {
-        config,
+        config: config.unwrap_or_default(),
         races,
         units,
         abilities,
@@ -107,61 +158,66 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         wizards,
         retorts,
         // The starting records of the hero types, also optional.
-        hero_templates,
+        hero_templates: hero_templates.unwrap_or_default(),
         // The unit combat ratings, also optional: without the file no unit has one.
-        ratings: if find(dir, "unit_ratings.ron").is_some() {
-            parse::<crate::rules::UnitRatings>(dir, "unit_ratings.ron")?
-        } else {
-            crate::rules::UnitRatings::default()
-        },
+        ratings: ratings.unwrap_or_default(),
         // What the ratings buy per resource, also optional.
-        efficiency: if find(dir, "unit_efficiency.ron").is_some() {
-            parse::<crate::rules::UnitEfficiencies>(dir, "unit_efficiency.ron")?
-        } else {
-            crate::rules::UnitEfficiencies::default()
-        },
+        efficiency: efficiency.unwrap_or_default(),
         // The rules of the battle, also optional: without the file the original's numbers.
-        battle: if find(dir, "battle.ron").is_some() {
-            parse::<crate::rules::BattleRules>(dir, "battle.ron")?
-        } else {
-            crate::rules::BattleRules::default()
-        },
+        battle: battle.unwrap_or_default(),
         // The lair rules, also optional: a rule set may leave the file out.
-        lairs: if find(dir, "lairs.ron").is_some() {
-            parse::<crate::rules::lair::LairRules>(dir, "lairs.ron")?
-        } else {
-            crate::rules::lair::LairRules::default()
-        },
-        ai_sites: if find(dir, "ai_sites.ron").is_some() {
-            parse::<crate::rules::ai_site::SiteRules>(dir, "ai_sites.ron")?
-        } else {
-            crate::rules::ai_site::SiteRules::default()
-        },
+        lairs: lairs.unwrap_or_default(),
+        ai_sites: ai_sites.unwrap_or_default(),
     };
     let problems = validate_rules(&rules);
     if problems.is_empty() {
         Ok(rules)
     } else {
-        Err(ContentError::invalid(problems))
+        Err(ContentError::new(problems))
     }
 }
 
-fn check_ids<T: Def>(kind: &str, reg: &Registry<T>, problems: &mut Vec<String>) {
+fn check_ids<T: Def>(kind: &str, reg: &Registry<T>, problems: &mut Issues) {
+    let file = file_of(kind);
     let mut seen = HashSet::new();
     for d in reg.defs() {
-        problems.extend(id_problem(kind, d.id()));
+        problems.extend_opt(id_problem(file, kind, d.id()));
         if !seen.insert(d.id()) {
-            problems.push(format!("duplicate {kind} id {:?}", d.id()));
+            problems.duplicate(
+                file,
+                format!("{kind} {:?}", d.id()),
+                "the id",
+                format!("{:?}", d.id()),
+            );
         }
     }
 }
 
+/// The file a kind of row comes from.
+fn file_of(kind: &str) -> &'static str {
+    match kind {
+        "race" => "races.ron",
+        "unit" => "units.ron",
+        "ability" => "abilities.ron",
+        "building" => "buildings.ron",
+        "realm" => "realms.ron",
+        "spell" => "spells.ron",
+        "item" => "items.ron",
+        "item power" => "item_powers.ron",
+        "level path" => "level_paths.ron",
+        "wizard" => "wizards.ron",
+        "retort" => "retorts.ron",
+        _ => "",
+    }
+}
+
 /// The lair rules: real realms, rolls that can be made and a table that is not empty.
-fn check_lairs(r: &Rules, p: &mut Vec<String>) {
+fn check_lairs(r: &Rules, p: &mut Issues) {
+    const F: &str = "lairs.ron";
     let l = &r.lairs;
-    let realm = |what: &str, num: u16, p: &mut Vec<String>| {
+    let realm = |what: &str, num: u16, p: &mut Issues| {
         if r.realms.id_numbered(num).is_none() {
-            p.push(format!("lairs.ron: {what} names unknown realm {num}"));
+            p.dangling(F, "", what, "realm", num);
         }
     };
     for (what, list) in [
@@ -170,7 +226,7 @@ fn check_lairs(r: &Rules, p: &mut Vec<String>) {
         ("wild_realms", &l.wild_realms),
     ] {
         if list.iter().map(|(_, w)| u64::from(*w)).sum::<u64>() == 0 {
-            p.push(format!("lairs.ron: {what} has no weight"));
+            p.out_of_range(F, "", what, "all weights 0", "at least one weight above 0");
         }
         for &(num, _) in list {
             realm(what, num, p);
@@ -180,7 +236,13 @@ fn check_lairs(r: &Rules, p: &mut Vec<String>) {
         realm("the node realms", num, p);
     }
     if l.hoard.iter().map(|(_, w)| u64::from(*w)).sum::<u64>() == 0 {
-        p.push("lairs.ron: the hoard table has no weight".into());
+        p.out_of_range(
+            F,
+            "",
+            "hoard",
+            "all weights 0",
+            "at least one weight above 0",
+        );
     }
     let rolls = [
         ("tower_budget", l.tower_budget.rolls),
@@ -205,95 +267,128 @@ fn check_lairs(r: &Rules, p: &mut Vec<String>) {
     ];
     for (what, n) in rolls {
         if n < 1 {
-            p.push(format!("lairs.ron: {what} must roll at least 1"));
+            p.out_of_range(F, "", what, n, "at least 1 roll");
         }
     }
     if l.second_spread - l.max_first_guards < 1 {
-        p.push("lairs.ron: second_spread must exceed max_first_guards".into());
+        p.out_of_range(
+            F,
+            "",
+            "second_spread",
+            l.second_spread,
+            format!("above max_first_guards ({})", l.max_first_guards),
+        );
     }
     if l.max_first_guards > l.max_guards as i32 {
-        p.push("lairs.ron: max_first_guards is over max_guards".into());
+        p.out_of_range(
+            F,
+            "",
+            "max_first_guards",
+            l.max_first_guards,
+            format!("at most max_guards ({})", l.max_guards),
+        );
     }
     if !(1..=4).contains(&l.spell_total) {
-        p.push("lairs.ron: spell_total must be 1 to 4 (a spell's rarity)".into());
+        p.out_of_range(
+            F,
+            "",
+            "spell_total",
+            l.spell_total,
+            "1 to 4 (a spell's rarity)",
+        );
     }
 }
 
 /// The numbers `rules.ron` keeps that name rows of other files.
-fn check_config(r: &Rules, p: &mut Vec<String>) {
+fn check_config(r: &Rules, p: &mut Issues) {
+    const F: &str = "rules.ron";
     let c = &r.config;
-    for b in c
-        .autobuild_order
-        .iter()
-        .chain(c.starting_buildings.iter().map(|(_, b)| b))
-    {
+    for b in c.autobuild_order.iter() {
         if r.buildings.try_get(*b).is_none() {
-            p.push(format!("rules.ron: unknown building {}", b.num()));
+            p.dangling(F, "", "autobuild_order", "building", b.num());
+        }
+    }
+    for (_, b) in &c.starting_buildings {
+        if r.buildings.try_get(*b).is_none() {
+            p.dangling(F, "", "starting_buildings", "building", b.num());
         }
     }
     for &n in &c.limited_ai_races {
         if r.races.by_num(n).is_none() {
-            p.push(format!(
-                "rules.ron: limited_ai_races names unknown race {n}"
-            ));
+            p.dangling(F, "", "limited_ai_races", "race", n);
         }
     }
 }
 
 /// The unit ratings: rows in the order of the unit numbers, each for a unit that exists, with at
 /// least one positive number.
-fn check_ratings(r: &Rules, p: &mut Vec<String>) {
+fn check_ratings(r: &Rules, p: &mut Issues) {
+    let positive = |v: &f32| v.is_finite() && *v > 0.0;
+    let unit_exists = |num: u16| r.units.iter().any(|(_, u)| u.num == num);
+    const E: &str = "unit_efficiency.ron";
     for w in r.efficiency.units.windows(2) {
         if w[0].num >= w[1].num {
-            p.push(format!(
-                "unit_efficiency.ron: unit {} is out of order or twice",
-                w[1].num
-            ));
+            p.duplicate(
+                E,
+                format!("unit {}", w[1].num),
+                "the unit number (a row is out of order or twice)",
+                w[1].num,
+            );
         }
     }
     for row in &r.efficiency.units {
-        if !r.units.iter().any(|(_, u)| u.num == row.num) {
-            p.push(format!(
-                "unit_efficiency.ron: unit {} does not exist",
-                row.num
-            ));
+        let at = format!("unit {}", row.num);
+        if !unit_exists(row.num) {
+            p.dangling(E, &at, "num", "unit", row.num);
         }
-        if ![row.rating, row.cost, row.per_100, row.relative]
-            .iter()
-            .all(|v| v.is_finite() && *v > 0.0)
-        {
-            p.push(format!(
-                "unit_efficiency.ron: unit {} needs positive numbers",
-                row.num
-            ));
+        for (field, v) in [
+            ("rating", row.rating),
+            ("cost", row.cost),
+            ("per_100", row.per_100),
+            ("relative", row.relative),
+        ] {
+            if !positive(&v) {
+                p.out_of_range(E, &at, field, v, "a number above 0");
+            }
         }
     }
-    if !(r.ratings.hero_factor.is_finite() && r.ratings.hero_factor > 0.0) {
-        p.push("unit_ratings.ron: hero_factor must be above 0".to_string());
+    const R: &str = "unit_ratings.ron";
+    if !positive(&r.ratings.hero_factor) {
+        p.out_of_range(
+            R,
+            "",
+            "hero_factor",
+            r.ratings.hero_factor,
+            "a number above 0",
+        );
     }
     for w in r.ratings.units.windows(2) {
         if w[0].num >= w[1].num {
-            p.push(format!(
-                "unit_ratings.ron: unit {} is out of order or twice",
-                w[1].num
-            ));
+            p.duplicate(
+                R,
+                format!("unit {}", w[1].num),
+                "the unit number (a row is out of order or twice)",
+                w[1].num,
+            );
         }
     }
     for row in &r.ratings.units {
-        if !r.units.iter().any(|(_, u)| u.num == row.num) {
-            p.push(format!("unit_ratings.ron: unit {} does not exist", row.num));
+        let at = format!("unit {}", row.num);
+        if !unit_exists(row.num) {
+            p.dangling(R, &at, "num", "unit", row.num);
         }
-        if row.levels.is_empty() || row.levels.iter().any(|v| !(v.is_finite() && *v > 0.0)) {
-            p.push(format!(
-                "unit_ratings.ron: unit {} needs positive numbers",
-                row.num
-            ));
+        if row.levels.is_empty() {
+            p.missing(R, &at, "levels");
+        }
+        for v in row.levels.iter().filter(|v| !positive(v)) {
+            p.out_of_range(R, &at, "levels", v, "numbers above 0");
         }
     }
 }
 
 /// The hero templates: one for each hero unit, no more, with real abilities and spells.
-fn check_hero_templates(r: &Rules, p: &mut Vec<String>) {
+fn check_hero_templates(r: &Rules, p: &mut Issues) {
+    const F: &str = "heroes.ron";
     if r.hero_templates.is_empty() {
         return;
     }
@@ -304,68 +399,78 @@ fn check_hero_templates(r: &Rules, p: &mut Vec<String>) {
             Some(u) if u.kind == UnitKind::Hero => {
                 // The hero type is the number of the hero's unit, so the row is that number.
                 if usize::from(u.num) != row {
-                    p.push(format!(
-                        "{who} is row {row} but its unit is numbered {}",
-                        u.num
-                    ));
+                    p.conflict(
+                        F,
+                        &who,
+                        format!("it is row {row} but its unit is numbered {}", u.num),
+                    );
                 }
             }
-            Some(_) => p.push(format!("{who} is not a Hero unit")),
-            None => p.push(format!("{who} names an unknown unit")),
+            Some(_) => p.conflict(F, &who, "the unit is not a Hero unit"),
+            None => p.dangling(F, &who, "unit", "unit", t.unit.num()),
         }
         if !seen.insert(t.unit) {
-            p.push(format!("{who} appears twice"));
+            p.duplicate(F, &who, "the template of unit", t.unit.num());
         }
         for &a in &t.abilities {
             if !crate::hero::HeroAbilities::is_hero_ability(a) {
-                p.push(format!("{who} has unknown hero ability {}", a.num()));
+                p.dangling(F, &who, "abilities", "hero ability", a.num());
             }
         }
         for &s in &t.spells {
             if r.spells.try_get(s).is_none() {
-                p.push(format!("{who} has unknown spell {}", s.num()));
+                p.dangling(F, &who, "spells", "spell", s.num());
             }
         }
         if t.spells.len() > 4 {
-            p.push(format!("{who} has more than four innate spells"));
+            p.out_of_range(
+                F,
+                &who,
+                "spells",
+                t.spells.len(),
+                "at most four innate spells",
+            );
         }
     }
     for u in r.units.defs().iter().filter(|u| u.kind == UnitKind::Hero) {
         if !seen.contains(&crate::rules::UnitId::new(u.num)) {
-            p.push(format!("hero {:?} has no hero template", u.id));
+            p.missing(F, format!("hero {:?}", u.id), "its hero template");
         }
     }
 }
 
-fn check_items(r: &Rules, p: &mut Vec<String>) {
+fn check_items(r: &Rules, p: &mut Issues) {
+    const P: &str = "item_powers.ron";
+    const I: &str = "items.ron";
     for power in r.item_powers.defs() {
         let who = format!("item power {:?}", power.id);
         if let Some(realm) = power.realm {
             if r.realms.try_get(realm).is_none() {
-                p.push(format!("{who} has unknown realm {}", realm.num()));
+                p.dangling(P, &who, "realm", "realm", realm.num());
             }
         }
         if let Some(spell) = power.spell {
             if r.spells.try_get(spell).is_none() {
-                p.push(format!("{who} has unknown spell {}", spell.num()));
+                p.dangling(P, &who, "spell", "spell", spell.num());
             }
         }
         if let Some(attack) = power.attack {
             if r.abilities.try_get(attack).is_none() {
-                p.push(format!("{who} has unknown attack ability {}", attack.num()));
+                p.dangling(P, &who, "attack", "ability", attack.num());
             }
         }
         if power.kinds.is_empty() {
-            p.push(format!("{who} fits no item type"));
+            p.missing(P, &who, "kinds (it fits no item type)");
         }
     }
     for item in r.items.defs() {
         let who = format!("item {:?}", item.id);
         if item.kind.slot() != item.slot {
-            p.push(format!(
-                "{who}: a {:?} does not go in the {:?} slot",
-                item.kind, item.slot
-            ));
+            p.conflict(
+                I,
+                &who,
+                format!("a {:?} does not go in the {:?} slot", item.kind, item.slot),
+            );
         }
         if item.effects.is_empty()
             && item.powers.is_empty()
@@ -373,30 +478,34 @@ fn check_items(r: &Rules, p: &mut Vec<String>) {
             && item.spell_skill == 0
             && item.spell_save == 0
         {
-            p.push(format!("{who} has no effects"));
+            p.missing(I, &who, "effects (the item does nothing)");
         }
         for &power in &item.powers {
             if r.item_powers.try_get(power).is_none() {
-                p.push(format!("{who} has unknown power {}", power.num()));
+                p.dangling(I, &who, "powers", "item power", power.num());
             }
         }
         if let Some((spell, count)) = item.charges {
             if r.spells.try_get(spell).is_none() {
-                p.push(format!("{who} has unknown spell {}", spell.num()));
+                p.dangling(I, &who, "charges", "spell", spell.num());
             }
             if count == 0 {
-                p.push(format!("{who} has a spell with no charges"));
+                p.out_of_range(I, &who, "charges", 0, "at least 1 charge");
             }
         }
     }
 }
 
 /// Returns a human-readable list of problems; empty means valid.
-pub fn validate_rules(r: &Rules) -> Vec<String> {
-    let mut p = Vec::new();
+pub fn validate_rules(r: &Rules) -> Vec<ContentIssue> {
+    let mut p = Issues::new();
     check_lairs(r, &mut p);
-    p.extend(r.ai_sites.problems());
-    p.extend(crate::hero::problems(r));
+    for i in r.ai_sites.problems() {
+        p.push(i);
+    }
+    for i in crate::hero::problems(r) {
+        p.push(i);
+    }
     check_ids("race", &r.races, &mut p);
     check_ids("unit", &r.units, &mut p);
     check_ids("ability", &r.abilities, &mut p);
@@ -490,10 +599,11 @@ pub fn validate_rules(r: &Rules) -> Vec<String> {
                     }
                 );
             if !fine {
-                p.push(format!(
-                    "retort {:?}: only passive changes to the wizard stats (SpellCostPercent, SpellUpkeepPercent, UnitManaUpkeepPercent, ManaIncome, ResearchIncome, CastingSkill and the others a wizard has) are understood",
-                    retort.id
-                ));
+                p.conflict(
+                    "retorts.ron",
+                    format!("retort {:?}", retort.id),
+                    "only passive changes to the wizard stats (SpellCostPercent, SpellUpkeepPercent, UnitManaUpkeepPercent, ManaIncome, ResearchIncome, CastingSkill and the others a wizard has) are understood",
+                );
             }
         }
     }
@@ -510,53 +620,54 @@ pub fn validate_rules(r: &Rules) -> Vec<String> {
             check_rule(r, &owner, rule, &mut p);
         }
     }
-    p
+    p.into_vec()
 }
 
-fn check_races(r: &Rules, p: &mut Vec<String>) {
+fn check_races(r: &Rules, p: &mut Issues) {
+    const F: &str = "races.ron";
     for race in r.races.defs() {
+        let at = format!("race {:?}", race.id);
         let this = crate::rules::RaceId::new(race.num);
         if race.units.is_empty() {
-            p.push(format!("race {:?} has no units", race.id));
+            p.missing(F, &at, "units");
         }
         for &u in &race.units {
             match r.units.try_get(u) {
-                None => p.push(format!("race {:?} lists unknown unit {}", race.id, u.num())),
+                None => p.dangling(F, &at, "units", "unit", u.num()),
                 Some(unit) if unit.race != Some(this) => {
-                    p.push(format!(
-                        "race {:?} lists unit {:?}, which belongs to another race",
-                        race.id, unit.id
-                    ));
+                    p.conflict(
+                        F,
+                        &at,
+                        format!("it lists unit {:?}, which belongs to another race", unit.id),
+                    );
                 }
                 Some(_) => {}
             }
         }
         for &b in &race.buildings {
             match r.buildings.try_get(b) {
-                None => p.push(format!(
-                    "race {:?} lists unknown building {}",
-                    race.id,
-                    b.num()
-                )),
+                None => p.dangling(F, &at, "buildings", "building", b.num()),
                 Some(bd) if !bd.buildable_by(this) => {
-                    p.push(format!(
-                        "race {:?} lists building {:?}, which its races list excludes",
-                        race.id, bd.id
-                    ));
+                    p.conflict(
+                        F,
+                        &at,
+                        format!(
+                            "it lists building {:?}, which its races list excludes",
+                            bd.id
+                        ),
+                    );
                 }
                 Some(_) => {}
             }
         }
         if race.start_army.len() != 2 || race.start_army.iter().any(|u| !race.units.contains(u)) {
-            p.push(format!(
-                "race {:?} must start with two of its own units",
-                race.id
-            ));
+            p.conflict(F, &at, "it must start with two of its own units");
         }
     }
 }
 
-fn check_units(r: &Rules, p: &mut Vec<String>) {
+fn check_units(r: &Rules, p: &mut Issues) {
+    const F: &str = "units.ron";
     for u in r.units.defs() {
         let who = format!("unit {:?}", u.id);
         for stat in [
@@ -568,48 +679,52 @@ fn check_units(r: &Rules, p: &mut Vec<String>) {
             Stat::Moves,
         ] {
             if !u.stats.contains_key(&stat) {
-                p.push(format!("{who} is missing required stat {stat:?}"));
+                p.missing(F, &who, &format!("stats: {stat:?}"));
             }
         }
         for (stat, &v) in &u.stats {
             if !(HalfInt::ZERO..=HalfInt::from_int(99)).contains(&v) {
-                p.push(format!("{who}: {stat:?} = {v} is outside 0..=99"));
+                p.out_of_range(F, &who, &format!("{stat:?}"), v, "0 to 99");
             }
         }
         let stat = |s: Stat| u.stats.get(&s).map_or(0, |v| v.floor());
         for s in [Stat::MaxHp, Stat::Figures, Stat::Moves] {
             if stat(s) < 1 {
-                p.push(format!("{who}: {s:?} must be at least 1"));
+                p.out_of_range(F, &who, &format!("{s:?}"), stat(s), "at least 1");
             }
         }
         if stat(Stat::Ranged) > 0 && stat(Stat::Ammo) < 1 {
-            p.push(format!("{who} has a ranged attack but no ammo"));
+            p.conflict(F, &who, "it has a ranged attack but no ammo");
         }
         if let Some(race) = u.race {
             if r.races.try_get(race).is_none() {
-                p.push(format!("{who} has unknown race {}", race.num()));
+                p.dangling(F, &who, "race", "race", race.num());
             }
         }
         if let Some(realm) = u.realm {
             if r.realms.try_get(realm).is_none() {
-                p.push(format!("{who} has unknown realm {}", realm.num()));
+                p.dangling(F, &who, "realm", "realm", realm.num());
             }
         }
         for &a in &u.abilities {
             if r.abilities.try_get(a).is_none() {
-                p.push(format!("{who} has unknown ability {}", a.num()));
+                p.dangling(F, &who, "abilities", "ability", a.num());
             }
         }
         for &b in &u.requires {
             match r.buildings.try_get(b) {
-                None => p.push(format!("{who} requires unknown building {}", b.num())),
+                None => p.dangling(F, &who, "requires", "building", b.num()),
                 Some(bd) => {
                     if let Some(race) = u.race {
                         if !bd.races.contains(&race) {
-                            p.push(format!(
-                                "{who} requires building {:?}, which its race cannot build",
-                                bd.id
-                            ));
+                            p.conflict(
+                                F,
+                                &who,
+                                format!(
+                                    "it requires building {:?}, which its race cannot build",
+                                    bd.id
+                                ),
+                            );
                         }
                     }
                 }
@@ -617,77 +732,81 @@ fn check_units(r: &Rules, p: &mut Vec<String>) {
         }
         if let Some(path) = u.level_path {
             if r.level_paths.try_get(path).is_none() {
-                p.push(format!("{who} has unknown level path {}", path.num()));
+                p.dangling(F, &who, "level_path", "level path", path.num());
             }
         }
         match u.kind {
             UnitKind::Normal => {
                 match &u.race {
-                    None => p.push(format!("{who} is Normal and needs a race")),
+                    None => p.missing(F, &who, "race (a Normal unit needs one)"),
                     Some(race) => {
                         let listed = r
                             .races
                             .try_get(*race)
                             .is_some_and(|rd| rd.units.contains(&crate::rules::UnitId::new(u.num)));
                         if !listed {
-                            p.push(format!(
-                                "{who} is not in its race's unit list, so nothing can build it"
-                            ));
+                            p.conflict(
+                                F,
+                                &who,
+                                "it is not in its race's unit list, so nothing can build it",
+                            );
                         }
                     }
                 }
                 if u.hero.is_some() {
-                    p.push(format!("{who} is Normal but has hero data"));
+                    p.conflict(F, &who, "it is Normal but has hero data");
                 }
             }
             UnitKind::Hero => {
                 if u.race.is_some() {
-                    p.push(format!("{who} is a Hero and must not have a race"));
+                    p.conflict(F, &who, "it is a Hero and must not have a race");
                 }
                 if u.hero.is_none() {
-                    p.push(format!("{who} is a Hero and needs hero data"));
+                    p.missing(F, &who, "hero (a Hero unit needs hero data)");
                 }
             }
             UnitKind::Summoned => {
                 if u.realm.is_none() {
-                    p.push(format!("{who} is Summoned and needs a realm"));
+                    p.missing(F, &who, "realm (a Summoned unit needs one)");
                 }
                 if u.cost == 0 {
-                    p.push(format!("{who} is Summoned and needs a mana cost"));
+                    p.out_of_range(
+                        F,
+                        &who,
+                        "cost",
+                        0,
+                        "above 0 (a Summoned unit needs a mana cost)",
+                    );
                 }
             }
             UnitKind::Fantastic => {
                 if u.race.is_some() || u.hero.is_some() {
-                    p.push(format!(
-                        "{who} is Fantastic and must have no race or hero data"
-                    ));
+                    p.conflict(
+                        F,
+                        &who,
+                        "it is Fantastic and must have no race or hero data",
+                    );
                 }
             }
         }
     }
 }
 
-fn check_buildings(r: &Rules, p: &mut Vec<String>) {
+fn check_buildings(r: &Rules, p: &mut Issues) {
+    const F: &str = "buildings.ron";
     for b in r.buildings.defs() {
+        let at = format!("building {:?}", b.id);
         if b.cost == 0 {
-            p.push(format!("building {:?} has no cost", b.id));
+            p.out_of_range(F, &at, "cost", 0, "above 0");
         }
         for &req in &b.requires {
             if r.buildings.try_get(req).is_none() {
-                p.push(format!(
-                    "building {:?} requires unknown building {}",
-                    b.id,
-                    req.num()
-                ));
+                p.dangling(F, &at, "requires", "building", req.num());
             }
         }
         for race in &b.races {
             if r.races.try_get(*race).is_none() {
-                p.push(format!(
-                    "building {:?} lists unknown race {}",
-                    b.id,
-                    race.num()
-                ));
+                p.dangling(F, &at, "races", "race", race.num());
             }
             // The list is complete: a race that cannot build what this needs cannot build this.
             for &req in &b.requires {
@@ -695,22 +814,21 @@ fn check_buildings(r: &Rules, p: &mut Vec<String>) {
                     .try_get(req)
                     .is_some_and(|needed| !needed.races.contains(race))
                 {
-                    p.push(format!(
-                        "building {:?} lists race {}, which cannot build {} that it requires",
-                        b.id,
-                        race.num(),
-                        req.num()
-                    ));
+                    p.conflict(
+                        F,
+                        &at,
+                        format!(
+                            "it lists race {}, which cannot build {} that it requires",
+                            race.num(),
+                            req.num()
+                        ),
+                    );
                 }
             }
         }
         if let Some(old) = b.replaces {
             if r.buildings.try_get(old).is_none() {
-                p.push(format!(
-                    "building {:?} replaces unknown building {}",
-                    b.id,
-                    old.num()
-                ));
+                p.dangling(F, &at, "replaces", "building", old.num());
             }
         }
     }
@@ -722,16 +840,15 @@ fn check_buildings(r: &Rules, p: &mut Vec<String>) {
         .map(|b| (b.num, b.requires.iter().map(|id| id.num()).collect()))
         .collect();
     let mut state: BTreeMap<u16, u8> = BTreeMap::new(); // 1 = on stack, 2 = done
-    fn visit(
-        n: u16,
-        g: &BTreeMap<u16, Vec<u16>>,
-        state: &mut BTreeMap<u16, u8>,
-        p: &mut Vec<String>,
-    ) {
+    fn visit(n: u16, g: &BTreeMap<u16, Vec<u16>>, state: &mut BTreeMap<u16, u8>, p: &mut Issues) {
         match state.get(&n) {
             Some(2) => return,
             Some(_) => {
-                p.push(format!("building requirement cycle involving building {n}"));
+                p.conflict(
+                    "buildings.ron",
+                    format!("building {n}"),
+                    "it is part of a requirement cycle",
+                );
                 return;
             }
             None => {}
@@ -749,29 +866,30 @@ fn check_buildings(r: &Rules, p: &mut Vec<String>) {
     }
 }
 
-fn check_spells(r: &Rules, p: &mut Vec<String>) {
+fn check_spells(r: &Rules, p: &mut Issues) {
+    const F: &str = "spells.ron";
     for s in r.spells.defs() {
         let who = format!("spell {:?}", s.id);
         if r.realms.try_get(s.realm).is_none() {
-            p.push(format!("{who} has unknown realm {}", s.realm.num()));
+            p.dangling(F, &who, "realm", "realm", s.realm.num());
         }
-        if s.cost == 0 || s.research_cost == 0 {
-            p.push(format!("{who} needs a nonzero cost and research_cost"));
+        if s.cost == 0 {
+            p.out_of_range(F, &who, "cost", 0, "above 0");
+        }
+        if s.research_cost == 0 {
+            p.out_of_range(F, &who, "research_cost", 0, "above 0");
         }
         if s.contexts.is_empty() {
-            p.push(format!("{who} can be cast in no context"));
+            p.missing(F, &who, "contexts (it can be cast nowhere)");
         }
         // A lasting spell may carry no effects of its own when the engine reads it by number
         // (Resist Elements adds to resistance against some realms only).
         if s.effects.is_empty() && s.duration == Duration::Instant {
-            p.push(format!("{who} has no effects"));
+            p.missing(F, &who, "effects (it does nothing)");
         }
         for other in &s.not_with {
             if r.spells.try_get(*other).is_none() {
-                p.push(format!(
-                    "{who} is not cumulative with unknown spell {}",
-                    other.num()
-                ));
+                p.dangling(F, &who, "not_with", "spell", other.num());
             }
         }
         let unknown_abilities = s
@@ -779,31 +897,31 @@ fn check_spells(r: &Rules, p: &mut Vec<String>) {
             .iter()
             .filter(|a| r.abilities.try_get(**a).is_none());
         for a in unknown_abilities {
-            p.push(format!("{who} names unknown ability {}", a.num()));
+            p.dangling(F, &who, "already_able", "ability", a.num());
         }
         if s.duration == Duration::Instant {
             if s.upkeep != 0 {
-                p.push(format!("{who} is instant but has upkeep"));
+                p.conflict(F, &who, "it is instant but has upkeep");
             }
             if s.effects.iter().any(|e| e.when == Trigger::Passive) {
-                p.push(format!(
-                    "{who} is instant but has Passive effects; use OnCast"
-                ));
+                p.conflict(F, &who, "it is instant but has Passive effects; use OnCast");
             }
         }
     }
 }
 
-fn check_wizards(r: &Rules, p: &mut Vec<String>) {
+fn check_wizards(r: &Rules, p: &mut Issues) {
     for retort in r.retorts.defs() {
         for need in &retort.requires {
             if let crate::rules::RetortNeed::Books(realm, _) = need {
                 if r.realms.try_get(*realm).is_none() {
-                    p.push(format!(
-                        "retort {:?} needs books in unknown realm {}",
-                        retort.id,
-                        realm.num()
-                    ));
+                    p.dangling(
+                        "retorts.ron",
+                        format!("retort {:?}", retort.id),
+                        "requires",
+                        "realm",
+                        realm.num(),
+                    );
                 }
             }
         }
@@ -811,108 +929,124 @@ fn check_wizards(r: &Rules, p: &mut Vec<String>) {
     for realm in r.realms.defs() {
         for s in &realm.default_spells {
             if r.spells.try_get(*s).is_none() {
-                p.push(format!(
-                    "realm {:?} defaults to unknown spell {}",
-                    realm.id,
-                    s.num()
-                ));
+                p.dangling(
+                    "realms.ron",
+                    format!("realm {:?}", realm.id),
+                    "default_spells",
+                    "spell",
+                    s.num(),
+                );
             }
         }
     }
+    const F: &str = "wizards.ron";
     for w in r.wizards.defs() {
+        let at = format!("wizard {:?}", w.id);
         let mut picks: u32 = 0;
         for (realm, n) in &w.books {
             if r.realms.try_get(*realm).is_none() {
-                p.push(format!(
-                    "wizard {:?} has books in unknown realm {}",
-                    w.id,
-                    realm.num()
-                ));
+                p.dangling(F, &at, "books", "realm", realm.num());
             }
             picks += u32::from(*n);
         }
         for &retort in &w.retorts {
             match r.retorts.try_get(retort) {
                 Some(def) => picks += u32::from(def.cost),
-                None => p.push(format!(
-                    "wizard {:?} has unknown retort {}",
-                    w.id,
-                    retort.num()
-                )),
+                None => p.dangling(F, &at, "retorts", "retort", retort.num()),
             }
         }
         let budget = u32::from(crate::settings::PICKS);
         if picks != budget {
-            p.push(format!(
-                "wizard {:?} spends {picks} picks, not {budget}",
-                w.id
-            ));
+            p.out_of_range(
+                F,
+                &at,
+                "picks spent on books and retorts",
+                picks,
+                format!("exactly {budget}"),
+            );
         }
     }
 }
 
-fn check_level_paths(r: &Rules, p: &mut Vec<String>) {
+fn check_level_paths(r: &Rules, p: &mut Issues) {
+    const F: &str = "level_paths.ron";
     for path in r.level_paths.defs() {
         let who = format!("level path {:?}", path.id);
         match path.levels.first() {
-            None => p.push(format!("{who} has no levels")),
-            Some(first) if first.xp != 0 => p.push(format!("{who}: first level must need 0 xp")),
+            None => p.missing(F, &who, "levels"),
+            Some(first) if first.xp != 0 => {
+                p.out_of_range(F, &who, "the xp of the first level", first.xp, "0")
+            }
             Some(_) => {}
         }
         if path.levels.windows(2).any(|w| w[1].xp <= w[0].xp) {
-            p.push(format!("{who}: xp thresholds must strictly increase"));
+            p.conflict(F, &who, "the xp thresholds must strictly increase");
         }
     }
 }
 
-fn check_rule(r: &Rules, owner: &str, rule: &EffectRule, p: &mut Vec<String>) {
+/// The file the rows of an owner (`race "orc"`, `level path "x" level 2`) are in.
+fn file_of_owner(owner: &str) -> &'static str {
+    [
+        ("race ", "races.ron"),
+        ("ability ", "abilities.ron"),
+        ("building ", "buildings.ron"),
+        ("retort ", "retorts.ron"),
+        ("spell ", "spells.ron"),
+        ("item ", "items.ron"),
+        ("level path ", "level_paths.ron"),
+    ]
+    .iter()
+    .find(|(prefix, _)| owner.starts_with(prefix))
+    .map_or("", |(_, file)| file)
+}
+
+fn check_rule(r: &Rules, owner: &str, rule: &EffectRule, p: &mut Issues) {
+    let file = file_of_owner(owner);
     check_condition(r, owner, &rule.condition, p);
-    let ability = |a: &AbilityId, p: &mut Vec<String>| {
+    let ability = |a: &AbilityId, p: &mut Issues| {
         if r.abilities.try_get(*a).is_none() {
-            p.push(format!("{owner}: unknown ability {}", a.num()));
+            p.dangling(file, owner, "effects", "ability", a.num());
         }
     };
-    let realm = |m: &crate::rules::RealmId, p: &mut Vec<String>| {
+    let realm = |m: &crate::rules::RealmId, p: &mut Issues| {
         if r.realms.try_get(*m).is_none() {
-            p.push(format!("{owner}: unknown realm {}", m.num()));
+            p.dangling(file, owner, "effects", "realm", m.num());
         }
     };
     match &rule.effect {
         Effect::GrantAbility(a) => ability(a, p),
         Effect::Summon { unit, count } => {
             if r.units.try_get(*unit).is_none() {
-                p.push(format!("{owner}: summons unknown unit {}", unit.num()));
+                p.dangling(file, owner, "effects (summon)", "unit", unit.num());
             }
             if *count == 0 {
-                p.push(format!("{owner}: summon count must be at least 1"));
+                p.out_of_range(file, owner, "the summon count", 0, "at least 1");
             }
         }
         Effect::Damage { amount, types, .. } => {
             if types.is_empty() {
-                p.push(format!("{owner}: damage has no type"));
+                p.missing(file, owner, "the damage type");
             }
             if types.iter().filter(|t| t.realm_num().is_some()).count() > 1 {
-                p.push(format!("{owner}: damage has more than one realm"));
+                p.conflict(file, owner, "the damage has more than one realm");
             }
             if *amount <= 0 {
-                p.push(format!("{owner}: damage must be positive"));
+                p.out_of_range(file, owner, "the damage", amount, "above 0");
             }
         }
         Effect::Slay { realm: m, .. } => {
             realm(m, p);
         }
-        Effect::Heal(n) if *n <= 0 => p.push(format!("{owner}: heal must be positive")),
+        Effect::Heal(n) if *n <= 0 => p.out_of_range(file, owner, "the heal", n, "above 0"),
         _ => {}
     }
 }
 
-fn check_condition(r: &Rules, owner: &str, c: &Condition, p: &mut Vec<String>) {
+fn check_condition(r: &Rules, owner: &str, c: &Condition, p: &mut Issues) {
     match c {
         Condition::RealmIs(x) if r.realms.try_get(*x).is_none() => {
-            p.push(format!(
-                "{owner}: condition names unknown realm {}",
-                x.num()
-            ));
+            p.dangling(file_of_owner(owner), owner, "condition", "realm", x.num());
         }
         Condition::Not(c) => check_condition(r, owner, c, p),
         _ => {}

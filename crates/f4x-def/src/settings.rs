@@ -1254,57 +1254,72 @@ impl SettingsDef {
         self.levels.get(usize::from(difficulty.min(MAX_DIFFICULTY)))
     }
 
-    /// Every problem with the file, in words (empty when it is fine): the number of levels, and
-    /// each level and the new-game choices within range.
-    pub fn validate(&self) -> Vec<String> {
-        let mut problems = Vec::new();
+    /// Every problem with the file (empty when it is fine): the number of levels, and each level and
+    /// the new-game choices within range.
+    pub fn validate(&self) -> Vec<crate::issue::ContentIssue> {
+        const F: &str = "rules_settings.ron";
+        let mut problems = crate::issue::Issues::new();
         if !self.levels.is_empty() && self.levels.len() != LEVELS {
-            problems.push(format!(
-                "rules_settings.ron has {} levels, not {LEVELS}",
-                self.levels.len()
-            ));
+            problems.out_of_range(
+                F,
+                "",
+                "levels",
+                self.levels.len(),
+                format!("{LEVELS} levels"),
+            );
         }
         for d in 0..self.levels.len() as u8 {
             let level = GameSettings::for_difficulty(self, d);
-            problems.extend(
-                level
-                    .validate()
-                    .into_iter()
-                    .map(|p| format!("level {d}: {p}")),
+            for p in level.validate() {
+                problems.conflict(F, format!("level {d}"), p);
+            }
+        }
+        for p in self.spell_library.validate() {
+            problems.conflict(F, "spell_library", p);
+        }
+        if !(1..=MAX_OPPONENTS).contains(&self.max_opponents) {
+            problems.out_of_range(
+                F,
+                "",
+                "max_opponents",
+                self.max_opponents,
+                format!("1 to {MAX_OPPONENTS}"),
+            );
+        } else if self.new_game.opponents > self.max_opponents {
+            problems.out_of_range(
+                F,
+                "new_game",
+                "opponents",
+                self.new_game.opponents,
+                format!("at most max_opponents ({})", self.max_opponents),
             );
         }
-        problems.extend(self.spell_library.validate());
-        if !(1..=MAX_OPPONENTS).contains(&self.max_opponents) {
-            problems.push(format!(
-                "max_opponents {} is not 1 to {MAX_OPPONENTS}",
-                self.max_opponents
-            ));
-        } else if self.new_game.opponents > self.max_opponents {
-            problems.push(format!(
-                "new_game: {} opponents is over max_opponents {}",
-                self.new_game.opponents, self.max_opponents
-            ));
-        }
         if self.land_sizes.is_empty() {
-            problems.push("land_sizes is empty".into());
+            problems.missing(F, "", "land_sizes");
         }
         for size in &self.land_sizes {
             if !(1..=99).contains(&size.land_percent) {
-                problems.push(format!(
-                    "land size {:?}: {}% is not 1 to 99",
-                    size.id, size.land_percent
-                ));
+                problems.out_of_range(
+                    F,
+                    format!("land size {:?}", size.id),
+                    "land_percent",
+                    size.land_percent,
+                    "1 to 99",
+                );
             }
         }
         if self.map_sizes.is_empty() {
-            problems.push("map_sizes is empty".into());
+            problems.missing(F, "", "map_sizes");
         }
         for size in &self.map_sizes {
             if !MAP_WIDTHS.contains(&size.width) || !MAP_HEIGHTS.contains(&size.height) {
-                problems.push(format!(
-                    "map size {:?}: {} by {} is not {:?} by {:?}",
-                    size.id, size.width, size.height, MAP_WIDTHS, MAP_HEIGHTS
-                ));
+                problems.out_of_range(
+                    F,
+                    format!("map size {:?}", size.id),
+                    "width and height",
+                    format!("{} by {}", size.width, size.height),
+                    format!("a width of {MAP_WIDTHS:?} and a height of {MAP_HEIGHTS:?}"),
+                );
             }
         }
         // The id of a size is the end of a text key (`options.land_<id>`): a plain word, once.
@@ -1320,9 +1335,9 @@ impl SettingsDef {
         ] {
             let mut seen = std::collections::HashSet::new();
             for id in ids {
-                problems.extend(crate::load::id_problem(kind, id));
+                problems.extend_opt(crate::load::id_problem(F, kind, id));
                 if !seen.insert(id) {
-                    problems.push(format!("duplicate {kind} id {id:?}"));
+                    problems.duplicate(F, format!("{kind} {id:?}"), "the id", format!("{id:?}"));
                 }
             }
         }
@@ -1330,13 +1345,10 @@ impl SettingsDef {
             basic: self.new_game,
             ..GameSettings::default()
         };
-        problems.extend(
-            choices
-                .validate()
-                .into_iter()
-                .map(|p| format!("new_game: {p}")),
-        );
-        problems
+        for p in choices.validate() {
+            problems.conflict(F, "new_game", p);
+        }
+        problems.into_vec()
     }
 }
 

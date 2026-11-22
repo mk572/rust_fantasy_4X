@@ -114,17 +114,6 @@ impl ContentIssue {
         self.detail = detail.into_iter().map(Into::into).collect();
         self
     }
-
-    /// An issue from a problem sentence of a validator that does not give the parts yet: the file is
-    /// the leading `name.ron: ` when there is one, the sentence is the detail, and the kind is
-    /// `Conflict`. (Transitional: each validator moves to the typed constructors, task 764.)
-    pub fn from_problem(problem: &str) -> Self {
-        let (file, rest) = match problem.split_once(": ") {
-            Some((f, r)) if f.ends_with(".ron") && !f.contains(' ') => (f, r),
-            _ => ("", problem),
-        };
-        ContentIssue::new(file, "", IssueKind::Conflict).with([rest])
-    }
 }
 
 impl fmt::Display for ContentIssue {
@@ -135,10 +124,128 @@ impl fmt::Display for ContentIssue {
         if !self.at.is_empty() {
             write!(f, "{}: ", self.at)?;
         }
-        match (self.kind, self.detail.as_slice()) {
+        let d = self.detail.as_slice();
+        match (self.kind, d) {
             (IssueKind::Conflict, [sentence]) => write!(f, "{sentence}"),
+            (IssueKind::Dangling, [field, target, value]) => {
+                write!(f, "{field} names a {target} that does not exist: {value}")
+            }
+            (IssueKind::Duplicate, [what, value]) => write!(f, "{what} {value} is used twice"),
+            (IssueKind::OutOfRange, [field, found, allowed]) => {
+                write!(f, "{field} is {found}, it must be {allowed}")
+            }
+            (IssueKind::Missing, [field]) if !self.at.is_empty() => write!(f, "{field} is missing"),
             (kind, []) => write!(f, "{}", kind.label()),
             (kind, detail) => write!(f, "{} ({})", kind.label(), detail.join("; ")),
+        }
+    }
+}
+
+/// The issues a check finds, with a method for each kind that fixes what the details are.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Issues(Vec<ContentIssue>);
+
+impl Issues {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn push(&mut self, issue: ContentIssue) {
+        self.0.push(issue);
+    }
+
+    /// A reference to a row that does not exist: `field` of the row `at` names a `target` numbered
+    /// (or named) `value`.
+    pub fn dangling(
+        &mut self,
+        file: &str,
+        at: impl Into<String>,
+        field: &str,
+        target: &str,
+        value: impl fmt::Display,
+    ) {
+        self.push(ContentIssue::new(file, at, IssueKind::Dangling).with([
+            field.to_string(),
+            target.to_string(),
+            value.to_string(),
+        ]));
+    }
+
+    /// A number, id or name that is used twice.
+    pub fn duplicate(
+        &mut self,
+        file: &str,
+        at: impl Into<String>,
+        what: &str,
+        value: impl fmt::Display,
+    ) {
+        self.push(
+            ContentIssue::new(file, at, IssueKind::Duplicate)
+                .with([what.to_string(), value.to_string()]),
+        );
+    }
+
+    /// A value outside what the field allows; `allowed` says what it must be.
+    pub fn out_of_range(
+        &mut self,
+        file: &str,
+        at: impl Into<String>,
+        field: &str,
+        found: impl fmt::Display,
+        allowed: impl fmt::Display,
+    ) {
+        self.push(ContentIssue::new(file, at, IssueKind::OutOfRange).with([
+            field.to_string(),
+            found.to_string(),
+            allowed.to_string(),
+        ]));
+    }
+
+    /// A field, row or table that must be there and is not.
+    pub fn missing(&mut self, file: &str, at: impl Into<String>, field: &str) {
+        self.push(ContentIssue::new(file, at, IssueKind::Missing).with([field]));
+    }
+
+    /// Values that are each fine and contradict each other; the sentence says how.
+    pub fn conflict(&mut self, file: &str, at: impl Into<String>, sentence: impl Into<String>) {
+        self.push(ContentIssue::new(file, at, IssueKind::Conflict).with([sentence.into()]));
+    }
+
+    /// The issues of a failed step.
+    pub fn extend_error(&mut self, e: ContentError) {
+        self.0.extend(e.issues);
+    }
+
+    pub fn extend_opt(&mut self, issue: Option<ContentIssue>) {
+        self.0.extend(issue);
+    }
+
+    pub fn extend(&mut self, other: Issues) {
+        self.0.extend(other.0);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, ContentIssue> {
+        self.0.iter()
+    }
+
+    pub fn into_vec(self) -> Vec<ContentIssue> {
+        self.0
+    }
+
+    /// `Ok` when nothing was found, else the error with every issue.
+    pub fn into_result<T>(self, ok: T) -> Result<T, ContentError> {
+        if self.0.is_empty() {
+            Ok(ok)
+        } else {
+            Err(ContentError::new(self.0))
         }
     }
 }
@@ -152,16 +259,6 @@ pub struct ContentError {
 impl ContentError {
     pub fn new(issues: Vec<ContentIssue>) -> Self {
         ContentError { issues }
-    }
-
-    /// The error of a validator that still gives sentences.
-    pub fn invalid(problems: Vec<String>) -> Self {
-        ContentError::new(
-            problems
-                .iter()
-                .map(|p| ContentIssue::from_problem(p))
-                .collect(),
-        )
     }
 
     /// A file that could not be read; `path` is as the caller names it.

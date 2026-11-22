@@ -8,6 +8,7 @@
 use crate::support::*;
 use f4x_def::feature::{FeatureDef, FeatureKind};
 use f4x_def::half_int::HalfInt;
+use f4x_def::issue::IssueKind;
 use f4x_def::load::rules::validate_rules;
 use f4x_def::load::{validate_features, validate_terrains};
 use f4x_def::map::{Plane, TerrainClass, TerrainDef};
@@ -38,6 +39,26 @@ fn refused<T: DeserializeOwned + Serialize>(
     p
 }
 
+/// Refused with an issue of this kind in this file (and, when `detail` is given, with this word
+/// among its values): the test reads the issue's parts, not its wording.
+fn refused_as<T: DeserializeOwned + Serialize>(
+    file: &str,
+    kind: f4x_def::issue::IssueKind,
+    detail: Option<&str>,
+    change: impl FnOnce(&mut T),
+) {
+    let dir = copy_of_shipped("c1-kind");
+    edit::<T>(&dir, file, change);
+    let e = load(&dir).expect_err("the content should be refused");
+    assert!(
+        e.issues.iter().any(|i| i.kind == kind
+            && i.file == file
+            && detail.is_none_or(|d| i.detail.iter().any(|x| x == d))),
+        "no {kind:?} issue in {file} with {detail:?}: {:#?}",
+        e.issues
+    );
+}
+
 /// Refused, and a problem names one of the two rows that clash.
 fn refused_either<T: DeserializeOwned + Serialize>(
     file: &str,
@@ -58,10 +79,10 @@ const NOWHERE: u16 = 64000;
 #[test]
 fn the_shipped_content_has_no_problem() {
     let c = shipped();
-    assert_eq!(validate_rules(&c.rules), Vec::<String>::new());
-    assert_eq!(validate_terrains(c.terrains.defs()), Vec::<String>::new());
-    assert_eq!(validate_features(c.features.defs()), Vec::<String>::new());
-    assert_eq!(c.settings.validate(), Vec::<String>::new());
+    assert!(validate_rules(&c.rules).is_empty());
+    assert!(validate_terrains(c.terrains.defs()).is_empty());
+    assert!(validate_features(c.features.defs()).is_empty());
+    assert!(c.settings.validate().is_empty());
 }
 
 #[test]
@@ -807,7 +828,7 @@ fn a_hero_template_that_does_not_match_its_hero_is_refused() {
     refused::<Vec<HeroTemplate>>("heroes.ron", "hero template", |v| {
         v[0].spells = vec![Id::new(shipped().rules.spells.defs()[0].num); 5]
     });
-    refused::<Vec<HeroTemplate>>("heroes.ron", "no hero template", |v| {
+    refused_as::<Vec<HeroTemplate>>("heroes.ron", IssueKind::Missing, None, |v| {
         v.pop();
     });
 }
@@ -1042,16 +1063,16 @@ fn a_help_with_a_repeated_topic_or_a_dangling_include_is_reported() {
 
 #[test]
 fn the_numbers_rules_ron_keeps_for_rows_of_other_files_must_name_rows() {
-    refused::<RulesConfig>("rules.ron", "unknown building", |c| {
+    refused_as::<RulesConfig>("rules.ron", IssueKind::Dangling, Some("building"), |c| {
         c.autobuild_order.push(Id::new(NOWHERE))
     });
-    refused::<RulesConfig>("rules.ron", "unknown building", |c| {
+    refused_as::<RulesConfig>("rules.ron", IssueKind::Dangling, Some("building"), |c| {
         c.starting_buildings.push((1, Id::new(NOWHERE)))
     });
-    refused::<RulesConfig>("rules.ron", "unknown race", |c| {
+    refused_as::<RulesConfig>("rules.ron", IssueKind::Dangling, Some("race"), |c| {
         c.limited_ai_races.push(NOWHERE)
     });
-    refused::<RulesConfig>("rules.ron", "unknown feature", |c| {
+    refused_as::<RulesConfig>("rules.ron", IssueKind::Dangling, Some("feature"), |c| {
         c.event_ores.push(NOWHERE)
     });
 }
@@ -1200,4 +1221,40 @@ fn a_unit_rating_must_name_a_unit_and_hold_positive_finite_numbers() {
         r.units[0].levels = vec![f32::MIN_POSITIVE]
     });
     load(&dir).expect("a small positive worth is a worth");
+}
+
+#[test]
+fn a_check_gives_file_row_kind_and_the_values_and_not_only_a_sentence() {
+    let dir = copy_of_shipped("c1-parts");
+    let unit_id = shipped().rules.units.defs()[0].id.clone();
+    edit::<Vec<UnitDef>>(&dir, "units.ron", |rows| {
+        rows[0].abilities.push(Id::new(NOWHERE))
+    });
+    let e = load(&dir).expect_err("refused");
+    let issue = e
+        .issues
+        .iter()
+        .find(|i| i.kind == IssueKind::Dangling)
+        .expect("a dangling reference");
+    assert_eq!(issue.file, "units.ron");
+    assert!(issue.at.contains(&unit_id), "the row: {}", issue.at);
+    assert_eq!(issue.detail, ["abilities", "ability", &NOWHERE.to_string()]);
+    assert_eq!(issue.outcome, f4x_def::issue::Outcome::Refuse);
+    // The same through the number out of range and the twice used.
+    let dir = copy_of_shipped("c1-parts2");
+    edit::<Vec<BuildingDef>>(&dir, "buildings.ron", |rows| rows[0].cost = 0);
+    let e = load(&dir).expect_err("refused");
+    let issue = e
+        .issues
+        .iter()
+        .find(|i| i.kind == IssueKind::OutOfRange)
+        .expect("out of range");
+    assert_eq!(
+        (
+            issue.file.as_str(),
+            issue.detail[0].as_str(),
+            issue.detail[1].as_str()
+        ),
+        ("buildings.ron", "cost", "0")
+    );
 }

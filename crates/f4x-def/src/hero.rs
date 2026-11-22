@@ -181,31 +181,33 @@ impl crate::rules::Rules {
 
 /// The problems of the hero abilities' `per_level`: each of the ten tiered abilities, plain and
 /// doubled, has one with a denominator and no negative number; no other ability has one.
-pub fn problems(rules: &crate::rules::Rules) -> Vec<String> {
-    let mut p = Vec::new();
+pub fn problems(rules: &crate::rules::Rules) -> Vec<crate::issue::ContentIssue> {
+    const F: &str = "abilities.ron";
+    let mut p = crate::issue::Issues::new();
     let tiered: Vec<u16> = TIERED
         .iter()
         .flat_map(|&n| [tiered_number(n), tiered_number(n) + 1])
         .collect();
     for a in rules.abilities.defs() {
+        let at = format!("ability {:?}", a.id);
         match (tiered.contains(&a.num), a.per_level) {
-            (true, None) => p.push(format!("abilities.ron: {} has no per_level", a.id)),
-            (false, Some(_)) => p.push(format!(
-                "abilities.ron: {} is no hero ability but has a per_level",
-                a.id
-            )),
+            (true, None) => p.missing(F, &at, "per_level (a hero ability has one)"),
+            (false, Some(_)) => p.conflict(F, &at, "it is no hero ability but has a per_level"),
             (true, Some(f))
                 if f.denominator < 1 || f.numerator < 0 || !(0..=1).contains(&f.level_offset) =>
             {
-                p.push(format!(
-                    "abilities.ron: {} has the fraction {}/{} with offset {}",
-                    a.id, f.numerator, f.denominator, f.level_offset
-                ))
+                p.out_of_range(
+                    F,
+                    &at,
+                    "per_level",
+                    format!("{}/{} with offset {}", f.numerator, f.denominator, f.level_offset),
+                    "a fraction with a denominator of at least 1, a numerator of 0 or more and an offset of 0 or 1",
+                )
             }
             _ => {}
         }
     }
-    p
+    p.into_vec()
 }
 
 impl HeroAbilities {

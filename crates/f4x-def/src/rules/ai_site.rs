@@ -58,8 +58,9 @@ impl SiteRules {
 
     /// The problems of the numbers: weights that are not finite or below zero, a share outside
     /// 0 to 1, no range.
-    pub fn problems(&self) -> Vec<String> {
-        let mut p = Vec::new();
+    pub fn problems(&self) -> Vec<crate::issue::ContentIssue> {
+        const F: &str = "ai_sites.ron";
+        let mut p = crate::issue::Issues::new();
         let named = [
             ("shared_share", self.shared_share),
             ("production", self.production),
@@ -76,25 +77,29 @@ impl SiteRules {
         ];
         for (name, v) in named {
             if !v.is_finite() || v < 0.0 {
-                p.push(format!(
-                    "ai_sites.ron: {name} must be a number of 0 or more"
-                ));
+                p.out_of_range(F, "", name, v, "a number of 0 or more");
             }
         }
         if self.shared_share > 1.0 {
-            p.push("ai_sites.ron: shared_share is a share, 0 to 1".into());
+            p.out_of_range(F, "", "shared_share", self.shared_share, "a share, 0 to 1");
         }
         if self.enemy_range == 0 {
-            p.push("ai_sites.ron: enemy_range must be at least 1".into());
+            p.out_of_range(F, "", "enemy_range", 0, "at least 1");
         }
-        if self
+        for (class, v) in self
             .land_values
             .iter()
-            .any(|&(_, v)| !v.is_finite() || v < 0.0)
+            .filter(|(_, v)| !v.is_finite() || *v < 0.0)
         {
-            p.push("ai_sites.ron: a land value must be a number of 0 or more".into());
+            p.out_of_range(
+                F,
+                "land_values",
+                &format!("{class:?}"),
+                v,
+                "a number of 0 or more",
+            );
         }
-        p
+        p.into_vec()
     }
 }
 

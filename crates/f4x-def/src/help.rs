@@ -99,12 +99,18 @@ impl Help {
     /// Cross-reference problems; empty means consistent. An area may open a topic that is not
     /// written yet (see [`Help::unwritten`]); it then opens nothing. A topic number is used once,
     /// and no two topics repeat the same title and text.
-    pub fn problems(&self) -> Vec<String> {
-        let mut p = Vec::new();
+    pub fn problems(&self) -> Vec<crate::issue::ContentIssue> {
+        const F: &str = "help.ron";
+        let mut p = crate::issue::Issues::new();
         let mut seen = std::collections::HashSet::new();
         for t in &self.topics {
             if !seen.insert(t.index) {
-                p.push(format!("help topic {} is there twice", t.index));
+                p.duplicate(
+                    F,
+                    format!("help topic {}", t.index),
+                    "the topic number",
+                    t.index,
+                );
             }
         }
         for (i, t) in self.topics.iter().enumerate() {
@@ -112,19 +118,23 @@ impl Help {
                 .iter()
                 .find(|o| o.title.eq_ignore_ascii_case(&t.title) && o.text == t.text)
             {
-                p.push(format!(
-                    "help topics {} and {} have the same title and text",
-                    other.index, t.index
-                ));
+                p.conflict(
+                    F,
+                    format!("help topic {}", t.index),
+                    format!("it has the same title and text as topic {}", other.index),
+                );
             }
         }
         for t in &self.topics {
             if let Some(inc) = t.include {
                 if self.topic(inc).is_none() {
-                    p.push(format!(
-                        "help topic {} includes unknown topic {inc}",
-                        t.index
-                    ));
+                    p.dangling(
+                        F,
+                        format!("help topic {}", t.index),
+                        "include",
+                        "help topic",
+                        inc,
+                    );
                 }
             }
         }
@@ -134,7 +144,7 @@ impl Help {
             for _ in 0..self.topics.len() {
                 match at.include.and_then(|i| self.topic(i)) {
                     Some(next) if next.index == t.index => {
-                        p.push(format!("help topic {} includes itself", t.index));
+                        p.conflict(F, format!("help topic {}", t.index), "it includes itself");
                         break;
                     }
                     Some(next) => at = next,
@@ -149,13 +159,16 @@ impl Help {
                     && !file.contains(['/', '\\', '\0', ':'])
                     && !file.starts_with('.');
                 if !plain {
-                    p.push(format!(
-                        "help topic {} has the picture {file:?}, which is not a plain file name",
-                        t.index
-                    ));
+                    p.out_of_range(
+                        F,
+                        format!("help topic {}", t.index),
+                        "picture",
+                        format!("{file:?}"),
+                        "a plain file name",
+                    );
                 }
             }
         }
-        p
+        p.into_vec()
     }
 }
