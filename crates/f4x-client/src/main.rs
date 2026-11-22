@@ -759,8 +759,21 @@ async fn main() {
     if first_run::offer(&facts, &exe, f4x_extract::paths::Os::current(), &texts) {
         return;
     }
-    let help =
-        f4x_def::load::load_help(&[lang_layers[0], layers[0]], &language).unwrap_or_default();
+    // A help that cannot be read stops the start, as the content does: the game does not go on
+    // quietly without it. A bad topic inside a readable help is left out and reported
+    // (`load_help_checked`; the issue screen of task 768 shows it).
+    let help = match f4x_def::load::load_help_checked(&[lang_layers[0], layers[0]], &language) {
+        Ok((help, left_out)) => {
+            for issue in &left_out {
+                eprintln!("help: left out: {issue}");
+            }
+            help
+        }
+        Err(e) => {
+            eprintln!("could not load the help: {e}");
+            std::process::exit(1);
+        }
+    };
     let tables = match asset_check::load_tables(&layers, &lang_layers, &content, &language) {
         Ok(tables) => tables,
         Err(e) => {
@@ -814,8 +827,13 @@ async fn main() {
     }
     // The event sentences come from the shipped client content only,
     // in the player's language, or in English where a language lacks the file.
-    app.event_texts =
-        event_message::load(&message_dir(&language, "event_texts.ron")).unwrap_or_default();
+    app.event_texts = match event_message::load(&message_dir(&language, "event_texts.ron")) {
+        Ok(texts) => texts,
+        Err(e) => {
+            eprintln!("could not load the event texts: {e}");
+            std::process::exit(1);
+        }
+    };
     match preferences::Preferences::from_defaults(&settings.preferences) {
         Ok(base) => app.prefs = base,
         Err(e) => {
