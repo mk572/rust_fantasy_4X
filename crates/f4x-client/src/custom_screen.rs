@@ -550,6 +550,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.rules.cavalry_halberdier_abilities.into(),
             |s, v| s.rules.cavalry_halberdier_abilities = v != 0,
         ),
+        flag(
+            "custom.multiple_summoning_circles",
+            |s| s.rules.multiple_summoning_circles.into(),
+            |s, v| s.rules.multiple_summoning_circles = v != 0,
+        ),
         Row::Field(Field {
             label: "custom.farmer_food",
             kind: Kind::Half { min: 0, max: 20 },

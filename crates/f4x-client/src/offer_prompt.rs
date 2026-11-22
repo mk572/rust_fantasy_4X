@@ -166,6 +166,7 @@ impl App {
                     offers.0[0] = Offer::Summoned {
                         kind: hero,
                         champion: kind == "champion",
+                        at: None,
                     };
                 }
             }
@@ -683,7 +684,7 @@ mod tests {
         let mut app = App::for_test();
         app.open_test_offer("summoned");
         let offer = first_offer(&app)?;
-        let Offer::Summoned { kind, champion } = offer else {
+        let Offer::Summoned { kind, champion, .. } = offer else {
             return Err(format!("{offer:?}").into());
         };
         assert!(!champion);

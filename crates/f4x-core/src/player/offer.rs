@@ -19,6 +19,7 @@ use crate::hero::HeroError;
 use crate::item::armory::Placed;
 use crate::item::make::{make_item, Grade};
 use crate::item::Item;
+use crate::map::Position;
 use crate::player::{Offers, PlayerId};
 use crate::rules::{MovementType, Rules, Stat, UnitDef, UnitId, UnitKind};
 use crate::unit::Experience;
@@ -44,7 +45,13 @@ pub enum Offer {
     /// Summon Hero or Summon Champion found the hero `kind` for the human wizard: it asks to be
     /// accepted (`Hire_Hero_Popup` of type 1, or 3 for a `champion`), at no cost. The spell is
     /// spent whatever the answer; a refused hero stays free.
-    Summoned { kind: usize, champion: bool },
+    Summoned {
+        kind: usize,
+        champion: bool,
+        /// The summoning circle the hero comes to, when the wizard chose among several.
+        #[serde(default)]
+        at: Option<Position>,
+    },
     /// A merchant sells a magic item.
     Item { item: Item, price: i32 },
     /// A wizard's item is sold at half its value: it is offered to the other wizards
@@ -455,9 +462,9 @@ impl Game {
         let taken = offer.clone();
         let events = match offer {
             Offer::Hero { .. } | Offer::Summoned { .. } => {
-                let (kind, price) = match offer {
-                    Offer::Hero { kind, price } => (kind, price),
-                    Offer::Summoned { kind, .. } => (kind, 0),
+                let (kind, price, at) = match offer {
+                    Offer::Hero { kind, price } => (kind, price, None),
+                    Offer::Summoned { kind, at, .. } => (kind, 0, at),
                     _ => return Err(OfferError::NoOffer),
                 };
                 // Another wizard may have hired the hero meanwhile.
@@ -473,7 +480,7 @@ impl Game {
                 }
                 // A prisoner freed in a lair costs nothing.
                 let unit = if price == 0 {
-                    self.arrive(player, kind)
+                    self.arrive_at(player, kind, at)
                 } else {
                     self.hire_hero(player, kind)
                 }

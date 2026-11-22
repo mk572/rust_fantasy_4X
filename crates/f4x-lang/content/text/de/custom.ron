@@ -82,6 +82,7 @@
     "custom.spell_binding_always_succeeds": "Zauberbindung gelingt immer",
     "custom.lair_full_heal": "Monster in Höhlen nach der Schlacht voll geheilt",
     "custom.cavalry_halberdier_abilities": "Kavallerie hat Erstschlag und Hellebardiere heben ihn auf (alle Völker)",
+    "custom.multiple_summoning_circles": "Mehrere Beschwörungskreise (ein Beschwörungszauber fragt, wo die Kreatur erscheint)",
     "custom.farmer_food": "Nahrung eines Bauern (Völker mit eigenem Wert behalten ihn)",
     "custom.worker_production": "Produktion eines Arbeiters (Völker mit eigenem Wert behalten ihn)",
     "custom.roads_at_start": "Straßen zwischen unabhängigen Städten zu Beginn",

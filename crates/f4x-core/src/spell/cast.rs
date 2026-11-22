@@ -233,8 +233,13 @@ impl EffectHost for GameHost<'_> {
     }
 
     fn summon(&mut self, owner: PlayerId, at: Position, id: UnitId, count: u8) {
-        // Summoned creatures appear at the summoning circle; without one, where aimed.
-        let at = self.game.summon_point(owner).unwrap_or(at);
+        // Summoned creatures appear at the summoning circle (the one aimed at, when there are several);
+        // without one, where aimed.
+        let at = if self.game.summon_circles(owner).contains(&at) {
+            at
+        } else {
+            self.game.summon_point(owner).unwrap_or(at)
+        };
         for _ in 0..count {
             self.game.spawn_unit(owner, at, id);
         }
@@ -550,7 +555,7 @@ impl Game {
         self.content.rules.spells.get(spell).has_hook(hook)
     }
 
-    fn summons(&self, spell: SpellId) -> bool {
+    pub fn spell_summons(&self, spell: SpellId) -> bool {
         self.content
             .rules
             .spells
@@ -574,8 +579,9 @@ impl Game {
             // The dead hero to raise is chosen when the cast is finished.
             return true;
         }
-        if self.summons(spell) && self.summon_point(player).is_some() {
-            return false;
+        if self.spell_summons(spell) && self.summon_point(player).is_some() {
+            // Only with several circles (`multiple_summoning_circles`) is the city chosen.
+            return self.has_several_circles(player);
         }
         !matches!(
             self.content.rules.spells.get(spell).target,
@@ -618,6 +624,18 @@ impl Game {
         };
         if !self.spell_needs_target(player, spell) {
             return Ok(());
+        }
+        // A summoning with several circles: the city the creature appears in.
+        if self.spell_summons(spell) && self.has_several_circles(player) {
+            return match target {
+                None => Err(MagicError::NeedsTarget),
+                Some(Target::City(c)) => match self.circle_in(player, c) {
+                    Some(_) => Ok(()),
+                    None if mine(self.economy().city_owner(c)) => Err(wrong),
+                    None => Err(MagicError::Target(TargetError::NotYourCity)),
+                },
+                Some(_) => Err(wrong),
+            };
         }
         // Move Fortress, Summoning Circle and Return to Fortress.
         let building = self

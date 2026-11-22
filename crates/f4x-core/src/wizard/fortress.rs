@@ -52,9 +52,10 @@ impl FortressError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Fortress(pub Position);
 
-/// On a wizard: where summoned creatures appear. Absent: the fortress.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SummonAt(pub Position);
+/// On a wizard: where summoned creatures appear, the cities with a summoning circle in the order they
+/// were made (one, unless the setting `multiple_summoning_circles` is on). Absent: the fortress.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SummonAt(pub Vec<Position>);
 
 /// On a wizard whose fortress fell: it is casting the Spell of Return.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,9 +70,16 @@ impl Wizard<'_> {
         self.component::<Fortress>().map(|f| f.0)
     }
 
-    /// Where the wizard's summoning circle stands.
+    /// Where the wizard's summoning circle stands (the first, when there are several).
     pub fn summon_at(&self) -> Option<Position> {
-        self.component::<SummonAt>().map(|s| s.0)
+        self.summon_circles().first().copied()
+    }
+
+    /// Where the wizard's summoning circles stand, in the order they were made.
+    pub fn summon_circles(&self) -> Vec<Position> {
+        self.component::<SummonAt>()
+            .map(|s| s.0.clone())
+            .unwrap_or_default()
     }
 
     /// Where summoned creatures appear: the summoning circle, else the fortress.
@@ -101,15 +109,35 @@ pub(crate) fn can_place(wizard: &Wizard, defeated: bool) -> Result<(), FortressE
 /// The fortress and the summoning circle stand in the wizard's first city at `pos`.
 pub(crate) fn place_at(wizard: &mut WizardMut, pos: Position) {
     wizard.put(Some(Fortress(pos)));
-    wizard.put(Some(SummonAt(pos)));
+    wizard.put(Some(SummonAt(vec![pos])));
 }
 
-/// Move the fortress (and the summoning circle with it) to the city at `pos`.
-pub(crate) fn move_fortress_to(wizard: &mut WizardMut, pos: Position) -> Result<(), FortressError> {
+/// A summoning circle in the city at `pos`: it replaces the circles the wizard has, or, with `keep`
+/// (the setting `multiple_summoning_circles`), is added to them.
+pub(crate) fn put_circle(wizard: &mut WizardMut, pos: Position, keep: bool) {
+    let mut circles = if keep {
+        wizard.view().summon_circles()
+    } else {
+        Vec::new()
+    };
+    if !circles.contains(&pos) {
+        circles.push(pos);
+    }
+    wizard.put(Some(SummonAt(circles)));
+}
+
+/// Move the fortress (and a summoning circle with it) to the city at `pos`; with `keep` the circles the
+/// wizard has stay.
+pub(crate) fn move_fortress_to(
+    wizard: &mut WizardMut,
+    pos: Position,
+    keep: bool,
+) -> Result<(), FortressError> {
     if wizard.view().fortress().is_none() {
         return Err(FortressError::WrongState);
     }
-    place_at(wizard, pos);
+    wizard.put(Some(Fortress(pos)));
+    put_circle(wizard, pos, keep);
     Ok(())
 }
 
@@ -124,23 +152,30 @@ pub(crate) fn return_to(wizard: &mut WizardMut, pos: Position) -> Result<(), For
     Ok(())
 }
 
+/// The summoning circle in the city at `pos` is gone. When it was the last one, creatures appear at the
+/// fortress again, unless that is the city (`falls_back`).
+fn circle_lost(wizard: &mut WizardMut, pos: Position, falls_back: bool) {
+    let view = wizard.view();
+    let mut circles = view.summon_circles();
+    if !circles.contains(&pos) {
+        return;
+    }
+    circles.retain(|&c| c != pos);
+    if circles.is_empty() && falls_back {
+        circles.extend(view.fortress().filter(|&f| f != pos));
+    }
+    wizard.put((!circles.is_empty()).then_some(SummonAt(circles)));
+}
+
 /// A city of the wizard's was taken: a summoning circle in it falls back to the fortress,
 /// unless that is the city.
 pub(crate) fn circle_lost_to_capture(wizard: &mut WizardMut, pos: Position) {
-    let view = wizard.view();
-    if view.summon_at() == Some(pos) {
-        let back = view.fortress().filter(|&f| f != pos);
-        wizard.put(back.map(SummonAt));
-    }
+    circle_lost(wizard, pos, true);
 }
 
 /// A city of the wizard's was destroyed: a circle in it falls back to the fortress.
 pub(crate) fn circle_lost_to_destruction(wizard: &mut WizardMut, pos: Position) {
-    let view = wizard.view();
-    if view.summon_at() == Some(pos) {
-        let back = view.fortress();
-        wizard.put(back.map(SummonAt));
-    }
+    circle_lost(wizard, pos, true);
 }
 
 /// The fortress falls: the wizard loses it and the summoning circle. (Half their mana goes to the
@@ -221,6 +256,24 @@ impl Game {
         }
     }
 
+    /// Where the wizard's summoning circles stand (empty for a player without a wizard).
+    pub fn summon_circles(&self, player: PlayerId) -> Vec<Position> {
+        self.wizard(player)
+            .map(|w| w.summon_circles())
+            .unwrap_or_default()
+    }
+
+    /// Does the wizard have more than one summoning circle, so that a summoning asks for the city?
+    pub fn has_several_circles(&self, player: PlayerId) -> bool {
+        self.summon_circles(player).len() > 1
+    }
+
+    /// The position of the summoning circle in `city`, if it is the wizard's and holds one.
+    pub fn circle_in(&self, player: PlayerId, city: hecs::Entity) -> Option<Position> {
+        let at = self.economy().own_city_pos(player, city).ok()?;
+        self.summon_circles(player).contains(&at).then_some(at)
+    }
+
     /// The seat of a player without a wizard: its biggest city by citizens, the one made first
     /// when they tie. It is the new seat when the old one is lost.
     pub fn seat_of(&self, player: PlayerId) -> Option<Position> {
@@ -269,8 +322,9 @@ impl Game {
         city: hecs::Entity,
     ) -> Result<Vec<Event>, FortressError> {
         let pos = self.economy().own_city_pos(player, city)?;
+        let keep = self.settings.rules.multiple_summoning_circles;
         match self.wizard_mut(player) {
-            Some(mut w) => move_fortress_to(&mut w, pos)?,
+            Some(mut w) => move_fortress_to(&mut w, pos, keep)?,
             None => return Err(FortressError::WrongState),
         }
         Ok(vec![Event::FortressMoved { player, pos }])
@@ -283,8 +337,9 @@ impl Game {
         city: hecs::Entity,
     ) -> Result<Vec<Event>, FortressError> {
         let pos = self.economy().own_city_pos(player, city)?;
+        let keep = self.settings.rules.multiple_summoning_circles;
         if let Some(mut w) = self.wizard_mut(player) {
-            w.put(Some(SummonAt(pos)));
+            put_circle(&mut w, pos, keep);
         }
         Ok(vec![Event::SummoningCircleMoved { player, pos }])
     }

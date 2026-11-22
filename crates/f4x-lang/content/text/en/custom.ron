@@ -82,6 +82,7 @@
     "custom.spell_binding_always_succeeds": "Spell Binding always succeeds",
     "custom.lair_full_heal": "Monsters in lairs fully healed after battle",
     "custom.cavalry_halberdier_abilities": "Cavalry have First Strike and halberdiers Negate First Strike (all races)",
+    "custom.multiple_summoning_circles": "Several summoning circles (a summoning spell asks where the creature appears)",
     "custom.farmer_food": "Food of a farmer (races with their own keep it)",
     "custom.worker_production": "Production of a worker (races with their own keep it)",
     "custom.roads_at_start": "Roads between independent cities at the start",

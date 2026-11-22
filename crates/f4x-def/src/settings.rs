@@ -591,6 +591,12 @@ pub struct RuleSettings {
     /// only: an AI wizard is defeated when banished. Off: banishment is final for everyone.
     #[serde(default = "fb_spell_of_return")]
     pub spell_of_return: SpellAccess,
+    /// A wizard may have several summoning circles. Off: the Summoning Circle spell and Move
+    /// Fortress put the one circle in the new city, and it leaves the old one. On: they add a
+    /// circle and keep the old ones, and when a wizard with more than one circle casts a summoning
+    /// spell, they choose the city the creature appears in. Off in every rule set.
+    #[serde(default = "fb_multiple_summoning_circles")]
+    pub multiple_summoning_circles: bool,
 }
 
 /// Who a special spell is open to (`RuleSettings::spell_of_mastery`, `spell_of_return`).
@@ -767,6 +773,12 @@ fn fb_lair_full_heal() -> bool {
 fn fb_cavalry_halberdier_abilities() -> bool {
     fallback("cavalry_halberdier_abilities", |g| {
         g.rules.cavalry_halberdier_abilities
+    })
+}
+
+fn fb_multiple_summoning_circles() -> bool {
+    fallback("multiple_summoning_circles", |g| {
+        g.rules.multiple_summoning_circles
     })
 }
 

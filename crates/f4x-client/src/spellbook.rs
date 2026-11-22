@@ -401,7 +401,13 @@ impl App {
     /// The player clicked `pos` while choosing a target.
     pub(crate) fn aim_at(&mut self, t: Targeting, pos: f4x_core::map::Position) {
         let def = self.game.content().rules.spells.get(t.spell);
+        // A summoning with several circles (`multiple_summoning_circles`) asks for the city it comes to.
+        let circle_city = self.game.has_several_circles(HUMAN)
+            && self.game.spell_needs_target(HUMAN, t.spell)
+            && !f4x_core::spell::hero::HeroSummon::Resurrection.is_in(def)
+            && self.game.spell_summons(t.spell);
         let target = match def.target {
+            _ if circle_city => self.game.economy().city_at(pos).map(Target::City),
             SpellTarget::OwnUnit | SpellTarget::EnemyUnit | SpellTarget::AnyUnit => {
                 let units = self.game.units().units_at(pos);
                 let wanted = units.into_iter().find(|&u| {

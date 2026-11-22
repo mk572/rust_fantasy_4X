@@ -266,7 +266,7 @@ fn a_unit_appears_in_the_city_when_it_is_finished_and_a_settler_takes_a_citizen(
             });
             let here = g.units().units_at(at).len();
             let mut turns = 0;
-            let mut grown = size;
+            let grown;
             loop {
                 turns += 1;
                 assert!(turns < 400, "{name}: {unit:?} was never finished");

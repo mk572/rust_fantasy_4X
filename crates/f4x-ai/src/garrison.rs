@@ -201,7 +201,7 @@ mod tests {
         let coast = at(COAST_CITY.0, COAST_CITY.1);
         let mut w = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
         w.put(Some(Fortress(coast)));
-        w.put(Some(SummonAt(coast)));
+        w.put(Some(SummonAt(vec![coast])));
         Ok(g)
     }
 

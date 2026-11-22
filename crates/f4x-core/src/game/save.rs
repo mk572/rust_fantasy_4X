@@ -392,6 +392,9 @@ pub struct WizardSave {
     pub research_remaining: i32,
     pub fortress: Option<Position>,
     pub summon_at: Option<Position>,
+    /// The summoning circles after the first (the setting `multiple_summoning_circles`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub more_circles: Vec<Position>,
     pub banished: bool,
     pub banished_by: Option<u8>,
 }
@@ -453,6 +456,7 @@ impl WizardSave {
             research_remaining: w.research_remaining(),
             fortress: w.fortress(),
             summon_at: w.summon_at(),
+            more_circles: w.summon_circles().into_iter().skip(1).collect(),
             banished: w.is_banished(),
             banished_by: w.banished_by().map(|d| d.0),
         }
@@ -483,7 +487,13 @@ impl WizardSave {
             ));
         }
         wizard.put(self.fortress.map(Fortress));
-        wizard.put(self.summon_at.map(SummonAt));
+        wizard.put(self.summon_at.map(|first| {
+            SummonAt(
+                std::iter::once(first)
+                    .chain(self.more_circles.iter().copied())
+                    .collect(),
+            )
+        }));
         wizard.put(self.banished.then(|| Banishment {
             by: self.banished_by.map(PlayerId),
         }));
@@ -1938,7 +1948,7 @@ impl Snapshot {
             let Some(w) = game.wizard(id) else {
                 continue;
             };
-            for pos in [w.fortress(), w.summon_at()].into_iter().flatten() {
+            for pos in w.fortress().into_iter().chain(w.summon_circles()) {
                 let ok = game
                     .economy()
                     .city_at(pos)

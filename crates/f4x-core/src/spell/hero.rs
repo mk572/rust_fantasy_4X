@@ -11,6 +11,7 @@ use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
 use crate::hero::kind::{self, Class, Standing, HEROES};
 use crate::hero::{HeroError, HeroState};
+use crate::map::Position;
 use crate::player::offer::Offer;
 use crate::player::PlayerId;
 use crate::rules::SpellId;
@@ -138,7 +139,20 @@ impl Game {
         player: PlayerId,
         kind: usize,
     ) -> Result<hecs::Entity, HeroError> {
-        let at = self.summon_point(player).ok_or(HeroError::NoCircle)?;
+        self.arrive_at(player, kind, None)
+    }
+
+    /// [`arrive`](Self::arrive) at the summoning circle in `at`, when the wizard has one there.
+    pub(crate) fn arrive_at(
+        &mut self,
+        player: PlayerId,
+        kind: usize,
+        at: Option<Position>,
+    ) -> Result<hecs::Entity, HeroError> {
+        let at = at
+            .filter(|a| self.summon_circles(player).contains(a))
+            .or_else(|| self.summon_point(player))
+            .ok_or(HeroError::NoCircle)?;
         self.spawn_hero(player, at, kind)
     }
 
@@ -154,6 +168,11 @@ impl Game {
         who: crate::rules::exec::Target,
         rng: &mut GameRng,
     ) -> Option<Vec<Event>> {
+        // The circle the wizard chose, when they have several.
+        let at = match who {
+            crate::rules::exec::Target::City(c) => self.circle_in(player, c),
+            _ => None,
+        };
         let standing = self.units().hero_standing(player);
         let states = self.units().hero_states();
         let summon = HeroSummon::of(self.content.rules.spells.get(spell));
@@ -180,12 +199,12 @@ impl Game {
             if let Some(kind) = kind {
                 let champion = summon == Some(HeroSummon::Champion);
                 if let Some(o) = self.player_component_mut::<crate::player::Offers>(player) {
-                    o.0.push(Offer::Summoned { kind, champion });
+                    o.0.push(Offer::Summoned { kind, champion, at });
                     return Some(vec![Event::HeroSummoned { player, kind }]);
                 }
             }
         }
-        let joined = kind.and_then(|k| self.arrive(player, k).ok().map(|u| (u, k)));
+        let joined = kind.and_then(|k| self.arrive_at(player, k, at).ok().map(|u| (u, k)));
         Some(match joined {
             Some((unit, kind)) => vec![Event::HeroJoined { player, unit, kind }],
             None => vec![Event::HeroSpellFailed { player, spell }],

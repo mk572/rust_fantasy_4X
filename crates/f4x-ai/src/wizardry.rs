@@ -902,8 +902,30 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
             .into_iter()
             .map(Target::Player)
             .find(|&t| view.can_aim(spell, Some(t))),
+        // With several summoning circles (`multiple_summoning_circles`) the city is chosen; with one,
+        // no target is asked.
+        Kind::Summon | Kind::SummonHero => summon_circle(view),
         _ => None,
     }
+}
+
+/// The city whose summoning circle a creature appears at, when the wizard has several: the one with
+/// the most enemy stacks near it, the first made when none is threatened. `None` with one circle.
+fn summon_circle(view: &PlayerView) -> Option<Target> {
+    let circles = view.wizard()?.summon_circles();
+    if circles.len() < 2 {
+        return None;
+    }
+    circles
+        .into_iter()
+        .max_by_key(|&at| {
+            (
+                view.enemies_near(at, STASIS_RADIUS).len(),
+                std::cmp::Reverse(view.city_at(at).map(|c| view.serial_of(c))),
+            )
+        })
+        .and_then(|at| view.city_at(at))
+        .map(Target::City)
 }
 
 /// The fewest fighters beyond the garrison that Plane Shift is cast for.
@@ -1354,7 +1376,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             let wanted = match k {
                 Kind::Mastery => true,
                 // Summoned creatures cost upkeep mana: only while the army is thin.
-                Kind::Summon if priority_spirit(spell) => now && view.can_aim(spell, None),
+                Kind::Summon if priority_spirit(spell) => now && view.can_aim(spell, target),
                 Kind::Summon => {
                     // A conqueror in the late game summons whatever the mana pays for and the
                     // upkeep allows: the army cap is for a wizard that is still building up.
@@ -1364,12 +1386,12 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         && (fighters < 12 + 2 * view.my_cities().len()
                             || (conquering && upkeep_ok(&view, def)))
                         // The game makes room on a full square, or refuses the spell.
-                        && view.can_aim(spell, None)
+                        && view.can_aim(spell, target)
                 }
                 // There is no cap on heroes: only the supply of heroes (`can_aim` is refused
                 // when none is left to send) and the mana limit it.
                 Kind::SummonHero => {
-                    now && room && view.hero_to_summon(spell) && view.can_aim(spell, None)
+                    now && room && view.hero_to_summon(spell) && view.can_aim(spell, target)
                 }
                 Kind::UnitBuff => {
                     now && room && fighters >= 3 && upkeep_ok(&view, def) && target.is_some()
@@ -1419,7 +1441,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 && cost * 3 / 2 > mana
                 && cost * 3 / 2 <= mana + SAVING_TURNS * net.max(0)
                 && room
-                && view.can_aim(spell, None)
+                && view.can_aim(spell, target)
                 && (k == Kind::SummonHero || fighters < 12 + 2 * view.my_cities().len())
             {
                 saving = true;
