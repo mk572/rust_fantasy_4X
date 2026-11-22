@@ -604,7 +604,7 @@ unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/
 - **Cities built the same unit for ever.** A city that finishes a unit starts the same unit again
   (`city/production.rs`: the item stays, progress goes to zero). The AI only chose production for a
   city that was not building a unit, so the capital made settlers until the wizard held 15 or 25
-  outposts, most of which stay outposts for hundreds of turns (`PLANNED.md` item 21). Now units
+  outposts, most of which stay outposts for hundreds of turns (the closed planned item 21, "faster outpost growth", not needed). Now units
   are looked at again every turn. The change also made the games much quicker to run (seed 1 took 40 s for 300
   turns; 150 turns now take about a second) and, with the other changes, put
   real armies in the field.
@@ -668,7 +668,7 @@ unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/
 - **Heroes and items** (`heroes-items-design.md`) once they exist.
 - **The economy limits the war.** A wizard's net income is a few gold a turn at 200 turns; a unit
   costs one or two gold a turn, so armies stop at 15 to 40 units. Outposts take hundreds of turns
-  to grow (`PLANNED.md` item 21). A better AI cannot fix that; it is a rules and balance question
+  to grow (the closed planned item 21, "faster outpost growth", not needed). A better AI cannot fix that; it is a rules and balance question
   (planned 24).
 - **Speed.** 400 turns take 30 to 190 s a seed; the cost grows with the number of units (a path
   search for each idle unit each turn). Not yet profiled.
@@ -786,7 +786,7 @@ of 42, within the noise of this sample.
 2. **Expansion stops at 5 to 7 cities, and outposts are slow.** **Fixed 24 October 2026, not
    yet re-measured:** an outpost gains about 0.4 tens a turn and needed 100, ten times the original's 10
    (and started at 0 instead of 3), so the baseline above is too slow on outposts; run the soak again
-   (planned item 21 is now only an option). With `WANTED_CITIES` met, a wizard stops settling. Land is often
+   (the planned item 21 was dropped). With `WANTED_CITIES` met, a wizard stops settling. Land is often
    left free. Housing does nothing in an outpost (it makes no production).
 3. **Overland magic is thin** (as of the first baseline; since then the AI casts curses and attacks on
    cities and stacks, Spell of Return, item crafting and the enchanting spells, `docs/soak-results-2026-11-17.md`).

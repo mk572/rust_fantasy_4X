@@ -285,7 +285,7 @@ impl PolicyNet {
 // ---- variants of a trained network ----------------------------------------------------
 
 /// Offsets to the final-layer biases of the policy's output scores, to push a trained network
-/// towards a style without training (`docs/PLANNED.md` item 25). Each is added to every score of
+/// towards a style without training (task 804). Each is added to every score of
 /// its kind, so a positive `attack` makes every melee strike likelier against the rest, and so
 /// on. All zero changes nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Default, serde::Serialize, serde::Deserialize)]

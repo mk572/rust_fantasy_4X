@@ -1,4 +1,4 @@
-//! The city auto-builder (PLANNED item 7; the rules and every weight are in `docs/auto-builder.md`).
+//! The city auto-builder (a closed planned item; the rules and every weight are in `docs/auto-builder.md`).
 //!
 //! A city can have a [`BuildPlan`]: what to build (units, buildings or both) and what matters
 //! (a primary focus and perhaps a secondary one). When the city finishes an item, [`choose`]

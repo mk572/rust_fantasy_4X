@@ -516,7 +516,7 @@ get-off-my-lawn warning, breaking a treaty) in `crates/f4x-def/content/`.
 
 The original contains several mistakes marked by its decompilers. The default here is to implement
 the **intended** behaviour (the strategy guide says what it was) and keep the original's number in
-a named constant so a rule set can restore it (PLANNED item 5, rule sets):
+a named constant so a rule set can restore it (task 788, rule sets):
 
 | Original | Observed | This game |
 |---|---|---|
@@ -546,8 +546,8 @@ Anything in the table must also be written down as a test so the choice is visib
 - The values in OSG Table 25.2 (permanent relation modifiers) and the text of `DIPLOMSG` are not
   in the notes read; get them from the manual in `reference/` before fixing numbers in rule data.
 - The three-way counter-offer ("if you also give me a spell I will accept") in the original is
-  not implemented there. Do we add it (beyond the original, `docs/PLANNED.md`)?
-- More than one human (hot seat, PLANNED 17) and asynchronous play (18) mean the human-only
+  not implemented there. Do we add it (beyond the original, a new task)?
+- More than one human (hot seat, task 799) and asynchronous play (task 800) mean the human-only
   assumptions of §8 (player 0 is the human) must become "every human wizard".
 - Should the AI explain its refusals (which patience was too low) for a better player experience
   than the original's single phrase?

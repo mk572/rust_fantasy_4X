@@ -1,4 +1,4 @@
-//! Two networks against each other, in pairs of battles (`docs/PLANNED.md` item 25).
+//! Two networks against each other, in pairs of battles (task 804).
 //!
 //! A *pair* is one scenario played twice with the same dice, the networks swapping sides in the
 //! second battle. The side with more wins takes the pair. When the wins are level (one each, or

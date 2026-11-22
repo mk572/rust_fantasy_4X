@@ -1,4 +1,4 @@
-//! Make variants of trained networks for a tournament (`docs/PLANNED.md` item 25).
+//! Make variants of trained networks for a tournament (task 804).
 //!
 //! `make_variants OUT_DIR --parent NAME=CHECKPOINT.bpk [--parent ...] [--auto N] [--recipes FILE]
 //!  [--strengths 1,2,4] [--noise 0.01,0.03,0.1] [--seed N]`

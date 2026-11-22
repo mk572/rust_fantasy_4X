@@ -1,4 +1,4 @@
-//! The screen that asks who fights when more than nine units could (`PLANNED.md` item 34): a
+//! The screen that asks who fights when more than nine units could (a closed planned item, see `docs/TASKS-DONE.md`): a
 //! scrollable list of the units on the square, strongest first, one row each with the picture,
 //! name, attack, defence and abilities, and a check box for the nine at most that go in. The
 //! human sees it as the attacker (the units not chosen stay where they are with their moves) and

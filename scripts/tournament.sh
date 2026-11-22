@@ -1,5 +1,5 @@
 #!/bin/bash
-# Battle AI tournament, neural against neural (docs/PLANNED.md item 25): picks parents from
+# Battle AI tournament, neural against neural (task 804): picks parents from
 # checkpoints by a round robin, makes variants of them (nudged biases and noise), then plays a
 # Swiss stage and a knockout. Runs politely (scripts/cool_run.sh) into one folder.
 #

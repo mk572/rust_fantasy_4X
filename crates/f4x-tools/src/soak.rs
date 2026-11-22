@@ -1,5 +1,5 @@
 //! `f4x-tools soak`: let AI wizards play whole games against each other, with no window, and
-//! report how each game went. Used to find AI and rules bugs (planned 24, `docs/PLANNED.md`).
+//! report how each game went. Used to find AI and rules bugs (content balance, `docs/soak-baseline.md`).
 //! `game` plays one game and is also what `soak-versus` uses.
 //!
 //! Tests: below for the option reading and the parallel runner; whole games are run by hand

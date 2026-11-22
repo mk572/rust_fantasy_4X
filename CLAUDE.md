@@ -11,7 +11,7 @@ the README and `docs/ecs-structure.md` equal to it).
 
 For the open tasks and their priorities (High, Medium, Low) see `docs/TASKS.md`
 
-For long-term goals, see `docs/PLANNED.md`
+Long-term ideas are Low-priority tasks in the same file.
 
 
 ## Where things are

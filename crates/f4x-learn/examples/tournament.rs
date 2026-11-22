@@ -1,4 +1,4 @@
-//! A tournament of trained battle networks, neural against neural (`docs/PLANNED.md` item 25).
+//! A tournament of trained battle networks, neural against neural (task 804).
 //!
 //! `tournament rank OUT_DIR --entries FILE [--pairs 15] [--top K] [options]`
 //!     every entry plays every other in a short match; the standings say who is best, and

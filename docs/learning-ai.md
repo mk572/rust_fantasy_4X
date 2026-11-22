@@ -550,7 +550,7 @@ Everything long goes through `scripts/cool_run.sh` (section 3); the thread limit
 
 **Bank v2 (16 October).** `models-local/bank-v2.ron` was made on the current rules with the realm-limited wizards (1200 scenarios, 400 of each odds class, odds measured by the scripted AI); the old `bank.ron` is kept. No run has trained on it yet, and every old checkpoint is refused (their ability list and spell slots differ), so the next run starts from scratch with `BANK=models-local/bank-v2.ron`.
 
-**The tournament (16 October; `docs/PLANNED.md` item 25).** The held-out score against the scripted
+**The tournament (16 October; task 804).** The held-out score against the scripted
 AI says little about which network is strongest, so `tournament.sh` has networks play each other.
 `f4x_learn::duel` plays a *pair*: one scenario with the same dice, twice, the networks swapping
 sides (greedy, no advice, the brief the game uses). The side with more wins takes the pair; when
@@ -736,4 +736,4 @@ and rocks that make a square dearer to enter instead of forbidding it
 every checkpoint and bank made before then were on the old field (fights began at the edges of
 a full rectangle, with blocked squares). The checkpoints still load, since the observation has
 the same shape, but their scores are not comparable with new runs, and the nets should be
-retrained on the new field before any tournament (`docs/PLANNED.md` item 25) counts them.
+retrained on the new field before any tournament (task 804) counts them.

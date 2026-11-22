@@ -1,7 +1,7 @@
 # Game settings: design
 
 Status: **draft, decisions of 16 October folded in**, nothing built. It turns tasks 89 and 94 (and
-parts of 148, 155, 68, 69, 82 and `PLANNED.md` items 2, 3 and 8) into one plan: a per-game
+parts of 148, 155, 68, 69, 82 and former planned items 2, 3 and 8, now task 790 for hardcore) into one plan: a per-game
 settings record that is saved with the game, the base settings screen of task 94 on top of it, and
 an advanced screen, opened from a button on the base screen, for the numbers the original never
 lets the player touch. Larger stacks have their own design, [`large-stacks.md`](large-stacks.md),
@@ -169,7 +169,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | rules | `melee_vs_fliers` | `zero` / `half` / `full` | zero | `battle/mod.rs` `Battle::fighter`: a unit that does not fly deals no melee damage to a flier (`zero`, the original), half strength rounded up (`half`, a planned mod, what the game did before) or its full strength (`full`, the rule is off); the flier hits back in full, thrown and breath attacks are unchanged. The battle AI's `expected_damage` follows it |
 | rules | `spell_of_mastery` | `all` / `human_only` / `off` (`SpellAccess`) | all | built (task 584): `Game::mastery_open_to`; `wizard/sheet.rs` `refill_research` does not offer the spell last in research to a wizard it is closed to, and `start_cast_with` refuses it; the Custom screen has a row; `soak --mastery all\|human\|off`. A soak has no human wizard, so `human` there is the same as `off` |
 | rules | `spell_of_return` | `all` / `human_only` / `off` (`SpellAccess`) | all | built (task 585): `Game::return_open_to`; `wizard/fortress.rs` `banish` defeats a banished wizard it is closed to, at once (its cities turn neutral); the Custom screen has a row; `soak --return all\|human\|off` |
-| victory | `hardcore` | bool | off | `PLANNED.md` 8 |
+| victory | `hardcore` | bool | off | task 790 |
 | events | `random_events` | on / off | on | task 68 |
 | events | `event_frequency` | `Half` / `Normal` / `Double` | `Normal` | task 68 |
 | events | `event_start_turn` | 1..=50 | 6 | built (18 November 2026) as `events.start_turn`: `Events::pressure` waits `start_turn - 1` draws (and again after each event, as the original does) |
@@ -185,7 +185,7 @@ in the `ai` group are AI-only by nature, as in the original; a custom switch, `a
 (`max_city_size` and `min_city_distance` are read through `game.settings()` instead of
 `content.rules`). Combat constants (`to_hit_percent`, `block_percent`) and tax tables are left as
 ruleset data on purpose: changing them changes what every unit and spell means, which is modding
-(`PLANNED.md` 5), not a game setting.
+(task 788), not a game setting.
 
 ### 3.2 Presets
 
@@ -456,7 +456,7 @@ a player who dislikes Meteor can drop just that one. Not in the first stages.
 
 ### 4.6 Spell of Return: off / human only / all
 
-task 585 (was `PLANNED.md` item 2). Today `wizard/fortress.rs::banish` always gives the banished wizard the Spell of
+task 585 (was planned item 2). Today `wizard/fortress.rs::banish` always gives the banished wizard the Spell of
 Return casting. The check goes there:
 
 | Setting | Human banished | AI wizard banished |
@@ -604,7 +604,7 @@ assume two planes.
 
 ### 4.10 Hardcore mode (stage 4)
 
-Designed in `PLANNED.md` item 8 and built on this record as `victory.hardcore`, a switch under
+Designed in task 790 and built on this record as `victory.hardcore`, a switch under
 Extras. It bundles three rules:
 
 - **no undo**: the undo of orders (task 90) is off for the game;
@@ -718,7 +718,7 @@ Rules for the screen:
    an extra.
 3. **Candidates already named** in other docs: more than four opponents (done, task P3 in `TASKS-DONE.md`); starting
    fame and the capital's size (4.2); per-event on/off (4.5); ruleset switches such as the
-   community patch's rule changes (`PLANNED.md` 4: each patch rule is a setting, default original);
+   community patch's rule changes (task 787: each patch rule is a setting, default original);
    the undo setting (task 90); stack limits above nine ([`large-stacks.md`](large-stacks.md)); a
    raised city size cap (stage 4).
 4. **The human's multipliers** are the `ai.apply_to_human` switch, off by default.

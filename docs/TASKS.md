@@ -130,6 +130,40 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 778 | High | Testing | The rest of the `f4x-core` test rebuild: class 9 of the remaining subsystems (battle, turn, spell, item, feature, map, world event, threat, hero, rules, path grid, hook, game), class 6 leftovers, the old-to-new table, the sweep gaps (`docs/f4x-core-test-design.md`) |
 | 781 | Medium | Client | Show the AI's fear and strategic regard besides its friendliness: "Scared", "Pitying", "Plotting", "Cooperative" *Needs:* 784 |
 | 785 | Medium | Spell | Diplomacy review for spells: find spells that should cause a diplomatic reaction and do not; allow beneficial spells on another wizard's cities and units (Gaia's Blessing on an allied city) to improve relations *Needs:* 782 |
+| 786 | Low | Movement | Faster movement along rivers |
+| 787 | Low | Content | Rules changes and new items from the community patch and the Caster of Magic expansion |
+| 788 | Low | Platform | Modding support |
+| 789 | Low | Client | Upscaled graphics |
+| 790 | Low | Options | Hardcore mode |
+| 791 | Low | Client | Battle success hint |
+| 792 | Low | Client | Font and TrueType support |
+| 793 | Low | Client | Higher resolution modes |
+| 794 | Low | Content | Replacement art |
+| 795 | Low | Client | Different settlement icons by race |
+| 796 | Low | Client | Fortress art by magic type |
+| 797 | Low | Tools | Map editor |
+| 798 | Low | Meta | MCP server for remote control |
+| 799 | Low | Meta | Hot seat multiplayer |
+| 800 | Low | Meta | Asynchronous multiplayer |
+| 801 | Low | Rules | Early-game speed-up options |
+| 802 | Low | Rules | Alternative effect for the Charismatic retort |
+| 803 | Low | Platform | Packaging for Linux |
+| 804 | Low | AI | Battle AI tournament: neural against neural, with varied entries |
+| 805 | Low | Rules | Hold command in battle: ends the unit's turn and gives a defensive bonus |
+| 806 | Low | Rules | More collateral damage for spells: attack spells on cities kill citizens and destroy buildings |
+| 807 | Low | Rules | More useful buildings: most buildings get a tangible benefit of their own |
+| 808 | Low | Rules | Reduced upkeep for basic units; no upkeep for settlers |
+| 809 | Low | Rules | More interesting strategies for underplayed or underpowered races |
+| 810 | Low | Magic | Neutral cities: their own mana and spells |
+| 811 | Low | Meta | Multiplayer: scope and design (to be discussed) |
+| 812 | Low | AI | Record the battle AI's orders for replays |
+| 813 | Low | Rules | Casting mod: half the casting distance penalty, a Channeler that costs one pick, Lo Pan's fifth sorcery book back |
+| 814 | Low | Rules | Life and death nodes |
+| 815 | Low | Content | Free sounds: effects for events that have none, and replacements for the original's sound and music |
+| 816 | Low | Map | Mines, lumber camps and hunter's lodges on the map |
+| 817 | Low | Client | Proper windowing support: boxes and screens as windowed layers instead of one shared pane |
+| 818 | Low | Client | Start a game from a map seed chosen in the UI |
+| 819 | Low | Tools | Find the use of the unreferenced art files `combat`, `desert`, `tundra`, `cmbtwall` |
 
 ## Descriptions
 
@@ -182,7 +216,7 @@ the drawing changes. *Needs:* nothing.
 
 **423. Finer art and the 2x and 4x settings.** Low priority; the default stays art scale 1 (the original's 320x200 pictures). Task 393 did the preparation (30 October 2026): the screens are laid out on the 320x200 design grid (`resolution.rs`), the `art_scale` preference (1, 2 or 4; `--art-scale N` for one run) says how fine the art is, a picture's size on the grid is its pixel size over the art scale, and `read_image` in `art.rs` looks in `assets-local/art/x2` and `x4` before enlarging the 1x file by whole pixels. What is left to make 640x400 and 1280x800 real: (1) **the finer art**: make the upscaled pictures (by script, logged in `docs/scripts.md`) into `x2/` and `x4/`, with the same paths as the originals, and decide how it is made (an upscaler, redrawn by hand, or both) and what ships; (2) **pixel work on the enlarged image**: the unit outline and glow (`outline_pixels` and the painted pictures in `art.rs`) run after the enlarging, so they are one pixel thick at 2x and 4x; draw them at 1x and enlarge after, or scale their width by the art scale; (3) **the fonts**: finer font files need their own glyph table (`fonts/styleN`), now read from the 1x table; (4) **a Settings page switch** for the scale (it is read at start-up, so say it takes effect after a restart, or reload the textures); (5) **the window**: the layout scale is a whole number of window pixels per design square, so check the window size and fullscreen at each scale; (6) **a check of every screen** at 2x and 4x (only the main, city and battle screens were looked at), and a screenshot test per scale if it can be made stable (two runs of the same screenshot differ now, by animation); (7) the render target, task 424, if it is done. Asked for by the user, 30 October 2026.
 
-**Merged from planned item 39 (14 November 2026; that item is closed):** the same setting seen from the importer's side. These points are added to the parts above: (a) **Upscale at import.** The importer passes that write pictures (`f4x-extract art`, the map sprites, the banner recolours, the fonts) take `--scale 2|4` and write the result next to the 1x set under the folders the loader already reads (`assets-local/art/x2` and `x4`, with the same names and layout; the planned item wrote `art-x2/`, the existing folders win). The scaling is done once on the decoded picture with its palette resolved, never on the indexed bytes, with an algorithm that keeps pixel art crisp (a documented choice between scale2x or scale3x style edge rules and a model the user runs, as in planned item 6); transparent edges stay transparent; the palette-cycling and recoloured pictures (banners, shields, cycling water) are scaled after the recolour, or recoloured at the new size from a scaled mask, so they match the plain ones. The repository ships the tool, not the output. (b) **Tables in the art's own pixels.** Anything that holds pixel coordinates or sizes of the art (`metrics.tsv` of the fonts, the map sprites' anchors and offsets, `index.tsv`, hit areas read from a picture) is written in 1x units with the factor applied by the loader, or written for each scale; one rule, stated in `docs/extract-art.md`, and a test that loads every picture of each scale and checks that its size is the 1x size times the factor. (c) **Client.** A file missing at a finer scale falls back to the 1x file (a partly upscaled set still runs); a picture of 2x art drawn at layout zoom 2 lands on the same screen rectangle as the 1x art at zoom 1; text from the bitmap fonts uses the matching font atlas, and text in a vector font is not affected (planned item 10, tasks 359 and 469); textures are filtered nearest-neighbour at a whole-number zoom and linear only for 2x and 4x art when the window scale is not a whole multiple; memory and start-up time are measured, the atlases of the 4x map and unit sprites are built lazily, and the setting says what it costs. (d) **Check.** A screenshot of the main map, the city screen and a battle at 1x, 2x and 4x in the same window size: same layout, no seams between terrain tiles, no off-by-one shifts of overlays (cities, units, roads, fog edges), banners still in the player colours. This task comes before planned item 11 (new layouts), which builds on art that holds up at the new sizes.
+**Merged from planned item 39 (14 November 2026; that item is closed):** the same setting seen from the importer's side. These points are added to the parts above: (a) **Upscale at import.** The importer passes that write pictures (`f4x-extract art`, the map sprites, the banner recolours, the fonts) take `--scale 2|4` and write the result next to the 1x set under the folders the loader already reads (`assets-local/art/x2` and `x4`, with the same names and layout; the planned item wrote `art-x2/`, the existing folders win). The scaling is done once on the decoded picture with its palette resolved, never on the indexed bytes, with an algorithm that keeps pixel art crisp (a documented choice between scale2x or scale3x style edge rules and a model the user runs, as in task 789); transparent edges stay transparent; the palette-cycling and recoloured pictures (banners, shields, cycling water) are scaled after the recolour, or recoloured at the new size from a scaled mask, so they match the plain ones. The repository ships the tool, not the output. (b) **Tables in the art's own pixels.** Anything that holds pixel coordinates or sizes of the art (`metrics.tsv` of the fonts, the map sprites' anchors and offsets, `index.tsv`, hit areas read from a picture) is written in 1x units with the factor applied by the loader, or written for each scale; one rule, stated in `docs/extract-art.md`, and a test that loads every picture of each scale and checks that its size is the 1x size times the factor. (c) **Client.** A file missing at a finer scale falls back to the 1x file (a partly upscaled set still runs); a picture of 2x art drawn at layout zoom 2 lands on the same screen rectangle as the 1x art at zoom 1; text from the bitmap fonts uses the matching font atlas, and text in a vector font is not affected (task 792, tasks 359 and 469); textures are filtered nearest-neighbour at a whole-number zoom and linear only for 2x and 4x art when the window scale is not a whole multiple; memory and start-up time are measured, the atlases of the 4x map and unit sprites are built lazily, and the setting says what it costs. (d) **Check.** A screenshot of the main map, the city screen and a battle at 1x, 2x and 4x in the same window size: same layout, no seams between terrain tiles, no off-by-one shifts of overlays (cities, units, roads, fog edges), banners still in the player colours. This task comes before task 793 (new layouts), which builds on art that holds up at the new sizes.
 
 **424. Draw the frame into one render target (decide first).** Low priority; this task is first a decision. The idea from task 393: draw each frame into one offscreen `RenderTarget` at the design size times the art scale (320x200, 640x400 or 1280x800) and stretch that onto the window. **For:** `Layout` and the `screen_width()` scaling go (about 20 call sites, `Layout::new()` in about 80 places); the mouse maps to the frame in one conversion; a window that is not a whole multiple of the frame is scaled once, so no one-pixel seams from each rectangle rounding on its own; fades, the page turn and the dim behind boxes work on one texture; screenshots always have the same size, which helps a screenshot test per scale. **Against:** anything drawn at window resolution now (the minimap pixels, outlines, the plain-font fallback `draw_text` of task 300) would be drawn at the target's size and then stretched, so it is blocky or blurred in a large window unless the target is large; a change touching every screen's mouse and size code, where a miss breaks clicking on one screen; macroquad specifics (a render target's flipped y, no multisampling, recreating it on a resize, `get_screen_data` and the screenshot path to check); no gain for the 2x and 4x goal of task 423, which works without it. **Do first:** the profile of task 393 (are any pictures rebuilt from an `Image` each frame?). Take the render target up only if the user wants non-integer window scaling or whole-frame effects; otherwise drop this task. Asked for by the user, 30 October 2026.
 
@@ -222,17 +256,17 @@ the drawing changes. *Needs:* nothing.
 
 **572. Clean up the Magic screen and diplomacy screen graphics.** Asked for by the user, 14 November 2026; left over from task 489, whose screens work but still look unfinished. (1) **Magic screen** (`magic_screen.rs`): the original's background picture still has the four gem slots and name bars baked in; the box with the screen's facts covers most of them. Redraw or repaint the background so no rival slot shows (or keep the layout and fill the space on purpose), and check the title and box against the original's colours and frame. (2) **Diplomacy list** (`diplomacy_list_screen.rs`) and the **talk screen** (`diplomacy_screen.rs`): check the frame, the row and panel pictures, the banner colour marks, the gems and portraits (neutral portraits are 109 x 109, gems 41 x 43, task 570) for pieces that are plain rectangles, mismatched palettes or misaligned edges, and fix them. (3) Also still open from 489: a button on the Magic screen to the list (F5 and R open it today), and fame and basic wizard info as columns of the list, if the user wants them. Check each with a screenshot. *Needs:* nothing.
 
-**573. City build queues (build order chosen by the user).** Asked for by the user, 14 November 2026. Planned item 44 of `docs/PLANNED.md` (build queues in the city production screen) is merged into this task and closed (14 November 2026). A city builds one thing at a time today. The player lists several buildings and units in the order they should be made, and the city works down the list, so the next item starts the turn the last one is done and no production is lost on a turn the player was not looking. Parts: (1) **Core.** A queue per city (saved with the game, so it is part of the replay), `Command`s to add, remove and reorder entries, and the first entry is the city's current production; an entry that becomes impossible (a requirement gone, a unit the city can no longer train, a building already built) is skipped with a message, as the Grand Vizier's choice is. A save without queues loads with empty ones. (2) **Production screen** (`production_screen.rs`): a queue strip where a click on an item adds it, and the picked entry can be moved up and down or taken out. (3) **City screen:** the Producing panel shows the next entries; the cost, turns and Buy keep to the first. (4) **Auto-builder** (`docs/auto-builder.md`) and the AI: decide whether the auto-builder fills the queue's end or only an empty queue; the AI uses the queue exactly as a human does (`design.md` section 8). (5) Text keys in `crates/f4x-client/content/text/en/*.ron`, a test per command and one that a queue survives save and load, `docs/ecs-structure.md`, `docs/game-flow.md` or the city docs. Related: the production screen, the auto-builder and the Chancellor's "completed" lines. Open question for the author: whether a queued unit may repeat ("build five Spearmen") or each entry is one item. *Needs:* nothing.
+**573. City build queues (build order chosen by the user).** Asked for by the user, 14 November 2026. Former planned item 44 (build queues in the city production screen) is merged into this task and closed (14 November 2026). A city builds one thing at a time today. The player lists several buildings and units in the order they should be made, and the city works down the list, so the next item starts the turn the last one is done and no production is lost on a turn the player was not looking. Parts: (1) **Core.** A queue per city (saved with the game, so it is part of the replay), `Command`s to add, remove and reorder entries, and the first entry is the city's current production; an entry that becomes impossible (a requirement gone, a unit the city can no longer train, a building already built) is skipped with a message, as the Grand Vizier's choice is. A save without queues loads with empty ones. (2) **Production screen** (`production_screen.rs`): a queue strip where a click on an item adds it, and the picked entry can be moved up and down or taken out. (3) **City screen:** the Producing panel shows the next entries; the cost, turns and Buy keep to the first. (4) **Auto-builder** (`docs/auto-builder.md`) and the AI: decide whether the auto-builder fills the queue's end or only an empty queue; the AI uses the queue exactly as a human does (`design.md` section 8). (5) Text keys in `crates/f4x-client/content/text/en/*.ron`, a test per command and one that a queue survives save and load, `docs/ecs-structure.md`, `docs/game-flow.md` or the city docs. Related: the production screen, the auto-builder and the Chancellor's "completed" lines. Open question for the author: whether a queued unit may repeat ("build five Spearmen") or each entry is one item. *Needs:* nothing.
 
 **574. Consistent button behaviour: light up on mouse-over, push down on click.** Asked for by the user, 14 November 2026. Every button in the client should react the same way: it lights up while the mouse is over it, and it looks pushed down while the left button is held on it (and clicks on release over it, as `ui::hit` does). Today the screens do it differently. The plain rectangle button (`ui::button`, `ui.rs`) lights up on hover but has no pushed look. The picture button of the original (`pic_button` in `frame.rs`) shows frame 1 while held, but has no hover look. The battle and action-bar buttons (`battle_button`, `menu_bar_art::draw_button`) push the picture down one pixel while held and darken the top row and left column, with no hover look. Many other buttons are drawn and tested by hand around `ui::hit` (about 110 uses). A disabled button neither lights up nor pushes. Plan: (1) **One look.** Decide the light-up (for example a brightened tint of the picture, or a lighter frame for the plain button; no new art needed if it is a tint) and keep the original's pressed look (picture one pixel right and down under a dark top row and left column). (2) **One path.** Put both into `ui::Hit` and a small drawing helper that every button path calls (`ui::button`, `pic_button`, `battle_button`, the menu bar), so a screen cannot forget one; find the hand-drawn buttons with a search for `ui::hit(` and move them. (3) **Test.** A test of the helper for the four states (rest, hover, held, disabled) and that a disabled button never lights up or pushes. (4) **Check** with screenshots of the main map, a city screen, the battle panel and a dialog with the mouse held over a button. Related: task 416 (button extras to decide: hotkey label, disabled-reason tooltip; do them together if both go ahead). *Needs:* nothing.
 
 **576. Tabbed view in the Custom settings screen.** Asked for by the user, 14 November 2026. The Custom screen (`custom_screen.rs`, task 503) is one long list of every gameplay setting with a heading row between the groups, scrolled with the mouse wheel. Give it tabs: one tab for each group, so a player finds a setting without scrolling past the others. The groups already exist as the heading rows of `rows()`: `custom.h_map`, `custom.h_wizards`, `custom.h_world`, `custom.h_ai_wizards`, `custom.h_ai_cities`, `custom.h_events`, `custom.h_rules` and `custom.h_score` (eight, fourteen or so settings each; count them before deciding whether any should merge or split). Parts: (1) **Tabs.** A tab strip along the top of the list, drawn like the screen's other buttons (task 574 for the look), the heading text as the tab's label (the same text keys), the active tab marked; a click or Left and Right keys change the tab; the list shows only that tab's rows, and scrolls only when a tab is longer than the screen. (2) **Keep what works.** The preset line and the "differs from the preset" marks stay visible on every tab (or show a count on a tab that holds a changed setting, so nothing is hidden by the split); the Reset and Done buttons stay. (3) **One list, two views.** The read-only Game settings box of a running game (`options_screen::GameSettingsPage`) reads the same rows; give it the same tabs, or say here why it keeps a list. The tab of a screen is remembered while it stays open. (4) **Tests:** every setting appears on exactly one tab, with none lost or twice (a test over `rows()`); changing a setting on one tab moves the preset selection to Fully customized as before. (5) Text keys for any new label, `docs/game-settings.md` and the screen docs updated. Check with screenshots of each tab. *Needs:* nothing.
 
-**577. Mod editor for custom units, spells, items, heroes and wizards.** Asked for by the user, 14 November 2026. A tool to make the content of a mod without writing RON by hand. It works on the content files (`crates/f4x-def/content/`): `units.ron`, `spells.ron`, `items.ron` with `item_powers.ron`, `heroes.ron` and `wizards.ron` first; races, retorts, buildings and abilities later, once these work. Planned item 5 of `docs/PLANNED.md` (modding support: a stack of content directories, a manifest, mod-aware saves) is the loading side; this task is the editing side. Plan: (1) **Form.** A local web tool in the style of `scripts/font_editor.py` and `scripts/portrait_cutter.py` (Python standard library server on 127.0.0.1 plus one HTML page), or a `f4x-tools` command if the schema is easier to read from Rust: pick a kind, then a def from a list or "new" (copy of an existing one), and edit its fields in a form made from the schema (numbers, flags, choices of other defs by name, abilities and effects as lists) with the original's shipped values shown beside as the default. (2) **Safe writes.** Read and write the RON without losing comments, order or formatting (decide: edit the text in place by def, or write whole files from the parsed data and accept a reformatting once), assign the next free `num` and a unique `id`, and write into a mod folder (a copy of the content directory today, the mod stack of item 5 later), never into the shipped files unless asked. (3) **Check before save.** Run the same validation as `f4x-tools validate` on the result (unknown ids, cycles, spells with no effects, units no race can build) and show the errors beside the field; a def that fails is not written. (4) **Names and help are text keys**, not strings in the def (`docs/text.md`): the form writes the English text into the mod's text files, and a def without a name is an error. Art (unit pictures, portraits, spell pictures): choose from the pictures the mod ships, and keep the original's art out of the mod (`docs/extract-art.md`); the editor only records the picture's name. (5) **Try it.** A button that starts a short soak on the mod's content (`f4x-tools soak --content DIR`) or the console with the new unit or spell (`spawn`, `learn`), to see that it works. (6) **Docs and tests:** the data formats for modders (`docs/`), tests that a saved def loads back equal and that a bad one is refused. Open questions for the author: how much of the effect language (`rules-framework.md`) the form should cover at first, and whether a def may be edited in place in the shipped files for the author's own balance work. *Needs:* nothing for a first version on a copy of the content directory; item 5 of `PLANNED.md` for mods that load in the game.
+**577. Mod editor for custom units, spells, items, heroes and wizards.** Asked for by the user, 14 November 2026. A tool to make the content of a mod without writing RON by hand. It works on the content files (`crates/f4x-def/content/`): `units.ron`, `spells.ron`, `items.ron` with `item_powers.ron`, `heroes.ron` and `wizards.ron` first; races, retorts, buildings and abilities later, once these work. task 788 (modding support: a stack of content directories, a manifest, mod-aware saves) is the loading side; this task is the editing side. Plan: (1) **Form.** A local web tool in the style of `scripts/font_editor.py` and `scripts/portrait_cutter.py` (Python standard library server on 127.0.0.1 plus one HTML page), or a `f4x-tools` command if the schema is easier to read from Rust: pick a kind, then a def from a list or "new" (copy of an existing one), and edit its fields in a form made from the schema (numbers, flags, choices of other defs by name, abilities and effects as lists) with the original's shipped values shown beside as the default. (2) **Safe writes.** Read and write the RON without losing comments, order or formatting (decide: edit the text in place by def, or write whole files from the parsed data and accept a reformatting once), assign the next free `num` and a unique `id`, and write into a mod folder (a copy of the content directory today, the mod stack of item 5 later), never into the shipped files unless asked. (3) **Check before save.** Run the same validation as `f4x-tools validate` on the result (unknown ids, cycles, spells with no effects, units no race can build) and show the errors beside the field; a def that fails is not written. (4) **Names and help are text keys**, not strings in the def (`docs/text.md`): the form writes the English text into the mod's text files, and a def without a name is an error. Art (unit pictures, portraits, spell pictures): choose from the pictures the mod ships, and keep the original's art out of the mod (`docs/extract-art.md`); the editor only records the picture's name. (5) **Try it.** A button that starts a short soak on the mod's content (`f4x-tools soak --content DIR`) or the console with the new unit or spell (`spawn`, `learn`), to see that it works. (6) **Docs and tests:** the data formats for modders (`docs/`), tests that a saved def loads back equal and that a bad one is refused. Open questions for the author: how much of the effect language (`rules-framework.md`) the form should cover at first, and whether a def may be edited in place in the shipped files for the author's own balance work. *Needs:* nothing for a first version on a copy of the content directory; item 5 of `PLANNED.md` for mods that load in the game.
 
 **578. Eleven-book rebalance option.** Asked for by the user, 14 November 2026; the figures were decided the same day. A wizard who puts all eleven picks into the books of one realm starts with the strongest library in the game: all ten common spells of the realm, two uncommon and one rare spell chosen on the creation screen (`spell_library.known` and `chosen`, row 11, in `rules_settings.ron`), every spell of the realm researchable, and no pick left for a retort. The option makes that start smaller and **removes the realm mastery retorts** (Chaos Mastery, Nature Mastery and Sorcery Mastery: -15% spell cost, +15% research income, +1 dispel strength, a doubling of the node power; each costs one pick and needs four books, `retorts.ron`; Node Mastery is a different retort and stays): what they gave is built into the books instead, as a discount that grows with the number of books in the realm.
 
-**A mod and a setting, not a change of the game.** The rebalance is an option of the rules (a flag in the rules settings, a row under Rules on the Custom screen, `docs/game-settings.md`), off in v1.31 and v1.6, and applies **only to a game started with it on**. The flag is saved with the game, so a game started without it never changes when it is loaded, and one started with it keeps it. The content it changes (the library table row, the retort list, the wizard presets) is chosen by the flag, so the same shape can later be shipped as a mod (planned item 5, task 577) without a second code path.
+**A mod and a setting, not a change of the game.** The rebalance is an option of the rules (a flag in the rules settings, a row under Rules on the Custom screen, `docs/game-settings.md`), off in v1.31 and v1.6, and applies **only to a game started with it on**. The flag is saved with the game, so a game started without it never changes when it is loaded, and one started with it keeps it. The content it changes (the library table row, the retort list, the wizard presets) is chosen by the flag, so the same shape can later be shipped as a mod (task 788, task 577) without a second code path.
 
 **Decided (14 November 2026):**
 - (a) With 11 books in a realm the wizard starts with **one uncommon spell and no rare** (row 11 of `known` and `chosen`: ten commons, one uncommon, no rare; the other rows stay).
@@ -244,7 +278,7 @@ the drawing changes. *Needs:* nothing.
 
 **Plan:** (1) **Setting:** the flag, the Custom screen row and its text keys (`docs/text.md`), saved with the game like the other settings. (2) **Starting spells:** the table rows of (a) read when the flag is on; the creation screen offers one uncommon pick and no rare; the AI's library and spell choice read the same table. (3) **The discount:** the table of (b) as data (a list of percentages by the number of books in `rules_settings.ron`, with the flag), applied as a modifier of the realm's spells for the wizard (`wizard/retort.rs` gives the retorts' modifiers the same way: `SpellCostPercent` for the casting cost and the matching research stat for the research cost; check which stat the research cost uses, since the mastery retort's research part is `ResearchIncome`, an income percentage, and the user asked for a lower research *cost*), and the dispel advantage of (c) as `DispelMultiplier`. With the flag on, the three realm mastery retorts are not offered on the creation screen and the AI never picks them; nothing stacks. The realms that never had a mastery retort (Life and Death) get the same discount. (4) **The presets** of (d), chosen by the flag. (5) **Check.** Tests: with the flag off nothing changes (the existing library and wizard tests stay green); with it on, row 11 has one uncommon spell and no rare, every book count from 6 to 13 gives its percentage on the spell cost and the research cost of the realm's spells and none to other realms' spells, 5 books give nothing, 11 books and more give the dispel advantage and 10 do not, the three retorts are not offered and not picked by the AI while Node Mastery still is, Tauron and Freya have 11 books and no retort, and a game saved with the flag off loads with it off. A soak of AI wizards with 11 or more books (`--rules`, `docs/ai-design.md` 8.1) to look at what the smaller start does to the games. (6) **Docs:** `docs/game-settings.md`, `docs/divergences.md`, `docs/design.md`; the 1.60 checklist rows "More 11-Book AIs" and "Non-11 Book Matching" (`docs/insecticide-1.60-settings-checklist.md`) are the neighbouring settings. *Needs:* nothing.
 
-**579. Console commands for lairs and map features.** Asked for by the user, 14 November 2026; the part of planned item 15 (the console, closed as P15) that was never built. The console (`crates/f4x-console/src/cheat.rs`, `docs/console.md`) can change a square's terrain (`terrain`), add units, buildings and cities, raise events and more, but it has no command for the sites on the map: lairs (ruins, caves, dungeons and the like with guards and treasure), towers, nodes and the other features. A tester has to wait for a seed that puts a lair where it is needed, or edit a save. Add override-mode commands (they bypass the rules, so only after `mode override`, which marks the game cheated for good, and they go through the override log like the others): (1) **`feature <x,y[,plane]> <feature-id|none>`** puts a feature (lair, node, tower, resource) on a square or removes the one there, checking that the terrain allows it (the same check the generator uses, `crates/f4x-newgame/src/place.rs`, as a warning in the reply if it does not and the command is forced); its entity and layer entry are made or removed together. (2) **`lair <x,y[,plane]> [kind] [guards]`** makes a guarded site with its guards and treasure from the lair rules (`crates/f4x-newgame/src/lair.rs` and `feature/lair.rs`, `docs/lairs.md`), with the kind and the guards optional and drawn as the generator would when left out; (3) **`clearlair <x,y[,plane]> [player]`** removes the guards of a lair (and, with a player, gives them the treasure as an ordinary clearing does, `claim_lair`), so a lair's loot, an empty site and the "cleared" state can be tried without a battle; (4) **`lairs`** (a query, legal mode) lists the guarded sites with position, kind, guards (only what the console's player knows in legal mode, `lair_guards_known_to`) and whether each is cleared, and `features [kind]` lists nodes and towers the same way. Rules: the replies say what was done in one line, a bad id or square is a `ConsoleError` that says what is allowed, and the commands fit the existing `cheat!` table so the help and Tab completion list them. Tests in `crates/f4x-console/src/tests/cheat.rs`: each command in override mode changes the map as stated, is refused in legal mode with the message that names `mode override`, a lair made by `lair` is entered and fought like a generated one (`enter`), and a save and load keeps what the commands made. Docs: the table of `docs/console.md` and `docs/lairs.md`. The hardcore-mode part of the old item (disabling the override commands) belongs to planned item 8 and is not in this task. *Needs:* nothing.
+**579. Console commands for lairs and map features.** Asked for by the user, 14 November 2026; the part of planned item 15 (the console, closed as P15) that was never built. The console (`crates/f4x-console/src/cheat.rs`, `docs/console.md`) can change a square's terrain (`terrain`), add units, buildings and cities, raise events and more, but it has no command for the sites on the map: lairs (ruins, caves, dungeons and the like with guards and treasure), towers, nodes and the other features. A tester has to wait for a seed that puts a lair where it is needed, or edit a save. Add override-mode commands (they bypass the rules, so only after `mode override`, which marks the game cheated for good, and they go through the override log like the others): (1) **`feature <x,y[,plane]> <feature-id|none>`** puts a feature (lair, node, tower, resource) on a square or removes the one there, checking that the terrain allows it (the same check the generator uses, `crates/f4x-newgame/src/place.rs`, as a warning in the reply if it does not and the command is forced); its entity and layer entry are made or removed together. (2) **`lair <x,y[,plane]> [kind] [guards]`** makes a guarded site with its guards and treasure from the lair rules (`crates/f4x-newgame/src/lair.rs` and `feature/lair.rs`, `docs/lairs.md`), with the kind and the guards optional and drawn as the generator would when left out; (3) **`clearlair <x,y[,plane]> [player]`** removes the guards of a lair (and, with a player, gives them the treasure as an ordinary clearing does, `claim_lair`), so a lair's loot, an empty site and the "cleared" state can be tried without a battle; (4) **`lairs`** (a query, legal mode) lists the guarded sites with position, kind, guards (only what the console's player knows in legal mode, `lair_guards_known_to`) and whether each is cleared, and `features [kind]` lists nodes and towers the same way. Rules: the replies say what was done in one line, a bad id or square is a `ConsoleError` that says what is allowed, and the commands fit the existing `cheat!` table so the help and Tab completion list them. Tests in `crates/f4x-console/src/tests/cheat.rs`: each command in override mode changes the map as stated, is refused in legal mode with the message that names `mode override`, a lair made by `lair` is entered and fought like a generated one (`enter`), and a save and load keeps what the commands made. Docs: the table of `docs/console.md` and `docs/lairs.md`. The hardcore-mode part of the old item (disabling the override commands) belongs to task 790 and is not in this task. *Needs:* nothing.
 
 **580. More diplomacy offers for any player: demand surrender, protection, a trade pact and a research pact.** Asked for by the user, 14 November 2026, when planned item 31 (diplomacy with neutral cities) was closed as P31 in `TASKS-DONE.md`; the offers come from that item's list. They work between **any two players that take part in diplomacy**: a wizard with a wizard, a wizard with a neutral race (`takes_part_in_diplomacy`), the human or the AI on either side, with the same rules for all (`design.md` section 8: the AI uses them like the human). Today a proposal is one of `Pact`, `Alliance`, `Peace`, `WarOn`, `BreakAllianceWith`, `Exchange`, `Threat` and `Demand { gold }` (`ProposalKind` in `crates/f4x-core/src/diplomacy/mod.rs`, legal by `check_proposal`, rated by `f4x_ai::diplomacy::rate`, carried out in `carry_out`). Four new kinds:
 - **(1) Demand surrender.** The proposer asks the receiver to hand over everything and join the proposer's empire (all its cities and units become the proposer's; a wizard is defeated as when its last city falls, a neutral race player is removed as when it has nothing left, `race_player.rs`). **It is legal only with an overwhelming advantage:** decide the test (for example the proposer's army strength is at least three times the receiver's and the receiver has few cities, using the figures the Astrologer shows, `wizard/astrology.rs`, and `army_strength` in `f4x-ai`); the receiver accepts only when it is hopeless by its own count and its temper allows (the rating of `rate`, with a high bar); a refusal costs the demand's patience like a threat does. Carrying it out adds fame to the proposer and lowers the standing of the other wizards towards the proposer, as decided for surrender in P31 (17 October 2026).
@@ -400,3 +434,446 @@ Not here: the mutation passes (task 774, after this), the long AI plays with the
 **781. Show fear and strategic regard.** Asked for by the user, 23 November 2026. Until now (780) the human sees only the AI wizard's friendliness for them. Refine it with the other two values of `Regard` (`diplo_b.rs`): when the fear value is extreme the word says so ("Scared" for high fear, "Pitying" for deep negative, the AI far stronger than the human's side), when the strategic value is extreme ("Plotting" for strongly against the human, "Cooperative" for strongly in favour). Thresholds are knobs; the words are keys in `crates/f4x-client/content/text/en/*.ron` with their forms (`docs/text.md`); the AI exposes a read-only view of the three values for the client and the console; tests on the shipped content. *Needs:* 784.
 
 **785. Diplomacy review for spells.** Asked for by the user, 23 November 2026. (1) Go through every spell of the shipped content (overland enchantments, city and unit spells, wizard spells, battle spells cast on a wizard's own units or cities) and list those that should make another wizard feel something about the caster and do not: `enchantment_reaction` and `bad_city_spell` in `f4x-ai/src/opinion.rs` cover only the original's table (`docs/diplomacy.md` section 5); curses on units, cursed lands, disjunction and the like are missing. Decide each one with its value and add it to the AI's table, with a test on the shipped content. (2) Let a wizard cast a beneficial spell (Gaia's Blessing, Heavenly Light, a protection or a healing spell) on a city or unit of another wizard that is not at war with them, where the rules now refuse it: the owner is pleased (`CitySpellCast` and a new event for a unit, 782; the AI weighs it by the spell's worth to the owner), the upkeep stays the caster's, and the spell is lost or kept by a stated rule when the treaty ends. Check the target rules in `spell/cast.rs`, the client's target picker and the AI's choice of spells to cast on allies. *Needs:* 782.
+
+**786. Faster movement along rivers.** Rivers exist as a tile flag (T1, done) but do not affect
+movement. Add a rule that a step between two river tiles (or from a river tile to the shore at
+its mouth) costs less, like roads do (half a move; decide whether it stacks with roads, which
+should not give a quarter move), for land units and perhaps cheaper still for boats-on-rivers if
+ships ever sail them. Make it a rule in data (a movement cost modifier per river step) so it can
+be switched off, and show river-assisted paths in the path preview. Needs a decision on
+direction (up or down stream) before any asymmetric rule; the river layer currently has no flow
+direction.
+
+**787. Community patch and Caster of Magic content.** Collect the rule changes of the community
+patch (its files are in `reference/mom-classic/Master of Magic Community Patch/`) and of the
+Caster of Magic expansion: list every changed number, ability, building, unit, spell and item;
+decide per change whether it becomes the default, a rule-set option or a mod (see 5); and add
+the new items, units and spells to `crates/f4x-def/content/` through `scripts/import_mom.py` where they
+come from original rules data, or write them by hand. Details of the
+expansion are not yet gathered here, so the first step is a survey document in `docs/` listing
+what exists, before any code. The importer's conflict rules (`help-vs-implementation-conflicts.md`)
+apply: patch behaviour that fixes a marked bug wins; anything else is an option.
+
+**788. Modding support.** The rules are already data (`crates/f4x-def/content/*.ron`, validated by
+`f4x-tools validate`). Make this a supported feature: load a stack of content directories
+(base, then mods in order, later ones override or extend by id); a mod manifest with name,
+version and dependencies; validation that reports conflicts by id; a list of the engine hooks
+(`CUSTOM_HOOKS`, effect primitives) as the documented extension surface, and a decision on
+scripting (none, or a small embedded language) for effects the data cannot express; mod-aware
+saves that record the active mods and refuse to load without them; a mod picker in the client.
+Document the data formats in `docs/` for modders. Keep IP-protected material (art, music, help text) out of the
+repository.
+
+**789. Upscaled graphics.** The client draws the original's 20x18 tiles and small unit pictures,
+scaled with nearest-neighbour. Add an optional higher-resolution art path: an upscaling step in
+`f4x-tools` (a documented, local-only pipeline, for example a pixel-art upscaler or a
+diffusion-based one run on the user's own machine) writing to `assets-local/art-hd/`, and a
+client setting that prefers it when present, with the same file naming so the existing loader
+works. The output of upscaling original art is still original-derived and stays out of the
+repository; the repository can only ship tools. Also check tile seams and shore blending
+(the autotile table, T4) at the new size, and let the UI scale independently.
+
+**790. Hardcore mode.** A new-game option for one-life play, bundling three rules: **no undo** (the
+undo of orders, task 90, is off for the whole game); **permanent death** (a banished wizard is
+defeated at once, whatever the Spell of Return setting (task 585) says, and the spell is not
+available); and **one save file, constantly updated**: the game saves automatically after every
+command that matters and at every turn end into a single file, cannot be saved elsewhere, and
+cannot load an older state (loading the file continues the game, and a crash or quit never
+rolls back). Store the flag in the saved game settings, show it in the new-game screen (86)
+and on the hall of fame entry (88) so hardcore wins can be told apart, and make the client
+refuse the quick-load key and the file picker while it is on. Closely related to the settings
+work of tasks 89 and 90.
+
+**791. Battle success hint.** Before the player commits to a fight (moving into an enemy stack,
+a lair or a city), show an estimate of how it will go: a win chance, the expected losses on
+each side and a plain verdict ("easy", "even", "risky", "hopeless"). Compute it by
+simulating the battle many times with the real resolution code (`battle/attack.rs`, seeded
+and thrown away, using the strategic auto-resolve of task 39 for speed) on copies of the
+units as they stand, including walls, spells and heroes as they get implemented. Show it in a
+tooltip over the target square and in the confirmation before an attack, and make its
+accuracy and visibility an option (off in hardcore mode, task 790; "fog of war" versions that
+estimate from only what the player has seen are an extension). Depends on the battle views
+of task 106 and on auto-resolve (39).
+
+**792. Font and TrueType support.** Today the client draws text with macroquad's built-in font and,
+once task 113 is done, with the original's bitmap fonts. Add real font support: load TrueType
+and OpenType files (and bitmap fonts in a simple data format) through a font setting, so a
+player or a mod can choose the UI font, with a **font set** per role (title, heading, body,
+small, numbers) and fallbacks when a glyph is missing. Needs: a text layout layer shared by
+all screens (measure, wrap, centre, shadow and outline, colours, scaling that follows the
+window), crisp rendering at any scale (rasterise at the target size, cache glyph atlases), full
+Unicode and right-to-left and CJK coverage as an extension (the game's names and help are
+English today but modded content may not be), and a licence check: only fonts under licences
+the project can ship go into the repository (for example an open blackletter pixel-style face
+to stand in for the original's display font), while the original's bitmap fonts stay local.
+Modding support (task 788) should let a mod ship its own fonts and map them to the roles.
+
+Chosen candidates for the replacement set (found by the project owner, October 2026): **Cloister
+Black** for city names and other large writing, **Carolingia** for mid-sized text and **Xentype**
+for small text. Their licences and the licence of any files we would ship have not been checked
+yet; check them against the CC0 repository rule above before adding any font file, and keep the
+files out of the repository if they cannot be redistributed (the set can then be a local
+download, like the original's art).
+
+**793. Higher resolution modes.** The client keeps the original's 320 by 200 layout and scales it by a
+whole factor (`frame::Layout`, the city screen's `Layout`), so a bigger window just shows a
+bigger copy. Add real higher-resolution modes: layouts designed for 1920 by 1080 and beyond
+and for wide and ultrawide windows, where the map view shows more tiles instead of larger
+ones, side panels use the extra width (lists, message log, minimap, spell and research
+panels), the city screen spreads out (a larger cityscape, more room for units and
+enchantments), and UI scale is a separate setting from the map zoom. Needs the font work (item
+10), art that holds up at the new sizes (tasks 789 and 794), a layout system with breakpoints
+(compact, standard, wide) shared by all screens, high-DPI handling, and a screenshot test per
+breakpoint. Keep the original layout as one of the modes.
+
+**794. Replacement art.** The placeholder art comes from the author's own copy of the original and is
+local only; the repository must stay CC0 and free of IP-protected art, music and text. Before any public release, source
+art that can be shipped: commissioned, generated or CC0 pieces for terrain tiles, units,
+buildings, portraits, the interface frame, battle scenery and fonts, in the same sizes and
+file layout as the extracted set so the client loads them unchanged (`assets/` next to the
+code, `assets-local/` still taking precedence for a player who has the originals). Decide the
+style (faithful pixel art, or a new look suited to the higher resolutions of task 793), list
+every picture the client uses (the manifest of `f4x-extract art` is the checklist), and give each
+a source and licence in a credits file. Moved here from the task list (formerly task 79)
+because it goes beyond the original game.
+
+**795. Different settlement icons by race.** The original draws every city on the overland map with the
+same walled or open picture in five sizes, recoloured by banner; only the city screen's
+houses differ by race (standard, tree or mound houses). Give each race its own settlement
+look on the map and wherever a settlement is shown: its own pictures for outposts, hamlets,
+villages, towns and cities, with and without walls, in the owner's banner colour, so that an
+orc town, a dark elf grove and a lizardman mound village can be told apart at a glance.
+Needs art for fourteen races (task 794 for anything not drawn from the original), a settlement
+sprite table in the content data (race, size, walls) with the original's pictures as the
+default, a client lookup that falls back to the default, and the same set in the minimap's
+city markers and the city screen's header.
+
+**796. Fortress art by magic type.** The original draws every wizard's fortress as the same grey tower
+(the city picture's fortress sprite and the tower on the overland map). Give the fortress a
+look that follows its wizard's strongest realm: a white spire for life, an overgrown living
+tree for nature, a bone tower for death, a tower of fire and cooling lava for chaos, a sparkling
+glass tower for sorcery, and a plain tower for wizards with no clear lead or for arcane. Choose
+the look from the wizard's books when the fortress is placed (and keep it if the books change,
+or follow them: decide), store it with the player, and draw it in all three places that show a
+fortress: the cityscape, the overland city marker (a small flag or badge on the city) and the
+city list. Needs art (task 794 for anything not from the original), a fortress sprite table in
+the content data keyed by realm with the original's tower as the default, and a modding hook
+so a mod can add looks for its own realms (task 788). Closely related to the banners and
+settlement icons by race (task 795).
+
+**797. Map editor.** Edit terrain, rivers, roads, features, nodes, towers, lair guards and treasure,
+start positions and fortress sites, and save a map file that a new game can load instead of
+generating one. Built on the layers in `docs/map-layers.md`; needs a map-file format with the
+`Lair` and `Node` records and validation (the generator's rules as warnings, not errors).
+
+**798. MCP server for remote control.** An MCP server that exposes the game: read state (map, cities,
+units, players), issue `Command`s and receive `Event`s, save and load. Lets a Claude session or
+other agent play, test or script the game; should run headless on the core crate with a seed, and
+share the console's command set (item 15, done: `docs/console.md` section 5 is the interface). Authentication and a read-only mode matter if it is
+reachable from outside the machine.
+
+**799. Hot seat multiplayer.** Several human wizards on one machine, taking turns, with a hand-over
+screen between players so nobody sees another's fog of war or research. Needs per-player views
+(already derived from the fog), no shared selection state between turns, and an AI/human flag per
+wizard in new-game settings.
+
+**800. Asynchronous multiplayer.** Play by message: each player takes a turn when it is theirs and
+the game state moves on, perhaps through a Discord bot that posts turn notices and takes the turn
+files. Needs a deterministic turn file (a start snapshot plus a command log: the recording of task 74 in `game/replay.rs`), a
+server or shared store to hold the game and enforce whose turn it is, and rules for timeouts and
+skipped turns. Builds on hot seat (task 799).
+
+**801. Early-game speed-up options.** New-game settings that skip the slow start: more of the map
+explored at the start, extra starting units, extra mana and gold, a few starting buildings in the
+capital, and a faster research start. Each as an independent option with sensible presets
+(e.g. "quick start"); recorded in the saved settings so a game remembers how it began.
+
+**802. Alternative effect for the Charismatic retort.** The retort's effect in the original is on
+diplomacy: the wizard's positive diplomatic effects are doubled and its negative ones halved, and
+it pays half for hiring heroes and mercenaries and buying items (`diplomacy.md`; the hiring part
+is in tasks 48 and 49). Our AI will behave differently from the original's, so a retort that
+rests on how the AI's attitude moves may do little or nothing there. Give it an alternative
+effect that does not depend on the AI's behaviour, as an option beside the original's effect
+(the original's stays the default while parity is the goal). What the effect should be is open;
+decide it when the AI's diplomacy is settled (tasks 64 to 66), and keep the retort's pick cost
+and the help text in step with whatever is chosen (`HELP_CORRECTIONS`).
+
+**803. Packaging for Linux.** A Linux build: static or well-documented dynamic binaries (the
+macroquad dependencies: X11 or Wayland, OpenGL, ALSA once audio exists), an AppImage or tarball,
+a `.desktop` file and icon, testing on a current Debian/Ubuntu and Fedora, and the same
+local-assets workflow as the Mac build (T81). A release workflow on GitHub Actions.
+
+**804. Battle AI tournament.** The held-out score against the scripted AI says little about which
+trained network is strongest, so pit the networks against each other (`learning-ai.md`, section 7).
+*Entries:* a few parent checkpoints (picked by a neural-against-neural round robin among the
+checkpoints of a run, not by the score against the scripted AI) and many variants of each. A
+variant is a parent plus (a) a *directed nudge*: an offset added to the final-layer bias of one
+kind of output score of the policy (`net.rs`: the wizard head's bias on the spell slots against
+"skip" for more or fewer casts, on "flee" for earlier or later flight, the melee and shoot
+pointer biases and the "done" and move biases for aggressive or passive play, the mana head's bias
+for casting at full strength, the wall-attack biases), and/or (b) a small Gaussian noise on the
+weights, scaled per tensor. A nudge is a plain edit of numbers the checkpoint already holds
+(`PolicyNet::nudged`, with a test that a zero nudge changes nothing); how strongly each knob moves
+behaviour is measured, not assumed (try about 0.5, 1 and 2 per knob). Spell-slot nudges act more
+on wizards with many spells, and the game has no true "defend" order until task 805, so "defensive"
+means advancing less, passing sooner and fleeing more. Every variant is labelled by its *measured
+style profile* (casts and mana a game, flee rate, units lost and killed, battle length), not by
+what it was meant to do.
+*Format:* neural against neural only, advice hidden, on a fresh scenario bank. The unit is the
+*pair*: one scenario with the same dice, played twice with the sides swapped. The side with more
+wins takes the pair; when the wins are level (one win each, or two draws by the step limit; a win
+and a draw is a win for the winner), the *tie-breaks* decide, in order, taken over the two games: (1) more
+enemy units killed; (2) more own units surviving; (3) more total hit points at the end, own minus
+enemy (own positive, enemy negative); (4) less mana spent. If all four are level the pair is a true draw and
+counts half a win to each side. The match file says which step decided each pair. A *match* is a
+batch of pairs, and whoever has more pair points (1 for a pair won, half for a draw) wins the
+match. Only if the points are level after the whole batch is there a seeded, logged coin flip;
+the match file records that it was used. About 30 entries play a Swiss stage (short matches of 15 pairs, about 6 rounds),
+rated by a Bradley-Terry fit of the pair results; the top 8 play single-elimination knockout with
+longer matches of 101 pairs. The summed training reward is only logged. Report whether any variant beats its parent, which styles win, and (for information,
+not for selection) how the final 8 do against the scripted AI. Head-to-head results can go in
+circles between styles, and the winner is the best of its pool, not necessarily good against a
+human.
+*Code:* `examples/make_variants.rs` (recipes in, checkpoints with `.shape.ron` and a recipe note
+out), `examples/tournament.rs` (profiles, Swiss stage, rating, knockout), `scripts/tournament.sh`
+in the style of `train_battle.sh` (`-h`, fresh folder under `models-local/`, `--detach`,
+`--notify`, `--dry-run`, a row in `scripts.md`), and a test that one network on both seats splits
+a pair evenly. Time a batch of net-against-net games first to size the stages; run it when no
+training run is using the CPU. The timing and the other sizes (entries, rounds) are proposals; the match sizes of 15 and 101 pairs are agreed.
+*Status:* the tools are built (16 October 2026): `f4x_learn::duel` (pairs, tie-breaks, matches),
+`net::Nudge` and `PolicyNet::nudged`/`jittered`, the examples `make_variants` and `tournament`
+(`rank`, `run`, `vs`) and `scripts/tournament.sh`; see `learning-ai.md` section 7.9. The first
+full tournament has not been run, and the strengths of the nudges still have to be measured.
+
+**805. Hold command in battle.** A new order for a unit in battle, *Hold*: it ends the unit's turn
+without attacking and gives it a defensive bonus until its next turn. A rule beyond the original
+(which has only "done", with no bonus), so it is a rule-set option in the saved game settings, off
+while parity is the goal. Open points to decide: the size and form of the bonus (for example +1
+defence or a higher chance to block, not stacking with shields or defence spells, or stacking
+with a cap); whether a unit may hold after moving or only when it has not moved; whether it
+works for ranged units and units with no melee attack; and whether a held unit that is attacked
+in melee strikes back as usual. Needs: the command and its legality in `battle/` (shown by
+`Battle::legal_commands`, refused if the option is off), the bonus in the defence calculation and
+the battle view, a console and client control (a key and a button beside "done"), a plain
+description in the help text corrections (`HELP_CORRECTIONS`), and scripted-AI use (hold with
+units that guard a wizard or a wall, or when the odds say wait for the enemy to come). For the
+learning AI (`learning-ai.md`), Hold is a new order in the unit vocabulary (`act.rs`): the
+observation and checkpoint signature change, so older checkpoints are refused and the networks
+must be retrained; it also gives task 804's passive nudge a real "defend" order to push towards.
+
+**806. More collateral damage for spells.** Today a damage spell aimed at a city or at the square it
+stands on hurts only the units there (Fire Storm, Ice Storm and Black Wind through
+`TargetSel::UnitsOnChosenSquare`; the strikes of `battle/` leave the city alone, and only
+Earthquake, Call the Void, Chaos Rift and the new Armageddon volcano touch buildings or citizens).
+Make the big attack spells on a city also kill citizens and destroy buildings, by the spell's
+strength and element: for example Fire Storm and Fireball burn buildings, Ice Storm and Lightning
+kill citizens rather than buildings, Black Wind and Death spells kill citizens only, and a spell
+that kills units in the city kills a share of the citizens too. Decide the numbers per spell in
+data (a `collateral` block on the effect: chance per building, chance per citizen, an element
+filter such as "fire does not harm walls"), not in code; the rules are written once for overland
+spells (`devastate_city` in `spell/terraform.rs` and `shake_city` in `spell/wizard.rs` are the
+patterns) and once for a battle fought in a city (`city_damage` in `battle/`, which already turns
+into lost citizens and buildings when the city falls). Needs: a setting to switch it off, an
+event line for the loss (the `WorldSpellStruck` event has the counts), the Chancellor's scroll
+(task 272) listing the city losses, the AI valuing it (a city it wants to keep is not bombed with
+Fire Storm), and a decision whether Spell Ward and Wall of Darkness-style city spells shield the
+buildings. Never kill a city's last citizen. Balance with soak runs (`f4x-tools soak`).
+
+**807. More useful buildings.** Many buildings are only prerequisites for others (Builder's Hall,
+Barracks, Smithy, Stables, Sawmill and so on). Give most of them a tangible benefit of their own,
+stated in `crates/f4x-def/content/buildings.ron` as ordinary effects so no new engine code is needed where the
+rules framework already has the stat. Examples to start from: the Barracks gives each unit
+stationed in the city experience every turn; the Builder's Hall lowers the cost of buildings in
+the city; the Smithy and the Stables improve the new units built there (a higher weapon quality
+or a free move); the Sawmill and the Armourer's Guild add production or defence to the garrison;
+the Fighters' Guild trains stationed units. The Shipwright's Guild adds
+food in a coastal city (fishing: a food bonus for the sea squares the city works, or a flat bonus per
+ocean square in its area). The Granary stores surplus food: a city's food beyond what it eats is
+not wasted but kept in a store (a number on the city, saved with the game, with a cap set by the
+building) and drawn on when the city runs short, so a famine or a siege costs the store before
+it costs citizens; decide the cap, whether the store feeds the city's units as well, whether
+it grows the city faster, and whether it is lost when the city is taken or starved. Needs: a list of every building with its current
+effect (some, like the temple, already have several), a target for each building that has none,
+new stats where a benefit has no stat yet (experience per turn for the stationed units is a
+turn-change step in `unit/experience.rs`; a building cost reduction is a stat the production code
+reads), care not to make the early game worse (Builder's Hall is built first in every city) and
+not to double what a retort or an enchantment already does, building upkeep changes if a benefit
+makes the building worth more than its gold, help-text entries written in the local help and
+the plain building descriptions the client shows, the AI's building scores (`f4x-ai`) so it
+builds them for the benefit and not only for the next building, and an option or mod switch
+(task 788) so the original rules stay available.
+
+**808. Reduced upkeep costs.** Basic units cost more to keep than they are worth early on, which
+slows the opening and punishes wide armies. Lower the upkeep of the basic units (spearmen,
+swordsmen, bowmen, and their equivalents of each race) by a stated amount, and make Settlers cost
+nothing to keep, gold and food. Both are data in `crates/f4x-def/content/units.ron` (`upkeep`), so the change is
+a rule set: a table of the old and new upkeep per unit, a decision about which units count as
+basic (the tier-1 units a city can build with no prerequisite beyond a barracks), whether the food
+cost stays (a settler that eats nothing is a rule change in `player/finance.rs` if Normal units always eat
+one), what a free settler does to the number of settlers the AI builds (it may build far too many;
+cap in `f4x-ai`), and the effect on the gold economy and the unrest of garrisons (a cheaper
+garrison makes troop-based pacification cheaper). Check with soak runs (`f4x-tools soak`) that wars still
+cost something. Hero and fantastic creature upkeep stay as they are.
+
+**809. More interesting strategies for underplayed or underpowered races.** Some races have little
+reason to be picked or little to do with their strengths. Give each weak race a distinct way to
+play, as a few effects in `crates/f4x-def/content/races.ron` and their buildings and units, never a flat bonus.
+Examples: Barbarians get better outposts (faster outpost growth, a larger area, a free early
+building) and better Triremes (more moves, more passengers or a cheaper Trireme), pushing them to
+settle islands; Gnolls get research from victories in battle (a few research points per enemy
+unit destroyed, or points for a captured city) or may sacrifice population for a stated gain (for
+example one citizen for production or mana); one idea per race goes on a list kept in this entry
+as each is decided. Needs: a survey of how each race performs (the soak results by race
+before and after), a list of the new effects and the stats or triggers they need that the rules
+framework (`rules-framework.md`) does not have yet (a research gain from a battle needs a battle
+event hook; a population sacrifice needs a command and a client control), the AI using each (a
+Gnoll AI that sacrifices, a Barbarian AI that expands by sea), the new-game race screen and the
+help text describing them, and the divergence recorded in `divergences.md`. Do the balance
+with soak runs, one race at a time, so the effect of each change is measured alone.
+
+**810. Neutral cities: mana and spells.** Independent cities cannot cast today (task P31 notes it). Give them a small magic of their own, after the base game is playable; it feeds task P31 (a city that can cast is a better ally or enemy, and gives and takes spells in deals) and the battles at its gates.
+
+- **Mana.** A neutral city makes its own mana by the normal rules (buildings, population, nodes in its land, the same `magic_income` sums a wizard's cities feed), keeps it in its own reserve, and pays the standard price for every spell. No distance rules: it casts anywhere it needs to, at the standard cost.
+- **Learning.** A city never forgets a spell, also when it shrinks. When it gains a population it learns a new spell only if its population is then higher than the number of spells it knows, so it never knows more spells than its population has reached (a city that shrinks and regrows learns nothing until it passes the old count).
+- **Spell lists.** Each race has a list of 20 spells the city picks from, in a data file (`crates/f4x-def/content/`, one list per race, in the rules framework's spell ids), chosen to suit the race (a first pass from the races' realms and the retorts they favour). The pick is a random one: a d20 roll on the list from the game's seeded generator (so it is repeatable from the seed); if the spell rolled is already known, the city goes down the list to the next one it does not know, starting again at 1 after 20; a city that knows all 20 learns nothing more. Spells need no research and no books. A smarter pick (weighted by what the race favours) can come later.
+- **Casting strength.** Needs a formula, since a wizard's strength comes from casting skill and a city has none. A start: the casting skill of a city is its population plus a share of its mana income, capped by a number per size, and it decides which spells it can afford in one go and the strength of the ones that scale (Fireball, Dispel Magic's strength, resistance modifiers in battle). Decide the shape and write it into `magic.md`.
+- **Use.** In battle the city casts as the defender (and as the attacker when a raider sallies out, task 154) with the combat AI's spell rules for a wizard, within the city's mana and the battle's casting limits; overland, a first version casts only what helps its own cities and defence (wards, Wall of Fire, healing, summons for the garrison). The AI wizards' answer to a city that casts: they weigh the risk in the attack decision.
+- **Interaction with deals (task P31).** This item makes it possible to learn spells from neutral cities: a city can teach a spell it knows, for a gift, for its liking of the wizard, or as the price of a deal (a wizard learns it under the normal limits for learning spells: the books, the realm and rarity rules and the spells it already knows). Tribute in mana, and spells given as a gift, work on the city's reserve. The offers themselves belong to task P31, which comes first.
+
+Needs: the data (20 spells for each of the 14 races), a `Magic`-like record for a neutral player in the core (known spells, reserve; saved with the game), the learning step in the growth code, the casting strength rule, the battle and overland AI hooks, the client showing what a neutral city knows when the player has the knowledge (the enemy city screen), help text, and tests with fixed seeds. Do the balance with soak runs, since a city with spells changes every siege.
+
+**811. Multiplayer (to be discussed).** Nothing is decided; this item holds the questions so the scope is settled before any work (`design.md` section 13 asks the same). Items 18 (hot seat) and 19 (asynchronous play) are the small versions; this one is for the rest, mainly play over a network at the same time.
+
+- **Scope.** Which kinds: hot seat (18), play by turn files (19), simultaneous turns over a network, or several of them. Whether wizards may be human and computer mixed, and how many humans (the game has up to five wizards).
+- **Turn model.** The game is turn based with every wizard moving in the same turn. Options: all humans play at once and the turn ends when all have ended it (with a timer, or a vote to end early); or in sequence, one wizard at a time. Battles between two humans need both players present (a battle is played command by command, so a wizard who is away needs auto-resolve or an AI standing in).
+- **Authority.** One side holds the game and checks every command (a server, or the host's game), and the others send commands and receive events. The core already works this way: a front end sends `Command` and gets `Event` back, and the game is deterministic from a seed.
+- **What exists for it.** Recording and replay for local play (task 74, `game/replay.rs`): a command log with creation numbers in place of entities, a start snapshot, and replay from it. That is a base for turn files and for resynchronising a client, but not a network protocol.
+- **What is missing.** A wire format and versioning for commands and events; per-player views of events (a wizard must not be told what its fog hides: `player/view.rs` limits what a player may read of the game, but there is no filter for the events a command returns); the hidden information in the random stream (a client must not run the generator ahead); battles in progress are not saved, so a dropped connection loses them; undo; handing control of a wizard to the AI when its player leaves; cheats and the console in a shared game; chat and diplomacy messages between humans (the wizard diplomacy of `diplomacy.rs` is for AI and human alike).
+- **Open questions.** Which scope first; peer to peer or a central server; how to settle disconnects and timeouts; whether the AI may be replaced by a human mid-game; how saves, replays and the Hall of Fame treat multiplayer games.
+
+**812. Record the battle AI's orders for replays.** Replays (task 74, `game/replay.rs`) record the commands the game is given, and every order a person or the scripted battle AI gives goes through `Game::apply` and is recorded. A learned battle brain (`set_battle_brain`, `next_battle_command`, `f4x-learn`) is asked for its orders inside the core (the auto-resolve loop in `battle/game.rs` calls `battle_command` directly), so those orders are not recorded, and a replay asks the brain again, which gives the same battle only if the brain answers the same way every time.
+
+- **Aim.** A replay of a game with a learned brain plays the same battles whether or not that brain is present, in the same version or another.
+- **How.** Record each order the brain gives, in order, with the battle's start, as part of the recording (the commands become `Battle` orders in the log, or a list kept with the `BeginBattle`/`AutoResolve` entry), and on replay feed the recorded orders back in place of asking the brain. The replay then needs no network weights.
+- **Needs.** The record hook in the auto-resolve loop and in the client's brain-driven battle (`battle_screen.rs`), a replay that takes orders from the log when it finds them, a test with a fake brain whose answers change between runs, and the file format note in `docs/console.md`.
+- **Priority.** Low: the learned AI is not part of feature parity with the original (decided 17 October 2026).
+
+**813. Casting mod.** Three changes that belong together, to make the wizards that cast from afar
+playable and to restore a preset the base game shortens: a decision per change whether it becomes
+the default, a rule-set option or a mod (see 5), with the three switched together as one mod at
+first (requested 18 October 2026).
+
+- **Half the casting distance penalty.** In battle a spell costs more the further the battle is from
+  the wizard's fortress (`range_percent` in `battle/casting.rs`, the original's
+  `Combat_Casting_Cost_Multiplier`): half the cost at the fortress itself, then the base cost, and
+  half the base cost again for each five squares past the fifth, up to three times (`x1.0` to
+  `x3.0` on the other plane or with no fortress). The mod halves the added part: a quarter of the
+  base cost for each five squares, up to twice (`x1.0` to `x2.0`), and the fortress discount stays.
+  The Channeler's rule (two squares away anywhere but at the fortress) is unchanged. The budget a
+  wizard has to spend (`budget` in `Caster`) and the AI's cost estimates read the same function, so
+  they follow. Make the figures data (a table in `rules.ron`: the first step, the step width, the
+  added share and the cap) so a mod can set its own and the original's are the default.
+- **A Channeler that costs one pick.** The retort costs two picks (`retort_cost` in `wizard/mod.rs`);
+  the mod makes it one. The cost of the other two-pick retorts (Warlord, Divine Power, Famous,
+  Infernal Power) stays. Move the pick prices into data (`rules.ron` or the retort table) so the
+  creation screen, the custom-wizard checks and the AI's wizard builder all read them.
+- **Lo Pan's fifth sorcery book.** `crates/f4x-def/content/wizards.ron` gives Lo Pan four sorcery books, one fewer
+  than the original, so that he fits the eleven picks (divergence 21). With the Channeler at one
+  pick, five sorcery, five chaos and Channeler come to eleven picks again, so the mod gives him the
+  original's five sorcery books with no other change. Without the mod he stays as now.
+
+Needs: the data tables above and their loader, the mod switch (task 788: until that exists, a
+game setting in `GameSettings`, saved with the game and shown beside the other rule options), the
+new-game screen and the help texts that name the Channeler's cost, the casting range and Lo Pan's
+books (`HELP_CORRECTIONS` for each, since the help states the original's figures), tests on the
+real data for each change (the cost at 0, 5, 10, 15, 20 and 25 squares, the creation screen's
+pick count with the Channeler, Lo Pan's books and picks), and an entry in `divergences.md` for
+each change.
+
+**814. Life and death nodes.** The base game has magic nodes for sorcery, nature and chaos only. Life and death
+nodes are an option of the game setup (`docs/game-settings.md`), off by default so the base game stays as it is.
+(The setting that lifts the ban on holding life and death books together is task 451 in `TASKS.md`, not part of this
+item.)
+- **Life nodes and death nodes**, built like the other three: a node is a terrain feature entity (`feature/`, `Node`
+  with its realm; `crates/f4x-def/content/features.ron`) on a base terrain of its own (`TerrainClass` gains `LifeNode` and
+  `DeathNode` beside `SorceryNode`, `NatureNode` and `ChaosNode`, with food, production and movement values in
+  `crates/f4x-def/content/terrain.ron`; the nature node counts as forest and the chaos node as mountains, so decide what a life
+  node and a death node count as, if anything). Parts:
+  - **Placement and guards:** map generation places them with the node budget (`crates/f4x-def/content/lairs.ron`, the node
+    budget formula of `docs/lairs.md`), the realm picked among five instead of three; the guards of a node follow its
+    realm, so a life node is held by life-realm creatures and a death node by death-realm ones (as the original does
+    for the other realms); a new realm's guard table is data.
+  - **What a node gives** a wizard who owns it: read first how the other three do it (`node_income` in
+    `wizard/magic_income.rs`, the node's power and aura squares, the owner's books of the node's realm, the
+    original's `Node` rules) and give the new two the same rule with their own numbers as data. If the original
+    gives the three realms different kinds of power, decide and write down what a life node and a death node give
+    instead.
+  - **Spells that touch nodes:** Meld with Node (the spell and its unit rule), Corruption on
+    a node, Warp Node, Change Terrain's refusal on a node, and the awareness spells (Nature Awareness shows nature
+    nodes; add whichever shows the new ones), so each takes the five realms, not three. Death Wish, Armageddon and
+    the other world spells that look at nodes are checked for a node of any realm.
+  - **Art and text:** a node picture and a map tile for each (`docs/extract-art.md`; the original has none, so a
+    recolour of an existing node picture, with a note in `docs/divergences.md`), the node name keys in
+    `crates/f4x-client/content/text/en/`, and the node colour the client draws on the minimap and the surveyor.
+  - **AI:** the scripted AI's targets and the learned AI's observation of nodes include the new realms; saves list
+    nodes by realm already, but old saves with only three realms still load.
+- **Tests:** a game with the setting off is unchanged (the base tests stay green); with it on, map generation places
+  all five node realms over many seeds, a wizard owning each node gets its bonus, and Meld with Node works on a life
+  and a death node; a soak shows no crash.
+
+Needs: the node entity work (`feature/node.rs`, done), the game-settings screen (`docs/game-settings.md`), and the art
+tools if the node pictures are recoloured (`docs/extract-art.md`). It touches the AI's node targets (task 339), so do it
+after that task or tell the AI work.
+
+**815. Free sounds.** The original has sound for only a few things (`docs/sound.md` section 4: clicks, combat, spell
+casts) and the repository may not ship its audio. Look for free-to-use sounds (CC0 first; CC-BY with credit where the
+licence allows redistribution; no non-commercial or no-derivatives licences) from sources such as OpenGameArt,
+freesound.org, Kenney's packs, and for music Incompetech-style libraries or pieces generated locally with the
+`soundgen` project, and use them for two jobs:
+- **Events with no sound today:** end of turn, city growth and shrinking, a building or unit completed, a unit moving
+  on the map, a unit dying or taking a hit in battle, a diplomacy proposal arriving, a wizard banished or defeated,
+  an item found, a hero hired or levelling up, a turn that ends with a shortage, and the new content of other planned
+  items (life and death nodes, new wizards). Each gets a cue name in `sound.ron` and a switch under Sound Effects.
+- **Replacements for the original's sounds and music:** one free file for every cue the original has (the 154
+  effects and 118 songs of `index.tsv` are the checklist), so a build with no original files is complete and the
+  game is no longer tied to the author's copy. The files go in `assets/audio/` beside the code and
+  `assets-local/audio/` still takes precedence for a player who has the originals, as for the art (task 794).
+Keep a credits file with each file's source, author and licence, and a check (a script or a test) that every file in
+`assets/audio/` is listed there. Needs the audio layer and the cue names of tasks 76 and 97.
+
+**816. Mines, lumber camps and hunter's lodges on the map.** `mapback.lbx` entries 87 (mine), 88 (lumber camp) and 90
+(hunter's lodge) are extracted, but the original game never places them: they are not part of it (they may come from
+Caster of Magic). Moved here from the on-hold task 124. Decide what they are for before drawing them: a site type on
+the map that a building, spell, unit or ability can refer to (a mine for ore and mana, a lumber camp for wood, a lodge
+for food), placed by the generator and shown with these pictures. Low priority; do it with task 787 (the community
+patch and Caster of Magic content).
+
+**817. Proper windowing support.** Partly done (status of 14 November 2026). Everything used to be drawn onto the same pane: a screen paints the whole frame, and a pop-up was either a function that took the frame over or a box painted over what the screen drew before. A modern game should have windowed layers: each box, panel and screen a window with its own place in a stack, so that a window can stand over a live screen, several can be open at once, and input goes to the one on top.
+
+**Done (task 389, `crates/f4x-client/src/modal.rs`):** the **modal stack**. Questions and notices are layers over the screen below: drawn after it (dimmed if the player wants), the newest on top gets all the input of the frame (nothing below sees a click or a key), a box of a kind that is already open is replaced, and notices that turn processing makes wait in a queue by priority until nothing is open. About 25 kinds use it (help, confirmations, events, offers, the built-building and level-up boxes, the scenes). Esc closes the top modal. Tests can click through it (tasks 395 and 406).
+
+**To do:**
+- **Non-modal windows.** Every layer today is modal. A window should say whether it blocks the ones below or not, several should be open at once, and input should go to the topmost window under the pointer (a click outside a modal window stays swallowed).
+- **The help pop-up as a window.** `help_popup.rs` still keeps a frozen picture of the frame it opened on (so a click that closes it cannot reach a button below). The confirmation boxes are modals; the help box should become a live window over the live screen, with Expanding Help drawn on it.
+- **Screens as windows.** The screens the original draws full-screen stay full-screen by default, so the look does not change. The new part is that the map can stay visible and live behind a box such as the city screen or the advisors.
+- **Drag, resize and place.** Windows can be dragged, resized (with task 793's higher resolutions) or placed on another monitor. Nothing of this exists in the client yet (the alchemy window's star is a slider, not a window drag).
+- **A render target for each window,** which also gives fades, the original's page-flip effects and drop shadows without each screen doing its own. Task 424 is the open decision on drawing the frame into one render target; settle it first.
+- Sketch of the stack data, to be settled when it is taken up: a window has a rectangle (in the original's 320 by 200 coordinates, scaled as now), an order, a title or none, and a modal flag.
+
+Related: items 789, 792, 793 and 39 (graphics, fonts and resolution), task 289 (help pop-ups) and the full-screen scenes
+of `end_scene.rs`. The request that opened this item had more detail after "windowed layers"; add it here.
+
+Note: use macroquad window <https://docs.rs/macroquad/latest/macroquad/window/index.html>
+
+**818. Start games from a seed in the UI.** The map seed is a command-line option today (`--seed N`); the Game settings
+screen only shows it (task 148). Let the player type or paste a seed on the new-game settings, so a map can be shared and
+replayed without the command line:
+- the Game settings screen (`options_screen.rs`, from the start menu) gets a number field for the seed, with a "random"
+  choice that draws a fresh one, and the field is part of the options that start the next game;
+- the same seed with the same settings must give the same map (check `GenParams` and the settings that feed the generator,
+  and say on the screen which settings the map depends on);
+- a running game keeps showing its seed read-only, and the hall of fame and the save slots may list it;
+- the console's `new` command takes `seed=N` as well, if it does not yet.
+Related: task 148 (the seed display), the new-game flow (`newgame_flow.rs`), `docs/game-settings.md`.
+
+**819. Find the use of the unreferenced art files.** (Moved here from the task list, formerly task 147: not needed for functional parity.) ReMoM's loader has no reference to four LBX files that `f4x-extract art` extracts fine: `combat`, `desert`, `tundra` and `cmbtwall`. `docs/extract-art.md` lists them as unknown rather than guessing. Find out what they are for: look at the pictures (frame counts, sizes, which terrain or battle element they resemble), search the original's disassembly and the other reverse-engineering sources in `reference/` for their names or for the loader slots they would occupy, and compare with the battlefield terrain and wall code (`cmbtwall` may be wall pieces beside `citywall`; `desert` and `tundra` may be terrain variants or battlefield backgrounds). Record the result in section 9 of `docs/extract-art.md` (replace the "unknown" row) and, if one is a real gap in the client, add a task for it. If nothing can be found, say so in the doc and leave the files unused.

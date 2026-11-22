@@ -271,8 +271,8 @@ Saving
 Client and tooling
 - macroquad for the client; art and data stay local; screenshots go in `assets-local/shots`.
 ## 12. Open questions
-- Multiplayer: in scope for v1, or only keep the command log compatible? The scope question is `PLANNED.md` item 36.
+- Multiplayer: in scope for v1, or only keep the command log compatible? The scope question is task 811.
 - Final art sourcing: commissioned, generated, or CC0 packs? (Placeholders come from the author's own copy of the original.)
 - Stream of Life and Gaia's Blessing: confirm against the original's assembly (see the conflicts document).
 
-The plan of the work is `TASKS.md` (open tasks) and `PLANNED.md` (long-term); the self-learning AI is `learning-ai.md`.
+The plan of the work is `TASKS.md` (open tasks) (long-term ideas are tasks of low priority there); the self-learning AI is `learning-ai.md`.

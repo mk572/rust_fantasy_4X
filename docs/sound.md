@@ -113,7 +113,7 @@ and "behind".
 
 The wizards in order, as the file numbers them: Merlin, Raven, Sharee, Lo Pan, Jafar, Oberic, Rjak, Sssra, Tauron,
 Freya, Horus, Ariel, Tlaloc, Kali. The pair index is `wizard_id * 2` (plus 1 or 2 for the combat pair). A wizard
-that is a custom portrait (an addition of ours, such as the new wizards of `PLANNED.md`) has no
+that is a custom portrait (an addition of ours, such as the new wizards planned later) has no
 tracks, so the choice must fall back to a general pair (`Combat_1/2`, `Bkrgnd_*`).
 
 ### 3.3 Short pieces (stop the background, play once, resume)
@@ -343,7 +343,7 @@ and a mod can change them:
 ### 5.3 Ours (not in the original)
 
 Candidates, to decide: end-of-turn chime, a message arrival ping for a diplomacy proposal (task 361), a
-banished-wizard sting, the life and death nodes and the new wizards of `PLANNED.md`, and the "city grows" tick.
+banished-wizard sting, the life and death nodes and the new wizards planned later, and the "city grows" tick.
 None is needed to match the original.
 
 ## 6. Open decisions

@@ -8,7 +8,7 @@
 //! `Command` fields.
 //!
 //! Recording is local play's tool for replays and for saving a game with its history; it does
-//! not make a network protocol (see `PLANNED.md`, the multiplayer item).
+//! not make a network protocol (see task 811, the multiplayer item).
 //!
 //! Tests: in game/replay/tests.rs.
 
