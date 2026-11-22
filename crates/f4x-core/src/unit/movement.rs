@@ -39,6 +39,9 @@ pub enum MoveError {
     NoGate,
     /// A Spell Ward on the city at the target bars a fantastic creature of the realm it guards.
     Warded,
+    /// The square holds a wizard the mover has a pact or an alliance with: the treaty has to be
+    /// broken first (`DiplomacyCommand::BreakTreaty`); the game never breaks it for the mover.
+    Treaty,
 }
 
 impl MoveError {
@@ -57,6 +60,7 @@ impl MoveError {
             Self::CannotShiftPlane => "refuse_map.move_error_cannot_shift_plane",
             Self::NoGate => "refuse_map.move_error_no_gate",
             Self::Warded => "refuse_map.move_error_warded",
+            Self::Treaty => "refuse_map.move_error_treaty",
         }
     }
 }
@@ -693,6 +697,23 @@ impl Game {
     /// Move a stack one tile. Returns the entry result; on `Entry::Hostile` nothing moved.
     pub fn move_stack(&mut self, units: &[hecs::Entity], to: Position) -> Result<Entry, MoveError> {
         let (costs, entry) = self.economy().plan_step(units, to)?;
+        if let Entry::Hostile(defenders) = &entry {
+            let defender = defenders
+                .first()
+                .and_then(|&u| self.units().unit_owner(u))
+                .or_else(|| {
+                    self.economy()
+                        .city_at(to)
+                        .and_then(|c| self.economy().city_owner(c))
+                });
+            let mover = self.units().unit_owner(units[0]);
+            if mover
+                .zip(defender)
+                .is_some_and(|(a, d)| self.bound_by_treaty(a, d))
+            {
+                return Err(MoveError::Treaty);
+            }
+        }
         if matches!(entry, Entry::Hostile(_) | Entry::Site(_)) {
             return Ok(entry);
         }

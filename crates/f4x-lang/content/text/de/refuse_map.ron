@@ -13,6 +13,8 @@
     "refuse_map.move_error_cannot_shift_plane": "Der Stapel kann die Ebene nur an einem Turm wechseln oder mit Einheiten, die Ebenenreise beherrschen.",
     "refuse_map.move_error_no_gate": "Der Stapel braucht eine Stadt mit Erdtor und eine weitere Stadt von dir mit Erdtor auf derselben Ebene.",
     "refuse_map.move_error_warded": "Ein Zauberschutz dieser Stadt hält Geschöpfe seines Bereichs fern.",
+    "refuse_map.move_error_treaty": "Mit diesem Zauberer besteht ein Vertrag: brich ihn zuerst.",
+    "refuse_map.battle_start_error_treaty": "Mit diesem Zauberer besteht ein Vertrag: brich ihn zuerst.",
     "refuse_map.no_path_no_units": "Es wurden keine Einheiten gewählt, oder sie sind nicht auf der Karte.",
     "refuse_map.no_path_already_there": "Die Einheiten sind bereits auf diesem Feld.",
     "refuse_map.no_path_other_plane": "Dieses Feld liegt auf der anderen Ebene.",

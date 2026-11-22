@@ -68,6 +68,8 @@ pub enum BattleStartError {
     BadSides,
     /// An auto-resolved attack must come from an adjacent square.
     NotAdjacent,
+    /// The sides have a pact or an alliance: it has to be broken first, by a player.
+    Treaty,
 }
 
 impl BattleStartError {
@@ -77,6 +79,7 @@ impl BattleStartError {
             Self::InProgress => "refuse_map.battle_start_error_in_progress",
             Self::BadSides => "refuse_map.battle_start_error_bad_sides",
             Self::NotAdjacent => "refuse_map.battle_start_error_not_adjacent",
+            Self::Treaty => "refuse_map.battle_start_error_treaty",
         }
     }
 }
@@ -476,6 +479,9 @@ impl Game {
         };
         if a_owner == d_owner {
             return Err(BattleStartError::BadSides);
+        }
+        if self.bound_by_treaty(a_owner, d_owner) {
+            return Err(BattleStartError::Treaty);
         }
         let mut units = Vec::new();
         let mut sources = Vec::new();

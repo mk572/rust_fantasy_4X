@@ -1529,7 +1529,8 @@ impl Diplomacy {
         }
     }
 
-    /// Attacking a wizard one has a treaty with breaks it first; the attacker is the breaker.
+    /// A battle between two wizards: they meet. A treaty between them is never broken here: an attack
+    /// on a treaty partner is refused until a player has broken the treaty (`Game::bound_by_treaty`).
     pub(crate) fn attack_relations(
         &mut self,
         ctx: &mut DiplomacyCtx<'_>,
@@ -1542,13 +1543,6 @@ impl Diplomacy {
             return;
         }
         self.make_contact(ctx, attacker, defender);
-        if matches!(
-            self.treaty(attacker, defender),
-            Treaty::Pact | Treaty::Alliance
-        ) {
-            self.change_relations(ctx, -40, attacker, defender, Action::TreatyAttack, None);
-            self.break_treaties(ctx, attacker, defender);
-        }
     }
 
     /// `winner` took a city of `loser` that had people in it: -40. The original also declares war
@@ -1989,6 +1983,12 @@ impl Game {
     /// The treaty between two wizards.
     pub fn treaty(&self, a: PlayerId, b: PlayerId) -> Treaty {
         self.diplomacy.treaty(a, b)
+    }
+
+    /// Whether `a` and `b` have a pact or an alliance, which bars an attack of one on the other
+    /// until a player breaks it (`DiplomacyCommand::BreakTreaty`).
+    pub fn bound_by_treaty(&self, a: PlayerId, b: PlayerId) -> bool {
+        matches!(self.treaty(a, b), Treaty::Pact | Treaty::Alliance)
     }
 
     /// The relation between two wizards as the player sees it.

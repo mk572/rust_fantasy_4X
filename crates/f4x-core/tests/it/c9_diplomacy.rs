@@ -571,3 +571,84 @@ fn an_alliance_stands_though_one_ally_is_at_war_with_the_others_ally() {
         );
     }
 }
+
+#[test]
+fn an_attack_on_a_treaty_partner_is_refused_until_a_player_breaks_the_treaty() {
+    use crate::support::{around, text};
+    use f4x_core::unit::movement::MoveError;
+    let mut tried = 0;
+    for (name, mut g, w) in met() {
+        let (a, b) = (w[0], w[1]);
+        let Some(mover) = g
+            .units()
+            .all_units()
+            .into_iter()
+            .find(|&u| g.units().unit_owner(u) == Some(a))
+        else {
+            continue;
+        };
+        let at = g.units().unit_position(mover).expect("a position");
+        let kind = g.units().unit_kind_id(mover).expect("a kind");
+        // A unit of b on a square next to it that the mover can attack.
+        let Some(to) = around(&g, at).into_iter().find(|&to| {
+            let made = g.apply(Command::CreateUnit {
+                owner: b,
+                pos: to,
+                unit: kind,
+            });
+            let asked = made.iter().all(|e| !matches!(e, Event::Rejected(_)))
+                && g.apply(Command::MoveStack {
+                    units: vec![mover],
+                    to,
+                })
+                .iter()
+                .any(|e| matches!(e, Event::AttackRequested { .. }));
+            if !asked {
+                for u in g.units().units_at(to) {
+                    g.scenario_remove_unit(u);
+                }
+            }
+            asked
+        }) else {
+            continue;
+        };
+        tried += 1;
+        for treaty in [Treaty::Pact, Treaty::Alliance] {
+            g.start_treaty(a, b, treaty);
+            let before = text(&g);
+            let events = g.apply(Command::MoveStack {
+                units: vec![mover],
+                to,
+            });
+            assert!(
+                events
+                    .iter()
+                    .any(|e| matches!(e, Event::Rejected(Rejection::Move(MoveError::Treaty)))),
+                "{name}: {treaty:?}: {events:?}"
+            );
+            assert_eq!(
+                text(&g),
+                before,
+                "{name}: a refused attack changed the game"
+            );
+            assert_eq!(g.treaty(a, b), treaty, "{name}: the game broke the treaty");
+        }
+        // The player breaks it, and the attack is asked for.
+        assert_eq!(
+            run(&mut g, D::BreakTreaty { player: a, with: b }),
+            None,
+            "{name}"
+        );
+        let events = g.apply(Command::MoveStack {
+            units: vec![mover],
+            to,
+        });
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::AttackRequested { .. })),
+            "{name}: {events:?}"
+        );
+    }
+    assert!(tried > 0, "no world had room for the test");
+}
