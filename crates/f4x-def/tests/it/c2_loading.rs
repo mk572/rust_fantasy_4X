@@ -834,7 +834,7 @@ fn the_players_default_game_file_is_read_back_brought_into_range_and_a_bad_one_i
                 );
                 assert_eq!(
                     r.settings.validate(),
-                    Vec::<String>::new(),
+                    Vec::<f4x_def::issue::ContentIssue>::new(),
                     "{} -> {v}",
                     &text[a..b]
                 );

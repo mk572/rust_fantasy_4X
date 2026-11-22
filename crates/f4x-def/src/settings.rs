@@ -1131,23 +1131,25 @@ impl SpellLibraryDef {
             .unwrap_or(zero)
     }
 
-    /// Every problem in words.
-    pub fn validate(&self) -> Vec<String> {
-        let mut problems = Vec::new();
+    /// Every table of the wrong length, as an `OutOfRange` issue (file and place are the caller's).
+    pub fn validate(&self) -> Vec<crate::issue::ContentIssue> {
+        let mut problems = crate::issue::Issues::new();
         for (name, rows) in [
             ("known", &self.known),
             ("researchable", &self.researchable),
             ("chosen", &self.chosen),
         ] {
             if rows.len() != Self::MAX_BOOKS + 1 {
-                problems.push(format!(
-                    "spell_library.{name} has {} rows, not {}",
+                problems.out_of_range(
+                    "rules_settings.ron",
+                    "spell_library",
+                    name,
                     rows.len(),
-                    Self::MAX_BOOKS + 1
-                ));
+                    format!("{} rows", Self::MAX_BOOKS + 1),
+                );
             }
         }
-        problems
+        problems.into_vec()
     }
 }
 
@@ -1187,12 +1189,14 @@ impl SettingsDef {
         }
         for d in 0..self.levels.len() as u8 {
             let level = GameSettings::for_difficulty(self, d);
-            for p in level.validate() {
-                problems.conflict(F, format!("level {d}"), p);
+            for mut p in level.validate() {
+                p.file = F.to_string();
+                p.at = format!("level {d}: {}", p.at);
+                problems.push(p);
             }
         }
         for p in self.spell_library.validate() {
-            problems.conflict(F, "spell_library", p);
+            problems.push(p);
         }
         if !(1..=MAX_OPPONENTS).contains(&self.max_opponents) {
             problems.out_of_range(
@@ -1262,8 +1266,10 @@ impl SettingsDef {
             basic: self.new_game,
             ..GameSettings::default()
         };
-        for p in choices.validate() {
-            problems.conflict(F, "new_game", p);
+        for mut p in choices.validate() {
+            p.file = F.to_string();
+            p.at = format!("new_game: {}", p.at);
+            problems.push(p);
         }
         problems.into_vec()
     }
@@ -1360,236 +1366,290 @@ impl GameSettings {
             && self.scoring == level.scoring
     }
 
-    /// Every value out of its range, in words (empty when the record is fine).
-    pub fn validate(&self) -> Vec<String> {
+    /// Every value out of its range (empty when the record is fine): one `OutOfRange` issue for each,
+    /// whose place is the setting and whose values are the setting's name, what was found and what
+    /// is allowed. The caller gives the issues their file.
+    pub fn validate(&self) -> Vec<crate::issue::ContentIssue> {
+        use crate::issue::{ContentIssue, IssueKind};
         let b = &self.basic;
         let mut problems = Vec::new();
-        let mut check = |ok: bool, what: String| {
+        let mut check = |ok: bool, name: &str, found: &dyn std::fmt::Display, allowed: String| {
             if !ok {
-                problems.push(what);
+                problems.push(ContentIssue::new("", name, IssueKind::OutOfRange).with([
+                    name.to_string(),
+                    found.to_string(),
+                    allowed,
+                ]));
             }
         };
         check(
             b.difficulty <= MAX_DIFFICULTY,
-            format!("difficulty {} is not 0 to {MAX_DIFFICULTY}", b.difficulty),
+            "difficulty",
+            &b.difficulty,
+            format!("0 to {MAX_DIFFICULTY}"),
         );
         check(
             (1..=MAX_OPPONENTS).contains(&b.opponents),
-            format!("{} opponents is not 1 to {MAX_OPPONENTS}", b.opponents),
+            "opponents",
+            &b.opponents,
+            format!("1 to {MAX_OPPONENTS}"),
         );
         check(
             (1..=99).contains(&b.land_percent),
-            format!("land {}% is not 1 to 99", b.land_percent),
+            "land_percent",
+            &b.land_percent,
+            "1 to 99".into(),
         );
         check(
             b.magic_strength <= 2,
-            format!("magic power {} is not 0 to 2", b.magic_strength),
+            "magic_strength",
+            &b.magic_strength,
+            "0 to 2".into(),
         );
         check(
-            MAP_WIDTHS.contains(&b.map_width) && MAP_HEIGHTS.contains(&b.map_height),
-            format!(
-                "map {} by {} is not {:?} by {:?}",
-                b.map_width, b.map_height, MAP_WIDTHS, MAP_HEIGHTS
-            ),
+            MAP_WIDTHS.contains(&b.map_width),
+            "map_width",
+            &b.map_width,
+            format!("{} to {}", MAP_WIDTHS.start(), MAP_WIDTHS.end()),
+        );
+        check(
+            MAP_HEIGHTS.contains(&b.map_height),
+            "map_height",
+            &b.map_height,
+            format!("{} to {}", MAP_HEIGHTS.start(), MAP_HEIGHTS.end()),
         );
         check(
             (1..=MAX_STACK).contains(&self.rules.max_battle_side),
-            format!(
-                "{} units on a battle side is not 1 to {}",
-                self.rules.max_battle_side, MAX_STACK
-            ),
+            "max_battle_side",
+            &self.rules.max_battle_side,
+            format!("1 to {MAX_STACK}"),
         );
         check(
             (self.rules.max_battle_side..=MAX_TILE_LIMIT).contains(&self.rules.max_tile),
+            "max_tile",
+            &self.rules.max_tile,
             format!(
-                "{} units on a square is not {} (a battle side) to {}",
-                self.rules.max_tile, self.rules.max_battle_side, MAX_TILE_LIMIT
+                "{} (a battle side) to {MAX_TILE_LIMIT}",
+                self.rules.max_battle_side
             ),
         );
         check(
             MAX_CITY_SIZE_RANGE.contains(&self.rules.max_city_size),
+            "max_city_size",
+            &self.rules.max_city_size,
             format!(
-                "a city size cap of {} is not 5 to 40",
-                self.rules.max_city_size
+                "{} to {}",
+                MAX_CITY_SIZE_RANGE.start(),
+                MAX_CITY_SIZE_RANGE.end()
             ),
         );
         check(
             MIN_CITY_DISTANCE_RANGE.contains(&self.rules.min_city_distance),
+            "min_city_distance",
+            &self.rules.min_city_distance,
             format!(
-                "a distance of {} between cities is not 1 to 8",
-                self.rules.min_city_distance
+                "{} to {}",
+                MIN_CITY_DISTANCE_RANGE.start(),
+                MIN_CITY_DISTANCE_RANGE.end()
             ),
         );
         check(
             EVENT_START_TURN_RANGE.contains(&self.events.start_turn),
-            format!("events from turn {} is not 1 to 50", self.events.start_turn),
+            "events.start_turn",
+            &self.events.start_turn,
+            format!(
+                "{} to {}",
+                EVENT_START_TURN_RANGE.start(),
+                EVENT_START_TURN_RANGE.end()
+            ),
         );
         for (name, set) in [
-            ("nodes on Arcanus", self.world.nodes_arcanus),
-            ("nodes on Myrror", self.world.nodes_myrror),
+            ("world.nodes_arcanus", self.world.nodes_arcanus),
+            ("world.nodes_myrror", self.world.nodes_myrror),
         ] {
             check(
                 set.is_none_or(|n| NODES_RANGE.contains(&n)),
-                format!("{name}: more than 40"),
+                name,
+                &set.unwrap_or_default(),
+                format!("at most {}", NODES_RANGE.end()),
             );
         }
         for (name, percent) in [
-            ("Arcanus", self.world.mineral_percent_arcanus),
-            ("Myrror", self.world.mineral_percent_myrror),
+            (
+                "world.mineral_percent_arcanus",
+                self.world.mineral_percent_arcanus,
+            ),
+            (
+                "world.mineral_percent_myrror",
+                self.world.mineral_percent_myrror,
+            ),
         ] {
             check(
                 MINERAL_PERCENT_RANGE.contains(&percent),
-                format!("minerals on {name}: {percent} percent is not 0 to 30"),
+                name,
+                &percent,
+                format!(
+                    "{} to {}",
+                    MINERAL_PERCENT_RANGE.start(),
+                    MINERAL_PERCENT_RANGE.end()
+                ),
             );
         }
         for (name, set) in [
-            ("strong", self.world.strong_sites),
-            ("weak", self.world.weak_sites),
+            ("world.strong_sites", self.world.strong_sites),
+            ("world.weak_sites", self.world.weak_sites),
         ] {
             check(
                 set.is_none_or(|n| SITES_RANGE.contains(&n)),
-                format!("{name} sites: more than 100"),
+                name,
+                &set.unwrap_or_default(),
+                format!("at most {}", SITES_RANGE.end()),
             );
         }
         let w = &self.wizards;
-        for (who, gold) in [
-            ("your", w.starting_gold.human),
-            ("the AI's", w.starting_gold.ai),
+        for (name, gold) in [
+            ("wizards.starting_gold.human", w.starting_gold.human),
+            ("wizards.starting_gold.ai", w.starting_gold.ai),
+            ("wizards.starting_mana.human", w.starting_mana.human),
+            ("wizards.starting_mana.ai", w.starting_mana.ai),
         ] {
-            check(
-                (0..=2000).contains(&gold),
-                format!("{who} starting gold {gold} is not 0 to 2000"),
-            );
-        }
-        for (who, mana) in [
-            ("your", w.starting_mana.human),
-            ("the AI's", w.starting_mana.ai),
-        ] {
-            check(
-                (0..=2000).contains(&mana),
-                format!("{who} starting mana {mana} is not 0 to 2000"),
-            );
+            check((0..=2000).contains(&gold), name, &gold, "0 to 2000".into());
         }
         check(
             BOOKS_PER_REALM_RANGE.contains(&w.max_books_per_realm),
+            "wizards.max_books_per_realm",
+            &w.max_books_per_realm,
             format!(
-                "the most books in a realm {} is not 5 to 13",
-                w.max_books_per_realm
+                "{} to {}",
+                BOOKS_PER_REALM_RANGE.start(),
+                BOOKS_PER_REALM_RANGE.end()
             ),
         );
         check(
             BOOKS_TOTAL_RANGE.contains(&w.max_books_total),
+            "wizards.max_books_total",
+            &w.max_books_total,
             format!(
-                "the most books in all {} is not 12 to 65",
-                w.max_books_total
+                "{} to {}",
+                BOOKS_TOTAL_RANGE.start(),
+                BOOKS_TOTAL_RANGE.end()
             ),
         );
-        for (who, picks) in [("your", w.picks.human), ("the AI's", w.picks.ai)] {
-            check(
-                (5..=20).contains(&picks),
-                format!("{who} picks {picks} is not 5 to 20"),
-            );
+        for (name, picks) in [
+            ("wizards.picks.human", w.picks.human),
+            ("wizards.picks.ai", w.picks.ai),
+        ] {
+            check((5..=20).contains(&picks), name, &picks, "5 to 20".into());
         }
         let a = &self.ai;
-        for (what, v) in [
-            ("growth", a.growth_percent),
-            ("outpost growth", a.outpost_growth_percent),
-            ("production", a.production_percent),
-            ("gold", a.gold_percent),
-            ("mana", a.mana_percent),
-            ("food", a.food_percent),
-            ("research", a.research_percent),
-            ("maintenance", a.maintenance_percent),
-            ("unit upkeep", a.unit_upkeep_percent),
+        for (name, v) in [
+            ("ai.growth_percent", a.growth_percent),
+            ("ai.outpost_growth_percent", a.outpost_growth_percent),
+            ("ai.production_percent", a.production_percent),
+            ("ai.gold_percent", a.gold_percent),
+            ("ai.mana_percent", a.mana_percent),
+            ("ai.food_percent", a.food_percent),
+            ("ai.research_percent", a.research_percent),
+            ("ai.maintenance_percent", a.maintenance_percent),
+            ("ai.unit_upkeep_percent", a.unit_upkeep_percent),
         ] {
-            check(
-                (10..=800).contains(&v),
-                format!("AI {what} {v}% is not 10 to 800"),
-            );
+            check((10..=800).contains(&v), name, &v, "10 to 800".into());
         }
         let aw = &a.wizards;
         check(
             aw.consolidate_percent <= 100,
-            format!("merge chance {}% is over 100", aw.consolidate_percent),
+            "ai.wizards.consolidate_percent",
+            &aw.consolidate_percent,
+            "0 to 100".into(),
         );
         check(
-            aw.erasure_dice.0 <= 10 && aw.erasure_dice.1 <= 20,
-            format!("erasure dice {:?} are out of range", aw.erasure_dice),
+            aw.erasure_dice.0 <= 10,
+            "ai.wizards.erasure_dice (dice)",
+            &aw.erasure_dice.0,
+            "0 to 10".into(),
+        );
+        check(
+            aw.erasure_dice.1 <= 20,
+            "ai.wizards.erasure_dice (sides)",
+            &aw.erasure_dice.1,
+            "0 to 20".into(),
         );
         check(
             self.world.lair_guard_percent <= 300,
-            format!("lair guards {}% is over 300", self.world.lair_guard_percent),
+            "world.lair_guard_percent",
+            &self.world.lair_guard_percent,
+            "0 to 300".into(),
         );
         check(
             self.world.lair_treasure_percent <= 500,
-            format!(
-                "lair treasure {}% is over 500",
-                self.world.lair_treasure_percent
-            ),
+            "world.lair_treasure_percent",
+            &self.world.lair_treasure_percent,
+            "0 to 500".into(),
         );
         check(
             self.world.neutral_city_size_bonus <= 6,
-            format!(
-                "neutral city bonus {} is over 6",
-                self.world.neutral_city_size_bonus
-            ),
+            "world.neutral_city_size_bonus",
+            &self.world.neutral_city_size_bonus,
+            "0 to 6".into(),
         );
         check(
             self.world.raider_percent <= 300,
-            format!("raiders {}% is over 300", self.world.raider_percent),
+            "world.raider_percent",
+            &self.world.raider_percent,
+            "0 to 300".into(),
         );
-        let radius = self.world.start_reveal_radius;
         check(
-            (HalfInt::ZERO..=HalfInt::from_int(10)).contains(&radius),
-            format!("start reveal radius {radius} is not 0 to 10"),
+            (HalfInt::ZERO..=HalfInt::from_int(10)).contains(&self.world.start_reveal_radius),
+            "world.start_reveal_radius",
+            &self.world.start_reveal_radius,
+            "0 to 10".into(),
         );
         for (name, v) in [
-            ("base farmer food", self.rules.farmer_food),
-            ("base worker production", self.rules.worker_production),
+            ("rules.farmer_food", self.rules.farmer_food),
+            ("rules.worker_production", self.rules.worker_production),
         ] {
             check(
                 (HalfInt::ZERO..=FARMER_WORKER_MOST).contains(&v),
-                format!("{name} {v} is not 0 to {FARMER_WORKER_MOST}"),
+                name,
+                &v,
+                format!("0 to {FARMER_WORKER_MOST}"),
             );
         }
         check(
             self.rules.arcane_candidate_cap <= 20,
-            format!(
-                "arcane spell cap {} is over 20",
-                self.rules.arcane_candidate_cap
-            ),
+            "rules.arcane_candidate_cap",
+            &self.rules.arcane_candidate_cap,
+            "0 to 20".into(),
         );
         check(
             (MONSTER_START_EARLIEST..=MONSTER_START_TURN).contains(&self.world.monster_start_turn),
-            format!(
-                "monster start turn {} is not {MONSTER_START_EARLIEST} to {MONSTER_START_TURN}",
-                self.world.monster_start_turn
-            ),
+            "world.monster_start_turn",
+            &self.world.monster_start_turn,
+            format!("{MONSTER_START_EARLIEST} to {MONSTER_START_TURN}"),
         );
         check(
             (TRIREME_CAPACITY..=MAX_SHIP_CAPACITY).contains(&self.rules.trireme_capacity),
-            format!(
-                "trireme capacity {} is not {TRIREME_CAPACITY} to {MAX_SHIP_CAPACITY}",
-                self.rules.trireme_capacity
-            ),
+            "rules.trireme_capacity",
+            &self.rules.trireme_capacity,
+            format!("{TRIREME_CAPACITY} to {MAX_SHIP_CAPACITY}"),
         );
         check(
             (GALLEY_CAPACITY..=MAX_SHIP_CAPACITY).contains(&self.rules.galley_capacity),
-            format!(
-                "galley capacity {} is not {GALLEY_CAPACITY} to {MAX_SHIP_CAPACITY}",
-                self.rules.galley_capacity
-            ),
+            "rules.galley_capacity",
+            &self.rules.galley_capacity,
+            format!("{GALLEY_CAPACITY} to {MAX_SHIP_CAPACITY}"),
         );
         check(
             (10..=200).contains(&self.events.pressure_percent),
-            format!(
-                "event pressure {}% is not 10 to 200",
-                self.events.pressure_percent
-            ),
+            "events.pressure_percent",
+            &self.events.pressure_percent,
+            "10 to 200".into(),
         );
         check(
             (10..=500).contains(&self.scoring.score_percent),
-            format!("score {}% is not 10 to 500", self.scoring.score_percent),
+            "scoring.score_percent",
+            &self.scoring.score_percent,
+            "10 to 500".into(),
         );
         problems
     }

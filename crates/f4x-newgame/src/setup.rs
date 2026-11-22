@@ -121,7 +121,11 @@ pub fn gen_params(settings: &GameSettings) -> GenParams {
 pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     let problems = spec.settings.validate();
     if !problems.is_empty() {
-        return Err(problems.join("; "));
+        return Err(problems
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join("; "));
     }
     // The hooks and special spells the code implements are the only ones the content may name.
     let hooks = f4x_core::hook::problems(&content.rules);

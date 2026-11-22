@@ -1299,7 +1299,7 @@ mod tests {
                 (f.set)(&mut s, v);
                 assert_eq!(
                     s.validate(),
-                    Vec::<String>::new(),
+                    Vec::<f4x_def::issue::ContentIssue>::new(),
                     "{} at {v} is out of range",
                     f.label
                 );

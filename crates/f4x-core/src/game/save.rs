@@ -1273,8 +1273,10 @@ impl Snapshot {
     fn check_against(&self, content: &Content, check: ContentCheck) -> Result<(), LoadError> {
         use f4x_def::load::{ContentIssue, IssueKind};
         let mut issues = Vec::new();
-        for problem in self.settings.validate() {
-            issues.push(ContentIssue::new("save", "settings", IssueKind::Conflict).with([problem]));
+        for mut issue in self.settings.validate() {
+            issue.file = "save".to_string();
+            issue.at = format!("settings: {}", issue.at);
+            issues.push(issue);
         }
         if check == ContentCheck::Strict
             && !self.content.is_empty()

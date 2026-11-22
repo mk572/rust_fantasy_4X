@@ -1073,7 +1073,11 @@ fn whatever_numbers_a_settings_record_holds_it_is_brought_into_range_and_only_th
         g.world.weak_sites = Some(v);
         g.basic.towers = Some(v);
         g.basic.neutral_cities = Some(v);
-        assert_eq!(g.normalised().validate(), Vec::<String>::new(), "{v}");
+        assert_eq!(
+            g.normalised().validate(),
+            Vec::<f4x_def::issue::ContentIssue>::new(),
+            "{v}"
+        );
     }
     assert!(
         unmended.is_empty(),
