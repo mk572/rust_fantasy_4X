@@ -172,6 +172,9 @@ pub struct Session {
     /// The folder `save`, `load`, `record` and `replay` use (`saves` in the game's folder; the
     /// tests of a crate use its `tests/saves`).
     pub saves_dir: PathBuf,
+    /// What the wizards feel about the player (`talk` shows it). The console's rivals do not play, so
+    /// nothing moves it: a wizard shows the feeling it starts with.
+    pub diplomats: f4x_ai::Diplomats,
 }
 
 /// A console for one game.
@@ -214,6 +217,7 @@ impl Console {
                 access,
                 quit: false,
                 saves_dir: PathBuf::from("saves"),
+                diplomats: f4x_ai::Diplomats::new(),
             },
             history: Vec::new(),
         }

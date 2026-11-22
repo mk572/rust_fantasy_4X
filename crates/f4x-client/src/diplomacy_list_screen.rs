@@ -154,7 +154,7 @@ impl App {
             .filter(|&id| id != HUMAN && self.game.takes_part_in_diplomacy(id))
             .filter(|&id| self.game.have_met(HUMAN, id))
             .map(|id| {
-                let relation = self.game.relation(HUMAN, id);
+                let relation = self.feeling(id);
                 let treaty = self.game.treaty(HUMAN, id);
                 let peace = treaty == Treaty::None
                     && self
@@ -327,13 +327,8 @@ impl App {
             .collect();
         for (i, &id) in others.iter().enumerate() {
             self.game.make_contact(HUMAN, id);
-            let change = [-90, -50, -25, -5, 0, 15, 40, 70, 95][i % 9];
-            let action = if change >= 0 {
-                f4x_core::diplomacy::Action::Friendship
-            } else {
-                f4x_core::diplomacy::Action::AttackedCity
-            };
-            self.game.change_relations(change, HUMAN, id, action, None);
+            let feeling = [-90, -50, -25, -5, 0, 15, 40, 70, 95][i % 9];
+            self.diplomats.set_feeling(&self.game, id, HUMAN, feeling);
         }
         for (i, pair) in others.windows(2).enumerate() {
             let treaty = [Treaty::War, Treaty::Alliance, Treaty::Pact][i % 3];
@@ -615,7 +610,7 @@ mod tests {
             panic!("no contact row in {rows:?}");
         };
         assert_eq!(c.treaty, Treaty::War);
-        assert_eq!(c.relation, app.game.relation(HUMAN, rival));
+        assert_eq!(c.relation, app.feeling(rival));
         assert_eq!(treaty_words(c).0, "treaty.war");
         assert_eq!(treaty_icon(c), Some(2), "crossed swords for war");
         let mut calm = c.clone();

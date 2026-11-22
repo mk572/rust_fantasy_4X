@@ -148,7 +148,7 @@ impl Page for WizardUi {
         );
 
         if ui.who != HUMAN {
-            let relation = app.text(relation_key(app.game.relation(HUMAN, ui.who)));
+            let relation = app.text(relation_key(app.feeling(ui.who)));
             let treaty = app.text(app.game.treaty(HUMAN, ui.who).key());
             let personality = app.text(
                 app.game

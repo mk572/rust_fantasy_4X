@@ -697,9 +697,16 @@ mod tests {
     fn the_detail_note_names_the_system_the_enemy_and_what_was_seen() {
         let g = war(8, 8, 110);
         let mut ai = Ai::new(P0);
-        assert_eq!(
-            ai.diplomacy_note(&g),
-            "diplomacy B, enemy -, weary [], seen []"
+        let first = ai.diplomacy_note(&g);
+        assert!(
+            first.starts_with("diplomacy B, enemy -, weary [], seen [], regard ["),
+            "{first}"
+        );
+        assert!(
+            first.contains("p1 friendship")
+                && first.contains("fear")
+                && first.contains("strategic"),
+            "the regard names the three values: {first}"
         );
         ai.notice(&g, &[razed()]);
         ai.memory.put().enemy = Some((P1, 100));

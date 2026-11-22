@@ -439,10 +439,27 @@ impl Ai {
             .filter(|d| game.treaty(self.player, d.with) == f4x_core::diplomacy::Treaty::War)
             .map(|d| format!("p{} {}", d.with.0, d.weary))
             .collect();
+        // How it regards each wizard it has met (task 784): the friendship (its feeling and the lasting
+        // regard), the fear and the strategic value, the three numbers its proposals and answers go by.
+        let scene = statecraft::Scene::new(game, self.player);
+        let regard: Vec<String> = game
+            .wizards()
+            .into_iter()
+            .filter(|&w| w != self.player && game.have_met(self.player, w))
+            .map(|w| {
+                let o = m.opinion(game, self.player, w);
+                let r = diplo_b::regard(game, self.player, w, &scene, &m);
+                format!(
+                    "p{} friendship {} (feeling {}, regard {}) fear {} strategic {}",
+                    w.0, r.friendship, o.friendship, o.hidden, r.fear, r.strategic
+                )
+            })
+            .collect();
         format!(
-            "diplomacy B, enemy {enemy}, weary [{}], seen [{}]",
+            "diplomacy B, enemy {enemy}, weary [{}], seen [{}], regard [{}]",
             weary.join(", "),
-            seen.join("; ")
+            seen.join("; "),
+            regard.join("; ")
         )
     }
 

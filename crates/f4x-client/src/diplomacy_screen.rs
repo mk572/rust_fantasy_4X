@@ -230,7 +230,7 @@ impl App {
             self.log.push(self.text("log.banished_diplomacy"));
             return None;
         }
-        let level = relation_level(self.game.relation(HUMAN, with));
+        let level = relation_level(self.feeling(with));
         let first = self
             .game
             .diplomacy
@@ -281,30 +281,8 @@ impl App {
             return;
         };
         self.game.make_contact(HUMAN, with);
-        let step = if relation >= 0 { 8 } else { -8 };
-        for _ in 0..(relation.abs() / 8 + 12) {
-            let now = self.game.relation(HUMAN, with);
-            if (relation - now).abs() < 8 {
-                break;
-            }
-            if step > 0 {
-                self.game.change_relations(
-                    8,
-                    HUMAN,
-                    with,
-                    f4x_core::diplomacy::Action::Friendship,
-                    None,
-                );
-            } else {
-                self.game.change_relations(
-                    -8,
-                    HUMAN,
-                    with,
-                    f4x_core::diplomacy::Action::AttackedCity,
-                    None,
-                );
-            }
-        }
+        self.diplomats
+            .set_feeling(&self.game, with, HUMAN, relation);
         self.game.drain_diplomacy_events();
         let Some(mut ui) = self.start_talk(with) else {
             return;
@@ -333,14 +311,9 @@ impl App {
         self.open_page(Screen::Diplomacy, ui);
     }
 
-    /// A wizard that has been pushed too far will not see you: the worst patience is far gone.
+    /// A wizard that hates you beyond reason will not see you (`Diplomats::refuses_audience`).
     fn audience_refused(&self, with: PlayerId) -> bool {
-        self.game.diplomacy.stance(HUMAN, with).is_some_and(|s| {
-            s.treaty_patience
-                .min(s.exchange_patience)
-                .min(s.peace_patience)
-                < -100
-        })
+        self.diplomats.refuses_audience(&self.game, with, HUMAN)
     }
 
     pub(crate) fn diplo_name(&self, p: PlayerId) -> String {
@@ -926,7 +899,7 @@ impl DiploUi {
     fn diplo_send(&mut self, app: &mut App, kind: ProposalKind, counter: bool) {
         let with = self.with;
         let salt = app.game.turn as usize + usize::from(with.0);
-        let level = relation_level(app.game.relation(HUMAN, with));
+        let level = relation_level(app.feeling(with));
         let command = if counter {
             f4x_core::diplomacy::DiplomacyCommand::Counter {
                 player: HUMAN,
@@ -989,7 +962,7 @@ impl DiploUi {
                 self.diplo_say(said, Mood::Bad, false);
             }
             Some((false, false)) => {
-                let level = relation_level(app.game.relation(HUMAN, with));
+                let level = relation_level(app.feeling(with));
                 let said = say::refused(app.texts(), kind, level, salt);
                 self.diplo_say(said, Mood::Bad, false);
             }
@@ -1119,7 +1092,7 @@ impl DiploUi {
                     let said = say::accepted(app.texts(), p.kind, salt);
                     self.diplo_say(said, Mood::Good, false);
                 } else {
-                    let level = relation_level(app.game.relation(HUMAN, with));
+                    let level = relation_level(app.feeling(with));
                     let said = say::refused(app.texts(), p.kind, level, salt);
                     self.diplo_say(said, Mood::Neutral, false);
                 }
@@ -1144,7 +1117,7 @@ impl Page for DiploUi {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let level = relation_level(app.game.relation(HUMAN, with));
+        let level = relation_level(app.feeling(with));
         let slot = app.game.wizard(with).map_or(0, |w| w.portrait());
         let pictures = app.art.wizard(slot);
 

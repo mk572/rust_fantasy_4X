@@ -127,7 +127,7 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             ctx.say(format!("{} {name}: not met", w.0));
             continue;
         }
-        let rel = ctx.game.relation(me, w);
+        let rel = ctx.session.diplomats.feeling(ctx.game, w, me);
         ctx.say(format!(
             "{} {name}: {} ({rel}), {}",
             w.0,

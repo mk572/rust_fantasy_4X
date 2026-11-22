@@ -670,12 +670,10 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             change,
             ..
         } => {
-            let now = game.relation(*attacker, *defender);
             format!(
-                "relations of {} with {} change by {change:+}: now {} ({now})",
+                "relations of {} with {} change by {change:+}",
                 player(game, *defender),
-                player(game, *attacker),
-                crate::talk::relation_word(now)
+                player(game, *attacker)
             )
         }
         D::TreatyChanged { a, b, treaty } => format!(

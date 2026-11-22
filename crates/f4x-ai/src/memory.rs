@@ -346,6 +346,9 @@ pub(crate) mod shared {
 #[derive(Debug, Clone, Default)]
 pub struct Diplomats(Rc<RefCell<BTreeMap<PlayerId, Rc<RefCell<Memory>>>>>);
 
+/// The feeling at or below which a wizard will not talk to the other (not at war).
+const AUDIENCE_REFUSED_BELOW: i32 = -90;
+
 impl Diplomats {
     pub fn new() -> Self {
         Self::default()
@@ -378,6 +381,31 @@ impl Diplomats {
     /// How friendly `me` feels about `other`.
     pub(crate) fn friendship(&self, game: &Game, me: PlayerId, other: PlayerId) -> i32 {
         self.opinion(game, me, other).friendship
+    }
+
+    /// How friendly `me` feels about `other`, -100..=100: what the human is shown of a wizard's regard
+    /// (task 784; 781 refines it with the fear and the strategic regard).
+    pub fn feeling(&self, game: &Game, me: PlayerId, other: PlayerId) -> i32 {
+        self.friendship(game, me, other)
+    }
+
+    /// Set what `me` feels about `other` outright: the demo screens and tests that need a wizard in a mood.
+    /// A wizard that has no memory in the table gets one.
+    pub fn set_feeling(&self, game: &Game, me: PlayerId, other: PlayerId, to: i32) {
+        let memory = Rc::clone(
+            self.0
+                .borrow_mut()
+                .entry(me)
+                .or_insert_with(|| Rc::new(RefCell::new(Memory::default()))),
+        );
+        memory.borrow_mut().set_friendship(game, me, other, to);
+    }
+
+    /// Whether `me` will not see `other` to talk (the human's "will not see you"): it hates the other
+    /// beyond reason and is not at war with them (at war a wizard always hears an offer of peace).
+    pub fn refuses_audience(&self, game: &Game, me: PlayerId, other: PlayerId) -> bool {
+        self.friendship(game, me, other) <= AUDIENCE_REFUSED_BELOW
+            && game.treaty(me, other) != f4x_core::diplomacy::Treaty::War
     }
 
     /// What `player` remembers; an empty memory when it has none in the table.

@@ -114,7 +114,6 @@ impl Memory {
     }
 
     /// Set the friendship outright (the tests; the client's demo helpers, task 784).
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn set_friendship(&mut self, game: &Game, me: PlayerId, other: PlayerId, to: i32) {
         self.slot(game, me, other).friendship = to.clamp(-100, 100);
     }
@@ -1053,5 +1052,64 @@ mod tests {
             after(8, 8)
         );
         assert_eq!(after(12, 8), after(8, 8));
+    }
+
+    /// The same scripted play in the core's table and in the AI's opinion (the AI is P0, the defender;
+    /// the human is never one, `docs/diplomacy.md` 9.2).
+    #[test]
+    fn the_ais_opinion_follows_the_cores_table_through_a_scripted_play() {
+        use f4x_core::diplomacy::DiplomacyCommand as D;
+        // The table of changes agrees to the point: the same values give the same feeling.
+        let mut g = pair(8, 8, 100);
+        let mut m = Memory::default();
+        for (i, value) in [-10, 10, -30, 50, 20, -40, 15, -5, 60, -80, 30]
+            .into_iter()
+            .enumerate()
+        {
+            // The AI looks first: its first opinion is seeded from the core's table.
+            m.change(&g, P0, P1, value, Action::Threat);
+            g.change_relations(value, P1, P0, Action::Threat, None);
+            g.drain_diplomacy_events();
+            assert_eq!(
+                m.friendship(&g, P0, P1),
+                g.relation(P0, P1),
+                "after {} changes",
+                i + 1
+            );
+        }
+        // Events with a die in the original agree within the spread of the die.
+        let spread = |event: &dyn Fn(&mut Game) -> Vec<Event>, tolerance: i32, what: &str| {
+            let mut g = pair(8, 8, 100);
+            g.start_treaty(P0, P1, Treaty::Pact);
+            g.drain_diplomacy_events();
+            let mut m = Memory::default();
+            let ai_before = m.friendship(&g, P0, P1);
+            let core_before = g.relation(P0, P1);
+            let events = event(&mut g);
+            m.notice(P0, &g, &events);
+            let (core, ai) = (
+                g.relation(P0, P1) - core_before,
+                m.friendship(&g, P0, P1) - ai_before,
+            );
+            assert!(
+                (core - ai).abs() <= tolerance,
+                "{what}: the core moved it by {core}, the AI by {ai}"
+            );
+        };
+        spread(
+            &|g| g.apply(Command::Diplomacy(D::DeclareWar { player: P1, on: P0 })),
+            20,
+            "a declared war",
+        );
+        spread(
+            &|g| {
+                g.apply(Command::Diplomacy(D::BreakTreaty {
+                    player: P1,
+                    with: P0,
+                }))
+            },
+            12,
+            "a broken pact",
+        );
     }
 }

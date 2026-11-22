@@ -490,6 +490,11 @@ impl App {
 
     /// One computer player for each rival wizard; the human fights battles against them in
     /// person.
+    /// How friendly the wizard `with` feels about the human: what the screens show as the relation.
+    pub(crate) fn feeling(&self, with: PlayerId) -> i32 {
+        self.diplomats.feeling(&self.game, with, HUMAN)
+    }
+
     fn rival_wizards(&self) -> Vec<f4x_ai::Ai> {
         self.game
             .player_ids()
