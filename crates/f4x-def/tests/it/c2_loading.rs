@@ -343,7 +343,12 @@ fn other_ways_a_text_can_be_spelled_are_still_the_same_content() {
             write(&dir, &f, &change(&read(&dir, &f)));
         }
         match attempt(&dir) {
-            Outcome::Loaded(c) => assert!(&*c == want, "{what} changed the content"),
+            // The files differ in their bytes, so the fingerprint does; the content is the same.
+            Outcome::Loaded(c) => {
+                let mut c = (*c).clone();
+                c.fingerprint = want.fingerprint.clone();
+                assert!(&c == want, "{what} changed the content");
+            }
             other => panic!("{what}: {other:?}"),
         }
     }
@@ -978,4 +983,22 @@ fn a_settings_file_must_state_every_setting_and_a_missing_one_is_named() {
     }
     write(&dir, "rules_settings.ron", &text);
     load_settings(&[&dir]).expect("the shipped file is whole");
+}
+
+// ---- the fingerprint of the files ----
+
+#[test]
+fn the_fingerprint_names_the_files_the_content_was_read_from() {
+    let first = &shipped().fingerprint;
+    assert_eq!(first.len(), 64, "a SHA-256 in hex");
+    let dir = copy_of_shipped("c2-fingerprint");
+    assert_eq!(
+        &load(&dir).expect("loads").fingerprint,
+        first,
+        "a copy has the same files"
+    );
+    // A change of one byte in one file is another fingerprint.
+    let text = read(&dir, "lairs.ron");
+    write(&dir, "lairs.ron", &format!("{text}\n// changed\n"));
+    assert_ne!(&load(&dir).expect("loads").fingerprint, first);
 }

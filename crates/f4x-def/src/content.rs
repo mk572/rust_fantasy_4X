@@ -16,4 +16,7 @@ pub struct Content {
     /// Difficulty levels, the map and land sizes and the defaults of the new-game choices
     /// (`rules_settings.ron`).
     pub settings: crate::settings::SettingsDef,
+    /// The fingerprint of the files this was loaded from (`content_hash::fingerprint_of`); empty for
+    /// content that was not loaded from files. A save carries it.
+    pub fingerprint: String,
 }

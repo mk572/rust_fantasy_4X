@@ -67,6 +67,21 @@ pub const OLDEST_COMPATIBLE_VERSION: &str = "0.0.2";
 /// 0.0.6: one neutral player for each race instead of one for each independent city (task 522).
 const UPGRADES: &[Upgrade] = &[("0.0.6", race_player::upgrade)];
 
+/// What a load checks the save's content fingerprint against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContentCheck {
+    /// The content files must be the ones the game was made with (a save that did not record them
+    /// passes).
+    Strict,
+    /// Load into whatever content is given: the player has chosen to (the settings are still checked).
+    Ignore,
+}
+
+/// The first characters of a fingerprint, for a message.
+fn short(fingerprint: &str) -> &str {
+    fingerprint.get(..12).unwrap_or(fingerprint)
+}
+
 /// A conversion of a snapshot written before a game version.
 type Upgrade = (&'static str, fn(&mut Snapshot));
 
@@ -87,6 +102,14 @@ pub struct Snapshot {
     pub next_serial: u64,
     /// The settings the game is played with.
     pub settings: crate::game::setting::GameSettings,
+    /// The fingerprint of the content files the game was made with (`Content::fingerprint`). A save
+    /// without it (from before this was written, or content not loaded from files) is not checked.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub content: String,
+    /// The rows the game was played without because they were bad (`Rules::degraded`): `(file, row
+    /// number)`. A later load says so.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub degraded: Vec<(String, u16)>,
     /// Set once the game has ended.
     pub game_over: Option<crate::game::endgame::GameOver>,
     pub human: Option<u8>,
@@ -626,6 +649,9 @@ pub enum LoadError {
     UnknownId(&'static str, String),
     /// The save contradicts itself.
     Inconsistent(String),
+    /// The save does not fit the content or the settings range it is loaded into; each issue names
+    /// what and why (`docs/content-policy.md`, R3).
+    Content(f4x_def::load::ContentError),
 }
 
 impl std::fmt::Display for LoadError {
@@ -653,6 +679,7 @@ impl std::fmt::Display for LoadError {
                 "the save needs {kind} {id:?}, which is not in the loaded content"
             ),
             LoadError::Inconsistent(m) => write!(f, "the save is inconsistent: {m}"),
+            LoadError::Content(e) => write!(f, "the save does not fit the game's content: {e}"),
         }
     }
 }
@@ -1038,6 +1065,14 @@ impl Game {
             turn: self.turn,
             next_serial: self.next_serial,
             settings: self.settings,
+            content: self.content.fingerprint.clone(),
+            degraded: self
+                .content
+                .rules
+                .degraded
+                .iter()
+                .filter_map(|i| Some((i.file.clone(), i.row?)))
+                .collect(),
             game_over: self.game_over,
             human: self.human().map(|h| h.0),
             diplomacy: self.diplomacy_to_save(),
@@ -1212,8 +1247,82 @@ impl Snapshot {
         }
     }
 
-    /// Rebuild the game, resolving every id against `content`.
+    /// Rebuild the game, resolving every id against `content`. Refuses a save whose settings are
+    /// out of range or that was made with other content files; see [`Snapshot::restore_with`].
     pub fn restore(self, content: impl Into<std::sync::Arc<Content>>) -> Result<Game, LoadError> {
+        self.restore_with(content, ContentCheck::Strict)
+            .map(|(game, _)| game)
+    }
+
+    /// The checks of a save against the content, then [`Snapshot::restore`]'s rebuild, and what the
+    /// player should be told about the load (a game played without rows, rows that are back).
+    pub fn restore_with(
+        self,
+        content: impl Into<std::sync::Arc<Content>>,
+        check: ContentCheck,
+    ) -> Result<(Game, Vec<f4x_def::load::ContentIssue>), LoadError> {
+        let content = content.into();
+        self.check_against(&content, check)?;
+        let notes = self.notes_for(&content);
+        let game = self.rebuild(content)?;
+        Ok((game, notes))
+    }
+
+    /// Every value out of range in the save's settings and, when asked, a content that is not the
+    /// one the game was made with: all reported together.
+    fn check_against(&self, content: &Content, check: ContentCheck) -> Result<(), LoadError> {
+        use f4x_def::load::{ContentIssue, IssueKind};
+        let mut issues = Vec::new();
+        for problem in self.settings.validate() {
+            issues.push(ContentIssue::new("save", "settings", IssueKind::Conflict).with([problem]));
+        }
+        if check == ContentCheck::Strict
+            && !self.content.is_empty()
+            && !content.fingerprint.is_empty()
+            && self.content != content.fingerprint
+        {
+            issues.push(
+                ContentIssue::new("save", "content", IssueKind::Conflict).with([format!(
+                    "the game was made with other content files (fingerprint {}, loaded {})",
+                    short(&self.content),
+                    short(&content.fingerprint)
+                )]),
+            );
+        }
+        if issues.is_empty() {
+            Ok(())
+        } else {
+            Err(LoadError::Content(f4x_def::load::ContentError::new(issues)))
+        }
+    }
+
+    /// What the player is told after a good load: the rows the content leaves out now, and the rows
+    /// the game was played without that the content has again.
+    fn notes_for(&self, content: &Content) -> Vec<f4x_def::load::ContentIssue> {
+        use f4x_def::load::{ContentIssue, IssueKind};
+        let mut notes = content.rules.degraded.clone();
+        let now: Vec<(&str, u16)> = content
+            .rules
+            .degraded
+            .iter()
+            .filter_map(|i| Some((i.file.as_str(), i.row?)))
+            .collect();
+        for (file, row) in &self.degraded {
+            if !now.contains(&(file.as_str(), *row)) {
+                notes.push(
+                    ContentIssue::new(file.clone(), format!("row {row}"), IssueKind::Conflict)
+                        .with([
+                            "the game was played without this row; the content has it now"
+                                .to_string(),
+                        ])
+                        .about_row(*row),
+                );
+            }
+        }
+        notes
+    }
+
+    fn rebuild(self, content: std::sync::Arc<Content>) -> Result<Game, LoadError> {
         if self.version != SAVE_VERSION {
             return Err(LoadError::Version {
                 found: self.version,
@@ -1221,7 +1330,7 @@ impl Snapshot {
             });
         }
         let mut game = Game::new(self.seed);
-        game.set_content(content.into());
+        game.set_content(content);
         game.turn = self.turn;
         game.settings = self.settings.normalised();
         game.apply_content_settings();

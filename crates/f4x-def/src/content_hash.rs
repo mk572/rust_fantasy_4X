@@ -104,3 +104,31 @@ pub fn assert_unchanged(crate_dir: &Path) {
         differ.join("\n  ")
     );
 }
+
+/// The fingerprint of the content files a load reads: the SHA-256 of each `.ron` file directly in the
+/// folders of `dirs` (a name found in an earlier folder hides the later one, as the loader reads
+/// them), joined as `name hash` lines in the order of the names. A save carries it, so a load into
+/// other content files is noticed (`docs/content-policy.md`, R3).
+pub fn fingerprint_of(dirs: &[&Path]) -> String {
+    let mut files: BTreeMap<String, String> = BTreeMap::new();
+    for dir in dirs {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() || path.extension().is_none_or(|e| e != "ron") {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if files.contains_key(&name) {
+                continue;
+            }
+            if let Ok(bytes) = std::fs::read(&path) {
+                files.insert(name, hex(&bytes));
+            }
+        }
+    }
+    let lines: String = files.iter().map(|(n, h)| format!("{n} {h}\n")).collect();
+    hex(lines.as_bytes())
+}

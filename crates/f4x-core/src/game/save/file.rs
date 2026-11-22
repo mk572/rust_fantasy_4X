@@ -4,7 +4,7 @@
 use std::fmt;
 use std::path::Path;
 
-use crate::game::save::{Integrity, LoadError, Snapshot};
+use crate::game::save::{ContentCheck, Integrity, LoadError, Snapshot};
 use crate::game::Game;
 use f4x_def::content::Content;
 
@@ -40,23 +40,48 @@ pub fn save_game(path: &Path, game: &Game) -> Result<(), SaveError> {
     std::fs::rename(&tmp, path).map_err(|e| SaveError::Io(format!("{}: {e}", path.display())))
 }
 
+/// A save that was read: the game, whether the file was edited, and what the player should be told.
+pub struct Loaded {
+    pub game: Game,
+    pub integrity: Integrity,
+    /// Rows the game plays without, and rows it was played without that are back
+    /// (`Snapshot::restore_with`).
+    pub notes: Vec<f4x_def::load::ContentIssue>,
+}
+
 /// Read a save and rebuild the game against `content`. The save is checked against its checksum:
-/// an edited save still loads, and the caller warns about it.
+/// an edited save still loads, and the caller warns about it. A save whose settings are out of
+/// range, or that was made with other content files, is refused (`load_game_with` can ignore the
+/// second).
 pub fn load_game(path: &Path, content: Content) -> Result<(Game, Integrity), SaveError> {
+    let loaded = load_game_with(path, content, ContentCheck::Strict)?;
+    Ok((loaded.game, loaded.integrity))
+}
+
+/// [`load_game`] with the choice of the content check, and the notes for the player.
+pub fn load_game_with(
+    path: &Path,
+    content: Content,
+    check: ContentCheck,
+) -> Result<Loaded, SaveError> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| SaveError::Io(format!("{}: {e}", path.display())))?;
     // A setting the save does not name comes from the player's default when the caller set one
     // (`with_fallback`), else from the content the save is loaded into: never from a built-in.
     let fallback = content.settings.default_game();
-    let read = |content| Snapshot::from_text(&text).and_then(|s| s.restore(content));
-    let game = match fallback {
+    let read = |content| Snapshot::from_text(&text).and_then(|s| s.restore_with(content, check));
+    let (game, notes) = match fallback {
         Some(f) if !f4x_def::settings::has_fallback() => {
             f4x_def::settings::with_fallback(f, || read(content))
         }
         _ => read(content),
     }
     .map_err(SaveError::Load)?;
-    Ok((game, Snapshot::integrity(&text)))
+    Ok(Loaded {
+        game,
+        integrity: Snapshot::integrity(&text),
+        notes,
+    })
 }
 
 /// What a save slot list shows about a save without rebuilding the game.

@@ -249,6 +249,7 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
         features,
         rules,
         settings,
+        fingerprint: crate::content_hash::fingerprint_of(dirs),
     })
 }
 

@@ -585,11 +585,72 @@ fn every_setting_survives_a_save() -> TestResult {
 }
 
 #[test]
-fn a_save_with_out_of_range_settings_is_brought_into_range() -> TestResult {
+fn a_save_with_out_of_range_settings_is_refused_and_says_which() -> TestResult {
     let mut snap = Game::new(5).snapshot();
     snap.settings.basic.difficulty = 9;
-    let back = snap.restore(f4x_def::content::Content::default())?;
-    assert_eq!(back.settings().basic.difficulty, 5);
+    let Err(LoadError::Content(e)) = snap.restore(f4x_def::content::Content::default()) else {
+        return Err("a difficulty of 9 must be refused".into());
+    };
+    assert!(
+        e.mentions("save") && e.to_string().contains("difficulty"),
+        "{e}"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_save_made_with_other_content_files_is_refused_unless_the_player_chose_to_load_it() -> TestResult
+{
+    use super::ContentCheck;
+    let mut a = f4x_def::testdir::shipped().clone();
+    a.fingerprint = "aaaaaaaaaaaaaaaaaaaa".into();
+    let mut g = Game::new(5);
+    g.set_content(a.clone());
+    let snap = g.snapshot();
+    assert_eq!(snap.content, a.fingerprint);
+    let mut b = a.clone();
+    b.fingerprint = "bbbbbbbbbbbbbbbbbbbb".into();
+    let Err(LoadError::Content(e)) = snap.clone().restore(b.clone()) else {
+        return Err("other content files must be refused".into());
+    };
+    assert!(e.to_string().contains("other content files"), "{e}");
+    snap.clone().restore_with(b, ContentCheck::Ignore)?;
+    snap.restore(a)?;
+    // A save that recorded no fingerprint is not checked.
+    let mut old = g.snapshot();
+    old.content.clear();
+    let mut c = f4x_def::testdir::shipped().clone();
+    c.fingerprint = "cccccccccccccccccccc".into();
+    old.restore(c)?;
+    Ok(())
+}
+
+#[test]
+fn a_game_played_without_rows_says_so_when_it_loads_and_when_the_rows_are_back() -> TestResult {
+    use super::ContentCheck;
+    use f4x_def::load::{ContentIssue, Element, IssueKind};
+    let mut degraded = f4x_def::testdir::shipped().clone();
+    degraded.rules.degraded.push(
+        ContentIssue::new("wizards.ron", "row 3", IssueKind::Dangling)
+            .about_row(3)
+            .degrading(Element::Wizard),
+    );
+    let mut g = Game::new(5);
+    g.set_content(degraded.clone());
+    let snap = g.snapshot();
+    assert_eq!(snap.degraded, vec![("wizards.ron".to_string(), 3)]);
+    // The same content: the drop is told again.
+    let (_, notes) = snap.clone().restore_with(degraded, ContentCheck::Strict)?;
+    assert_eq!(notes.len(), 1);
+    // Content that has the row: the save says it was played without it.
+    let (_, notes) =
+        snap.restore_with(f4x_def::testdir::shipped().clone(), ContentCheck::Strict)?;
+    assert_eq!(notes.len(), 1);
+    assert!(
+        notes[0].to_string().contains("without this row"),
+        "{}",
+        notes[0]
+    );
     Ok(())
 }
 
