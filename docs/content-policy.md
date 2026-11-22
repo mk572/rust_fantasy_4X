@@ -49,6 +49,19 @@ A setting may be optional only if its absence has a natural meaning that is not 
 Each optional setting is listed in the schema docs with its absence meaning. Everything else is **required**.
 A required setting that is missing is an issue (R4), never a silent default.
 
+**The optional settings today** (all other fields are required; `crates/f4x-def/tests/it/c5_coupling.rs` keeps the code
+free of other defaults):
+
+| Kind of field | Absent means |
+|---|---|
+| a list (`Vec`, a map), a name, a description | empty |
+| an `Option` (a help topic, a race, a level path, a node count) | none: the game decides by its own rule (`towers`, `nodes_arcanus`, `farmer_food` of a race follows the setting) |
+| a flag (`holy`, `coastal`, `double_mining`, the immunity exceptions of a spell, `flag` of an item) | off |
+| an amount that adds (`upkeep`, `help`-less `bonus`, `production_percent`, `trade_percent`, `melee_bonus`, `gold_per_rating`) | 0 |
+| the parts of an effect rule (`when`, `condition`, `target`) | passive, always, on this |
+| `DamageTraits`, `AbilityAttack`, `CityBonus` | nothing added |
+| a setting a save lacks (`fb_*` in `settings.rs`) | the player's default, else the loaded content's level (`load_game`) |
+
 ### R3. The checks, and when they run
 
 1. **On start**: load every layer, parse, then validate (ranges, references, uniqueness, couplings with code).

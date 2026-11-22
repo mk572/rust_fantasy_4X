@@ -304,11 +304,8 @@ fn every_file_damaged_in_every_way_is_refused_without_a_panic_and_the_error_name
                     // A list that may be empty (no items) and a file of defaults only may be damaged to
                     // "nothing" and still mean something; the rest must not survive the damage.
                     let may_be_empty = file == "items.ron" && what == "an empty list";
-                    // `rules.ron` still holds fields that have a default in the code (task 766 goes on
-                    // with it); a file with no quote has none to remove.
-                    let all_default = file == "rules.ron"
-                        && ["unit", "an empty struct", "every quote removed"].contains(&what)
-                        || (what == "every quote removed" && !original.contains('"'));
+                    // A file with no quote has none to remove.
+                    let all_default = what == "every quote removed" && !original.contains('"');
                     if REQUIRED.contains(&file.as_str())
                         && !may_be_empty
                         && !all_default

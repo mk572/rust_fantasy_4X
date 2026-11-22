@@ -566,7 +566,8 @@ fn check_ratings(r: &Rules, p: &mut Issues) {
     }
     p.row(None);
     const R: &str = "unit_ratings.ron";
-    if !positive(&r.ratings.hero_factor) {
+    // Without a file of ratings there is nothing the factor multiplies.
+    if !r.ratings.units.is_empty() && !positive(&r.ratings.hero_factor) {
         p.out_of_range(
             R,
             "",

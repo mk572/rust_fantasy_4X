@@ -67,7 +67,6 @@ pub struct RaceDef {
     #[serde(default)]
     pub trade_percent: i32,
     /// Base chance (percent) per turn that an outpost of the race grows.
-    #[serde(default = "ten")]
     pub outpost_growth: u8,
     /// Houses in the city picture: 0 standard, 1 tree houses, 2 mounds.
     #[serde(default)]
@@ -75,13 +74,6 @@ pub struct RaceDef {
     /// Neutral cities of this race stand on Myrror; the others on Arcanus.
     #[serde(default)]
     pub myrror: bool,
-}
-
-fn yes() -> bool {
-    true
-}
-fn ten() -> u8 {
-    10
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -214,36 +206,19 @@ pub enum PickType {
 /// recruit High Men spearman is 1, and two units of 50 are worth one of 100: a rough guide to
 /// trades, army size and who would win, not a promise (rock-paper-scissors cases of immunities and
 /// special attacks overturn it, and spells, terrain and walls swing a real battle).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct UnitRatings {
     /// What a hero is worth beyond its table row: the rows were fought without the abilities,
     /// spells and items the game rolls for a hero, so a hero's rating is its row times this.
-    #[serde(default = "one")]
     pub hero_factor: f32,
     /// What one spearman is in the numbers the AI's thresholds were tuned to (the strength the
     /// formula of `battle::power` gave a unit): the median of that formula over the ratings, so
     /// that a typical unit weighs about what it did and the play starts where it was.
-    #[serde(default = "one")]
     pub power_scale: f32,
     /// One row per unit, in the order of the unit numbers.
     #[serde(default)]
     pub units: Vec<UnitRating>,
-}
-
-fn one() -> f32 {
-    1.0
-}
-
-impl Default for UnitRatings {
-    /// No rows, and a hero worth its row.
-    fn default() -> Self {
-        UnitRatings {
-            hero_factor: 1.0,
-            power_scale: 1.0,
-            units: Vec::new(),
-        }
-    }
 }
 
 /// The rating of one unit at its experience levels.
@@ -273,28 +248,14 @@ impl UnitRatings {
 /// have (`unit_efficiency.ron`, made from `unit_ratings.ron` and the unit rows by `f4x-tools duel
 /// ladder --efficiency FILE`): for choosing garrisons, what to build, what to hire. A rough guide
 /// like the ratings it is made from.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct UnitEfficiencies {
     /// The turns of upkeep that count beside the base cost (100).
-    #[serde(default = "hundred")]
     pub upkeep_turns: u32,
     /// One row per unit with a rating and a cost, in the order of the unit numbers.
     #[serde(default)]
     pub units: Vec<UnitEfficiency>,
-}
-
-fn hundred() -> u32 {
-    100
-}
-
-impl Default for UnitEfficiencies {
-    fn default() -> Self {
-        UnitEfficiencies {
-            upkeep_turns: 100,
-            units: Vec::new(),
-        }
-    }
 }
 
 /// The efficiency of one unit.
@@ -356,7 +317,6 @@ pub struct UnitDef {
     pub kind: UnitKind,
     /// Whether a mercenary company can be drawn from this unit. The original's
     /// `Generate_Mercenaries` leaves out the Draconian engineers, which fly and need no roads.
-    #[serde(default = "yes")]
     pub hireable: bool,
     /// Required for `Normal` units; heroes and creatures have none.
     #[serde(default)]
@@ -919,8 +879,7 @@ impl LevelPathDef {
 }
 
 /// Tunable numbers that are not content.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct RulesConfig {
     /// Base chance (percent) for each figure's attack to hit.
@@ -1084,7 +1043,7 @@ pub struct CityWallRules {
 }
 
 /// What fighting earns: experience, fame and the levels.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct RenownRules {
     /// Experience a won battle gives each surviving unit of the winner for each dead enemy unit,
@@ -1104,24 +1063,9 @@ pub struct RenownRules {
     pub charmed_resistance: i32,
 }
 
-impl Default for RenownRules {
-    fn default() -> Self {
-        Self {
-            xp_per_kill: 2,
-            xp_per_turn: 1,
-            fame_kills: 4,
-            rare_foe_cost: 600,
-            just_cause_fame: 10,
-            fortress_prize_fame: 5,
-            heroism_level: 3,
-            charmed_resistance: 30,
-        }
-    }
-}
-
 /// What the overland spells do: chances in percent of a hundred, strengths, penalties, and the
 /// buildings and realms they single out (numbers of `buildings.ron`, `realms.ron`, `units.ron`).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct SpellEffectRules {
     /// A volcano: each building of the city under it collapses, its square gets a mineral, and
@@ -1188,55 +1132,11 @@ pub struct SpellEffectRules {
     pub nightshade_strength: u32,
 }
 
-impl Default for SpellEffectRules {
-    fn default() -> Self {
-        Self {
-            collapse_percent: 15,
-            mineral_percent: 20,
-            cool_percent: 2,
-            armageddon_city_percent: 25,
-            corruption_fade_percent: 2,
-            armageddon_unrest: 2,
-            wasting_unrest: 1,
-            chaos_rift_bolts: 5,
-            chaos_rift_strength: 8,
-            chaos_rift_building_percent: 5,
-            meteor_strength: 4,
-            meteor_building_percent: 1,
-            void_building_percent: 50,
-            void_unit_damage: 10,
-            void_corrupt_percent: 50,
-            void_citizen_percent: 50,
-            wrath_unit_percent: 10,
-            wrath_building_percent: 5,
-            safe_distance: 2,
-            min_squares: 3,
-            square_spread: 4,
-            scatter_tries: 50,
-            sea_percent: 20,
-            werewolves: 168,
-            black_wind_modifier: -1,
-            unsummoning_modifier: -2,
-            drain_rolls: 10,
-            drain_die: 20,
-            earthquake_building_percent: 15,
-            earthquake_unit_percent: 25,
-            spell_lock_difficulty: 150,
-            suppress_magic_strength: 500,
-            consecration_realms: vec![4, 2],
-            religious_buildings: vec![22, 23, 24, 25],
-            city_walls: 35,
-            nightshade_buildings: vec![22, 10, 23, 24, 25, 17, 18, 19, 21],
-            nightshade_strength: 100,
-        }
-    }
-}
-
 /// The rows a setting of the game changes: the retorts that cost two picks under Adamant Alchemy
 /// and 2-Pick Myrran, the ships whose capacity the player sets, and the cavalry and halberdier
 /// units that the setting `cavalry_halberdier_abilities` gives First Strike and Negate First
 /// Strike (numbers of `retorts.ron`, `units.ron` and `abilities.ron`).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct SettingTargets {
     pub alchemy_retort: u16,
@@ -1251,23 +1151,8 @@ pub struct SettingTargets {
     pub negate_first_strike: u16,
 }
 
-impl Default for SettingTargets {
-    fn default() -> Self {
-        Self {
-            alchemy_retort: 0,
-            myrran_retort: 9,
-            trireme_unit: 35,
-            galley_unit: 36,
-            cavalry_units: vec![42, 60, 98, 107, 141],
-            halberdier_units: vec![48, 59, 68, 77, 85, 97, 116, 122, 139, 149],
-            first_strike: 23,
-            negate_first_strike: 48,
-        }
-    }
-}
-
 /// Abilities (numbers of `abilities.ron`) the rules treat as a group, and what they are worth.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct AbilityRules {
     /// What a unit's ability does for how quickly it gets to a square, in percent of its movement
@@ -1289,7 +1174,7 @@ pub struct AbilityRules {
 }
 
 /// Chaos mutations: what each gives, and the abilities that mark a mutated unit.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct MutationRules {
     /// The ability that marks a unit as mutated, and the ones that name its mutation.
@@ -1312,51 +1197,8 @@ pub struct MutationRules {
     pub breath_ammo: i32,
 }
 
-impl Default for MutationRules {
-    fn default() -> Self {
-        Self {
-            mutated: 98,
-            armor_marker: 104,
-            wings_marker: 105,
-            breath_marker: 106,
-            wings_ability: 24,
-            breath_ability: 20,
-            thrown_ability: 69,
-            thrown_most: 3,
-            armor_defense: 3,
-            wings_moves: 2,
-            breath_strength: 2,
-            breath_ammo: 1,
-        }
-    }
-}
-
-impl Default for AbilityRules {
-    fn default() -> Self {
-        Self {
-            mobility: vec![
-                (49, 300),
-                (74, 300),
-                (24, 200),
-                (50, 200),
-                (45, 120),
-                (25, 120),
-                (71, 120),
-            ],
-            flying_movement_pct: 200,
-            swimming_movement_pct: 150,
-            stack_carriers: vec![50, 74],
-            undead_immunities: vec![16, 10, 52, 31],
-            magic_ranged: vec![36, 22, 60, 14, 29, 58, 47],
-            armsmaster: 81,
-            super_armsmaster: 82,
-            mutation: MutationRules::default(),
-        }
-    }
-}
-
 /// What it costs to make an item and how many a wizard may hold and carry.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ItemRules {
     /// What the plain item of each kind costs before its powers (a kind not listed costs nothing).
@@ -1390,41 +1232,6 @@ pub struct ItemRules {
     pub search_tries: u32,
 }
 
-impl Default for ItemRules {
-    fn default() -> Self {
-        use ItemKind::*;
-        Self {
-            base_cost: vec![
-                (Sword, 100),
-                (Mace, 100),
-                (Axe, 100),
-                (Bow, 100),
-                (Staff, 300),
-                (Wand, 200),
-                (Misc, 50),
-                (Shield, 100),
-                (Chainmail, 100),
-                (Platemail, 300),
-            ],
-            kind_defense: vec![(Chainmail, 1), (Platemail, 2)],
-            max_powers: 4,
-            max_charges: 4,
-            free_group: 9,
-            enchant_max_power_cost: 200,
-            transfer_mana: 20,
-            random_value_base: 700,
-            random_value_step: 100,
-            random_value_steps: 10,
-            random_max_power_cost: 20_000,
-            enchant_random_powers: 2,
-            many_random_powers: 4,
-            other_random_powers: 3,
-            many_power_kinds: vec![Sword, Mace, Axe, Staff, Wand],
-            search_tries: 50,
-        }
-    }
-}
-
 impl ItemRules {
     /// What the plain item of a kind costs before its powers.
     pub fn base_cost(&self, kind: ItemKind) -> u32 {
@@ -1443,7 +1250,7 @@ impl ItemRules {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct WizardRules {
     /// The tax rate everyone starts with: a gold for each citizen.
@@ -1473,29 +1280,8 @@ pub struct WizardRules {
     pub hero_mana_percent: i32,
 }
 
-impl Default for WizardRules {
-    fn default() -> Self {
-        Self {
-            start_tax_rate: 2,
-            capital_figures: 4,
-            capital_farmers: 3,
-            capital_buildings: Vec::new(),
-            max_retorts: 6,
-            research_slots: 8,
-            resign_below_skill: 40,
-            overland_cost_factor: 5,
-            evil_omens_percent: 50,
-            book_steps_from: 7,
-            book_step_percent: 10,
-            mastery_discount_books: 11,
-            mastery_discount: 3000,
-            hero_mana_percent: 250,
-        }
-    }
-}
-
 /// What a good is worth to a wizard in a trade, in percent (`worth` = cost * percent / 100).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct TradeRules {
     /// What one more book in the realm of a spell adds to its worth, and the books that count.
@@ -1515,22 +1301,8 @@ pub struct TradeRules {
     pub gold_per_rating: i32,
 }
 
-impl Default for TradeRules {
-    fn default() -> Self {
-        Self {
-            spell_book_pct: 5,
-            spell_book_cap: 8,
-            item_free_slot_pct: 150,
-            item_taken_slot_pct: 100,
-            item_no_user_pct: 50,
-            unit_at_war_pct: 125,
-            gold_per_rating: 0,
-        }
-    }
-}
-
 /// The combat forecast before an attack (setting `combat_forecast`, `Forecast` in core).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ForecastRules {
     /// The shares of the other side's worth (percent, rising), below which a side is completely
@@ -1540,15 +1312,7 @@ pub struct ForecastRules {
     pub bands_pct: [u32; 3],
 }
 
-impl Default for ForecastRules {
-    fn default() -> Self {
-        Self {
-            bands_pct: [33, 60, 85],
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct DiplomacyRules {
     /// What Subversion takes off every other wizard's relation to its target.
@@ -1560,18 +1324,7 @@ pub struct DiplomacyRules {
     pub alliance_relation: i32,
 }
 
-impl Default for DiplomacyRules {
-    fn default() -> Self {
-        Self {
-            subversion_penalty: 25,
-            max_rounds: 4,
-            pact_relation: 10,
-            alliance_relation: 50,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct OfferRules {
     /// No mercenaries are offered before this turn; the computer wizards do not hire before
@@ -1582,17 +1335,6 @@ pub struct OfferRules {
     /// bonus.
     pub max_chance: i32,
     pub ai_bonus: i32,
-}
-
-impl Default for OfferRules {
-    fn default() -> Self {
-        Self {
-            first_turn: 30,
-            ai_first_turn: 50,
-            max_chance: 10,
-            ai_bonus: 10,
-        }
-    }
 }
 
 /// How thick the scenery of a battle field is, as a percent of what the original lays: the field
@@ -1606,7 +1348,7 @@ pub struct SceneryRules {
     pub mountain_rocks_percent: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct OutpostRules {
     /// Tens of people a new outpost starts with, and at which it becomes a city of one (kept: a
@@ -1615,16 +1357,7 @@ pub struct OutpostRules {
     pub city_tens: u32,
 }
 
-impl Default for OutpostRules {
-    fn default() -> Self {
-        Self {
-            start_tens: 3,
-            city_tens: 10,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ThreatRules {
     /// The raider clock's limit.
@@ -1643,7 +1376,7 @@ pub struct ThreatRules {
 }
 
 /// The raid from the sea: a free party of a random race lands on a far coast.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct SeaRaidRules {
     /// The chance, in percent, that a raid is a sea raid when the setting is on.
@@ -1660,34 +1393,10 @@ pub struct SeaRaidRules {
     pub coast_rolls: u32,
 }
 
-impl Default for SeaRaidRules {
-    fn default() -> Self {
-        Self {
-            chance_percent: 25,
-            ships: vec![(0, 35 /* trireme */), (120, 36 /* galley */)],
-            parties: vec![(0, 0, 2, 2), (121, 1, 2, 4), (251, 2, 3, 0)],
-            coast_rolls: 4,
-        }
-    }
-}
-
-impl Default for ThreatRules {
-    fn default() -> Self {
-        Self {
-            raider_limit: 30,
-            rampage_damage: 40,
-            cheapest_monster: 25,
-            big_events_from_turn: 150,
-            spared_realms: vec![3 /* life */],
-            sea_raid: SeaRaidRules::default(),
-        }
-    }
-}
-
 /// The range multiplier of a spell cast in battle, in percent of its cost: `at_fortress` at the
 /// fortress itself, else `base` plus `step` for each of the `beyond` distances the battle is
 /// further than; a battle on another plane counts as `far` squares away.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct CastingRange {
     pub at_fortress: i32,
@@ -1695,48 +1404,6 @@ pub struct CastingRange {
     pub step: i32,
     pub beyond: Vec<u32>,
     pub far: u32,
-}
-
-impl Default for CastingRange {
-    fn default() -> Self {
-        Self {
-            at_fortress: 5,
-            base: 10,
-            step: 5,
-            beyond: vec![5, 10, 15, 20],
-            far: 30,
-        }
-    }
-}
-
-impl Default for RulesConfig {
-    fn default() -> Self {
-        Self {
-            to_hit_percent: 30,
-            block_percent: 30,
-            tax_unrest_percent: vec![0, 10, 20, 30, 45, 60, 75],
-            racial_unrest: Vec::new(),
-            autobuild_order: Vec::new(),
-            casting_range: CastingRange::default(),
-            trade: TradeRules::default(),
-            forecast: ForecastRules::default(),
-            diplomacy: DiplomacyRules::default(),
-            offer: OfferRules::default(),
-            outpost: OutpostRules::default(),
-            threat: ThreatRules::default(),
-            garrison_minimum: Vec::new(),
-            city_size_from: Vec::new(),
-            starting_buildings: Vec::new(),
-            limited_ai_races: Vec::new(),
-            event_ores: Vec::new(),
-            wizard: WizardRules::default(),
-            item: ItemRules::default(),
-            abilities: AbilityRules::default(),
-            spell_effects: SpellEffectRules::default(),
-            renown: RenownRules::default(),
-            targets: SettingTargets::default(),
-        }
-    }
 }
 
 macro_rules! impl_numbered_def {

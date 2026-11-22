@@ -65,6 +65,7 @@ fn an_outpost_step_draws_in_a_fixed_order() {
 #[test]
 fn a_new_outpost_starts_with_three_tens_and_an_outpost_with_none_is_lost() -> TestResult {
     let mut g = Game::new(1);
+    g.set_content(f4x_def::testdir::shipped().clone());
     g.add_player(PlayerId(0), "W");
     let at = crate::map::Position {
         plane: crate::map::Plane::Arcanus,

@@ -322,3 +322,65 @@ fn every_spell_retort_and_realm_the_spell_library_names_exists_in_the_content() 
         assert!(rules.realms.try_get(*r).is_some(), "realm {}", r.num());
     }
 }
+
+// ---- no value is held in the code (docs/content-policy.md, R1 and R2) ----
+
+fn source_files() -> Vec<(String, String)> {
+    fn walk(dir: &std::path::Path, out: &mut Vec<(String, String)>) {
+        for entry in std::fs::read_dir(dir).expect("a folder") {
+            let path = entry.expect("an entry").path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let text = std::fs::read_to_string(&path).expect("a source file");
+                out.push((path.display().to_string(), text));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+        &mut out,
+    );
+    out
+}
+
+#[test]
+fn only_the_known_types_have_a_hand_written_default() {
+    // `BasicSettings` and `GameSettings` read the shipped `rules_settings.ron`; every other `Default`
+    // is derived (zero, empty, false). A hand-written one carries numbers the files do not state.
+    let allowed = ["BasicSettings", "GameSettings"];
+    for (file, text) in source_files() {
+        for line in text
+            .lines()
+            .filter(|l| l.trim_start().starts_with("impl Default for "))
+        {
+            let name = line.trim_start().trim_start_matches("impl Default for ");
+            let name = name.split([' ', '<']).next().unwrap_or_default();
+            assert!(
+                allowed.contains(&name),
+                "{file}: a hand-written Default for {name}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_field_default_function_is_only_a_save_fallback_or_a_neutral_effect_part() {
+    // `fb_*` and `default_*` in settings.rs are the fallbacks of a save from before a setting existed
+    // (they read the player's default or the content, never a number of their own). The three parts
+    // of an effect rule are absent when the rule is plain: passive, always, on this.
+    for (file, text) in source_files() {
+        for line in text.lines().filter(|l| l.contains("serde(default = \"")) {
+            let name = line
+                .split("default = \"")
+                .nth(1)
+                .and_then(|r| r.split('"').next());
+            let name = name.unwrap_or_default();
+            let ok = (file.ends_with("settings.rs")
+                && (name.starts_with("fb_") || name.starts_with("default_")))
+                || (file.ends_with("effects.rs") && ["passive", "always", "this"].contains(&name));
+            assert!(ok, "{file}: the field default `{name}` carries a value");
+        }
+    }
+}
