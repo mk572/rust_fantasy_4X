@@ -10,6 +10,8 @@
 pub use hecs::Entity;
 
 pub mod battle;
+#[cfg(any(test, feature = "testutil"))]
+pub mod check;
 pub mod city;
 pub mod diplomacy;
 pub mod fast;

@@ -15,8 +15,8 @@ pub mod rng;
 pub mod save;
 pub mod serial;
 pub mod setting;
-#[cfg(test)]
-pub(crate) mod testutil;
+#[cfg(any(test, feature = "testutil"))]
+pub mod testutil;
 pub mod undo;
 pub mod view;
 
