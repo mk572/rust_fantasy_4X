@@ -140,7 +140,7 @@ the game then running on values the code holds: the behaviour would differ from 
    `rules_settings.ron` must have all six levels. Still open: a game made by `Game::new` and never given content
    plays on the empty rules (tests only; no production path does it).
 
-### R7. Mods (decided: in this work)
+### R7. Mods (decided: in this work; built: `f4x-client --mod DIR`, `issue_screen.rs`)
 
 The client builds the layer list `[mod folder, shipped folder]` (today only the shipped one) and reports issues
 with the layer the file came from, so the player knows whether the mod or the shipped game is at fault.

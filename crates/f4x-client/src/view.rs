@@ -111,6 +111,9 @@ pub struct App {
     pub(crate) seed: u64,
     /// The seed was chosen with `--seed`: every new game starts from it.
     pub(crate) seed_fixed: bool,
+    /// The list of problems or notes about a load that waits for the player's answer
+    /// (`issue_screen`); while it is there it is all the player sees.
+    pub(crate) issue_dialog: Option<crate::issue_screen::Dialog>,
     pub(crate) plane: Plane,
     /// Top-left visible tile (fractional while panning).
     pub(crate) cam: Vec2,
@@ -362,6 +365,7 @@ impl App {
             last_news: Vec::new(),
             seed,
             seed_fixed: false,
+            issue_dialog: None,
             plane: Plane::Arcanus,
             cam: Vec2::ZERO,
             zoom: 4.0,
@@ -1224,13 +1228,39 @@ impl App {
 
     /// Replace the game with the one saved at `path`. On failure the current game is kept.
     pub fn load_from(&mut self, path: &Path) -> Result<(), String> {
+        self.load_checked(path, f4x_core::game::save::ContentCheck::Strict)
+    }
+
+    /// [`App::load_from`] with the choice of the content check. A save that does not fit the
+    /// content opens the list of what is wrong (`issue_dialog`); one made with other content files
+    /// also offers to load it anyway. A good load that has something to tell opens the list too.
+    pub(crate) fn load_checked(
+        &mut self,
+        path: &Path,
+        check: f4x_core::game::save::ContentCheck,
+    ) -> Result<(), String> {
+        use f4x_core::game::save::{LoadError, SaveError};
         let content = self.game.content().clone();
         // A setting the save does not name is the player's default (`default_game.rs`).
-        let (game, integrity) =
-            f4x_def::settings::with_fallback(self.default_game.settings, || {
-                f4x_core::game::save::load_game(path, content)
-            })
-            .map_err(|e| e.to_string())?;
+        let loaded = f4x_def::settings::with_fallback(self.default_game.settings, || {
+            f4x_core::game::save::load_game_with(path, content, check)
+        });
+        let loaded = match loaded {
+            Ok(l) => l,
+            Err(SaveError::Load(LoadError::Content(e))) => {
+                self.issue_dialog = Some(crate::issue_screen::Dialog::refused_load(
+                    &e.issues,
+                    &self.texts,
+                    path,
+                ));
+                return Err(e.to_string());
+            }
+            Err(e) => return Err(e.to_string()),
+        };
+        let (game, integrity, notes) = (loaded.game, loaded.integrity, loaded.notes);
+        if !notes.is_empty() {
+            self.issue_dialog = Some(crate::issue_screen::Dialog::notes(&notes, &self.texts));
+        }
         // The next new game keeps its own seed; a loaded game does not set it.
         // Keep playing the same race: the human player's capital race.
         if let Some(r) = game.wizard(HUMAN).and_then(|w| w.capital_race()) {
@@ -3028,6 +3058,58 @@ mod tests {
         app.load_from(&path).expect("the save loads");
         let _ = std::fs::remove_file(&path);
         assert_ne!(app.game.revision(), saved, "a load");
+    }
+
+    #[test]
+    fn a_save_made_with_other_content_files_opens_the_list_and_loads_when_the_player_says_so() {
+        use crate::issue_screen::Then;
+        use f4x_core::game::save::ContentCheck;
+        let mut app = App::for_test();
+        let path =
+            std::env::temp_dir().join(format!("f4x-other-files-{}.save", std::process::id()));
+        app.save_to(&path);
+        let fingerprint = app.game.content().fingerprint.clone();
+        assert!(
+            !fingerprint.is_empty(),
+            "the shipped content has a fingerprint"
+        );
+        let text = std::fs::read_to_string(&path).expect("the save");
+        let other = "0".repeat(fingerprint.len());
+        std::fs::write(&path, text.replace(&fingerprint, &other)).expect("edited");
+        let error = app.load_from(&path).expect_err("other content files");
+        assert!(error.contains("other content files"), "{error}");
+        let dialog = app.issue_dialog.take().expect("the list opens");
+        assert_eq!(dialog.then, Then::LoadAnyway(path.clone()));
+        assert_eq!(dialog.view.buttons.len(), 2, "cancel and load anyway");
+        assert!(
+            dialog.view.rows[0].place.contains("saved game"),
+            "{:?}",
+            dialog.view.rows
+        );
+        app.load_checked(&path, ContentCheck::Ignore)
+            .expect("loads when asked");
+        assert!(app.issue_dialog.is_none(), "nothing to tell");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_save_with_settings_out_of_range_is_refused_with_one_button_and_no_way_round() {
+        use crate::issue_screen::Then;
+        let mut app = App::for_test();
+        let path =
+            std::env::temp_dir().join(format!("f4x-bad-settings-{}.save", std::process::id()));
+        app.save_to(&path);
+        let text = std::fs::read_to_string(&path).expect("the save");
+        std::fs::write(
+            &path,
+            text.replacen("difficulty:", "difficulty:9,was_difficulty:", 1),
+        )
+        .expect("edited");
+        assert!(app.load_from(&path).is_err());
+        let dialog = app.issue_dialog.take().expect("the list opens");
+        assert_eq!(dialog.then, Then::Nothing);
+        assert_eq!(dialog.view.buttons.len(), 1);
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

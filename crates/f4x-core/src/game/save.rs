@@ -2042,7 +2042,9 @@ fn restore_fog(f: FogSave, map: Option<&Map>) -> Result<Fog, LoadError> {
 pub mod file;
 mod race_player;
 
-pub use file::{load_game, save_game, summarize_save, SaveError, SaveSummary};
+pub use file::{
+    load_game, load_game_with, save_game, summarize_save, Loaded, SaveError, SaveSummary,
+};
 
 #[cfg(test)]
 mod tests;

@@ -66,6 +66,7 @@ mod hotkeys;
 mod icon_art;
 mod input;
 mod intro_screen;
+mod issue_screen;
 mod item_screen;
 mod language;
 mod learn_spell;
@@ -167,6 +168,9 @@ fn message_dir(language: &str, file: &str) -> PathBuf {
 struct Options {
     /// `--data DIR`: the folder of the pictures, sounds and saves, instead of the per-user one.
     data: Option<PathBuf>,
+    /// `--mod DIR`: a folder of content files laid over the shipped ones (a file in it hides the
+    /// shipped file of the same name).
+    mod_dir: Option<PathBuf>,
     assets: PathBuf,
     seed: u64,
     /// `--seed` was given: every new game uses it. Without it each game gets a seed of its own.
@@ -336,6 +340,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
     let mut args = args;
     let mut o = Options {
         data: None,
+        mod_dir: None,
         assets: "assets-local/art".into(),
         audio: "assets-local/audio".into(),
         mute: false,
@@ -440,6 +445,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
         let mut value = |name: &str| args.next().ok_or(format!("{name} needs a value"));
         match a.as_str() {
             "--data" => o.data = Some(value("--data")?.into()),
+            "--mod" => o.mod_dir = Some(value("--mod")?.into()),
             "--assets" => o.assets = value("--assets")?.into(),
             "--audio" => o.audio = value("--audio")?.into(),
             "--mute" => o.mute = true,
@@ -702,7 +708,7 @@ async fn main() {
     let options = match parse_args(std::env::args().skip(1)) {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--data DIR] [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose|--choose-unit] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|mastery_lost|conquest|conquest_by_wizard|return|parade] [--shot-after SECONDS] [--magic] [--diplomacy] [--alchemy] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--custom] [--menu] [--slots] [--settings] [--game-settings [--menu]] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--hall-demo] [--warn-box] [--craft enchant|artifact] [--offer KIND] [--event KIND] [--fizzle] [--wrath [--global-by N] [--global-at SECONDS]] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--undead zombies|undead [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--extra-mana] [--breakdown food|production|gold|power|research (with --city)] [--wizard-pick] [--global-pick] [--attack-box] [--pick-box] [--crowd (with --city: fourteen units in the city, list scrolled one row)] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--data DIR] [--mod DIR] [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose|--choose-unit] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|mastery_lost|conquest|conquest_by_wizard|return|parade] [--shot-after SECONDS] [--magic] [--diplomacy] [--alchemy] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--custom] [--menu] [--slots] [--settings] [--game-settings [--menu]] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--hall-demo] [--warn-box] [--craft enchant|artifact] [--offer KIND] [--event KIND] [--fizzle] [--wrath [--global-by N] [--global-at SECONDS]] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--undead zombies|undead [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--extra-mana] [--breakdown food|production|gold|power|research (with --city)] [--wizard-pick] [--global-pick] [--attack-box] [--pick-box] [--crowd (with --city: fourteen units in the city, list scrolled one row)] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -723,18 +729,6 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    // The rules come from the shipped content alone.
-    let content =
-        match f4x_def::load::load_content_layers(&[shipped(f4x_def::SHIPPED_CONTENT).as_path()]) {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!(
-                    "could not load content from {}: {e}",
-                    f4x_def::SHIPPED_CONTENT
-                );
-                std::process::exit(1);
-            }
-        };
     let lang_content = shipped(f4x_lang::LANG_CONTENT);
     let lang_layers = [lang_content.as_path()];
     let language = language::initial(
@@ -759,26 +753,79 @@ async fn main() {
     if first_run::offer(&facts, &exe, f4x_extract::paths::Os::current(), &texts) {
         return;
     }
-    // A help that cannot be read stops the start, as the content does: the game does not go on
-    // quietly without it. A bad topic inside a readable help is left out and reported
-    // (`load_help_checked`; the issue screen of task 768 shows it).
-    let help = match f4x_def::load::load_help_checked(&[lang_layers[0], layers[0]], &language) {
-        Ok((help, left_out)) => {
-            for issue in &left_out {
-                eprintln!("help: left out: {issue}");
-            }
-            help
-        }
+    let automated = options.shot.is_some() || options.hear.is_some();
+    // The content: the mod's folder first when one is given, then the shipped one. Every problem of
+    // every file is shown at once, with the folder each file came from.
+    let shipped_content = shipped(f4x_def::SHIPPED_CONTENT);
+    let content_dirs: Vec<&Path> = options
+        .mod_dir
+        .iter()
+        .map(PathBuf::as_path)
+        .chain([shipped_content.as_path()])
+        .collect();
+    let layer = |file: &str| issue_screen::layer_name(file, options.mod_dir.as_deref(), &texts);
+    let content = match f4x_def::load::load_content_layers(&content_dirs) {
+        Ok(c) => c,
         Err(e) => {
-            eprintln!("could not load the help: {e}");
-            std::process::exit(1);
+            let rows = issue_screen::rows(&e.issues, &texts, layer);
+            issue_screen::stop(
+                &texts,
+                automated,
+                "content_issue.title_start_refused",
+                "content_issue.intro_refused",
+                rows,
+            )
+            .await
         }
     };
+    // A help that cannot be read stops the start, as the content does: the game does not go on
+    // quietly without it. A bad topic inside a readable help is left out and reported.
+    let (help, help_left_out) =
+        match f4x_def::load::load_help_checked(&[lang_layers[0], layers[0]], &language) {
+            Ok(h) => h,
+            Err(e) => {
+                let rows = issue_screen::rows(&e.issues, &texts, |_| {
+                    texts.get("content_issue.layer_shipped", &f4x_lang::text::Args::new())
+                });
+                issue_screen::stop(
+                    &texts,
+                    automated,
+                    "content_issue.title_start_refused",
+                    "content_issue.intro_refused",
+                    rows,
+                )
+                .await
+            }
+        };
+    let left_out: Vec<_> = content
+        .rules
+        .degraded
+        .iter()
+        .chain(&help_left_out)
+        .cloned()
+        .collect();
+    if !left_out.is_empty() {
+        let rows = issue_screen::rows(&left_out, &texts, layer);
+        issue_screen::tell(
+            &texts,
+            automated,
+            "content_issue.title_start_degraded",
+            "content_issue.intro_degraded",
+            rows,
+        )
+        .await;
+    }
     let tables = match asset_check::load_tables(&layers, &lang_layers, &content, &language) {
         Ok(tables) => tables,
         Err(e) => {
-            eprintln!("could not load the asset tables: {e}");
-            std::process::exit(1);
+            issue_screen::stop(
+                &texts,
+                automated,
+                "content_issue.title_other",
+                "content_issue.intro_refused",
+                vec![issue_screen::plain_row(e.to_string())],
+            )
+            .await
         }
     };
     let mut app = match App::new(
@@ -830,8 +877,14 @@ async fn main() {
     app.event_texts = match event_message::load(&message_dir(&language, "event_texts.ron")) {
         Ok(texts) => texts,
         Err(e) => {
-            eprintln!("could not load the event texts: {e}");
-            std::process::exit(1);
+            issue_screen::stop(
+                &app.texts,
+                automated,
+                "content_issue.title_other",
+                "content_issue.intro_refused",
+                vec![issue_screen::plain_row(format!("event_texts.ron: {e}"))],
+            )
+            .await
         }
     };
     match preferences::Preferences::from_defaults(&settings.preferences) {
@@ -1119,6 +1172,22 @@ async fn main() {
     }
     loop {
         let input = Input::read();
+        // A list of what is wrong with a load is all the player sees until it is answered.
+        if let Some(dialog) = app.issue_dialog.as_mut() {
+            if let Some(button) = dialog.frame() {
+                let then = dialog.then.clone();
+                app.issue_dialog = None;
+                if let (issue_screen::Then::LoadAnyway(path), true) = (then, button == 1) {
+                    if let Err(e) =
+                        app.load_checked(&path, f4x_core::game::save::ContentCheck::Ignore)
+                    {
+                        eprintln!("could not load {}: {e}", path.display());
+                    }
+                }
+            }
+            next_frame().await;
+            continue;
+        }
         if !app.frame(&input) {
             break;
         }
