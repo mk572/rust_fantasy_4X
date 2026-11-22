@@ -371,8 +371,9 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
                 }
             }
         }
-        // The original's desert walks may paint a pole row, as they do in the original: the rule
-        // is the noise generator's.
+        // The original generator's desert walks may paint a pole row (ReMoM `MAPGEN.c`,
+        // `Generate_Climate_Terrain_Types`: a walk of up to ten steps from a square eight or more rows
+        // in, with nothing to stop it at the pole). The rule is the noise generator's.
         for y in [0, h - 1].into_iter().filter(|_| !p.original_generator) {
             for x in 0..w {
                 let class = class_at(g, c, plane, x, y);
