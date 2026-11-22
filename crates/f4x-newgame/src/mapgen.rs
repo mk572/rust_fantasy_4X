@@ -464,8 +464,9 @@ fn place_rivers(
         for (x, y) in flagged {
             if grid
                 .get(x as i32, y as i32)
-                .is_some_and(|t| !steep.contains(&t))
+                .is_some_and(|t| !steep.contains(&t) && t != ocean)
             {
+                // Not on a lake: a river that runs through one ends in it.
                 grid.set_river(x, y, true);
             }
         }

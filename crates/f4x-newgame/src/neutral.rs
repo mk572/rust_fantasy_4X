@@ -51,7 +51,7 @@ pub fn clear_of_sites(game: &Game, pos: Position, distance: u32) -> bool {
 const MIN_SITE_SIZE: u32 = 5;
 
 /// Rows at each pole that get no neutral city: tundra and ice.
-const POLAR_ROWS: u8 = 4;
+pub const POLAR_ROWS: u8 = 4;
 
 /// The rows a plane of `height` rows is searched in: the equator row, then the one below, the
 /// one above, two below and so on, to the polar rows.
@@ -70,7 +70,7 @@ fn scan_rows(height: u32) -> Vec<u32> {
 }
 
 /// Squares between a neutral city and a node, tower or lair.
-const SITE_CLEARANCE: u32 = 4;
+pub const SITE_CLEARANCE: u32 = 4;
 
 /// The row scan of the custom generator keeps a little more room: squares between two cities,
 /// between a city and a fortress, and between a city and a node, tower or lair, so that the 15
@@ -84,7 +84,7 @@ const STRICT_SITE_CLEARANCE: u32 = 5;
 const MAX_TRIES: u32 = 1000;
 
 /// Squares between a neutral city and a wizard's fortress.
-const FORTRESS_CLEARANCE: u32 = 5;
+pub const FORTRESS_CLEARANCE: u32 = 5;
 
 /// Whether a neutral city may stand on `pos`: any city site, clear of the wizards' fortresses
 /// and of nodes, towers and lairs; `strict` asks for more room all round (the row scan). The

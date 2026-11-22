@@ -1,4 +1,5 @@
-//! A whole game on the shipped content (`content/`), through the public interface only.
+//! Class 4 (`docs/f4x-newgame-test-design.md`): the rules of the start that the settings name (the
+//! counts of towers and cities, the picks, the book limits), through the public interface only.
 
 use f4x_core::game::{Command, Event, Game};
 use f4x_def::content::Content;
@@ -9,52 +10,8 @@ fn shipped() -> &'static Content {
     f4x_def::testdir::shipped()
 }
 
-fn game(seed: u64) -> Result<Game, String> {
-    new_game(
-        shipped(),
-        &NewGame {
-            seed,
-            all_ai: true,
-            ..Default::default()
-        },
-    )
-}
-
 fn end_turns(g: &mut Game, n: usize) -> Vec<Event> {
     (0..n).flat_map(|_| g.apply(Command::EndTurn)).collect()
-}
-
-#[test]
-fn turns_pass_on_a_new_game_without_a_refusal() -> TestResult {
-    let mut g = game(3)?;
-    let events = end_turns(&mut g, 20);
-    let refused: Vec<_> = events
-        .iter()
-        .filter(|e| matches!(e, Event::Rejected(_)))
-        .collect();
-    assert!(refused.is_empty(), "{refused:?}");
-    Ok(())
-}
-
-#[test]
-fn a_saved_game_loads_into_the_same_game() -> TestResult {
-    let mut g = game(5)?;
-    end_turns(&mut g, 3);
-    let text = g.snapshot().to_text()?;
-    let loaded = f4x_core::game::save::Snapshot::from_text(&text)?.restore(shipped().clone())?;
-    assert_eq!(loaded.snapshot().to_text()?, text);
-    Ok(())
-}
-
-#[test]
-fn the_same_seed_and_commands_give_the_same_game() -> TestResult {
-    let play = || -> Result<String, Box<dyn std::error::Error>> {
-        let mut g = game(9)?;
-        end_turns(&mut g, 15);
-        Ok(g.snapshot().to_text()?)
-    };
-    assert_eq!(play()?, play()?);
-    Ok(())
 }
 
 /// A new game on the shipped content with the map-size counts set by hand.

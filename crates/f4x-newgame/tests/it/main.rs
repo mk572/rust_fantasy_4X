@@ -1,5 +1,10 @@
-mod fixtures;
-mod regression;
-mod shipped_content;
-mod shipped_game;
-mod world_settings;
+mod c1_determinism;
+mod c2_input;
+mod c3_counts;
+mod c3_map;
+mod c4_pick_rules;
+mod c4_start;
+mod c5_algorithms;
+mod c6_coupling;
+mod c7_drift;
+mod support;

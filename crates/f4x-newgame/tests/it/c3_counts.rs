@@ -3,7 +3,6 @@
 
 use f4x_core::game::setting::GameSettings;
 use f4x_def::testdir::TestResult;
-use f4x_newgame::mapgen::GenParams;
 use f4x_newgame::setup::gen_params;
 
 fn sized(width: u16, height: u16) -> GameSettings {
@@ -11,37 +10,6 @@ fn sized(width: u16, height: u16) -> GameSettings {
     s.basic.map_width = width;
     s.basic.map_height = height;
     s
-}
-
-#[test]
-fn the_default_counts_are_the_originals_for_the_standard_map() {
-    use f4x_def::settings as d;
-    // The reference area is the standard 60 by 40 map: there the defaults are not scaled.
-    let p = gen_params(&sized(60, 40));
-    assert_eq!(
-        (p.planes[0].node_count, p.planes[1].node_count),
-        (
-            d::NODES_PER_REFERENCE_AREA[0] as u8,
-            d::NODES_PER_REFERENCE_AREA[1] as u8
-        )
-    );
-    assert_eq!(
-        (p.planes[0].mineral_percent, p.planes[1].mineral_percent),
-        (d::DEFAULT_MINERAL_PERCENT[0], d::DEFAULT_MINERAL_PERCENT[1])
-    );
-    assert_eq!(
-        (p.strong_sites, p.weak_sites),
-        (
-            d::STRONG_SITES_PER_REFERENCE_AREA,
-            d::WEAK_SITES_PER_REFERENCE_AREA
-        )
-    );
-    // The same as the generator's own numbers for this size.
-    let g = GenParams::sized(60, 40);
-    assert_eq!(
-        (p.strong_sites, p.weak_sites, p.planes),
-        (g.strong_sites, g.weak_sites, g.planes)
-    );
 }
 
 #[test]

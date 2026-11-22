@@ -5,6 +5,7 @@
 //! Tests: in each module, and in `tests/it`.
 
 pub mod computer_wizard;
+pub mod coupling;
 pub mod island;
 pub mod lair;
 pub mod main_realm_spell;

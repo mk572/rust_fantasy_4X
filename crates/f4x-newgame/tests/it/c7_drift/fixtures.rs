@@ -16,7 +16,7 @@ fn fresh_file(wizards: u8, seed: u64) -> std::path::PathBuf {
 }
 
 /// The games core's tests load: `(wizards, seed)`, every one played by the computer.
-const FIXTURES: &[(u8, u64)] = &[(2, 7), (3, 3), (3, 7), (3, 11)];
+pub const FIXTURES: &[(u8, u64)] = &[(2, 7), (3, 3), (3, 7), (3, 11)];
 
 #[test]
 fn the_fresh_games_core_loads_are_what_new_game_makes() -> TestResult {

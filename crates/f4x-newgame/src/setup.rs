@@ -5,7 +5,7 @@
 //! Tests: below, and in setup/original.rs for the rolled fortress sites.
 
 /// The least maximum population of a fortress's land, kept through every pass but the last.
-const MIN_START_SIZE: u32 = 5;
+pub const MIN_START_SIZE: u32 = 5;
 
 use f4x_def::half_int::HalfInt;
 use std::collections::{BTreeMap, BTreeSet};
@@ -132,11 +132,33 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     if !hooks.is_empty() {
         return Err(hooks.join("; "));
     }
+    // The numbers this crate names (the Myrran retort, the five realms, ...) must lead to the rows
+    // of their aliases, or the wizards would be made with other retorts than the code means.
+    let coupling = crate::coupling::problems(&content.rules);
+    if !coupling.is_empty() {
+        return Err(coupling.join("; "));
+    }
     if spec.settings.basic.opponents > content.settings.max_opponents {
         return Err(format!(
             "{} opponents is over the most this content allows, {}",
             spec.settings.basic.opponents, content.settings.max_opponents
         ));
+    }
+    // Every wizard of an all-AI game is a ready-made one: the choices for player 0 have nobody to
+    // go to, and one of them (the race) used to be taken while the others were dropped.
+    if spec.all_ai
+        && (spec.preset.is_some()
+            || spec.build.is_some()
+            || spec.race.is_some()
+            || spec.name.is_some()
+            || !spec.books.is_empty()
+            || !spec.retorts.is_empty())
+    {
+        return Err(
+            "an all-AI game has no player 0 to choose a wizard or a race for: the preset, build, \
+             race, name, books and retorts are for a game with a human"
+                .into(),
+        );
     }
     let settings = spec.settings;
     let wizards = settings.basic.opponents + 1;
@@ -249,7 +271,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
             // The next ready-made wizard nobody has yet, starting from a seed-chosen one.
             let free: Vec<&u16> = preset_ids.iter().filter(|id| !taken.contains(id)).collect();
             let pick = free
-                .get((spec.seed as usize + k) % free.len().max(1))
+                .get(seed_offset(spec.seed, k) % free.len().max(1))
                 .and_then(|&&id| game.preset_build(id).map(|b| (id, b)));
             match pick {
                 Some((id, mut b)) => {
@@ -357,7 +379,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                     .collect();
                 let free: Vec<u16> = all.iter().copied().filter(|r| !races.contains(r)).collect();
                 let pool = if free.is_empty() { all } else { free };
-                pool.get((spec.seed as usize + k * 3) % pool.len().max(1))
+                pool.get(seed_offset(spec.seed, k * 3) % pool.len().max(1))
                     .copied()
                     .ok_or("no races")?
             }
@@ -402,6 +424,12 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     // Undo takes a snapshot of the whole game for every command: only a person needs it.
     game.set_undo(!spec.all_ai);
     Ok(game)
+}
+
+/// The seed moved on by `k`, as an index to be taken modulo a count. A seed is any `u64`: the sum
+/// wraps at the end of the range instead of overflowing.
+fn seed_offset(seed: u64, k: usize) -> usize {
+    seed.wrapping_add(k as u64) as usize
 }
 
 /// The plain build of computer wizard `k` when no ready-made wizard is free: a chaos and death
@@ -476,15 +504,33 @@ fn is_myrran(game: &Game, player: PlayerId) -> bool {
         .is_some_and(|w| w.has(Retort::new(9) /* myrran */))
 }
 
+/// A sine or cosine that is exactly 0 or +-1 where the angle is a quarter turn: `sin(PI)` is a tiny
+/// number, not 0, and on an odd map size it decided whether a start row of x.5 went up or down.
+fn exact(t: f64) -> f64 {
+    [-1.0, 0.0, 1.0]
+        .into_iter()
+        .find(|snap| (t - snap).abs() < 1e-9)
+        .unwrap_or(t)
+}
+
+/// A value rounded to a whole number, a half going up. Away from a half the usual rounding; the
+/// value is a sum of products of a trigonometric function and a map size, never within a thousandth
+/// of a half unless it is exactly one (`tests::the_start_spot_is_stable_over_every_size`).
+fn round_half_up(v: f64) -> f64 {
+    if (v - v.floor() - 0.5).abs() < 1e-9 {
+        v.floor() + 1.0
+    } else {
+        v.round()
+    }
+}
+
 /// Where wizard `k` of `n` starts: spread round the middle of the map.
 fn anchor(width: u32, height: u32, k: u8, n: u8) -> (u32, u32) {
-    let (w, h) = (width as f32, height as f32);
-    let angle = std::f32::consts::PI + std::f32::consts::TAU * f32::from(k) / f32::from(n);
+    let (w, h) = (f64::from(width), f64::from(height));
+    let angle = std::f64::consts::PI + std::f64::consts::TAU * f64::from(k) / f64::from(n);
     (
-        (w / 2.0 + angle.cos() * w / 4.0).round() as u32 % width,
-        (h / 2.0 + angle.sin() * h / 3.0)
-            .round()
-            .clamp(2.0, h - 3.0) as u32,
+        round_half_up(w / 2.0 + exact(angle.cos()) * w / 4.0) as u32 % width,
+        round_half_up(h / 2.0 + exact(angle.sin()) * h / 3.0).clamp(2.0, h - 3.0) as u32,
     )
 }
 
@@ -739,19 +785,87 @@ mod tests {
         }
     }
 
+    /// The sizes the settings allow and the numbers of wizards the content allows: every case.
+    fn every_start_spot_case() -> impl Iterator<Item = (u32, u32, u8, u8)> {
+        let most = shipped().settings.max_opponents + 1;
+        f4x_def::settings::MAP_WIDTHS.flat_map(move |w| {
+            f4x_def::settings::MAP_HEIGHTS.flat_map(move |h| {
+                (1..=most)
+                    .flat_map(move |n| (0..n).map(move |k| (u32::from(w), u32::from(h), k, n)))
+            })
+        })
+    }
+
     #[test]
-    fn the_start_points_are_spread_round_the_middle_and_inside_the_map() {
-        let (w, h) = (60, 40);
-        for n in 1..=10u8 {
-            let spots: Vec<_> = (0..n).map(|k| anchor(w, h, k, n)).collect();
-            assert!(spots.iter().all(|&(x, y)| x < w && (2..h - 2).contains(&y)));
-            let mut unique = spots.clone();
-            unique.sort_unstable();
-            unique.dedup();
-            assert_eq!(unique.len(), spots.len(), "{n} wizards, {spots:?}");
+    fn the_start_spots_are_inside_the_map_and_apart_for_every_size_and_number_of_wizards() {
+        let most = shipped().settings.max_opponents + 1;
+        for w in f4x_def::settings::MAP_WIDTHS.map(u32::from) {
+            for h in f4x_def::settings::MAP_HEIGHTS.map(u32::from) {
+                for n in 1..=most {
+                    let spots: Vec<_> = (0..n).map(|k| anchor(w, h, k, n)).collect();
+                    assert!(
+                        spots.iter().all(|&(x, y)| x < w && (2..h - 2).contains(&y)),
+                        "{w}x{h} {n} wizards: {spots:?}"
+                    );
+                    let mut unique = spots.clone();
+                    unique.sort_unstable();
+                    unique.dedup();
+                    assert_eq!(unique.len(), spots.len(), "{w}x{h} {n} wizards: {spots:?}");
+                }
+            }
         }
         // The first of two starts in the west and the second in the east.
-        assert!(anchor(w, h, 0, 2).0 < anchor(w, h, 1, 2).0);
+        assert!(anchor(60, 40, 0, 2).0 < anchor(60, 40, 1, 2).0);
+    }
+
+    /// The start spot must not depend on the platform's trigonometry. A value is either exactly
+    /// halfway between two whole numbers (a quarter turn: then it rounds up, as stated), or a
+    /// thousandth or more away from it, so that `f32`, `f64` and any maths library agree.
+    #[test]
+    fn the_start_spot_is_stable_over_every_size() {
+        for (w, h, k, n) in every_start_spot_case() {
+            let angle = std::f64::consts::PI + std::f64::consts::TAU * f64::from(k) / f64::from(n);
+            let (fw, fh) = (f64::from(w), f64::from(h));
+            let values = [
+                fw / 2.0 + exact(angle.cos()) * fw / 4.0,
+                fh / 2.0 + exact(angle.sin()) * fh / 3.0,
+            ];
+            for v in values {
+                let off = (v - v.floor() - 0.5).abs();
+                assert!(
+                    off < 1e-9 || off > 1e-4,
+                    "{w}x{h} {k}/{n}: {v} is {off} from a half"
+                );
+            }
+            // Away from a half, the single-precision answer is the same.
+            let a32 = std::f32::consts::PI + std::f32::consts::TAU * f32::from(k) / f32::from(n);
+            let (w32, h32) = (w as f32, h as f32);
+            let x32 = (w32 / 2.0 + a32.cos() * w32 / 4.0).round() as u32 % w;
+            let y32 = (h32 / 2.0 + a32.sin() * h32 / 3.0)
+                .round()
+                .clamp(2.0, h32 - 3.0) as u32;
+            let (x, y) = anchor(w, h, k, n);
+            let near_half = |v: f64| (v - v.floor() - 0.5).abs() < 1e-9;
+            if !near_half(values[0]) {
+                assert_eq!(x, x32, "{w}x{h} {k}/{n}");
+            }
+            if !near_half(values[1]) {
+                assert_eq!(y, y32, "{w}x{h} {k}/{n}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_start_row_that_is_exactly_a_half_goes_up_on_every_odd_height() {
+        // The first of any number of wizards sits at the angle PI: a quarter turn, sine 0, so the
+        // row is the middle of the map, x.5 on an odd height.
+        for h in f4x_def::settings::MAP_HEIGHTS
+            .map(u32::from)
+            .filter(|h| h % 2 == 1)
+        {
+            let y = anchor(60, h, 0, 5).1;
+            assert_eq!(y, h / 2 + 1, "height {h}");
+        }
     }
 
     #[test]
@@ -951,7 +1065,9 @@ mod tests {
     fn a_myrran_wizard_starts_on_myrror_and_the_others_on_arcanus() -> TestResult {
         let mut s = spec(2, 3);
         s.retorts.insert(Retort::new(9) /* myrran */);
-        // Every wizard is the computer's here, and the computer's retorts are rolled.
+        // Player 0 is the human who chose Myrran; the computer's wizards are not rolled into it.
+        s.all_ai = false;
+        s.books.insert(RealmId::new(0 /* nature */), 8);
         s.settings.ai.wizards.randomise = false;
         let g = new_game(shipped(), &s)?;
         let plane = |k| {
