@@ -384,3 +384,27 @@ fn a_field_default_function_is_only_a_save_fallback_or_a_neutral_effect_part() {
         }
     }
 }
+
+// ---- the tests read issues, not sentences (task 769) ----
+
+#[test]
+fn no_test_of_the_content_reads_the_wording_of_an_issue() {
+    // An issue is its kind, file, place and values; its sentence is for the player and may be reworded.
+    // A test that matched the sentence would break on a new wording and pass on a wrong issue.
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/it");
+    for name in [
+        "c1_content",
+        "c2_loading",
+        "c4_values",
+        "c6_behaviour",
+        "c7_degrade",
+    ] {
+        let text = std::fs::read_to_string(dir.join(format!("{name}.rs"))).expect("a test file");
+        for (n, line) in text.lines().enumerate() {
+            let reads_words = line.contains("e.to_string().contains(")
+                || line.contains("error.to_string().contains(")
+                || line.contains("issue.to_string().contains(");
+            assert!(!reads_words, "{name}.rs:{}: {}", n + 1, line.trim());
+        }
+    }
+}

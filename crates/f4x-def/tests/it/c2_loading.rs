@@ -759,7 +759,7 @@ fn rows_out_of_the_order_of_their_numbers_or_with_a_number_twice_are_an_error_an
         let dir = copy_of_shipped("c2-order");
         edit::<Vec<T>>(&dir, file, |v| v.swap(0, 1));
         match attempt(&dir) {
-            Outcome::Refused(e) => assert!(e.to_string().contains(file), "{file}: {e}"),
+            Outcome::Refused(e) => assert!(e.mentions(file), "{file}: {e}"),
             other => panic!("{file} out of order: {other:?}"),
         }
         let dir = copy_of_shipped("c2-repeat");
@@ -768,7 +768,7 @@ fn rows_out_of_the_order_of_their_numbers_or_with_a_number_twice_are_an_error_an
             *num_of(&mut v[1]) = first;
         });
         match attempt(&dir) {
-            Outcome::Refused(e) => assert!(e.to_string().contains(file), "{file}: {e}"),
+            Outcome::Refused(e) => assert!(e.mentions(file), "{file}: {e}"),
             other => panic!("{file} repeated: {other:?}"),
         }
     }
@@ -795,7 +795,7 @@ fn a_file_with_more_rows_than_a_table_holds_is_an_error_and_not_a_panic() {
         }
     });
     match attempt(&dir) {
-        Outcome::Refused(e) => assert!(e.to_string().contains("realms.ron"), "{e}"),
+        Outcome::Refused(e) => assert!(e.mentions("realms.ron"), "{e}"),
         other => panic!("{other:?}"),
     }
 }
@@ -1001,4 +1001,37 @@ fn the_fingerprint_names_the_files_the_content_was_read_from() {
     let text = read(&dir, "lairs.ron");
     write(&dir, "lairs.ron", &format!("{text}\n// changed\n"));
     assert_ne!(&load(&dir).expect("loads").fingerprint, first);
+}
+
+#[test]
+fn every_kind_of_issue_has_a_message_key_of_its_own() {
+    // The match has no `_` arm: a new kind does not compile until it is listed here, and so is given
+    // a message in `content_issue.ron` (the client test `every_kind_of_issue_is_told_in_words...`).
+    let kinds = [
+        IssueKind::Missing,
+        IssueKind::Unreadable,
+        IssueKind::Corrupt,
+        IssueKind::WrongType,
+        IssueKind::OutOfRange,
+        IssueKind::Dangling,
+        IssueKind::Duplicate,
+        IssueKind::UnknownKey,
+        IssueKind::Conflict,
+    ];
+    let mut keys = std::collections::BTreeSet::new();
+    for kind in kinds {
+        let expected = match kind {
+            IssueKind::Missing => "content_issue.missing",
+            IssueKind::Unreadable => "content_issue.unreadable",
+            IssueKind::Corrupt => "content_issue.corrupt",
+            IssueKind::WrongType => "content_issue.wrong_type",
+            IssueKind::OutOfRange => "content_issue.out_of_range",
+            IssueKind::Dangling => "content_issue.dangling",
+            IssueKind::Duplicate => "content_issue.duplicate",
+            IssueKind::UnknownKey => "content_issue.unknown_key",
+            IssueKind::Conflict => "content_issue.conflict",
+        };
+        assert_eq!(kind.text_key(), expected);
+        assert!(keys.insert(expected), "two kinds share {expected}");
+    }
 }

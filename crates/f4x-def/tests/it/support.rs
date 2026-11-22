@@ -45,10 +45,19 @@ pub fn edit<T: DeserializeOwned + Serialize>(dir: &Path, file: &str, change: imp
     write(dir, file, &text);
 }
 
-/// The problems a refused content names, or a failure when it was not refused with a list.
+/// An issue as its parts, not its sentence: the file, the place and the values, separated by `|`.
+/// A test asks whether a name is among them; the wording of the message is not part of the contract.
+pub fn parts(i: &f4x_def::issue::ContentIssue) -> String {
+    let mut out = vec![i.file.clone(), i.at.clone()];
+    out.extend(i.detail.iter().cloned());
+    out.join(" | ")
+}
+
+/// The problems a refused content names (each as its [`parts`]), or a failure when it was not
+/// refused with a list.
 pub fn problems(result: Result<Content, ContentError>) -> Vec<String> {
     match result {
-        Err(e) if !e.issues.is_empty() => e.issues.iter().map(|i| i.to_string()).collect(),
+        Err(e) if !e.issues.is_empty() => e.issues.iter().map(parts).collect(),
         Err(other) => panic!("expected a list of problems, got: {other}"),
         Ok(_) => panic!("the content was accepted but should have been refused"),
     }
