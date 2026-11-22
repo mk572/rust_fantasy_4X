@@ -96,27 +96,28 @@ fn a_higher_tax_brings_more_gold_until_the_rebels_stop_paying_and_the_rate_is_he
     for (name, mut g) in worlds().into_iter().step_by(2) {
         let p = wizards(&g)[0];
         let top = (g.content().rules.config.tax_unrest_percent.len() - 1) as u8;
-        let mut last: Option<(HalfInt, u32)> = None;
+        let mut last: std::collections::BTreeMap<usize, (HalfInt, u32)> = Default::default();
         for rate in 0..=top {
             assert_eq!(
                 refusal(&g.apply(Command::SetTaxRate { player: p, rate })),
                 None
             );
-            let (mut gold, mut rebels) = (HalfInt::ZERO, 0);
-            for (city, _) in g.economy().cities_of(p) {
+            for (i, (city, _)) in g.economy().cities_of(p).into_iter().enumerate() {
                 let eco = g.economy().city_economy(city).expect("an economy");
-                gold += eco.gold;
-                rebels += eco.rebels;
+                if let Some(&(g0, r0)) = last.get(&i) {
+                    assert!(eco.rebels >= r0, "{name}: rate {rate} calms city {i}");
+                    // Rebels pay no taxes, so a rate that makes more of them can bring less; while it
+                    // makes none more, a higher rate brings more.
+                    if eco.rebels == r0 {
+                        assert!(
+                            eco.gold >= g0,
+                            "{name}: rate {rate} brings less gold than {}",
+                            rate - 1
+                        );
+                    }
+                }
+                last.insert(i, (eco.gold, eco.rebels));
             }
-            if let Some((g0, r0)) = last {
-                assert!(
-                    gold >= g0,
-                    "{name}: rate {rate} brings less gold than {}",
-                    rate - 1
-                );
-                assert!(rebels >= r0, "{name}: rate {rate} calms the cities");
-            }
-            last = Some((gold, rebels));
         }
         // A rate over the table is held to its top.
         g.apply(Command::SetTaxRate {
@@ -125,8 +126,6 @@ fn a_higher_tax_brings_more_gold_until_the_rebels_stop_paying_and_the_rate_is_he
         });
         let held = g.player_component::<f4x_core::player::Tax>(p).map(|t| t.0);
         assert_eq!(held, Some(top), "{name}");
-        let (_, rebels_top) = last.expect("a rate");
-        let _ = rebels_top;
     }
 }
 
