@@ -1158,3 +1158,8 @@ fn a_check_gives_file_row_kind_and_the_values_and_not_only_a_sentence() {
         ("buildings.ron", "cost", "0")
     );
 }
+
+#[test]
+fn a_settings_file_without_the_difficulty_levels_is_refused() {
+    refused::<f4x_def::settings::SettingsDef>("rules_settings.ron", "levels", |d| d.levels.clear());
+}

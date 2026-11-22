@@ -120,10 +120,11 @@ the game then running on values the code holds: the behaviour would differ from 
    task 768 shows them), a tool returns them as its error.
 2. `Default` on a content type is the empty value for a game that has no content yet (`Game::new`); the loader never
    calls it, and a test game sets its content before it plays.
-3. Known gaps, to close with task 766/768: `Game::new` starts with `GameSettings::default()`, which is the shipped
-   Average level compiled in, not the level of a modded content (`duel`, `ladder` and the other tools that call
-   `Game::new` then `set_content` keep the shipped settings); a save from before a setting existed migrates from
-   the player's default or the compiled-in shipped level, not from the loaded content's.
+3. Closed (22 November 2026): `Game::set_content` sets the game's settings from the level the content's new-game
+   choices name, so a modded content plays its own figures; a save from before a setting existed migrates from the
+   player's default, else from the content it is loaded into (`load_game`), never from a compiled-in copy.
+   `rules_settings.ron` must have all six levels. Still open: a game made by `Game::new` and never given content
+   plays on the empty rules (tests only; no production path does it).
 
 ### R7. Mods (decided: in this work)
 

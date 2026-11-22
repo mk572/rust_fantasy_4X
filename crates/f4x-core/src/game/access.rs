@@ -151,9 +151,14 @@ impl Game {
 
     // ---- setting up by hand ------------------------------------------------------
 
-    /// Replace the game's definitions.
+    /// Replace the game's definitions. The game's settings become the level of the new-game
+    /// choices of that content (so a modded content plays its own figures, not the shipped ones);
+    /// a caller that wants others sets them after. Empty content (no levels) leaves them.
     pub fn set_content(&mut self, content: impl Into<std::sync::Arc<Content>>) {
         self.content = content.into();
+        if let Some(settings) = self.content.settings.default_game() {
+            self.settings = settings;
+        }
     }
 
     /// The definitions, for a test that changes one (a copy is made if a battle shares them).
@@ -202,8 +207,8 @@ impl Game {
         placements: Vec<crate::feature::entity::Placement>,
     ) -> Game {
         let mut game = Game::new(seed);
-        game.settings = settings;
         game.set_content(std::sync::Arc::new(content.clone()));
+        game.settings = settings;
         game.apply_content_settings();
         game.names = names;
         game.set_map(map);

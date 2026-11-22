@@ -1045,8 +1045,7 @@ pub struct HalfUpkeep {
 }
 
 /// `crates/f4x-def/content/rules_settings.ron`: the difficulty levels, the defaults of the new-game choices, the
-/// map and land sizes and the spell library. A file without it (the test content) leaves `levels`
-/// empty, and a game then plays the default game.
+/// map and land sizes and the spell library. The file is required and has every level.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct SettingsDef {
@@ -1165,12 +1164,19 @@ impl SettingsDef {
         self.levels.get(usize::from(difficulty.min(MAX_DIFFICULTY)))
     }
 
+    /// The settings a new game starts from: the level the new-game choices name. `None` for the
+    /// empty content (no levels), which has no game to play.
+    pub fn default_game(&self) -> Option<GameSettings> {
+        self.level(self.new_game.difficulty)?;
+        Some(GameSettings::for_difficulty(self, self.new_game.difficulty))
+    }
+
     /// Every problem with the file (empty when it is fine): the number of levels, and each level and
     /// the new-game choices within range.
     pub fn validate(&self) -> Vec<crate::issue::ContentIssue> {
         const F: &str = "rules_settings.ron";
         let mut problems = crate::issue::Issues::new();
-        if !self.levels.is_empty() && self.levels.len() != LEVELS {
+        if self.levels.len() != LEVELS {
             problems.out_of_range(
                 F,
                 "",

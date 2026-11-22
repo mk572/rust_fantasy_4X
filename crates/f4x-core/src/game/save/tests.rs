@@ -1019,3 +1019,24 @@ fn a_save_from_before_a_setting_existed_takes_the_players_default_and_else_the_s
     assert!(Snapshot::from_text(&broken).is_err());
     Ok(())
 }
+
+#[test]
+fn a_game_plays_the_settings_of_its_content_and_a_modded_level_reaches_the_game_and_an_old_save(
+) -> TestResult {
+    let mut modded = f4x_def::testdir::shipped().clone();
+    let level = usize::from(modded.settings.new_game.difficulty);
+    let shipped_size = modded.settings.levels[level].rules.max_city_size;
+    modded.settings.levels[level].rules.max_city_size = shipped_size - 3;
+    let mut g = Game::new(5);
+    g.set_content(modded.clone());
+    assert_eq!(g.settings.rules.max_city_size, shipped_size - 3);
+    // A save from before the setting existed, loaded into that content, takes the content's value.
+    let text = g.snapshot().to_text()?;
+    let old = text.replace("max_city_size:", "was_max_city_size:");
+    let dir = f4x_def::testdir::TestDir::new("save-migrate");
+    let path = dir.join("old.save");
+    std::fs::write(&path, old)?;
+    let (loaded, _) = super::file::load_game(&path, modded)?;
+    assert_eq!(loaded.settings.rules.max_city_size, shipped_size - 3);
+    Ok(())
+}

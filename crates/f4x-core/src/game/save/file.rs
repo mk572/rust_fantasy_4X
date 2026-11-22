@@ -45,9 +45,17 @@ pub fn save_game(path: &Path, game: &Game) -> Result<(), SaveError> {
 pub fn load_game(path: &Path, content: Content) -> Result<(Game, Integrity), SaveError> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| SaveError::Io(format!("{}: {e}", path.display())))?;
-    let game = Snapshot::from_text(&text)
-        .and_then(|s| s.restore(content))
-        .map_err(SaveError::Load)?;
+    // A setting the save does not name comes from the player's default when the caller set one
+    // (`with_fallback`), else from the content the save is loaded into: never from a built-in.
+    let fallback = content.settings.default_game();
+    let read = |content| Snapshot::from_text(&text).and_then(|s| s.restore(content));
+    let game = match fallback {
+        Some(f) if !f4x_def::settings::has_fallback() => {
+            f4x_def::settings::with_fallback(f, || read(content))
+        }
+        _ => read(content),
+    }
+    .map_err(SaveError::Load)?;
     Ok((game, Snapshot::integrity(&text)))
 }
 
