@@ -10,5 +10,6 @@ mod c6_setting;
 mod c6_tile;
 mod c7_turn;
 mod c8_drift;
+mod c9_city;
 mod c9_order;
 mod support;
