@@ -3,7 +3,6 @@
 pub mod rules;
 
 use std::collections::HashSet;
-use std::fmt;
 use std::path::Path;
 
 use crate::content::Content;
@@ -12,54 +11,21 @@ use crate::map::Plane;
 use crate::map::{TerrainClass, TerrainDef, Terrains, REQUIRED_CLASSES};
 use crate::settings::SettingsDef;
 
-#[derive(Debug)]
-pub enum ContentError {
-    Io(String),
-    Parse(String),
-    Invalid(Vec<String>),
-}
-
-impl fmt::Display for ContentError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ContentError::Io(m) => write!(f, "cannot read content: {m}"),
-            ContentError::Parse(m) => write!(f, "cannot parse content: {m}"),
-            ContentError::Invalid(problems) => {
-                write!(f, "invalid content:")?;
-                problems.iter().try_for_each(|p| write!(f, "\n  - {p}"))
-            }
-        }
-    }
-}
-
-impl std::error::Error for ContentError {}
-
-impl ContentError {
-    /// The error, saying which file it is about when a parse error does not already.
-    fn in_file(self, file: &str) -> Self {
-        match self {
-            ContentError::Parse(m) if !m.contains(file) => {
-                ContentError::Parse(format!("{file}: {m}"))
-            }
-            other => other,
-        }
-    }
-}
+pub use crate::issue::{ContentError, ContentIssue, Element, IssueKind, Outcome};
 
 pub fn parse_terrains(src: &str) -> Result<Terrains, ContentError> {
     let defs: Vec<TerrainDef> =
-        ron::from_str(src).map_err(|e| ContentError::Parse(e.to_string()))?;
+        ron::from_str(src).map_err(|e| ContentError::parse("terrain.ron", &e))?;
     let problems = validate_terrains(&defs);
     if problems.is_empty() {
         Ok(Terrains::new(defs))
     } else {
-        Err(ContentError::Invalid(problems))
+        Err(ContentError::invalid(problems))
     }
 }
 
 pub fn load_terrains(path: &Path) -> Result<Terrains, ContentError> {
-    let src = std::fs::read_to_string(path)
-        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
+    let src = std::fs::read_to_string(path).map_err(|e| ContentError::io(path, &e))?;
     parse_terrains(&src)
 }
 
@@ -123,12 +89,12 @@ pub(crate) fn id_problem(kind: &str, id: &str) -> Option<String> {
 
 pub fn parse_features(src: &str) -> Result<Features, ContentError> {
     let defs: Vec<FeatureDef> =
-        ron::from_str(src).map_err(|e| ContentError::Parse(e.to_string()))?;
+        ron::from_str(src).map_err(|e| ContentError::parse("features.ron", &e))?;
     let problems = validate_features(&defs);
     if problems.is_empty() {
         Ok(Features::new(defs))
     } else {
-        Err(ContentError::Invalid(problems))
+        Err(ContentError::invalid(problems))
     }
 }
 
@@ -210,7 +176,7 @@ pub fn load_help(dirs: &[&Path], lang: &str) -> Result<crate::help::Help, Conten
     if problems.is_empty() {
         Ok(help)
     } else {
-        Err(ContentError::Invalid(problems))
+        Err(ContentError::invalid(problems))
     }
 }
 
@@ -219,9 +185,8 @@ fn read_list<T: serde::de::DeserializeOwned>(path: Option<&Path>) -> Result<Vec<
     let Some(path) = path else {
         return Ok(Vec::new());
     };
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
-    ron::from_str(&text).map_err(|e| ContentError::Parse(format!("{}: {e}", path.display())))
+    let text = std::fs::read_to_string(path).map_err(|e| ContentError::io(path, &e))?;
+    ron::from_str(&text).map_err(|e| ContentError::parse(&path.display().to_string(), &e))
 }
 
 /// Load and validate all content files from a content directory.
@@ -238,11 +203,10 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
             .map(|d| d.join(name))
             .find(|p| rules::is_there(p))
             .unwrap_or_else(|| dirs.first().map_or_else(|| name.into(), |d| d.join(name)));
-        std::fs::read_to_string(&path)
-            .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))
+        std::fs::read_to_string(&path).map_err(|e| ContentError::io(&path, &e))
     };
-    let terrains = parse_terrains(&read("terrain.ron")?).map_err(|e| e.in_file("terrain.ron"))?;
-    let features = parse_features(&read("features.ron")?).map_err(|e| e.in_file("features.ron"))?;
+    let terrains = parse_terrains(&read("terrain.ron")?)?;
+    let features = parse_features(&read("features.ron")?)?;
     let settings = load_settings(dirs)?;
     let rules = rules::load_rules(dirs)?;
     check_feature_references(&features, &rules)?;
@@ -292,7 +256,7 @@ fn check_feature_references(
     if problems.is_empty() {
         Ok(())
     } else {
-        Err(ContentError::Invalid(problems))
+        Err(ContentError::invalid(problems))
     }
 }
 
@@ -331,7 +295,7 @@ fn check_spell_library(
     if problems.is_empty() {
         Ok(())
     } else {
-        Err(ContentError::Invalid(problems))
+        Err(ContentError::invalid(problems))
     }
 }
 
@@ -345,15 +309,14 @@ pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
     else {
         return Ok(SettingsDef::default());
     };
-    let text = std::fs::read_to_string(&path)
-        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
-    let settings: SettingsDef = ron::from_str(&text)
-        .map_err(|e| ContentError::Parse(format!("rules_settings.ron: {e}")))?;
+    let text = std::fs::read_to_string(&path).map_err(|e| ContentError::io(&path, &e))?;
+    let settings: SettingsDef =
+        ron::from_str(&text).map_err(|e| ContentError::parse("rules_settings.ron", &e))?;
     // The settings types are shared with the save files, which must go on reading a field a
     // later version dropped; so the unknown keys of this file are looked for here.
     let unknown = unknown_keys(&text, &settings);
     if !unknown.is_empty() {
-        return Err(ContentError::Invalid(
+        return Err(ContentError::invalid(
             unknown
                 .into_iter()
                 .map(|k| format!("rules_settings.ron: {k} is not a setting"))
@@ -364,7 +327,7 @@ pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
     if problems.is_empty() {
         Ok(settings)
     } else {
-        Err(ContentError::Invalid(problems))
+        Err(ContentError::invalid(problems))
     }
 }
 

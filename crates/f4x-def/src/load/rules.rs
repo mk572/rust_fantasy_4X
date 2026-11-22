@@ -27,11 +27,11 @@ pub(super) fn is_there(path: &Path) -> bool {
 fn read(dirs: &[&Path], name: &str) -> Result<String, ContentError> {
     let path = find(dirs, name)
         .unwrap_or_else(|| dirs.first().map_or_else(|| name.into(), |d| d.join(name)));
-    std::fs::read_to_string(&path).map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))
+    std::fs::read_to_string(&path).map_err(|e| ContentError::io(&path, &e))
 }
 
 fn parse<T: serde::de::DeserializeOwned>(dirs: &[&Path], name: &str) -> Result<T, ContentError> {
-    ron::from_str(&read(dirs, name)?).map_err(|e| ContentError::Parse(format!("{name}: {e}")))
+    ron::from_str(&read(dirs, name)?).map_err(|e| ContentError::parse(name, &e))
 }
 
 /// The registry of the rows of a file; the problem is noted when the rows cannot make one.
@@ -71,7 +71,7 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
     if range.beyond.windows(2).any(|w| w[0] >= w[1])
         || range.beyond.last().is_some_and(|&l| l >= range.far)
     {
-        return Err(ContentError::Invalid(vec![
+        return Err(ContentError::invalid(vec![
             "rules.ron: casting_range.beyond must rise and end below `far`".to_string(),
         ]));
     }
@@ -90,7 +90,7 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
     let wizards = table("wizards.ron", wizards, &mut problems);
     let retorts = table("retorts.ron", retorts, &mut problems);
     if !problems.is_empty() {
-        return Err(ContentError::Invalid(problems));
+        return Err(ContentError::invalid(problems));
     }
     let rules = Rules {
         config,
@@ -142,7 +142,7 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
     if problems.is_empty() {
         Ok(rules)
     } else {
-        Err(ContentError::Invalid(problems))
+        Err(ContentError::invalid(problems))
     }
 }
 

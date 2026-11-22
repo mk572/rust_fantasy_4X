@@ -48,7 +48,7 @@ pub fn edit<T: DeserializeOwned + Serialize>(dir: &Path, file: &str, change: imp
 /// The problems a refused content names, or a failure when it was not refused with a list.
 pub fn problems(result: Result<Content, ContentError>) -> Vec<String> {
     match result {
-        Err(ContentError::Invalid(problems)) => problems,
+        Err(e) if !e.issues.is_empty() => e.issues.iter().map(|i| i.to_string()).collect(),
         Err(other) => panic!("expected a list of problems, got: {other}"),
         Ok(_) => panic!("the content was accepted but should have been refused"),
     }

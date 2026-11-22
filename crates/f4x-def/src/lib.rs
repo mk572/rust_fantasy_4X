@@ -17,6 +17,7 @@ pub mod half_int;
 pub mod help;
 pub mod hero;
 pub mod id;
+pub mod issue;
 pub mod load;
 pub mod map;
 pub mod names;

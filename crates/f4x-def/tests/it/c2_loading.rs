@@ -5,6 +5,7 @@
 
 use crate::support::*;
 use f4x_def::content::Content;
+use f4x_def::issue::IssueKind;
 use f4x_def::load::{load_content, load_content_layers, load_help, load_settings, ContentError};
 use f4x_def::testdir::{shipped, shipped_dir, TestDir};
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -85,7 +86,17 @@ const OPTIONAL: &[&str] = &[
 ];
 
 fn mentions_file(e: &ContentError, file: &str) -> bool {
-    e.to_string().contains(file)
+    e.mentions(file)
+}
+
+/// A refusal because a file or folder is not there or cannot be read.
+fn unreadable(o: &Outcome) -> bool {
+    matches!(o, Outcome::Refused(e) if e.has(IssueKind::Missing) || e.has(IssueKind::Unreadable))
+}
+
+/// A refusal that comes from the validator's checks of what was read, not from reading or parsing.
+fn only_conflicts(e: &ContentError) -> bool {
+    e.issues.iter().all(|i| i.kind == IssueKind::Conflict)
 }
 
 // ---- files that are not there ----
@@ -107,7 +118,7 @@ fn a_required_file_that_is_missing_is_an_error_that_names_it() {
         let dir = copy_of_shipped("c2-missing");
         std::fs::remove_file(dir.join(file)).expect("removed");
         match attempt(&dir) {
-            Outcome::Refused(e @ ContentError::Io(_)) => {
+            Outcome::Refused(e) if e.has(IssueKind::Missing) => {
                 assert!(mentions_file(&e, file), "{file}: {e}")
             }
             other => panic!("{file}: {other:?}"),
@@ -130,19 +141,10 @@ fn an_optional_file_that_is_missing_leaves_the_content_without_what_it_held() {
 #[test]
 fn a_folder_that_is_empty_or_not_there_or_a_file_is_an_error() {
     let empty = TestDir::new("c2-empty");
-    assert!(matches!(
-        attempt(&empty),
-        Outcome::Refused(ContentError::Io(_))
-    ));
-    assert!(matches!(
-        attempt(&empty.join("nowhere")),
-        Outcome::Refused(ContentError::Io(_))
-    ));
+    assert!(unreadable(&attempt(&empty)));
+    assert!(unreadable(&attempt(&empty.join("nowhere"))));
     std::fs::write(empty.join("afile"), "x").expect("a file");
-    assert!(matches!(
-        attempt(&empty.join("afile")),
-        Outcome::Refused(ContentError::Io(_))
-    ));
+    assert!(unreadable(&attempt(&empty.join("afile"))));
 }
 
 #[test]
@@ -276,7 +278,7 @@ fn every_file_damaged_in_every_way_is_refused_without_a_panic_and_the_error_name
             std::fs::write(dir.join(&file), &bytes).expect("written");
             match attempt(&dir) {
                 Outcome::Panicked(m) => failures.push(format!("{file} / {what}: PANIC {m}")),
-                Outcome::Refused(ContentError::Invalid(_)) => {}
+                Outcome::Refused(e) if only_conflicts(&e) => {}
                 Outcome::Refused(e) => {
                     if !mentions_file(&e, &file) {
                         failures.push(format!(
@@ -349,10 +351,9 @@ fn a_row_with_a_field_of_the_wrong_type_is_refused_and_names_the_file() {
         let text = read(&dir, file).replacen(from, to, 1);
         write(&dir, file, &text);
         match attempt(&dir) {
-            Outcome::Refused(e) => assert!(
-                mentions_file(&e, file) || matches!(e, ContentError::Invalid(_)),
-                "{file}: {e}"
-            ),
+            Outcome::Refused(e) => {
+                assert!(mentions_file(&e, file) || only_conflicts(&e), "{file}: {e}")
+            }
             other => panic!("{file} {from:?}: {other:?}"),
         }
     }
@@ -401,9 +402,11 @@ fn the_error_of_a_file_that_cannot_be_parsed_says_where() {
     let dir = copy_of_shipped("c2-where");
     write(&dir, "units.ron", "[\n(num: 1,\n id: 5\n]");
     match attempt(&dir) {
-        Outcome::Refused(ContentError::Parse(m)) => {
-            assert!(m.contains("units.ron"), "{m}");
-            assert!(m.contains(':'), "no position in {m}");
+        Outcome::Refused(e) => {
+            let issue = e.issues.first().expect("an issue");
+            assert_eq!(issue.file, "units.ron", "{e}");
+            assert!(issue.at.contains("line"), "no position in {e}");
+            assert!(!only_conflicts(&e), "a syntax error is not a conflict: {e}");
         }
         other => panic!("{other:?}"),
     }
@@ -466,10 +469,11 @@ fn content_without_a_settings_file_has_the_default_settings_and_a_bad_one_is_ref
         Default::default()
     );
     write(&dir, "rules_settings.ron", "(this is not settings");
-    assert!(matches!(
-        load_settings(&[&dir]),
-        Err(ContentError::Parse(_))
-    ));
+    let e = load_settings(&[&dir]).expect_err("not settings");
+    assert!(
+        e.mentions("rules_settings.ron") && !only_conflicts(&e),
+        "{e}"
+    );
     write(&dir, "rules_settings.ron", "(max_opponents: 0)");
     assert!(load_settings(&[&dir]).is_err());
 }
@@ -574,7 +578,7 @@ fn attack_numbers(seed: u64, values: &[&str]) {
             );
             match attempt(&dir) {
                 Outcome::Panicked(m) => failures.push(format!("{what}: PANIC {m}")),
-                Outcome::Refused(ContentError::Invalid(_)) => {}
+                Outcome::Refused(e) if only_conflicts(&e) => {}
                 Outcome::Refused(e) => {
                     if !mentions_file(&e, &files[f]) {
                         failures.push(format!("{what}: the error does not name the file: {e}"));
@@ -840,4 +844,77 @@ fn saving_the_default_game_where_nothing_can_be_written_says_where() {
         .save(&dir.join("a file/inside/default_game.ron"))
         .expect_err("not written");
     assert!(err.contains("a file"), "{err}");
+}
+
+// ---- the kind of an issue ----
+
+/// The issues of the content in `dir`, which must be refused.
+fn issues_of(dir: &Path) -> Vec<f4x_def::issue::ContentIssue> {
+    match attempt(dir) {
+        Outcome::Refused(e) => e.issues,
+        other => panic!("expected a refusal: {other:?}"),
+    }
+}
+
+#[test]
+fn each_way_a_file_can_be_wrong_gives_its_own_kind_and_names_file_and_place() {
+    use f4x_def::issue::Outcome as Out;
+    let case = |file: &str, change: &dyn Fn(&str) -> String| {
+        let dir = copy_of_shipped("c2-kind");
+        let text = change(&read(&dir, file));
+        write(&dir, file, &text);
+        issues_of(&dir)
+    };
+    // Cut off in the middle: not the format.
+    let i = case("units.ron", &|t| t[..t.len() / 2].to_string());
+    assert!(
+        i.iter().any(|i| i.kind == IssueKind::Corrupt
+            && i.file == "units.ron"
+            && i.at.contains("line")),
+        "{i:?}"
+    );
+    // A number where a name goes: the wrong type.
+    let i = case("realms.ron", &|t| t.replacen("id: \"", "id: 5, was: \"", 1));
+    assert!(
+        i.iter().any(|i| i.file == "realms.ron"
+            && matches!(i.kind, IssueKind::UnknownKey | IssueKind::WrongType)),
+        "{i:?}"
+    );
+    let i = case("realms.ron", &|t| t.replacen("num: 0", "num: \"zero\"", 1));
+    assert!(
+        i.iter()
+            .any(|i| i.kind == IssueKind::WrongType && i.file == "realms.ron"),
+        "{i:?}"
+    );
+    // A key no type has.
+    let i = case("realms.ron", &|t| {
+        t.replacen("(num: 0", "(nmu: 7, num: 0", 1)
+    });
+    assert!(
+        i.iter()
+            .any(|i| i.kind == IssueKind::UnknownKey && i.file == "realms.ron"),
+        "{i:?}"
+    );
+    // A field that must be there, left out.
+    let i = case("realms.ron", &|t| t.replacen("num: 0, ", "", 1));
+    assert!(
+        i.iter()
+            .any(|i| i.kind == IssueKind::Missing && i.file == "realms.ron"),
+        "{i:?}"
+    );
+    // A file that is not there.
+    let dir = copy_of_shipped("c2-kind-missing");
+    std::fs::remove_file(dir.join("spells.ron")).expect("removed");
+    assert!(issues_of(&dir)
+        .iter()
+        .any(|i| i.kind == IssueKind::Missing && i.file.ends_with("spells.ron")));
+    // A file that is a folder: there, but not readable.
+    let dir = copy_of_shipped("c2-kind-folder");
+    std::fs::remove_file(dir.join("spells.ron")).expect("removed");
+    std::fs::create_dir(dir.join("spells.ron")).expect("a folder");
+    assert!(issues_of(&dir)
+        .iter()
+        .any(|i| i.kind == IssueKind::Unreadable && i.file.ends_with("spells.ron")));
+    // Whatever the cause, today every issue refuses the game.
+    assert!(issues_of(&dir).iter().all(|i| i.outcome == Out::Refuse));
 }
