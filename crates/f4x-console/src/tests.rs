@@ -671,7 +671,20 @@ fn a_global_enchantment_is_a_target_by_wizard_and_spell() -> TestResult {
 #[test]
 fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() -> TestResult {
     use f4x_core::rules::exec::Target;
-    let mut g = game();
+    // Casting takes skill, and skill comes from books: a nature wizard.
+    let mut g = new_game(
+        content(),
+        &NewGame {
+            seed: 7,
+            books: [
+                (f4x_core::rules::RealmId::new(0 /* nature */), 6),
+                (f4x_core::rules::RealmId::new(1 /* sorcery */), 5),
+            ]
+            .into(),
+            ..NewGame::default()
+        },
+    )
+    .expect("the shipped content starts a game");
     let (city, _, _) = g
         .economy()
         .cities()
@@ -1006,15 +1019,16 @@ fn taking_a_neutral_city_changes_its_owner_and_the_race_player_goes_with_its_las
     assert!(events
         .iter()
         .all(|e| matches!(e, f4x_core::game::Event::CityCaptured { .. })));
-    // The race's player stays while it has a city or a unit, and goes at the round end.
-    assert_eq!(
-        g.has_player(owner),
-        g.economy()
-            .cities()
-            .iter()
-            .any(|(_, c, _)| c.owner == owner)
-            || !g.units().player_units(owner).is_empty()
-    );
+    // The race's player stays while it has a city or a unit; with neither it goes at the round
+    // end, not before (a race with one city and no garrison is such a case).
+    if g.economy()
+        .cities()
+        .iter()
+        .any(|(_, c, _)| c.owner == owner)
+        || !g.units().player_units(owner).is_empty()
+    {
+        assert!(g.has_player(owner));
+    }
     // Even when the last one falls nobody is "defeated".
     for (c, _) in neutral_cities(&g) {
         assert!(g

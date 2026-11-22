@@ -504,21 +504,6 @@ mod tests {
         f4x_core::item::Item::from_def(content.rules.items.get(id))
     }
 
-    /// A wizard with a hero at its fortress and the mana to move items.
-    fn with_hero() -> Result<(Game, Ai, hecs::Entity), Box<dyn std::error::Error>> {
-        let mut g = game()?;
-        set_gold(&mut g, P1, 100_000)?;
-        offer_hero(&mut g);
-        let mut events = Vec::new();
-        let ai = Ai::new(P1);
-        answer(&ai, &mut g, &mut events);
-        let hero = *PlayerView::new(&g, P1)
-            .my_heroes()
-            .first()
-            .ok_or("the wizard hired a hero")?;
-        Ok((g, ai, hero))
-    }
-
     /// A wizard with a hired hero of this kind (which slots it has): the offer comes from the
     /// game's random stream, so the stream is moved on until the hero is the kind asked for.
     fn with_hero_of(
@@ -550,7 +535,8 @@ mod tests {
 
     #[test]
     fn a_hero_gives_up_an_item_for_one_that_suits_it_a_good_deal_better() -> TestResult {
-        let (mut g, ai, hero) = with_hero()?;
+        // A sword needs a warrior's slots; which hero is offered depends on the random stream.
+        let (mut g, ai, hero) = with_hero_of(f4x_def::rules::HeroKind::Warrior)?;
         let (base, little, much) = (
             shipped_item(1 /* sword_of_mallana */),
             shipped_item(160 /* sword_of_cannae, as good */),

@@ -511,3 +511,21 @@ fn a_new_game_saves_and_loads_into_the_same_game() {
         );
     }
 }
+
+#[test]
+fn a_human_game_with_no_wizard_chosen_gets_a_wizard_with_no_books_and_no_retort() {
+    let spec = f4x_newgame::setup::NewGame {
+        all_ai: false,
+        settings: standard().settings(),
+        ..Default::default()
+    };
+    let g = f4x_newgame::setup::new_game(content(), &spec).expect("a game");
+    let me = g.human().expect("a human");
+    let wizard = g.wizard(me).expect("a wizard");
+    assert!(
+        wizard.books().values().all(|&n| n == 0),
+        "{:?}",
+        wizard.books()
+    );
+    assert!(wizard.retorts().is_empty());
+}

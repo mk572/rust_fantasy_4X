@@ -173,11 +173,11 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
         };
         game.add_player(PlayerId(k), name);
     }
-    let fixed = |books: &[(RealmId, u8)], retort| WizardBuild {
+    let fixed = || WizardBuild {
         name: String::new(),
         gender: Default::default(),
-        books: books.iter().map(|&(r, n)| (r, n)).collect(),
-        retorts: [retort].into_iter().collect(),
+        books: Default::default(),
+        retorts: Default::default(),
         spells: Vec::new(),
         banner: None,
         portrait: None,
@@ -224,13 +224,9 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
                     preset: false,
                 }
             } else {
-                fixed(
-                    &[
-                        (RealmId::new(1) /* sorcery */, 3),
-                        (RealmId::new(0) /* nature */, 2),
-                    ],
-                    Retort::new(15), /* conjurer */
-                )
+                // Nobody said which wizard: one with no books and no retort. A test or a caller
+                // that needs more says so (`books`, `retorts`, `preset`, `build`).
+                fixed()
             }
         } else if let Some(build) = settings
             .ai
