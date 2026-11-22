@@ -16,4 +16,5 @@ mod c9_order;
 mod c9_player;
 mod c9_spell;
 mod c9_unit;
+mod c9_wizard;
 mod support;

@@ -15,94 +15,46 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 16 tests. Part 2: 6 tests. Of 2943 in all.**
+**Part 1: 12 tests. Part 2: 0 tests. Of 1885 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
 | File | Tests |
 |---|---|
 | `crates/f4x-def/tests/it/c4_values.rs` | 9 |
-| `crates/f4x-core/src/game/save/tests.rs` | 2 |
-| `crates/f4x-core/src/hook.rs` | 2 |
 | `crates/f4x-def/tests/it/c2_loading.rs` | 2 |
-| `crates/f4x-core/src/map/vision.rs` | 1 |
+| `crates/f4x-core/tests/it/c6_setting.rs` | 1 |
 
-## `crates/f4x-core/src/game/save/tests.rs` (2)
-
-`rust_coding_rules.md` names this file as allowed to build its own content: a save naming a unit the content lacks.
+## `crates/f4x-core/tests/it/c6_setting.rs` (1)
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `an_empty_game_round_trips` | 407 | empty content (`Content::default`) | itself | |
-| `a_save_with_out_of_range_settings_is_refused_and_says_which` | 588 | empty content (`Content::default`) | itself | |
-
-## `crates/f4x-core/src/hook.rs` (2)
-
-`rust_coding_rules.md` names this file as allowed to build its own content: validator test.
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_hook_with_arguments_it_does_not_take_is_reported` | 346 | hand-built registry (`Registry::new`) | itself | |
-| `a_hook_without_code_is_reported` | 372 | hand-built registry (`Registry::new`) | itself | |
-
-## `crates/f4x-core/src/map/vision.rs` (1)
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `oracle_walls_and_natures_eye_widen_a_citys_sight` | 421 | hand-made spell modifier (`Modifier::new`) | itself | |
+| `the_most_units_on_a_square_follows_its_setting` | 84 | the setting's upper bound (`MAX_TILE_LIMIT`, `MAX_STACK`) in place of the game's own limit (`max_tile()`, `max_battle_side()`) | itself | |
 
 ## `crates/f4x-def/tests/it/c2_loading.rs` (2)
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_key_no_type_has_is_refused_wherever_it_is_put` | 674 | hand-built definition (struct literal) | itself | |
-| `a_file_with_more_rows_than_a_table_holds_is_an_error_and_not_a_panic` | 783 | hand-built definition (struct literal) | itself | |
+| `a_key_no_type_has_is_refused_wherever_it_is_put` | 675 | hand-built definition (struct literal) | itself | |
+| `a_file_with_more_rows_than_a_table_holds_is_an_error_and_not_a_panic` | 784 | hand-built definition (struct literal) | itself | |
 
 ## `crates/f4x-def/tests/it/c4_values.rs` (9)
 
-Helpers that make things up: `modifier` (line 465), `random_mods` (line 504).
+Helpers that make things up: `modifier` (line 491), `random_mods` (line 530).
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_stat_is_computed_as_its_definition_says` | 528 | hand-made spell modifier (`Modifier::new`) | `random_mods` | |
-| `the_order_the_modifiers_come_in_does_not_matter` | 544 | hand-made spell modifier (`Modifier::new`) | `random_mods` | |
-| `modifiers_of_other_stats_change_nothing` | 567 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
-| `a_stat_with_a_floor_never_goes_below_it_and_one_without_may` | 584 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
-| `a_percent_below_minus_a_hundred_counts_as_nothing_not_as_a_negative_stat` | 595 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
-| `the_lowest_set_wins_and_set_beats_every_other_op` | 607 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
-| `compute_does_not_overflow_at_the_edges_of_the_base_and_of_a_modifier` | 619 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
-| `the_half_form_agrees_with_the_whole_form_on_whole_amounts` | 641 | hand-made spell modifier (`Modifier::new`) | `random_mods` | |
-| `half_amounts_are_added_exactly_and_the_percent_rounds_down_to_a_half` | 662 | hand-made spell modifier (`Modifier::new`) | itself | |
+| `a_stat_is_computed_as_its_definition_says` | 554 | hand-made spell modifier (`Modifier::new`) | `random_mods` | |
+| `the_order_the_modifiers_come_in_does_not_matter` | 570 | hand-made spell modifier (`Modifier::new`) | `random_mods` | |
+| `modifiers_of_other_stats_change_nothing` | 593 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
+| `a_stat_with_a_floor_never_goes_below_it_and_one_without_may` | 610 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
+| `a_percent_below_minus_a_hundred_counts_as_nothing_not_as_a_negative_stat` | 621 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
+| `the_lowest_set_wins_and_set_beats_every_other_op` | 633 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
+| `compute_does_not_overflow_at_the_edges_of_the_base_and_of_a_modifier` | 645 | hand-made spell modifier (`Modifier::new`) | `modifier` | |
+| `the_half_form_agrees_with_the_whole_form_on_whole_amounts` | 667 | hand-made spell modifier (`Modifier::new`) | `random_mods` | |
+| `half_amounts_are_added_exactly_and_the_percent_rounds_down_to_a_half` | 688 | hand-made spell modifier (`Modifier::new`) | itself | |
 
 # Part 2: hand-built game objects and entities
 
 | File | Tests |
 |---|---|
-| `crates/f4x-core/src/city/economy.rs` | 3 |
-| `crates/f4x-core/src/wizard/magic_command/tests.rs` | 2 |
-| `crates/f4x-core/src/game/tests.rs` | 1 |
-
-## `crates/f4x-core/src/city/economy.rs` (3)
-
-Helpers that make things up: `production_of` (line 1588).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `a_cities_yields_come_from_a_world_a_map_and_the_content_alone` | 1534 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-| `the_base_of_a_farmer_and_a_worker_is_the_setting_and_a_races_own_value_wins` | 1635 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `production_of` | |
-| `a_computer_wizards_bonuses_multiply_its_cities_and_nobody_elses` | 1675 | hand-built entity (`spawn` with components); hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | itself | |
-
-## `crates/f4x-core/src/game/tests.rs` (1)
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `strip_on_an_entity_that_is_gone_stops_a_debug_build` | 51 | hand-built entity (`spawn` with components) | itself | |
-
-## `crates/f4x-core/src/wizard/magic_command/tests.rs` (2)
-
-Helpers that make things up: `treasury` (line 9).
-
-| Test | Line | What is made up | Through | Decision |
-|---|---|---|---|---|
-| `alchemy_is_two_for_one_without_the_retort_and_one_for_one_with_it` | 17 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `treasury` | |
-| `alchemy_refuses_what_the_wizard_cannot_pay_and_changes_nothing` | 29 | hand-built game object (`Item`, `Hero`, `City`, `Treasury` literal) | `treasury` | |
