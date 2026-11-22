@@ -514,3 +514,120 @@ fn the_units_a_recorded_command_names_are_told_apart() {
         .collect();
     assert!(units.len() >= 3, "the moves name too few units: {units:?}");
 }
+
+#[test]
+fn a_save_of_a_version_with_one_player_for_each_city_is_brought_to_one_for_each_race() {
+    use f4x_def::half_int::HalfInt;
+    let base = Snapshot::from_text(&saved()).expect("reads");
+    let race_player = base
+        .players
+        .iter()
+        .find(|p| {
+            p.neutral
+                && (100..255).contains(&p.id)
+                && base.cities.iter().filter(|c| c.owner == p.id).count() >= 2
+        })
+        .expect("a player of two independent cities, one of which gets a player of its own")
+        .clone();
+    let city_at = base
+        .cities
+        .iter()
+        .find(|c| c.owner == race_player.id)
+        .expect("a city of it")
+        .pos;
+    // The old game: that city has a player of its own, with a treasury of its own.
+    let own = (100..255u8)
+        .find(|id| base.players.iter().all(|p| p.id != *id))
+        .expect("a free player number");
+    let old_form = |version: &str| {
+        let mut s = base.clone();
+        s.game_version = version.to_string();
+        let mut extra = race_player.clone();
+        extra.id = own;
+        extra.gold = HalfInt::from_int(7);
+        s.players.push(extra);
+        s.cities
+            .iter_mut()
+            .find(|c| c.pos == city_at)
+            .expect("the city")
+            .owner = own;
+        // The upgrade is part of reading a save from text.
+        Snapshot::from_text(&s.to_text().expect("writes")).expect("reads")
+    };
+    // Written before the change: the city goes to the player of its race, the gold is added up.
+    let g = old_form("0.0.5")
+        .restore(content())
+        .expect("an old save loads");
+    assert!(
+        g.player(f4x_core::player::PlayerId(own)).is_none(),
+        "the old player is still there"
+    );
+    let city = g.economy().city_at(city_at).expect("the city");
+    assert_eq!(
+        g.economy().city_owner(city),
+        Some(f4x_core::player::PlayerId(race_player.id))
+    );
+    let gold = g
+        .player(f4x_core::player::PlayerId(race_player.id))
+        .expect("the player")
+        .treasury()
+        .gold;
+    assert_eq!(gold, race_player.gold + HalfInt::from_int(7));
+    // Written in the version of the change: it is not touched.
+    let g = old_form("0.0.6").restore(content()).expect("loads");
+    let city = g.economy().city_at(city_at).expect("the city");
+    assert_eq!(
+        g.economy().city_owner(city),
+        Some(f4x_core::player::PlayerId(own))
+    );
+}
+
+#[test]
+fn a_replay_of_a_game_version_this_game_cannot_read_is_refused() {
+    use f4x_core::game::replay::{Replay, ReplayError};
+    use f4x_core::game::save::GAME_VERSION;
+    let (_, mut g) = worlds().remove(0);
+    g.start_recording().expect("starts");
+    busy_round(&mut g, 2);
+    let text = g
+        .stop_recording()
+        .expect("recorded")
+        .to_text()
+        .expect("writes");
+    assert!(Replay::from_text(&text).is_ok());
+    let from = format!("game_version: \"{GAME_VERSION}\"");
+    assert!(text.contains(&from), "the replay does not say its version");
+    for version in ["9999.0.0", "0.0.0", "banana"] {
+        let edited = text.replacen(&from, &format!("game_version: \"{version}\""), 1);
+        assert!(
+            matches!(Replay::from_text(&edited), Err(ReplayError::Load(_))),
+            "{version}"
+        );
+    }
+}
+
+#[test]
+fn a_banner_and_a_portrait_out_of_range_are_brought_into_it_and_a_feature_off_the_map_is_refused() {
+    let base = Snapshot::from_text(&saved()).expect("reads");
+    let mut s = base.clone();
+    s.wizards[0].banner = 250;
+    s.wizards[0].portrait = 250;
+    let back = s.restore(content()).expect("loads").snapshot();
+    assert_eq!(back.wizards[0].portrait, f4x_core::player::PORTRAITS - 1);
+    assert_eq!(back.wizards[0].banner, f4x_core::player::NEUTRAL_BANNER);
+    for (what, edit) in [
+        ("east of the map", (9999u32, None)),
+        ("south of the map", (0, Some(9999u32))),
+    ] {
+        let mut s = base.clone();
+        let f = s.features.first_mut().expect("a feature");
+        match edit.1 {
+            None => f.at.x = edit.0,
+            Some(y) => f.at.y = y,
+        }
+        assert!(
+            matches!(s.restore(content()), Err(LoadError::Inconsistent(_))),
+            "a feature {what} was accepted"
+        );
+    }
+}
