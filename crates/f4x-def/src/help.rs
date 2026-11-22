@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HelpTopic {
     pub index: u16,
     pub title: String,
@@ -20,6 +21,7 @@ pub type Rect = (i32, i32, i32, i32);
 
 /// A clickable area of a screen. `help` is a topic index, or -1 for "no help here".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HelpField {
     pub help: i32,
     /// `(x1, y1, x2, y2)` in 320x200 screen coordinates.
@@ -27,6 +29,7 @@ pub struct HelpField {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HelpScreen {
     pub id: u16,
     pub name: String,
@@ -125,85 +128,34 @@ impl Help {
                 }
             }
         }
-        p
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn topic(index: u16, include: Option<u16>) -> HelpTopic {
-        HelpTopic {
-            index,
-            title: format!("T{index}"),
-            text: String::new(),
-            picture: None,
-            include,
+        // A chain of includes that comes back to where it began would never end.
+        for t in &self.topics {
+            let mut at = t;
+            for _ in 0..self.topics.len() {
+                match at.include.and_then(|i| self.topic(i)) {
+                    Some(next) if next.index == t.index => {
+                        p.push(format!("help topic {} includes itself", t.index));
+                        break;
+                    }
+                    Some(next) => at = next,
+                    None => break,
+                }
+            }
         }
-    }
-
-    #[test]
-    fn a_topic_is_found_by_its_index() {
-        let help = Help {
-            topics: vec![topic(1000, None), topic(1001, None)],
-            screens: Vec::new(),
-        };
-        assert_eq!(help.topic(1001).map(|t| t.index), Some(1001));
-        assert!(help.topic(5).is_none());
-        assert!(help.problems().is_empty());
-    }
-
-    #[test]
-    fn repeated_topics_are_problems() {
-        let help = Help {
-            topics: vec![topic(1, None), topic(1, None), topic(2, None)],
-            screens: Vec::new(),
-        };
-        let problems = help.problems();
-        assert!(problems
-            .iter()
-            .any(|p| p.contains("topic 1 is there twice")));
-        let mut twin = topic(3, None);
-        twin.title = "T2".into();
-        let help = Help {
-            topics: vec![topic(2, None), twin],
-            screens: Vec::new(),
-        };
-        assert!(help
-            .problems()
-            .iter()
-            .any(|p| p.contains("same title and text")));
-    }
-
-    #[test]
-    fn finds_dangling_references() {
-        let help = Help {
-            topics: vec![topic(0, None), topic(1, Some(9))],
-            screens: vec![HelpScreen {
-                id: 0,
-                name: "main".into(),
-                fields: vec![
-                    HelpField {
-                        help: 0,
-                        rect: (0, 0, 1, 1),
-                    },
-                    HelpField {
-                        help: -1,
-                        rect: (0, 0, 1, 1),
-                    },
-                    HelpField {
-                        help: 7,
-                        rect: (0, 0, 1, 1),
-                    },
-                ],
-            }],
-        };
-        // Only the broken include is a problem; the area that opens topic 7 is just unwritten.
-        let problems = help.problems();
-        assert_eq!(problems.len(), 1, "{problems:?}");
-        assert_eq!(help.unwritten(), vec![7]);
-        assert_eq!(help.at(0, 0, 0).map(|(t, _)| t.index), Some(0));
-        assert!(help.at(0, 5, 5).is_none());
+        // The picture is a file name, not a path: it is looked up in one folder.
+        for t in &self.topics {
+            if let Some((file, _)) = &t.picture {
+                let plain = !file.is_empty()
+                    && !file.contains(['/', '\\', '\0', ':'])
+                    && !file.starts_with('.');
+                if !plain {
+                    p.push(format!(
+                        "help topic {} has the picture {file:?}, which is not a plain file name",
+                        t.index
+                    ));
+                }
+            }
+        }
+        p
     }
 }

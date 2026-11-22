@@ -2,7 +2,7 @@
 //! A spell carries them in the `unit_effect` hook (`Custom(name: "unit_effect", args: ["bless"])`),
 //! so the engine asks for an effect and never for a spell number; a spell may list several.
 //!
-//! Tests: below, on the shipped content.
+//! Tests: `tests/it/c5_coupling.rs`, on the shipped content.
 
 use super::SpellDef;
 
@@ -86,32 +86,5 @@ impl UnitEffects {
 
     pub fn contains(self, effect: UnitEffect) -> bool {
         self.0 & effect.bit() != 0
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::testdir::shipped;
-
-    #[test]
-    fn every_unit_effect_is_given_by_a_shipped_spell() {
-        let c = shipped();
-        for &name in UnitEffect::NAMES {
-            let e = UnitEffect::named(name).expect("a listed name");
-            assert!(
-                c.rules.spells.defs().iter().any(|d| e.is_in(d)),
-                "no spell gives the unit effect {name}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_set_holds_what_was_put_in() {
-        let mut set = UnitEffects::NONE;
-        assert!(!set.contains(UnitEffect::Berserk));
-        set.insert(UnitEffect::Berserk);
-        assert!(set.contains(UnitEffect::Berserk));
-        assert!(!set.contains(UnitEffect::Holds));
     }
 }

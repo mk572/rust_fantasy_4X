@@ -16,12 +16,14 @@ use crate::map::TerrainClass;
 
 /// A number for each plane.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PlaneWeight {
     pub arcanus: u32,
     pub myrror: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RaceDef {
     /// The race number, the id the game passes around (and the row of the racial unrest matrix).
     pub num: u16,
@@ -103,6 +105,7 @@ pub enum MovementType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Upkeep {
     #[serde(default)]
     pub gold: HalfInt,
@@ -182,6 +185,7 @@ impl SlotKind {
 
 /// Extra data for [`UnitKind::Hero`] units.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HeroDef {
     /// Decides the hero's three item slots.
     pub kind: HeroKind,
@@ -211,6 +215,7 @@ pub enum PickType {
 /// trades, army size and who would win, not a promise (rock-paper-scissors cases of immunities and
 /// special attacks overturn it, and spells, terrain and walls swing a real battle).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UnitRatings {
     /// What a hero is worth beyond its table row: the rows were fought without the abilities,
     /// spells and items the game rolls for a hero, so a hero's rating is its row times this.
@@ -243,6 +248,7 @@ impl Default for UnitRatings {
 
 /// The rating of one unit at its experience levels.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UnitRating {
     /// The unit's number.
     pub num: u16,
@@ -268,6 +274,7 @@ impl UnitRatings {
 /// ladder --efficiency FILE`): for choosing garrisons, what to build, what to hire. A rough guide
 /// like the ratings it is made from.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UnitEfficiencies {
     /// The turns of upkeep that count beside the base cost (100).
     #[serde(default = "hundred")]
@@ -292,6 +299,7 @@ impl Default for UnitEfficiencies {
 
 /// The efficiency of one unit.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UnitEfficiency {
     /// The unit's number.
     pub num: u16,
@@ -320,6 +328,7 @@ impl UnitEfficiencies {
 
 /// How a hero type starts in each wizard's game (`NewGame.c:_hero_premade_table`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HeroTemplate {
     /// The hero's unit number.
     pub unit: super::UnitId,
@@ -338,6 +347,7 @@ pub struct HeroTemplate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UnitDef {
     /// The unit type number, the id the game passes around.
     pub num: u16,
@@ -424,6 +434,7 @@ impl UnitDef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AbilityDef {
     /// The ability's number, the id the game passes around: counted from 1 and frozen.
     pub num: u16,
@@ -460,6 +471,7 @@ pub struct AbilityDef {
 /// `x * numerator / denominator` with `x = level + level_offset`, rounded down: what a hero
 /// ability gives a hero of that level (0 for the first).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PerLevel {
     pub numerator: i32,
     pub denominator: i32,
@@ -473,6 +485,7 @@ impl PerLevel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BuildingDef {
     /// The building number, the id the game passes around.
     pub num: u16,
@@ -507,6 +520,7 @@ pub struct BuildingDef {
 
 /// A school of magic. Data, so the set of realms is not hard-coded.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RealmDef {
     /// The realm number, the id the game passes around.
     pub num: u16,
@@ -543,6 +557,7 @@ pub enum RetortNeed {
 
 /// A retort: a special ability of a wizard, picked at the creation screen or won as loot.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RetortDef {
     /// The retort's place in the wizard record, the id the game passes around and the saved game
     /// writes.
@@ -579,6 +594,7 @@ impl RetortDef {
 /// A ready-made wizard for the creation screen: a book and retort loadout, and the name and
 /// description that the local texts file fills in.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WizardDef {
     /// The wizard's place in the list, the id the game passes around.
     pub num: u16,
@@ -644,6 +660,7 @@ pub enum UnitOnly {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SpellDef {
     /// The original's spell number (`SPELLDAT.LBX` record), the id the game passes around.
     pub num: u16,
@@ -708,6 +725,7 @@ pub struct SpellDef {
 
 /// The resistance check against a lasting spell that harms its target.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SpellSave {
     /// Added to the target's resistance (negative: harder to resist).
     pub modifier: i32,
@@ -718,6 +736,7 @@ pub struct SpellSave {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ItemDef {
     /// The item number, the id the game passes around.
     pub num: u16,
@@ -795,6 +814,7 @@ impl ItemKind {
 /// One entry of the item power table (`ITEMPOW.LBX`): a plain bonus or a special power an item
 /// can carry, with what it costs to put on one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ItemPowerDef {
     /// The item power number, the id the game passes around.
     pub num: u16,
@@ -851,6 +871,7 @@ pub enum PowerBonus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LevelDef {
     /// Experience needed to reach this level.
     pub xp: u32,
@@ -859,6 +880,7 @@ pub struct LevelDef {
 
 /// Experience thresholds and what each level grants (units and heroes share the mechanism).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LevelPathDef {
     /// The level path's number (ours: counted from 1 in the alphabetical order of the ids).
     pub num: u16,
@@ -873,6 +895,7 @@ pub struct LevelPathDef {
 
 /// A level that experience alone never gives.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BonusLevelDef {
     pub effects: Vec<EffectRule>,
 }
@@ -898,6 +921,7 @@ impl LevelPathDef {
 /// Tunable numbers that are not content.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct RulesConfig {
     /// Base chance (percent) for each figure's attack to hit.
     pub to_hit_percent: u8,
@@ -958,6 +982,7 @@ pub struct RulesConfig {
 /// and what the walls of a city do. The battle rules stand by themselves: nothing of them is in
 /// `rules.ron`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BattleRules {
     /// The strength of the fire attack Immolation adds to a melee attack.
     pub immolation_strength: i32,
@@ -1010,6 +1035,7 @@ pub struct BattleRules {
 /// front one first), each column's rows (the y of the square) in the order given, the first
 /// places going to the first units. The square of a lair's structure is skipped for the defenders.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DeployBlock {
     pub columns: Vec<i32>,
     pub rows: Vec<i32>,
@@ -1028,6 +1054,7 @@ impl DeployBlock {
 /// Where the units start in a field battle and in a city battle (`deployment` of `battle.ron`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct DeploymentRules {
     pub attacker: DeployBlock,
     pub defender: DeployBlock,
@@ -1055,6 +1082,7 @@ impl Default for DeploymentRules {
 /// What the walls of a city do in a battle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct CityWallRules {
     /// A standing tower (a corner of the wall) can be entered by a unit: no, as in the original. When
     /// it cannot, nobody moves onto it, flying or teleporting units included, no summoned or merged
@@ -1122,6 +1150,7 @@ impl Default for BattleRules {
 
 /// What fighting earns: experience, fame and the levels.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RenownRules {
     /// Experience a won battle gives each surviving unit of the winner for each dead enemy unit,
     /// and the point every unit gains each turn.
@@ -1158,6 +1187,7 @@ impl Default for RenownRules {
 /// What the overland spells do: chances in percent of a hundred, strengths, penalties, and the
 /// buildings and realms they single out (numbers of `buildings.ron`, `realms.ron`, `units.ron`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SpellEffectRules {
     /// A volcano: each building of the city under it collapses, its square gets a mineral, and
     /// it cools into mountains each turn; Armageddon's volcano under a city takes a building, a
@@ -1272,6 +1302,7 @@ impl Default for SpellEffectRules {
 /// units that the setting `cavalry_halberdier_abilities` gives First Strike and Negate First
 /// Strike (numbers of `retorts.ron`, `units.ron` and `abilities.ron`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SettingTargets {
     pub alchemy_retort: u16,
     pub myrran_retort: u16,
@@ -1302,6 +1333,7 @@ impl Default for SettingTargets {
 
 /// Abilities (numbers of `abilities.ron`) the rules treat as a group, and what they are worth.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AbilityRules {
     /// What a unit's ability does for how quickly it gets to a square, in percent of its movement
     /// rate (`mobility`): `(ability, percent)`; the best that applies counts, none is multiplied.
@@ -1323,6 +1355,7 @@ pub struct AbilityRules {
 
 /// Chaos mutations: what each gives, and the abilities that mark a mutated unit.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MutationRules {
     /// The ability that marks a unit as mutated, and the ones that name its mutation.
     pub mutated: u16,
@@ -1389,6 +1422,7 @@ impl Default for AbilityRules {
 
 /// What it costs to make an item and how many a wizard may hold and carry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ItemRules {
     /// What the plain item of each kind costs before its powers (a kind not listed costs nothing).
     pub base_cost: Vec<(ItemKind, u32)>,
@@ -1475,6 +1509,7 @@ impl ItemRules {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WizardRules {
     /// The tax rate everyone starts with: a gold for each citizen.
     pub start_tax_rate: u8,
@@ -1526,6 +1561,7 @@ impl Default for WizardRules {
 
 /// What a good is worth to a wizard in a trade, in percent (`worth` = cost * percent / 100).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TradeRules {
     /// What one more book in the realm of a spell adds to its worth, and the books that count.
     pub spell_book_pct: i32,
@@ -1560,6 +1596,7 @@ impl Default for TradeRules {
 
 /// The combat forecast before an attack (setting `combat_forecast`, `Forecast` in core).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ForecastRules {
     /// The shares of the other side's worth (percent, rising), below which a side is completely
     /// outmatched, much weaker and slightly weaker; the same shares turned over (a side worth
@@ -1577,6 +1614,7 @@ impl Default for ForecastRules {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DiplomacyRules {
     /// What Subversion takes off every other wizard's relation to its target.
     pub subversion_penalty: i32,
@@ -1599,6 +1637,7 @@ impl Default for DiplomacyRules {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OfferRules {
     /// No mercenaries are offered before this turn; the computer wizards do not hire before
     /// `ai_first_turn`.
@@ -1625,6 +1664,7 @@ impl Default for OfferRules {
 /// is bigger than the original's, so the original's number is first scaled to its area.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct SceneryRules {
     /// The trees of a field on forest ground.
     pub forest_trees_percent: u32,
@@ -1642,6 +1682,7 @@ impl Default for SceneryRules {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OutpostRules {
     /// Tens of people a new outpost starts with, and at which it becomes a city of one (kept: a
     /// new hamlet starts with a head start).
@@ -1659,6 +1700,7 @@ impl Default for OutpostRules {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ThreatRules {
     /// The raider clock's limit.
     pub raider_limit: u32,
@@ -1677,6 +1719,7 @@ pub struct ThreatRules {
 
 /// The raid from the sea: a free party of a random race lands on a far coast.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SeaRaidRules {
     /// The chance, in percent, that a raid is a sea raid when the setting is on.
     pub chance_percent: u32,
@@ -1720,6 +1763,7 @@ impl Default for ThreatRules {
 /// fortress itself, else `base` plus `step` for each of the `beyond` distances the battle is
 /// further than; a battle on another plane counts as `far` squares away.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CastingRange {
     pub at_fortress: i32,
     pub base: i32,
@@ -2001,65 +2045,4 @@ pub struct Rules {
     pub lairs: super::lair::LairRules,
     /// How the AI weighs a place for a city (`ai_sites.ron`, optional).
     pub ai_sites: super::ai_site::SiteRules,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::rules::stats::Stat;
-
-    /// Action: ask for the combat rating of a hero, of a unit that levels up beyond the levels the
-    /// table has, and of a unit with no row. Outcome: a hero's is its row times the hero factor, a
-    /// level past the last takes the last, and a unit with no row has none (the callers fall back).
-    #[test]
-    fn the_combat_rating_follows_the_row_the_level_and_the_hero_factor() {
-        let rules = &crate::testdir::shipped().rules;
-        let hero = rules
-            .units
-            .iter()
-            .map(|(_, u)| u)
-            .find(|u| u.kind == UnitKind::Hero && rules.ratings.row(u.num).is_some())
-            .expect("a hero with a rating");
-        let row = rules.ratings.row(hero.num).expect("its row");
-        assert_eq!(
-            rules.combat_rating(hero, 0),
-            Some(row.levels[0] * rules.ratings.hero_factor)
-        );
-        assert_eq!(
-            rules.combat_rating(hero, 99),
-            rules.combat_rating(hero, row.levels.len() - 1)
-        );
-        let unrated = rules
-            .units
-            .iter()
-            .map(|(_, u)| u)
-            .find(|u| rules.ratings.row(u.num).is_none())
-            .expect("a unit with no row");
-        assert_eq!(rules.combat_rating(unrated, 0), None);
-    }
-
-    #[test]
-    fn a_spell_gives_up_its_plain_bonuses_to_the_one_it_is_not_with() {
-        let spells = &crate::testdir::shipped().rules.spells;
-        let stone_skin = SpellId::new(7); // stone_skin
-        let iron_skin = SpellId::new(24); // iron_skin
-        let given_up = spells.get(stone_skin).bonuses_given_up_for(iron_skin);
-        assert_eq!(given_up.len(), 1);
-        assert_eq!(given_up[0].stat, Stat::Defense);
-        assert_eq!(given_up[0].source, Source::Spell(stone_skin));
-        let gained = spells
-            .get(stone_skin)
-            .effects
-            .iter()
-            .find_map(|r| match &r.effect {
-                Effect::Modify { value, .. } => Some(*value),
-                _ => None,
-            });
-        assert_eq!(gained.map(|v| -v), Some(given_up[0].value));
-        // A spell it is not exclusive with takes nothing back.
-        assert!(spells
-            .get(stone_skin)
-            .bonuses_given_up_for(stone_skin)
-            .is_empty());
-    }
 }

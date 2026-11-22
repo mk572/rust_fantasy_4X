@@ -55,23 +55,37 @@ impl HalfInt {
 
     /// The value rounded up to a whole number (towards positive infinity): 1.5 is 2.
     pub const fn ceil(self) -> i32 {
-        (self.0 + 1).div_euclid(2)
+        // In 64 bits, so that `HalfInt::MAX` has a ceiling.
+        (self.0 as i64 + 1).div_euclid(2) as i32
     }
 
     /// Half of the value, rounded up to the next half: 3 gives 1.5, 1.5 gives 1, 1 gives 0.5.
     pub const fn half(self) -> Self {
-        Self((self.0 + 1).div_euclid(2))
+        Self((self.0 as i64 + 1).div_euclid(2) as i32)
     }
 
     /// One half more: 3 becomes 3.5 (a `const` form of `+ HALF`).
     pub const fn plus_half(self) -> Self {
-        Self(self.0 + 1)
+        Self(self.0.saturating_add(1))
     }
 
     /// The value times `num` over `den`, rounded down to a half: 3 times 3 over 2 is 4.5, 0.5 times
-    /// 1 over 2 is 0. The product is counted in 64 bits, so a large `num` does not overflow.
+    /// 1 over 2 is 0. The product is counted in 128 bits, so a large `num` does not overflow, and
+    /// a result the type cannot hold is the nearest value it can (the largest or the smallest).
+    /// `den` must not be 0.
     pub const fn scaled(self, num: i64, den: i64) -> Self {
-        Self((self.0 as i64 * num).div_euclid(den) as i32)
+        Self::clamped((self.0 as i128 * num as i128).div_euclid(den as i128))
+    }
+
+    /// The value of `raw` halves, or the nearest value the type holds.
+    const fn clamped(raw: i128) -> Self {
+        if raw > i32::MAX as i128 {
+            Self(i32::MAX)
+        } else if raw < i32::MIN as i128 {
+            Self(i32::MIN)
+        } else {
+            Self(raw as i32)
+        }
     }
 
     /// The value times `percent` over 100, rounded down to a half: 3 at 150 is 4.5.
@@ -82,12 +96,12 @@ impl HalfInt {
     /// The value times `percent` over 100, rounded to the nearest half (a half more rounds up): 1
     /// at 25 is 0.5, 1 at 20 is 0.
     pub const fn percent_nearest(self, percent: i32) -> Self {
-        Self(((self.0 as i64 * percent as i64 + 50).div_euclid(100)) as i32)
+        Self::clamped((self.0 as i128 * percent as i128 + 50).div_euclid(100))
     }
 
     /// The value without its sign.
     pub const fn abs(self) -> Self {
-        Self(self.0.abs())
+        Self(self.0.saturating_abs())
     }
 
     /// Converts this value to a floating-point number, e.g. for display.
@@ -267,117 +281,15 @@ impl<'de> serde::Deserialize<'de> for HalfInt {
 
             fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<HalfInt, E> {
                 let doubled = v * 2.0;
-                if doubled.fract() != 0.0 || doubled.abs() > f64::from(i32::MAX) {
+                if doubled.fract() != 0.0
+                    || doubled < f64::from(i32::MIN)
+                    || doubled > f64::from(i32::MAX)
+                {
                     return Err(E::custom(format!("{v} is not a whole or a half number")));
                 }
                 Ok(HalfInt(doubled as i32))
             }
         }
         deserializer.deserialize_any(Amount)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::HalfInt;
-
-    #[test]
-    fn half_and_percent_stay_on_halves() {
-        let h = |n: f32| HalfInt::from_raw((n * 2.0) as i32);
-        assert_eq!(h(3.0).half(), h(1.5));
-        assert_eq!(h(1.5).half(), h(1.0));
-        assert_eq!(h(1.0).half(), h(0.5));
-        assert_eq!(h(0.5).half(), h(0.5));
-        assert_eq!(HalfInt::ZERO.half(), HalfInt::ZERO);
-        assert_eq!(h(3.0).percent(150), h(4.5));
-        assert_eq!(h(3.0).percent(50), h(1.5));
-        assert_eq!(h(1.5).percent(50), h(0.5));
-    }
-
-    #[test]
-    fn scales_divides_and_rounds_to_halves() {
-        let h = HalfInt::from_raw;
-        assert_eq!(h(6).scaled(3, 2), h(9));
-        assert_eq!(h(1).scaled(1, 2), HalfInt::ZERO);
-        assert_eq!(h(i32::MAX / 2).scaled(1_000, 1_000), h(i32::MAX / 2));
-        assert_eq!(h(3) / 2, h(1));
-        assert_eq!(h(-3) / 2, h(-1));
-        assert_eq!(h(2).plus_half(), h(3));
-        assert_eq!(h(2).percent_nearest(25), h(1));
-        assert_eq!(h(2).percent_nearest(20), h(0));
-        assert_eq!(h(7).percent_nearest(50), h(4));
-    }
-
-    #[test]
-    fn represents_whole_and_half_values_exactly() {
-        let value = HalfInt::from_int(3) + HalfInt::from_raw(1);
-        assert_eq!(value.raw(), 7);
-        assert_eq!(value.as_f32(), 3.5);
-        assert!(!value.is_whole());
-        assert!(HalfInt::from_int(4).is_whole());
-    }
-
-    #[test]
-    fn supports_basic_arithmetic_and_negative_values() {
-        let a = HalfInt::from_raw(7); // 3.5
-        let b = HalfInt::from_int(2); // 2.0
-
-        assert_eq!((a - b).raw(), 3); // 1.5
-        assert_eq!((-a).raw(), -7); // -3.5
-        assert_eq!((a + b).raw(), 11); // 5.5
-    }
-
-    #[test]
-    fn a_whole_number_beside_a_half_int_is_that_many_whole_units() {
-        let gold = HalfInt::from_raw(7); // 3.5
-        assert!(gold > 3 && gold < 4 && gold != 3);
-        assert_eq!(HalfInt::from_int(3), 3);
-        assert_eq!((gold - 2).raw(), 3);
-        let mut g = gold;
-        g += 1;
-        g -= 5;
-        assert_eq!(g.raw(), -1);
-    }
-
-    #[test]
-    fn rounds_down_and_up_to_whole_numbers() {
-        assert_eq!(HalfInt::from_raw(3).floor(), 1);
-        assert_eq!(HalfInt::from_raw(3).ceil(), 2);
-        assert_eq!(HalfInt::from_raw(4).ceil(), 2);
-        assert_eq!(HalfInt::from_raw(-3).floor(), -2);
-        assert_eq!(HalfInt::from_raw(-3).ceil(), -1);
-    }
-
-    #[test]
-    fn sums_assigns_and_shows_halves() {
-        let total: HalfInt = [1, 1, 1].into_iter().map(HalfInt::from_raw).sum();
-        assert_eq!(total.to_string(), "1.5");
-        let mut v = HalfInt::from_int(2);
-        v += HalfInt::from_raw(1);
-        v -= HalfInt::from_int(1);
-        assert_eq!(v.to_string(), "1.5");
-        assert_eq!(HalfInt::from_raw(-3).to_string(), "-1.5");
-        assert_eq!(HalfInt::from_int(4).to_string(), "4");
-        assert_eq!(format!("{:+}", HalfInt::from_raw(3)), "+1.5");
-        assert_eq!(format!("{:+}", HalfInt::from_raw(-3)), "-1.5");
-    }
-
-    #[test]
-    fn is_written_and_read_as_the_amount() {
-        assert_eq!(ron::to_string(&HalfInt::from_int(1)).unwrap(), "1");
-        assert_eq!(ron::to_string(&HalfInt::from_raw(3)).unwrap(), "1.5");
-        for (text, raw) in [
-            ("1", 2),
-            ("0.5", 1),
-            ("1.5", 3),
-            ("0", 0),
-            ("2.0", 4),
-            ("-1.5", -3),
-        ] {
-            assert_eq!(ron::from_str::<HalfInt>(text).unwrap().raw(), raw, "{text}");
-        }
-        for text in ["0.3", "1.25", "\"1\""] {
-            assert!(ron::from_str::<HalfInt>(text).is_err(), "{text}");
-        }
     }
 }

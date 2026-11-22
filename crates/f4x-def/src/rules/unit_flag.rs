@@ -76,23 +76,3 @@ impl UnitFlags {
         self.0 |= other.0;
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use strum::IntoEnumIterator;
-
-    #[test]
-    fn a_set_holds_what_was_put_in() {
-        let set = UnitFlags::of(&[UnitFlag::Flies, UnitFlag::LongRange]);
-        assert!(set.contains(UnitFlag::Flies) && set.contains(UnitFlag::LongRange));
-        assert!(!set.contains(UnitFlag::Teleports));
-        assert!(!set.without(UnitFlag::Flies).contains(UnitFlag::Flies));
-    }
-
-    #[test]
-    fn every_flag_has_its_own_bit() {
-        let all = UnitFlag::iter().fold(UnitFlags::NONE, |s, f| s.with(f));
-        assert_eq!(all.0.count_ones() as usize, UnitFlag::iter().count());
-    }
-}

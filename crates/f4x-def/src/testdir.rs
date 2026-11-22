@@ -62,21 +62,3 @@ impl Drop for TestDir {
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn two_folders_with_one_label_are_different_and_empty_and_removed_on_drop() -> TestResult {
-        let a = TestDir::new("same");
-        let b = TestDir::new("same");
-        assert_ne!(*a, *b);
-        std::fs::write(a.join("x"), b"x")?;
-        assert_eq!(std::fs::read_dir(&*b)?.count(), 0);
-        let gone = a.to_path_buf();
-        drop(a);
-        assert!(!gone.exists());
-        Ok(())
-    }
-}

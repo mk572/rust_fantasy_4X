@@ -24,6 +24,7 @@ pub enum FeatureKind {
 /// "On these terrain classes, on these planes, spawn with this relative weight."
 /// Weights are relative among all rules matching one (terrain class, plane).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SpawnRule {
     pub terrain: Vec<TerrainClass>,
     pub planes: Vec<Plane>,
@@ -35,6 +36,7 @@ pub struct SpawnRule {
 /// value is halved when two cities share the tile.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct CityBonus {
     pub gold: HalfInt,
     pub mana: HalfInt,
@@ -47,6 +49,7 @@ pub struct CityBonus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FeatureDef {
     pub id: String,
     /// The feature's number, the id the game passes around (ours: counted from 1 in the

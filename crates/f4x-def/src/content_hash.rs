@@ -8,7 +8,7 @@
 //! for every `.ron` file under the crate's folder except `target/`. `scripts/ron_hashes.py` writes
 //! the same file by the same rules.
 //!
-//! Tests: below.
+//! Tests: `tests/it/c3_drift.rs`. A link is no file of the crate and is not followed.
 
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -27,12 +27,17 @@ fn hex(bytes: &[u8]) -> String {
 fn collect(dir: &Path, root: &Path, out: &mut BTreeMap<String, String>) -> Result<(), String> {
     let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     for entry in entries {
-        let path = entry.map_err(|e| e.to_string())?.path();
-        if path.is_dir() {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        // A link is no file of the crate (and a link back up the tree would never end).
+        let kind = entry
+            .file_type()
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        if kind.is_dir() {
             if path.file_name().is_some_and(|n| n != "target") {
                 collect(&path, root, out)?;
             }
-        } else if path.extension().is_some_and(|e| e == "ron") {
+        } else if kind.is_file() && path.extension().is_some_and(|e| e == "ron") {
             let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
             let name = path
                 .strip_prefix(root)
@@ -98,41 +103,4 @@ pub fn assert_unchanged(crate_dir: &Path) {
         crate_dir.display(),
         differ.join("\n  ")
     );
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::testdir::{TestDir, TestResult};
-
-    #[test]
-    fn a_changed_added_and_removed_file_are_each_reported() -> TestResult {
-        let dir = TestDir::new("content-hash");
-        std::fs::create_dir_all(dir.join("content"))?;
-        std::fs::write(dir.join("content/a.ron"), "1")?;
-        std::fs::write(dir.join("content/b.ron"), "2")?;
-        let record: String = hashes_of(&dir)?
-            .iter()
-            .map(|(p, h)| format!("{h}  {p}\n"))
-            .collect();
-        std::fs::write(dir.join(RECORD), record)?;
-        assert!(differences(&dir)?.is_empty());
-        std::fs::write(dir.join("content/a.ron"), "changed")?;
-        std::fs::remove_file(dir.join("content/b.ron"))?;
-        std::fs::write(dir.join("content/c.ron"), "3")?;
-        assert_eq!(
-            differences(&dir)?,
-            [
-                "changed: content/a.ron",
-                "added: content/c.ron",
-                "removed: content/b.ron"
-            ]
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn the_files_of_this_crate_are_the_recorded_ones() {
-        assert_unchanged(Path::new(env!("CARGO_MANIFEST_DIR")));
-    }
 }

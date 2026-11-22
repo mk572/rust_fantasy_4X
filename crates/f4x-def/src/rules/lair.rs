@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 /// `base + step * Random(rolls)`: a budget rolled once. `Random(n)` is `1..=n`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Roll {
     pub base: i32,
     pub rolls: i32,
@@ -55,6 +56,7 @@ pub struct LairStyle {
 /// What patch 1.50 changes in the lairs (`docs/lairs.md`, "Patch 1.50"). The ranges of the wiki's
 /// Encounter Zone article fix these numbers; the budget steps are the ones that fit the ranges.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Patch150Rules {
     /// Stronger lairs: the budget of a tower, and of a strong and a weak site per plane.
     pub tower_budget: Roll,
@@ -147,6 +149,7 @@ impl Default for Patch150Rules {
 
 /// The guard and treasure rules of the sites.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LairRules {
     /// Guards in all, and of the first kind.
     pub max_guards: u32,

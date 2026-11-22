@@ -248,6 +248,3 @@ impl HeroAbilities {
         out
     }
 }
-
-#[cfg(test)]
-mod tests;

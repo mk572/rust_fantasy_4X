@@ -33,20 +33,31 @@ impl<T> Default for Registry<T> {
 
 impl<T: Def> Registry<T> {
     /// Build a registry. The definitions must be in ascending order of their numbers
-    /// (content validation reports a repeated alias).
+    /// (content validation reports a repeated alias). Panics when they are not: use
+    /// [`Registry::try_new`] for rows that come from a file.
     pub fn new(defs: Vec<T>) -> Self {
-        assert!(defs.len() < NO_ROW as usize, "too many definitions");
+        Self::try_new(defs).unwrap_or_else(|problem| panic!("{problem}"))
+    }
+
+    /// Build a registry from rows that came from a file: the problem, in words, when they are not
+    /// in the order of their numbers (a number twice, or one smaller than the one before) or when
+    /// there are more than a registry can hold.
+    pub fn try_new(defs: Vec<T>) -> Result<Self, String> {
+        if defs.len() >= NO_ROW as usize {
+            return Err(format!("too many definitions ({})", defs.len()));
+        }
         #[cfg(test)]
         let mut aliases = std::collections::HashSet::new();
         let mut rows: Vec<u16> = Vec::new();
         let mut last: Option<u16> = None;
         for (i, d) in defs.iter().enumerate() {
             let num = d.num();
-            assert!(
-                last.is_none_or(|l| num > l),
-                "numbers out of order or repeated at {}",
-                d.id()
-            );
+            if last.is_some_and(|l| num <= l) {
+                return Err(format!(
+                    "numbers out of order or repeated at {} (number {num})",
+                    d.id()
+                ));
+            }
             last = Some(num);
             // Content validation reports a repeated alias; a test must not build one by accident.
             #[cfg(test)]
@@ -60,7 +71,7 @@ impl<T: Def> Registry<T> {
             }
             rows[num as usize] = i as u16;
         }
-        Self { defs, rows }
+        Ok(Self { defs, rows })
     }
 
     /// A registry of definitions in any order: they are put in the order of their numbers
@@ -127,69 +138,5 @@ impl<T: Def> Registry<T> {
 
     pub fn defs(&self) -> &[T] {
         &self.defs
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::testdir::TestResult;
-
-    /// The registry is generic over its definition; a bare row is enough to test the table.
-    struct Row(&'static str, u16);
-
-    impl Def for Row {
-        fn id(&self) -> &str {
-            self.0
-        }
-        fn num(&self) -> u16 {
-            self.1
-        }
-    }
-
-    fn table() -> Registry<Row> {
-        Registry::new(vec![Row("a", 1), Row("b", 4), Row("c", 9)])
-    }
-
-    #[test]
-    fn a_definition_is_found_by_number() -> TestResult {
-        let t = table();
-        let b = t.id_numbered(4).ok_or("4 is in the table")?;
-        assert_eq!(b.num(), 4);
-        assert_eq!(t.get(b).id(), "b");
-        assert_eq!(t.id_numbered(9).map(|id| t.get(id).id()), Some("c"));
-        assert_eq!(t.by_num(1).map(Def::num), Some(1));
-        Ok(())
-    }
-
-    #[test]
-    fn a_number_the_table_lacks_is_none() {
-        let t = table();
-        assert!(t.id_numbered(2).is_none(), "a gap between numbers");
-        assert!(t.id_numbered(500).is_none(), "past the last number");
-        assert!(t.try_get(Id::new(2)).is_none() && t.try_get(Id::new(500)).is_none());
-        assert_eq!(t.try_get(Id::new(4)).map(Def::num), Some(4));
-    }
-
-    #[test]
-    fn iteration_follows_the_numbers_and_new_sorted_orders_them() {
-        let t = Registry::new_sorted(vec![Row("c", 9), Row("a", 1), Row("b", 4)]);
-        let order: Vec<_> = t.iter().map(|(id, d)| (id.num(), d.id())).collect();
-        assert_eq!(order, [(1, "a"), (4, "b"), (9, "c")]);
-        assert_eq!(t.len(), 3);
-        assert!(!t.is_empty());
-        assert!(Registry::<Row>::default().is_empty());
-    }
-
-    #[test]
-    #[should_panic(expected = "numbers out of order")]
-    fn numbers_out_of_order_are_refused() {
-        Registry::new(vec![Row("b", 4), Row("a", 1)]);
-    }
-
-    #[test]
-    #[should_panic(expected = "id repeated")]
-    fn a_repeated_alias_is_refused_in_tests() {
-        Registry::new(vec![Row("a", 1), Row("a", 2)]);
     }
 }

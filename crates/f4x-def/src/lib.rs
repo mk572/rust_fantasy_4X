@@ -2,7 +2,7 @@
 //! terrains, features and the registries that hold them. They are data read from `crates/f4x-def/content/*.ron`;
 //! this crate imports nothing of the game, and `f4x-core` builds on it.
 //!
-//! Tests: with each module.
+//! Tests: `tests/it/`, by the five failure classes of `docs/f4x-def-test-design.md`.
 
 /// The game's own rules files, from the root of the repository (the folder the game and its tools
 /// run from). A mod's folder is layered over it (`load::load_content_layers`).

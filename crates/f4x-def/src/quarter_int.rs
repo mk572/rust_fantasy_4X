@@ -67,12 +67,20 @@ impl QuarterInt {
 
     /// The value rounded up to a whole number (towards positive infinity): 1.25 is 2.
     pub const fn ceil(self) -> i32 {
-        (self.0 + 3).div_euclid(4)
+        (self.0 as i64 + 3).div_euclid(4) as i32
     }
 
-    /// The value times `percent` over 100, rounded down to a quarter: 1.5 at 150 is 2.25.
+    /// The value times `percent` over 100, rounded down to a quarter: 1.5 at 150 is 2.25. A result
+    /// the type cannot hold is the nearest value it can.
     pub const fn percent(self, percent: i32) -> Self {
-        Self((self.0 * percent).div_euclid(100))
+        let raw = (self.0 as i64 * percent as i64).div_euclid(100);
+        Self(if raw > i32::MAX as i64 {
+            i32::MAX
+        } else if raw < i32::MIN as i64 {
+            i32::MIN
+        } else {
+            raw as i32
+        })
     }
 
     /// Converts this value to a floating-point number, e.g. for display.
@@ -188,112 +196,15 @@ impl<'de> serde::Deserialize<'de> for QuarterInt {
 
             fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<QuarterInt, E> {
                 let scaled = v * 4.0;
-                if scaled.fract() != 0.0 || scaled.abs() > f64::from(i32::MAX) {
+                if scaled.fract() != 0.0
+                    || scaled < f64::from(i32::MIN)
+                    || scaled > f64::from(i32::MAX)
+                {
                     return Err(E::custom(format!("{v} is not a multiple of 0.25")));
                 }
                 Ok(QuarterInt(scaled as i32))
             }
         }
         deserializer.deserialize_any(Amount)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::QuarterInt;
-    use crate::half_int::HalfInt;
-
-    #[test]
-    fn represents_wholes_halves_and_quarters_exactly() {
-        let value = QuarterInt::from_int(1) + QuarterInt::from_raw(3);
-        assert_eq!(value.raw(), 7);
-        assert_eq!(value.as_f32(), 1.75);
-        assert!(!value.is_whole());
-        assert!(QuarterInt::from_int(2).is_whole());
-        assert_eq!(QuarterInt::from_half(HalfInt::from_raw(3)).raw(), 6);
-    }
-
-    #[test]
-    fn half_of_a_half_int_is_exact() {
-        assert_eq!(QuarterInt::half_of(HalfInt::HALF), QuarterInt::QUARTER);
-        assert_eq!(QuarterInt::half_of(HalfInt::from_int(3)).as_f32(), 1.5);
-        assert_eq!(QuarterInt::half_of(HalfInt::ZERO), QuarterInt::ZERO);
-    }
-
-    #[test]
-    fn rounds_down_to_halves_and_to_wholes_and_up_to_wholes() {
-        let q = QuarterInt::from_raw;
-        assert_eq!(q(7).floor_half(), HalfInt::from_raw(3));
-        assert_eq!(q(1).floor_half(), HalfInt::ZERO);
-        assert_eq!(q(2).floor_half(), HalfInt::HALF);
-        assert_eq!(q(-1).floor_half(), HalfInt::from_raw(-1));
-        assert_eq!((q(7).floor(), q(8).floor(), q(-1).floor()), (1, 2, -1));
-        assert_eq!((q(5).ceil(), q(4).ceil(), q(-3).ceil()), (2, 1, 0));
-    }
-
-    #[test]
-    fn two_shared_halves_of_food_add_up_to_a_half() {
-        let shared: QuarterInt = [HalfInt::HALF; 2]
-            .into_iter()
-            .map(QuarterInt::half_of)
-            .sum();
-        assert_eq!(shared.floor_half(), HalfInt::HALF);
-        let one: QuarterInt = [HalfInt::HALF; 1]
-            .into_iter()
-            .map(QuarterInt::half_of)
-            .sum();
-        assert_eq!(one.floor_half(), HalfInt::ZERO);
-    }
-
-    #[test]
-    fn percent_rounds_down_to_a_quarter() {
-        assert_eq!(
-            QuarterInt::from_raw(6).percent(150),
-            QuarterInt::from_raw(9)
-        );
-        assert_eq!(
-            QuarterInt::from_raw(5).percent(150),
-            QuarterInt::from_raw(7)
-        );
-    }
-
-    #[test]
-    fn sums_assigns_and_shows_quarters() {
-        let total: QuarterInt = [1, 1, 1].into_iter().map(QuarterInt::from_raw).sum();
-        assert_eq!(total.to_string(), "0.75");
-        let mut v = QuarterInt::from_int(2);
-        v += QuarterInt::from_raw(2);
-        v -= QuarterInt::QUARTER;
-        assert_eq!(v.to_string(), "2.25");
-        assert_eq!(QuarterInt::from_raw(6).to_string(), "1.5");
-        assert_eq!(QuarterInt::from_int(4).to_string(), "4");
-        assert_eq!(QuarterInt::from_raw(-3).to_string(), "-0.75");
-        assert_eq!(format!("{:+}", QuarterInt::from_raw(1)), "+0.25");
-        assert_eq!(
-            QuarterInt::from_raw(4) + HalfInt::HALF,
-            QuarterInt::from_raw(6)
-        );
-    }
-
-    #[test]
-    fn is_written_and_read_as_the_amount() {
-        assert_eq!(ron::to_string(&QuarterInt::from_int(1)).unwrap(), "1");
-        assert_eq!(ron::to_string(&QuarterInt::from_raw(3)).unwrap(), "0.75");
-        for (text, raw) in [
-            ("1", 4),
-            ("0.25", 1),
-            ("0.5", 2),
-            ("1.75", 7),
-            ("-1.25", -5),
-        ] {
-            assert_eq!(
-                ron::from_str::<QuarterInt>(text).unwrap().raw(),
-                raw,
-                "{text}"
-            );
-        }
-        for text in ["0.3", "1.1", "\"1\""] {
-            assert!(ron::from_str::<QuarterInt>(text).is_err(), "{text}");
-        }
     }
 }

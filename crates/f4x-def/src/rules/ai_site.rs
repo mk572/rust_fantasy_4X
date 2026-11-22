@@ -5,7 +5,7 @@
 //! The defaults are the numbers the AI shipped with, and `ai_sites.ron` repeats them; a test keeps
 //! the two equal.
 //!
-//! Tests: in `load/rules.rs` (the shipped file is the default; bad values are refused) and
+//! Tests: in `tests/it/c1_content.rs` (the shipped file is the default; bad values are refused) and
 //! `f4x-ai/src/city_site.rs` (each weight moves the score the way its name says).
 
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::map::TerrainClass;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SiteRules {
     /// What a square of each terrain is worth to the city that works it (food and growth). A
     /// class not listed is worth nothing.

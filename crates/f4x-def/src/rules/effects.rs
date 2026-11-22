@@ -58,6 +58,7 @@ pub enum Trigger {
 /// number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct DamageTraits {
     /// Halves the target's defence.
     pub armor_piercing: bool,
@@ -81,6 +82,7 @@ pub enum SlayOnly {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum Effect {
     /// `types`: what an added amount of an attack stat is made of (Flame Blade adds fire dice);
     /// a defender immune to one of them loses those dice.
@@ -167,6 +169,7 @@ fn this() -> TargetSel {
 
 /// One thing a definition does: when, under what condition, to whom, and what.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EffectRule {
     #[serde(default = "passive")]
     pub when: Trigger,

@@ -93,6 +93,7 @@ pub const REQUIRED_CLASSES: &[TerrainClass] = &[
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TerrainDef {
     pub id: String,
     /// The terrain's number, the id the game passes around (ours: counted from 1 in the
@@ -132,39 +133,6 @@ impl Terrains {
     /// First definition of `class` that is available on `plane`.
     pub fn first_of_class(&self, class: TerrainClass, plane: Plane) -> Option<TerrainId> {
         self.first_where(|d| d.class == class && d.planes.contains(&plane))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_nature_node_is_a_forest_and_a_chaos_node_a_mountain() {
-        assert!(TerrainClass::NatureNode.is_forest() && TerrainClass::Forest.is_forest());
-        assert!(TerrainClass::ChaosNode.is_mountain() && TerrainClass::Mountains.is_mountain());
-        assert!(!TerrainClass::SorceryNode.is_forest() && !TerrainClass::SorceryNode.is_mountain());
-    }
-
-    #[test]
-    fn node_realms_name_their_base_terrain() {
-        use crate::rules::RealmId;
-        for (realm, class) in [
-            (1 /* sorcery */, TerrainClass::SorceryNode),
-            (0 /* nature */, TerrainClass::NatureNode),
-            (2 /* chaos */, TerrainClass::ChaosNode),
-        ] {
-            assert_eq!(
-                TerrainClass::of_node_realm(RealmId::new(realm)),
-                Some(class)
-            );
-            assert!(class.is_node());
-        }
-        assert_eq!(
-            TerrainClass::of_node_realm(RealmId::new(3 /* life */)),
-            None
-        );
-        assert!(!TerrainClass::Hills.is_node());
     }
 }
 

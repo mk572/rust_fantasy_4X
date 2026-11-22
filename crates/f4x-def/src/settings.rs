@@ -19,7 +19,9 @@ pub const REFERENCE_AREA: u32 = 60 * 40;
 
 /// `base` per [`REFERENCE_AREA`] squares, for a map of `width` by `height`, rounded.
 pub fn scaled_count(base: u32, width: u32, height: u32) -> u32 {
-    (base * width * height + REFERENCE_AREA / 2) / REFERENCE_AREA
+    let area = u128::from(base) * u128::from(width) * u128::from(height);
+    u32::try_from((area + u128::from(REFERENCE_AREA) / 2) / u128::from(REFERENCE_AREA))
+        .unwrap_or(u32::MAX)
 }
 
 /// Towers of wisdom for each [`REFERENCE_AREA`] (the original's).
@@ -207,7 +209,8 @@ impl BasicSettings {
 
     /// Squares of both planes for each wizard.
     pub fn squares_per_player(&self) -> u32 {
-        2 * u32::from(self.map_width) * u32::from(self.map_height) / (u32::from(self.opponents) + 1)
+        let squares = 2 * u64::from(self.map_width) * u64::from(self.map_height);
+        u32::try_from(squares / (u64::from(self.opponents) + 1)).unwrap_or(u32::MAX)
     }
 
     /// The squares each wizard has when the game leaves fewer than [`MIN_SQUARES_PER_PLAYER`]:
@@ -863,18 +866,24 @@ pub struct DefaultGame {
 }
 
 impl DefaultGame {
-    /// The file's record; none when there is no file or it cannot be read.
+    /// The file's record, with every value brought into range (a file is edited by hand); none
+    /// when there is no file or it cannot be read.
     pub fn load(path: &std::path::Path) -> Option<Self> {
-        ron::from_str(&std::fs::read_to_string(path).ok()?).ok()
+        let record: Self = ron::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
+        Some(Self {
+            settings: record.settings.normalised(),
+            ..record
+        })
     }
 
     pub fn save(&self, path: &std::path::Path) -> Result<(), String> {
+        let failed = |e: std::io::Error| format!("{}: {e}", path.display());
         if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+            std::fs::create_dir_all(dir).map_err(failed)?;
         }
         let text = ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default())
             .map_err(|e| e.to_string())?;
-        std::fs::write(path, text).map_err(|e| e.to_string())
+        std::fs::write(path, text).map_err(failed)
     }
 
     /// What they are when nothing was chosen: v1.31 at the content's new-game figures.
@@ -973,6 +982,7 @@ pub const EXTREME: u8 = 4;
 
 /// One land size on the new-game options step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LandSize {
     /// The size's id (`small`); its words are the text keys `options.land_<id>`.
     pub id: String,
@@ -982,6 +992,7 @@ pub struct LandSize {
 
 /// One map size on the new-game options step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MapSize {
     /// The size's id (`small`); its words are the text keys `options.map_<id>`.
     pub id: String,
@@ -1006,6 +1017,7 @@ pub const MIN_SQUARES_PER_PLAYER: u32 = 900;
 /// (the number is the order the game made the units in, kept for each unit for good).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct HalfUpkeep {
     pub enabled: bool,
     /// The units, by their id without the race (`spearmen` for `high_elf_spearmen`), so the
@@ -1027,6 +1039,7 @@ impl Default for HalfUpkeep {
 /// empty, and a game then plays the default game.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct SettingsDef {
     /// The new-game choices before the player changes them.
     pub new_game: BasicSettings,
@@ -1050,6 +1063,7 @@ pub struct SettingsDef {
 
 /// How many spells of each rarity: the columns of the tables in [`SpellLibraryDef`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Rarities {
     pub common: u8,
     pub uncommon: u8,
@@ -1063,6 +1077,7 @@ pub struct Rarities {
 /// `INITGAME.c` (`Init_Computer_Players_Spell_Library`) and `NewGame.c`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct SpellLibraryDef {
     /// Spells of the realm the wizard knows at the start: the realm's chosen spells first, then
     /// its default list (`realms.ron`) in order.
@@ -1274,9 +1289,9 @@ impl SettingsDef {
             problems.push("land_sizes is empty".into());
         }
         for size in &self.land_sizes {
-            if size.id.trim().is_empty() || !(1..=99).contains(&size.land_percent) {
+            if !(1..=99).contains(&size.land_percent) {
                 problems.push(format!(
-                    "land size {:?}: {}% is not 1 to 99 or the id is empty",
+                    "land size {:?}: {}% is not 1 to 99",
                     size.id, size.land_percent
                 ));
             }
@@ -1285,14 +1300,30 @@ impl SettingsDef {
             problems.push("map_sizes is empty".into());
         }
         for size in &self.map_sizes {
-            if size.id.trim().is_empty()
-                || !MAP_WIDTHS.contains(&size.width)
-                || !MAP_HEIGHTS.contains(&size.height)
-            {
+            if !MAP_WIDTHS.contains(&size.width) || !MAP_HEIGHTS.contains(&size.height) {
                 problems.push(format!(
-                    "map size {:?}: {} by {} is not {:?} by {:?} or the id is empty",
+                    "map size {:?}: {} by {} is not {:?} by {:?}",
                     size.id, size.width, size.height, MAP_WIDTHS, MAP_HEIGHTS
                 ));
+            }
+        }
+        // The id of a size is the end of a text key (`options.land_<id>`): a plain word, once.
+        for (kind, ids) in [
+            (
+                "land size",
+                self.land_sizes.iter().map(|s| &s.id).collect::<Vec<_>>(),
+            ),
+            (
+                "map size",
+                self.map_sizes.iter().map(|s| &s.id).collect::<Vec<_>>(),
+            ),
+        ] {
+            let mut seen = std::collections::HashSet::new();
+            for id in ids {
+                problems.extend(crate::load::id_problem(kind, id));
+                if !seen.insert(id) {
+                    problems.push(format!("duplicate {kind} id {id:?}"));
+                }
             }
         }
         let choices = GameSettings {
@@ -1704,14 +1735,41 @@ impl GameSettings {
             .rules
             .galley_capacity
             .clamp(GALLEY_CAPACITY, MAX_SHIP_CAPACITY);
+        self.rules.max_battle_side = self.rules.max_battle_side.clamp(1, MAX_STACK);
+        self.rules.max_tile = self
+            .rules
+            .max_tile
+            .clamp(self.rules.max_battle_side, MAX_TILE_LIMIT);
+        self.rules.max_city_size = self
+            .rules
+            .max_city_size
+            .clamp(*MAX_CITY_SIZE_RANGE.start(), *MAX_CITY_SIZE_RANGE.end());
+        self.rules.min_city_distance = self.rules.min_city_distance.clamp(
+            *MIN_CITY_DISTANCE_RANGE.start(),
+            *MIN_CITY_DISTANCE_RANGE.end(),
+        );
+        self.events.start_turn = self.events.start_turn.clamp(
+            *EVENT_START_TURN_RANGE.start(),
+            *EVENT_START_TURN_RANGE.end(),
+        );
+        for percent in [
+            &mut self.world.mineral_percent_arcanus,
+            &mut self.world.mineral_percent_myrror,
+        ] {
+            *percent =
+                (*percent).clamp(*MINERAL_PERCENT_RANGE.start(), *MINERAL_PERCENT_RANGE.end());
+        }
+        for nodes in [&mut self.world.nodes_arcanus, &mut self.world.nodes_myrror] {
+            *nodes = nodes.map(|n| n.min(*NODES_RANGE.end()));
+        }
+        for sites in [&mut self.world.strong_sites, &mut self.world.weak_sites] {
+            *sites = sites.map(|n| n.min(*SITES_RANGE.end()));
+        }
         self.events.pressure_percent = self.events.pressure_percent.clamp(10, 200);
         self.scoring.score_percent = self.scoring.score_percent.clamp(10, 500);
         self
     }
 }
-
-#[cfg(test)]
-mod tests;
 
 /// The game as the shipped rules play it: the Average level of `crates/f4x-def/content/rules_settings.ron`
 /// (read at build time, so there is one set of figures). A game made for play picks its level in

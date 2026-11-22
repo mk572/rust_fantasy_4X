@@ -195,6 +195,7 @@ pub enum DefenceEffect {
 /// that is empty) and all of the types in `with`: Elemental Armor is against chaos or nature,
 /// a large shield with ranged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DefenceRule {
     #[serde(default)]
     pub against: DamageTypes,
@@ -238,6 +239,7 @@ pub enum RangedKind {
 /// The damage an ability adds to the attack of its unit (`attack` in `abilities.ron`).
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct AbilityAttack {
     pub delivery: Delivery,
     /// The ranged attack the ability gives the unit (none for an ability that only adds to it).
@@ -252,61 +254,4 @@ pub struct AbilityAttack {
     /// `magic_immunity_exceptions` the unit's attack is not of the magic type (illusion, the
     /// Chaos power, the Doom Gaze).
     pub magic_immunity_exception: bool,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use strum::IntoEnumIterator;
-
-    #[test]
-    fn a_set_holds_what_was_put_in() {
-        let set = DamageTypes::of(&[DamageType::Fire, DamageType::ChaosRealm]);
-        assert!(set.contains(DamageType::Fire));
-        assert!(set.contains(DamageType::ChaosRealm));
-        assert!(!set.contains(DamageType::Cold));
-        assert!(!set.without(DamageType::Fire).contains(DamageType::Fire));
-        assert!(set.intersects(DamageTypes::of(&[DamageType::Fire, DamageType::Cold])));
-        assert!(!set.intersects(DamageTypes::of(&[DamageType::Cold])));
-        assert!(DamageTypes::NONE.is_empty());
-        assert_eq!(
-            set.minus(DamageTypes::of(&[DamageType::Fire])),
-            DamageTypes::of(&[DamageType::ChaosRealm])
-        );
-    }
-
-    #[test]
-    fn a_set_is_saved_as_its_list_of_types() {
-        let set = DamageTypes::of(&[DamageType::ChaosRealm, DamageType::Fire]);
-        let text = ron::to_string(&set).expect("a set serialises");
-        assert_eq!(text, "[Fire,ChaosRealm]");
-        assert_eq!(
-            ron::from_str::<DamageTypes>(&text).expect("it reads back"),
-            set
-        );
-    }
-
-    #[test]
-    fn every_type_has_its_own_bit() {
-        let all = DamageType::iter().fold(DamageTypes::NONE, |s, t| s.with(t));
-        assert_eq!(
-            all.0.count_ones() as usize,
-            DamageType::iter().count(),
-            "two types share a bit"
-        );
-    }
-
-    #[test]
-    fn realm_types_round_trip_through_the_realm_number() {
-        for t in DamageType::iter() {
-            if let Some(num) = t.realm_num() {
-                assert_eq!(DamageType::of_realm(num), Some(t));
-            }
-        }
-        assert_eq!(
-            DamageTypes::of(&[DamageType::Fire, DamageType::ChaosRealm]).realm_num(),
-            Some(2)
-        );
-        assert_eq!(DamageTypes::of(&[DamageType::Fire]).realm_num(), None);
-    }
 }

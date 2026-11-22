@@ -1,8 +1,6 @@
 //! Loading and validation of game content files.
 
 pub mod rules;
-#[cfg(test)]
-mod testutil;
 
 use std::collections::HashSet;
 use std::fmt;
@@ -35,6 +33,18 @@ impl fmt::Display for ContentError {
 }
 
 impl std::error::Error for ContentError {}
+
+impl ContentError {
+    /// The error, saying which file it is about when a parse error does not already.
+    fn in_file(self, file: &str) -> Self {
+        match self {
+            ContentError::Parse(m) if !m.contains(file) => {
+                ContentError::Parse(format!("{file}: {m}"))
+            }
+            other => other,
+        }
+    }
+}
 
 pub fn parse_terrains(src: &str) -> Result<Terrains, ContentError> {
     let defs: Vec<TerrainDef> =
@@ -185,7 +195,11 @@ pub fn validate_features(defs: &[FeatureDef]) -> Vec<String> {
 /// original's text is never a fallback. Directories without the files give an empty [`Help`].
 pub fn load_help(dirs: &[&Path], lang: &str) -> Result<crate::help::Help, ContentError> {
     use crate::text::FALLBACK_LANGUAGE;
-    let first = |name: &str| dirs.iter().map(|d| d.join(name)).find(|p| p.exists());
+    let first = |name: &str| {
+        dirs.iter()
+            .map(|d| d.join(name))
+            .find(|p| rules::is_there(p))
+    };
     let topics_file = first(&format!("text/{lang}/help/help.ron"))
         .or_else(|| first(&format!("text/{FALLBACK_LANGUAGE}/help/help.ron")));
     let help = crate::help::Help {
@@ -222,16 +236,20 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
         let path = dirs
             .iter()
             .map(|d| d.join(name))
-            .find(|p| p.exists())
+            .find(|p| rules::is_there(p))
             .unwrap_or_else(|| dirs.first().map_or_else(|| name.into(), |d| d.join(name)));
         std::fs::read_to_string(&path)
             .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))
     };
-    let terrains = parse_terrains(&read("terrain.ron")?)?;
-    let features = parse_features(&read("features.ron")?)?;
+    let terrains = parse_terrains(&read("terrain.ron")?).map_err(|e| e.in_file("terrain.ron"))?;
+    let features = parse_features(&read("features.ron")?).map_err(|e| e.in_file("features.ron"))?;
     let settings = load_settings(dirs)?;
     let rules = rules::load_rules(dirs)?;
-    if dirs.iter().any(|d| d.join("rules_settings.ron").exists()) {
+    check_feature_references(&features, &rules)?;
+    if dirs
+        .iter()
+        .any(|d| rules::is_there(&d.join("rules_settings.ron")))
+    {
         check_spell_library(&settings.spell_library, &rules)?;
     }
     Ok(Content {
@@ -240,6 +258,42 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
         rules,
         settings,
     })
+}
+
+/// What the features and the rules say about each other must exist: the realm of a node and of
+/// the book a site gives, the mineral Transmute makes of one, the minerals a world event can put
+/// on the map.
+fn check_feature_references(
+    features: &Features,
+    rules: &crate::rules::Rules,
+) -> Result<(), ContentError> {
+    let has_feature = |num: u16| features.defs().iter().any(|f| f.num == num);
+    let mut problems = Vec::new();
+    for f in features.defs() {
+        for realm in f.realm.iter().chain(&f.reward) {
+            if rules.realms.try_get(*realm).is_none() {
+                problems.push(format!(
+                    "feature {:?} names unknown realm {}",
+                    f.id,
+                    realm.num()
+                ));
+            }
+        }
+        if let Some(n) = f.transmute.filter(|n| !has_feature(*n)) {
+            problems.push(format!(
+                "feature {:?} transmutes into unknown feature {n}",
+                f.id
+            ));
+        }
+    }
+    for &n in rules.config.event_ores.iter().filter(|n| !has_feature(**n)) {
+        problems.push(format!("rules.ron: event_ores names unknown feature {n}"));
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(ContentError::Invalid(problems))
+    }
 }
 
 /// The spells and realms the `spell_library` of `rules_settings.ron` names must exist.
@@ -287,7 +341,7 @@ pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
     let Some(path) = dirs
         .iter()
         .map(|d| d.join("rules_settings.ron"))
-        .find(|p| p.exists())
+        .find(|p| rules::is_there(p))
     else {
         return Ok(SettingsDef::default());
     };
@@ -295,6 +349,17 @@ pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
         .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
     let settings: SettingsDef = ron::from_str(&text)
         .map_err(|e| ContentError::Parse(format!("rules_settings.ron: {e}")))?;
+    // The settings types are shared with the save files, which must go on reading a field a
+    // later version dropped; so the unknown keys of this file are looked for here.
+    let unknown = unknown_keys(&text, &settings);
+    if !unknown.is_empty() {
+        return Err(ContentError::Invalid(
+            unknown
+                .into_iter()
+                .map(|k| format!("rules_settings.ron: {k} is not a setting"))
+                .collect(),
+        ));
+    }
     let problems = settings.validate();
     if problems.is_empty() {
         Ok(settings)
@@ -303,235 +368,48 @@ pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use crate::testdir::TestResult;
-
-    fn shipped() -> String {
-        let path = super::testutil::content_dir().join("terrain.ron");
-        std::fs::read_to_string(path).expect("crates/f4x-def/content/terrain.ron exists")
-    }
-
-    /// The game's own `content/` folder (the files tests of the rules data read).
-    fn real_content() -> Content {
-        load_content(&super::testutil::content_dir()).expect("the shipped content loads")
-    }
-
-    #[test]
-    fn shipped_terrain_file_is_valid() -> TestResult {
-        let t = parse_terrains(&shipped())?;
-        assert!(t.id_numbered(4 /* grassland */).is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn reports_every_problem() -> TestResult {
-        let src = shipped()
-            .replace("id: \"forest\"", "id: \"Forest\"")
-            .replace("class: Forest", "class: Hills");
-        let Err(ContentError::Invalid(p)) = parse_terrains(&src) else {
-            return Err("the broken terrain file was accepted".into());
-        };
-        assert!(p.iter().any(|m| m.contains("must be lowercase")));
-        assert!(p.iter().any(|m| m.contains("no Forest terrain")));
-        Ok(())
-    }
-
-    #[test]
-    fn reports_parse_errors() {
-        assert!(matches!(
-            parse_terrains("[(id: 1)]"),
-            Err(ContentError::Parse(_))
-        ));
-    }
-
-    #[test]
-    fn features_validation_reports_problems() -> TestResult {
-        let src = std::fs::read_to_string(super::testutil::content_dir().join("features.ron"))?;
-        let broken = src
-            .replace("id: \"coal\"", "id: \"iron_ore\"")
-            .replace("kind: Tower", "kind: Mineral");
-        let Err(ContentError::Invalid(p)) = parse_features(&broken) else {
-            return Err("the broken features file was accepted".into());
-        };
-        assert!(p.iter().any(|m| m.contains("duplicate feature id")));
-        assert!(p.iter().any(|m| m.contains("no Tower feature")));
-        assert!(matches!(
-            parse_features("[(id: 1)]"),
-            Err(ContentError::Parse(_))
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn item_movement_is_in_whole_moves() -> TestResult {
-        use crate::rules::effects::Effect;
-        use crate::rules::{ModOp, Stat};
-        let c = load_content(&super::testutil::content_dir())?;
-        let mut seen = 0;
-        for item in c.rules.items.defs() {
-            for rule in &item.effects {
-                if let Effect::Modify {
-                    stat: Stat::Moves,
-                    op: ModOp::Add,
-                    value,
-                    ..
-                } = rule.effect
-                {
-                    seen += 1;
-                    assert!(
-                        (1..=4).contains(&value.floor()) && value.is_whole(),
-                        "{} has {value} moves",
-                        item.id
-                    );
+/// The keys of `text` that the type it was read into does not have, by their path: the file is
+/// read as a plain tree and held against the tree of the value written out again. A key that was
+/// misspelled is dropped by the reader without a word otherwise.
+fn unknown_keys<T: serde::Serialize>(text: &str, read: &T) -> Vec<String> {
+    use ron::Value;
+    let (Ok(file), Ok(written)) = (
+        ron::from_str::<Value>(text),
+        ron::to_string(read)
+            .map_err(|_| ())
+            .and_then(|t| ron::from_str::<Value>(&t).map_err(|_| ())),
+    ) else {
+        return Vec::new();
+    };
+    fn walk(file: &Value, kept: &Value, path: &str, out: &mut Vec<String>) {
+        match (file, kept) {
+            (Value::Map(f), Value::Map(k)) => {
+                for (key, value) in f.iter() {
+                    let name = match key {
+                        Value::String(s) => s.clone(),
+                        other => format!("{other:?}"),
+                    };
+                    let at = if path.is_empty() {
+                        name
+                    } else {
+                        format!("{path}.{name}")
+                    };
+                    match k.iter().find(|(name, _)| *name == key) {
+                        Some((_, kept)) => walk(value, kept, &at, out),
+                        None => out.push(at),
+                    }
                 }
             }
-        }
-        assert_eq!(seen, 58);
-        Ok(())
-    }
-
-    #[test]
-    fn content_without_settings_leaves_them_empty_and_a_local_file_wins() -> TestResult {
-        let none = crate::testdir::TestDir::new("settings-none");
-        assert_eq!(load_settings(&[&none])?, SettingsDef::default());
-        let over = crate::testdir::TestDir::new("settings-layer");
-        std::fs::write(
-            over.join("rules_settings.ron"),
-            "(new_game: (opponents: 3))",
-        )?;
-        let committed = super::testutil::content_dir();
-        let c = load_content_layers(&[&over, &committed])?;
-        assert_eq!(c.settings.new_game.opponents, 3);
-        assert!(c.settings.levels.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn a_settings_file_out_of_range_is_refused() -> TestResult {
-        let over = crate::testdir::TestDir::new("settings-bad");
-        std::fs::write(
-            over.join("rules_settings.ron"),
-            "(new_game: (opponents: 10))",
-        )?;
-        let err = load_settings(&[&over]).unwrap_err();
-        assert!(err.to_string().contains("10 opponents"), "{err}");
-        std::fs::write(over.join("rules_settings.ron"), "(levels: [])")?;
-        assert!(load_settings(&[&over]).is_ok());
-        std::fs::write(
-            over.join("rules_settings.ron"),
-            "(new_game: (difficulty: 2)",
-        )?;
-        assert!(matches!(
-            load_settings(&[&over]),
-            Err(ContentError::Parse(_))
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn a_spell_library_naming_an_unknown_spell_or_realm_is_refused() -> TestResult {
-        let over = crate::testdir::TestDir::new("settings-spells");
-        let committed = super::testutil::content_dir();
-        std::fs::write(
-            over.join("rules_settings.ron"),
-            r#"(spell_library: (always_known: [9999]))"#,
-        )?;
-        let err = load_content_layers(&[&over, &committed]).unwrap_err();
-        assert!(err.to_string().contains("9999"), "{err}");
-        std::fs::write(
-            over.join("rules_settings.ron"),
-            r#"(spell_library: (ai_main_realm_known: {9998: 9}))"#,
-        )?;
-        let err = load_content_layers(&[&over, &committed]).unwrap_err();
-        assert!(err.to_string().contains("9998"), "{err}");
-        std::fs::write(
-            over.join("rules_settings.ron"),
-            "(spell_library: (known: []))",
-        )?;
-        let err = load_content_layers(&[&over, &committed]).unwrap_err();
-        assert!(err.to_string().contains("0 rows"), "{err}");
-        Ok(())
-    }
-
-    #[test]
-    fn each_retort_constant_is_the_number_of_its_row_in_the_content() {
-        let rules = &real_content().rules;
-        let named = [
-            (
-                crate::settings::Retort::new(0), /* alchemy */
-                "alchemy",
-            ),
-            (
-                crate::settings::Retort::new(1), /* warlord */
-                "warlord",
-            ),
-            (
-                crate::settings::Retort::new(2), /* chaos_mastery */
-                "chaos_mastery",
-            ),
-            (
-                crate::settings::Retort::new(3), /* nature_mastery */
-                "nature_mastery",
-            ),
-            (
-                crate::settings::Retort::new(4), /* sorcery_mastery */
-                "sorcery_mastery",
-            ),
-            (
-                crate::settings::Retort::new(5), /* infernal_power */
-                "infernal_power",
-            ),
-            (
-                crate::settings::Retort::new(6), /* divine_power */
-                "divine_power",
-            ),
-            (
-                crate::settings::Retort::new(7), /* sage_master */
-                "sage_master",
-            ),
-            (
-                crate::settings::Retort::new(8), /* channeler */
-                "channeler",
-            ),
-            (crate::settings::Retort::new(9) /* myrran */, "myrran"),
-            (
-                crate::settings::Retort::new(10), /* archmage */
-                "archmage",
-            ),
-            (
-                crate::settings::Retort::new(11), /* mana_focusing */
-                "mana_focusing",
-            ),
-            (
-                crate::settings::Retort::new(12), /* node_mastery */
-                "node_mastery",
-            ),
-            (crate::settings::Retort::new(13) /* famous */, "famous"),
-            (
-                crate::settings::Retort::new(14), /* runemaster */
-                "runemaster",
-            ),
-            (
-                crate::settings::Retort::new(15), /* conjurer */
-                "conjurer",
-            ),
-            (
-                crate::settings::Retort::new(16), /* charismatic */
-                "charismatic",
-            ),
-            (
-                crate::settings::Retort::new(17), /* artificer */
-                "artificer",
-            ),
-        ];
-        assert_eq!(named.len(), rules.retorts.len(), "a constant for each row");
-        for (id, alias) in named {
-            assert_eq!(rules.retorts.get(id).id, alias, "number {}", id.num());
-            let by_alias = rules.retorts.iter().find(|(_, d)| d.id == alias);
-            assert_eq!(by_alias.map(|(found, _)| found), Some(id), "{alias}");
+            (Value::Seq(f), Value::Seq(k)) => {
+                for (i, (f, k)) in f.iter().zip(k).enumerate() {
+                    walk(f, k, &format!("{path}[{i}]"), out);
+                }
+            }
+            (Value::Option(Some(f)), Value::Option(Some(k))) => walk(f, k, path, out),
+            _ => {}
         }
     }
+    let mut out = Vec::new();
+    walk(&file, &written, "", &mut out);
+    out
 }

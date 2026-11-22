@@ -921,11 +921,16 @@ impl Game {
             }
         }
         for group in groups {
-            let unit::Order::GoTo(mut path) = self
+            // The lead unit of a group may have been lost to a battle that an earlier group's
+            // move brought on: then the group has no order to follow any more.
+            let Ok(order) = self
                 .world
                 .get::<&unit::Order>(group[0])
                 .map(|o| (*o).clone())
-                .expect("grouped by order");
+            else {
+                continue;
+            };
+            let unit::Order::GoTo(mut path) = order;
             while let Some(&next) = path.first() {
                 // A stack that settled in a vacant lair on the last step is gone from the map.
                 let Some(from) = self.units().unit_position(group[0]) else {

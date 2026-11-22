@@ -2,7 +2,7 @@
 //! behind the terrain and the feature tables (`Terrains`, `Features`). The registries of the rules
 //! (`rules::registry::Registry`) have their own typed ids and are separate.
 //!
-//! Tests: at the bottom of this file, on a table of two small definitions.
+//! Tests: `tests/it/` (`docs/f4x-def-test-design.md`).
 
 use std::marker::PhantomData;
 
@@ -82,42 +82,5 @@ impl<D: Numbered, I: TableId> Table<D, I> {
             .iter()
             .find(|d| wanted(d))
             .map(|d| I::from_number(d.number()))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    struct Thing(u16);
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    struct ThingId(u16);
-    impl Numbered for Thing {
-        fn number(&self) -> u16 {
-            self.0
-        }
-    }
-    impl TableId for ThingId {
-        fn from_number(num: u16) -> Self {
-            Self(num)
-        }
-        fn number(self) -> u16 {
-            self.0
-        }
-    }
-
-    #[test]
-    fn the_table_is_sorted_and_finds_a_number_with_or_without_gaps() {
-        let table: Table<Thing, ThingId> = Table::new(vec![Thing(7), Thing(0), Thing(1), Thing(3)]);
-        let nums: Vec<u16> = table.defs().iter().map(|d| d.0).collect();
-        assert_eq!(nums, [0, 1, 3, 7]);
-        assert_eq!(table.id_numbered(1), Some(ThingId(1)));
-        assert_eq!(table.id_numbered(3), Some(ThingId(3)), "past a gap");
-        assert_eq!(table.id_numbered(7), Some(ThingId(7)));
-        assert_eq!(table.id_numbered(2), None);
-        assert_eq!(table.get(ThingId(9)), None);
-        assert_eq!(table.first_where(|d| d.0 > 1), Some(ThingId(3)));
-        assert!(Table::<Thing, ThingId>::default().defs().is_empty());
     }
 }

@@ -5,7 +5,7 @@
 //! split the ratio of two worths, and the key of the message for each. What a side is worth is
 //! worked out by the game (`Game::side_worth` in `f4x-core`).
 //!
-//! Tests: below.
+//! Tests: `tests/it/c4_values.rs`.
 
 /// How the sides compare, from one side's point of view (the human's).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -64,25 +64,5 @@ impl Forecast {
         } else {
             Forecast::Even
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_bands_split_the_ratio_the_same_way_both_ways() {
-        // Shares of 25, 50 and 80 percent, and so marks at 4, 2 and 1.25 times the other side.
-        let bands = [25, 50, 80];
-        let seen = |own: f32| Forecast::of_worths(own, 100.0, bands);
-        assert_eq!(seen(20.0), Some(Forecast::CompletelyOutmatched));
-        assert_eq!(seen(40.0), Some(Forecast::MuchWeaker));
-        assert_eq!(seen(70.0), Some(Forecast::SlightlyWeaker));
-        assert_eq!(seen(100.0), Some(Forecast::Even));
-        assert_eq!(seen(120.0), Some(Forecast::Even));
-        assert_eq!(seen(130.0), Some(Forecast::SlightlyStronger));
-        assert_eq!(seen(250.0), Some(Forecast::MuchStronger));
-        assert_eq!(seen(500.0), Some(Forecast::OtherOutmatched));
     }
 }
