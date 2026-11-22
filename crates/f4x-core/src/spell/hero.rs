@@ -139,7 +139,6 @@ impl Game {
         kind: usize,
     ) -> Result<hecs::Entity, HeroError> {
         let at = self.summon_point(player).ok_or(HeroError::NoCircle)?;
-        self.make_room(at, player, 1);
         self.spawn_hero(player, at, kind)
     }
 

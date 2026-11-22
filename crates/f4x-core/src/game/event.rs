@@ -19,6 +19,9 @@ pub enum LossCause {
     /// No hit points left: what it had taken was more than it can stand once a spell that gave
     /// it hit points was gone.
     Wounds,
+    /// Disbanded because its square held more units than the game allows at all
+    /// (`unit::TILE_SANITY_LIMIT`).
+    Crowded,
 }
 
 /// What a wizard could not pay for.

@@ -24,6 +24,7 @@
     "log.units_disbanded": (count: "n",
         one: "1 Einheit aufgelöst: unbezahlt oder unversorgt",
         other: "{n} Einheiten aufgelöst: unbezahlt oder unversorgt"),
+    "log.unit_crowded_out": "{unit} aufgelöst: zu viele Einheiten auf einem Feld",
     "log.city_looted": "{city} fällt: {gold} Gold geplündert, {citizens} Bürger und {buildings} Gebäude verloren",
     "log.city_looted_yours": "{city} gehört dir: {gold} Gold geplündert, {citizens} Bürger und {buildings} Gebäude verloren",
     "log.city_razed": "Die Stadt wird geschleift: {gold} Gold geplündert",

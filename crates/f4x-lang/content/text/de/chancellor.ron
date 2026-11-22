@@ -21,6 +21,7 @@
     "chancellor.lost_gold": "{unit} - desertiert: Goldmangel.",
     "chancellor.lost_mana": "{unit} - gebannt: Manamangel.",
     "chancellor.lost_wounds": "{unit} - gestorben: Die Wunden sind jetzt zu viel für sie.",
+    "chancellor.lost_crowded": "{unit} - aufgelöst: zu viele Einheiten auf einem Feld.",
     "chancellor.rival_short": "{wizard} hat zu wenig {what}.",
     "chancellor.rival_hero_left": "{wizard} hat einen Helden verloren, {hero}, der davongegangen ist.",
     "chancellor.ship_landed": "Ein Schiff, das nicht bezahlt werden konnte, hat {units} deiner Einheiten bei {x}, {y} abgesetzt.",

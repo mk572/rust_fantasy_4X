@@ -109,6 +109,7 @@ impl App {
                             LossCause::Gold => "chancellor.lost_gold",
                             LossCause::Mana => "chancellor.lost_mana",
                             LossCause::Wounds => "chancellor.lost_wounds",
+                            LossCause::Crowded => "chancellor.lost_crowded",
                         },
                         args,
                     ));

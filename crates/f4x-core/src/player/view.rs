@@ -773,6 +773,11 @@ impl<'a> PlayerView<'a> {
         u32::from(self.game.settings().rules.max_city_size)
     }
 
+    /// How many units may stand on `at` when a stack walks in (`Game::tile_limit`).
+    pub fn tile_limit(&self, at: crate::map::Position) -> usize {
+        self.game.tile_limit(at)
+    }
+
     /// Most units that may stand on one square in this game.
     pub fn max_tile(&self) -> usize {
         self.game.max_tile()
@@ -906,7 +911,7 @@ impl<'a> PlayerView<'a> {
             return true;
         }
         self.game.economy().hostile_at(to, self.me).is_none()
-            && self.game.units().units_at(to).len() + units.len() <= self.game.max_tile()
+            && self.game.units().units_at(to).len() + units.len() <= self.game.tile_limit(to)
     }
 
     /// The explored stands nobody holds: a lair without guards, or a cleared node or tower with

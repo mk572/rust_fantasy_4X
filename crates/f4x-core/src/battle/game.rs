@@ -1086,12 +1086,7 @@ impl Game {
         let side_room = battle
             .max_side
             .saturating_sub(battle.active_units(side).count());
-        // The square holds at most `max_tile` units, those of a defence that sat the fight out
-        // among them.
-        let tile_room = self
-            .max_tile()
-            .saturating_sub(self.units().units_at(pos).len());
-        let mut room = side_room.min(tile_room);
+        let mut room = side_room;
         let (mut raised, mut zombies) = (0, 0);
         for unit in dead {
             if room == 0 {

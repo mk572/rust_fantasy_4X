@@ -551,8 +551,7 @@ impl Game {
         let Some(Advance::Done {
             item: item @ ProductionItem::Unit(_),
             production: p,
-            at,
-            owner,
+            ..
         }) = self.economy().advance_production(city, production)
         else {
             return None;
@@ -561,10 +560,7 @@ impl Game {
             return None;
         };
         let too_small = self.economy().costs_a_citizen(u) && self.city_population(city).figures < 2;
-        // A full square asks for room (`unit/crowding.rs`): the human is asked what to do with
-        // it, a computer wizard's chooser moves a unit off it.
-        let room = self.make_room(at, owner, 1);
-        if room && !too_small {
+        if !too_small {
             return None;
         }
         self.put(city, p);

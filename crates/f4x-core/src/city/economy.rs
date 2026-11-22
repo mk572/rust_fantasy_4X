@@ -1423,6 +1423,12 @@ impl Game {
         self.settings.rules.max_tile
     }
 
+    /// How many units may stand on `at` when a stack walks in: `max_tile`, twice that on a tower
+    /// (`Economy::tile_limit`).
+    pub fn tile_limit(&self, at: crate::map::Position) -> usize {
+        self.economy().tile_limit(at)
+    }
+
     /// Most units one side fights with in a battle (the `max_battle_side` setting).
     pub fn max_battle_side(&self) -> usize {
         self.settings.rules.max_battle_side

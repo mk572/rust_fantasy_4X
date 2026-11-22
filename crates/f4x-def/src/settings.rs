@@ -55,6 +55,12 @@ pub const SITES_RANGE: std::ops::RangeInclusive<u8> = 0..=100;
 /// default. Read the game's own limit with `Game::max_tile()`.
 pub const MAX_TILE_LIMIT: usize = 20;
 
+/// The most units that may stand on one tile whatever the setting and however they got there (a
+/// hire, a summoning, a prisoner freed, a unit built, a stack moved in). Past it the game disbands
+/// the cheapest unit of the square (`Game::enforce_tile_sanity`). A game played by the rules never
+/// gets near it; it keeps a cheat or an AI stuck in a loop from slowing the game down.
+pub const TILE_SANITY_LIMIT: usize = 100;
+
 /// Picks the wizard spends on books and retorts.
 pub const PICKS: u8 = 11;
 

@@ -480,7 +480,9 @@ mod tests {
             nearest_unchecked(&ai, &g, engineer, first, &cities),
             Some(second)
         );
-        let room = g.max_tile() - g.units().units_at(second).len();
+        let room = g
+            .max_tile()
+            .saturating_sub(g.units().units_at(second).len());
         spawn(&mut g, P0, second, 110, room);
         assert_eq!(nearest_unchecked(&ai, &g, engineer, first, &cities), None);
         Ok(())

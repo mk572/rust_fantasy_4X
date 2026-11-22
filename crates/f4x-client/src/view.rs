@@ -952,6 +952,15 @@ impl App {
                     let args = self.spell_arg(Args::new(), spell).count("n", count);
                     Some(self.text_with("log.units_slain", &args))
                 }
+                Event::UnitLost {
+                    player,
+                    unit,
+                    cause: f4x_core::game::LossCause::Crowded,
+                } if player == HUMAN => {
+                    let units = &self.game.content().rules.units;
+                    let args = Args::new().term("unit", self.names.unit_term(units.get(unit).num));
+                    Some(self.text_with("log.unit_crowded_out", &args))
+                }
                 Event::UnitTransformed { from, to, .. } => {
                     let units = &self.game.content().rules.units;
                     let args = Args::new()
@@ -1363,8 +1372,7 @@ impl App {
     /// the human is fought before the next one plays), the neutrals play, the round ends and the
     /// next begins with the human's turn.
     pub(crate) fn end_turn(&mut self) {
-        // A square over the limit must be sorted out first: its box opens by itself.
-        if self.turn_events.is_some() || !self.game.crowded_squares(HUMAN).is_empty() {
+        if self.turn_events.is_some() {
             return;
         }
         let t = self.cache.budget(&self.game, HUMAN);
@@ -1741,7 +1749,6 @@ impl App {
         }
         self.queue_proposal();
         self.queue_offer();
-        self.queue_crowd();
         if !self.modals.is_empty() && !matches!(self.screen, Screen::Console) {
             return self.modal_frame(input) && !self.quit;
         }
@@ -2558,14 +2565,14 @@ impl App {
     }
 
     /// Whether the square holds units of another wizard or of the neutral player.
-    /// The human's units on a square, as many as a stack holds.
+    /// The human's units on a square, all of them (a square can hold more than a stack may walk
+    /// in with: hired or summoned units are put there whatever it holds).
     fn own_stack_at(&self, pos: Position) -> Vec<hecs::Entity> {
         self.game
             .economy()
             .army_at(pos)
             .into_iter()
             .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
-            .take(self.game.max_tile())
             .collect()
     }
 

@@ -406,9 +406,8 @@ impl Game {
         let level = mercenary_level(self.rng.roll(100) as i32, fame);
         let count = mercenary_count(self.rng.roll(100) as i32, fame);
         let price = mercenary_price(cost, level, count, percent);
-        let at = self.summon_point(player)?;
-        let room = self.can_make_room(at, player, count as usize);
-        (HalfInt::from_int(price) <= gold && room).then_some(Offer::Mercenaries {
+        self.summon_point(player)?;
+        (HalfInt::from_int(price) <= gold).then_some(Offer::Mercenaries {
             unit: id,
             count,
             level,
@@ -488,9 +487,6 @@ impl Game {
                 price,
             } => {
                 let at = self.summon_point(player).ok_or(OfferError::NoRoom)?;
-                if !self.can_make_room(at, player, count as usize) {
-                    return Err(OfferError::NoRoom);
-                }
                 let id = self
                     .content
                     .rules
@@ -512,7 +508,6 @@ impl Game {
                             .or_else(|| path.levels.last())
                     })
                     .map_or(0, |l| l.xp);
-                self.make_room(at, player, count as usize);
                 let units: Vec<_> = (0..count)
                     .map(|_| {
                         let e = self.spawn_unit(player, at, id);

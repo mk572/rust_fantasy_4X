@@ -46,10 +46,15 @@ pub fn world_problems(g: &Game) -> Vec<String> {
         }
     }
     for (at, n) in &per_square {
-        if *n > g.max_tile() {
+        // The rules let a square hold more than `max_tile` (units put there, not walked); the
+        // game never keeps more than the sanity limit.
+        if *n > crate::unit::TILE_SANITY_LIMIT {
             say(
                 "tile-room",
-                format!("{n} units at {at:?}, room for {}", g.max_tile()),
+                format!(
+                    "{n} units at {at:?}, at most {}",
+                    crate::unit::TILE_SANITY_LIMIT
+                ),
             );
         }
     }
@@ -176,7 +181,7 @@ mod tests {
             g.units().unit_position(u).expect("square"),
         );
         let kind = g.units().unit_kind_id(u).expect("a kind");
-        while g.units().units_at(at).len() <= g.max_tile() {
+        while g.units().units_at(at).len() <= crate::unit::TILE_SANITY_LIMIT {
             g.spawn_unit(owner, at, kind);
         }
         only(&g, "tile-room");

@@ -8,7 +8,6 @@
 //! is a function over `&mut World` (`spawn`, `experience::gain_xp`, the temporary effects).
 //! `Game` has thin methods that make a handle and ask it (`Game::units`).
 
-pub mod crowding;
 pub mod experience;
 pub(crate) mod healing;
 pub(crate) mod kept;
@@ -16,6 +15,7 @@ pub mod mobility;
 pub mod movement;
 pub mod mutation;
 pub mod pathing;
+pub mod sanity;
 pub mod stasis;
 pub mod transport;
 pub mod undead;
@@ -90,7 +90,7 @@ impl UnitView<'_> {
     }
 }
 
-pub use f4x_def::settings::{MAX_STACK, MAX_TILE_LIMIT};
+pub use f4x_def::settings::{MAX_STACK, MAX_TILE_LIMIT, TILE_SANITY_LIMIT};
 
 /// The unit rules' view of the game: the world, the content and the players.
 #[derive(Clone, Copy)]

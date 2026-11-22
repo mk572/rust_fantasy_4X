@@ -19,7 +19,6 @@ struct Source {
     owner: PlayerId,
     pos: Position,
     troops: Vec<UnitId>,
-    room: usize,
     ai_fortress: bool,
 }
 
@@ -62,7 +61,7 @@ impl Game {
         if pos.plane == crate::map::Plane::Myrror && self.turn < 200 {
             count /= 2;
         }
-        let count = (count.max(1) as usize).min(source.room);
+        let count = count.max(1) as usize;
         let troops = source.troops.clone();
         let xp_level = match self.turn {
             251.. => 3,
@@ -133,14 +132,13 @@ impl Game {
                     && self.economy().is_fortress_city(e)
             });
             let present = self.units().units_at(pos);
-            let room = self.max_tile().saturating_sub(present.len());
             let troops: Vec<UnitId> = present
                 .iter()
                 .copied()
                 .filter(|&u| self.units().unit_owner(u) == Some(owner) && self.raids(u))
                 .filter_map(|u| self.world.get::<&Unit>(u).ok().map(|k| k.0))
                 .collect();
-            if troops.is_empty() || room == 0 {
+            if troops.is_empty() {
                 continue;
             }
             out.push(Source {
@@ -148,7 +146,6 @@ impl Game {
                 owner,
                 pos,
                 troops,
-                room,
                 ai_fortress,
             });
         }

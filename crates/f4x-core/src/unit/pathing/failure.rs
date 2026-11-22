@@ -156,9 +156,9 @@ impl Game {
             return Some(Blocker::Lair);
         }
         let present = economy.army_at(at).len();
-        (present + units.len() > economy.max_tile).then_some(Blocker::Full {
+        (present + units.len() > economy.tile_limit(at)).then_some(Blocker::Full {
             present: present as u32,
-            limit: economy.max_tile as u32,
+            limit: economy.tile_limit(at) as u32,
         })
     }
 

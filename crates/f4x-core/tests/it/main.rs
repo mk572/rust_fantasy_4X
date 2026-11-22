@@ -6,4 +6,5 @@ mod c3_determinism;
 mod c4_persist;
 mod c5_input;
 mod c6_setting;
+mod c6_tile;
 mod support;

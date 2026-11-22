@@ -483,7 +483,7 @@ impl Game {
             return false;
         }
         let there = self.units().units_at(land).len();
-        if there + passengers.len() > self.max_tile() {
+        if there + passengers.len() > self.tile_limit(land) {
             return false;
         }
         let traits = crate::unit::movement::StackTraits::default();

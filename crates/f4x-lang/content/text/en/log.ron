@@ -32,6 +32,7 @@
     "log.units_disbanded": (count: "n",
         one: "1 unit disbanded: unpaid or unfed",
         other: "{n} units disbanded: unpaid or unfed"),
+    "log.unit_crowded_out": "{unit} disbanded: too many units on one square",
     "log.city_looted": "{city} falls: {gold} gold looted, {citizens} citizens and {buildings} buildings lost",
     "log.city_looted_yours": "{city} is yours: {gold} gold looted, {citizens} citizens and {buildings} buildings lost",
     "log.city_razed": "The city is razed: {gold} gold looted",

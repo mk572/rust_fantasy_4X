@@ -18,7 +18,6 @@ mod builder;
 mod city_site;
 mod controller;
 mod craft;
-mod crowd;
 mod diplo_b;
 mod diplo_b_stance;
 mod diplomacy;

@@ -28,15 +28,14 @@ Decided October 2026, `design.md` section 8.
   the final score, and sets how well the AI plays (task 148).
 - **No hard-coded AI decisions in the core.** What an AI decides lives in `f4x-ai` and reaches
   the core only as ordinary commands.
-  The one thing the core asks of the AI is **which unit steps off a full square** (decided 17 November
-  2026, `unit/crowding.rs`): when a unit is about to appear on a square that holds the
-  limit (a finished unit, a summoning, hired mercenaries, a hero), `Game::make_room` moves one of
-  the owner's units to a free square next to it. The human is asked (the square may go over the
-  limit until they answer, as before); for a computer wizard the game asks the chooser `f4x-ai`
-  installs (`crowd.rs`, the same way as the battle AI: `set_crowd_chooser`), and without one the
-  cheapest unit goes. Before this, a finished unit waited for ever in a full city of a computer
-  wizard, and a summoning was refused. The original has no such rule: its AI keeps its cities
-  below the limit.
+  The core asks nothing of the AI. It once asked **which unit steps off a full square** (17 November
+  2026, `unit/crowding.rs`, removed 22 November 2026): a unit that is put on a square (finished,
+  summoned, hired, freed, raised, recalled) is now never refused for a full one. Three limits meet
+  on a square instead: the battle side (`max_battle_side`, met when a battle starts), the walking
+  limit (`max_tile`, met when units walk in, twice as high on a tower: `Economy::tile_limit`) and
+  the sanity limit (`TILE_SANITY_LIMIT`, 100: past it `Game::enforce_tile_sanity` disbands the
+  cheapest unit of the square after any command and tells the player, `LossCause::Crowded`). The
+  original has no such rule: its AI keeps its cities below the limit.
 - **The AI sees only what a human player would (task 181).** What the original does (as
   `design.md` section 8 has it): its computer wizards use knowledge a human does not have;
   the section lists "AI knowledge of hidden information" among what we skip.

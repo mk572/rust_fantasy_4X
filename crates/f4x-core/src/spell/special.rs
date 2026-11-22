@@ -53,9 +53,6 @@ impl Game {
         if self.economy().hostile_at(at, owner).is_some() {
             return Err(TargetError::EnemyOnSquare);
         }
-        if self.units().units_at(at).len() >= self.max_tile() {
-            return Err(TargetError::SquareFull);
-        }
         Ok(())
     }
 
@@ -101,22 +98,17 @@ impl Game {
         }
     }
 
-    /// Where Word of Recall would send a unit of `player`: the summoning circle, if it has
-    /// room. The original evicts the weakest unit of a full stack; here a full circle makes
-    /// the spell unavailable.
+    /// Where Word of Recall would send a unit of `player`: the summoning circle, if the wizard
+    /// has one. A full circle takes the unit all the same (`unit/sanity.rs`).
     pub fn recall_destination(
         &self,
         player: crate::player::PlayerId,
-        unit: hecs::Entity,
     ) -> Result<Position, TargetError> {
         let to = self
             .wizard(player)
             .and_then(|w| w.summon_at())
             .ok_or(TargetError::NoCircle)?;
-        let there = self.units().units_at(to);
-        (there.contains(&unit) || there.len() < self.max_tile())
-            .then_some(to)
-            .ok_or(TargetError::CircleFull)
+        Ok(to)
     }
 
     /// Send the unit to the summoning circle, or say why it cannot go (nothing is changed then).
@@ -125,7 +117,7 @@ impl Game {
         caster: crate::player::PlayerId,
         unit: hecs::Entity,
     ) -> Result<(), TargetError> {
-        let to = self.recall_destination(caster, unit)?;
+        let to = self.recall_destination(caster)?;
         self.put(unit, to);
         self.explore(caster, to, crate::map::fog::sight_for(1));
         Ok(())
@@ -157,7 +149,7 @@ impl Game {
         if self.economy().hostile_at(to, owner).is_some() {
             return Err(TargetError::EnemyOnOtherPlane);
         }
-        if self.units().units_at(to).len() + stack.len() > self.max_tile() {
+        if self.units().units_at(to).len() + stack.len() > self.tile_limit(to) {
             return Err(TargetError::OtherPlaneFull);
         }
         let traits = self.economy().stack_traits(&stack);

@@ -419,7 +419,6 @@ impl Economy<'_> {
     /// the limit of a square (`StackFull`): one pass over the units, for a search that asks about
     /// many squares. A path through such a square fails at the step into it.
     pub fn full_squares(&self, stack: usize) -> crate::fast::FastSet<Position> {
-        let room = self.max_tile.saturating_sub(stack);
         let mut count: crate::fast::FastMap<Position, usize> = Default::default();
         for (_, (_, p)) in self.world.query::<(&crate::unit::Unit, &Position)>().iter() {
             *count.entry(*p).or_default() += 1;
@@ -435,7 +434,7 @@ impl Economy<'_> {
         }
         total
             .into_iter()
-            .filter(|&(_, n)| n > room)
+            .filter(|&(p, n)| n + stack > self.tile_limit(p))
             .map(|(p, _)| p)
             .collect()
     }
@@ -597,7 +596,7 @@ impl Economy<'_> {
             }
         }
         let present = self.army_at(to).len();
-        if present + units.len() > self.max_tile {
+        if present + units.len() > self.tile_limit(to) {
             return Err(MoveError::StackFull);
         }
         Ok((costs, Entry::Free))
@@ -647,6 +646,16 @@ impl Economy<'_> {
     }
 
     /// Whether the square holds a tower.
+    /// How many units may stand on `at` when a stack walks in: the `max_tile` setting, twice that on a
+    /// tower (it joins the planes, so a stack that crosses meets the one already there).
+    pub fn tile_limit(&self, at: Position) -> usize {
+        if self.is_tower(at) {
+            self.max_tile * 2
+        } else {
+            self.max_tile
+        }
+    }
+
     pub(crate) fn is_tower(&self, at: Position) -> bool {
         self.feature_kind_at(at) == Some(crate::feature::def::FeatureKind::Tower)
     }
@@ -776,7 +785,7 @@ impl Game {
             if self.economy().hostile_at(to, owner).is_some() {
                 return Err(MoveError::CannotShiftPlane);
             }
-            if self.units().units_at(to).len() + units.len() > self.max_tile() {
+            if self.units().units_at(to).len() + units.len() > self.economy().tile_limit(to) {
                 return Err(MoveError::StackFull);
             }
         }

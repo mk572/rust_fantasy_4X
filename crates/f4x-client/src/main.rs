@@ -33,7 +33,6 @@ mod craft_art;
 mod craft_screen;
 mod create_screen;
 mod credits_screen;
-mod crowd_prompt;
 mod custom_screen;
 mod cycle;
 mod diplomacy_list_screen;

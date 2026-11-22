@@ -168,7 +168,6 @@ pub fn delivery_square(view: &Game, receiver: PlayerId, from: Position) -> Optio
         .my_cities()
         .into_iter()
         .map(|(_, p)| p)
-        .filter(|p| view.units().units_at(*p).len() < view.max_tile())
         .min_by_key(|p| {
             let near = (p.plane == from.plane)
                 .then(|| map.plane(p.plane).chebyshev((p.x, p.y), (from.x, from.y)));

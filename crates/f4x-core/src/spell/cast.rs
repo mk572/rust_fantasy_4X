@@ -235,7 +235,6 @@ impl EffectHost for GameHost<'_> {
     fn summon(&mut self, owner: PlayerId, at: Position, id: UnitId, count: u8) {
         // Summoned creatures appear at the summoning circle; without one, where aimed.
         let at = self.game.summon_point(owner).unwrap_or(at);
-        self.game.make_room(at, owner, usize::from(count));
         for _ in 0..count {
             self.game.spawn_unit(owner, at, id);
         }
@@ -617,16 +616,6 @@ impl Game {
                 Err(MagicError::Target(TargetError::NotYourCity))
             }
         };
-        // A summoning needs room on the square the creatures appear on.
-        if self.summons(spell) {
-            let at = match target {
-                Some(Target::Tile(p)) => self.summon_point(player).or(Some(p)),
-                _ => self.summon_point(player),
-            };
-            if at.is_some_and(|p| !self.can_make_room(p, player, 1)) {
-                return Err(MagicError::Target(TargetError::SquareFull));
-            }
-        }
         if !self.spell_needs_target(player, spell) {
             return Ok(());
         }
@@ -735,7 +724,7 @@ impl Game {
             return match target {
                 Some(Target::Unit(u)) => {
                     own_unit(u)?;
-                    self.recall_destination(player, u)
+                    self.recall_destination(player)
                         .map(|_| ())
                         .map_err(MagicError::Target)
                 }
@@ -952,7 +941,7 @@ impl Game {
                 crate::spell::special::RECALL,
                 crate::spell::special::RECALL_ANYONE,
             ) {
-                self.recall_destination(player, unit).err()
+                self.recall_destination(player).err()
             } else {
                 None
             };

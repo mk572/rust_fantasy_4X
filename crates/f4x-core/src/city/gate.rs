@@ -57,7 +57,7 @@ impl Game {
         if units.iter().any(|&u| self.units().unit_moves_left(u) == 0) {
             return Err(MoveError::NoMovesLeft);
         }
-        if self.units().units_at(to).len() + units.len() > self.max_tile() {
+        if self.units().units_at(to).len() + units.len() > self.tile_limit(to) {
             return Err(MoveError::StackFull);
         }
         Ok(())

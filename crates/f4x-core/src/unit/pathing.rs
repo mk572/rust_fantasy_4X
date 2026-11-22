@@ -110,7 +110,6 @@ impl Game {
         path: &[Position],
         to: Position,
     ) -> bool {
-        let room = self.max_tile().saturating_sub(units.len());
         let mut count: Vec<(Position, usize)> =
             path.iter().filter(|&&p| p != to).map(|&p| (p, 0)).collect();
         if count.is_empty() {
@@ -121,7 +120,9 @@ impl Game {
                 *n += 1;
             }
         }
-        count.iter().any(|&(_, n)| n > room)
+        count
+            .iter()
+            .any(|&(p, n)| n + units.len() > self.tile_limit(p))
     }
 
     /// Every square on the stack's plane that it can walk to from where it stands (the squares
