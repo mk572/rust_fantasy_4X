@@ -1982,6 +1982,7 @@ impl Game {
         };
         self.set_owner(unit, to);
         let _ = self.world.insert_one(unit, at);
+        self.watch_tile(at);
         let _ = self.world.remove_one::<crate::unit::Order>(unit);
     }
 

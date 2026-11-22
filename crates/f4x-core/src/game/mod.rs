@@ -72,6 +72,9 @@ pub struct Game {
     /// auto-builder, which asks for it in every city. Cleared when something is completed, since
     /// that changes the upkeep. `None` outside that pass: nothing is kept.
     pub(crate) net_gold_memo: std::cell::Cell<NetGoldMemo>,
+    /// The squares where a unit was put since the last command ended (`unit/sanity.rs`): the only
+    /// squares that command can have pushed over the sanity limit.
+    pub(crate) tile_watch: Vec<map::Position>,
     /// The figures the budget is made of while a player's cities build, patched after each
     /// completed item instead of worked out afresh (`Game::kept_budget`).
     pub(crate) budget_parts: std::cell::RefCell<Option<player::finance::BudgetParts>>,
@@ -158,6 +161,10 @@ impl Game {
     /// Give `entity` a component (or replace it); see [`put_in`].
     #[track_caller]
     pub(crate) fn put<C: hecs::Component>(&mut self, entity: hecs::Entity, component: C) {
+        // A unit given a square is a unit put on it: the sanity limit looks at that square.
+        if let Some(&at) = (&component as &dyn std::any::Any).downcast_ref::<map::Position>() {
+            self.watch_tile(at);
+        }
         put_in(&mut self.world, entity, component);
     }
 
@@ -187,6 +194,7 @@ impl Game {
             fog: map::fog::Fog::default(),
             vision: Default::default(),
             net_gold_memo: Default::default(),
+            tile_watch: Vec::new(),
             budget_parts: Default::default(),
             next_serial: 1,
             rng: game::rng::GameRng::new(seed),
@@ -1051,6 +1059,7 @@ impl Game {
         }
         for &u in units {
             let _ = self.world.insert_one(u, to);
+            self.watch_tile(to);
             let _ = self.world.insert_one(u, unit::MovesLeft(HalfInt::ZERO));
         }
         self.explore(owner, to, map::fog::sight_for(2));

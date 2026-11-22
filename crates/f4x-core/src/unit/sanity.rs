@@ -16,12 +16,35 @@ use crate::map::Position;
 use crate::unit::TILE_SANITY_LIMIT;
 
 impl Game {
-    /// Disband the cheapest unit on each square that holds more than [`TILE_SANITY_LIMIT`] units,
-    /// until none does. The newest unit goes first among equals.
+    /// Note that a unit was put on `at`: the next [`Self::enforce_tile_sanity`] looks at it.
+    pub(crate) fn watch_tile(&mut self, at: Position) {
+        if !self.tile_watch.contains(&at) {
+            self.tile_watch.push(at);
+        }
+    }
+
+    /// Disband the cheapest unit on each watched square that holds more than [`TILE_SANITY_LIMIT`]
+    /// units, until none does. The newest unit goes first among equals.
     pub(crate) fn enforce_tile_sanity(&mut self) -> Vec<Event> {
+        // The units of a battle are on the field, not on squares; the watch waits for its end.
         if self.battle.is_some() {
             return Vec::new();
         }
+        let mut over = std::mem::take(&mut self.tile_watch);
+        over.retain(|&at| self.units().units_at(at).len() > TILE_SANITY_LIMIT);
+        over.sort_by_key(|p| (p.plane as u8, p.y, p.x));
+        let events = self.disband_over(over);
+        // Nothing the watch missed: no square anywhere holds more than the limit.
+        debug_assert!(
+            self.crowded_anywhere().is_empty(),
+            "a square was not watched"
+        );
+        events
+    }
+
+    /// Every square that holds more than the limit, found by looking at all the units: the check
+    /// of the watch above, and of the tests.
+    pub fn crowded_anywhere(&self) -> Vec<Position> {
         let mut count: HashMap<Position, usize> = HashMap::new();
         for (_, (_, at)) in self.world.query::<(&crate::unit::Unit, &Position)>().iter() {
             *count.entry(*at).or_default() += 1;
@@ -32,6 +55,10 @@ impl Game {
             .map(|(p, _)| p)
             .collect();
         over.sort_by_key(|p| (p.plane as u8, p.y, p.x));
+        over
+    }
+
+    fn disband_over(&mut self, over: Vec<Position>) -> Vec<Event> {
         let mut events = Vec::new();
         for at in over {
             let mut here = self.units().units_at(at);

@@ -909,6 +909,7 @@ impl Game {
             .player_entity(owner)
             .expect("a unit is spawned for a player that exists");
         let e = spawn(&mut self.world, &self.content, serial, player, pos, unit);
+        self.watch_tile(pos);
         let sight = self.units().unit_sight(e);
         if owner != crate::player::MONSTERS {
             self.explore(owner, pos, sight);

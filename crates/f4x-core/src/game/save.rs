@@ -878,6 +878,7 @@ impl Game {
             // Caches, rebuilt on use.
             vision: _,
             net_gold_memo: _,
+            tile_watch: _,
             budget_parts: _,
             // What belongs to the session, not the game: learned battle players, the recording, the
             // undo history and the switch for it, the confirmation of one command, and the items of the
@@ -1963,6 +1964,8 @@ impl Snapshot {
         if let Some(battle) = self.battle {
             game.restore_battle(battle)?;
         }
+        // A save that holds a crowded square (edited by hand) has it dealt with by the next command.
+        game.tile_watch = game.crowded_anywhere();
         Ok(game)
     }
 }

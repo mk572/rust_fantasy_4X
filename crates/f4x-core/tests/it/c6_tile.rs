@@ -125,3 +125,59 @@ fn a_tower_takes_twice_the_walking_limit() {
         "the limits that are in use: {seen:?}"
     );
 }
+
+/// The sanity limit looks only at squares where a unit was just put, so every way of putting one there
+/// must be watched. Whatever the commands of the sweep do, no square is left over the limit (the game
+/// itself asserts the same after each command in a debug build).
+#[test]
+fn no_command_leaves_a_square_over_the_sanity_limit() {
+    use crate::support::{busy_round, commands};
+    for (name, mut g) in worlds().into_iter().step_by(2) {
+        // Crowd a square close to the limit, so that what the commands put there tips it over.
+        let (wizard, at) = wizard_and_city(&g);
+        let unit = f4x_core::rules::UnitId::new(g.content().rules.units.defs()[0].num);
+        while g.units().units_at(at).len() < TILE_SANITY_LIMIT {
+            g.apply(Command::CreateUnit {
+                owner: wizard,
+                pos: at,
+                unit,
+            });
+        }
+        for command in commands(&g) {
+            let label = format!("{command:?}");
+            g.apply(command);
+            assert!(
+                g.crowded_anywhere().is_empty(),
+                "{name}: after {label}: {:?}",
+                g.crowded_anywhere()
+            );
+        }
+        for _ in 0..5 {
+            busy_round(&mut g, 200);
+            assert!(g.crowded_anywhere().is_empty(), "{name}");
+        }
+    }
+}
+
+/// A save with a crowded square (written by hand) is put right by the first command.
+#[test]
+fn a_crowded_save_is_put_right_by_the_next_command() {
+    let (_, mut g) = worlds().remove(0);
+    let (wizard, at) = wizard_and_city(&g);
+    let unit = f4x_core::rules::UnitId::new(g.content().rules.units.defs()[0].num);
+    // Over the limit without a command (a scenario step), then saved and loaded.
+    for _ in 0..TILE_SANITY_LIMIT + 3 {
+        g.spawn_unit(wizard, at, unit);
+    }
+    let text = crate::support::text(&g);
+    let mut loaded = f4x_core::game::save::Snapshot::from_text(&text)
+        .expect("reads")
+        .restore(crate::support::content())
+        .expect("loads");
+    assert!(!loaded.crowded_anywhere().is_empty());
+    loaded.apply(Command::SetTaxRate {
+        player: wizard,
+        rate: 0,
+    });
+    assert!(loaded.crowded_anywhere().is_empty());
+}
