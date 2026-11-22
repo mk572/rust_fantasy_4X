@@ -134,7 +134,7 @@ fn the_most_units_on_a_square_follows_its_setting() {
         for _ in 0..limit + 3 {
             let events = walker(&mut g, unit, to);
             match events.iter().find_map(|e| match e {
-                Event::Rejected(r) => Some(r.clone()),
+                Event::Rejected(r) => Some(*r),
                 _ => None,
             }) {
                 None => accepted += 1,
