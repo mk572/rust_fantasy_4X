@@ -9,7 +9,9 @@ use crate::player::PlayerId;
 
 use crate::city::economy::Buildings;
 use crate::game::{Event, Game};
-use crate::rules::{BuildingId, SpellId};
+use crate::rules::{BuildingId, RealmId, SpellId};
+use crate::wizard::magic::Retort;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::player::MONSTERS;
 
@@ -194,6 +196,73 @@ impl Game {
         spells.researchable.remove(&spell);
         spells.known.insert(spell);
         true
+    }
+
+    /// Teach a wizard no more of a spell: it is no longer known, and goes back to what the wizard
+    /// can research when the books allow it. False when there is no such wizard or it did not
+    /// know the spell.
+    pub fn cheat_forget_spell(&mut self, player: PlayerId, spell: SpellId) -> bool {
+        let allowed = {
+            let def = self.content.rules.spells.get(spell);
+            self.wizard(player).is_some_and(|w| w.books_allow(def))
+        };
+        let Some(mut w) = self.wizard_mut(player) else {
+            return false;
+        };
+        let mut spells = w.get_mut::<crate::wizard::sheet::KnownSpells>();
+        spells.starting.remove(&spell);
+        let knew = spells.known.remove(&spell);
+        if knew && allowed {
+            spells.researchable.insert(spell);
+        }
+        knew
+    }
+
+    /// Change a wizard's books and retorts with `change` (given what they are now), then work out
+    /// the casting skill again ([`crate::wizard::sheet::WizardMut::set_sheet`]). False when there
+    /// is no such wizard or `change` says nothing changed.
+    fn cheat_change_sheet(
+        &mut self,
+        player: PlayerId,
+        change: impl FnOnce(&mut BTreeMap<RealmId, u8>, &mut BTreeSet<Retort>) -> bool,
+    ) -> bool {
+        let rules = &self.content.rules;
+        let Some(entity) = self
+            .player_index
+            .get(&player)
+            .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
+        else {
+            return false;
+        };
+        let mut w = crate::wizard::sheet::WizardMut::new(&mut self.world, entity);
+        let (mut books, mut retorts) = (w.view().books(), w.view().retorts());
+        if !change(&mut books, &mut retorts) {
+            return false;
+        }
+        w.set_sheet(rules, books, retorts);
+        true
+    }
+
+    /// Set the books a wizard has in a realm (at most the game's most for a realm; none removes
+    /// them); the casting skill follows.
+    pub fn cheat_set_books(&mut self, player: PlayerId, realm: RealmId, books: u8) -> bool {
+        let books = books.min(self.settings.wizards.max_books_per_realm);
+        self.cheat_change_sheet(player, |all, _| {
+            all.insert(realm, books);
+            true
+        })
+    }
+
+    /// Give a wizard a retort, or take it away; the casting skill follows. False when there is no
+    /// such wizard, or it already had (or did not have) the retort.
+    pub fn cheat_set_retort(&mut self, player: PlayerId, retort: Retort, on: bool) -> bool {
+        self.cheat_change_sheet(player, |_, retorts| {
+            if on {
+                retorts.insert(retort)
+            } else {
+                retorts.remove(&retort)
+            }
+        })
     }
 
     /// Defeat a wizard now, as if `winner` had beaten them (for tests and the console).

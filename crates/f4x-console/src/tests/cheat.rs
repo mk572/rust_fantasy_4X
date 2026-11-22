@@ -256,3 +256,109 @@ fn a_hero_is_hired_rerolled_and_dismissed_and_the_treasury_is_read() {
     assert!(r.ok && r.text().contains(&gold.to_string()), "{}", r.text());
     assert!(c.execute(&mut g, "treasury 1").ok);
 }
+
+fn spell_text(g: &Game, num: u16) -> (f4x_core::rules::SpellId, String) {
+    let rules = &g.content().rules;
+    let id = rules.spells.id_numbered(num).expect("the content has it");
+    (id, rules.spells.get(id).id.clone())
+}
+
+#[test]
+fn set_books_changes_the_books_and_the_casting_skill() {
+    use f4x_core::rules::RealmId;
+    let nature = RealmId::new(0 /* nature */);
+    let (mut g, mut c) = (game(), console());
+    assert!(
+        !c.execute(&mut g, "set books nature 4").ok,
+        "needs override"
+    );
+    assert!(c.execute(&mut g, "mode override").ok);
+    let skill = |g: &Game| g.wizard(HUMAN).expect("a wizard").skill_points();
+    let before = skill(&g);
+    assert!(c.execute(&mut g, "set books nature 4").ok);
+    assert_eq!(g.wizard(HUMAN).expect("a wizard").books_in(nature), 4);
+    assert!(skill(&g) > before, "{} after {before}", skill(&g));
+    // Another wizard, by number; none takes the books away.
+    assert!(c.execute(&mut g, "set books nature 3 1").ok);
+    assert_eq!(g.wizard(PlayerId(1)).expect("a wizard").books_in(nature), 3);
+    assert_eq!(g.wizard(HUMAN).expect("a wizard").books_in(nature), 4);
+    assert!(c.execute(&mut g, "set books nature 0").ok);
+    assert_eq!(g.wizard(HUMAN).expect("a wizard").books_in(nature), 0);
+    assert_eq!(skill(&g), before);
+    // More than the game allows is cut to the most.
+    assert!(c.execute(&mut g, "set books nature 200").ok);
+    assert_eq!(
+        g.wizard(HUMAN).expect("a wizard").books_in(nature),
+        i32::from(g.settings().wizards.max_books_per_realm)
+    );
+    for bad in [
+        "set books",
+        "set books nowhere 3",
+        "set books nature x",
+        "set tomes nature 3",
+    ] {
+        assert!(!c.execute(&mut g, bad).ok, "{bad}");
+    }
+}
+
+#[test]
+fn a_retort_is_given_and_taken_away_and_the_skill_follows() {
+    use f4x_core::wizard::magic::Retort;
+    let channeler = Retort::new(8 /* channeler */);
+    let (mut g, mut c) = (game(), console());
+    assert!(
+        !c.execute(&mut g, "give retort channeler").ok,
+        "needs override"
+    );
+    assert!(c.execute(&mut g, "mode override").ok);
+    assert!(!g.wizard(HUMAN).expect("a wizard").has(channeler));
+    assert!(c.execute(&mut g, "give retort channeler").ok);
+    assert!(g.wizard(HUMAN).expect("a wizard").has(channeler));
+    // Giving it twice, or taking away one that is not there, says so.
+    assert!(!c.execute(&mut g, "give retort channeler").ok);
+    assert!(c.execute(&mut g, "remove retort channeler").ok);
+    assert!(!g.wizard(HUMAN).expect("a wizard").has(channeler));
+    assert!(!c.execute(&mut g, "remove retort channeler").ok);
+    // A name with two words, and another wizard.
+    assert!(c.execute(&mut g, "give retort chaos mastery 1").ok);
+    assert!(g
+        .wizard(PlayerId(1))
+        .expect("a wizard")
+        .has(Retort::new(2 /* chaos_mastery */)));
+    for bad in [
+        "give retort",
+        "give retort nothing_like_it",
+        "remove retort",
+        "remove tome x",
+    ] {
+        assert!(!c.execute(&mut g, bad).ok, "{bad}");
+    }
+}
+
+#[test]
+fn a_spell_is_given_and_taken_away() {
+    let (mut g, mut c) = (game(), console());
+    let (spell, name) = spell_text(&g, 12 /* nature_s_eye */);
+    assert!(
+        !c.execute(&mut g, &format!("give spell {name}")).ok,
+        "needs override"
+    );
+    assert!(c.execute(&mut g, "mode override").ok);
+    let knows = |g: &Game, p| g.wizard(p).expect("a wizard").known().contains(&spell);
+    assert!(!knows(&g, HUMAN));
+    assert!(c.execute(&mut g, &format!("give spell {name}")).ok);
+    assert!(knows(&g, HUMAN));
+    assert!(c.execute(&mut g, &format!("remove spell {name}")).ok);
+    assert!(!knows(&g, HUMAN));
+    // Taking away one that is not known says so; another wizard, by number.
+    assert!(!c.execute(&mut g, &format!("remove spell {name}")).ok);
+    assert!(c.execute(&mut g, &format!("give spell {name} 1")).ok);
+    assert!(knows(&g, PlayerId(1)) && !knows(&g, HUMAN));
+    assert!(!c.execute(&mut g, "give spell no_such_spell").ok);
+    // Each use is in the log.
+    let log = g.override_log().join("\n");
+    assert!(
+        log.contains("give spell") && log.contains("remove spell"),
+        "{log}"
+    );
+}

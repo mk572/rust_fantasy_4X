@@ -23,7 +23,9 @@ macro_rules! cheat {
 }
 
 pub const TABLE: &[CommandDef] = &[
-    cheat!("give", "give <gold|mana|fame> <amount> [player]", "Add (or, negative, remove) gold, mana or fame.", give),
+    cheat!("give", "give <gold|mana|fame> <amount> [player] | give retort <retort> [player] | give spell <spell> [player]", "Add (or, negative, remove) gold, mana or fame; or give a wizard a retort (the casting skill follows) or a spell.", give),
+    cheat!("remove", "remove retort <retort> [player] | remove spell <spell> [player]", "Take a retort (the casting skill follows) or a known spell away from a wizard.", remove),
+    cheat!("set", "set books <realm> <n> [player]", "Set the books a wizard has in a realm (none takes them away; at most the game's most for a realm); the casting skill follows.", set),
     cheat!("spawn", "spawn <unit> <x,y[,plane]> [player]", "Create a unit at no cost.", spawn),
     cheat!("kill", "kill <units>", "Remove units from the game.", kill),
     cheat!("restore", "restore <units>", "Heal units fully and refill their moves.", restore),
@@ -63,8 +65,130 @@ fn player_arg(ctx: &Ctx, a: &Args, i: usize) -> Result<PlayerId, ConsoleError> {
         .ok_or_else(|| ConsoleError::NoSuch(format!("player {}", id.0)))
 }
 
+/// The words after the keyword as a name and, when the last of several is a number, the wizard.
+fn name_and_wizard<'a>(
+    ctx: &Ctx,
+    words: &'a [&'a str],
+) -> Result<(String, PlayerId), ConsoleError> {
+    match words.split_last() {
+        Some((last, rest)) if !rest.is_empty() && last.parse::<u8>().is_ok() => {
+            Ok((rest.join(" "), parse_player(last)?))
+        }
+        _ => Ok((words.join(" "), ctx.session.player)),
+    }
+}
+
+fn spell_of(ctx: &Ctx, name: &str) -> Result<f4x_core::rules::SpellId, ConsoleError> {
+    resolve(&ctx.game.content().rules.spells, name, |d| &d.id, "spell")
+}
+
+fn retort_of(ctx: &Ctx, name: &str) -> Result<f4x_core::wizard::magic::Retort, ConsoleError> {
+    crate::setup::parse_retort(&ctx.game.content().rules, name)
+        .ok_or_else(|| ConsoleError::NoSuch(format!("retort {name:?}")))
+}
+
+fn give_kept(ctx: &mut Ctx, a: &Args, what: &str) -> Result<(), ConsoleError> {
+    let (plain, _) = a.split_options();
+    let (name, id) = name_and_wizard(ctx, plain.get(1..).unwrap_or(&[]))?;
+    if what == "spell" {
+        let spell = spell_of(ctx, &name)?;
+        if !ctx.game.cheat_learn_spell(id, spell) {
+            return Err(ConsoleError::NoSuch(format!("wizard {}", id.0)));
+        }
+        ctx.say(format!(
+            "{} learned {}",
+            describe::player(ctx.game, id),
+            describe::spell(ctx.game, spell)
+        ));
+    } else {
+        let retort = retort_of(ctx, &name)?;
+        if !ctx.game.cheat_set_retort(id, retort, true) {
+            return Err(ConsoleError::Failed(format!(
+                "wizard {} has no sheet, or has {name:?} already",
+                id.0
+            )));
+        }
+        ctx.say(format!(
+            "{} now has the retort {name}",
+            describe::player(ctx.game, id)
+        ));
+    }
+    Ok(())
+}
+
+fn remove(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let what = a.need(0, "retort or spell")?;
+    let (plain, _) = a.split_options();
+    let (name, id) = name_and_wizard(ctx, plain.get(1..).unwrap_or(&[]))?;
+    match what {
+        "spell" => {
+            let spell = spell_of(ctx, &name)?;
+            if !ctx.game.cheat_forget_spell(id, spell) {
+                return Err(ConsoleError::Failed(format!(
+                    "wizard {} does not know {name:?}",
+                    id.0
+                )));
+            }
+            ctx.say(format!(
+                "{} forgot {}",
+                describe::player(ctx.game, id),
+                describe::spell(ctx.game, spell)
+            ));
+        }
+        "retort" => {
+            let retort = retort_of(ctx, &name)?;
+            if !ctx.game.cheat_set_retort(id, retort, false) {
+                return Err(ConsoleError::Failed(format!(
+                    "wizard {} does not have the retort {name:?}",
+                    id.0
+                )));
+            }
+            ctx.say(format!(
+                "{} no longer has the retort {name}",
+                describe::player(ctx.game, id)
+            ));
+        }
+        other => {
+            return Err(ConsoleError::Usage(format!(
+                "remove retort or spell, not {other:?}"
+            )))
+        }
+    }
+    Ok(())
+}
+
+fn set(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    match a.need(0, "books")? {
+        "books" => {
+            let realm = resolve(
+                &ctx.game.content().rules.realms,
+                a.need(1, "realm")?,
+                |d| &d.id,
+                "realm",
+            )?;
+            let books = u8::try_from(a.int(2, "books")?)
+                .map_err(|_| ConsoleError::Parse("books are 0 to 255".into()))?;
+            let id = player_arg(ctx, a, 3)?;
+            if !ctx.game.cheat_set_books(id, realm, books) {
+                return Err(ConsoleError::NoSuch(format!("wizard {}", id.0)));
+            }
+            let now = ctx.game.wizard(id).map_or(0, |w| w.books_in(realm));
+            ctx.say(format!(
+                "{} now has {now} books in {}",
+                describe::player(ctx.game, id),
+                a.need(1, "realm")?
+            ));
+            Ok(())
+        }
+        other => Err(ConsoleError::Usage(format!("set books, not {other:?}"))),
+    }
+}
+
 fn give(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let what = a.need(0, "gold, mana or fame")?;
+    if what == "retort" || what == "spell" {
+        return give_kept(ctx, a, what);
+    }
     let amount = a.int(1, "amount")? as i32;
     let id = player_arg(ctx, a, 2)?;
     let t = ctx.game.treasury_mut(id).expect("checked");

@@ -540,6 +540,30 @@ impl<'a> WizardMut<'a> {
         *self.get_mut::<Fame>() = Fame(fame);
     }
 
+    /// Change the books and retorts of a wizard already made (the console's cheats): the casting
+    /// skill is worked out from them as [`WizardMut::found`] does, so the wizard has the skill of
+    /// such a build. The spell library, the fame and the power split stay as they are.
+    pub fn set_sheet(
+        &mut self,
+        rules: &crate::rules::Rules,
+        books: BTreeMap<RealmId, u8>,
+        retorts: BTreeSet<Retort>,
+    ) {
+        let books = Books(books.into_iter().filter(|&(_, n)| n > 0).collect());
+        let total: i32 = books.0.values().map(|&n| i32::from(n)).sum();
+        let retorts = Retorts(retorts);
+        let stat = |s, base| crate::wizard::retort::stat(rules, &retorts.0, s, base);
+        let bonus = stat(crate::rules::Stat::CastingSkill, 0);
+        let target = stat(crate::rules::Stat::StartingSkill, 2 * total);
+        let points = skill_points_for(target, bonus);
+        *self.get_mut::<Books>() = books;
+        *self.get_mut::<Retorts>() = retorts;
+        *self.get_mut::<Skill>() = Skill {
+            points,
+            left: base_casting_skill(points, bonus),
+        };
+    }
+
     /// Known and researchable spells from books and retorts, by the tables in `rules_settings.ron`
     /// (`spell_library`, the original's `Init_Computer_Players_Spell_Library`). In each realm the
     /// known spells are the chosen ones (`start_spells`), then the realm's default list; without
