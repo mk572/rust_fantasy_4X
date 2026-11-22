@@ -830,7 +830,9 @@ mod tests {
                 ],
                 seed,
             );
-            b.map = BattleMap::open().with_city(true);
+            b.map = BattleMap::open()
+                .with_city(true)
+                .with_wall_rules(b.content.rules.battle.city_wall);
             for _ in 0..5_000 {
                 if b.winner.is_some() {
                     break;

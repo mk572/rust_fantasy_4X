@@ -981,7 +981,7 @@ pub struct RulesConfig {
 /// the defence they give, what a spell shot or a mana leak costs, the limits, the scenery of the field
 /// and what the walls of a city do. The battle rules stand by themselves: nothing of them is in
 /// `rules.ron`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct BattleRules {
     /// The strength of the fire attack Immolation adds to a melee attack.
@@ -1021,20 +1021,17 @@ pub struct BattleRules {
     pub vortex_bolt_strength: i32,
     pub vortex_city_damage: u32,
     /// How thick the scenery of the field is.
-    #[serde(default)]
     pub scenery: SceneryRules,
     /// What the walls of a city do.
-    #[serde(default)]
     pub city_wall: CityWallRules,
     /// Where the units of each side start.
-    #[serde(default)]
     pub deployment: DeploymentRules,
 }
 
 /// The block of squares where a side's units start: they fill the columns (the x of the square, the
 /// front one first), each column's rows (the y of the square) in the order given, the first
 /// places going to the first units. The square of a lair's structure is skipped for the defenders.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct DeployBlock {
     pub columns: Vec<i32>,
@@ -1052,8 +1049,7 @@ impl DeployBlock {
 }
 
 /// Where the units start in a field battle and in a city battle (`deployment` of `battle.ron`).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct DeploymentRules {
     pub attacker: DeployBlock,
@@ -1063,25 +1059,8 @@ pub struct DeploymentRules {
     pub city_defender: DeployBlock,
 }
 
-impl Default for DeploymentRules {
-    fn default() -> Self {
-        let rows = vec![12, 11, 13, 10];
-        let block = |columns: &[i32]| DeployBlock {
-            columns: columns.to_vec(),
-            rows: rows.clone(),
-        };
-        Self {
-            attacker: block(&[6, 5, 4, 3, 2]),
-            defender: block(&[12, 13, 14, 15, 16]),
-            city_attacker: block(&[6, 5, 4]),
-            city_defender: block(&[12, 13, 14]),
-        }
-    }
-}
-
 /// What the walls of a city do in a battle.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct CityWallRules {
     /// A standing tower (a corner of the wall) can be entered by a unit: no, as in the original. When
@@ -1102,50 +1081,6 @@ pub struct CityWallRules {
     /// blow in melee (also the one on a unit standing on the wall), and a shot.
     pub crush_melee_percent: u32,
     pub crush_ranged_percent: u32,
-}
-
-impl Default for CityWallRules {
-    fn default() -> Self {
-        Self {
-            tower_enterable: false,
-            section_enterable: false,
-            passers_cross: true,
-            gate_enterable: true,
-            gate: (0, 3),
-            crush_melee_percent: 50,
-            crush_ranged_percent: 25,
-        }
-    }
-}
-
-impl Default for BattleRules {
-    fn default() -> Self {
-        Self {
-            immolation_strength: 4,
-            invulnerability_block: 2,
-            mana_leak_drain: 5,
-            wall_defence: 3,
-            city_defence: 1,
-            call_lightning_strength: 8,
-            wall_of_fire_strength: 5,
-            node_counter_strength: 50,
-            node_aura_bonus: 2,
-            counter_magic_drain: 5,
-            shot_mana: 3,
-            web_hits: 12,
-            turn_limit: 100,
-            power_drain_min: 2,
-            power_drain_max: 20,
-            freeing_modifier: -5,
-            vortex_random_moves: 3,
-            vortex_crush_damage: 5,
-            vortex_bolt_strength: 5,
-            vortex_city_damage: 5,
-            scenery: SceneryRules::default(),
-            city_wall: CityWallRules::default(),
-            deployment: DeploymentRules::default(),
-        }
-    }
 }
 
 /// What fighting earns: experience, fame and the levels.
@@ -1662,23 +1597,13 @@ impl Default for OfferRules {
 
 /// How thick the scenery of a battle field is, as a percent of what the original lays: the field
 /// is bigger than the original's, so the original's number is first scaled to its area.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct SceneryRules {
     /// The trees of a field on forest ground.
     pub forest_trees_percent: u32,
     /// The rocks of a field on mountain ground.
     pub mountain_rocks_percent: u32,
-}
-
-impl Default for SceneryRules {
-    fn default() -> Self {
-        Self {
-            forest_trees_percent: 100,
-            mountain_rocks_percent: 100,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2019,6 +1944,8 @@ impl Def for SpellDef {
 }
 
 /// All rules definitions.
+/// `Default` is the empty rules (zeros and empty lists), for a game that is not given content yet;
+/// the loader never uses it.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Rules {
     pub config: RulesConfig,

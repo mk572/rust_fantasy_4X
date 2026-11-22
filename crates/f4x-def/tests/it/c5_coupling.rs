@@ -339,19 +339,3 @@ fn every_spell_retort_and_realm_the_builtin_spell_library_names_exists_in_the_co
         assert!(rules.realms.try_get(*r).is_some(), "realm {}", r.num());
     }
 }
-
-#[test]
-fn the_built_in_rules_a_missing_optional_file_falls_back_to_are_the_shipped_files() {
-    use f4x_def::rules::ai_site::SiteRules;
-    use f4x_def::rules::lair::LairRules;
-    let r = &shipped().rules;
-    // battle.ron is not here: it may differ from the original's numbers on purpose (docs/divergences.md).
-    assert!(
-        r.lairs == LairRules::default(),
-        "lairs.ron against LairRules::default"
-    );
-    assert!(
-        r.ai_sites == SiteRules::default(),
-        "ai_sites.ron against SiteRules::default"
-    );
-}

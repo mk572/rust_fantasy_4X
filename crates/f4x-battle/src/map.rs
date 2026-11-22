@@ -152,9 +152,10 @@ pub struct BattleMap {
     /// The squares of a ship's deck in a sea battle.
     #[serde(default)]
     ship_deck: Vec<bool>,
-    /// What the walls do (`city_wall` of `battle.ron`).
+    /// What the walls do (`city_wall` of `battle.ron`); `None` on a map that was not given the rules,
+    /// where the walls are shut to everyone and no square is a gate.
     #[serde(default)]
-    wall_rules: f4x_def::rules::CityWallRules,
+    wall_rules: Option<f4x_def::rules::CityWallRules>,
 }
 
 impl BattleMap {
@@ -169,25 +170,25 @@ impl BattleMap {
             fortress: false,
             mud: vec![false; (GRID_W * GRID_H) as usize],
             ship_deck: vec![false; (GRID_W * GRID_H) as usize],
-            wall_rules: Default::default(),
+            wall_rules: None,
         }
     }
 
-    /// Set what the walls do, as `battle.ron` says (the default is the original's).
+    /// Set what the walls do, as `battle.ron` says.
     pub fn with_wall_rules(mut self, rules: f4x_def::rules::CityWallRules) -> Self {
-        self.wall_rules = rules;
+        self.wall_rules = Some(rules);
         self
     }
 
     /// The square of the gate in the wall, where `battle.ron` puts it.
-    pub fn gate(&self) -> Pos {
-        let (dx, dy) = self.wall_rules.gate;
-        (CITY_X0 + dx, CITY_Y0 + dy)
+    pub fn gate(&self) -> Option<Pos> {
+        let (dx, dy) = self.wall_rules.as_ref()?.gate;
+        Some((CITY_X0 + dx, CITY_Y0 + dy))
     }
 
     /// Whether the square is a gate of the wall.
     pub fn is_gate(&self, pos: Pos) -> bool {
-        pos == self.gate()
+        self.gate() == Some(pos)
     }
 
     /// The squares of the standing towers (the corners of the wall that still stand).
@@ -200,7 +201,9 @@ impl BattleMap {
 
     /// Whether a standing tower is on the square and the rules shut it to everyone.
     pub fn is_shut_tower(&self, pos: Pos) -> bool {
-        !self.wall_rules.tower_enterable && is_wall_corner(pos) && self.has_wall(pos)
+        !self.wall_rules.as_ref().is_some_and(|r| r.tower_enterable)
+            && is_wall_corner(pos)
+            && self.has_wall(pos)
     }
 
     /// Whether the square is a ship's deck.
@@ -478,14 +481,17 @@ impl BattleMap {
         if self.is_shut_tower(pos) {
             return true;
         }
-        if (mover.flying || mover.through_walls) && self.wall_rules.passers_cross {
+        if (mover.flying || mover.through_walls)
+            && self.wall_rules.as_ref().is_some_and(|r| r.passers_cross)
+        {
             return false;
         }
         if !inside {
-            let allowed = if pos == self.gate() {
-                self.wall_rules.gate_enterable
+            let rules = self.wall_rules.as_ref();
+            let allowed = if self.is_gate(pos) {
+                rules.is_some_and(|r| r.gate_enterable)
             } else {
-                self.wall_rules.section_enterable
+                rules.is_some_and(|r| r.section_enterable)
             };
             return !allowed && self.has_wall(pos);
         }
@@ -498,7 +504,7 @@ impl BattleMap {
         for y in y1..=y2 {
             for x in x1..=x2 {
                 let site = (x, y);
-                if !is_wall_site(site) || site == self.gate() || !self.has_wall(site) {
+                if !is_wall_site(site) || self.is_gate(site) || !self.has_wall(site) {
                     continue;
                 }
                 let mut outside = Vec::new();
@@ -531,7 +537,8 @@ impl BattleMap {
     /// Whether the step from `at` to `next` leaves a standing wall section for a square outside the
     /// city area: a unit on the wall walks along it but leaves it only by the gate.
     fn steps_off_a_wall(&self, at: Pos, next: Pos, mover: Mover) -> bool {
-        let passes = (mover.flying || mover.through_walls) && self.wall_rules.passers_cross;
+        let passes = (mover.flying || mover.through_walls)
+            && self.wall_rules.as_ref().is_some_and(|r| r.passers_cross);
         self.is_walled()
             && !passes
             && in_city_area(at)

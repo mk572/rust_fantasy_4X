@@ -134,8 +134,15 @@ fn the_distance_counts_diagonals_as_one() {
     assert_eq!(distance((0, 0), (3, 2)), 3);
 }
 
+/// The city rules of the shipped `battle.ron`.
+fn city_wall() -> f4x_def::rules::CityWallRules {
+    f4x_def::testdir::shipped().rules.battle.city_wall
+}
+
 fn walled() -> BattleMap {
-    BattleMap::open().with_city(true)
+    BattleMap::open()
+        .with_city(true)
+        .with_wall_rules(city_wall())
 }
 
 fn walker() -> Mover {
@@ -162,11 +169,14 @@ fn a_city_has_wall_sites_round_its_inner_squares() {
     assert!(m.is_city() && m.is_walled());
     assert_eq!(m.standing_walls().len() as i32, 4 * (CITY_SIZE - 1));
     assert!(
-        m.has_wall(m.gate()),
+        m.has_wall(m.gate().expect("the map has wall rules")),
         "the gate square has a wall section too"
     );
     assert!(!m.has_wall((X0 + 2, Y0 + 2)), "the inside has none");
-    assert!(is_wall_corner((X1, Y1)) && !is_wall_corner((X1, m.gate().1)));
+    assert!(
+        is_wall_corner((X1, Y1))
+            && !is_wall_corner((X1, m.gate().expect("the map has wall rules").1))
+    );
     // The area with its walls is the ring and what it holds.
     assert!(in_city_area((X0, Y0)) && !in_city_area((X0 - 1, Y0)));
     // No walls: a city, but nothing to break or stand behind.
@@ -194,7 +204,7 @@ fn a_standing_wall_section_is_entered_as_the_battle_rules_say() {
         .into_iter()
         .filter(|&p| !is_wall_corner(p))
         .collect();
-    assert!(sections.contains(&m.gate()) && sections.len() > 1);
+    assert!(sections.contains(&m.gate().expect("the map has wall rules")) && sections.len() > 1);
     let enters = |m: &BattleMap, section: Pos, mover: Mover| {
         let from = (-1..=1)
             .flat_map(|dy| (-1..=1).map(move |dx| (section.0 + dx, section.1 + dy)))
@@ -204,7 +214,7 @@ fn a_standing_wall_section_is_entered_as_the_battle_rules_say() {
             .contains_key(&section)
     };
     for &section in &sections {
-        let walkers_may = if section == m.gate() {
+        let walkers_may = if section == m.gate().expect("the map has wall rules") {
             rule.gate_enterable
         } else {
             rule.section_enterable
@@ -239,7 +249,10 @@ fn a_standing_wall_section_is_entered_as_the_battle_rules_say() {
 fn a_broken_wall_can_be_walked_over() {
     let mut m = walled();
     assert!(!m.is_breached());
-    let (to, from) = ((X0, m.gate().1 - 1), (X0 - 1, m.gate().1 - 1));
+    let (to, from) = (
+        (X0, m.gate().expect("the map has wall rules").1 - 1),
+        (X0 - 1, m.gate().expect("the map has wall rules").1 - 1),
+    );
     assert!(!m
         .reachable_as(from, HalfInt::from_int(2), walker(), &none)
         .contains_key(&to));

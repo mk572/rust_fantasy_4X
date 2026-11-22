@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::map::TerrainClass;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct SiteRules {
     /// What a square of each terrain is worth to the city that works it (food and growth). A
@@ -100,40 +100,5 @@ impl SiteRules {
             );
         }
         p.into_vec()
-    }
-}
-
-impl Default for SiteRules {
-    fn default() -> Self {
-        use TerrainClass::*;
-        Self {
-            land_values: vec![
-                (Grassland, 3.0),
-                (SorceryNode, 3.0),
-                (Forest, 2.0),
-                (NatureNode, 2.0),
-                (Hills, 2.0),
-                (Swamp, 1.0),
-                (Mountains, 1.0),
-                (ChaosNode, 1.0),
-                (Desert, 0.5),
-                (Tundra, 0.5),
-                (Ocean, 0.7),
-            ],
-            shared_share: 0.4,
-            production: 0.1,
-            mana: 1.5,
-            gold: 1.0,
-            food: 1.0,
-            unit_cost: 0.2,
-            river: 0.5,
-            near_own: 6.0,
-            near_own_step: 0.8,
-            enemy_range: 8,
-            enemy_peace: 0.5,
-            enemy_war: 1.5,
-            sea_cost: 10.0,
-            crossing_sites_counted: 2,
-        }
     }
 }

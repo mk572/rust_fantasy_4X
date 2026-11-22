@@ -192,7 +192,11 @@ impl Spec {
             attacker_island: false,
             defender_island: false,
             ship_decks: Vec::new(),
-            scenery: SceneryRules::default(),
+            // 100 percent is the field as the original's draws made it: no extra scenery, no less.
+            scenery: SceneryRules {
+                forest_trees_percent: 100,
+                mountain_rocks_percent: 100,
+            },
         }
     }
 }

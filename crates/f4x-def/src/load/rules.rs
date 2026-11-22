@@ -93,9 +93,9 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
     let ratings = optional::<crate::rules::UnitRatings>(dir, "unit_ratings.ron", &mut issues);
     let efficiency =
         optional::<crate::rules::UnitEfficiencies>(dir, "unit_efficiency.ron", &mut issues);
-    let battle = optional::<crate::rules::BattleRules>(dir, "battle.ron", &mut issues);
-    let lairs = optional::<crate::rules::lair::LairRules>(dir, "lairs.ron", &mut issues);
-    let ai_sites = optional::<crate::rules::ai_site::SiteRules>(dir, "ai_sites.ron", &mut issues);
+    let battle = parse_into::<crate::rules::BattleRules>(dir, "battle.ron", &mut issues);
+    let lairs = parse_into::<crate::rules::lair::LairRules>(dir, "lairs.ron", &mut issues);
+    let ai_sites = parse_into::<crate::rules::ai_site::SiteRules>(dir, "ai_sites.ron", &mut issues);
     if let Some(range) = config.as_ref().map(|c| &c.casting_range) {
         if range.beyond.windows(2).any(|w| w[0] >= w[1])
             || range.beyond.last().is_some_and(|&l| l >= range.far)
@@ -107,28 +107,63 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
             );
         }
     }
+    // A file that failed to read left an issue; with no issue every required file is there.
+    let (
+        Some(config),
+        Some(races),
+        Some(units),
+        Some(abilities),
+        Some(buildings),
+        Some(realms),
+        Some(spells),
+        Some(items),
+        Some(item_powers),
+        Some(level_paths),
+        Some(retorts),
+        Some(battle),
+        Some(lairs),
+        Some(ai_sites),
+    ) = (
+        config,
+        races,
+        units,
+        abilities,
+        buildings,
+        realms,
+        spells,
+        items,
+        item_powers,
+        level_paths,
+        retorts,
+        battle,
+        lairs,
+        ai_sites,
+    )
+    else {
+        return Err(ContentError::new(issues.into_vec()));
+    };
     if !issues.is_empty() {
         return Err(ContentError::new(issues.into_vec()));
     }
     let parts = Parts {
-        config: config.unwrap_or_default(),
-        races: races.unwrap_or_default(),
-        units: units.unwrap_or_default(),
-        abilities: abilities.unwrap_or_default(),
-        buildings: buildings.unwrap_or_default(),
-        realms: realms.unwrap_or_default(),
-        spells: spells.unwrap_or_default(),
-        items: items.unwrap_or_default(),
-        item_powers: item_powers.unwrap_or_default(),
-        level_paths: level_paths.unwrap_or_default(),
+        config,
+        races,
+        units,
+        abilities,
+        buildings,
+        realms,
+        spells,
+        items,
+        item_powers,
+        level_paths,
         wizards: wizards.unwrap_or_default(),
-        retorts: retorts.unwrap_or_default(),
+        retorts,
         hero_templates: hero_templates.unwrap_or_default(),
         ratings: ratings.unwrap_or_default(),
         efficiency: efficiency.unwrap_or_default(),
-        battle: battle.unwrap_or_default(),
-        lairs: lairs.unwrap_or_default(),
-        ai_sites: ai_sites.unwrap_or_default(),
+        battle,
+        lairs,
+        ai_sites,
     };
     assemble(parts)
 }

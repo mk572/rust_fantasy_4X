@@ -979,10 +979,11 @@ fn city_lines(b: &f4x_battle::battle::Battle) -> Vec<String> {
         out.join(" ")
     };
     let mut lines = vec![format!(
-        "city walls stand at {} (the gate is at {},{}); damage to the city {}",
+        "city walls stand at {} (the gate is at {}); damage to the city {}",
         squares(false),
-        b.map.gate().0,
-        b.map.gate().1,
+        b.map
+            .gate()
+            .map_or_else(|| "nowhere".to_string(), |(x, y)| format!("{x},{y}")),
         b.city_damage
     )];
     let fallen = squares(true);

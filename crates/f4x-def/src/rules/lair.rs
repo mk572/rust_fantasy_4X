@@ -11,7 +11,7 @@
 use serde::{Deserialize, Serialize};
 
 /// `base + step * Random(rolls)`: a budget rolled once. `Random(n)` is `1..=n`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Roll {
     pub base: i32,
@@ -55,7 +55,7 @@ pub struct LairStyle {
 
 /// What patch 1.50 changes in the lairs (`docs/lairs.md`, "Patch 1.50"). The ranges of the wiki's
 /// Encounter Zone article fix these numbers; the budget steps are the ones that fit the ranges.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Patch150Rules {
     /// Stronger lairs: the budget of a tower, and of a strong and a weak site per plane.
@@ -97,58 +97,8 @@ pub struct Patch150Rules {
     pub special_double_sure: i32,
 }
 
-impl Default for Patch150Rules {
-    fn default() -> Self {
-        Self {
-            tower_budget: Roll::new(650, 48, 50),
-            strong_budget: [Roll::new(250, 80, 50), Roll::new(250, 90, 50)],
-            weak_budget: [Roll::new(0, 20, 30), Roll::new(0, 30, 30)],
-            max_first_guards: 6,
-            first_spread: 6,
-            second_spread: 9,
-            guard_percent: vec![25, 50, 75, 100, 125, 150],
-            costs: vec![
-                (186, 600), // gorgons
-                (181, 300), // cockatrices
-                (183, 225), // giant spiders
-                (187, 150), // earth elemental
-                (192, 50),  // phantom warriors
-                (194, 200), // air elemental
-                (191, 325), // phantom beast
-                (176, 75),  // guardian spirit
-                (169, 125), // demon
-                (167, 200), // night stalker
-                (168, 300), // werewolves
-            ],
-            second_share: 100,
-            plane_loot_percent: [100, 125],
-            bonus: 75,
-            hoard: vec![
-                (HoardKind::Gold, 3),
-                (HoardKind::Mana, 3),
-                (HoardKind::Item, 3),
-                (HoardKind::Prisoner, 1),
-                (HoardKind::Spell, 4),
-                (HoardKind::Special, 1),
-            ],
-            coin_rolls: 20,
-            gold_step: 50,
-            mana_step: 40,
-            item_base: 100,
-            item_rolls: 50,
-            item_step: 100,
-            item_max_percent: 120,
-            prisoner_cost: 400,
-            spell_cost: 150,
-            special_cost: 800,
-            special_discard_percent: 44,
-            special_double_sure: 2000,
-        }
-    }
-}
-
 /// The guard and treasure rules of the sites.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct LairRules {
     /// Guards in all, and of the first kind.
@@ -213,63 +163,7 @@ pub struct LairRules {
     pub special_double_sure: i32,
     pub special_min: i32,
     /// What patch 1.50 changes, used by the settings `stronger_lairs` and `treasure_patch_150`.
-    #[serde(default)]
     pub patch_150: Patch150Rules,
-}
-
-impl Default for LairRules {
-    fn default() -> Self {
-        // Realm numbers as in `realms.ron`: nature 0, sorcery 1, chaos 2, life 3, death 4.
-        let weights = |list: &[(u16, u32)]| list.to_vec();
-        Self {
-            max_guards: 9,
-            max_first_guards: 8,
-            first_spread: 4,
-            second_spread: 10,
-            tower_realms: weights(&[(4, 2), (2, 1), (3, 1), (0, 1), (1, 1)]),
-            holy_realms: weights(&[(4, 3), (3, 1)]),
-            wild_realms: weights(&[(4, 2), (2, 2), (0, 1)]),
-            node_own_realms: vec![1, 0],
-            node_other: 2,
-            tower_budget: Roll::new(650, 11, 50),
-            node_base: 4,
-            node_rolls: 11,
-            node_cap: 32767,
-            strong_budget: [Roll::new(50, 29, 50), Roll::new(100, 24, 100)],
-            weak_budget: [Roll::new(0, 10, 10), Roll::new(0, 20, 10)],
-            second_share: 50,
-            plane_loot: [Roll::new(49, 76, 1), Roll::new(75, 100, 1)],
-            min_loot: 50,
-            max_items: 3,
-            hoard: vec![
-                (HoardKind::Gold, 2),
-                (HoardKind::Mana, 2),
-                (HoardKind::Item, 5),
-                (HoardKind::Prisoner, 1),
-                (HoardKind::Spell, 3),
-                (HoardKind::Special, 2),
-            ],
-            coin_rolls: 20,
-            coin_step: 10,
-            coin_cost: 200,
-            item_min: 300,
-            item_base: 300,
-            item_rolls: 27,
-            item_step: 100,
-            prisoner_min: 400,
-            prisoner_cost: 1000,
-            spell_rarities: 4,
-            spell_cost: 50,
-            spell_total: 4,
-            tower_spell_refund: 100,
-            special_cost: 3000,
-            double_chance: 4,
-            special_double_min: 3000,
-            special_double_sure: 2000,
-            special_min: 1000,
-            patch_150: Patch150Rules::default(),
-        }
-    }
 }
 
 impl LairRules {

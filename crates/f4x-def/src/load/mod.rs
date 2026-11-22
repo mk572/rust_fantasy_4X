@@ -243,12 +243,7 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
         return Err(ContentError::new(issues.into_vec()));
     };
     check_feature_references(&features, &rules)?;
-    if dirs
-        .iter()
-        .any(|d| rules::is_there(&d.join("rules_settings.ron")))
-    {
-        check_spell_library(&settings.spell_library, &rules)?;
-    }
+    check_spell_library(&settings.spell_library, &rules)?;
     Ok(Content {
         terrains,
         features,
@@ -318,15 +313,20 @@ fn check_spell_library(
     problems.into_result(())
 }
 
-/// Read `rules_settings.ron` from the first of `dirs` that has it. The file is optional (content
-/// without it plays the symmetric game); one that is there must parse and be in range.
+/// Read `rules_settings.ron` from the first of `dirs` that has it. The file is required: a content
+/// without it is refused (`docs/content-policy.md`, R1); one that is there must parse and be in range.
 pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
     let Some(path) = dirs
         .iter()
         .map(|d| d.join("rules_settings.ron"))
         .find(|p| rules::is_there(p))
     else {
-        return Ok(SettingsDef::default());
+        return Err(ContentError::new(vec![ContentIssue::new(
+            "rules_settings.ron",
+            "",
+            IssueKind::Missing,
+        )
+        .with(["the file"])]));
     };
     let text = std::fs::read_to_string(&path).map_err(|e| ContentError::io(&path, &e))?;
     let settings: SettingsDef =

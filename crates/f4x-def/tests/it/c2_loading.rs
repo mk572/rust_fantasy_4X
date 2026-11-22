@@ -73,16 +73,16 @@ const REQUIRED: &[&str] = &[
     "item_powers.ron",
     "level_paths.ron",
     "rules.ron",
+    "battle.ron",
+    "lairs.ron",
+    "ai_sites.ron",
+    "rules_settings.ron",
 ];
 const OPTIONAL: &[&str] = &[
     "heroes.ron",
     "wizards.ron",
     "unit_ratings.ron",
     "unit_efficiency.ron",
-    "battle.ron",
-    "lairs.ron",
-    "ai_sites.ron",
-    "rules_settings.ron",
 ];
 
 fn mentions_file(e: &ContentError, file: &str) -> bool {
@@ -304,8 +304,11 @@ fn every_file_damaged_in_every_way_is_refused_without_a_panic_and_the_error_name
                     // A list that may be empty (no items) and a file of defaults only may be damaged to
                     // "nothing" and still mean something; the rest must not survive the damage.
                     let may_be_empty = file == "items.ron" && what == "an empty list";
-                    let all_default = file == "rules.ron"
-                        && ["unit", "an empty struct", "every quote removed"].contains(&what);
+                    // `rules.ron` and `rules_settings.ron` still hold fields that have a default in
+                    // the code (task 766 goes on with them); a file with no quote has none to remove.
+                    let all_default = ["rules.ron", "rules_settings.ron"].contains(&file.as_str())
+                        && ["unit", "an empty struct", "every quote removed"].contains(&what)
+                        || (what == "every quote removed" && !original.contains('"'));
                     if REQUIRED.contains(&file.as_str())
                         && !may_be_empty
                         && !all_default
@@ -471,14 +474,13 @@ fn no_folder_at_all_is_an_error() {
 }
 
 #[test]
-fn content_without_a_settings_file_has_the_default_settings_and_a_bad_one_is_refused() {
+fn a_settings_file_that_is_missing_or_bad_is_refused() {
     let dir = copy_of_shipped("c2-settings");
     std::fs::remove_file(dir.join("rules_settings.ron")).expect("removed");
-    let c = load_content(&dir).expect("loads without settings");
-    assert_eq!(c.settings, Default::default());
-    assert_eq!(
-        load_settings(&[&dir]).expect("settings"),
-        Default::default()
+    let e = load_settings(&[&dir]).expect_err("no settings");
+    assert!(
+        e.has(IssueKind::Missing) && e.mentions("rules_settings.ron"),
+        "{e}"
     );
     write(&dir, "rules_settings.ron", "(this is not settings");
     let e = load_settings(&[&dir]).expect_err("not settings");
