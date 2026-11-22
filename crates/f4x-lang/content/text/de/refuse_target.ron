@@ -16,6 +16,8 @@
     "refuse_target.no_fortress": "Du hast keine Festung zu verlegen.",
     "refuse_target.fortress_here": "Deine Festung ist bereits in dieser Stadt.",
     "refuse_target.circle_here": "Dein Beschwörungskreis ist bereits in dieser Stadt.",
+    "refuse_target.needs_circle": "Wähle den Beschwörungskreis, zu dem es geht.",
+    "refuse_target.wrong_circle": "Das ist keiner deiner Beschwörungskreise.",
     "refuse_target.walled": "Um diese Stadt gibt es bereits eine Mauer.",
     "refuse_target.warded": "Diese Stadt ist bereits gegen diesen Bereich geschützt.",
     "refuse_target.not_ward_realm": "Ein Zauberschutz kann nicht gegen diesen Bereich schützen.",

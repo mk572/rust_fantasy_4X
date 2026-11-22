@@ -466,6 +466,24 @@ impl App {
             }
             return;
         }
+        // Word of Recall with several summoning circles asks which one the unit goes to.
+        if let Some(Target::Unit(unit)) = target {
+            let recalls = self.game.content().rules.spells.get(t.spell).has_hook_arg(
+                f4x_core::spell::special::RECALL,
+                f4x_core::spell::special::RECALL_ANYONE,
+            );
+            if recalls && self.game.has_several_circles(HUMAN) {
+                let cities = self.circle_cities();
+                let prompt = self.text("battle.choose_circle");
+                self.pick_city(prompt, cities, move |app, city| {
+                    match city.and_then(|c| app.circle_position(c)) {
+                        Some(at) => app.cast_on(t, Target::UnitAt(unit, at)),
+                        None => app.log.push(app.text("log.cast_cancelled")),
+                    }
+                });
+                return;
+            }
+        }
         let Some(target) = target else {
             self.log.push(self.text("spell.no_valid_target"));
             self.targeting = Some(t);

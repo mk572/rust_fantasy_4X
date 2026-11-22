@@ -886,7 +886,7 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
                 .map(|(_, u)| Target::Unit(u))
         }
         Kind::Recall => stranded_unit(view)
-            .map(Target::Unit)
+            .map(|u| recall_target(view, u))
             .filter(|&t| view.can_aim(spell, Some(t))),
         Kind::Cure => hurt_stack_unit(view)
             .map(Target::Unit)
@@ -1211,7 +1211,10 @@ fn hurt_stack_unit(view: &PlayerView) -> Option<hecs::Entity> {
 /// One unit of the most hurt stack that stands in the field, well away from the summoning
 /// circle, when a good part of it is hurt: the stack Word of Recall brings home.
 fn stranded_unit(view: &PlayerView) -> Option<hecs::Entity> {
-    let circle = view.wizard()?.summon_at()?;
+    let circles = view.wizard()?.summon_circles();
+    if circles.is_empty() {
+        return None;
+    }
     let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
     let mut stacks: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
     for u in view.my_units() {
@@ -1228,10 +1231,11 @@ fn stranded_unit(view: &PlayerView) -> Option<hecs::Entity> {
     }
     let mut best: Option<(u32, hecs::Entity)> = None;
     for (at, mut units) in stacks {
-        if view
-            .distance(at, circle)
-            .is_some_and(|d| d < RECALL_DISTANCE)
-        {
+        // Near any circle it is not stranded.
+        if circles.iter().any(|&circle| {
+            view.distance(at, circle)
+                .is_some_and(|d| d < RECALL_DISTANCE)
+        }) {
             continue;
         }
         view.sort_by_serial(&mut units);
@@ -1249,6 +1253,22 @@ fn stranded_unit(view: &PlayerView) -> Option<hecs::Entity> {
         }
     }
     best.map(|(_, u)| u)
+}
+
+/// The aim of Word of Recall at the unit: with several summoning circles, the one nearest to it.
+fn recall_target(view: &PlayerView, unit: hecs::Entity) -> Target {
+    let circles = view
+        .wizard()
+        .map(|w| w.summon_circles())
+        .unwrap_or_default();
+    let from = view.unit_position(unit);
+    match (circles.len() > 1, from) {
+        (true, Some(from)) => circles
+            .into_iter()
+            .min_by_key(|&c| view.distance(from, c).unwrap_or(u32::MAX))
+            .map_or(Target::Unit(unit), |at| Target::UnitAt(unit, at)),
+        _ => Target::Unit(unit),
+    }
 }
 
 /// Whether the AI can carry the lasting spell's upkeep on its mana income.

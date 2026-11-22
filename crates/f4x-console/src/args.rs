@@ -117,6 +117,15 @@ pub fn parse_pos(text: &str, default: Plane) -> Result<Position, ConsoleError> {
     Ok(Position { plane, x, y })
 }
 
+/// A position as `parse_pos` reads it: `x,y,a` or `x,y,m`.
+pub fn format_pos(at: Position) -> String {
+    let plane = match at.plane {
+        Plane::Arcanus => "a",
+        Plane::Myrror => "m",
+    };
+    format!("{},{},{plane}", at.x, at.y)
+}
+
 pub fn parse_player(text: &str) -> Result<PlayerId, ConsoleError> {
     text.parse::<u8>()
         .map(PlayerId)
@@ -159,7 +168,7 @@ pub fn parse_units(game: &Game, text: &str) -> Result<Vec<hecs::Entity>, Console
     Ok(units)
 }
 
-/// A spell target: `unit:12`, `city:3`, `ward:3:chaos` (a Spell Ward's city and realm),
+/// A spell target: `unit:12` (`unit:12@x,y` with the summoning circle it is recalled to), `city:3`, `ward:3:chaos` (a Spell Ward's city and realm),
 /// `tile:x,y[,plane]` or `player:0`.
 pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
     let (kind, rest) = text.split_once(':').ok_or_else(|| {
@@ -173,7 +182,18 @@ pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
             .map_err(|_| ConsoleError::Parse(format!("{rest:?} is not a number")))
     };
     Ok(match kind {
-        "unit" => Target::Unit(unit_by_serial(game, num()?)?),
+        // `unit:12@x,y[,plane]`: a unit and the summoning circle Word of Recall sends it to.
+        "unit" => match rest.split_once('@') {
+            Some((n, at)) => Target::UnitAt(
+                unit_by_serial(
+                    game,
+                    n.parse::<u64>()
+                        .map_err(|_| ConsoleError::Parse(format!("{n:?} is not a number")))?,
+                )?,
+                parse_pos(at, Plane::Arcanus)?,
+            ),
+            None => Target::Unit(unit_by_serial(game, num()?)?),
+        },
         "city" => Target::City(city_by_serial(game, num()?)?),
         // A Spell Ward's target: the city and the realm it is set against, as `ward:3:chaos`.
         "ward" => {

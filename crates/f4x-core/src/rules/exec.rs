@@ -34,6 +34,12 @@ pub enum Target {
     Player(PlayerId),
     /// A dead hero, by its type (a roster index): what Resurrection is aimed at.
     Hero(usize),
+    /// One of the caster's units and the summoning circle Word of Recall sends it to, when the wizard
+    /// has several (`multiple_summoning_circles`).
+    UnitAt(
+        #[serde(with = "crate::game::replay::stable_ref::one")] hecs::Entity,
+        Position,
+    ),
     /// A dead hero and the summoning circle it comes back to, when the wizard has several
     /// (`multiple_summoning_circles`).
     HeroAt(usize, Position),

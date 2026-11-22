@@ -1138,7 +1138,9 @@ impl Game {
         // (`Combat.c`).
         // Heroes taken off the field by Recall Hero are at the summoning circle now.
         for u in battle.units.iter().filter(|u| u.status == Status::Recalled) {
-            let to = self.summon_point(battle.player_of(u.side));
+            let to = u
+                .recalled_to
+                .or_else(|| self.summon_point(battle.player_of(u.side)));
             if let (Some(unit), Some(to)) = (source_of(u), to) {
                 self.put(unit, to);
             }

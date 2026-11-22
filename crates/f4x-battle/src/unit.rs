@@ -152,6 +152,9 @@ pub struct BattleUnit {
     /// Got away from a lost battle under the ground: it flees without the risk of a flight.
     #[serde(default)]
     pub slipped: bool,
+    /// The summoning circle a recalled unit goes to, when the wizard chose among several.
+    #[serde(default)]
+    pub recalled_to: Option<f4x_def::map::Position>,
     /// Whether it was invisible when the field was last refreshed, to tell when invisibility
     /// begins (it hides the unit at once).
     pub was_invisible: bool,
@@ -343,6 +346,7 @@ impl BattleUnit {
             merged_this_turn: false,
             surfaced: false,
             slipped: false,
+            recalled_to: None,
             was_invisible: false,
             seized: false,
             turned_from: None,

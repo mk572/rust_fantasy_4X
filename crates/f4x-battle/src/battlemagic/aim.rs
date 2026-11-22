@@ -32,6 +32,10 @@ pub trait AimWorld {
     fn mutation_refusal(&self, unit: &BattleUnit) -> Option<TargetError>;
     /// The summoning circle of a player.
     fn summon_point(&self, player: PlayerId) -> Option<Position>;
+    /// Every summoning circle of a player (several with `multiple_summoning_circles`).
+    fn summon_circles(&self, player: PlayerId) -> Vec<Position> {
+        self.summon_point(player).into_iter().collect()
+    }
     /// Whether the player keeps the global enchantment.
     fn caster_has_global(&self, player: PlayerId, spell: SpellId) -> bool;
     /// Whether the caster has confirmed a cast that would do nothing.
@@ -71,6 +75,14 @@ impl Battle {
         kind: &SpellType,
         aim: SpellAim,
     ) -> Result<(), SpellError> {
+        // A unit and the circle it goes to: checked as the unit, and the circle as part of Recall.
+        let (aim, circle) = match aim {
+            SpellAim::UnitTo(id, circle) => (SpellAim::Unit(id), Some(circle)),
+            other => (other, None),
+        };
+        if circle.is_some() && !matches!(kind, SpellType::Recall { .. }) {
+            return Err(SpellError::Target(TargetError::WrongCircle));
+        }
         match (def.target, aim) {
             (SpellTarget::None | SpellTarget::Battlefield, SpellAim::None) => {
                 // A spell on every enemy needs one it can touch.
@@ -224,8 +236,18 @@ impl Battle {
                     {
                         return Err(SpellError::Target(TargetError::RecallOnlyHeroes));
                     }
-                    let Some(circle) = world.summon_point(self.player_of(side)) else {
+                    let circles = world.summon_circles(self.player_of(side));
+                    if circles.is_empty() {
                         return Err(SpellError::Target(TargetError::NoCircle));
+                    }
+                    // With several circles the wizard says which one the unit goes to.
+                    let circle = match circle {
+                        Some(c) if circles.contains(&c) => c,
+                        Some(_) => return Err(SpellError::Target(TargetError::WrongCircle)),
+                        None if circles.len() > 1 => {
+                            return Err(SpellError::Target(TargetError::NeedsCircle))
+                        }
+                        None => circles[0],
                     };
                     // A fight at the circle itself has nowhere to recall to (1.50 note 704).
                     if self.site == Some(circle) {

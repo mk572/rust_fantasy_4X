@@ -257,6 +257,48 @@ fn a_hero_is_hired_rerolled_and_dismissed_and_the_treasury_is_read() {
     assert!(c.execute(&mut g, "treasury 1").ok);
 }
 
+#[test]
+fn a_hero_is_hired_on_any_square_given_and_else_on_the_fortress() {
+    let (mut g, mut c) = (game(), console());
+    c.execute(&mut g, "mode override");
+    let fortress = g
+        .wizard(HUMAN)
+        .and_then(|w| w.fortress())
+        .expect("a fortress");
+    let kind = 7; // healer
+    let at = |g: &Game| {
+        let hero = g.units().hero_entity(kind).expect("the hero exists");
+        g.units().unit_position(hero)
+    };
+    // Off the map: refused, and the hero stays free.
+    assert!(!c.execute(&mut g, "hire healer 9999,9999").ok);
+    assert_eq!(at(&g), None);
+    // Any square of the map, with or without the player.
+    let square = f4x_core::map::Position {
+        x: 1,
+        y: 1,
+        plane: fortress.plane,
+    };
+    let r = c.execute(
+        &mut g,
+        &format!(
+            "hire healer {} 1,1,{}",
+            HUMAN.0,
+            if fortress.plane == f4x_core::map::Plane::Arcanus {
+                "a"
+            } else {
+                "m"
+            }
+        ),
+    );
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(at(&g), Some(square));
+    c.execute(&mut g, "dismiss healer");
+    let r = c.execute(&mut g, "hire healer");
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(at(&g), Some(fortress), "no square: the fortress");
+}
+
 fn spell_text(g: &Game, num: u16) -> (f4x_core::rules::SpellId, String) {
     let rules = &g.content().rules;
     let id = rules.spells.id_numbered(num).expect("the content has it");

@@ -338,3 +338,44 @@ fn with_several_circles_a_summoning_asks_for_the_city_and_the_creature_appears_t
         );
     }
 }
+
+#[test]
+fn with_several_circles_word_of_recall_asks_for_the_circle_and_sends_the_unit_there() {
+    use f4x_core::spell::special::{RECALL, RECALL_ANYONE};
+    let (_, mut g) = worlds().remove(0);
+    g.scenario_change_settings(|s| s.rules.multiple_summoning_circles = true);
+    let (p, _, second, _) = two_cities(&mut g);
+    let recall = g
+        .content()
+        .rules
+        .spells
+        .defs()
+        .iter()
+        .filter(|d| d.contexts.contains(&CastContext::Overland))
+        .find(|d| d.has_hook_arg(RECALL, RECALL_ANYONE))
+        .map(|d| SpellId::new(d.num))
+        .expect("a Word of Recall");
+    g.cheat_learn_spell(p, recall);
+    g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+    g.move_summoning_circle(p, second).expect("moved");
+    let circles = g.wizard(p).expect("a wizard").summon_circles();
+    let (a, b) = (circles[0], circles[1]);
+    let unit = g.units().player_units(p)[0];
+    g.cheat_move_unit(unit, a);
+    assert!(g.check_target(p, recall, Some(Target::Unit(unit))).is_err());
+    let elsewhere = Position {
+        x: a.x.wrapping_add(1),
+        ..a
+    };
+    assert_eq!(
+        g.check_target(p, recall, Some(Target::UnitAt(unit, elsewhere))),
+        Err(MagicError::Target(TargetError::WrongCircle))
+    );
+    g.scenario_casting(p, recall, 0);
+    let events = g.apply(Command::ResolveCast {
+        player: p,
+        target: Target::UnitAt(unit, b),
+    });
+    assert_eq!(refusal(&events), None, "{events:?}");
+    assert_eq!(g.units().unit_position(unit), Some(b));
+}

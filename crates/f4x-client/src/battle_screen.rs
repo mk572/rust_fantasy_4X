@@ -107,6 +107,8 @@ fn scroll_view(ui: &mut BattleUi, input: &Input, dt: f32) {
 pub(crate) struct BattleUi {
     /// A unit's statistics sheet over the fight (right-click on a unit) until it is closed.
     sheet: Option<crate::unit_screen::SheetUi>,
+    /// A recall that waits for the wizard to pick the summoning circle it goes to.
+    circle_ask: Option<CircleAsk>,
     /// The combat spell book: its pages are laid out again every frame, the spread and the page
     /// turn stay.
     book: BookUi,
@@ -162,6 +164,17 @@ pub(crate) struct BattleUi {
     info_open: bool,
     /// How far the view of the field is turned (the Turn button, the R key); kept for the battle.
     turn: Turn,
+}
+
+/// A recall waiting for the summoning circle the wizard picks from the list (`city_pick`): the cast
+/// goes on when the list has answered (`Some(None)`: the wizard gave up).
+struct CircleAsk {
+    unit: Option<usize>,
+    spell: SpellId,
+    mana: u32,
+    /// The battle unit that is recalled.
+    target: usize,
+    answer: std::rc::Rc<std::cell::Cell<Option<Option<f4x_core::map::Position>>>>,
 }
 
 /// A spell the player has picked.
@@ -970,7 +983,7 @@ impl App {
         ui.cast_target = match (&order, &before) {
             (BattleCommand::Cast { aim, .. } | BattleCommand::UnitCast { aim, .. }, Some(b)) => {
                 match *aim {
-                    SpellAim::Unit(id) => b.unit(id).map(|u| u.cell),
+                    SpellAim::Unit(id) | SpellAim::UnitTo(id, _) => b.unit(id).map(|u| u.cell),
                     SpellAim::Tile(cell) => Some(cell),
                     SpellAim::None => None,
                 }
@@ -1475,6 +1488,18 @@ impl App {
         if ui.confirm_cast.is_some() {
             return;
         }
+        if let Some(ask) = ui.circle_ask.take() {
+            match ask.answer.get() {
+                Some(Some(at)) => {
+                    let aim = SpellAim::UnitTo(ask.target, at);
+                    self.battle_order(ui, cast_order(ask.unit, ask.spell, aim, ask.mana));
+                    ui.selected = None;
+                }
+                Some(None) => self.log.push(self.text("log.cast_cancelled")),
+                None => ui.circle_ask = Some(ask),
+            }
+            return;
+        }
         if ui.aiming.is_some() || ui.spell_list || ui.fallen_list.is_some() {
             return self.spell_input(ui, battle, hovered, input);
         }
@@ -1747,6 +1772,12 @@ impl App {
         };
         if let Some(target) = target {
             ui.aiming = None;
+            // A recall with several summoning circles asks which one the unit goes to.
+            if let SpellAim::Unit(unit) = target {
+                if self.ask_recall_circle(ui, battle, &aim, unit) {
+                    return;
+                }
+            }
             self.battle_order(
                 ui,
                 cast_order(
@@ -1762,6 +1793,49 @@ impl App {
             );
             ui.selected = None;
         }
+    }
+
+    /// A recall of the battle unit `target` when the wizard has several summoning circles: open the
+    /// list of the circles it may go to (not the one the fight is at). Whether it was opened.
+    fn ask_recall_circle(
+        &mut self,
+        ui: &mut BattleUi,
+        battle: &Battle,
+        aim: &Aiming,
+        target: usize,
+    ) -> bool {
+        let recall = self
+            .game
+            .content()
+            .rules
+            .spells
+            .get(aim.spell)
+            .has_hook(f4x_core::spell::special::RECALL);
+        if !recall || !self.game.has_several_circles(HUMAN) {
+            return false;
+        }
+        let cities: Vec<hecs::Entity> = self
+            .circle_cities()
+            .into_iter()
+            .filter(|&c| self.circle_position(c) != battle.site)
+            .collect();
+        let answer = std::rc::Rc::new(std::cell::Cell::new(None));
+        ui.circle_ask = Some(CircleAsk {
+            unit: aim.unit,
+            spell: aim.spell,
+            mana: if aim.takes_extra_mana {
+                aim.mana as u32
+            } else {
+                0
+            },
+            target,
+            answer: answer.clone(),
+        });
+        let prompt = self.text("battle.choose_circle");
+        self.pick_city(prompt, cities, move |app, city| {
+            answer.set(Some(city.and_then(|c| app.circle_position(c))));
+        });
+        true
     }
 
     /// Whether the spell may be aimed at the unit or square (for the markers).

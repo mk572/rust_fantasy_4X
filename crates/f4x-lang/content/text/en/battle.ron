@@ -1,6 +1,7 @@
 // Player-facing messages of the battle screens. One key is in one file only (docs/text.md).
 {
     // Headings of the battle result.
+    "battle.choose_circle": "Choose the summoning circle it goes to",
     "battle.triumphant": "Victory is yours",
     "battle.defeated": "Your army has been beaten",
     "battle.retreated": "Your army has withdrawn from the field",

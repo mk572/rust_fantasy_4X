@@ -187,6 +187,13 @@ impl Battle {
     ) -> Vec<(usize, LegalCast)> {
         let mut candidates = vec![SpellAim::None];
         candidates.extend(self.units.iter().map(|u| SpellAim::Unit(u.id)));
+        // With several summoning circles a recall names the one it goes to.
+        let circles = world.summon_circles(self.player_of(self.active));
+        if circles.len() > 1 {
+            for u in &self.units {
+                candidates.extend(circles.iter().map(|&c| SpellAim::UnitTo(u.id, c)));
+            }
+        }
         for y in 0..GRID_H {
             for x in 0..GRID_W {
                 if self.map.is_playable((x, y)) {

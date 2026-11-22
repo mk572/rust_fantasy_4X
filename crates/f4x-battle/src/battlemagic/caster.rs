@@ -78,5 +78,8 @@ pub fn range_percent(
 pub enum SpellAim {
     None,
     Unit(usize),
+    /// A unit and the summoning circle it goes to: Word of Recall and Recall Hero, when the wizard has
+    /// several circles.
+    UnitTo(usize, f4x_def::map::Position),
     Tile(Pos),
 }

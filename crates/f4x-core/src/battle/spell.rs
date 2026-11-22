@@ -950,6 +950,10 @@ impl AimWorld for Game {
         Game::summon_point(self, player)
     }
 
+    fn summon_circles(&self, player: PlayerId) -> Vec<Position> {
+        Game::summon_circles(self, player)
+    }
+
     fn caster_has_global(&self, player: PlayerId, spell: SpellId) -> bool {
         self.has_global(player, spell)
     }

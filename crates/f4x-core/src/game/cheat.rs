@@ -388,16 +388,25 @@ impl Game {
         true
     }
 
-    /// Hire a hero type for `player` at no cost: it appears on the wizard's fortress, or in a city
-    /// of theirs. The hero must be free or dead (a resurrection).
+    /// Hire a hero type for `player` at no cost: it appears on `at`, any square of the map, or without
+    /// one on the wizard's fortress, or in a city of theirs. The hero must be free or dead (a
+    /// resurrection).
     pub fn cheat_hire_hero(
         &mut self,
         player: PlayerId,
         kind: usize,
+        at: Option<Position>,
     ) -> Result<hecs::Entity, String> {
-        let at = self
-            .wizard(player)
-            .and_then(|w| w.fortress())
+        if let Some(at) = at {
+            let on_map = self.map.as_ref().is_some_and(|m| {
+                i64::from(at.x) < i64::from(m.width()) && i64::from(at.y) < i64::from(m.height())
+            });
+            if !on_map {
+                return Err(format!("{at:?} is not on the map"));
+            }
+        }
+        let at = at
+            .or_else(|| self.wizard(player).and_then(|w| w.fortress()))
             .or_else(|| {
                 self.economy()
                     .cities_of(player)

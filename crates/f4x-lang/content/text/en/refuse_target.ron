@@ -16,6 +16,8 @@
     "refuse_target.no_fortress": "You have no fortress to move.",
     "refuse_target.fortress_here": "Your fortress is already in this city.",
     "refuse_target.circle_here": "Your summoning circle is already in this city.",
+    "refuse_target.needs_circle": "Choose the summoning circle it goes to.",
+    "refuse_target.wrong_circle": "That is not one of your summoning circles.",
     "refuse_target.walled": "There is already a wall around this city.",
     "refuse_target.warded": "That city is already warded against that realm.",
     "refuse_target.not_ward_realm": "A Spell Ward cannot guard against that realm.",

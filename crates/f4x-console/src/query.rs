@@ -800,6 +800,9 @@ fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 .map(|a| match a {
                     SpellAim::None => "none".to_string(),
                     SpellAim::Unit(u) => format!("unit:{u}"),
+                    SpellAim::UnitTo(u, at) => {
+                        format!("unit:{u}@{}", crate::args::format_pos(*at))
+                    }
                     SpellAim::Tile(c) => format!("tile:{},{}", c.0, c.1),
                 })
                 .collect();
@@ -824,6 +827,9 @@ fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 .map(|a| match a {
                     SpellAim::None => "none".to_string(),
                     SpellAim::Unit(u) => format!("unit:{u}"),
+                    SpellAim::UnitTo(u, at) => {
+                        format!("unit:{u}@{}", crate::args::format_pos(*at))
+                    }
                     SpellAim::Tile(c) => format!("tile:{},{}", c.0, c.1),
                 })
                 .collect();

@@ -292,8 +292,11 @@ impl Battle {
                 }
                 events
             }
-            (SpellType::Recall { .. }, SpellAim::Unit(target)) => {
+            (SpellType::Recall { .. }, SpellAim::Unit(target) | SpellAim::UnitTo(target, _)) => {
                 self.units[target].status = Status::Recalled;
+                if let SpellAim::UnitTo(_, circle) = aim {
+                    self.units[target].recalled_to = Some(circle);
+                }
                 vec![BattleEvent::HeroRecalled { unit: target }]
             }
             (SpellType::WarpWood, SpellAim::Unit(target)) => {

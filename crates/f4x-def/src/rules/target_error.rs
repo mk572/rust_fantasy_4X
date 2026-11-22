@@ -21,6 +21,10 @@ pub enum TargetError {
     NoFortress,
     FortressHere,
     CircleHere,
+    /// The wizard has several summoning circles and the spell is not told which one it goes to.
+    NeedsCircle,
+    /// The summoning circle named is none of the wizard's, or the spell takes none.
+    WrongCircle,
     Walled,
     Warded,
     NotWardRealm,
@@ -94,6 +98,8 @@ impl TargetError {
             Self::NoFortress => "refuse_target.no_fortress",
             Self::FortressHere => "refuse_target.fortress_here",
             Self::CircleHere => "refuse_target.circle_here",
+            Self::NeedsCircle => "refuse_target.needs_circle",
+            Self::WrongCircle => "refuse_target.wrong_circle",
             Self::Walled => "refuse_target.walled",
             Self::Warded => "refuse_target.warded",
             Self::NotWardRealm => "refuse_target.not_ward_realm",

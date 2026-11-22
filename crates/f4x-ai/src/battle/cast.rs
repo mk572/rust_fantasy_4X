@@ -510,7 +510,7 @@ impl Scene<'_> {
         most: u32,
     ) -> Judged {
         let aimed = match aim {
-            SpellAim::Unit(id) => self.unit(id),
+            SpellAim::Unit(id) | SpellAim::UnitTo(id, _) => self.unit(id),
             _ => None,
         };
         let own = BattleEffect::of(def);

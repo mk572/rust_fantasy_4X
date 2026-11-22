@@ -38,7 +38,7 @@ pub const TABLE: &[CommandDef] = &[
     cheat!("lair", "lair <feature> <x,y[,plane]> [strong]", "Put an encounter site or a tower on a square with guards and treasure made as a new world makes them (a strong or, by default, a weak site), replacing what stands there.", lair),
     cheat!("unlair", "unlair <x,y[,plane]>", "Remove the site with a lair from a square, guards and treasure with it.", unlair),
     cheat!("feature", "feature <x,y[,plane]> <feature|none>", "Put a terrain feature (a mineral, a tower, a node, an encounter site, with no guards, treasure or aura) on a square, or with `none` take the feature off.", feature),
-    cheat!("hire", "hire <hero> [player]", "Hire a hero for nothing: it appears on the wizard's fortress (or in a city). The hero must be free or dead.", hire),
+    cheat!("hire", "hire <hero> [player] [x,y[,plane]]", "Hire a hero for nothing: it appears on any square of the map you give, else on the wizard's fortress (or in a city). The hero must be free or dead.", hire),
     cheat!("dismiss", "dismiss <hero>", "Let a hero in service go; it is free to be hired again and its items go to the armory.", dismiss),
     cheat!("reroll", "reroll <hero>", "Roll a hero's abilities and spells anew; its name, level and items stay.", reroll),
     cheat!("treasury", "treasury [player]", "Show a wizard's gold, mana and fame, and their income.", treasury),
@@ -673,10 +673,27 @@ fn hero_kind(ctx: &Ctx, text: &str) -> Result<usize, ConsoleError> {
 
 fn hire(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let kind = hero_kind(ctx, a.need(0, "hero")?)?;
-    let id = player_arg(ctx, a, 1)?;
+    // The words after the hero: a square (`x,y[,plane]`) and a player, in either order.
+    let rest: Vec<&str> = (1..a.len()).filter_map(|i| a.get(i)).collect();
+    let square = rest.iter().find(|w| w.contains(','));
+    let player_word = rest.iter().find(|w| !w.contains(','));
+    let id = match player_word {
+        Some(p) => {
+            let id = parse_player(p)?;
+            ctx.game
+                .player_entity(id)
+                .map(|_| id)
+                .ok_or_else(|| ConsoleError::NoSuch(format!("player {}", id.0)))?
+        }
+        None => player_arg(ctx, a, usize::MAX)?,
+    };
+    let at = match square {
+        Some(s) => Some(crate::args::parse_pos(s, f4x_core::map::Plane::Arcanus)?),
+        None => None,
+    };
     let unit = ctx
         .game
-        .cheat_hire_hero(id, kind)
+        .cheat_hire_hero(id, kind, at)
         .map_err(ConsoleError::Failed)?;
     let line = describe::unit(ctx.game, unit);
     ctx.say(format!("hired: {line}"));

@@ -45,12 +45,12 @@ pub const TABLE: &[CommandDef] = &[
     legal!("farmers", "farmers <city> <number>", "Set how many citizens farm.", farmers),
     legal!("sell", "sell <city> <building>", "Sell a building for its cost in gold.", sell),
     legal!("tax", "tax <rate>", "Set the tax rate (an index into the rate table).", tax),
-    legal!("accept", "accept <offer> [name]", "Take an offer (numbers are listed by `offers`); a hired hero gets the name if you give one.", accept),
+    legal!("accept", "accept <offer> [name] [at=x,y]", "Take an offer (numbers are listed by `offers`); a hired hero gets the name if you give one. With several summoning circles, at=x,y names the one a hero or the mercenaries come to.", accept),
     legal!("equip", "equip <from> <to> [pay]", "Move an item between the vault, the award list and a hero's slots (vault:N, award:N, hero:UNIT:SLOT; see `items`); `pay` agrees to the mana a far-off hero costs.", equip),
     legal!("sell-item", "sell-item <vault:N|award:N>", "Sell a vault or award item for half its value in gold; the other wizards are offered it at that price in turn.", sell_item),
     legal!("scrap", "scrap <vault:N|award:N>", "Destroy a vault or award item for half its value in mana.", scrap),
     legal!("craft", "craft <enchant|artifact> <kind> <power,power|-> [charges:<spell>:<n>] [name...]", "Design an item and start casting Enchant Item or Create Artifact (kinds: sword, mace, axe, bow, staff, wand, misc, shield, chainmail, platemail; powers are ids of `item_powers.ron`).", craft),
-    legal!("resurrect", "resurrect <hero>", "Cast Resurrection on a dead hero, by the number or name `dead` lists; if it is paid over turns, give the hero once the cost is paid.", resurrect),
+    legal!("resurrect", "resurrect <hero> [at=x,y]", "Cast Resurrection on a dead hero, by the number or name `dead` lists; if it is paid over turns, give the hero once the cost is paid. With several summoning circles, at=x,y names the one it comes back to.", resurrect),
     legal!("reject", "reject <offer>", "Turn an offer down.", reject),
     legal!(
         "autobuild",
@@ -74,7 +74,7 @@ pub const TABLE: &[CommandDef] = &[
     legal!("bshootwall", "bshootwall <unit> <x,y>", "In battle: a wall crusher fires at the wall section at that square.", bshootwall),
     legal!("ucast", "ucast <unit> <spell> [unit:N | tile:x,y] [mana:N]", "In battle: a unit casts a spell of its own (a hero's spell with its mana, an item's charge, a creature caster or an ability), instead of the wizard. The unit ends its turn (`uspells` lists what it can cast).", ucast),
     legal!("summondemon", "summondemon <unit>", "In battle: a unit with Creature Summoning (the Demon Lord) calls a demon to its side, for no mana; the unit ends its turn. A Demon Lord can do it three times a battle.", summondemon),
-    legal!("bcast", "bcast <spell> [unit:N | tile:x,y] [mana:N]", "In battle: your wizard casts a spell (once a turn). Aim it at a battle unit or a square; extra mana makes a bolt, a dispel or Counter Magic stronger (`bspells` lists what you can cast).", bcast),
+    legal!("bcast", "bcast <spell> [unit:N[@x,y] | tile:x,y] [mana:N]", "In battle: your wizard casts a spell (once a turn). Aim it at a battle unit (a recall: with several summoning circles, add the circle as @x,y) or a square; extra mana makes a bolt, a dispel or Counter Magic stronger (`bspells` lists what you can cast).", bcast),
     legal!("bvortex", "bvortex <n> <x,y>", "In battle: move your Magic Vortex number n (see `battle`) one square, once a turn.", bvortex),
     legal!("bmerge", "bmerge <unit>", "In battle: a unit with Merging sinks into the ground until its next turn.", bmerge),
     legal!("bsurface", "bsurface <unit> <x,y>", "In battle: a merged unit comes up on a free square.", bsurface),
@@ -521,10 +521,21 @@ fn cast_words(
                 .parse()
                 .map_err(|_| ConsoleError::Parse(format!("{n:?} is not an amount of mana")))?;
         } else if let Some(n) = word.strip_prefix("unit:") {
-            aim = SpellAim::Unit(
-                n.parse()
-                    .map_err(|_| ConsoleError::Parse(format!("{n:?} is not a battle unit")))?,
-            );
+            // `unit:N@x,y[,plane]`: the summoning circle a recall goes to.
+            let (n, circle) = match n.split_once('@') {
+                Some((n, at)) => (
+                    n,
+                    Some(crate::args::parse_pos(at, f4x_core::map::Plane::Arcanus)?),
+                ),
+                None => (n, None),
+            };
+            let unit = n
+                .parse()
+                .map_err(|_| ConsoleError::Parse(format!("{n:?} is not a battle unit")))?;
+            aim = match circle {
+                Some(at) => SpellAim::UnitTo(unit, at),
+                None => SpellAim::Unit(unit),
+            };
         } else if let Some(c) = word.strip_prefix("tile:") {
             aim = SpellAim::Tile(battle_pos(c)?);
         } else {
@@ -604,15 +615,28 @@ fn offer_index(a: &Args) -> Result<usize, ConsoleError> {
     usize::try_from(n - 1).map_err(|_| ConsoleError::Parse(format!("no offer number {n}")))
 }
 
+/// The summoning circle of `at=x,y[,plane]`, when given: asked for when the wizard has several.
+fn circle_option(
+    options: &[(&str, &str)],
+) -> Result<Option<f4x_core::map::Position>, ConsoleError> {
+    options
+        .iter()
+        .find(|(k, _)| *k == "at")
+        .map(|(_, v)| crate::args::parse_pos(v, f4x_core::map::Plane::Arcanus))
+        .transpose()
+}
+
 fn accept(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let index = offer_index(a)?;
-    let name = (a.len() > 1).then(|| a.words[1..].join(" "));
+    let (plain, options) = a.split_options();
+    let name = (plain.len() > 1).then(|| plain[1..].join(" "));
+    let at = circle_option(&options)?;
     let player = ctx.session.player;
     ctx.apply(Command::AcceptOffer {
         player,
         index,
         name,
-        at: None,
+        at,
     })
 }
 
@@ -674,7 +698,9 @@ fn sell_item(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn resurrect(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let which = a.rest(0);
+    let (plain, options) = a.split_options();
+    let which = plain.join(" ");
+    let circle = circle_option(&options)?;
     let kind = {
         let units = ctx.game.units();
         let raisable = units.raisable_heroes();
@@ -691,7 +717,10 @@ fn resurrect(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
     };
     let player = ctx.session.player;
-    let target = f4x_core::rules::exec::Target::Hero(kind);
+    let target = match circle {
+        Some(at) => f4x_core::rules::exec::Target::HeroAt(kind, at),
+        None => f4x_core::rules::exec::Target::Hero(kind),
+    };
     // A cast paid over turns takes its hero when it is done.
     let paid = ctx.game.wizard(player).and_then(|w| w.casting_paid());
     match paid {

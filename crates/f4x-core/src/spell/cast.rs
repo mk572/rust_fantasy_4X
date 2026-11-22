@@ -51,6 +51,8 @@ struct GameHost<'a> {
     extra: u32,
     /// The strength those mana add to a dispel: one a mana, three for a True spell.
     boost: u32,
+    /// The summoning circle Word of Recall sends its unit to, when the wizard chose one.
+    recall_to: Option<Position>,
 }
 
 impl GameHost<'_> {
@@ -102,7 +104,7 @@ impl EffectHost for GameHost<'_> {
 
     fn position(&self, who: Target) -> Option<Position> {
         match who {
-            Target::Unit(u) => self.game.units().unit_position(u),
+            Target::Unit(u) | Target::UnitAt(u, _) => self.game.units().unit_position(u),
             Target::City(c) | Target::CityRealm(c, _) => {
                 self.game.world.get::<&Position>(c).ok().map(|p| *p)
             }
@@ -120,7 +122,7 @@ impl EffectHost for GameHost<'_> {
 
     fn owner_of(&self, who: Target) -> Option<PlayerId> {
         match who {
-            Target::Unit(u) => self.game.units().unit_owner(u),
+            Target::Unit(u) | Target::UnitAt(u, _) => self.game.units().unit_owner(u),
             Target::City(c) | Target::CityRealm(c, _) => self.game.economy().city_owner(c),
             Target::Player(p) => Some(p),
             Target::Spell(i) => self.game.spells().caster_player(i),
@@ -263,7 +265,7 @@ impl EffectHost for GameHost<'_> {
         {
             if let Target::Unit(unit) = who {
                 // `resolve_cast` checked the circle just before: a failure here is a bug.
-                let sent = self.game.word_of_recall(ctx.owner, unit);
+                let sent = self.game.word_of_recall(ctx.owner, unit, self.recall_to);
                 debug_assert!(
                     sent.is_ok(),
                     "Word of Recall failed after its check: {sent:?}"
@@ -740,6 +742,10 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
+        let own_unit_at = |u: hecs::Entity| match target {
+            Some(Target::UnitAt(t, _)) if t == u && mine(self.units().unit_owner(u)) => Ok(()),
+            _ => Err(MagicError::Target(TargetError::NotYourUnit)),
+        };
         let own_unit = |u: hecs::Entity| match target {
             Some(Target::Unit(t)) if t == u && mine(self.units().unit_owner(u)) => Ok(()),
             _ => Err(MagicError::Target(TargetError::NotYourUnit)),
@@ -749,9 +755,16 @@ impl Game {
             crate::spell::special::RECALL_ANYONE,
         ) {
             return match target {
+                // With several circles the wizard says which one the unit goes to.
                 Some(Target::Unit(u)) => {
                     own_unit(u)?;
-                    self.recall_destination(player)
+                    self.recall_destination(player, None)
+                        .map(|_| ())
+                        .map_err(MagicError::Target)
+                }
+                Some(Target::UnitAt(u, at)) => {
+                    own_unit_at(u)?;
+                    self.recall_destination(player, Some(at))
                         .map(|_| ())
                         .map_err(MagicError::Target)
                 }
@@ -901,7 +914,11 @@ impl Game {
                 self.add_global(p, spell);
                 self.reveal_for_globals(p);
             }
-            Target::Tile(_) | Target::Spell(_) | Target::Hero(_) | Target::HeroAt(..) => {}
+            Target::Tile(_)
+            | Target::Spell(_)
+            | Target::Hero(_)
+            | Target::HeroAt(..)
+            | Target::UnitAt(..) => {}
         }
     }
 
@@ -960,6 +977,12 @@ impl Game {
         // Plane Shift and Word of Recall are checked again when it comes to it: the square or
         // the summoning circle they lead to can have been taken since the spell was chosen.
         // Then the spell fails and its mana comes back.
+        // Word of Recall names its circle with its unit when the wizard has several: the rest of the
+        // cast sees the unit.
+        let (target, recall_to) = match target {
+            Some(Target::UnitAt(unit, at)) => (Some(Target::Unit(unit)), Some(at)),
+            other => (other, None),
+        };
         if let Some(Target::Unit(unit)) = target {
             let rules = self.content.rules.spells.get(spell);
             let late = if rules.has_hook(crate::spell::special::PLANE_SHIFT) {
@@ -968,7 +991,7 @@ impl Game {
                 crate::spell::special::RECALL,
                 crate::spell::special::RECALL_ANYONE,
             ) {
-                self.recall_destination(player).err()
+                self.recall_destination(player, recall_to).err()
             } else {
                 None
             };
@@ -1041,6 +1064,7 @@ impl Game {
             slain: 0,
             extra: extra.max(0) as u32,
             boost,
+            recall_to,
         };
         let outcomes = run_rules(&def.effects, Trigger::OnCast, &ctx, &mut host);
         let GameHost {

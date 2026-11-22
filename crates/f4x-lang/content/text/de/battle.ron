@@ -1,5 +1,6 @@
 // Texte der Kampfbildschirme. Ein Schlüssel steht nur in einer Datei (docs/text.md).
 {
+    "battle.choose_circle": "Wähle den Beschwörungskreis, zu dem es geht",
     "battle.triumphant": "Der Sieg ist dein",
     "battle.defeated": "Deine Armee wurde geschlagen",
     "battle.retreated": "Deine Armee hat sich vom Feld zurückgezogen",

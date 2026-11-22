@@ -98,17 +98,22 @@ impl Game {
         }
     }
 
-    /// Where Word of Recall would send a unit of `player`: the summoning circle, if the wizard
-    /// has one. A full circle takes the unit all the same (`unit/sanity.rs`).
+    /// Where Word of Recall would send a unit of `player`: the summoning circle, if the wizard has
+    /// one. With several circles (`multiple_summoning_circles`) `at` names the one, and is asked for. A
+    /// full circle takes the unit all the same (`unit/sanity.rs`).
     pub fn recall_destination(
         &self,
         player: crate::player::PlayerId,
+        at: Option<Position>,
     ) -> Result<Position, TargetError> {
-        let to = self
-            .wizard(player)
-            .and_then(|w| w.summon_at())
-            .ok_or(TargetError::NoCircle)?;
-        Ok(to)
+        let circles = self.summon_circles(player);
+        match (at, circles.as_slice()) {
+            (_, []) => Err(TargetError::NoCircle),
+            (Some(at), circles) if circles.contains(&at) => Ok(at),
+            (Some(_), _) => Err(TargetError::WrongCircle),
+            (None, [only]) => Ok(*only),
+            (None, _) => Err(TargetError::NeedsCircle),
+        }
     }
 
     /// Send the unit to the summoning circle, or say why it cannot go (nothing is changed then).
@@ -116,8 +121,9 @@ impl Game {
         &mut self,
         caster: crate::player::PlayerId,
         unit: hecs::Entity,
+        at: Option<Position>,
     ) -> Result<(), TargetError> {
-        let to = self.recall_destination(caster)?;
+        let to = self.recall_destination(caster, at)?;
         self.put(unit, to);
         self.explore(caster, to, crate::map::fog::sight_for(1));
         Ok(())
