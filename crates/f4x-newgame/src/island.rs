@@ -25,7 +25,7 @@ pub const MIN_LAND: usize = 12;
 /// squares): a town on a thin strip has nothing to work either.
 pub const MIN_NEAR: usize = 4;
 /// A town's work radius, in squares.
-const WORK_RADIUS: u32 = 2;
+pub const WORK_RADIUS: u32 = 2;
 
 /// The four sides of a square.
 const SIDES: [(i32, i32); 4] = [(0, 1), (-1, 0), (0, -1), (1, 0)];

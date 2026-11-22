@@ -400,3 +400,85 @@ fn growth_on_a_map_that_wraps_reaches_across_the_edge() {
     let added = growth(&s.map, c, 3, at, &|_, _| false);
     assert!(!added.is_empty());
 }
+
+#[test]
+fn a_mass_too_small_is_built_out_even_when_there_is_ground_to_work_round_it() {
+    // The town's own land is a pair of squares, but islets lie all round it within the work
+    // radius: the ground to work is enough and the mass joined to the town is not.
+    let c = content();
+    let at = Position {
+        plane: Plane::Arcanus,
+        x: 12,
+        y: 10,
+    };
+    let radius = f4x_newgame::island::WORK_RADIUS as i32;
+    let mut land = vec![(12, 10), (13, 10)];
+    for dy in -radius..=radius {
+        for dx in -radius..=radius {
+            let (x, y) = (12 + dx, 10 + dy);
+            // Both offsets even and further than a square away: nothing touches the town or
+            // another islet by a side.
+            if dx % 2 == 0 && dy % 2 == 0 && (dx, dy) != (0, 0) && (dx, dy) != (1, 0) {
+                land.push((x as u32, y as u32));
+            }
+        }
+    }
+    let s = sea(24, 20, &land);
+    assert!(
+        land_near(&s.map, c, at) >= MIN_NEAR,
+        "the test's islets are too few"
+    );
+    assert!(land_mass(&s.map, c, at, MIN_LAND).len() < MIN_LAND);
+    assert!(!growth(&s.map, c, 1, at, &|_, _| false).is_empty());
+}
+
+#[test]
+fn ground_to_work_comes_first_and_nothing_more_than_needed_is_added() {
+    // A town at the end of a long strip: the mass is big enough, the ground within the work
+    // radius is not. Exactly the missing squares are added, all of them in reach of the town.
+    let c = content();
+    let at = Position {
+        plane: Plane::Arcanus,
+        x: 4,
+        y: 10,
+    };
+    let strip: Vec<(u32, u32)> = (4..4 + MIN_LAND as u32 + 2).map(|x| (x, 10)).collect();
+    // The strip runs east from the town: two squares of it are in reach (the radius is the same
+    // either way round, but the walk of the strip's far end is not).
+    let s = sea(30, 20, &strip);
+    let near = land_near(&s.map, c, at);
+    assert!(
+        near < MIN_NEAR,
+        "the strip gives {near} squares of ground to work"
+    );
+    assert!(land_mass(&s.map, c, at, MIN_LAND).len() >= MIN_LAND);
+    let radius = f4x_newgame::island::WORK_RADIUS;
+    for seed in 0..100 {
+        let added = growth(&s.map, c, seed, at, &|_, _| false);
+        assert_eq!(added.len(), MIN_NEAR - near, "seed {seed}: {added:?}");
+        for &(x, y) in &added {
+            let reach = (x as i32 - at.x as i32)
+                .unsigned_abs()
+                .max((y as i32 - at.y as i32).unsigned_abs());
+            assert!(reach <= radius, "seed {seed}: ({x},{y}) is out of reach");
+        }
+    }
+}
+
+#[test]
+fn growth_may_use_the_top_row_of_the_map() {
+    // The town stands on the second row: some seed builds out onto the first.
+    let c = content();
+    let at = Position {
+        plane: Plane::Arcanus,
+        x: 10,
+        y: 1,
+    };
+    let s = sea(24, 20, &[(10, 1)]);
+    let top = (0..200).any(|seed| {
+        growth(&s.map, c, seed, at, &|_, _| false)
+            .iter()
+            .any(|&(_, y)| y == 0)
+    });
+    assert!(top, "no seed used the top row");
+}

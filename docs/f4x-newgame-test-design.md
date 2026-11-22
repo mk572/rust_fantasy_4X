@@ -284,4 +284,23 @@ scenarios of `c7_drift` did not move either.
 - The `OPPOSED` table of the temperament has no counterpart in the content.
 - No negative test for the hero count (no public way to change it).
 - `f32` trig elsewhere cannot be tested across platforms.
-- The mutation pass was not run (`cargo-mutants` is not installed; asking first).
+
+## Mutation pass
+
+`cargo mutants -p f4x-newgame --shard 1/10` (155 of 1544 mutants, 22 November 2026): 140 caught, 6 timeouts (an endless
+loop is a catch), 5 unviable, 4 missed. The misses:
+
+- `error.rs`, the English `Display` of three reasons: not worth a test (the message of the player is keyed and tested).
+- `island.rs` `land_near`, `+` to `-` on a symmetric loop: an equivalent mutant.
+- `island.rs` `growth`, `<` to `==` on the row check: a gap, closed with `growth_may_use_the_top_row_of_the_map`.
+
+A second pass over `growth` and `land_near` found more (that shard had missed none of them because they were not in it);
+three tests close the real ones (`a_mass_too_small_is_built_out_even_when_there_is_ground_to_work_round_it`,
+`ground_to_work_comes_first_and_nothing_more_than_needed_is_added`, `growth_may_use_the_top_row_of_the_map`). What is
+left there: the mixing of the seed into the random generator (`^`, `<<`; any mixing is as good), the direction of the four
+sides (`+` to `-` over a symmetric list), and three tie details of the first-the-ground-to-work rule (`||` for `&&` at the
+start, `<=` for `<` where the ground is exactly enough, `||` for `&&` on the frontier of a truncated mass). None of them
+changes what a player can see on a map more than the choice of one random square.
+
+The other nine tenths of the mutants were not run. To run one: `scripts/cool_run.sh cargo mutants -p f4x-newgame --shard
+K/10 --jobs 4 -o <dir>` (about half an hour).
