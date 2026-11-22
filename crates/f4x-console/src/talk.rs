@@ -2,9 +2,7 @@
 //!
 //! Tests: in `tests.rs`, through the console.
 
-use f4x_core::diplomacy::{
-    relation_key, DiplomacyCommand, DiplomacyError, Goods, ProposalKind, Treaty,
-};
+use f4x_core::diplomacy::{DiplomacyCommand, DiplomacyError, Goods, ProposalKind, Treaty};
 use f4x_core::game::Command;
 use f4x_core::player::PlayerId;
 
@@ -66,7 +64,7 @@ pub const TABLE: &[CommandDef] = &[
 /// How a relation reads on the console: the id of its band (`hate`, `neutral`, ...), the part of
 /// the text key after `relation.`.
 pub fn relation_word(relation: i32) -> &'static str {
-    let key = relation_key(relation);
+    let key = f4x_ai::relation_key(relation);
     key.strip_prefix("relation.").unwrap_or(key)
 }
 

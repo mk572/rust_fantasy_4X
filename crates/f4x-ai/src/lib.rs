@@ -889,6 +889,7 @@ pub use offer::answer_resales;
 
 pub use controller::{play_round, AiSeat, NeutralSeat};
 pub use memory::Diplomats;
+pub use opinion::{relation_key, relation_level, RELATION_KEYS};
 
 /// A tuning number that an experiment may set from the environment (`AIK_<NAME>`).
 pub(crate) fn knob(name: &str, default: f32) -> f32 {

@@ -472,13 +472,27 @@ mod tests {
             "went past the mark for breaking"
         );
         let mut events = Vec::new();
-        let warnings = |g: &Game| g.diplomacy.stance(P0, P1).map_or(0, |s| s.warnings);
+        let warnings = |events: &[Event]| {
+            events
+                .iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        Event::Diplomacy(f4x_core::diplomacy::DiplomacyEvent::Warned { .. })
+                    )
+                })
+                .count()
+        };
         approach_human(&ai, &mut g, &mut events);
-        assert_eq!(warnings(&g), 1, "no warning");
+        assert_eq!(warnings(&events), 1, "no warning");
         approach_human(&ai, &mut g, &mut events);
-        assert_eq!(warnings(&g), 1, "warned twice in a turn");
+        assert_eq!(warnings(&events), 1, "warned twice in a turn");
         g.turn += Knobs::current().warn_cool;
         approach_human(&ai, &mut g, &mut events);
-        assert_eq!(warnings(&g), 2, "no second warning after the cool-down");
+        assert_eq!(
+            warnings(&events),
+            2,
+            "no second warning after the cool-down"
+        );
     }
 }

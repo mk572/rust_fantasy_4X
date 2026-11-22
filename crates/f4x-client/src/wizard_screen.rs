@@ -8,7 +8,7 @@ use crate::font::Style;
 use crate::input::Input;
 use crate::page::Page;
 use crate::text::Args;
-use f4x_core::diplomacy::relation_key;
+use f4x_ai::relation_key;
 use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
 use macroquad::prelude::*;
 

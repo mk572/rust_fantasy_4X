@@ -1,8 +1,9 @@
-//! Diplomacy between wizards: contact, relations on the -100..100 scale, treaties,
-//! war, proposals and the per-turn drift. The rules are those of the original (`docs/diplomacy.md`).
+//! Diplomacy between wizards: contact, treaties, war, proposals and the events that tell the others what
+//! happened (`docs/diplomacy.md`).
 //!
-//! The core holds the state and applies the results; it never decides whether an AI wizard
-//! accepts. A proposal waits as a pending proposal until its receiver answers with a
+//! The core holds the facts and applies the results; it never decides whether an AI wizard
+//! accepts, and it keeps no feeling of one wizard for another: each AI keeps its own opinion
+//! (`f4x-ai/src/opinion.rs`) and changes it from the events (task 775). A proposal waits as a pending proposal until its receiver answers with a
 //! [`DiplomacyCommand::Answer`], and an AI's own initiatives (greetings, demands, war) are
 //! commands it issues itself (`f4x-ai/src/diplomacy.rs` holds the rating of a proposal and the
 //! war a wizard declares on the caster of the Spell of Mastery).
@@ -19,7 +20,6 @@
 pub mod trade;
 pub use trade::Goods;
 
-use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -27,7 +27,7 @@ use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
-use crate::rules::{RealmId, SpellId, Stat};
+use crate::rules::SpellId;
 use crate::wizard::objective::Personality;
 
 /// What a wizard is bound to with another.
@@ -62,58 +62,12 @@ pub enum Stage {
     Established,
 }
 
-/// What moved a relation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Action {
-    /// A treaty growing, a gift, the Aura of Majesty.
-    Friendship,
-    /// AI wizards drawing together.
-    Gravitation,
-    /// Attacking a wizard one has a treaty with.
-    TreatyAttack,
-    /// A human army grown too strong, a wizard destroyed or a fortress taken.
-    Threat,
-    /// Losses in a battle.
-    BattleLosses,
-    /// Attacking or taking a city.
-    AttackedCity,
-    SpellOfMastery,
-    /// An overland enchantment others dislike.
-    Enchantment,
-    /// A curse on a city.
-    BadCitySpell,
-    /// Too many cities.
-    Overextension,
-    AuraOfMajesty,
-    /// Units too close to a wizard's city.
-    Trespass,
-}
-
-impl Action {
-    /// The reaction events ranked before the talks: a negative one is ignored between wizards at
-    /// war.
-    fn is_reaction(self) -> bool {
-        self != Action::Trespass
-    }
-}
-
-/// The last strongest thing a wizard did to another, which the other remarks on next turn.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LastAction {
-    pub action: Action,
-    pub strength: i32,
-    pub spell: Option<SpellId>,
-}
-
-/// What holds between two wizards, the same both ways.
+/// What holds between two wizards, the same both ways: facts of the game. What each feels about the other
+/// is the AI's (`f4x-ai/src/opinion.rs`, `docs/diplomacy.md` 9.2).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pair {
     pub contacted: bool,
     pub status: Treaty,
-    /// The relation shown to the player, -100..100.
-    pub visible: i32,
-    /// What `visible` drifts back to.
-    pub default: i32,
     /// The turn the war began, while the two are at war (the AI weighs a war by its age).
     #[serde(default)]
     pub war_since: Option<u32>,
@@ -122,35 +76,13 @@ pub struct Pair {
     pub war_cities: [u16; 2],
 }
 
-/// What two wizards hold about each other, kept in the slot of one of them. `hidden` and the three
-/// patience counters are the reaction of `to` to `from` (the original's
-/// `_players[from].Dipl.Hidden_Rel[to]`): a wizard that asks, gives or breaks a treaty changes its
-/// own slot for the wizard it deals with, and the rating of a proposal that `from` makes to `to`
-/// reads `stance(from, to)`. A wizard's own decision about another reads `stance(other, me)`.
-/// The other fields are `from`'s about `to`.
+/// What a wizard holds about another, kept in the slot of one of them: how far the talk has gone, and the
+/// turns in which `from` will not attack `to` (a peace made, a threat yielded to).
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Stance {
-    /// The permanent core reaction of `to` to `from`: oath breaking and gifts. Not shown.
-    pub hidden: i32,
-    /// How receptive `to` is to treaty, spell-exchange and peace proposals of `from`.
-    pub treaty_patience: i32,
-    pub exchange_patience: i32,
-    pub peace_patience: i32,
     /// Turns in which `from` will not attack `to`.
     pub peace_duration: u32,
-    /// How hostile `from` feels towards `to`, 0..=3.
-    pub hostility: u8,
     pub stage: Stage,
-    /// The treaty `to` broke with `from`, for the oath-breaker remarks.
-    pub broken: Option<Treaty>,
-    pub last_action: Option<LastAction>,
-    /// The warnings `from` has given `to` that it is getting tired of it (`DIPL_HumanWarOrPeace`).
-    #[serde(default)]
-    pub warnings: u8,
-    /// The turns in a row `to` has had units next to a city of `from` while they hold a treaty
-    /// (`DIPL_GetOffMyLawn`): the first is a warning, the third breaks the treaty.
-    #[serde(default)]
-    pub trespass: u8,
 }
 
 /// What a wizard offers another.
@@ -227,12 +159,6 @@ pub enum DiplomacyEvent {
     ContactMade {
         a: PlayerId,
         b: PlayerId,
-    },
-    RelationChanged {
-        attacker: PlayerId,
-        defender: PlayerId,
-        change: i32,
-        action: Action,
     },
     TreatyChanged {
         a: PlayerId,
@@ -431,31 +357,6 @@ fn key(a: PlayerId, b: PlayerId) -> (u8, u8) {
     (a.0.min(b.0), a.0.max(b.0))
 }
 
-/// The keys of the words of the relation scale, `Hate` to `Harmony`.
-pub const RELATION_KEYS: &[&str] = &[
-    "relation.hate",
-    "relation.troubled",
-    "relation.tense",
-    "relation.restless",
-    "relation.unease",
-    "relation.neutral",
-    "relation.relaxed",
-    "relation.calm",
-    "relation.peaceful",
-    "relation.friendly",
-    "relation.harmony",
-];
-
-/// Where a relation sits on the scale: 0 (hate) to 10 (harmony).
-pub fn relation_level(relation: i32) -> usize {
-    ((100 + relation.clamp(-100, 100)) / 20) as usize
-}
-
-/// The key of the word for a relation.
-pub fn relation_key(relation: i32) -> &'static str {
-    RELATION_KEYS[relation_level(relation)]
-}
-
 /// The squares of a plane of a medium map, which the city allowance below is counted for.
 const ORIGINAL_PLANE_SQUARES: i32 = 60 * 40;
 
@@ -563,108 +464,13 @@ pub fn wizards(view: &Game) -> Vec<PlayerId> {
     out
 }
 
-/// How a book of realm `x` stands to a book of realm `y` on the colour wheel, per book of the
-/// smaller side: the same realm is kin, the two realms next to it on the wheel are allies and
-/// the other two are opposed. The wheel runs Chaos, Nature, Life, Sorcery, Death and back to
-/// Chaos (so Chaos is allied with Nature and Death and opposes Life and Sorcery, and so on).
-fn wheel_affinity(x: RealmId, y: RealmId) -> i32 {
-    // The realms' numbers in wheel order: chaos, nature, life, sorcery, death.
-    const WHEEL: [u16; 5] = [2, 0, 3, 1, 4];
-    let place = |r: RealmId| WHEEL.iter().position(|&n| n == r.num());
-    let (Some(i), Some(j)) = (place(x), place(y)) else {
-        return 0;
-    };
-    match (i + 5 - j) % 5 {
-        0 => 2,
-        1 | 4 => 1,
-        _ => -3,
-    }
-}
-
-/// The relation two wizards start with, from their books (`Init_Diplomatic_Relations`), or
-/// from the colour wheel when the setting `color_wheel_relations` is on.
-fn start_relation(view: &Game, a: PlayerId, b: PlayerId) -> i32 {
-    if view.settings.rules.color_wheel_relations {
-        let realms = [2u16, 0, 3, 1, 4].map(RealmId::new);
-        let books =
-            |p: PlayerId, r: RealmId| -> i32 { view.wizard(p).map_or(0, |m| m.books_in(r)) };
-        let score: i32 = realms
-            .iter()
-            .flat_map(|&x| realms.iter().map(move |&y| (x, y)))
-            .map(|(x, y)| books(a, x).min(books(b, y)) * wheel_affinity(x, y))
-            .sum();
-        return score.max(-90);
-    }
-    let books =
-        |p: PlayerId, realm: RealmId| -> i32 { view.wizard(p).map_or(0, |m| m.books_in(realm)) };
-    let death = RealmId::new(4); // death
-    let life = RealmId::new(3); // life
-    let chaos = RealmId::new(2); // chaos
-    let max_death = books(a, death).max(books(b, death));
-    let sum_life = books(a, life) + books(b, life);
-    let max_chaos = books(a, chaos).max(books(b, chaos));
-    let mut score = if sum_life > 0 && max_death > 0 {
-        -(sum_life + max_death) * 5
-    } else {
-        sum_life * 2 - max_death * 3
-    };
-    score -= max_chaos * 2;
-    for realm in [
-        RealmId::new(1), // sorcery
-        chaos,
-        RealmId::new(0), // nature
-        life,
-    ] {
-        score += books(a, realm).min(books(b, realm)) * 2;
-    }
-    score.max(-90)
-}
-
-/// The enchantments that sour or sweeten relations: the change, whom it touches, and the
-/// divisor of the once-a-turn reaction (`Change_Relations_For_Enchantments`, whose cast-time
-/// divisor is 1 and, for the Spell of Mastery, 2 while it is being cast).
-fn enchantment_reaction(view: &Game, spell: SpellId, other: PlayerId) -> Option<(i32, Action)> {
-    let books = |realm: RealmId| view.wizard(other).map_or(0, |m| m.books_in(realm));
-    let (nature, chaos, life, death) = (
-        RealmId::new(0), // nature
-        RealmId::new(2), // chaos
-        RealmId::new(3), // life
-        RealmId::new(4), // death
-    );
-    let reaction = match spell.num() {
-        213 /* spell_of_mastery */ => (-50, Action::SpellOfMastery),
-        197 /* eternal_night */ => (-12, Action::Enchantment),
-        198 /* evil_omens */ if books(life) > 0 || books(nature) > 0 => (-20, Action::Enchantment),
-        188 /* zombie_mastery */ => (-14, Action::Enchantment),
-        59 /* aura_of_majesty */ => (10, Action::Friendship),
-        57 /* wind_mastery */ | 79 /* suppress_magic */ => (-4, Action::Enchantment),
-        40 /* natures_wrath */ if books(chaos) > 0 || books(death) > 0 => (-20, Action::Enchantment),
-        116 /* chaos_surge */ if books(chaos) == 0 => (-10, Action::Enchantment),
-        117 /* doom_mastery */ => (-8, Action::Enchantment),
-        114 /* great_wasting */ => (-20, Action::Enchantment),
-        113 /* meteor_storm */ => (-15, Action::Enchantment),
-        120 /* armageddon */ => (-25, Action::Enchantment),
-        157 /* tranquility */ if books(chaos) > 0 => (-20, Action::Enchantment),
-        156 /* life_force */ if books(death) > 0 => (-20, Action::Enchantment),
-        158 /* crusade */ => (-10, Action::Enchantment),
-        154 /* holy_arms */ => (-5, Action::Enchantment),
-        _ => return None,
-    };
-    Some(reaction)
-}
-
 impl Diplomacy {
-    fn pair_mut(&mut self, view: &Game, a: PlayerId, b: PlayerId) -> &mut Pair {
-        self.pairs.entry(key(a, b)).or_insert_with(|| {
-            let start = start_relation(view, a, b);
-            Pair {
-                contacted: false,
-                status: Treaty::None,
-                visible: start,
-                default: start,
-                war_since: None,
-                war_cities: [0, 0],
-            }
+    fn pair_mut(&mut self, _view: &Game, a: PlayerId, b: PlayerId) -> &mut Pair {
+        self.pairs.entry(key(a, b)).or_insert_with(|| Pair {
+            contacted: false,
+            status: Treaty::None,
+            war_since: None,
+            war_cities: [0, 0],
         })
     }
 
@@ -691,12 +497,6 @@ impl Diplomacy {
         pair.war_since?;
         let at_start = pair.war_cities[usize::from(a.0 > b.0)];
         Some(view.economy().city_count(a) as i32 - i32::from(at_start))
-    }
-
-    /// The relation between two wizards as the player sees it (0 before they have a record).
-    pub fn relation(&self, view: &Game, a: PlayerId, b: PlayerId) -> i32 {
-        self.pair(a, b)
-            .map_or_else(|| start_relation(view, a, b), |p| p.visible)
     }
 
     /// What the hooks raised since the last command, as events.
@@ -768,124 +568,6 @@ impl Diplomacy {
 
     // ---- changing relations ----------------------------------------------------
 
-    /// What `attacker` did moves `defender`'s feeling about it (`Change_Relations`). The human
-    /// wizard is never the defender: the original does not change the human's own side.
-    pub fn change_relations(
-        &mut self,
-        ctx: &mut DiplomacyCtx<'_>,
-        value: i32,
-        attacker: PlayerId,
-        defender: PlayerId,
-        action: Action,
-        spell: Option<SpellId>,
-    ) {
-        if value == 0
-            || attacker == defender
-            || !ctx.view.takes_part_in_diplomacy(attacker)
-            || !ctx.view.takes_part_in_diplomacy(defender)
-            || !self.have_met(attacker, defender)
-            || ctx.view.human() == Some(defender)
-        {
-            return;
-        }
-        let rel = self.relation(ctx.view, attacker, defender);
-        let mut v = value;
-        if v > 0 {
-            if rel < 0 {
-                v *= 2;
-                if rel + v > 10 {
-                    v = 10 - rel;
-                }
-            } else {
-                v /= rel / 25 + 1;
-            }
-        } else if rel > 0 {
-            v *= 2;
-        } else {
-            v /= -rel / 25 + 1;
-        }
-        match ctx.view.personality(defender) {
-            Personality::Lawful if v < 0 => v *= 2,
-            Personality::Maniacal if v < 0 => v = v * 3 / 2,
-            Personality::Maniacal if v > 0 => v = v * 3 / 4,
-            _ => {}
-        }
-        let before_charisma = v;
-        if let Some(m) = ctx.view.wizard(attacker) {
-            let rules = &ctx.view.content().rules;
-            if v > 0 {
-                v = v * m.stat(rules, Stat::DiplomacyGainPercent, 100) / 100;
-            } else if v < 0 {
-                v = v * m.stat(rules, Stat::DiplomacyLossPercent, 100) / 100;
-            }
-        }
-        let at_war = self.treaty(defender, attacker) == Treaty::War;
-        let mut applied = v;
-        if at_war && action.is_reaction() && v < 0 {
-            // Wars are not made worse by what one does in them; a quarter wears down the peace
-            // patience (of any attacker).
-            self.stance_mut(defender, attacker).peace_patience += v / 4;
-            self.stance_mut(attacker, defender).peace_patience -= v / 4;
-            applied = 0;
-        }
-        // After turn 200 the original helps its AIs along: friendships twice as strong, enmities
-        // weaker with the difficulty. This game gives its AIs no help (design.md section 8).
-        if applied != 0 {
-            let pair = self.pair_mut(ctx.view, attacker, defender);
-            pair.visible = (pair.visible + applied).clamp(-100, 100);
-            // Patience moves for the defender and is copied to the attacker.
-            let d = self.stance_mut(defender, attacker);
-            d.treaty_patience += applied;
-            d.exchange_patience += applied;
-            let (t, e) = (d.treaty_patience, d.exchange_patience);
-            let a = self.stance_mut(attacker, defender);
-            a.treaty_patience = t;
-            a.exchange_patience = e;
-            if before_charisma < 0 {
-                self.stance_mut(attacker, defender).peace_patience -= before_charisma / 4;
-                self.stance_mut(defender, attacker).peace_patience += before_charisma / 4;
-            } else {
-                self.stance_mut(defender, attacker).peace_patience += before_charisma;
-            }
-            if ctx.view.human() == Some(attacker) && action != Action::AuraOfMajesty {
-                let stance = self.stance_mut(defender, attacker);
-                if stance
-                    .last_action
-                    .as_ref()
-                    .is_none_or(|l| applied.abs() > l.strength.abs())
-                {
-                    stance.last_action = Some(LastAction {
-                        action,
-                        strength: applied,
-                        spell,
-                    });
-                }
-            }
-            self.queue.push(DiplomacyEvent::RelationChanged {
-                attacker,
-                defender,
-                change: applied,
-                action,
-            });
-        }
-        let status = self.treaty(defender, attacker);
-        let pair = self.pair_mut(ctx.view, attacker, defender);
-        if status == Treaty::War {
-            pair.visible = pair.visible.min(-25);
-        }
-        if status != Treaty::Alliance {
-            pair.visible = pair.visible.min(65);
-        }
-        let hostility = match status {
-            Treaty::War => Some(3),
-            Treaty::Alliance => Some(0),
-            _ => None,
-        };
-        if let Some(h) = hostility {
-            self.stance_mut(defender, attacker).hostility = h;
-        }
-    }
-
     // ---- treaties and war ------------------------------------------------------
 
     fn set_status(&mut self, ctx: &mut DiplomacyCtx<'_>, a: PlayerId, b: PlayerId, treaty: Treaty) {
@@ -916,8 +598,6 @@ impl Diplomacy {
         treaty: Treaty,
     ) {
         self.set_status(ctx, a, b, treaty);
-        self.stance_mut(a, b).hostility = 0;
-        self.stance_mut(b, a).hostility = 0;
     }
 
     /// `breaker` ends the pact or alliance with `victim` (`Break_Treaties`). Unlike the original
@@ -936,50 +616,9 @@ impl Diplomacy {
         if treaty == Treaty::War {
             return;
         }
-        let mut penalty = match treaty {
-            Treaty::Pact => 10,
-            Treaty::Alliance => 20,
-            _ => 0,
-        };
-        if ctx.view.personality(breaker) == Personality::Lawful {
-            penalty *= 2;
-        }
-        {
-            let h = &mut self.stance_mut(breaker, victim).hidden;
-            *h = (*h - penalty).max(-100);
-        }
-        let broke_a_treaty = penalty != 0;
-        // Every other wizard thinks less of the oath-breaker (the original lowers their record of
-        // the victim instead, and also when no treaty was broken: 1.50 notes 372, 389, 390).
-        if broke_a_treaty {
-            for other in wizards(ctx.view) {
-                if other != breaker && other != victim {
-                    let h = &mut self.stance_mut(breaker, other).hidden;
-                    *h = (*h - 5).max(-100);
-                }
-            }
-        }
-        let drop = if broke_a_treaty {
-            ctx.rng.roll(20) as i32
-        } else {
-            0
-        };
-        let pair = self.pair_mut(ctx.view, breaker, victim);
-        if treaty == Treaty::Alliance {
-            pair.default = (pair.default - penalty).max(-100);
-        }
-        pair.visible = (pair.visible - drop).max(-100);
-        if broke_a_treaty {
-            self.stance_mut(breaker, victim).broken = Some(treaty);
-            self.stance_mut(victim, breaker).broken = Some(treaty);
-        }
+        // What the others feel about it is for each AI to decide, from the event.
+        let broke_a_treaty = matches!(treaty, Treaty::Pact | Treaty::Alliance);
         self.set_status(ctx, breaker, victim, Treaty::None);
-        for (from, to) in [(breaker, victim), (victim, breaker)] {
-            let s = self.stance_mut(from, to);
-            s.treaty_patience = -200;
-            s.exchange_patience = -200;
-            s.peace_patience = -200;
-        }
         if broke_a_treaty {
             self.queue.push(DiplomacyEvent::TreatyBroken {
                 breaker,
@@ -1008,18 +647,7 @@ impl Diplomacy {
             return;
         }
         self.break_treaties(ctx, attacker, defender);
-        let relation = -75 - ctx.rng.roll(25) as i32;
-        let pair = self.pair_mut(ctx.view, attacker, defender);
-        pair.default = (pair.default - 5).max(-100);
-        pair.visible = relation;
         self.set_status(ctx, attacker, defender, Treaty::War);
-        for (from, to) in [(attacker, defender), (defender, attacker)] {
-            let s = self.stance_mut(from, to);
-            s.treaty_patience = -200;
-            s.exchange_patience = -200;
-            s.peace_patience = -130;
-            s.hostility = 3;
-        }
         self.queue
             .push(DiplomacyEvent::WarDeclared { attacker, defender });
     }
@@ -1029,8 +657,6 @@ impl Diplomacy {
     /// human only).
     pub fn declare_peace(&mut self, ctx: &mut DiplomacyCtx<'_>, a: PlayerId, b: PlayerId) {
         self.start_treaty(ctx, a, b, Treaty::None);
-        let pair = self.pair_mut(ctx.view, a, b);
-        pair.visible = (pair.visible + 40).min(100);
         for (kept, other) in [(a, b), (b, a)] {
             let turns = 7 + ctx.rng.roll(6);
             self.stance_mut(other, kept).peace_duration = turns;
@@ -1184,19 +810,6 @@ impl Diplomacy {
             return Err(DiplomacyError::NotAllowed);
         }
         let proposal = self.proposals.remove(at);
-        // Asking wears down the receiver's patience with the asker, whoever answers and whatever
-        // the answer is.
-        match proposal.kind {
-            ProposalKind::Trade { .. } | ProposalKind::Demand { .. } => {}
-            ProposalKind::Threat => {}
-            _ => {
-                let wear = 20 + ctx.rng.roll(30) as i32;
-                let s = self.stance_mut(from, player);
-                s.treaty_patience -= 10 + wear;
-                s.exchange_patience -= 10;
-                s.peace_patience -= 10;
-            }
-        }
         let can_pay = match proposal.kind {
             ProposalKind::Demand { gold } => ctx
                 .view
@@ -1211,18 +824,6 @@ impl Diplomacy {
                 .is_ok();
         if accepted {
             self.carry_out(ctx, proposal);
-        } else if matches!(proposal.kind, ProposalKind::Demand { .. }) {
-            // Turning a demand down sours the one who made it.
-            let loss = 1 + ctx.rng.roll(10) as i32;
-            self.change_relations(ctx, -loss, player, from, Action::Threat, None);
-        }
-        if proposal.kind == ProposalKind::Threat {
-            // The threat costs the threatener some of the receiver's goodwill, yielded or not.
-            let loss = ctx.rng.roll(15) as i32;
-            self.change_relations(ctx, -loss, from, player, Action::Threat, None);
-            // A threat leaves the patience with the threatener at -120, on both sides.
-            self.stance_mut(from, player).treaty_patience = -120;
-            self.stance_mut(player, from).treaty_patience = -120;
         }
         self.queue.push(DiplomacyEvent::ProposalAnswered {
             proposal,
@@ -1238,11 +839,6 @@ impl Diplomacy {
             ProposalKind::Alliance => self.start_treaty(ctx, p.from, p.to, Treaty::Alliance),
             ProposalKind::Peace => {
                 self.declare_peace(ctx, p.from, p.to);
-                // Asking for peace wears on the asker's patience twice more.
-                let s = self.stance_mut(p.from, p.to);
-                s.treaty_patience -= 20;
-                s.exchange_patience -= 20;
-                s.peace_patience -= 20;
             }
             ProposalKind::Threat => {
                 // The yielding wizard leaves the threatener alone for a while.
@@ -1259,21 +855,6 @@ impl Diplomacy {
             ProposalKind::Trade { give, get } => {
                 Self::hand_over(ctx, p.from, p.to, give);
                 Self::hand_over(ctx, p.to, p.from, get);
-                // Whoever gets the better deal, by its own worth of what it gets and gives, likes
-                // its partner more.
-                let worth = |holder, goods| trade::worth(ctx.view, holder, goods);
-                let proposer_gain = worth(p.from, get) - worth(p.from, give);
-                let receiver_gain = worth(p.to, give) - worth(p.to, get);
-                if receiver_gain > 0 {
-                    self.change_relations(ctx, 5, p.from, p.to, Action::Friendship, None);
-                }
-                if proposer_gain > 0 {
-                    self.change_relations(ctx, 5, p.to, p.from, Action::Friendship, None);
-                }
-                let s = self.stance_mut(p.from, p.to);
-                s.treaty_patience -= 20;
-                s.exchange_patience = (s.exchange_patience - 30).min(50);
-                s.peace_patience -= 20;
             }
         }
     }
@@ -1317,24 +898,7 @@ impl Diplomacy {
         {
             return Err(DiplomacyError::NotEnoughGold);
         }
-        // A quarter, half, three quarters or all of the receiver's gold is offered: the larger the
-        // share, the warmer the thanks.
-        let reserve = ctx
-            .view
-            .player(to)
-            .map_or(HalfInt::ZERO, |p| p.treasury().gold)
-            .floor()
-            .max(1);
-        let choice = ((amount * 4 + reserve - 1) / reserve).clamp(1, 4);
-        let base = if army_strength(ctx.view, to) > 0 {
-            choice * 4
-        } else {
-            8
-        };
-        let gain = (base * ctx.rng.roll(3) as i32 / 10).min(100);
         ctx.out.push(Outcome::Gold { from, to, amount });
-        let pair = self.pair_mut(ctx.view, from, to);
-        pair.visible = (pair.visible + gain).min(100);
         self.queue.push(DiplomacyEvent::GoldGiven {
             from,
             to,
@@ -1356,21 +920,6 @@ impl Diplomacy {
             return Err(DiplomacyError::SpellUnavailable);
         }
         ctx.out.push(Outcome::Spell { player: to, spell });
-        let relation = self.relation(ctx.view, from, to);
-        let base = if relation < 0 {
-            20
-        } else {
-            (100 - relation) / 10
-        };
-        let gain = base * (ctx.rng.roll(8) as i32 + ctx.rng.roll(8) as i32) / 10;
-        let hidden = 2 + ctx.rng.roll(8) as i32;
-        let pair = self.pair_mut(ctx.view, from, to);
-        pair.visible = (pair.visible + gain).min(100);
-        // The receiver's reaction to the giver: its record sits in the giver's slot, as the
-        // rating of a proposal reads it (`Stance`).
-        let s = self.stance_mut(from, to);
-        s.peace_patience = (s.peace_patience + gain).min(100);
-        s.hidden = (s.hidden + hidden).min(30);
         self.queue
             .push(DiplomacyEvent::SpellGiven { from, to, spell });
         Ok(())
@@ -1464,8 +1013,6 @@ impl Diplomacy {
                 })
             }
             DiplomacyCommand::Warn { from, to } => self.check_gift(ctx.view, from, to).map(|()| {
-                let s = self.stance_mut(from, to);
-                s.warnings = s.warnings.saturating_add(1);
                 self.queue.push(DiplomacyEvent::Warned { from, to });
             }),
         };
@@ -1477,24 +1024,6 @@ impl Diplomacy {
     }
 
     // ---- the turn --------------------------------------------------------------
-
-    /// Every other wizard reacts to `caster`'s enchantment (`Change_Relations_For_Enchantments`).
-    pub(crate) fn enchantment_relations(
-        &mut self,
-        ctx: &mut DiplomacyCtx<'_>,
-        caster: PlayerId,
-        spell: SpellId,
-        divisor: i32,
-    ) {
-        for other in wizards(ctx.view) {
-            if other == caster {
-                continue;
-            }
-            if let Some((value, action)) = enchantment_reaction(ctx.view, spell, other) {
-                self.change_relations(ctx, value / divisor, caster, other, action, Some(spell));
-            }
-        }
-    }
 
     /// Subversion (`Apply_Subversion`): the relation of every other wizard that has met `target`
     /// falls by `subversion_penalty` (`rules.ron`), and the peace between them is over. The original's code
@@ -1518,29 +1047,9 @@ impl Diplomacy {
             .filter(|&w| self.have_met(w, target))
             .collect();
         for w in others {
-            let pair = self.pair_mut(ctx.view, w, target);
-            pair.visible = (pair.visible
-                - ctx.view.content().rules.config.diplomacy.subversion_penalty)
-                .max(-100);
             self.stance_mut(w, target).peace_duration = 0;
             self.stance_mut(target, w).peace_duration = 0;
         }
-    }
-
-    /// What a curse on a city costs in relations (`Change_Relations_For_Bad_City_Spell`).
-    fn bad_city_spell_value(spell: SpellId) -> Option<i32> {
-        Some(match spell.num() {
-            26 /* earthquake */ => -9,
-            85 /* corruption */ => -25,
-            98 /* raise_volcano */ => -50,
-            110 /* chaos_rift */ => -5,
-            119 /* call_the_void */ => -20,
-            183 /* evil_presence */ => -5,
-            189 /* famine */ => -5,
-            190 /* cursed_lands */ => -5,
-            196 /* pestilence */ => -8,
-            _ => return None,
-        })
     }
 
     /// A spell was cast: the wizards it offends take note. `target_owner` is whose city it fell on.
@@ -1551,9 +1060,6 @@ impl Diplomacy {
         spell: SpellId,
         target_owner: Option<PlayerId>,
     ) {
-        if let (Some(value), Some(owner)) = (Self::bad_city_spell_value(spell), target_owner) {
-            self.change_relations(ctx, value, caster, owner, Action::BadCitySpell, Some(spell));
-        }
         if let Some(owner) = target_owner {
             self.queue.push(DiplomacyEvent::CitySpellCast {
                 caster,
@@ -1566,14 +1072,11 @@ impl Diplomacy {
         if !ctx
             .view
             .spell_has_hook(spell, crate::spell::special::SPELL_OF_MASTERY)
-        {
-            self.enchantment_relations(ctx, caster, spell, 1);
-            if ctx.view.content().rules.spells.get(spell).duration
+            && ctx.view.content().rules.spells.get(spell).duration
                 != crate::rules::Duration::Instant
-            {
-                self.queue
-                    .push(DiplomacyEvent::EnchantmentCast { caster, spell });
-            }
+        {
+            self.queue
+                .push(DiplomacyEvent::EnchantmentCast { caster, spell });
         }
     }
 
@@ -1588,7 +1091,6 @@ impl Diplomacy {
             .view
             .spell_has_hook(spell, crate::spell::special::SPELL_OF_MASTERY)
         {
-            self.enchantment_relations(ctx, player, spell, 1);
             self.queue.push(DiplomacyEvent::EnchantmentCast {
                 caster: player,
                 spell,
@@ -1625,7 +1127,6 @@ impl Diplomacy {
             return;
         }
         self.make_contact(ctx, winner, loser);
-        self.change_relations(ctx, -40, winner, loser, Action::AttackedCity, None);
     }
 
     /// An attack on a city failed: -60 if it held the wizard's fortress, else -20.
@@ -1641,8 +1142,6 @@ impl Diplomacy {
         {
             return;
         }
-        let value = if fortress_city { -60 } else { -20 };
-        self.change_relations(ctx, value, attacker, defender, Action::AttackedCity, None);
         self.queue.push(DiplomacyEvent::AssaultFailed {
             attacker,
             defender,
@@ -1677,10 +1176,6 @@ impl Diplomacy {
                 pair.war_since = None;
                 pair.contacted = false;
             }
-            if other != winner {
-                let value = if destroyed { -40 } else { -20 };
-                self.change_relations(ctx, value, winner, other, Action::Threat, None);
-            }
         }
     }
 
@@ -1699,260 +1194,7 @@ impl Diplomacy {
         for s in self.stances.values_mut() {
             s.peace_duration = s.peace_duration.saturating_sub(1);
         }
-        self.enchantments_in_force(ctx);
-        self.trespass(ctx);
-        self.diplomacy_growth(ctx);
         self.contact_sweep(ctx);
-        // Patience comes back, and heals by itself a little.
-        let keys: Vec<(u8, u8)> = self.stances.keys().copied().collect();
-        for &(a, b) in &keys {
-            let s = self.stance_mut(PlayerId(a), PlayerId(b));
-            for v in [
-                &mut s.treaty_patience,
-                &mut s.exchange_patience,
-                &mut s.peace_patience,
-            ] {
-                if *v < 100 {
-                    *v += 10;
-                }
-            }
-        }
-        for (a, b) in keys {
-            for slot in 0..3 {
-                // Each runs twice: once while it is below zero, once while below 50.
-                let first = ctx.rng.roll(5) as i32;
-                let second = ctx.rng.roll(5) as i32;
-                let s = self.stance_mut(PlayerId(a), PlayerId(b));
-                let v = match slot {
-                    0 => &mut s.treaty_patience,
-                    1 => &mut s.exchange_patience,
-                    _ => &mut s.peace_patience,
-                };
-                if *v < 0 {
-                    *v += first;
-                }
-                if *v < 50 {
-                    *v += second;
-                }
-            }
-            // Warnings are forgotten once the feeling has mended.
-            let mended = self.relation(ctx.view, PlayerId(a), PlayerId(b)) > -25;
-            let s = self.stance_mut(PlayerId(a), PlayerId(b));
-            s.peace_patience = s.peace_patience.clamp(-200, 200);
-            s.last_action = None;
-            if mended {
-                s.warnings = 0;
-            }
-        }
-    }
-
-    /// Units next to a wizard's city (`DIPL_GetOffMyLawn`): non-settlers of another wizard within
-    /// two squares, on the city's plane. With a pact or alliance the owner warns on the first turn
-    /// (a mild loss of goodwill), lets the second pass, and on the third turn the treaty is broken
-    /// with -5; with no treaty a turn in sixteen costs a little goodwill. Wizards at war ignore it,
-    /// and a human owner is not changed (`change_relations`). Towers, which reach both planes in
-    /// the original, are not counted.
-    fn trespass(&mut self, ctx: &mut DiplomacyCtx<'_>) {
-        let view = ctx.view;
-        let Some(map) = view.map() else {
-            return;
-        };
-        let cities: Vec<(PlayerId, Position)> = view
-            .economy()
-            .cities()
-            .into_iter()
-            .map(|(_, info, pos)| (info.owner, pos))
-            .collect();
-        let units = view.units();
-        let mut intrusions: std::collections::BTreeSet<(u8, u8)> = Default::default();
-        for unit in units.all_units() {
-            let (Some(owner), Some(pos)) = (units.unit_owner(unit), units.unit_position(unit))
-            else {
-                continue;
-            };
-            if !view.takes_part_in_diplomacy(owner) || units.unit_is_settler(unit) {
-                continue;
-            }
-            let grid = map.plane(pos.plane);
-            for &(city_owner, city) in &cities {
-                if city_owner != owner
-                    && city.plane == pos.plane
-                    && grid.chebyshev((pos.x, pos.y), (city.x, city.y)) <= 2
-                {
-                    intrusions.insert((city_owner.0, owner.0));
-                }
-            }
-        }
-        for (i, &a) in wizards(view).iter().enumerate() {
-            for &b in &wizards(view)[i + 1..] {
-                for (owner, intruder) in [(a, b), (b, a)] {
-                    if !self.have_met(owner, intruder) || view.human() == Some(owner) {
-                        continue;
-                    }
-                    let treaty = self.treaty(owner, intruder);
-                    if treaty == Treaty::War || !intrusions.contains(&(owner.0, intruder.0)) {
-                        self.stance_mut(owner, intruder).trespass = 0;
-                        continue;
-                    }
-                    if matches!(treaty, Treaty::Pact | Treaty::Alliance) {
-                        let step = self.stance(owner, intruder).map_or(0, |s| s.trespass) + 1;
-                        self.stance_mut(owner, intruder).trespass = step;
-                        match step {
-                            1 => {
-                                let loss = ctx.rng.roll(5) as i32;
-                                self.change_relations(
-                                    ctx,
-                                    -loss,
-                                    intruder,
-                                    owner,
-                                    Action::Trespass,
-                                    None,
-                                );
-                                self.queue
-                                    .push(DiplomacyEvent::Trespassing { owner, intruder });
-                            }
-                            2 => {}
-                            _ => {
-                                self.change_relations(
-                                    ctx,
-                                    -5,
-                                    intruder,
-                                    owner,
-                                    Action::Trespass,
-                                    None,
-                                );
-                                // The original breaks the treaty here; the game leaves that to the owner.
-                                self.stance_mut(owner, intruder).trespass = 0;
-                            }
-                        }
-                    } else if ctx.rng.roll(100) <= 6 {
-                        let loss = ctx.rng.roll(5) as i32;
-                        self.change_relations(ctx, -loss, intruder, owner, Action::Trespass, None);
-                    }
-                }
-            }
-        }
-    }
-
-    /// The enchantments wizards keep going sour or sweeten relations a little each turn
-    /// (`Diplomacy_Growth_For_Enchantments`).
-    fn enchantments_in_force(&mut self, ctx: &mut DiplomacyCtx<'_>) {
-        for wizard in wizards(ctx.view) {
-            let mut active: Vec<(SpellId, i32)> = ctx
-                .view
-                .wizard(wizard)
-                .map(|m| m.global().iter().map(|&s| (s, 10)).collect())
-                .unwrap_or_default();
-            // The Spell of Mastery is felt while it is being cast.
-            let casting_mastery = ctx
-                .view
-                .wizard(wizard)
-                .and_then(|m| m.casting())
-                .filter(|c| {
-                    ctx.view
-                        .spell_has_hook(c.spell, crate::spell::special::SPELL_OF_MASTERY)
-                })
-                .map(|c| c.spell);
-            if let Some(mastery) = casting_mastery {
-                active.push((mastery, 2));
-            }
-            for (spell, divisor) in active {
-                self.enchantment_relations(ctx, wizard, spell, divisor);
-            }
-        }
-    }
-
-    /// Relations grow in treaties, react to a human army or empire grown too large, and drift
-    /// back towards where they started (`Diplomacy_Growth`).
-    fn diplomacy_growth(&mut self, ctx: &mut DiplomacyCtx<'_>) {
-        let wizards = wizards(ctx.view);
-        for (i, &a) in wizards.iter().enumerate() {
-            for &b in &wizards[i + 1..] {
-                if !self.have_met(a, b) || ctx.rng.roll(2) != 1 {
-                    continue;
-                }
-                match self.treaty(a, b) {
-                    Treaty::Pact => {
-                        let v = ctx.rng.roll(3) as i32;
-                        self.change_relations(ctx, v, a, b, Action::Friendship, None);
-                    }
-                    Treaty::Alliance => {
-                        let v = ctx.rng.roll(6) as i32;
-                        self.change_relations(ctx, v, a, b, Action::Friendship, None);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        // A wizard whose army is much stronger, or whose cities are many, is disliked by the AI
-        // wizards that have met it: the original does this for the human only; here it holds for
-        // every wizard (`docs/ai-design.md` section 12.3 item 6).
-        let human = ctx.view.human();
-        for &big in &wizards {
-            let strength = army_strength(ctx.view, big);
-            if strength > 0 {
-                for &ai in &wizards {
-                    let theirs = army_strength(ctx.view, ai);
-                    if ai != big && Some(ai) != human && theirs > 0 && theirs < strength {
-                        let threshold = strength * 50 / theirs;
-                        if ctx.rng.roll(100) as i32 >= threshold && ctx.rng.roll(20) == 1 {
-                            self.change_relations(ctx, -10, big, ai, Action::Threat, None);
-                        }
-                    }
-                }
-            }
-            if ctx.view.turn.is_multiple_of(2) {
-                let cities = ctx.view.city_count(big) as i32;
-                let allowance = city_allowance(ctx.view);
-                for &ai in &wizards {
-                    if ai == big || Some(ai) == human || allowance >= cities || ctx.rng.roll(4) != 1
-                    {
-                        continue;
-                    }
-                    let surplus = cities - allowance;
-                    let divisor = (land_size(ctx.view) + 6) - i32::from(ctx.view.difficulty());
-                    let mut value = (-surplus / divisor.max(1)) * ctx.rng.roll(4) as i32 / 3 * 4;
-                    value = value.min(-15);
-                    if self.treaty(ai, big) != Treaty::Alliance && self.have_met(ai, big) {
-                        self.change_relations(ctx, value, big, ai, Action::Overextension, None);
-                    }
-                }
-            }
-        }
-        // Drift back to the start, unless something happened lately. Between an AI and the
-        // human the AI's record rules; between two AIs the lower number's.
-        for (i, &a) in wizards.iter().enumerate() {
-            for &b in &wizards[i + 1..] {
-                if !self.have_met(a, b) {
-                    continue;
-                }
-                let (ruler, other) = if ctx.view.human() == Some(a) {
-                    (b, a)
-                } else {
-                    (a, b)
-                };
-                if self
-                    .stance(ruler, other)
-                    .is_some_and(|s| s.last_action.is_some())
-                {
-                    continue;
-                }
-                let gravitation = if ctx.rng.roll(105) as i32 > self.relation(ctx.view, a, b).abs()
-                {
-                    ctx.rng.roll(2) as i32
-                } else {
-                    0
-                };
-                let turn = ctx.view.turn;
-                let pair = self.pair_mut(ctx.view, a, b);
-                if pair.visible < pair.default {
-                    pair.visible = (pair.visible + gravitation).min(pair.default);
-                } else if turn.is_multiple_of(10) {
-                    pair.visible = (pair.visible - gravitation).max(pair.default);
-                }
-                pair.visible = pair.visible.clamp(-100, 100);
-            }
-        }
     }
 }
 
@@ -2068,11 +1310,6 @@ impl Game {
         matches!(self.treaty(a, b), Treaty::Pact | Treaty::Alliance)
     }
 
-    /// The relation between two wizards as the player sees it.
-    pub fn relation(&self, a: PlayerId, b: PlayerId) -> i32 {
-        self.diplomacy.relation(self, a, b)
-    }
-
     /// How many turns the two have been at war (none when they are not).
     pub fn war_age(&self, a: PlayerId, b: PlayerId) -> Option<u32> {
         self.diplomacy.war_age(self, a, b)
@@ -2097,20 +1334,6 @@ impl Game {
     /// whose cities or visible units stand there.
     pub(crate) fn contact_near(&mut self, player: PlayerId, at: Position, radius: u32) {
         self.with_diplomacy(|d, ctx| d.contact_near(ctx, player, at, radius));
-    }
-
-    /// What `attacker` did moves `defender`'s feeling about it (`Change_Relations`).
-    pub fn change_relations(
-        &mut self,
-        value: i32,
-        attacker: PlayerId,
-        defender: PlayerId,
-        action: Action,
-        spell: Option<SpellId>,
-    ) {
-        self.with_diplomacy(|d, ctx| {
-            d.change_relations(ctx, value, attacker, defender, action, spell)
-        });
     }
 
     /// Subversion on `target`: every other wizard who has met them thinks 25 points worse of them
@@ -2173,11 +1396,6 @@ impl Game {
     /// Carry out a diplomacy command.
     pub(crate) fn diplomacy_command(&mut self, command: DiplomacyCommand) -> Vec<Event> {
         self.with_diplomacy(|d, ctx| d.command(ctx, command))
-    }
-
-    #[cfg(test)]
-    pub(crate) fn enchantment_relations(&mut self, caster: PlayerId, spell: SpellId, divisor: i32) {
-        self.with_diplomacy(|d, ctx| d.enchantment_relations(ctx, caster, spell, divisor));
     }
 
     /// A spell was cast: the wizards it offends take note. `target_owner` is whose city it fell on.

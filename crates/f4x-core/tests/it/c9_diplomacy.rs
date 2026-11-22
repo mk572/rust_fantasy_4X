@@ -183,7 +183,7 @@ fn a_pact_comes_when_it_is_answered_yes_and_not_when_it_is_answered_no() {
 }
 
 #[test]
-fn breaking_a_treaty_costs_standing_and_only_a_treaty_can_be_broken() {
+fn breaking_a_treaty_is_told_and_only_a_treaty_can_be_broken() {
     for (name, mut g, w) in met() {
         let (a, b) = (w[0], w[1]);
         assert_eq!(
@@ -193,16 +193,10 @@ fn breaking_a_treaty_costs_standing_and_only_a_treaty_can_be_broken() {
         );
         g.start_treaty(a, b, Treaty::Alliance);
         assert_eq!(g.treaty(b, a), Treaty::Alliance);
-        let before = g.relation(a, b);
         let events = g.apply(Command::Diplomacy(D::BreakTreaty { player: a, with: b }));
         assert!(!events.iter().any(|e| matches!(e, Event::Rejected(_))));
         assert_eq!(g.treaty(a, b), Treaty::None, "{name}");
         assert_eq!(g.treaty(b, a), Treaty::None, "{name}");
-        assert!(
-            g.relation(a, b) < before,
-            "{name}: the oath breaker is thought less of ({before} to {})",
-            g.relation(a, b)
-        );
         // The break is told in the events of the command.
         let broken = events.into_iter().any(|e| {
             matches!(
@@ -228,11 +222,6 @@ fn war_is_declared_once_ends_a_treaty_and_ends_in_peace() {
         );
         assert_eq!(g.treaty(a, b), Treaty::War, "{name}");
         assert_eq!(g.treaty(b, a), Treaty::War, "{name}");
-        assert!(
-            g.relation(a, b) <= -75,
-            "{name}: war is hated ({})",
-            g.relation(a, b)
-        );
         assert_eq!(g.war_age(a, b), Some(0), "{name}");
         assert_eq!(
             run(&mut g, D::DeclareWar { player: b, on: a }),
@@ -345,12 +334,11 @@ fn a_war_on_a_third_wizard_is_asked_only_of_one_who_knows_them_both() {
 }
 
 #[test]
-fn a_gift_of_gold_moves_the_gold_and_warms_the_receiver() {
+fn a_gift_of_gold_moves_the_gold_and_is_told() {
     for (name, mut g, w) in met() {
         let (a, b) = (w[0], w[1]);
         g.treasury_mut(a).expect("a treasury").gold = HalfInt::from_int(100);
         let (had_a, had_b) = (gold(&g, a), gold(&g, b));
-        let before = g.relation(a, b);
         assert_eq!(
             run(
                 &mut g,
@@ -365,7 +353,6 @@ fn a_gift_of_gold_moves_the_gold_and_warms_the_receiver() {
         );
         assert_eq!(gold(&g, a), had_a - HalfInt::from_int(40), "{name}");
         assert_eq!(gold(&g, b), had_b + HalfInt::from_int(40), "{name}");
-        assert!(g.relation(a, b) >= before, "{name}: a gift does not sour");
         // What the giver has not got, or nothing, or less than nothing, cannot be given.
         for amount in [101, 0, -5, i32::MAX, i32::MIN] {
             let (ga, gb) = (gold(&g, a), gold(&g, b));
@@ -651,4 +638,34 @@ fn an_attack_on_a_treaty_partner_is_refused_until_a_player_breaks_the_treaty() {
         );
     }
     assert!(tried > 0, "no world had room for the test");
+}
+
+#[test]
+fn what_happened_is_told_in_events_and_no_feeling_is_kept_by_the_game() {
+    use f4x_core::diplomacy::DiplomacyEvent as E;
+    for (name, mut g, w) in met() {
+        let (a, b) = (w[0], w[1]);
+        g.treasury_mut(a).expect("a treasury").gold = HalfInt::from_int(100);
+        let gift = g.apply(Command::Diplomacy(D::GiveGold {
+            from: a,
+            to: b,
+            amount: 40,
+        }));
+        assert!(
+            gift.iter()
+                .any(|e| matches!(e, Event::Diplomacy(E::GoldGiven { from, to, gold: 40 }) if *from == a && *to == b)),
+            "{name}: a gift is told"
+        );
+        let war = g.apply(Command::Diplomacy(D::DeclareWar { player: a, on: b }));
+        assert!(
+            war.iter()
+                .any(|e| matches!(e, Event::Diplomacy(E::WarDeclared { attacker, defender }) if *attacker == a && *defender == b)),
+            "{name}: a war is told"
+        );
+        // No event says how a wizard feels: that is for each AI to decide.
+        assert!(
+            !format!("{gift:?}{war:?}").contains("RelationChanged"),
+            "{name}"
+        );
+    }
 }

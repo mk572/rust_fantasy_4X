@@ -664,18 +664,6 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
     use f4x_core::diplomacy::DiplomacyEvent as D;
     match d {
         D::ContactMade { a, b } => format!("{} and {} meet", player(game, *a), player(game, *b)),
-        D::RelationChanged {
-            attacker,
-            defender,
-            change,
-            ..
-        } => {
-            format!(
-                "relations of {} with {} change by {change:+}",
-                player(game, *defender),
-                player(game, *attacker)
-            )
-        }
         D::TreatyChanged { a, b, treaty } => format!(
             "{} and {}: {}",
             player(game, *a),

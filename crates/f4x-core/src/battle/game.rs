@@ -848,10 +848,9 @@ impl Game {
         }
     }
 
-    /// Write a finished battle back: wounds, deaths, and who won.
-    /// A wizard whose units fell or fled holds it against the attacker (`End_Of_Combat`): a
-    /// hero counts 20, another unit up to 20, and a settler up to 10 more. The units of the
-    /// field that were summoned in the fight do not count.
+    /// What the defender lost, for the AI to weigh (`End_Of_Combat`, `f4x-ai/src/opinion.rs`): the heroes,
+    /// the other units and the settlers that fell or fled. The units of the field that were summoned in the
+    /// fight do not count.
     fn battle_loss_relations(&mut self, battle: &Battle, sources: &[hecs::Entity]) {
         let (attacker, defender) = (
             battle.player_of(Side::Attacker),
@@ -886,22 +885,9 @@ impl Game {
                 settlers,
             });
         }
-        let mut value = 0;
-        for (hero, settler) in lost {
-            value += if hero { 20 } else { self.roll(20) as i32 };
-            if settler {
-                value += self.roll(10) as i32;
-            }
-        }
-        self.change_relations(
-            -value,
-            attacker,
-            defender,
-            crate::diplomacy::Action::BattleLosses,
-            None,
-        );
     }
 
+    /// Write a finished battle back: wounds, deaths, and who won.
     pub(crate) fn finish_battle(&mut self) -> Vec<Event> {
         let Some(active) = self.battle.take() else {
             return Vec::new();

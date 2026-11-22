@@ -9,6 +9,16 @@ sections 2 to 7 and the hooks of 9.3), the AI answers proposals (`crates/f4x-ai/
 (OSG) kept in its notes), then how to build it. Numbers below were read from that code; where the
 code is marked buggy or unfinished by its authors that is said.
 
+**Since 23 November 2026 (tasks 775 to 784) the core keeps no relation table.** Sections 2, 5 and 7 describe the
+original's table; in this game the core holds only the facts (`contacted`, the treaty, the war's start and its cities,
+the stage of the talk, the turns of a truce `peace_duration`, the pending proposals) and tells what happened in events
+(`DiplomacyEvent`: `WarDeclared`, `TreatyBroken`, `GoldGiven`, `BattleLosses`, `AssaultFailed`, `FortressTaken`,
+`WizardDestroyed`, `EnchantmentCast`, `CitySpellCast`, `Subverted`, ...). Each AI wizard keeps its own opinion of every other
+player (`f4x-ai/src/opinion.rs`: friendship, lasting regard, a broken-treaty flag), changes it by the table of section 5
+from those events and by its own look at the game each turn (section 7, `Memory::look`), with no dice
+(`divergences.md` section 52). The human sees the AI's friendliness for the human as the relation (`Diplomats::feeling`).
+The patience counters, the hostility and the last action of the original are not kept (`docs/ai-diplomacy-b.md`).
+
 ## 1. Overview
 
 Two or more wizards (human and AI) each hold, towards every other wizard they have met:

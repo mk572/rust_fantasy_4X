@@ -19,7 +19,8 @@ use crate::page::Page;
 use crate::panel_button_art::Panel;
 use crate::text::Args;
 use crate::ui;
-use f4x_core::diplomacy::{relation_key, relation_level, Treaty};
+use f4x_ai::{relation_key, relation_level};
+use f4x_core::diplomacy::Treaty;
 use f4x_core::player::PlayerId;
 use macroquad::prelude::*;
 

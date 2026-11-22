@@ -4,10 +4,10 @@
 //! rating by the table of `Change_Relations`, with no dice (every `Random(n)` of the original is its
 //! average). The opinion of the human is the AI's feeling for the human; what the human is shown.
 //!
-//! Until task 775 removes the core's table, a first opinion is seeded from it (which carries an old save
-//! over); a game that has no pair yet starts from the books of the two wizards, as the original does.
+//! A first opinion starts from the books of the two wizards, as the original does (the core holds no table of
+//! feelings: task 775).
 
-use f4x_core::diplomacy::{Action, Treaty};
+use f4x_core::diplomacy::Treaty;
 use f4x_core::diplomacy::{DiplomacyEvent, ProposalKind};
 use f4x_core::game::{Event, Game};
 use f4x_core::player::PlayerId;
@@ -16,6 +16,56 @@ use f4x_core::wizard::objective::Personality;
 use serde::{Deserialize, Serialize};
 
 use crate::memory::Memory;
+
+/// What moved a feeling (`Change_Relations`): only a war's feeling is not made worse by what is done in it, and
+/// only trespass is made worse by it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Action {
+    /// A treaty growing, a gift, the Aura of Majesty.
+    Friendship,
+    /// A wizard destroyed or a fortress taken, an army too strong, a threat.
+    Threat,
+    /// Losses in a battle.
+    BattleLosses,
+    /// Attacking or taking a city.
+    AttackedCity,
+    SpellOfMastery,
+    /// An overland enchantment others dislike.
+    Enchantment,
+    /// A curse on a city.
+    BadCitySpell,
+    /// Too many cities.
+    Overextension,
+    /// The Aura of Majesty pleases.
+    AuraOfMajesty,
+    /// Units too close to a wizard's city.
+    Trespass,
+}
+
+/// The keys of the words of the relation scale, `Hate` to `Harmony`.
+pub const RELATION_KEYS: &[&str] = &[
+    "relation.hate",
+    "relation.troubled",
+    "relation.tense",
+    "relation.restless",
+    "relation.unease",
+    "relation.neutral",
+    "relation.relaxed",
+    "relation.calm",
+    "relation.peaceful",
+    "relation.friendly",
+    "relation.harmony",
+];
+
+/// Where a feeling sits on the scale: 0 (hate) to 10 (harmony).
+pub fn relation_level(relation: i32) -> usize {
+    ((100 + relation.clamp(-100, 100)) / 20) as usize
+}
+
+/// The key of the word for a feeling.
+pub fn relation_key(relation: i32) -> &'static str {
+    RELATION_KEYS[relation_level(relation)]
+}
 
 /// What one wizard feels about another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -550,7 +600,7 @@ fn enchantment_reaction(game: &Game, spell: u16, me: PlayerId) -> Option<(i32, A
         197 /* eternal_night */ => (-12, Action::Enchantment),
         198 /* evil_omens */ if books(life) > 0 || books(nature) > 0 => (-20, Action::Enchantment),
         188 /* zombie_mastery */ => (-14, Action::Enchantment),
-        59 /* aura_of_majesty */ => (10, Action::Friendship),
+        59 /* aura_of_majesty */ => (10, Action::AuraOfMajesty),
         57 /* wind_mastery */ | 79 /* suppress_magic */ => (-4, Action::Enchantment),
         40 /* natures_wrath */ if books(chaos) > 0 || books(death) > 0 => (-20, Action::Enchantment),
         116 /* chaos_surge */ if books(chaos) == 0 => (-10, Action::Enchantment),
@@ -582,23 +632,15 @@ fn bad_city_spell(spell: u16) -> Option<i32> {
     })
 }
 
-/// The first opinion of `other`: what the core's table holds (a game that went on before this task,
-/// or one where the core has already moved it), else the start.
+/// The first opinion of `other`: what the two start with, from their books.
 fn first_opinion(game: &Game, me: PlayerId, other: PlayerId) -> Opinion {
     let start = start_feeling(game, me, other);
-    let (friendship, default) = game
-        .diplomacy
-        .pair(me, other)
-        .map_or((start, start), |p| (p.visible, p.default));
     Opinion {
         with: other,
-        friendship,
-        default,
-        hidden: game.diplomacy.stance(other, me).map_or(0, |s| s.hidden),
-        broken: game
-            .diplomacy
-            .stance(me, other)
-            .is_some_and(|s| s.broken.is_some()),
+        friendship: start,
+        default: start,
+        hidden: 0,
+        broken: false,
         war: game.treaty(me, other) == Treaty::War,
         carry: 0,
         trespass: 0,
@@ -620,15 +662,13 @@ mod tests {
     }
 
     #[test]
-    fn a_first_opinion_is_what_the_core_holds_or_the_start_from_the_books() {
+    fn a_first_opinion_is_the_start_from_the_books() {
         let g = pair(8, 8, 100);
         let m = Memory::default();
         let o = m.opinion(&g, P0, P1);
         assert_eq!(
-            o.friendship,
-            g.diplomacy
-                .pair(P0, P1)
-                .map_or(start_feeling(&g, P0, P1), |p| p.visible)
+            (o.friendship, o.default),
+            (start_feeling(&g, P0, P1), start_feeling(&g, P0, P1))
         );
         assert_eq!((o.hidden, o.broken, o.war), (0, false, false));
     }
@@ -1052,64 +1092,5 @@ mod tests {
             after(8, 8)
         );
         assert_eq!(after(12, 8), after(8, 8));
-    }
-
-    /// The same scripted play in the core's table and in the AI's opinion (the AI is P0, the defender;
-    /// the human is never one, `docs/diplomacy.md` 9.2).
-    #[test]
-    fn the_ais_opinion_follows_the_cores_table_through_a_scripted_play() {
-        use f4x_core::diplomacy::DiplomacyCommand as D;
-        // The table of changes agrees to the point: the same values give the same feeling.
-        let mut g = pair(8, 8, 100);
-        let mut m = Memory::default();
-        for (i, value) in [-10, 10, -30, 50, 20, -40, 15, -5, 60, -80, 30]
-            .into_iter()
-            .enumerate()
-        {
-            // The AI looks first: its first opinion is seeded from the core's table.
-            m.change(&g, P0, P1, value, Action::Threat);
-            g.change_relations(value, P1, P0, Action::Threat, None);
-            g.drain_diplomacy_events();
-            assert_eq!(
-                m.friendship(&g, P0, P1),
-                g.relation(P0, P1),
-                "after {} changes",
-                i + 1
-            );
-        }
-        // Events with a die in the original agree within the spread of the die.
-        let spread = |event: &dyn Fn(&mut Game) -> Vec<Event>, tolerance: i32, what: &str| {
-            let mut g = pair(8, 8, 100);
-            g.start_treaty(P0, P1, Treaty::Pact);
-            g.drain_diplomacy_events();
-            let mut m = Memory::default();
-            let ai_before = m.friendship(&g, P0, P1);
-            let core_before = g.relation(P0, P1);
-            let events = event(&mut g);
-            m.notice(P0, &g, &events);
-            let (core, ai) = (
-                g.relation(P0, P1) - core_before,
-                m.friendship(&g, P0, P1) - ai_before,
-            );
-            assert!(
-                (core - ai).abs() <= tolerance,
-                "{what}: the core moved it by {core}, the AI by {ai}"
-            );
-        };
-        spread(
-            &|g| g.apply(Command::Diplomacy(D::DeclareWar { player: P1, on: P0 })),
-            20,
-            "a declared war",
-        );
-        spread(
-            &|g| {
-                g.apply(Command::Diplomacy(D::BreakTreaty {
-                    player: P1,
-                    with: P0,
-                }))
-            },
-            12,
-            "a broken pact",
-        );
     }
 }
