@@ -58,6 +58,8 @@ Decided October 2026, `design.md` section 8.
 
 ## 2. Neutral cities (task 31)
 
+*Wording (23 November 2026):* these are the **independent** cities. Their player takes part in diplomacy with the full rules and an attack on them is a declaration of war (`diplomacy.md`); only the monsters are neutral. Older text below says "neutral" for both.
+
 Decided with task 31; code in `f4x-newgame/src/neutral.rs`, `city/neutral.rs`, `player/mod.rs`, `turn.rs`, `wizard/fortress.rs`.
 
 - **They pay upkeep.** The original gives a neutral garrison free upkeep. Ours pay food and

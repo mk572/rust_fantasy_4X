@@ -1,5 +1,5 @@
-//! The notice before a human wizard attacks another's unit or city: the attack is a declaration of
-//! war and ends any pact or alliance with them. The game refuses an attack on a partner and never
+//! The notice before a human wizard attacks the unit or city of another wizard or of an independent
+//! race: the attack is a declaration of war on that player and ends any pact or alliance with them. The game refuses an attack on a partner and never
 //! breaks the treaty itself (`docs/diplomacy.md` 9.2), so on Yes this sends `DeclareWar` first and
 //! then the move.
 
@@ -47,8 +47,9 @@ impl Modal for AttackWar {
 }
 
 impl App {
-    /// The wizard whose unit or city is on `to` when attacking it would be a new war: another wizard
-    /// the human is not at war with yet.
+    /// The player whose unit or city is on `to` when attacking it would be a new war: another wizard or
+    /// an independent race (they use the full diplomacy rules) the human is not at war with yet. The
+    /// monsters take no part in diplomacy and are attacked freely.
     pub(crate) fn war_to_declare(&self, to: Position) -> Option<PlayerId> {
         let defenders = self.game.economy().hostile_at(to, HUMAN)?;
         let owner = defenders
@@ -58,7 +59,7 @@ impl App {
                 let city = self.game.economy().city_at(to)?;
                 self.game.economy().city_owner(city)
             })?;
-        (self.game.wizard(owner).is_some() && self.game.treaty(HUMAN, owner) != Treaty::War)
+        (self.game.takes_part_in_diplomacy(owner) && self.game.treaty(HUMAN, owner) != Treaty::War)
             .then_some(owner)
     }
 

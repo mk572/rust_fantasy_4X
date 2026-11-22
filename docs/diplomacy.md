@@ -25,9 +25,9 @@ hated spells, break treaties, give gifts) and are tested whenever someone propos
 Each turn the AI wizards decide whether to talk to the human (greeting, warning, demand, war or
 peace), and among themselves they make treaties, trade spells and declare wars.
 
-### Neutral players (a departure from the original)
+### Independent players (a departure from the original)
 
-The neutral player of each race (task 522, `Game::race_player`) takes part in diplomacy like a
+The independent cities of a race are one player (task 522, `Game::race_player`; the code and older text call it the "neutral player" of the race, but it is not neutral: only the monsters are). It takes part in diplomacy with the **full rules**, like a
 wizard: `Game::takes_part_in_diplomacy` (wizards and race players, not the monsters) is the one
 predicate the rules ask, and `PlayerView::is_diplomat` is the AI's. They meet by sight, hold
 relations and treaties, declare war, make peace, and answer proposals with the same `rate`. They
@@ -36,15 +36,15 @@ every player has). The differences: they have no magic, so no spell swaps or gif
 row is not on the diplomacy screen, the core refuses the proposal); they have no objective (`quarrel` picks fights
 only on the strength rule) and the temper that a player without a wizard gets by default (`Personality::Chaotic`, as the human counts); a banished
 wizard's early returns do not apply to them; and they greet the human by their race's picture
-(`crates/f4x-client/assets/neutral/`), named "Neutral {race}". The human opens the talk by clicking
-a neutral city of a race met.
+(`crates/f4x-client/assets/neutral/`), named "Independent {race}". The human opens the talk by clicking
+an independent city of a race met. **An attack on an independent unit or city is a declaration of war on that player**, exactly as an attack on a wizard is (the human is asked first, `attack_war.rs`; the game refuses an attack on a pact or alliance partner until a player has declared war).
 
 ### The diplomacy list (task 489)
 
 `diplomacy_list_screen.rs` is the overview: one scrolling list of the contacts met (rival wizards, then
-the neutral races under a heading), keys F5 (the Diplomat) and R. Each row shows the relation as the word of `relation_key`
+the independent races under a heading), keys F5 (the Diplomat) and R. Each row shows the relation as the word of `relation_key`
 (red up to Restless, yellow up to Relaxed, green above; never the number) and the treaty with the
-human, then the contact's place by army strength, magic power and spell research ("1st", "2nd"; the three scores of the original's Astrologer, whose screen this replaces (F5 is the Diplomat now), counted among the wizards known and the player; a tie shares the better place; a neutral race has no magic or research and shows "-"). A neutral race is listed by its people ("Barbarians"), the talk and the panel keep "Neutral Barbarians". The treaty is: War, Wizard Pact, Alliance, "Peace" when there is no treaty but the contact has promised not to
+human, then the contact's place by army strength, magic power and spell research ("1st", "2nd"; the three scores of the original's Astrologer, whose screen this replaces (F5 is the Diplomat now), counted among the wizards known and the player; a tie shares the better place; an independent race has no magic or research and shows "-"). A neutral race is listed by its people ("Barbarians"), the talk and the panel keep "Neutral Barbarians". The treaty is: War, Wizard Pact, Alliance, "Peace" when there is no treaty but the contact has promised not to
 attack (`peace_duration` of the contact towards the human is above 0), else No Treaty. Only contacts
 met are listed, so it tells no more than the map did; the last line counts the wizards not met. A click
 opens the talk (`diplomacy_screen.rs`), which returns to the list on leaving (`DiploUi::back`; the talk
@@ -229,7 +229,7 @@ Special value `-10000` means "declare this on the record": no numbers change, th
 
 ## 6. War, peace and breaking treaties
 
-**`Declare_War(attacker, defender)`**: refused if either is neutral (the original's neutral owner, which has no player; ours is the monsters' owner: the neutral player of a race may declare war and be declared on, see above) or they are already at war.
+**`Declare_War(attacker, defender)`**: refused if either is the monsters' owner (the one truly neutral owner; the original's neutral owner has no player and covers the independent cities too, ours does not: the independent player of a race may declare war and be declared on, see above) or they are already at war.
 Breaks treaties (below). `default_rel` of both drops by 5. The relation becomes `-75 - Random(25)`
 (the code writes the war constant 3 into the second direction by mistake, which the mirror fixes
 later). Treaty and exchange patience become -200, peace patience -130, hostility 3, and both
@@ -355,8 +355,8 @@ with no treaty 6 percent a turn of `-Random(5)`; the "too many cities" reaction 
 on a pact or alliance partner asks "You have a treaty with X. Do you still wish to attack?" first, and menu rows that
 cannot be chosen are greyed instead of dark.
 
-**Statecraft (task 510, `f4x-ai/src/statecraft.rs`).** What the AI plans, for the wizards and the neutral races alike
-(`PlayerView::is_diplomat`; a neutral race has no magic, so no trades or gifts of spells and no Mastery; everything else,
+**Statecraft (task 510, `f4x-ai/src/statecraft.rs`).** What the AI plans, for the wizards and the independent races alike
+(`PlayerView::is_diplomat`; an independent race has no magic, so no trades or gifts of spells and no Mastery; everything else,
 the trades of gold, items, units and heroes too, applies). Each part reads only what a human can see: the army scores of the Astrologer (`army_strength`), the cities it
 has seen, the treaties and the proposals.
 1. *Dominant war.* From turn 40, with no war on and no treaty, it declares war on the weakest neighbour it holds 160

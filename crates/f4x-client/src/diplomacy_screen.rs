@@ -347,8 +347,8 @@ impl App {
         self.player_name(p).unwrap_or_else(|| "?".to_string())
     }
 
-    /// How a player is called: a wizard by its name, the neutral player of a race "Neutral
-    /// {race}" with the race in the plural ("Neutral Barbarians"). None for the monsters and for a
+    /// How a player is called: a wizard by its name, the independent player of a race "Independent
+    /// {race}" with the race in the plural ("Independent Barbarians"). None for the monsters and for a
     /// player the game does not have.
     pub(crate) fn player_name(&self, p: PlayerId) -> Option<String> {
         if let Some(w) = self.game.wizard(p) {

@@ -63,7 +63,7 @@ pub(crate) struct Contact {
     pub id: PlayerId,
     /// The name in the list: a neutral race is just its people ("Barbarians").
     pub name: String,
-    /// The name in the talk: "Neutral Barbarians".
+    /// The name in the talk: "Independent Barbarians".
     pub full_name: String,
     /// Place among the wizards known (the player's included) by army, magic and research as the
     /// Astrologer screen counts them, 1 for the highest; `None` for a neutral race, which has
@@ -634,7 +634,7 @@ mod tests {
     }
 
     #[test]
-    fn a_neutral_race_met_comes_after_the_wizards_under_its_own_heading() {
+    fn an_independent_race_met_comes_after_the_wizards_under_its_own_heading() {
         let mut app = App::for_test();
         let rival = app
             .game
@@ -656,8 +656,8 @@ mod tests {
             panic!("no neutral row in {rows:?}");
         };
         assert_eq!(n.id, neutral);
-        assert!(!n.name.starts_with("Neutral"), "{}", n.name);
-        assert!(n.full_name.starts_with("Neutral"), "{}", n.full_name);
+        assert!(!n.name.starts_with("Independent"), "{}", n.name);
+        assert!(n.full_name.starts_with("Independent"), "{}", n.full_name);
         assert_eq!(n.ranks, None, "a neutral race has no magic or research");
     }
 

@@ -163,9 +163,9 @@
     "diplomacy.rank_other": "{n}th",
     "diplomacy.list_peace": "Peace",
     "diplomacy.list_gone": "Defeated",
-    "diplomacy.list_neutral": "Neutral Races",
+    "diplomacy.list_neutral": "Independent Races",
     "diplomacy.list_unmet": (count: "n", one: "{n} wizard not met yet", other: "{n} wizards not met yet"),
     "diplomacy.list_more": "+{n} more",
-    "diplomacy.neutral_name": "Neutral {race}",
+    "diplomacy.neutral_name": "Independent {race}",
     "diplomacy.have_alliance": "You have an alliance with {wizard}",
 }
