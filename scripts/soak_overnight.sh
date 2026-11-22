@@ -9,7 +9,7 @@ set -u
 usage() {
     cat <<'USAGE'
 Usage: soak_overnight.sh --until HH:MM [--out DIR] [--jobs N] [--extra 'SOAK ARGS'] [--only LIST]
-                        [--first-round N]
+                        [--first-round N] [--boost]
 
 Plays the variety runs (scripts/soak_variety.sh) round after round, each round on seeds 1000 higher
 than the one before, and starts no run after the deadline. Every run goes through cool_run.sh (low
@@ -22,6 +22,8 @@ Options:
   --jobs N        games played at once in a run (default 4, at most 4 by the project rule)
   --extra ARGS    more arguments for every `f4x-tools soak` (default '--events')
   --only LIST     only these runs of the matrix (comma-separated, see soak_variety.sh --help)
+  --boost         run the soaks through `cool_run.sh --boost` (full power, never paused; the thermal
+                  watch still logs)
   --first-round N start at round N, so on seeds N*1000 higher (default 0: pick N above every round
                   played before, see the logs in soak-out/overnight-*)
 
@@ -36,7 +38,7 @@ Exit status: 0 when no run failed or panicked, 1 otherwise, 2 for a usage error.
 USAGE
 }
 
-until_at=""; out=""; jobs=4; extra="--events"; only=""; first_round=0
+until_at=""; out=""; jobs=4; extra="--events"; only=""; first_round=0; boost=""
 while [ $# -gt 0 ]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
@@ -45,6 +47,7 @@ while [ $# -gt 0 ]; do
         --jobs) jobs="${2:?--jobs needs a number}"; shift 2 ;;
         --extra) extra="${2:?--extra needs arguments}"; shift 2 ;;
         --only) only="${2:?--only needs names}"; shift 2 ;;
+        --boost) boost="--boost"; shift ;;
         --first-round) first_round="${2:?--first-round needs a number}"; shift 2 ;;
         *) echo "soak_overnight: unknown option: $1 (see --help)" >&2; exit 2 ;;
     esac
@@ -98,7 +101,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
         dir="$out/r$round-$name"
         say "run r$round $name: start (seed offset $((round * 1000)))"
         began="$(date +%s)"
-        scripts/soak_variety.sh --out "$dir" --only "$name" --jobs "$jobs" --seed-offset $((round * 1000)) --extra "$extra" >"$dir.stdout" 2>&1
+        scripts/soak_variety.sh --out "$dir" --only "$name" --jobs "$jobs" --seed-offset $((round * 1000)) --extra "$extra" $boost >"$dir.stdout" 2>&1
         code=$?
         [ "$code" = 0 ] || failed=1
         say "run r$round $name: end, exit $code, $(($(date +%s) - began))s, $(cat "$dir/summary.txt" 2>/dev/null | tr -s ' ')"

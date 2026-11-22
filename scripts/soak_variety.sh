@@ -10,7 +10,7 @@ set -u
 usage() {
     cat <<'USAGE'
 Usage: soak_variety.sh [--out DIR] [--only NAME[,NAME...]] [--jobs N] [--quick] [--dry-run]
-                       [--seed-offset N] [--extra 'SOAK ARGS']
+                       [--seed-offset N] [--extra 'SOAK ARGS'] [--boost]
        soak_variety.sh -h | --help
 
 Play a set of `f4x-tools soak` runs that differ in map size, land share, node strength, difficulty
@@ -24,6 +24,8 @@ Options:
   --quick       one seed and 300 turns for every run: a smoke test of the matrix
   --dry-run     print the commands and stop
   --seed-offset N  add N to every seed of the runs: more games for the same settings (default 0)
+  --boost       run every soak through `cool_run.sh --boost` (full power: starts only when the Mac is cool,
+                then never paused and not watched)
   --extra ARGS  more arguments for every `f4x-tools soak` (one quoted string, e.g. '--events')
 
 Runs (name: wizards, map, land %, node strength, difficulty, seeds, turns):
@@ -55,7 +57,7 @@ RUNS=(
     "long-2p|2|60x40|30|1|2|181..182|1200"
 )
 
-out=""; only=""; jobs=4; quick=0; dry=0; offset=0; extra=""
+out=""; only=""; jobs=4; quick=0; dry=0; offset=0; extra=""; boost=""
 while [ $# -gt 0 ]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
@@ -66,6 +68,7 @@ while [ $# -gt 0 ]; do
         --dry-run) dry=1; shift ;;
         --seed-offset) offset="${2:?--seed-offset needs a number}"; shift 2 ;;
         --extra) extra="${2:?--extra needs arguments}"; shift 2 ;;
+        --boost) boost="--boost"; shift ;;
         *) echo "soak_variety: unknown option: $1 (see --help)" >&2; exit 2 ;;
     esac
 done
@@ -85,7 +88,7 @@ for run in "${RUNS[@]}"; do
     if [ -n "$only" ] && ! [[ ",$only," == *",$name,"* ]]; then continue; fi
     if [ "$quick" = 1 ]; then seeds="${seeds%%..*}..${seeds%%..*}"; turns=300; fi
     seeds="$((${seeds%%..*} + offset))..$((${seeds##*..} + offset))"
-    cmd=(scripts/cool_run.sh "$bin" soak --seeds "$seeds" --turns "$turns" --players "$players"
+    cmd=(scripts/cool_run.sh $boost "$bin" soak --seeds "$seeds" --turns "$turns" --players "$players"
          --map "$map" --land "$land" --magic "$magic" --difficulty "$difficulty"
          --jobs "$jobs" --refused-log "$out/$name-refused.tsv")
     # shellcheck disable=SC2206
