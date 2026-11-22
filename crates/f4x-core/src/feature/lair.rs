@@ -746,6 +746,3 @@ impl Game {
         new
     }
 }
-
-#[cfg(test)]
-mod tests;

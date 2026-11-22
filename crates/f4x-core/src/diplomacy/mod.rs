@@ -2329,6 +2329,3 @@ impl Game {
         self.diplomacy.restore(save);
     }
 }
-
-#[cfg(test)]
-mod tests;

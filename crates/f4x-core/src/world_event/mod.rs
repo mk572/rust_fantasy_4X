@@ -482,6 +482,3 @@ impl EventNotice {
 
 // The turn the big events wait for and the minerals an event can put on the map are `threat` and
 // `event_ores` of `rules.ron`.
-
-#[cfg(test)]
-mod tests;

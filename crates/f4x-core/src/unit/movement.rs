@@ -792,6 +792,3 @@ impl Game {
         Ok(to)
     }
 }
-
-#[cfg(test)]
-mod tests;

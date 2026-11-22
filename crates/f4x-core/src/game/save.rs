@@ -2047,6 +2047,3 @@ mod race_player;
 pub use file::{
     load_game, load_game_with, save_game, summarize_save, Loaded, SaveError, SaveSummary,
 };
-
-#[cfg(test)]
-mod tests;

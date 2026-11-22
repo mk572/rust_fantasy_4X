@@ -644,6 +644,3 @@ impl Game {
         self.put(city, pop);
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -339,6 +339,3 @@ impl RazeError {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

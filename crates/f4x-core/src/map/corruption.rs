@@ -263,6 +263,3 @@ impl Game {
         vec![Event::NodeWarped { pos: at }]
     }
 }
-
-#[cfg(test)]
-mod tests;

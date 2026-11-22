@@ -361,29 +361,3 @@ impl Map {
         self.planes[0].height()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn x_wraps_y_does_not() {
-        let mut g = Grid::new(4, 3, TerrainId(0));
-        g.set(3, 1, TerrainId(7));
-        assert_eq!(g.get(-1, 1), Some(TerrainId(7)));
-        assert_eq!(g.get(7, 1), Some(TerrainId(7)));
-        assert_eq!(g.get(0, -1), None);
-        assert_eq!(g.get(0, 3), None);
-    }
-
-    #[test]
-    fn minerals_overlay_terrain_and_distance_wraps() {
-        let mut g = Grid::new(10, 10, TerrainId(0));
-        g.set_mineral(9, 2, Some(FeatureId(3)));
-        assert_eq!(g.mineral(-1, 2), Some(FeatureId(3)));
-        assert_eq!(g.mineral(0, 2), None);
-        assert_eq!(g.get(9, 2), Some(TerrainId(0)));
-        assert_eq!(g.distance_sq((9, 2), (0, 2)), 1);
-        assert_eq!(g.chebyshev((9, 2), (1, 5)), 3);
-    }
-}

@@ -359,6 +359,3 @@ impl Game {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

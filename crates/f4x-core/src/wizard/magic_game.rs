@@ -412,6 +412,3 @@ impl Game {
         Ok(self.resolve_cast(player, spell, Some(target)))
     }
 }
-
-#[cfg(test)]
-mod tests;

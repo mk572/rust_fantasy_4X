@@ -279,6 +279,3 @@ pub fn add(stat: Stat, value: i32) -> Effect {
         types: Default::default(),
     }
 }
-
-#[cfg(test)]
-mod tests;

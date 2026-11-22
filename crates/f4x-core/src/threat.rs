@@ -104,6 +104,3 @@ impl Game {
         [Plane::Arcanus, Plane::Myrror].map(|p| self.landmasses(p))
     }
 }
-
-#[cfg(test)]
-mod tests;

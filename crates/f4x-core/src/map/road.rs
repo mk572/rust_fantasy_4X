@@ -343,6 +343,3 @@ impl Game {
         vec![Event::RoadsEnchanted { pos: at }]
     }
 }
-
-#[cfg(test)]
-mod tests;

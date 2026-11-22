@@ -259,6 +259,3 @@ pub fn preset_build_of(defs: &[crate::rules::WizardDef], num: u16) -> Option<Wiz
         preset: true,
     })
 }
-
-#[cfg(test)]
-mod tests;

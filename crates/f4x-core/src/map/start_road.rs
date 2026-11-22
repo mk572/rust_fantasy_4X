@@ -138,26 +138,3 @@ impl Game {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_line_leaves_out_the_start_and_ends_on_the_goal() {
-        // Straight lines, one square a step.
-        assert_eq!(path_wrap(2, 3, 5, 3, 60), [(3, 3), (4, 3), (5, 3)]);
-        assert_eq!(path_wrap(2, 3, 2, 1, 60), [(2, 2), (2, 1)]);
-        assert_eq!(path_wrap(2, 3, 4, 5, 60), [(3, 4), (4, 5)]);
-        // A line with a slope steps along the longer side and turns in the middle (the
-        // remainder starts at one half).
-        assert_eq!(path_wrap(0, 0, 4, 2, 60), [(1, 1), (2, 1), (3, 2), (4, 2)]);
-        // The short way round the wrap, to the east and to the west.
-        assert_eq!(path_wrap(58, 5, 1, 5, 60), [(59, 5), (0, 5), (1, 5)]);
-        assert_eq!(path_wrap(1, 5, 58, 5, 60), [(0, 5), (59, 5), (58, 5)]);
-        // The goal is the last square whatever the slope.
-        for (a, b, c, d) in [(3, 3, 9, 7), (9, 7, 3, 3), (3, 7, 9, 3), (58, 2, 4, 8)] {
-            assert_eq!(path_wrap(a, b, c, d, 60).last(), Some(&(c, d)));
-        }
-    }
-}

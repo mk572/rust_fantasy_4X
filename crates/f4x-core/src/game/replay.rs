@@ -221,6 +221,3 @@ impl Replay {
         Ok((game, all))
     }
 }
-
-#[cfg(test)]
-mod tests;

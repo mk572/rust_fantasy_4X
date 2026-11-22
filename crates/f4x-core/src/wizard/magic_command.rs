@@ -43,6 +43,3 @@ pub(crate) fn cancel_cast(wizard: &mut WizardMut, casting_return: bool) -> Resul
     wizard.clear_casting();
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

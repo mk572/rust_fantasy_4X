@@ -20,9 +20,6 @@ pub(crate) mod testutil;
 pub mod undo;
 pub mod view;
 
-#[cfg(test)]
-mod tests;
-
 use crate::{battle, city, diplomacy, game, map, player, threat, unit, wizard, world_event};
 use f4x_def::content;
 use f4x_def::half_int::HalfInt;

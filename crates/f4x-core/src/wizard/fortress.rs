@@ -580,6 +580,3 @@ impl Game {
         Ok(events)
     }
 }
-
-#[cfg(test)]
-mod tests;

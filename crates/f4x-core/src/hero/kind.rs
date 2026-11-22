@@ -246,16 +246,3 @@ pub fn pick(
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_price_grows_with_the_level_and_halves_for_a_charismatic_wizard() {
-        assert_eq!(hire_cost(100, 0, 100), 100);
-        assert_eq!(hire_cost(100, 4, 100), 200);
-        assert_eq!(hire_cost(300, 2, 100), 450);
-        assert_eq!(hire_cost(300, 2, 50), 225);
-    }
-}

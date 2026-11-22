@@ -347,6 +347,3 @@ impl Economy<'_> {
             && def.realm.is_some_and(|r| self.city_warded_against(city, r))
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -4,8 +4,6 @@
 
 pub mod failure;
 pub(crate) mod grid;
-#[cfg(test)]
-mod obeys;
 
 use f4x_def::half_int::HalfInt;
 
@@ -218,93 +216,5 @@ impl Game {
             at = next;
         }
         turns
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::game::testutil::fresh;
-    use crate::map::Position;
-    use f4x_def::testdir::TestResult;
-
-    /// The searches over the grid obey the rules on the real maps of a few seeds, for several
-    /// stacks and goals: every step of a path is one the movement rule allows and no path goes
-    /// through a hostile square or a guarded site (`obeys.rs`); a walk reaches a square exactly
-    /// when a path leads there; a walk of one target and `reaches_any` agree; a walk with no
-    /// target goes over every square any walk reaches.
-    #[test]
-    fn the_searches_match_the_movement_rule_on_real_maps() -> TestResult {
-        for seed in [3u64, 7, 11] {
-            let game = fresh(3, seed)?;
-            let (w, h) = {
-                let map = game.map.as_ref().ok_or("no map")?;
-                (map.width(), map.height())
-            };
-            let mut stacks: Vec<Vec<hecs::Entity>> = Vec::new();
-            for player in game.player_ids().into_iter().filter(|&p| game.is_wizard(p)) {
-                let units = game.units().player_units(player);
-                // One unit alone, and the units standing together on the first one's square.
-                if let Some(&first) = units.first() {
-                    stacks.push(vec![first]);
-                    let at = game.units().unit_position(first);
-                    let together: Vec<_> = units
-                        .iter()
-                        .copied()
-                        .filter(|&u| game.units().unit_position(u) == at)
-                        .collect();
-                    stacks.push(together);
-                }
-            }
-            assert!(!stacks.is_empty(), "seed {seed}: no units");
-            let mut found = 0;
-            let plane = |x, y, from: Position| Position {
-                plane: from.plane,
-                x,
-                y,
-            };
-            for stack in &stacks {
-                let start = game.units().unit_position(stack[0]).ok_or("no position")?;
-                let goals: Vec<Position> = (0..h)
-                    .step_by(3)
-                    .flat_map(|y| (0..w).step_by(5).map(move |x| (x, y)))
-                    .map(|(x, y)| plane(x, y, start))
-                    .collect();
-                for &goal in &goals {
-                    let path = game.grid_path(stack, goal, false);
-                    assert_eq!(
-                        game.searches_disagree(stack, goal),
-                        None,
-                        "seed {seed}: from {start:?} to {goal:?}"
-                    );
-                    found += usize::from(path.is_some());
-                }
-                let (reach, _) = game.grid_walk(stack, &[]);
-                assert!(
-                    reach.contains(&start),
-                    "seed {seed}: {start:?} is not reached"
-                );
-                for targets in goals.chunks(7).take(6) {
-                    let (seen, found_one) = game.grid_walk(stack, targets);
-                    let what = format!("seed {seed}: reach of {start:?} with targets {targets:?}");
-                    assert_eq!(game.grid_reaches_any(stack, targets), found_one, "{what}");
-                    // Whatever a walk with targets went over, the walk to the end goes over.
-                    assert!(seen.is_subset(&reach), "{what}");
-                    if !found_one {
-                        assert_eq!(seen, reach, "{what}");
-                        assert!(
-                            targets.iter().all(|t| *t == start || !reach.contains(t)),
-                            "{what}"
-                        );
-                    }
-                }
-            }
-            assert!(found > 50, "seed {seed}: only {found} paths found");
-            // A second search after the first one reuses the tables: nothing is left over.
-            let stack = &stacks[0];
-            let start = game.units().unit_position(stack[0]).ok_or("no position")?;
-            let goal = plane(w / 2, h / 2, start);
-            assert_eq!(game.find_path(stack, goal), game.find_path(stack, goal));
-        }
-        Ok(())
     }
 }

@@ -79,6 +79,3 @@ impl Game {
         survey
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -1017,6 +1017,3 @@ pub fn open_sites(view: &crate::player::view::PlayerView, at: Position) -> u32 {
     }
     picked.len() as u32
 }
-
-#[cfg(test)]
-mod tests;

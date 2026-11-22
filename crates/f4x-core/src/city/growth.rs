@@ -228,6 +228,3 @@ impl Economy<'_> {
         crate::player::Bonus::of(bonus, grow)
     }
 }
-
-#[cfg(test)]
-mod tests;

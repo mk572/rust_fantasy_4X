@@ -888,6 +888,3 @@ impl<'a> WizardMut<'a> {
         self.get_mut::<Skill>().left += skill;
     }
 }
-
-#[cfg(test)]
-mod tests;

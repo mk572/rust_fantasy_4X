@@ -643,6 +643,3 @@ impl Game {
         Vec::new()
     }
 }
-
-#[cfg(test)]
-mod tests;

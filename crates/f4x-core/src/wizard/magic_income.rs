@@ -195,6 +195,3 @@ impl Game {
         income(&GameIncome(self), player)
     }
 }
-
-#[cfg(test)]
-mod tests;

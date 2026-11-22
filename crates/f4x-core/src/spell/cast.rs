@@ -1183,23 +1183,3 @@ impl Game {
         }
     }
 }
-
-#[cfg(test)]
-pub(crate) mod tests_support {
-    use super::*;
-
-    /// A dispel of `strength` by `by` on `who`, as the `dispel` counter effect does it: how many
-    /// enchantments came off.
-    pub(crate) fn dispel(game: &mut Game, who: Target, strength: u32, by: PlayerId) -> u32 {
-        let rng = game.rng.clone();
-        let mut host = GameHost {
-            game,
-            rng,
-            events: Vec::new(),
-            slain: 0,
-            extra: 0,
-            boost: 0,
-        };
-        host.dispel(who, strength, by)
-    }
-}

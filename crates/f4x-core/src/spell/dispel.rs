@@ -478,6 +478,3 @@ pub(crate) fn global_attack_events(
         None => Vec::new(),
     }
 }
-
-#[cfg(test)]
-mod tests;

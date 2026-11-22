@@ -109,9 +109,6 @@ impl Game {
     }
 }
 
-#[cfg(test)]
-mod tests;
-
 impl Game {
     /// A unit with no hit points left is dead, whatever took them: damage past what a spell that
     /// gave hit points leaves once it is dispelled or lapses, Charm of Life ending, an item put

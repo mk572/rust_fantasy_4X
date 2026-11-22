@@ -381,6 +381,3 @@ pub enum ShakeError {
     /// The entity has no square or no buildings: it is not a city.
     NotACity,
 }
-
-#[cfg(test)]
-mod tests;

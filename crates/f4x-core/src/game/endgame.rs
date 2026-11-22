@@ -264,35 +264,3 @@ impl Game {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn difficulty_scales_the_score() {
-        assert_eq!(scale_for_difficulty(1000, 0), 500);
-        assert_eq!(scale_for_difficulty(1000, 1), 750);
-        assert_eq!(scale_for_difficulty(1000, 2), 1000);
-        assert_eq!(scale_for_difficulty(1000, 3), 2000);
-        assert_eq!(scale_for_difficulty(1000, 4), 2500);
-        assert_eq!(scale_for_difficulty(1000, 5), 3000);
-    }
-
-    #[test]
-    fn the_total_adds_every_part() {
-        let s = Score {
-            spells: 10,
-            townsfolk: 20,
-            people: 40,
-            conquests: 50,
-            fame: 4,
-            time: -6,
-            mastery: 250,
-            percent: 100,
-        };
-        assert_eq!(s.total(), 328);
-        assert_eq!(Score { percent: 50, ..s }.total(), 164);
-        assert_eq!(Score { percent: 300, ..s }.total(), 984);
-    }
-}

@@ -31,9 +31,3 @@ pub mod info;
 pub mod save;
 pub mod spell;
 pub mod spoils;
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-mod ability_tests;

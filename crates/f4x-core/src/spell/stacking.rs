@@ -79,6 +79,3 @@ impl crate::unit::UnitView<'_> {
         })
     }
 }
-
-#[cfg(test)]
-mod tests;

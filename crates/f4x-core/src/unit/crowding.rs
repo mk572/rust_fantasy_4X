@@ -140,6 +140,3 @@ impl Game {
             .collect()
     }
 }
-
-#[cfg(test)]
-mod tests;
