@@ -13,5 +13,6 @@ mod c8_drift;
 mod c9_city;
 mod c9_order;
 mod c9_player;
+mod c9_spell;
 mod c9_unit;
 mod support;
