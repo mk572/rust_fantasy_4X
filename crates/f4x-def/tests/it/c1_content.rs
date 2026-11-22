@@ -996,6 +996,17 @@ fn the_numbers_rules_ron_keeps_for_rows_of_other_files_must_name_rows() {
     refused_as::<RulesConfig>("rules.ron", IssueKind::Dangling, Some("feature"), |c| {
         c.event_ores.push(NOWHERE)
     });
+    refused_as::<RulesConfig>("rules.ron", IssueKind::Dangling, Some("realm"), |c| {
+        c.mergeable_realms.push((NOWHERE, 0))
+    });
+    // A realm with itself, and the same pair twice (in either order), are not pairs.
+    refused_as::<RulesConfig>("rules.ron", IssueKind::Conflict, None, |c| {
+        c.mergeable_realms.push((0, 0))
+    });
+    refused_as::<RulesConfig>("rules.ron", IssueKind::Duplicate, None, |c| {
+        let (a, b) = c.mergeable_realms[0];
+        c.mergeable_realms.push((b, a))
+    });
 }
 
 #[test]

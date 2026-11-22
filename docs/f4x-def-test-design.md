@@ -105,7 +105,7 @@ What the first run of the attacks found, and what was done. Every item has a tes
 | 1 | A number twice or out of order in a content file made `Registry::new` **panic** (1400 of 5000 attacks) | 2 | `Registry::try_new`; the loader reports the file |
 | 2 | The lair check **overflowed** adding weights near `u32::MAX` | 2 | sums in 64 bits |
 | 3 | `terrain.ron` and `features.ron` errors did not say which file | 2 | `ContentError::in_file` |
-| 4 | References accepted that lead nowhere: `rules.ron` (`autobuild_order`, `starting_buildings`, `limited_ai_races`, `event_ores`) and `features.ron` (`realm`, `reward`, `transmute`) | 1 | `check_config`, `check_feature_references` |
+| 4 | References accepted that lead nowhere: `rules.ron` (`autobuild_order`, `starting_buildings`, `limited_ai_races`, `mergeable_realms`, `event_ores`) and `features.ron` (`realm`, `reward`, `transmute`) | 1 | `check_config`, `check_feature_references` |
 | 5 | A misspelled key was **dropped silently** (every struct, also inside effects) | 2 | `deny_unknown_fields` on the content types; `rules_settings.ron` (types shared with saves) is checked by `unknown_keys` |
 | 6 | An optional file that was a link to nothing counted as missing | 2 | `is_there` looks at the link, not what it leads to |
 | 7 | `HalfInt` written as its smallest value could not be read back; `scaled` and `percent_nearest` wrapped to a wrong value; `ceil`, `half`, `plus_half`, `abs` overflowed at the extremes; `QuarterInt::percent` and `ceil` too | 4 | 128/64-bit arithmetic, saturation, range check that includes `i32::MIN` |

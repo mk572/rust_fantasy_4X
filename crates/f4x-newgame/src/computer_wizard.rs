@@ -18,18 +18,6 @@ const DEATH: RealmId = RealmId::new(4) /* death */;
 
 const REALMS: &[RealmId] = &[LIFE, DEATH, CHAOS, NATURE, SORCERY];
 
-/// The realm pairs that may be merged: the first named is the one that may take the other's books.
-const OPPOSED: &[(RealmId, RealmId)] = &[
-    (DEATH, CHAOS),
-    (DEATH, NATURE),
-    (DEATH, SORCERY),
-    (LIFE, CHAOS),
-    (LIFE, NATURE),
-    (LIFE, SORCERY),
-    (SORCERY, CHAOS),
-    (SORCERY, NATURE),
-];
-
 /// The most books a wizard may have in one realm in this game (`max_books_per_realm`).
 fn book_cap(game: &Game) -> u8 {
     game.settings().wizards.max_books_per_realm
@@ -162,11 +150,22 @@ pub(crate) fn make(
 
     // Opposed realms merged, one time in a hundred by the setting.
     if rules.consolidate_percent > 0 {
+        // The pairs the content allows to be merged (`rules.ron`, `mergeable_realms`).
+        let pairs: Vec<(RealmId, RealmId)> = {
+            let realms = &game.content().rules.realms;
+            game.content()
+                .rules
+                .config
+                .mergeable_realms
+                .iter()
+                .filter_map(|&(a, b)| Some((realms.id_numbered(a)?, realms.id_numbered(b)?)))
+                .collect()
+        };
         for b in &mut builds {
             if game.roll(100) > u32::from(rules.consolidate_percent) {
                 continue;
             }
-            for &(first, second) in OPPOSED {
+            for &(first, second) in &pairs {
                 let (x, y) = (b.books_in(first), b.books_in(second));
                 if x == 0 || y == 0 {
                     continue;

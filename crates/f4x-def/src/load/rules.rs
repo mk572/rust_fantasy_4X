@@ -527,6 +527,31 @@ fn check_config(r: &Rules, p: &mut Issues) {
             p.dangling(F, "", "limited_ai_races", "race", n);
         }
     }
+    for (i, &(a, b)) in c.mergeable_realms.iter().enumerate() {
+        for n in [a, b] {
+            if r.realms.id_numbered(n).is_none() {
+                p.dangling(F, "", "mergeable_realms", "realm", n);
+            }
+        }
+        if a == b {
+            p.conflict(
+                F,
+                "mergeable_realms",
+                format!("realm {a} cannot be merged with itself"),
+            );
+        }
+        if c.mergeable_realms[..i]
+            .iter()
+            .any(|&(x, y)| (x, y) == (a, b) || (x, y) == (b, a))
+        {
+            p.duplicate(
+                F,
+                "mergeable_realms",
+                "the pair of realms",
+                format!("{a} and {b}"),
+            );
+        }
+    }
 }
 
 /// The unit ratings: rows in the order of the unit numbers, each for a unit that exists, with at

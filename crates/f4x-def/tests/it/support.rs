@@ -314,6 +314,14 @@ pub fn dangling(c: &Content) -> Vec<String> {
             format!("config.limited_ai_races: race {n}"),
         );
     }
+    for &(a, b) in &r.config.mergeable_realms {
+        for n in [a, b] {
+            need(
+                r.realms.id_numbered(n).is_some(),
+                format!("config.mergeable_realms: realm {n}"),
+            );
+        }
+    }
     for n in &r.config.event_ores {
         need(
             c.features.defs().iter().any(|f| f.num == *n),

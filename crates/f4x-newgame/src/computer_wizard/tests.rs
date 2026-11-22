@@ -427,6 +427,28 @@ fn opposed_realms_are_merged_into_one() {
 }
 
 #[test]
+fn realms_the_content_does_not_pair_are_never_merged() {
+    // Nature and chaos are not a pair in `mergeable_realms`.
+    for seed in SEEDS {
+        let mut g = new_game(seed);
+        let defs = vec![wizard_def(
+            1,
+            "a",
+            &[
+                (RealmId::new(0 /* nature */), 3),
+                (RealmId::new(2 /* chaos */), 2),
+            ],
+            &[],
+        )];
+        let mut s = settings(1, 5);
+        s.ai.wizards.consolidate_percent = 100;
+        let builds = make(&mut g, &defs, &s, &mut Vec::new(), 1, false, &plain);
+        let b = &builds[0];
+        assert_eq!(b.books.len(), 2, "seed {seed}: {b:?}");
+    }
+}
+
+#[test]
 fn no_merge_happens_at_zero_percent() {
     for seed in SEEDS {
         let mut g = new_game(seed);

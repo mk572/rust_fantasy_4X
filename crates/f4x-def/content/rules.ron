@@ -26,6 +26,10 @@
     starting_buildings: [(0, 3), (1, 8), (2, 32), (3, 4), (5, 29), (6, 9), (8, 35), (10, 5), (11, 6), (12, 22)],
     // Halfling, High Elf, High Men, Klackon, Nomad
     limited_ai_races: [6, 7, 8, 9, 11],
+    // The pairs of realms a computer wizard's books may be merged in: (death, chaos), (death, nature), (death, sorcery),
+    // (life, chaos), (life, nature), (life, sorcery), (sorcery, chaos), (sorcery, nature). Life and death, and chaos and
+    // nature, are not merged.
+    mergeable_realms: [(4 /* death */, 2 /* chaos */), (4 /* death */, 0 /* nature */), (4 /* death */, 1 /* sorcery */), (3 /* life */, 2 /* chaos */), (3 /* life */, 0 /* nature */), (3 /* life */, 1 /* sorcery */), (1 /* sorcery */, 2 /* chaos */), (1 /* sorcery */, 0 /* nature */)],
     // iron ore, coal, silver ore, gold ore, gem, mithril ore, adamantium ore, quork crystal, crysx crystal
     event_ores: [11, 5, 19, 10, 9, 12, 2, 17, 6],
     // The capital starts with 4 citizens (3 farm) and a smithy, barracks and builders hall; a spell cast

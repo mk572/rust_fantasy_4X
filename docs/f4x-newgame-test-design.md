@@ -281,9 +281,16 @@ scenarios of `c7_drift` did not move either.
 
 - Desert on pole rows of the original generator stays as the original has it; the pole rule is for the noise generator.
 - `GenParams::default()` carries tuning numbers; the suite uses `gen_params(&settings)`.
-- The `OPPOSED` table of the temperament has no counterpart in the content.
 - No negative test for the hero count (no public way to change it).
 - `f32` trig elsewhere cannot be tested across platforms.
+
+## The pairs of realms that may be merged
+
+`OPPOSED` (the realm pairs a computer wizard's books may be merged in) was a table of the code that the content could
+state. It moved into `rules.ron` as `mergeable_realms` (22 November 2026), checked on load like the other references
+(`f4x-def`: a realm that is not there, a realm with itself, a pair twice are refused), and the crate reads it. The
+games made are unchanged (same pairs in the same order, so the same draws); only the content fingerprint, and with it
+the four fresh-game fixtures of `f4x-core`, moved.
 
 ## No copied numbers
 
