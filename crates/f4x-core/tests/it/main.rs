@@ -14,6 +14,7 @@ mod c9_battle;
 mod c9_city;
 mod c9_conquest;
 mod c9_diplomacy;
+mod c9_item;
 mod c9_magic;
 mod c9_order;
 mod c9_player;
