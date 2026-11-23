@@ -476,3 +476,37 @@ pub fn commands(g: &Game) -> Vec<Command> {
     }
     out
 }
+
+/// A city of `owner` on the first square near their first city that the game lets one be founded on.
+pub fn another_city(
+    g: &mut Game,
+    owner: f4x_core::player::PlayerId,
+    population: u32,
+) -> Option<hecs::Entity> {
+    let (first, at) = g.economy().cities_of(owner).first().copied()?;
+    let race = g.economy().city_race(first);
+    for dx in -6i32..=6 {
+        for dy in -6i32..=6 {
+            let (x, y) = (at.x as i32 + dx, at.y as i32 + dy);
+            if x < 0 || y < 0 {
+                continue;
+            }
+            let pos = Position {
+                x: x as u32,
+                y: y as u32,
+                plane: at.plane,
+            };
+            let events = g.apply(Command::FoundCity {
+                owner,
+                pos,
+                name: "Another".to_owned(),
+                race,
+                population,
+            });
+            if events.iter().all(|e| !matches!(e, Event::Rejected(_))) {
+                return g.economy().city_at(pos);
+            }
+        }
+    }
+    None
+}

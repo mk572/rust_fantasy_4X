@@ -4,8 +4,8 @@
 //! Each world has the first wizard take cities of the second, who has the fortress city and a second city.
 
 use crate::support::worlds;
-use f4x_core::game::{Command, Event, Game};
-use f4x_core::map::Position;
+use f4x_core::game::endgame::EndKind;
+use f4x_core::game::{Command, Event, Game, Rejection};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
 use f4x_core::wizard::fortress::FortressError;
@@ -30,35 +30,9 @@ fn falls() -> Vec<Fall> {
         let Some(capital) = g.economy().fortress_city(b) else {
             continue;
         };
-        let at = g.economy().cities_of(b)[0].1;
-        let race = g.economy().city_race(capital);
-        // A second city of the loser, a few squares from the first: the first the game allows.
-        let mut town = None;
-        'found: for dx in -6i32..=6 {
-            for dy in -6i32..=6 {
-                let (x, y) = (at.x as i32 + dx, at.y as i32 + dy);
-                if x < 0 || y < 0 {
-                    continue;
-                }
-                let pos = Position {
-                    x: x as u32,
-                    y: y as u32,
-                    plane: at.plane,
-                };
-                let events = g.apply(Command::FoundCity {
-                    owner: b,
-                    pos,
-                    name: "Second".to_owned(),
-                    race,
-                    population: 4,
-                });
-                if events.iter().all(|e| !matches!(e, Event::Rejected(_))) {
-                    town = g.economy().city_at(pos);
-                    break 'found;
-                }
-            }
-        }
-        let Some(town) = town else { continue };
+        let Some(town) = crate::support::another_city(&mut g, b, 4) else {
+            continue;
+        };
         // A wizard that can pay for the Spell of Return: skill and mana to cast it.
         let need = g.content().rules.config.wizard.resign_below_skill;
         g.scenario_set_casting_skill(b, need);
@@ -472,7 +446,7 @@ fn defeating_the_last_rival_ends_the_game_by_conquest() {
             told(
                 &events,
                 |e| matches!(e, Event::GameOver { winner, kind, .. }
-                if *winner == f.a && *kind == f4x_core::game::endgame::EndKind::Conquest)
+                if *winner == f.a && *kind == EndKind::Conquest)
             ),
             "{}: {events:?}",
             f.name
@@ -481,4 +455,97 @@ fn defeating_the_last_rival_ends_the_game_by_conquest() {
         ended += 1;
     }
     assert!(ended > 0, "no world ended by conquest");
+}
+
+/// The spell that ends the game when its wizard finishes casting it (`spell_of_mastery`).
+const MASTERY: u16 = 213;
+
+#[test]
+fn starting_the_spell_of_mastery_is_told_to_all_and_listed_with_what_is_still_owed() {
+    for mut f in falls() {
+        let spell = SpellId::new(MASTERY);
+        f.g.cheat_learn_spell(f.a, spell);
+        f.g.treasury_mut(f.a).expect("a treasury").mana = HalfInt::from_int(100_000);
+        let events = f.g.apply(Command::CastSpell {
+            player: f.a,
+            spell,
+            target: None,
+            extra: 0,
+        });
+        assert!(
+            events.iter().all(|e| !matches!(e, Event::Rejected(_))),
+            "{}: {events:?}",
+            f.name
+        );
+        assert!(
+            told(
+                &events,
+                |e| matches!(e, Event::MasteryStarted { caster } if *caster == f.a)
+            ),
+            "{}: {events:?}",
+            f.name
+        );
+        let casters = f.g.mastery_casters();
+        assert!(
+            casters.iter().any(|&(p, owed)| p == f.a && owed > 0),
+            "{}: {casters:?}",
+            f.name
+        );
+        assert!(
+            f.g.game_over.is_none(),
+            "{}: won before it was paid",
+            f.name
+        );
+    }
+}
+
+#[test]
+fn finishing_the_spell_of_mastery_wins_at_once_and_scores_it_for_the_caster_only() {
+    for mut f in falls() {
+        let spell = SpellId::new(MASTERY);
+        f.g.cheat_learn_spell(f.a, spell);
+        f.g.scenario_casting(f.a, spell, 0);
+        let events = f.g.end_player_turn(f.a);
+        assert!(
+            told(
+                &events,
+                |e| matches!(e, Event::GameOver { winner, kind, .. }
+                if *winner == f.a && *kind == EndKind::SpellOfMastery)
+            ),
+            "{}: {events:?}",
+            f.name
+        );
+        let over = f.g.game_over.expect("the game is over");
+        assert_eq!(
+            (over.winner, over.kind),
+            (f.a, EndKind::SpellOfMastery),
+            "{}",
+            f.name
+        );
+        let (won, lost) = (f.g.score(f.a), f.g.score(f.b));
+        assert!(
+            won.mastery > 0 && lost.mastery == 0,
+            "{}: {won:?} {lost:?}",
+            f.name
+        );
+        assert_eq!(lost.time, 0, "{}: the loser got a time bonus", f.name);
+        assert_eq!(
+            won.total(),
+            (won.spells + won.townsfolk + won.conquests + won.fame + won.time + won.mastery)
+                * won.percent
+                / 100,
+            "{}: the total is not the sum",
+            f.name
+        );
+        // A game that is over takes no more commands.
+        let later = f.g.apply(Command::EndTurn);
+        assert!(
+            told(&later, |e| matches!(
+                e,
+                Event::Rejected(Rejection::GameOver)
+            )),
+            "{}: {later:?}",
+            f.name
+        );
+    }
 }
