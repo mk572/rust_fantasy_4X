@@ -27,8 +27,10 @@ pub enum Kind {
     /// A lasting spell that makes one of the wizard's units better.
     UnitBuff,
     /// Water Walking and Wind Walking: a lasting spell that lets a walker cross the sea without a
-    /// ship, cast on a unit that waits for a ship none is coming to (`cross_target`). Flight does
-    /// the same but stays a `UnitBuff`: it is worth casting for the fight as well.
+    /// ship, cast on a unit that waits for a ship none is coming to (`cross_target`). Floating
+    /// Island is one too: it raises a ship (a transport of eight) on the sea square of the strait
+    /// the waiting units cross (`island_target`). Flight does the same as the walks but stays a
+    /// `UnitBuff`: it is worth casting for the fight as well.
     Cross,
     /// A lasting spell that makes one of the wizard's cities better.
     CityBuff,
@@ -170,6 +172,15 @@ fn grants_any(def: &SpellDef, abilities: &[u16]) -> bool {
         .any(|r| matches!(&r.effect, Effect::GrantAbility(a) if abilities.contains(&a.num())))
 }
 
+/// Whether the spell raises a floating island: a ship made of the sea square it is aimed at.
+fn raises_island(def: &SpellDef) -> bool {
+    def.effects.iter().any(|r| {
+        matches!(&r.effect, Effect::Custom { name, args }
+            if name == f4x_core::spell::terraform::TERRAIN_EFFECT
+                && args.iter().any(|a| a == "floating_island"))
+    })
+}
+
 /// What the AI makes of a spell.
 pub fn kind(def: &SpellDef) -> Kind {
     if !def.contexts.contains(&CastContext::Overland) {
@@ -223,6 +234,9 @@ pub fn kind(def: &SpellDef) -> Kind {
         && def.duration == Duration::Permanent
         && grants_any(def, &SEA_WALKS)
     {
+        return Kind::Cross;
+    }
+    if raises_island(def) {
         return Kind::Cross;
     }
     if def.target == SpellTarget::OwnUnit
@@ -1064,6 +1078,9 @@ fn cross_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
     if waiting.is_empty() {
         return None;
     }
+    if raises_island(view.spell(spell)) {
+        return island_target(ai, view, spell, &waiting);
+    }
     let mine = view.my_units();
     let wind = grants_any(view.spell(spell), &[74 /* wind_walking */]);
     let mut stands: Vec<(Position, hecs::Entity)> = waiting
@@ -1088,6 +1105,46 @@ fn cross_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
         .into_iter()
         .map(|(_, _, u)| Target::Unit(u))
         .find(|&t| view.can_aim(spell, Some(t)))
+}
+
+/// The sea square a floating island is raised on for the units that wait for a ship: the strait
+/// between the land of the first of them (the oldest) and the land it goes to, where the ship
+/// that fetches them is wanted (`bridge::strait_between`). Nothing while a ship of the wizard is
+/// free or has no work yet (an island raised last turn, a galley just built): the dispatcher
+/// gives it the waiting units first.
+fn island_target(
+    ai: &Ai,
+    view: &PlayerView,
+    spell: SpellId,
+    waiting: &[(f4x_core::game::serial::Serial, Position)],
+) -> Option<Target> {
+    let mine = view.my_units();
+    let spare = mine.iter().any(|&u| {
+        crate::view::is_ship(view, u) && {
+            let s = view.serial_of(u);
+            ai.roles.is(s, crate::roles::Role::TransportFree) || !ai.roles.has_role(s)
+        }
+    });
+    if spare {
+        return None;
+    }
+    let mut waiting = waiting.to_vec();
+    waiting.sort_by_key(|&(s, _)| s);
+    waiting.into_iter().find_map(|(s, to)| {
+        let u = mine.iter().copied().find(|&u| view.serial_of(u) == s)?;
+        let sea = crate::bridge::strait_between(view, view.unit_position(u)?, to)?;
+        Some(Target::Tile(sea)).filter(|&t| view.can_aim(spell, Some(t)))
+    })
+}
+
+/// What the island costs each turn to keep, in mana (the spell itself has no upkeep: the island
+/// is a summoned unit with its own).
+fn island_upkeep(view: &PlayerView) -> i32 {
+    let rules = &view.content().rules;
+    rules
+        .units
+        .id_numbered(190 /* floating_island */)
+        .map_or(0, |id| rules.units.get(id).upkeep.mana as i32)
 }
 
 /// The square of the strongest enemy stack within `STASIS_RADIUS` of an own city that is stronger
@@ -1491,7 +1548,18 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 // Units wait on the shore for it: paid from what is in the pool, without the third
                 // that the other spells leave over (the wizards' pools stay below it for hundreds
                 // of turns, and the units wait just as long).
-                Kind::Cross => cost <= mana && room && upkeep_ok(&view, def) && target.is_some(),
+                Kind::Cross => {
+                    let island = if raises_island(def) {
+                        island_upkeep(&view)
+                    } else {
+                        0
+                    };
+                    cost <= mana
+                        && room
+                        && upkeep_ok(&view, def)
+                        && view.income().split.mana - view.income().mana_upkeep - island >= 0
+                        && target.is_some()
+                }
                 Kind::Mutate => now && fighters >= 3 && target.is_some(),
                 Kind::Lycanthropy => now && fighters >= 3 && target.is_some(),
                 Kind::CityBuff => now && room && upkeep_ok(&view, def) && target.is_some(),
@@ -1742,6 +1810,7 @@ mod tests {
             (4 /* giant_strength */, Kind::UnitBuff),
             (8 /* water_walking */, Kind::Cross),
             (63 /* wind_walking */, Kind::Cross),
+            (43 /* floating_island */, Kind::Cross),
             (56 /* flight */, Kind::UnitBuff),
             (130 /* heroism */, Kind::UnitBuff),
             (21 /* elemental_armor */, Kind::UnitBuff),
@@ -2323,6 +2392,34 @@ mod tests {
         Ok(())
     }
 
+    /// Floating Island is a ship raised on the strait: cast when units wait for a ship and none
+    /// is free, once, and the units that wait are then fetched like any ship's passengers.
+    #[test]
+    fn a_floating_island_is_raised_in_the_strait_for_units_that_wait_for_a_ship() -> TestResult {
+        let (mut g, mut ai) = strait_wizard(&[43 /* floating_island */])?;
+        let units = spawn(&mut g, P0, at(9, 6), 104 /* spearmen */, 2);
+        crate::roles::register(&mut ai, &g);
+        let islands = |g: &Game| {
+            let view = PlayerView::new(g, P0);
+            view.my_units()
+                .into_iter()
+                .filter(|&u| crate::view::is_ship(&view, u))
+                .count()
+        };
+        // Nobody waits: no island.
+        cast(&ai, &mut g, &mut Vec::new());
+        assert_eq!(islands(&g), 0, "nobody waits for a ship");
+        wait_for_a_ship(&mut ai, &g, &units);
+        cast(&ai, &mut g, &mut Vec::new());
+        assert_eq!(islands(&g), 1, "an island for the waiting units");
+        // It has no work yet: no second one is raised.
+        crate::roles::register(&mut ai, &g);
+        wait_for_a_ship(&mut ai, &g, &units);
+        cast(&ai, &mut g, &mut Vec::new());
+        assert_eq!(islands(&g), 1, "one island at a time");
+        Ok(())
+    }
+
     /// The overland spells the AI leaves alone, and why (task 509). Each is cast by something else
     /// or has no worth the AI can weigh yet.
     const LEFT_ALONE: &[(u16, &str)] = &[
@@ -2333,10 +2430,6 @@ mod tests {
         (
             18, /* transmute */
             "no model of what a changed mineral is worth",
-        ),
-        (
-            43, /* floating_island */
-            "one square of land does not carry an army over the sea (the naval planner)",
         ),
         (
             37, /* earth_gate */
