@@ -93,6 +93,9 @@ fn about_the_kind(why: MagicError) -> bool {
                     | TargetError::NotEnemyCity
                     | TargetError::NotEnemyWizard
                     | TargetError::NotGlobalSpell
+                    // Evil Presence names an enemy city; on a city of a wizard with death magic it is
+                    // refused as wasted before the owner is looked at (`spell/cast.rs`).
+                    | TargetError::EvilPresenceWasted
             )
     )
 }
@@ -378,4 +381,178 @@ fn with_several_circles_word_of_recall_asks_for_the_circle_and_sends_the_unit_th
     });
     assert_eq!(refusal(&events), None, "{events:?}");
     assert_eq!(g.units().unit_position(unit), Some(b));
+}
+
+/// A wizard who knows Time Stop (spell 80, `time_stop`, the dearest spell with no target) and has the
+/// mana for it: a cast that takes many turns to pay.
+fn slow_caster() -> Vec<(String, Game, PlayerId, SpellId)> {
+    worlds()
+        .into_iter()
+        .map(|(name, mut g)| {
+            let p = g
+                .wizards()
+                .into_iter()
+                .find(|&p| g.wizard(p).is_some())
+                .expect("a wizard");
+            let spell = g.content().rules.spells.id_numbered(80).expect("time_stop");
+            g.cheat_learn_spell(p, spell);
+            g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+            (name, g, p, spell)
+        })
+        .collect()
+}
+
+#[test]
+fn a_spell_dearer_than_the_skill_is_paid_over_turns_and_takes_effect_when_paid() {
+    for (name, mut g, p, spell) in slow_caster() {
+        let events = g.apply(Command::CastSpell {
+            player: p,
+            spell,
+            target: None,
+            extra: 0,
+        });
+        assert_eq!(refusal(&events), None, "{name}: {events:?}");
+        let mut owed = g
+            .wizard(p)
+            .expect("a wizard")
+            .casting()
+            .map(|c| c.remaining);
+        assert!(
+            owed.is_some_and(|o| o > 0),
+            "{name}: a spell dearer than a turn's skill is not begun: {owed:?}"
+        );
+        let mut turns = 0;
+        let mut cast = false;
+        while turns < 5_000 && !cast {
+            turns += 1;
+            let events = g.end_player_turn(p);
+            cast = events
+                .iter()
+                .any(|e| matches!(e, Event::SpellCast { player, spell: s } if *player == p && *s == spell));
+            let now = g
+                .wizard(p)
+                .expect("a wizard")
+                .casting()
+                .map(|c| c.remaining);
+            if !cast {
+                assert!(
+                    now.zip(owed).is_some_and(|(n, o)| n < o),
+                    "{name}: turn {turns}: nothing was paid: {owed:?} then {now:?}"
+                );
+            }
+            owed = now;
+        }
+        assert!(cast, "{name}: not cast in {turns} turns");
+        assert!(turns > 1, "{name}: paid in one turn after all");
+        assert!(g.wizard(p).expect("a wizard").casting().is_none(), "{name}");
+        assert_eq!(
+            g.time_stopper(),
+            Some(p),
+            "{name}: the spell did not take effect"
+        );
+    }
+}
+
+#[test]
+fn cancelling_a_cast_stops_it_and_cancelling_nothing_changes_nothing() {
+    for (name, mut g, p, spell) in slow_caster() {
+        let before = crate::support::text(&g);
+        let events = g.apply(Command::CancelCast { player: p });
+        assert_eq!(refusal(&events), None, "{name}: {events:?}");
+        assert_eq!(
+            crate::support::text(&g),
+            before,
+            "{name}: cancelling nothing changed the game"
+        );
+        g.apply(Command::CastSpell {
+            player: p,
+            spell,
+            target: None,
+            extra: 0,
+        });
+        g.end_player_turn(p);
+        assert!(g.wizard(p).expect("a wizard").casting().is_some(), "{name}");
+        let events = g.apply(Command::CancelCast { player: p });
+        assert_eq!(refusal(&events), None, "{name}: {events:?}");
+        assert!(g.wizard(p).expect("a wizard").casting().is_none(), "{name}");
+        for _ in 0..3 {
+            let events = g.end_player_turn(p);
+            assert!(
+                !events.iter().any(|e| matches!(e, Event::SpellCast { .. })),
+                "{name}: a cancelled spell was cast"
+            );
+        }
+        assert_eq!(g.time_stopper(), None, "{name}");
+    }
+}
+
+#[test]
+fn a_wizard_who_cannot_pay_the_upkeep_gives_up_the_dearest_spells_first() {
+    let mut tried = 0;
+    for (name, mut g) in worlds() {
+        let p = g.wizards()[0];
+        // Lasting spells of the world, in the order they were cast: those of the content that are
+        // global and cost upkeep.
+        let held: Vec<SpellId> = g
+            .content()
+            .rules
+            .spells
+            .defs()
+            .iter()
+            .filter(|d| {
+                d.contexts.contains(&CastContext::Overland)
+                    && d.target == SpellTarget::None
+                    && d.upkeep > 0
+                    // Its keeper pays for that spell alone.
+                    && d.num != 80 /* time_stop */
+                    && d.duration == f4x_def::rules::Duration::Permanent
+            })
+            .map(|d| SpellId::new(d.num))
+            .collect();
+        for &s in &held {
+            g.scenario_add_global(p, s);
+        }
+        let kept_before: Vec<_> = held
+            .iter()
+            .copied()
+            .filter(|&s| g.has_global(p, s))
+            .collect();
+        if kept_before.len() < 3 {
+            continue;
+        }
+        tried += 1;
+        g.treasury_mut(p).expect("a treasury").mana = HalfInt::ZERO;
+        let events = g.end_player_turn(p);
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::Shortage { player, what: f4x_core::game::Shortage::Mana } if *player == p)),
+            "{name}: no shortage told: {events:?}"
+        );
+        let gone: Vec<usize> = (0..kept_before.len())
+            .filter(|&i| !g.has_global(p, kept_before[i]))
+            .collect();
+        let stayed: Vec<usize> = (0..kept_before.len())
+            .filter(|&i| g.has_global(p, kept_before[i]))
+            .collect();
+        assert!(!gone.is_empty(), "{name}: nothing was given up");
+        // The order of giving up: the highest upkeep, then the cheapest to replace, then the newest
+        // (`upkeep_release_order`). Whatever went comes before whatever stayed in it.
+        let rules = &g.content().rules;
+        let key = |i: usize| {
+            let d = rules.spells.get(kept_before[i]);
+            (std::cmp::Reverse(d.upkeep), d.cost, std::cmp::Reverse(i))
+        };
+        let last_gone = gone.iter().map(|&i| key(i)).max().expect("one");
+        assert!(
+            stayed.iter().all(|&i| key(i) > last_gone),
+            "{name}: a spell that stayed comes before one that went in the order of giving up"
+        );
+        let lapsed = events
+            .iter()
+            .filter(|e| matches!(e, Event::EnchantmentLapsed { player, .. } if *player == p))
+            .count();
+        assert_eq!(lapsed, gone.len(), "{name}: {events:?}");
+    }
+    assert!(tried > 0, "no world held enough lasting spells");
 }

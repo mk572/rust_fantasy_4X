@@ -211,8 +211,9 @@ impl Game {
         }
     }
 
-    /// Pay the mana upkeep. If the reserve cannot cover it, the newest lasting spells and
-    /// summoned creatures are given up until it can (`upkeep_plan`).
+    /// Pay the mana upkeep. If the reserve cannot cover it, lasting spells and summoned
+    /// creatures are given up until it can: the highest upkeep first, then the cheapest to
+    /// replace, then the newest (`upkeep_plan`, `upkeep_release_order`).
     fn apply_mana_upkeep(&mut self, player: PlayerId) -> Vec<Event> {
         let items = self.upkeep_items(player);
         let reserve = self
