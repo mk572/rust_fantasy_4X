@@ -490,6 +490,8 @@ impl Game {
         let spell = self.content.rules.spells.id_numbered(214) /* spell_of_return */;
         let cost = spell.map(|s| self.casting_cost(loser, s, false));
         if let Some(mut w) = self.wizard_mut(loser) {
+            // The Return takes the place of what the wizard was casting.
+            w.clear_casting();
             banish_player(&mut w, winner);
         }
         if let Some((spell, cost)) = spell.zip(cost) {
@@ -504,6 +506,26 @@ impl Game {
         // from the banished wizard unless it was the one whose turn it was).
         events.extend(self.take_spoils(loser, winner, Fall::Banished));
         events
+    }
+
+    /// A banished wizard that is casting nothing (its Spell of Return was ended by a Spell Blast)
+    /// begins the Spell of Return again: a banished wizard casts nothing else and is always
+    /// casting it until it is cast, so no wizard, the computer's or the human's, is left banished
+    /// with nothing to do. Called at the start of the wizard's turn end (`process_magic`).
+    pub(crate) fn resume_return(&mut self, player: PlayerId) {
+        let idle = self
+            .wizard(player)
+            .is_some_and(|w| w.is_banished() && w.casting().is_none());
+        if !idle || !self.return_open_to(player) {
+            return;
+        }
+        let Some(spell) = self.content.rules.spells.id_numbered(214)
+        /* spell_of_return */
+        else {
+            return;
+        };
+        let cost = self.casting_cost(player, spell, false);
+        self.begin_casting(player, spell, cost);
     }
 
     /// A banished wizard gives up (the original asks the human at the moment of banishment,

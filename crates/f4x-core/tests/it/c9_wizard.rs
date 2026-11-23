@@ -181,3 +181,34 @@ fn a_known_spell_cannot_be_researched_and_the_neutral_player_researches_nothing(
         }
     }
 }
+
+/// A banished wizard is always casting the Spell of Return: when it is ended (a Spell Blast takes
+/// it off the wizard), the turn's end begins it again, whoever the wizard is.
+#[test]
+fn a_banished_wizard_whose_return_was_ended_begins_it_again_at_the_turns_end() {
+    for (name, mut g) in worlds().into_iter().step_by(2) {
+        let p = wizards(&g)[0];
+        let mut snap = g.snapshot();
+        let save = snap
+            .wizards
+            .iter_mut()
+            .find(|s| s.player == p.0)
+            .expect("a save");
+        save.banished = true;
+        save.fortress = None;
+        save.summon_at = None;
+        save.more_circles.clear();
+        g = snap.restore(content()).expect("restores");
+        assert!(g.wizard(p).expect("a wizard").is_banished(), "{name}");
+        assert!(g.wizard(p).expect("a wizard").casting().is_none(), "{name}");
+        // Every wizard's turn ends once in a round; the banished one's does too.
+        for _ in 0..wizards(&g).len() {
+            g.apply(Command::EndTurn);
+        }
+        let casting = g.wizard(p).expect("a wizard").casting();
+        assert!(
+            casting.is_some_and(|c| g.spell_has_hook(c.spell, "spell_of_return")),
+            "{name}: not casting the Spell of Return: {casting:?}"
+        );
+    }
+}

@@ -60,7 +60,9 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // Forget wizards that stopped (or finished) casting.
     ai.mastery_seen
         .retain(|p, _| casters.iter().any(|&(c, _)| c == *p));
-    if casters.is_empty() {
+    // A banished wizard casts the Spell of Return and starts no war (the game refuses it).
+    let banished = game.wizard(me).is_some_and(|w| w.is_banished());
+    if casters.is_empty() || banished {
         ai.racing = false;
         ai.war_on = None;
         return;

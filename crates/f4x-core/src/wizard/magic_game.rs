@@ -156,6 +156,7 @@ impl Game {
     /// to start here are the round's (`turn.rs`).
     pub(crate) fn process_magic(&mut self, player: PlayerId) -> Vec<Event> {
         let mut events = Vec::new();
+        self.resume_return(player);
         // While Time Stop lasts, its wizard has no income and only the others' time is stopped
         // for casting: no spell of theirs gets any further.
         let stopper = self.time_stopper();
