@@ -5,14 +5,16 @@
 //! what plays a side is the test.
 
 use crate::support::{around, text, worlds};
-use f4x_battle::battle::{BattleCommand, BattleError, Side};
+use f4x_battle::battle::{BattleCommand, BattleError, BattleEvent, Side};
+use f4x_battle::battlemagic::caster::SpellAim;
+use f4x_battle::battlemagic::error::SpellError;
 use f4x_core::battle::game::BattleStartError;
 use f4x_core::diplomacy::{DiplomacyCommand as D, Treaty};
 use f4x_core::game::{Command, Event, Game, Rejection};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::player::PlayerId;
 use f4x_def::half_int::HalfInt;
-use f4x_def::rules::Stat;
+use f4x_def::rules::{CastContext, Stat};
 
 /// A world with two stacks face to face: one unit of `a` and one unit of `b` on neighbouring squares.
 struct Faceoff {
@@ -463,4 +465,511 @@ fn ships_fight_on_the_sea() {
         }
     }
     assert!(tried > 0, "no world had two neighbouring sea squares");
+}
+
+/// Every unit of `side` in the battle on the table falls, and the next command lets the battle see it.
+fn wipe_out(g: &mut Game, side: Side) -> Vec<Event> {
+    g.scenario_edit_battle(|b| {
+        for u in b.units.iter_mut().filter(|u| u.side == side) {
+            u.kill();
+            u.status = f4x_battle::unit::Status::Dead;
+        }
+    });
+    g.apply(Command::Battle(BattleCommand::EndTurn))
+}
+
+fn told(events: &[Event], wanted: impl Fn(&Event) -> bool) -> bool {
+    events.iter().any(wanted)
+}
+
+#[test]
+fn the_winning_attacker_takes_the_square_and_the_fallen_are_gone() {
+    for mut f in faceoffs() {
+        let site = f.g.units().unit_position(f.defender).expect("a position");
+        let before = f.g.units().all_units().len();
+        start(&mut f);
+        let events = wipe_out(&mut f.g, Side::Defender);
+        assert!(!f.g.in_battle(), "{}: {events:?}", f.name);
+        assert!(
+            told(
+                &events,
+                |e| matches!(e, Event::BattleEnded { winner, loser }
+                if *winner == f.a && *loser == f.b)
+            ),
+            "{}: {events:?}",
+            f.name
+        );
+        assert!(
+            told(
+                &events,
+                |e| matches!(e, Event::BattleCasualties { player, units: 1 }
+                if *player == f.b)
+            ),
+            "{}: the loss is told: {events:?}",
+            f.name
+        );
+        assert_eq!(f.g.units().all_units().len(), before - 1, "{}", f.name);
+        assert_eq!(
+            f.g.units().unit_position(f.attacker),
+            Some(site),
+            "{}: the winner did not move in",
+            f.name
+        );
+        assert!(
+            told(
+                &events,
+                |e| matches!(e, Event::UnitsMoved { to, .. } if *to == site)
+            ),
+            "{}: {events:?}",
+            f.name
+        );
+    }
+}
+
+#[test]
+fn the_winning_defender_stays_and_the_fallen_attacker_is_gone() {
+    for mut f in faceoffs() {
+        let (home, site) = (
+            f.g.units().unit_position(f.attacker).expect("a position"),
+            f.g.units().unit_position(f.defender).expect("a position"),
+        );
+        start(&mut f);
+        let events = wipe_out(&mut f.g, Side::Attacker);
+        assert!(!f.g.in_battle(), "{}", f.name);
+        assert!(
+            told(
+                &events,
+                |e| matches!(e, Event::BattleEnded { winner, .. } if *winner == f.b)
+            ),
+            "{}: {events:?}",
+            f.name
+        );
+        assert_eq!(
+            f.g.units().unit_position(f.defender),
+            Some(site),
+            "{}",
+            f.name
+        );
+        assert!(
+            f.g.units().unit_position(f.attacker).is_none(),
+            "{}: the fallen attacker is still in the game at {home:?}",
+            f.name
+        );
+        assert!(
+            !told(&events, |e| matches!(e, Event::UnitsMoved { .. })),
+            "{}: a defence that held moved: {events:?}",
+            f.name
+        );
+    }
+}
+
+#[test]
+fn a_survivor_keeps_the_damage_it_took_in_the_fight() {
+    for mut f in faceoffs() {
+        start(&mut f);
+        let lost = f.g.battle().expect("a battle").units[f
+            .g
+            .battle()
+            .expect("a battle")
+            .units
+            .iter()
+            .position(|u| u.side == Side::Attacker)
+            .expect("a unit")]
+        .lost();
+        assert_eq!(lost, 0, "{}: a unit begins whole", f.name);
+        f.g.scenario_edit_battle(|b| {
+            let i = b
+                .units
+                .iter()
+                .position(|u| u.side == Side::Attacker)
+                .expect("a unit");
+            b.units[i].set_lost(1);
+        });
+        wipe_out(&mut f.g, Side::Defender);
+        let (now, max) = f.g.units().unit_hits(f.attacker);
+        assert_eq!(now + 1, max, "{}: one hit point of damage stays", f.name);
+    }
+}
+
+#[test]
+fn units_that_flee_may_be_lost_unless_the_flight_is_safe() {
+    for safe in [true, false] {
+        let (mut tried, mut lost_all) = (0, 0);
+        for mut f in faceoffs() {
+            let at = f.g.units().unit_position(f.attacker).expect("a position");
+            let kind = f.g.units().unit_kind_id(f.attacker).expect("a kind");
+            // A stack of six on the attacker's square.
+            let mut stack = vec![f.attacker];
+            for _ in 0..5 {
+                f.g.apply(Command::CreateUnit {
+                    owner: f.a,
+                    pos: at,
+                    unit: kind,
+                });
+            }
+            stack.extend(
+                f.g.units()
+                    .units_at(at)
+                    .into_iter()
+                    .filter(|&u| u != f.attacker && f.g.units().unit_owner(u) == Some(f.a)),
+            );
+            let n = stack.len();
+            f.g.scenario_set_safe_flee(safe);
+            let events = f.g.apply(Command::BeginBattle {
+                attackers: stack.clone(),
+                defenders: vec![f.defender],
+            });
+            assert_eq!(refusal(&events), None, "{}", f.name);
+            let events = f.g.apply(Command::Battle(BattleCommand::Flee));
+            assert!(!f.g.in_battle(), "{}", f.name);
+            let alive = stack
+                .iter()
+                .filter(|&&u| f.g.units().unit_position(u).is_some())
+                .count();
+            let reported: u32 = events
+                .iter()
+                .filter_map(|e| match e {
+                    Event::UnitsLostFleeing { player, units } if *player == f.a => Some(*units),
+                    _ => None,
+                })
+                .sum();
+            assert_eq!(
+                alive + reported as usize,
+                n,
+                "{}: safe {safe}: {events:?}",
+                f.name
+            );
+            if safe {
+                assert_eq!(reported, 0, "{}: a safe flight lost units", f.name);
+            }
+            tried += 1;
+            lost_all += reported;
+        }
+        assert!(tried > 0);
+        assert!(
+            safe || lost_all > 0,
+            "no unit was lost in any flight over {tried} worlds"
+        );
+    }
+}
+
+#[test]
+fn an_attacker_that_wins_at_a_city_takes_it() {
+    let mut tried = 0;
+    for mut f in faceoffs() {
+        let race = {
+            let c = f.g.economy().cities_of(f.b)[0].0;
+            f.g.economy().city_race(c)
+        };
+        let at = f.g.units().unit_position(f.attacker).expect("a position");
+        let kind = f.g.units().unit_kind_id(f.attacker).expect("a kind");
+        // A city of b on a square next to the attacker, with a unit of b in it.
+        let Some(site) = around(&f.g, at).into_iter().find(|&q| {
+            f.g.units().units_at(q).is_empty()
+                && f.g.economy().city_at(q).is_none()
+                && f.g.economy().terrain_class_at(q) == Some(TerrainClass::Grassland)
+        }) else {
+            continue;
+        };
+        let city = f.g.scenario_found_city(f.b, site, "Fallen", race, 3);
+        f.g.apply(Command::CreateUnit {
+            owner: f.b,
+            pos: site,
+            unit: kind,
+        });
+        let guard = f.g.units().units_at(site)[0];
+        tried += 1;
+        let events = f.g.apply(Command::BeginBattle {
+            attackers: vec![f.attacker],
+            defenders: vec![guard],
+        });
+        assert_eq!(refusal(&events), None, "{}: {events:?}", f.name);
+        let events = wipe_out(&mut f.g, Side::Defender);
+        assert_eq!(
+            f.g.economy().city_owner(city),
+            Some(f.a),
+            "{}: {events:?}",
+            f.name
+        );
+        assert!(
+            told(
+                &events,
+                |e| matches!(e, Event::CityCaptured { from, to, .. }
+                if *from == f.b && *to == f.a)
+            ),
+            "{}: {events:?}",
+            f.name
+        );
+        assert_eq!(
+            f.g.units().unit_position(f.attacker),
+            Some(site),
+            "{}",
+            f.name
+        );
+    }
+    assert!(tried > 0, "no world had room for a city");
+}
+
+#[test]
+fn a_city_that_holds_stays_with_its_owner() {
+    let mut tried = 0;
+    for mut f in faceoffs() {
+        let race = {
+            let c = f.g.economy().cities_of(f.b)[0].0;
+            f.g.economy().city_race(c)
+        };
+        let at = f.g.units().unit_position(f.attacker).expect("a position");
+        let kind = f.g.units().unit_kind_id(f.attacker).expect("a kind");
+        let Some(site) = around(&f.g, at).into_iter().find(|&q| {
+            f.g.units().units_at(q).is_empty()
+                && f.g.economy().city_at(q).is_none()
+                && f.g.economy().terrain_class_at(q) == Some(TerrainClass::Grassland)
+        }) else {
+            continue;
+        };
+        let city = f.g.scenario_found_city(f.b, site, "Held", race, 3);
+        f.g.apply(Command::CreateUnit {
+            owner: f.b,
+            pos: site,
+            unit: kind,
+        });
+        let guard = f.g.units().units_at(site)[0];
+        tried += 1;
+        f.g.apply(Command::BeginBattle {
+            attackers: vec![f.attacker],
+            defenders: vec![guard],
+        });
+        let events = wipe_out(&mut f.g, Side::Attacker);
+        assert_eq!(
+            f.g.economy().city_owner(city),
+            Some(f.b),
+            "{}: {events:?}",
+            f.name
+        );
+        assert!(
+            !told(&events, |e| matches!(e, Event::CityCaptured { .. })),
+            "{}",
+            f.name
+        );
+    }
+    assert!(tried > 0, "no world had room for a city");
+}
+
+#[test]
+fn an_auto_resolved_battle_is_begun_and_ended_and_leaves_nothing_open() {
+    for mut f in faceoffs() {
+        let events = f.g.apply(Command::AutoResolve {
+            attackers: vec![f.attacker],
+            defenders: vec![f.defender],
+            mana_budget: None,
+        });
+        assert_eq!(refusal(&events), None, "{}: {events:?}", f.name);
+        assert!(!f.g.in_battle(), "{}", f.name);
+        assert!(
+            told(&events, |e| matches!(e, Event::BattleStarted { .. })),
+            "{}",
+            f.name
+        );
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| matches!(e, Event::BattleEnded { .. }))
+                .count(),
+            1,
+            "{}: {events:?}",
+            f.name
+        );
+    }
+}
+
+#[test]
+fn the_forecast_weighs_the_strongest_units_and_is_even_against_itself() {
+    use f4x_def::rules::forecast::Forecast;
+    for f in faceoffs() {
+        let (own, enemy) = (&[f.attacker][..], &[f.defender][..]);
+        assert!(
+            f.g.side_worth(own) > 0.0,
+            "{}: a spearman is worth nothing",
+            f.name
+        );
+        assert_eq!(f.g.side_worth(&[]), 0.0, "{}", f.name);
+        // A side of one against a side of the same kind is even.
+        assert_eq!(
+            f.g.combat_forecast(own, enemy),
+            Some(Forecast::Even),
+            "{}",
+            f.name
+        );
+        // More of the same is stronger, and the other way round weaker.
+        let two = [f.attacker, f.attacker];
+        assert!(f.g.side_worth(&two) >= f.g.side_worth(own), "{}", f.name);
+        // Nothing against nothing says nothing.
+        assert_eq!(f.g.combat_forecast(&[], &[]), None, "{}", f.name);
+        assert_eq!(
+            f.g.combat_forecast(own, &[]),
+            Some(Forecast::OtherOutmatched),
+            "{}",
+            f.name
+        );
+        assert_eq!(
+            f.g.combat_forecast(&[], enemy),
+            Some(Forecast::CompletelyOutmatched),
+            "{}",
+            f.name
+        );
+    }
+}
+
+/// The battle units of a side, by id.
+fn ids(g: &Game, side: Side) -> Vec<usize> {
+    g.battle()
+        .expect("a battle")
+        .units
+        .iter()
+        .filter(|u| u.side == side)
+        .map(|u| u.id)
+        .collect()
+}
+
+fn mana(g: &Game, p: PlayerId) -> HalfInt {
+    g.player(p).expect("a player").treasury().mana
+}
+
+/// A face-off whose attacking wizard knows Fire Bolt and Heroism and has mana to spend.
+fn casters() -> Vec<Faceoff> {
+    faceoffs()
+        .into_iter()
+        .map(|mut f| {
+            for spell in [83 /* fire_bolt */, 130 /* heroism */] {
+                let id =
+                    f.g.content()
+                        .rules
+                        .spells
+                        .id_numbered(spell)
+                        .expect("a spell");
+                assert!(f.g.cheat_learn_spell(f.a, id));
+            }
+            f.g.treasury_mut(f.a).expect("a treasury").mana = HalfInt::from_int(200);
+            start(&mut f);
+            f
+        })
+        .collect()
+}
+
+fn spell(g: &Game, number: u16) -> f4x_core::rules::SpellId {
+    g.content()
+        .rules
+        .spells
+        .id_numbered(number)
+        .expect("a spell")
+}
+
+fn cast(g: &mut Game, number: u16, aim: SpellAim, mana: u32) -> Vec<Event> {
+    let spell = spell(g, number);
+    g.apply(Command::Battle(BattleCommand::Cast { spell, aim, mana }))
+}
+
+#[test]
+fn a_battle_spell_is_paid_from_the_reserve_and_once_a_turn() {
+    for mut f in casters() {
+        let foe = ids(&f.g, Side::Defender)[0];
+        let before = mana(&f.g, f.a);
+        let events = cast(&mut f.g, 83 /* fire_bolt */, SpellAim::Unit(foe), 5);
+        assert_eq!(battle_error(&events), None, "{}: {events:?}", f.name);
+        let paid = events
+            .iter()
+            .find_map(|e| match e {
+                Event::Battle(BattleEvent::SpellCast { mana, .. }) => Some(*mana),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("{}: the cast is not told: {events:?}", f.name));
+        assert!(paid > HalfInt::ZERO, "{}: a cast was free", f.name);
+        assert_eq!(mana(&f.g, f.a), before - paid, "{}: the reserve", f.name);
+        // A second spell in the same turn is refused, and costs nothing.
+        let left = mana(&f.g, f.a);
+        let again = cast(&mut f.g, 83, SpellAim::Unit(foe), 5);
+        assert_eq!(
+            battle_error(&again),
+            Some(BattleError::Spell(SpellError::AlreadyCast)),
+            "{}: {again:?}",
+            f.name
+        );
+        assert_eq!(mana(&f.g, f.a), left, "{}", f.name);
+    }
+}
+
+#[test]
+fn a_battle_spell_on_the_wrong_target_or_not_known_is_refused_and_costs_nothing() {
+    for mut f in casters() {
+        let (mine, foe) = (ids(&f.g, Side::Attacker)[0], ids(&f.g, Side::Defender)[0]);
+        let before = (mana(&f.g, f.a), text(&f.g));
+        // Fire Bolt names an enemy unit, Heroism an own one.
+        for (number, aim) in [
+            (83, SpellAim::Unit(mine)),
+            (130, SpellAim::Unit(foe)),
+            (
+                83,
+                SpellAim::Tile(f.g.battle().expect("a battle").units[mine].cell),
+            ),
+        ] {
+            let events = cast(&mut f.g, number, aim, 5);
+            assert!(
+                matches!(battle_error(&events), Some(BattleError::Spell(_))),
+                "{}: spell {number}: {events:?}",
+                f.name
+            );
+        }
+        // A spell of the content the wizard does not know.
+        let unknown =
+            f.g.content()
+                .rules
+                .spells
+                .iter()
+                .find(|(id, d)| {
+                    d.contexts.contains(&CastContext::Battle)
+                        && !f.g.wizard(f.a).expect("a wizard").known().contains(id)
+                })
+                .map(|(_, d)| d.num)
+                .expect("a battle spell the wizard does not know");
+        let events = cast(&mut f.g, unknown, SpellAim::Unit(foe), 5);
+        assert_eq!(
+            battle_error(&events),
+            Some(BattleError::Spell(SpellError::NotKnown)),
+            "{}: {events:?}",
+            f.name
+        );
+        assert_eq!(
+            (mana(&f.g, f.a), text(&f.g)),
+            before,
+            "{}: a refused cast changed the game",
+            f.name
+        );
+        // And the wizard can still cast after all that.
+        let events = cast(&mut f.g, 83 /* fire_bolt */, SpellAim::Unit(foe), 5);
+        assert_eq!(battle_error(&events), None, "{}: {events:?}", f.name);
+    }
+}
+
+#[test]
+fn the_wizard_of_the_side_to_play_casts_and_the_other_waits() {
+    for mut f in casters() {
+        // The defender's wizard knows no spell here, but the turn is the point: it is the
+        // attacker's, and after it ends the defender's, and the attacker's cast is not allowed.
+        let mine = ids(&f.g, Side::Attacker)[0];
+        f.g.apply(Command::Battle(BattleCommand::EndTurn));
+        assert_eq!(
+            f.g.battle().expect("a battle").active,
+            Side::Defender,
+            "{}",
+            f.name
+        );
+        let before = mana(&f.g, f.a);
+        let events = cast(&mut f.g, 130, SpellAim::Unit(mine), 0);
+        assert!(
+            matches!(battle_error(&events), Some(BattleError::Spell(_))),
+            "{}: the wizard cast on the other side's turn: {events:?}",
+            f.name
+        );
+        assert_eq!(mana(&f.g, f.a), before, "{}", f.name);
+    }
 }
