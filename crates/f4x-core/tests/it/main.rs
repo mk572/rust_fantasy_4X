@@ -12,6 +12,7 @@ mod c7_turn;
 mod c8_drift;
 mod c9_battle;
 mod c9_city;
+mod c9_conquest;
 mod c9_diplomacy;
 mod c9_order;
 mod c9_player;

@@ -848,3 +848,92 @@ fn spell_blast_is_refused_when_the_caster_cannot_match_the_mana() {
         );
     }
 }
+
+#[test]
+fn a_spell_gives_way_to_the_stronger_ones_it_is_not_cumulative_with_and_not_the_other_way() {
+    let (_, base) = worlds().remove(0);
+    let snapshot = Snapshot::from_text(&text(&base)).expect("reads");
+    let wizards: Vec<PlayerId> = base
+        .player_ids()
+        .into_iter()
+        .filter(|&p| !base.is_neutral_player(p) && base.wizard(p).is_some())
+        .collect();
+    let (p, other) = (wizards[0], wizards[1]);
+    let unit_target = |t: SpellTarget| {
+        matches!(
+            t,
+            SpellTarget::OwnUnit | SpellTarget::AnyUnit | SpellTarget::EnemyUnit
+        )
+    };
+    let mut pairs = Vec::new();
+    for def in base.content().rules.spells.defs() {
+        if !def.contexts.contains(&CastContext::Overland) || !unit_target(def.target) {
+            continue;
+        }
+        for &with in &def.not_with {
+            pairs.push((SpellId::new(def.num), with));
+        }
+    }
+    let (mut refused, mut free) = (0, 0);
+    for (newer, held) in pairs {
+        let (new_def, held_def) = (
+            base.content().rules.spells.get(newer).clone(),
+            base.content().rules.spells.get(held).clone(),
+        );
+        let kind = if new_def.target == SpellTarget::EnemyUnit {
+            Kind::EnemyUnit
+        } else {
+            Kind::OwnUnit
+        };
+        let mut g = snapshot.clone().restore(content()).expect("restores");
+        let Some(target) = target_of(&g, p, other, kind) else {
+            continue;
+        };
+        let Target::Unit(unit) = target else { continue };
+        g.cheat_learn_spell(p, newer);
+        g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+        // What it must give way to: on the unit, or among the caster's global enchantments.
+        if unit_target(held_def.target) {
+            g.scenario_enchant_unit(unit, held, p);
+        } else if held_def.target == SpellTarget::None {
+            g.scenario_add_global(p, held);
+        } else {
+            continue;
+        }
+        g.scenario_casting(p, newer, 0);
+        let events = g.apply(Command::ResolveCast { player: p, target });
+        match refusal(&events) {
+            Some(Rejection::Magic(MagicError::NotCumulative)) => refused += 1,
+            // The unit may not be the kind the spell takes at all: the matrix's business.
+            Some(Rejection::Magic(MagicError::Target(_))) => {}
+            other => panic!(
+                "{} over {}: not refused for being not cumulative: {other:?}",
+                new_def.id, held_def.id
+            ),
+        }
+        // The other way round: the stronger spell goes on over the weaker one, unless it too names it.
+        if unit_target(held_def.target) && !held_def.not_with.contains(&newer) {
+            let mut g = snapshot.clone().restore(content()).expect("restores");
+            let Some(Target::Unit(unit)) = target_of(&g, p, other, kind) else {
+                continue;
+            };
+            g.cheat_learn_spell(p, held);
+            g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+            g.scenario_enchant_unit(unit, newer, p);
+            g.scenario_casting(p, held, 0);
+            let events = g.apply(Command::ResolveCast {
+                player: p,
+                target: Target::Unit(unit),
+            });
+            assert_ne!(
+                refusal(&events),
+                Some(Rejection::Magic(MagicError::NotCumulative)),
+                "{} over {}: refused both ways",
+                held_def.id,
+                new_def.id
+            );
+            free += 1;
+        }
+    }
+    assert!(refused > 0 && free > 0, "{refused} refused, {free} free");
+}

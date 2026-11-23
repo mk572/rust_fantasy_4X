@@ -342,6 +342,15 @@ impl Game {
         self.begin_casting_with(player, spell, owed, extra);
     }
 
+    /// Give a wizard this casting skill (the points that make it, none left over), as a scenario
+    /// sets it up.
+    pub fn scenario_set_casting_skill(&mut self, player: PlayerId, skill: i32) {
+        if let Some(mut w) = self.wizard_mut(player) {
+            w.get_mut::<crate::wizard::sheet::Skill>().points =
+                crate::wizard::magic::skill_points_for(skill, 0);
+        }
+    }
+
     /// Make fleeing from a battle safe or risky for everyone (the `safe_flee` setting).
     pub fn scenario_set_safe_flee(&mut self, safe: bool) {
         self.settings.rules.safe_flee = crate::game::setting::Split::both(safe);
