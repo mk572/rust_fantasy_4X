@@ -689,3 +689,96 @@ fn crafting_without_the_spell_is_refused_and_changes_nothing() {
         assert_eq!(crate::support::text(&g), before, "{name}");
     }
 }
+
+#[test]
+fn an_item_that_keeps_a_hero_afloat_cannot_be_taken_away_over_the_sea() {
+    use f4x_core::map::terrain::TerrainClass;
+    let mut tried = 0;
+    for (name, mut g) in worlds() {
+        let p = g.wizards()[0];
+        let rules = g.content().rules.clone();
+        // Items that let their bearer cross the sea (flying, water walking, wind walking).
+        let floating: Vec<Item> = items(&g)
+            .into_iter()
+            .filter(|i| {
+                i.granted_spells(&rules).iter().any(|s| {
+                    [
+                        8,  /* water_walking */
+                        56, /* flight */
+                        63, /* wind_walking */
+                    ]
+                    .contains(&s.num())
+                })
+            })
+            .collect();
+        let fortress = g
+            .wizard(p)
+            .expect("a wizard")
+            .fortress()
+            .expect("a fortress");
+        let sea = (1..4)
+            .flat_map(|r| (-r..=r).flat_map(move |dx| (-r..=r).map(move |dy| (dx, dy))))
+            .filter_map(|(dx, dy)| {
+                let (x, y) = (fortress.x as i32 + dx, fortress.y as i32 + dy);
+                (x >= 0 && y >= 0).then_some(Position {
+                    x: x as u32,
+                    y: y as u32,
+                    ..fortress
+                })
+            })
+            .find(|&q| g.economy().terrain_class_at(q) == Some(TerrainClass::Ocean));
+        let Some(sea) = sea else {
+            continue;
+        };
+        // A hero kind with a slot for one of them, and the item.
+        let pick = (0..rules.hero_templates.len()).find_map(|k| {
+            let entity = g.units().hero_entity(k)?;
+            let template = rules.hero_templates.get(k)?;
+            let slots = rules
+                .units
+                .try_get(template.unit)?
+                .hero
+                .as_ref()?
+                .kind
+                .slots();
+            let free = g.units().hero_state(entity) == Some(f4x_core::hero::HeroState::Free);
+            floating
+                .iter()
+                .find_map(|i| (0..3).find(|&s| slots[s].fits(i.kind)).map(|s| (i, s)))
+                .filter(|_| free)
+                .map(|(i, s)| (k, i.clone(), s))
+        });
+        let Some((kind, float, slot)) = pick else {
+            continue;
+        };
+        let Ok(hero) = g.spawn_hero(p, sea, kind) else {
+            continue;
+        };
+        g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(10_000);
+        let Placed::Vault(at) = g.give_item(p, float.clone()) else {
+            continue;
+        };
+        let to = ItemSpot::Hero(hero, slot);
+        assert_eq!(
+            item_error(&move_item(&mut g, p, ItemSpot::Vault(at), to, true)),
+            None,
+            "{name}"
+        );
+        tried += 1;
+        let before = crate::support::text(&g);
+        assert_eq!(
+            item_error(&move_item(&mut g, p, to, ItemSpot::Vault(at), true)),
+            Some(ItemError::WouldDrown),
+            "{name}: the hero would drown"
+        );
+        assert_eq!(
+            crate::support::text(&g),
+            before,
+            "{name}: a refusal changed the game"
+        );
+    }
+    assert!(
+        tried > 0,
+        "no world had a hero at sea with an item that floats"
+    );
+}

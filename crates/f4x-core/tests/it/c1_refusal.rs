@@ -14,9 +14,28 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
     let mut tried = 0;
     let mut refused = 0;
     let mut recorded = 0;
+    // The item commands: (refused, accepted).
+    let mut item = (0usize, 0usize);
     for (name, mut g) in worlds().into_iter().step_by(every) {
         for _ in 0..warm {
             crate::support::busy_round(&mut g, 6);
+        }
+        // Something in the vaults, so that the item commands are refused for what they ask and not
+        // for an empty place.
+        let items: Vec<_> = g
+            .content()
+            .rules
+            .items
+            .defs()
+            .iter()
+            .step_by(37)
+            .take(3)
+            .map(f4x_core::item::Item::from_def)
+            .collect();
+        for p in g.wizards() {
+            for item in &items {
+                g.give_item(p, item.clone());
+            }
         }
         // Recording and undo are on, so that a refused command is also checked for what it leaves
         // there: nothing in the replay, nothing to undo.
@@ -36,7 +55,18 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
                 std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.apply(command)))
                     .unwrap_or_else(|_| panic!("{name}: {label} panicked"));
             tried += 1;
-            if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
+            let rejected = events.iter().any(|e| matches!(e, Event::Rejected(_)));
+            if ["MoveItem", "ScrapItem", "SellItem", "CraftItem"]
+                .iter()
+                .any(|n| label.starts_with(n))
+            {
+                if rejected {
+                    item.0 += 1;
+                } else {
+                    item.1 += 1;
+                }
+            }
+            if rejected {
                 refused += 1;
                 assert_eq!(
                     text(&g),
@@ -61,6 +91,12 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
             }
         }
     }
+    assert!(
+        item.0 > 0 && item.1 > 0,
+        "the item commands were refused {} times and accepted {} times: the sweep needs both",
+        item.0,
+        item.1
+    );
     assert!(
         recorded > 300,
         "the recording was checked only {recorded} times in {tried}"
@@ -106,10 +142,6 @@ const NOT_TRIED: &[(&str, &str)] = &[
         "wraps another command: the sweep needs the confirmation cases",
     ),
     ("Battle", "needs a battle going: its own sweep"),
-    ("MoveItem", "needs items in the vault and on heroes"),
-    ("CraftItem", "needs a craft and a design"),
-    ("ScrapItem", "needs items in the vault"),
-    ("SellItem", "needs items in the vault"),
 ];
 
 /// The variants of `Command`, read from its source.

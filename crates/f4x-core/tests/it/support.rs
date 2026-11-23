@@ -2,6 +2,9 @@
 
 use f4x_core::game::testutil::fresh;
 use f4x_core::game::Game;
+use f4x_core::item::armory::{ItemSpot, Spot};
+use f4x_core::item::crafting::{Craft, ItemDesign};
+use f4x_def::rules::ItemKind;
 
 /// The saved fresh games: (computer wizards, seed). The files are `tests/saves/fresh_w*_s*.save`.
 pub const WORLDS: [(u8, u64); 4] = [(2, 7), (3, 3), (3, 7), (3, 11)];
@@ -245,6 +248,81 @@ pub fn commands(g: &Game) -> Vec<Command> {
         }
         for &c in &cities {
             out.push(Command::RazeCity { player: p, city: c });
+        }
+        // The item screen: the vault, the award list and the slots of a unit (none is a hero, or
+        // all are the wrong ones), a slot that is not there.
+        let mut spots = vec![
+            ItemSpot::Vault(0),
+            ItemSpot::Vault(1),
+            ItemSpot::Vault(40),
+            ItemSpot::Award(0),
+        ];
+        for &u in units.iter().take(2) {
+            for slot in [0, 2, 3] {
+                spots.push(ItemSpot::Hero(u, slot));
+            }
+        }
+        for &from in &spots {
+            for &to in &spots {
+                for pay in [false, true] {
+                    out.push(Command::MoveItem {
+                        player: p,
+                        from,
+                        to,
+                        pay,
+                    });
+                }
+            }
+        }
+        for from in [
+            Spot::Vault(0),
+            Spot::Vault(1),
+            Spot::Vault(40),
+            Spot::Award(0),
+        ] {
+            out.push(Command::ScrapItem { player: p, from });
+            out.push(Command::SellItem { player: p, from });
+        }
+        // Designs: none, the first power of each kind of item, one of a power that is not there,
+        // the same power twice, charges of a spell the wizard does not know.
+        let first_power = rules.item_powers.iter().next().map(|(id, _)| id);
+        for craft in [Craft::EnchantItem, Craft::CreateArtifact] {
+            for kind in [
+                ItemKind::Sword,
+                ItemKind::Misc,
+                ItemKind::Staff,
+                ItemKind::Shield,
+            ] {
+                let design = |powers: Vec<_>, charges| ItemDesign {
+                    name: String::new(),
+                    kind,
+                    icon: 0,
+                    powers,
+                    charges,
+                };
+                out.push(Command::CraftItem {
+                    player: p,
+                    craft,
+                    design: design(Vec::new(), None),
+                });
+                if let Some(power) = first_power {
+                    out.push(Command::CraftItem {
+                        player: p,
+                        craft,
+                        design: design(vec![power], None),
+                    });
+                    out.push(Command::CraftItem {
+                        player: p,
+                        craft,
+                        design: design(vec![power, power], None),
+                    });
+                    out.push(Command::CraftItem {
+                        player: p,
+                        craft,
+                        design: design(vec![power], spells.first().map(|&s| (s, 9))),
+                    });
+                }
+            }
         }
     }
     for &s in &spells {
