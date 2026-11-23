@@ -331,6 +331,10 @@ pub struct Ai {
     /// When each plan began, for the time limit on all of them (`plan_clock.rs`).
     #[serde(default)]
     clock: plan_clock::PlanClock,
+    /// The turns the wizard had a situation for a kind of spell and knew none of the kind, by
+    /// the kind's name (`wizardry::note_unmet`), for the soak.
+    #[serde(skip)]
+    unmet_spells: RefCell<std::collections::BTreeMap<&'static str, u32>>,
     /// Players who fight their own defence (a human): an attack on them is kept for
     /// [`Ai::take_attacks`] instead of being resolved.
     #[serde(skip)]
@@ -510,6 +514,7 @@ impl Ai {
             retrying: std::cell::Cell::new(false),
             roles: roles::Registry::default(),
             clock: plan_clock::PlanClock::default(),
+            unmet_spells: RefCell::default(),
             defended_by: Vec::new(),
             attacks: Vec::new(),
         }
@@ -524,6 +529,21 @@ impl Ai {
     /// The attacks this turn on players who defend in person, oldest first.
     pub fn take_attacks(&mut self) -> Vec<Attack> {
         std::mem::take(&mut self.attacks)
+    }
+
+    /// Count a turn on which a situation called for a kind of spell the wizard does not know.
+    pub(crate) fn note_unmet_spell(&self, kind: &'static str) {
+        *self.unmet_spells.borrow_mut().entry(kind).or_default() += 1;
+    }
+
+    /// The turns the wizard had a situation for a kind of spell and knew none of the kind, by the
+    /// kind (see `wizardry::SITUATION_KINDS`).
+    pub fn unmet_spell_wants(&self) -> Vec<(&'static str, u32)> {
+        self.unmet_spells
+            .borrow()
+            .iter()
+            .map(|(k, n)| (*k, *n))
+            .collect()
     }
 
     /// Keep every command the game refuses, for [`Ai::take_refusals`].

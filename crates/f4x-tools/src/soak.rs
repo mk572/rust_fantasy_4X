@@ -22,7 +22,9 @@ use f4x_newgame::setup::{new_game, NewGame};
 use serde::{Deserialize, Serialize};
 
 use crate::contestant::{self, Contestant, Version};
-use crate::metrics::{casts_line, Metrics, Standing, Tally};
+use crate::metrics::{
+    casts_line, failure_lines, spell_table, unmet_line, Metrics, Standing, Tally,
+};
 use crate::report::{self, Played};
 
 pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE | --no-refused-log] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off]";
@@ -594,6 +596,7 @@ pub fn game(
                 .chain(neutrals.take_refusals());
             {
                 for r in all {
+                    tally.note_refused_cast(&game, &r.command, &r.reason);
                     let stood = stood.count(&r);
                     writeln!(out, "{}", refused_line(seed, &r, stood))
                         .map_err(|e| e.to_string())?;
@@ -846,6 +849,14 @@ pub fn game(
         })
         .collect();
     logln!(log, "settlers that failed: {}", failed.join("; "));
+    for ai in &ais {
+        tally.note_unmet(&ai.unmet_spell_wants());
+    }
+    logln!(
+        log,
+        "wanted a spell it did not know (kind of spell, turns): {}",
+        unmet_line(tally.unmet_wants())
+    );
     tally.note_known(&game);
     logln!(log, "mana {}", mana_line(&game, &tally));
     for line in neutral_lines(&game, &tally) {
@@ -865,6 +876,16 @@ pub fn game(
         )
     );
     logln!(log, "spells known (wizards): {}", casts_line(tally.known()));
+    logln!(
+        log,
+        "spell table (wizards that could research, learned, knew, cast; casts; per knower):\n{}",
+        spell_table(&game.content().rules, tally.spell_rows())
+    );
+    logln!(
+        log,
+        "failed casts (spell, count: reason):\n{}",
+        failure_lines(tally.cast_failures())
+    );
     if opts.events {
         logln!(log, "{}", watch.summary(game.turn.saturating_sub(1)));
     }

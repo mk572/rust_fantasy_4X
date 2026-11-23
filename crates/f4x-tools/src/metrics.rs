@@ -337,6 +337,158 @@ impl Metrics {
     }
 }
 
+/// What the wizards of one or more games did with one spell (see [`Tally::spell_rows`]); each count
+/// is in wizards, one per wizard and game, except `casts`, which is every cast.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellRow {
+    /// Wizards whose books let them research it (it was open to research, or they learned it).
+    pub could: u32,
+    /// Wizards that got it by research, trade or gift (not a starting spell).
+    pub learned: u32,
+    /// Wizards that knew it at the end, a starting spell too.
+    pub knew: u32,
+    /// Wizards that cast it, on the map or in a battle.
+    pub casters: u32,
+    /// Casts by wizards, on the map and in battles (a unit's own spell is not one).
+    pub casts: u32,
+}
+
+impl SpellRow {
+    /// Casts per wizard that knew the spell (and per game: a wizard is counted once a game).
+    pub fn casts_per_knower(&self) -> f64 {
+        if self.knew == 0 {
+            0.0
+        } else {
+            f64::from(self.casts) / f64::from(self.knew)
+        }
+    }
+}
+
+/// The spell rows of several games added up.
+pub fn add_spell_rows<'a>(
+    rows: impl IntoIterator<Item = &'a BTreeMap<String, SpellRow>>,
+) -> BTreeMap<String, SpellRow> {
+    let mut sum: BTreeMap<String, SpellRow> = BTreeMap::new();
+    for one in rows {
+        for (spell, r) in one {
+            let t = sum.entry(spell.clone()).or_default();
+            t.could += r.could;
+            t.learned += r.learned;
+            t.knew += r.knew;
+            t.casters += r.casters;
+            t.casts += r.casts;
+        }
+    }
+    sum
+}
+
+/// A table with a row for each spell of the rules: wizards that could research it, learned it,
+/// knew it at the end, cast it, and the casts per wizard that knew it.
+pub fn spell_table(rules: &Rules, rows: &BTreeMap<String, SpellRow>) -> String {
+    let mut out = format!(
+        "{:<28} {:>6} {:>8} {:>6} {:>7} {:>7} {:>9}\n",
+        "spell", "could", "learned", "knew", "cast", "casts", "per knower"
+    );
+    for (_, def) in rules.spells.iter() {
+        let r = rows.get(&def.id).copied().unwrap_or_default();
+        out.push_str(&format!(
+            "{:<28} {:>6} {:>8} {:>6} {:>7} {:>7} {:>9.2}\n",
+            def.id,
+            r.could,
+            r.learned,
+            r.knew,
+            r.casters,
+            r.casts,
+            r.casts_per_knower()
+        ));
+    }
+    out
+}
+
+/// The tries to cast a spell that came to nothing, by the spell's id and then by what stopped it
+/// (see [`Tally::cast_failures`]).
+pub type CastFailures = BTreeMap<String, BTreeMap<String, u32>>;
+
+/// The failures of several games added up.
+pub fn add_failures<'a>(all: impl IntoIterator<Item = &'a CastFailures>) -> CastFailures {
+    let mut sum = CastFailures::new();
+    for one in all {
+        for (spell, reasons) in one {
+            for (why, n) in reasons {
+                *sum.entry(spell.clone())
+                    .or_default()
+                    .entry(why.clone())
+                    .or_default() += n;
+            }
+        }
+    }
+    sum
+}
+
+/// One line per spell that failed, the most failures first: `spell total: reason n, reason n`,
+/// then one line per reason over all spells.
+pub fn failure_lines(failures: &CastFailures) -> String {
+    let mut spells: Vec<(&String, u32, &BTreeMap<String, u32>)> = failures
+        .iter()
+        .map(|(s, r)| (s, r.values().sum(), r))
+        .collect();
+    spells.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+    let mut out = String::new();
+    let mut by_reason: BTreeMap<&String, u32> = BTreeMap::new();
+    for (spell, total, reasons) in spells {
+        let mut why: Vec<_> = reasons.iter().collect();
+        why.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+        out.push_str(&format!(
+            "  {spell} {total}: {}\n",
+            why.iter()
+                .map(|(w, n)| format!("{w} {n}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+        for (w, n) in reasons {
+            *by_reason.entry(w).or_default() += n;
+        }
+    }
+    let mut all: Vec<_> = by_reason.into_iter().collect();
+    all.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+    out.push_str("  by reason: ");
+    out.push_str(
+        &all.iter()
+            .map(|(w, n)| format!("{w} {n}"))
+            .collect::<Vec<_>>()
+            .join(", "),
+    );
+    out.push('\n');
+    out
+}
+
+/// The turns wizards had a situation for a kind of spell and knew none of the kind, and how many
+/// wizards (a wizard counts once a game), by the kind's name (`Ai::unmet_spell_wants`).
+pub type UnmetWants = BTreeMap<String, (u32, u32)>;
+
+/// The wants of several games added up.
+pub fn add_unmet<'a>(all: impl IntoIterator<Item = &'a UnmetWants>) -> UnmetWants {
+    let mut sum = UnmetWants::new();
+    for one in all {
+        for (kind, (turns, wizards)) in one {
+            let t = sum.entry(kind.clone()).or_default();
+            t.0 += turns;
+            t.1 += wizards;
+        }
+    }
+    sum
+}
+
+/// One line per kind, the most turns first: `kind: turns (wizards)`.
+pub fn unmet_line(unmet: &UnmetWants) -> String {
+    let mut all: Vec<_> = unmet.iter().collect();
+    all.sort_by(|a, b| b.1 .0.cmp(&a.1 .0).then(a.0.cmp(b.0)));
+    all.iter()
+        .map(|(k, (turns, wizards))| format!("{k} {turns} turns ({wizards} wizards)"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// The casts of several games added up: `casts` is each tally's [`Tally::casts`].
 pub fn add_casts<'a>(
     casts: impl IntoIterator<Item = &'a BTreeMap<String, u32>>,
@@ -615,6 +767,22 @@ pub struct Tally {
     /// How many wizards know each spell at the end of the game, by the spell's id.
     #[serde(default)]
     known: BTreeMap<String, u32>,
+    /// What each spell's wizards did with it, by the spell's id (see [`Tally::note_known`]).
+    #[serde(default)]
+    spell_rows: BTreeMap<String, SpellRow>,
+    /// The tries to cast a spell that came to nothing, by the spell's id and then by what stopped
+    /// it, with where it happened (`map` or `battle`): a command the game refused (not enough
+    /// mana, no target, banished), a spell that failed or fizzled when it came to its target, a
+    /// battle spell countered, a map spell suppressed.
+    #[serde(default)]
+    cast_failures: CastFailures,
+    /// The situations that called for a kind of spell the wizard did not know (see [`UnmetWants`]).
+    #[serde(default)]
+    unmet_wants: UnmetWants,
+    /// The casts of one game by wizard (player number) and spell id; folded into `spell_rows` by
+    /// `note_known`.
+    #[serde(skip)]
+    cast_by: BTreeMap<(u8, String), u32>,
     /// Per wizard (by player number): the mana spent over the game (net of what Alchemy added),
     /// and the pool after the last round.
     #[serde(default)]
@@ -689,6 +857,10 @@ impl Tally {
             landed_on: vec![BTreeSet::new(); count + 1],
             casts: BTreeMap::new(),
             battle_casts: BTreeMap::new(),
+            spell_rows: BTreeMap::new(),
+            cast_by: BTreeMap::new(),
+            cast_failures: CastFailures::new(),
+            unmet_wants: UnmetWants::new(),
             battle_mana: BTreeMap::new(),
             known: BTreeMap::new(),
             mana_spent: vec![0; count + 1],
@@ -948,13 +1120,101 @@ impl Tally {
     pub fn note_known(&mut self, game: &Game) {
         for p in game.player_ids() {
             let Some(w) = game.wizard(p) else { continue };
-            for spell in w.known() {
-                *self
-                    .known
-                    .entry(game.content().rules.spells.get(spell).id.clone())
-                    .or_default() += 1;
+            let known = w.known();
+            let starting = w.starting_spells();
+            let open = w.researchable();
+            for &spell in known.iter().chain(open.iter()) {
+                let id = game.content().rules.spells.get(spell).id.clone();
+                let knew = known.contains(&spell);
+                if knew {
+                    *self.known.entry(id.clone()).or_default() += 1;
+                }
+                let r = self.spell_rows.entry(id.clone()).or_default();
+                if knew {
+                    r.knew += 1;
+                }
+                if !starting.contains(&spell) {
+                    r.could += 1;
+                    if knew {
+                        r.learned += 1;
+                    }
+                }
+            }
+            for ((who, id), n) in &self.cast_by {
+                if *who == p.0 {
+                    let r = self.spell_rows.entry(id.clone()).or_default();
+                    r.casters += 1;
+                    r.casts += n;
+                }
             }
         }
+    }
+
+    /// What the wizards did with each spell, by the spell's id (filled by [`Tally::note_known`]).
+    pub fn spell_rows(&self) -> &BTreeMap<String, SpellRow> {
+        &self.spell_rows
+    }
+
+    /// Add the count of a wizard whose AI saw situations for a spell it did not know, by the
+    /// kind of spell and the turns.
+    pub fn note_unmet(&mut self, wants: &[(&'static str, u32)]) {
+        for &(kind, turns) in wants.iter().filter(|(_, n)| *n > 0) {
+            let t = self.unmet_wants.entry(kind.to_string()).or_default();
+            t.0 += turns;
+            t.1 += 1;
+        }
+    }
+
+    /// The situations that called for a kind of spell the wizard did not know.
+    pub fn unmet_wants(&self) -> &UnmetWants {
+        &self.unmet_wants
+    }
+
+    /// The tries to cast a spell that came to nothing, by the spell and the reason.
+    pub fn cast_failures(&self) -> &CastFailures {
+        &self.cast_failures
+    }
+
+    fn fail(&mut self, game: &Game, spell: f4x_def::rules::SpellId, context: &str, why: String) {
+        let id = game.content().rules.spells.get(spell).id.clone();
+        *self
+            .cast_failures
+            .entry(id)
+            .or_default()
+            .entry(format!("{context}: {why}"))
+            .or_default() += 1;
+    }
+
+    /// Count a command the AI sent and the game refused, when it was a try to cast a spell: the
+    /// refused-order log's `command` and `reason` texts (the command's debug text names the spell
+    /// by its number, `spell: Id(93)`; a `ResolveCast` names none).
+    pub fn note_refused_cast(&mut self, game: &Game, command: &str, reason: &str) {
+        let context = if command.starts_with("CastSpell") || command.starts_with("ResolveCast") {
+            "map"
+        } else if command.starts_with("Battle(Cast") || command.starts_with("Battle(UnitCast") {
+            "battle"
+        } else {
+            return;
+        };
+        let name = command
+            .split("spell: ")
+            .nth(1)
+            .and_then(|rest| rest.split([',', ' ']).next())
+            .and_then(|key| {
+                game.content()
+                    .rules
+                    .spells
+                    .iter()
+                    .find(|(id, _)| format!("{id:?}") == key)
+                    .map(|(_, d)| d.id.clone())
+            })
+            .unwrap_or_else(|| "(resolving a cast)".into());
+        *self
+            .cast_failures
+            .entry(name)
+            .or_default()
+            .entry(format!("{context}: refused, {reason}"))
+            .or_default() += 1;
     }
 
     /// How often each spell was cast in a battle, by the spell's id; a spell never cast is not in it.
@@ -1221,14 +1481,22 @@ impl Tally {
                     }
                 }
                 Event::SpellCast { player, spell } => {
-                    *self
-                        .casts
-                        .entry(game.content().rules.spells.get(*spell).id.clone())
-                        .or_default() += 1;
+                    let id = game.content().rules.spells.get(*spell).id.clone();
+                    *self.cast_by.entry((player.0, id.clone())).or_default() += 1;
+                    *self.casts.entry(id).or_default() += 1;
                     self.bump(*player, |m| m.spells_cast += 1)
                 }
-                Event::Battle(BattleEvent::SpellCast { spell, mana, .. }) => {
+                Event::Battle(BattleEvent::SpellCast {
+                    side, spell, mana, ..
+                }) => {
                     let id = game.content().rules.spells.get(*spell).id.clone();
+                    if let Some((attacker, defender, _)) = &self.open_battle {
+                        let caster = match side {
+                            f4x_battle::side::Side::Attacker => attacker,
+                            f4x_battle::side::Side::Defender => defender,
+                        };
+                        *self.cast_by.entry((caster.0, id.clone())).or_default() += 1;
+                    }
                     *self.battle_mana.entry(id.clone()).or_default() += mana.floor() as i64;
                     *self.battle_casts.entry(id).or_default() += 1;
                 }
@@ -1237,6 +1505,25 @@ impl Tally {
                         .battle_casts
                         .entry(game.content().rules.spells.get(*spell).id.clone())
                         .or_default() += 1;
+                }
+                Event::SpellFailed { spell, reason, .. } => self.fail(
+                    game,
+                    *spell,
+                    "map",
+                    format!("failed at its target, {reason:?}"),
+                ),
+                Event::SpellFizzled { spell, .. } => {
+                    self.fail(game, *spell, "map", "fizzled, the city's nightshade".into())
+                }
+                Event::NoTargetForCast { spell, .. } => {
+                    self.fail(game, *spell, "map", "nothing to aim at".into())
+                }
+                Event::SpellSuppressed { spell, counter, .. } => {
+                    let by = game.content().rules.spells.get(*counter).id.clone();
+                    self.fail(game, *spell, "map", format!("suppressed by {by}"))
+                }
+                Event::Battle(BattleEvent::SpellCountered { spell, .. }) => {
+                    self.fail(game, *spell, "battle", "countered by the enemy".into())
                 }
                 Event::SpellLearned { player, .. } => self.bump(*player, |m| m.spells_learned += 1),
                 Event::HeroJoined { player, .. } => self.bump(*player, |m| m.heroes_joined += 1),
@@ -1341,8 +1628,11 @@ impl Tally {
                         self.bump(k, |m| m.wizards_eliminated += 1);
                     }
                 }
-                Event::OrderFailed { player, .. } => {
+                Event::OrderFailed { player, why, .. } => {
                     self.bump(*player, |m| m.refused_orders += 1);
+                    if matches!(why, f4x_core::unit::movement::MoveError::Treaty) {
+                        self.bump(*player, |m| m.treaty_refusals += 1);
+                    }
                 }
                 Event::Rejected(why) => {
                     if let Some(p) = source {
@@ -1943,6 +2233,41 @@ mod tests {
             !missing.iter().any(|s| s == "magic_vortex"),
             "a battle-only spell is not a map spell"
         );
+    }
+
+    /// A refused cast and the failures that come as events are counted by spell and reason; a
+    /// command that is no cast is not counted.
+    #[test]
+    fn failed_casts_are_counted_by_spell_and_reason() -> TestResult {
+        let rules = &shipped().rules;
+        let (id, def) = rules.spells.iter().next().ok_or("no spells")?;
+        let game = new_game(
+            shipped(),
+            &NewGame {
+                seed: 4,
+                all_ai: true,
+                ..NewGame::with_wizards(2)
+            },
+        )?;
+        let mut tally = Tally::new(&game);
+        let command =
+            format!("CastSpell {{ player: PlayerId(1), spell: {id:?}, target: None, extra: 0 }}");
+        tally.note_refused_cast(&game, &command, "Magic(NotEnoughMana)");
+        tally.note_refused_cast(&game, &command, "Magic(NotEnoughMana)");
+        tally.note_refused_cast(&game, "GoTo { units: [] }", "Move(Treaty)");
+        tally.record(
+            &game,
+            None,
+            &[Event::NoTargetForCast {
+                player: PlayerId(1),
+                spell: id,
+            }],
+        );
+        let row = &tally.cast_failures()[&def.id];
+        assert_eq!(row["map: refused, Magic(NotEnoughMana)"], 2);
+        assert_eq!(row["map: nothing to aim at"], 1);
+        assert_eq!(tally.cast_failures().len(), 1, "a move is not a cast");
+        Ok(())
     }
 
     /// A wizard's and a unit's casts in a battle are counted by the spell, apart from the map's

@@ -16,7 +16,8 @@ use f4x_def::content::Content;
 
 use crate::contestant::Version;
 use crate::metrics::{
-    add_casts, casts_line, known_never_cast, never_cast, never_cast_in, Metrics, Standing,
+    add_casts, add_failures, add_spell_rows, add_unmet, casts_line, failure_lines,
+    known_never_cast, never_cast, never_cast_in, spell_table, unmet_line, Metrics, Standing,
 };
 use crate::soak::{GameResult, Options};
 
@@ -289,6 +290,19 @@ fn print_casts_of(content: &Content, played: &[&Played], who: &str) {
         )
     );
     println!("{who}, spells known (wizards): {}", casts_line(&known));
+    let rows = add_spell_rows(played.iter().map(|g| g.result.tally.spell_rows()));
+    println!(
+        "{who}, wizards per spell (could research, learned, knew, cast it; casts, per knower):"
+    );
+    print!("{}", spell_table(&content.rules, &rows));
+    let failed = add_failures(played.iter().map(|g| g.result.tally.cast_failures()));
+    println!("{who}, failed casts (spell, count: reason):");
+    print!("{}", failure_lines(&failed));
+    let unmet = add_unmet(played.iter().map(|g| g.result.tally.unmet_wants()));
+    println!(
+        "{who}, wanted a spell it did not know (kind of spell): {}",
+        unmet_line(&unmet)
+    );
     let mana: std::collections::BTreeMap<String, u32> = played
         .iter()
         .flat_map(|g| g.result.tally.battle_mana().iter())

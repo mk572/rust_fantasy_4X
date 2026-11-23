@@ -40,6 +40,11 @@ pub trait Contestant {
     fn diplomacy_note(&self, _game: &Game) -> String {
         String::new()
     }
+    /// The turns a situation called for a kind of spell the wizard did not know, by the kind; none
+    /// for a version without the count.
+    fn unmet_spell_wants(&self) -> Vec<(&'static str, u32)> {
+        Vec::new()
+    }
     /// The plans the AI's time limit has dropped, by kind (task 515); none for a version without it.
     fn plans_dropped(&self) -> Vec<(&'static str, u32)> {
         Vec::new()
@@ -64,7 +69,7 @@ pub trait Contestant {
 }
 
 macro_rules! contestant {
-    ($krate:ident $(, memory $memory:ident)? $(, plans $plans:ident)? $(, dropped $dropped:ident)? $(, settlers $settlers:ident)?) => {
+    ($krate:ident $(, memory $memory:ident)? $(, plans $plans:ident)? $(, dropped $dropped:ident)? $(, settlers $settlers:ident)? $(, unmet $unmet:ident)?) => {
         impl Contestant for $krate::Ai {
             fn player(&self) -> PlayerId {
                 self.player
@@ -110,6 +115,11 @@ macro_rules! contestant {
                 }
             )?
             $(
+                fn unmet_spell_wants(&self) -> Vec<(&'static str, u32)> {
+                    self.$unmet()
+                }
+            )?
+            $(
                 fn settler_failures(&self) -> Vec<(&'static str, u32)> {
                     self.$settlers()
                 }
@@ -137,7 +147,7 @@ macro_rules! contestant {
     };
 }
 
-contestant!(f4x_ai, memory join, plans to_text, dropped plans_dropped, settlers settler_failures);
+contestant!(f4x_ai, memory join, plans to_text, dropped plans_dropped, settlers settler_failures, unmet unmet_spell_wants);
 #[cfg(feature = "reference")]
 contestant!(f4x_ai_ref, plans to_text);
 

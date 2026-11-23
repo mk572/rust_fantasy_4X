@@ -130,6 +130,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 778 | High | Testing | The rest of the `f4x-core` test rebuild: class 9 of the remaining subsystems (battle, turn, spell, item, feature, map, world event, threat, hero, rules, path grid, hook, game), class 6 leftovers, the old-to-new table, the sweep gaps (`docs/f4x-core-test-design.md`) |
 | 781 | Medium | Client | Show the AI's fear and strategic regard besides its friendliness: "Scared", "Pitying", "Plotting", "Cooperative" *Needs:* 784 |
 | 785 | Medium | Spell | Diplomacy review for spells: find spells that should cause a diplomatic reaction and do not; allow beneficial spells on another wizard's cities and units (Gaia's Blessing on an allied city) to improve relations *Needs:* 782 |
+| 820 | Medium | AI | Review the overnight spell table and analyze spells with few or no casts |
 | 787 | Low | Content | Rules changes and new items from the community patch and the Caster of Magic expansion |
 | 788 | Low | Platform | Modding support |
 | 789 | Low | Client | Upscaled graphics |
@@ -867,3 +868,26 @@ replayed without the command line:
 Related: task 148 (the seed display), the new-game flow (`newgame_flow.rs`), `docs/game-settings.md`.
 
 **819. Find the use of the unreferenced art files.** (Moved here from the task list, formerly task 147: not needed for functional parity.) ReMoM's loader has no reference to four LBX files that `f4x-extract art` extracts fine: `combat`, `desert`, `tundra` and `cmbtwall`. `docs/extract-art.md` lists them as unknown rather than guessing. Find out what they are for: look at the pictures (frame counts, sizes, which terrain or battle element they resemble), search the original's disassembly and the other reverse-engineering sources in `reference/` for their names or for the loader slots they would occupy, and compare with the battlefield terrain and wall code (`cmbtwall` may be wall pieces beside `citywall`; `desert` and `tundra` may be terrain variants or battlefield backgrounds). Record the result in section 9 of `docs/extract-art.md` (replace the "unknown" row) and, if one is a real gap in the client, add a task for it. If nothing can be found, say so in the doc and leave the files unused.
+
+**820. Review the overnight spell table and analyze spells with few or no casts.** The overnight soak of 23 November 2026
+(`soak-out/overnight-20261123/`, 263 games, 815 wizards) gave a table of the spells by wizards that learned each, wizards
+that cast it, casts, and casts per knower (`soak-out/overnight-20261123/spell-table.txt`, rebuilt from the game logs; its
+"knew" is a lower bound). About 60 spells were learned and never cast (late-game spells such as Armageddon, Eternal Night
+and Pestilence, and many summons and enchantments), and others are learned by hundreds of wizards and cast a handful of
+times (Summoning Circle, Recall Hero, Mana Leak, Awareness, Disjunction, Detect Magic). For each spell with few or no casts
+find out why and sort it into one of:
+- the AI never wants it (no intent, no situation, a priority that never wins: `wizardry.rs`, `docs/battle-spell-ai.md`);
+- the AI wants it and the game refuses it (read the new "failed casts" lines, below);
+- the spell is rarely learned or late, or too costly for the games the soak plays, so few casts are expected;
+- the spell is not meant to be cast by the AI (a utility for a human) or has no effect yet.
+Fix the first two kinds (as small tasks of their own), and write down the other two in `docs/magic.md` or
+`docs/battle-spell-ai.md`. Rerun the table on a fresh soak first: the soak now counts, for every spell, the wizards that
+could research it, learned it, knew it at the end and cast it, the casts per knower (the "spell table" in each game's log
+and in the report's `wizards per spell` block), and the failed casts below, so the review does not depend on the
+rebuilt table. Failed casts are counted by spell and by reason (`failed casts` lines): a command the game refused (not
+enough mana, banished, no target, not available), a spell that failed or fizzled at its target, a map spell suppressed, a
+battle spell countered by the enemy. Not yet counted: a cast refused in a battle by the game before the battle AI sends it
+(the battle AI checks first), and the reason a spell was never tried. The soak also counts, per kind of spell, the turns a wizard's
+AI saw a situation for it (a target for Earth Lore, Nature's Cures, Disenchant, Recall, Stasis, Plane Shift and the like) and
+knew no spell of that kind (`wanted a spell it did not know`; `Ai::unmet_spell_wants`, `wizardry::SITUATION_KINDS`): a
+situation is a target, not a need (Earth Lore and Raise Volcano nearly always have one), and the battle AI is not covered.

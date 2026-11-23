@@ -1322,6 +1322,65 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     ai.send(game, command, events).is_ok()
 }
 
+/// Where the spell would go in the situation of the wizard, if anywhere.
+fn aim_for(ai: &Ai, view: &PlayerView, spell: SpellId, k: Kind) -> Option<Target> {
+    let def = view.spell(spell);
+    if k == Kind::PlaneShift {
+        shift_target(ai, view, spell)
+    } else if k == Kind::Gate {
+        gate_target(ai, view, spell)
+    } else if aims_at_crossers(def, k) {
+        cross_aim(ai, view, spell, k)
+    } else {
+        pick_target(view, spell)
+    }
+}
+
+/// The kinds of spell that answer a situation of the map (a target exists or it does not), by the
+/// name the soak prints. A situation for which the wizard knows no spell of the kind is a want
+/// it cannot meet (`Ai::unmet_spell_wants`).
+const SITUATION_KINDS: &[(Kind, &str)] = &[
+    (Kind::Explore, "explore"),
+    (Kind::EnchantRoad, "enchant road"),
+    (Kind::Cure, "cure"),
+    (Kind::Disenchant, "disenchant"),
+    (Kind::Recall, "recall"),
+    (Kind::PlaneShift, "plane shift"),
+    (Kind::Stasis, "stasis"),
+    (Kind::Cross, "cross water"),
+    (Kind::Disjunction, "disjunction"),
+    (Kind::StackStrike, "strike a stack"),
+    (Kind::LandCurse, "curse land"),
+    (Kind::LandBoost, "boost land"),
+    (Kind::CityCurse, "curse a city"),
+    (Kind::Blast, "spell blast"),
+    (Kind::Gate, "astral gate"),
+];
+
+/// Count the situations the wizard could use a spell for and knows none of the kind: for each kind
+/// of `SITUATION_KINDS` that no known spell has, a spell of that kind (the first in the rules)
+/// is aimed as if it were known, and a target counts as one want, once a turn.
+fn note_unmet(ai: &Ai, view: &PlayerView, game: &Game, known: &[(Kind, i32, SpellId)]) {
+    for &(k, name) in SITUATION_KINDS {
+        if known.iter().any(|&(have, ..)| have == k) {
+            continue;
+        }
+        let Some(spell) = game
+            .content()
+            .rules
+            .spells
+            .iter()
+            .map(|(id, _)| id)
+            .find(|&id| kind(view.spell(id)) == k)
+        else {
+            continue;
+        };
+        if aim_for(ai, view, spell, k).is_some() {
+            ai.note_unmet_spell(name);
+        }
+    }
+}
+
 fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     if resurrect(ai, game, events) {
@@ -1332,7 +1391,9 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let Some(magic) = view.wizard() else {
             return;
         };
-        if magic.casting().is_some() {
+        // A banished wizard casts nothing but the Spell of Return, which the game begins and keeps
+        // casting for it (`Game::resume_return`).
+        if magic.casting().is_some() || magic.is_banished() {
             return;
         }
         let mana = view.treasury().mana.floor();
@@ -1350,6 +1411,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             .map(|s| (kind(view.spell(s)), view.casting_cost(s), s))
             .filter(|&(k, cost, _)| k != Kind::Other && cost > 0)
             .collect();
+        note_unmet(ai, &view, game, &options);
         let traits = crate::objective::traits(&view);
         // The intents in the order the wizard's objective ranks them; within an intent the helper's
         // rating puts the best spell first.
@@ -1401,15 +1463,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             // already takes more than half of what the power makes (the split then leaves research
             // starved).
             let room = magic.power_split().mana <= 55;
-            let target = if k == Kind::PlaneShift {
-                shift_target(ai, &view, spell)
-            } else if k == Kind::Gate {
-                gate_target(ai, &view, spell)
-            } else if aims_at_crossers(def, k) {
-                cross_aim(ai, &view, spell, k)
-            } else {
-                pick_target(&view, spell)
-            };
+            let target = aim_for(ai, &view, spell, k);
             let now = cost * 3 / 2 <= mana;
             let wanted = match k {
                 Kind::Mastery => true,
