@@ -1017,7 +1017,7 @@ fn the_winner_gains_experience_and_fame_for_the_kills_and_the_loser_loses_fame()
             f.name
         );
         assert_eq!(f.g.fame(f.a), fame_a + 1, "{}: the winner's fame", f.name);
-        // Fame does not go below nothing, and a wizard starts with none.
+        // Global fame never falls below 0 (wiki article "Fame"), and a wizard starts with none.
         assert_eq!(
             f.g.fame(f.b),
             (fame_b - 1).max(0),
