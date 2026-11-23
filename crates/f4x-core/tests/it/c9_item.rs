@@ -364,3 +364,328 @@ fn a_sale_pays_gold_at_once_and_the_item_is_offered_on_or_lost() {
         assert_eq!(item_error(&again), Some(ItemError::Empty), "{name}");
     }
 }
+
+// ---- crafting: Enchant Item and Create Artifact ----
+
+use f4x_core::item::crafting::{self, Craft, CraftError, CraftingError, ItemDesign};
+use f4x_def::rules::ItemKind;
+
+const KINDS: [ItemKind; 9] = [
+    ItemKind::Sword,
+    ItemKind::Mace,
+    ItemKind::Axe,
+    ItemKind::Bow,
+    ItemKind::Staff,
+    ItemKind::Wand,
+    ItemKind::Misc,
+    ItemKind::Shield,
+    ItemKind::Chainmail,
+];
+
+fn design(kind: ItemKind, powers: Vec<f4x_def::rules::ItemPowerId>) -> ItemDesign {
+    ItemDesign {
+        name: String::new(),
+        kind,
+        icon: 0,
+        powers,
+        charges: None,
+    }
+}
+
+/// The powers `crafting::available_powers` lists, with their ids in the registry.
+fn open_powers<'a>(
+    kind: ItemKind,
+    craft: Craft,
+    magic: &f4x_core::wizard::entity::Wizard<'_>,
+    rules: &'a f4x_def::rules::Rules,
+) -> Vec<(
+    f4x_def::rules::ItemPowerId,
+    &'a f4x_def::rules::ItemPowerDef,
+)> {
+    let names: Vec<_> = crafting::available_powers(kind, craft, magic, rules)
+        .into_iter()
+        .map(|d| d.id.clone())
+        .collect();
+    rules
+        .item_powers
+        .iter()
+        .filter(|(_, d)| names.contains(&d.id))
+        .collect()
+}
+
+/// A wizard that knows both spells, with books to spare is not made: `p` as the world gave them.
+fn maker(g: &mut Game) -> PlayerId {
+    let p = g.wizards()[0];
+    for c in [Craft::EnchantItem, Craft::CreateArtifact] {
+        g.cheat_learn_spell(p, c.spell());
+    }
+    p
+}
+
+#[test]
+fn a_design_is_checked_power_by_power_and_a_good_one_builds_an_item_worth_its_cost() {
+    let (mut good, mut bad) = (0, 0);
+    for (name, mut g) in worlds() {
+        let p = maker(&mut g);
+        let rules = g.content().rules.clone();
+        let magic = g.wizard(p).expect("a wizard");
+        for kind in KINDS {
+            for craft in [Craft::EnchantItem, Craft::CreateArtifact] {
+                let open: Vec<_> = open_powers(kind, craft, &magic, &rules)
+                    .into_iter()
+                    .map(|(id, _)| id)
+                    .collect();
+                for (id, power) in rules.item_powers.iter() {
+                    let one = design(kind, vec![id]);
+                    let result = crafting::check(&one, craft, &magic, &rules);
+                    if power.holds_spell {
+                        assert_eq!(result, Err(CraftError::UnknownPower), "{name}: {power:?}");
+                    } else if open.contains(&id) {
+                        assert_eq!(result, Ok(()), "{name}: {kind:?} {craft:?} {id:?}");
+                        let item = crafting::build(&one, &rules);
+                        assert_eq!(item.cost, crafting::cost(&one, &rules), "{name}");
+                        assert!(
+                            item.cost > rules.config.item.base_cost(kind),
+                            "{name}: a power adds nothing"
+                        );
+                        assert_eq!(item.kind, kind, "{name}");
+                        good += 1;
+                    } else {
+                        let why = result.expect_err("a closed power is refused");
+                        assert!(
+                            matches!(
+                                why,
+                                CraftError::WrongKind
+                                    | CraftError::TooCostly
+                                    | CraftError::NeedsBooks
+                            ),
+                            "{name}: {why:?}"
+                        );
+                        bad += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert!(good > 0 && bad > 0, "{good} good, {bad} bad");
+}
+
+#[test]
+fn enchant_item_refuses_what_create_artifact_takes_and_the_other_rules_of_a_design() {
+    let (mut dear, mut grouped) = (0, 0);
+    for (name, mut g) in worlds() {
+        let p = maker(&mut g);
+        let rules = g.content().rules.clone();
+        let magic = g.wizard(p).expect("a wizard");
+        let check = |d: &ItemDesign, c| crafting::check(d, c, &magic, &rules);
+        for kind in KINDS {
+            assert_eq!(
+                check(&design(kind, vec![]), Craft::CreateArtifact),
+                Err(CraftError::NoPowers),
+                "{name}"
+            );
+            let artifact = open_powers(kind, Craft::CreateArtifact, &magic, &rules);
+            let enchant = open_powers(kind, Craft::EnchantItem, &magic, &rules);
+            // A power that costs too much for Enchant Item.
+            if let Some(power) = artifact
+                .iter()
+                .find(|(id, _)| !enchant.iter().any(|(e, _)| e == id))
+            {
+                let d = design(kind, vec![power.0]);
+                assert_eq!(
+                    check(&d, Craft::EnchantItem),
+                    Err(CraftError::TooCostly),
+                    "{name}"
+                );
+                assert_eq!(check(&d, Craft::CreateArtifact), Ok(()), "{name}");
+                dear += 1;
+            }
+            let Some(&(first, first_def)) = artifact.first() else {
+                continue;
+            };
+            assert_eq!(
+                check(&design(kind, vec![first, first]), Craft::CreateArtifact),
+                Err(CraftError::Repeated),
+                "{name}"
+            );
+            // Two powers of one group (but the free group).
+            if let Some(second) = artifact.iter().find(|d| {
+                d.0 != first
+                    && d.1.group == first_def.group
+                    && first_def.group != rules.config.item.free_group
+            }) {
+                assert_eq!(
+                    check(&design(kind, vec![first, second.0]), Craft::CreateArtifact),
+                    Err(CraftError::SameGroup),
+                    "{name}"
+                );
+                grouped += 1;
+            }
+            // More powers than an item holds.
+            let many: Vec<_> = artifact.iter().map(|(id, _)| *id).collect();
+            let limit = rules.config.item.max_powers;
+            if many.len() > limit {
+                assert_eq!(
+                    check(
+                        &design(kind, many[..=limit].to_vec()),
+                        Craft::CreateArtifact
+                    ),
+                    Err(CraftError::TooManyPowers),
+                    "{name}"
+                );
+            }
+        }
+    }
+    assert!(dear > 0 && grouped > 0, "{dear} dear, {grouped} grouped");
+}
+
+#[test]
+fn a_wizard_with_the_skill_and_the_mana_makes_the_item_at_once_and_pays_its_price() {
+    let mut made = 0;
+    for (name, mut g) in worlds() {
+        let p = maker(&mut g);
+        let rules = g.content().rules.clone();
+        let kind = ItemKind::Sword;
+        let Some(power) = open_powers(
+            kind,
+            Craft::EnchantItem,
+            &g.wizard(p).expect("a wizard"),
+            &rules,
+        )
+        .first()
+        .map(|(id, _)| *id) else {
+            continue;
+        };
+        let d = design(kind, vec![power]);
+        g.scenario_set_casting_skill(p, 600);
+        g.wizard_mut(p).expect("a wizard").add_skill_left(5_000);
+        g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+        let (m, n) = (mana(&g, p), armory_size(&g, p));
+        let events = g.apply(Command::CraftItem {
+            player: p,
+            craft: Craft::EnchantItem,
+            design: d.clone(),
+        });
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::ItemMade { player, .. } if *player == p)),
+            "{name}: {events:?}"
+        );
+        assert!(mana(&g, p) < m, "{name}: free");
+        assert_eq!(armory_size(&g, p), n + 1, "{name}");
+        assert!(
+            g.wizard(p).expect("a wizard").casting().is_none(),
+            "{name}: still casting"
+        );
+        made += 1;
+    }
+    assert!(made > 0, "no world made an item");
+}
+
+#[test]
+fn a_wizard_who_cannot_pay_at_once_pays_over_turns_and_the_item_comes_when_it_is_paid() {
+    let mut slow = 0;
+    for (name, mut g) in worlds() {
+        let p = maker(&mut g);
+        let rules = g.content().rules.clone();
+        let kind = ItemKind::Sword;
+        let Some(power) = open_powers(
+            kind,
+            Craft::CreateArtifact,
+            &g.wizard(p).expect("a wizard"),
+            &rules,
+        )
+        .into_iter()
+        .max_by_key(|(_, d)| d.cost)
+        .map(|(id, _)| id) else {
+            continue;
+        };
+        g.scenario_set_casting_skill(p, 1);
+        g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(1);
+        let n = armory_size(&g, p);
+        let events = g.apply(Command::CraftItem {
+            player: p,
+            craft: Craft::CreateArtifact,
+            design: design(kind, vec![power]),
+        });
+        if events.iter().any(|e| matches!(e, Event::ItemMade { .. })) {
+            continue;
+        }
+        assert!(
+            events.iter().all(|e| !matches!(e, Event::Rejected(_))),
+            "{name}: {events:?}"
+        );
+        slow += 1;
+        assert!(
+            g.wizard(p).expect("a wizard").casting().is_some(),
+            "{name}: not casting"
+        );
+        assert_eq!(
+            armory_size(&g, p),
+            n,
+            "{name}: the item came before it was paid"
+        );
+        // A wizard casts one thing at a time.
+        let second = g.apply(Command::CraftItem {
+            player: p,
+            craft: Craft::EnchantItem,
+            design: design(kind, vec![power]),
+        });
+        assert!(
+            second.iter().any(|e| matches!(
+                e,
+                Event::Rejected(Rejection::Craft(CraftingError::Magic(_)))
+            )),
+            "{name}: {second:?}"
+        );
+        g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+        g.scenario_set_casting_skill(p, 600);
+        let mut arrived = false;
+        for _ in 0..200 {
+            if g.end_player_turn(p)
+                .iter()
+                .any(|e| matches!(e, Event::ItemMade { .. }))
+            {
+                arrived = true;
+                break;
+            }
+        }
+        assert!(arrived, "{name}: the item never came");
+        assert_eq!(armory_size(&g, p), n + 1, "{name}");
+    }
+    assert!(slow > 0, "no world paid over turns");
+}
+
+#[test]
+fn crafting_without_the_spell_is_refused_and_changes_nothing() {
+    for (name, mut g) in worlds() {
+        let p = g.wizards()[0];
+        let rules = g.content().rules.clone();
+        let d = design(
+            ItemKind::Sword,
+            vec![rules.item_powers.iter().next().expect("a power").0],
+        );
+        let before = crate::support::text(&g);
+        let events = g.apply(Command::CraftItem {
+            player: p,
+            craft: Craft::EnchantItem,
+            design: d,
+        });
+        let known = g
+            .wizard(p)
+            .expect("a wizard")
+            .knows(Craft::EnchantItem.spell());
+        if known {
+            continue;
+        }
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                Event::Rejected(Rejection::Craft(CraftingError::Magic(_)))
+            )),
+            "{name}: {events:?}"
+        );
+        assert_eq!(crate::support::text(&g), before, "{name}");
+    }
+}
