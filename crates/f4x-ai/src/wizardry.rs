@@ -79,6 +79,9 @@ pub enum Kind {
     LandBoost,
     /// Astral Gate: lets the army cross the planes in the city it gathers in.
     Gate,
+    /// Earth Gate: a gate in the rally city and in the far cities that send troops to it, so that
+    /// the troops arrive at once (`earth_gate_target`).
+    EarthGate,
     /// Everything else: not cast by the AI yet.
     Other,
 }
@@ -254,6 +257,9 @@ pub fn kind(def: &SpellDef) -> Kind {
     if crate::intent::is_astral_gate(def) {
         return Kind::Gate;
     }
+    if crate::intent::is_earth_gate(def) {
+        return Kind::EarthGate;
+    }
     if crate::intent::is_stack_strike(def) {
         return Kind::StackStrike;
     }
@@ -349,6 +355,8 @@ fn priority(k: Kind) -> u8 {
         Kind::Recall => 2,
         Kind::PlaneShift => 2,
         Kind::Gate => 2,
+        // After the summons: a gate saves the army its walk, it does not make it stronger.
+        Kind::EarthGate => 4,
         Kind::StackStrike => 2,
         Kind::LandCurse => 7,
         Kind::LandBoost => 6,
@@ -1026,6 +1034,67 @@ fn gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
         .filter(|&t| view.can_aim(spell, Some(t)))
 }
 
+/// Own cities at least this far from the rally city get an Earth Gate: nearer ones walk as fast.
+const GATE_FAR: u32 = 8;
+/// Cities with an Earth Gate at the most (the rally city and two that send troops to it): each
+/// pays 5 mana a turn.
+const GATES_MAX: usize = 3;
+
+/// The city to raise an Earth Gate in: with a campaign on, the rally city the army gathers in
+/// (`war_plan::rally`) first, then the own city on its plane that is farthest from it, at least
+/// [`GATE_FAR`] away, the largest of those (it makes the most troops); `war::march_on` sends a
+/// unit through a pair of gates when it can. At most [`GATES_MAX`] cities have one.
+fn earth_gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
+    let campaign = ai.campaign?;
+    let cities = view.my_cities();
+    let positions: Vec<Position> = cities.iter().map(|&(_, p)| p).collect();
+    let capital = view.fortress().or_else(|| positions.first().copied())?;
+    let rally = crate::war_plan::rally(
+        view,
+        &positions,
+        capital,
+        campaign,
+        ai.naval.filter(|p| p.target == campaign).map(|p| p.port),
+        ai.crossing,
+    );
+    let gated = |c: hecs::Entity| view.city_enchantments(c).contains(&spell);
+    if cities.iter().filter(|&&(c, _)| gated(c)).count() >= GATES_MAX {
+        return None;
+    }
+    let rally_city = cities.iter().find(|&&(_, p)| p == rally).map(|&(c, _)| c)?;
+    let pick = if gated(rally_city) {
+        let mut far: Vec<(u32, u32, hecs::Entity)> = cities
+            .iter()
+            .filter(|&&(c, p)| p.plane == rally.plane && !gated(c) && c != rally_city)
+            .filter_map(|&(c, p)| {
+                let d = crate::view::distance(view, p, rally)?;
+                let size = view.city_report(c).map_or(0, |r| r.figures);
+                (d >= GATE_FAR).then_some((size, d, c))
+            })
+            .collect();
+        far.sort_by_key(|&(size, d, c)| {
+            (
+                std::cmp::Reverse(size),
+                std::cmp::Reverse(d),
+                view.serial_of(c),
+            )
+        });
+        far.first().map(|&(_, _, c)| c)?
+    } else {
+        // A far city must exist to make the pair worth it.
+        let any_far = cities.iter().any(|&(c, p)| {
+            c != rally_city
+                && p.plane == rally.plane
+                && crate::view::distance(view, p, rally).is_some_and(|d| d >= GATE_FAR)
+        });
+        if !any_far {
+            return None;
+        }
+        rally_city
+    };
+    Some(Target::City(pick)).filter(|&t| view.can_aim(spell, Some(t)))
+}
+
 /// The unit to cast Plane Shift on: the army is gathered in the city it crosses from
 /// (`Ai::crossing`), with the garrison and at least [`MIN_SHIFT`] fighters over, and its campaign
 /// is on the other plane. The whole stack goes, so the strongest unit is named.
@@ -1386,6 +1455,8 @@ fn aim_for(ai: &Ai, view: &PlayerView, spell: SpellId, k: Kind) -> Option<Target
         shift_target(ai, view, spell)
     } else if k == Kind::Gate {
         gate_target(ai, view, spell)
+    } else if k == Kind::EarthGate {
+        earth_gate_target(ai, view, spell)
     } else if aims_at_crossers(def, k) {
         cross_aim(ai, view, spell, k)
     } else {
@@ -1579,7 +1650,9 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 | Kind::Blast
                 | Kind::StackStrike
                 | Kind::Stasis => now && target.is_some(),
-                Kind::Gate => now && room && upkeep_ok(&view, def) && target.is_some(),
+                Kind::Gate | Kind::EarthGate => {
+                    now && room && upkeep_ok(&view, def) && target.is_some()
+                }
                 Kind::LandCurse | Kind::LandBoost => {
                     now && room && mana - cost >= GLOBAL_RESERVE && target.is_some()
                 }
@@ -1854,6 +1927,7 @@ mod tests {
             (186 /* warp_node */, Kind::LandCurse),
             (98 /* raise_volcano */, Kind::LandBoost),
             (153 /* astral_gate */, Kind::Gate),
+            (37 /* earth_gate */, Kind::EarthGate),
         ];
         for (id, expected) in cases {
             assert_eq!(kind_of(id)?, expected, "{id}");
@@ -2420,6 +2494,66 @@ mod tests {
         Ok(())
     }
 
+    /// Earth Gate: with a campaign on, the rally city first, then the far city that makes the
+    /// troops, and no more than the pair.
+    #[test]
+    fn an_earth_gate_goes_to_the_rally_city_and_then_to_a_far_city() -> TestResult {
+        let mut g = fresh_game()?;
+        let mut ai = Ai::new(P0);
+        let gate = spell(37 /* earth_gate */)?;
+        g.cheat_learn_spell(P0, gate);
+        g.reveal_map(P0);
+        let enemy = PlayerView::new(&g, P0)
+            .known_cities()
+            .into_iter()
+            .find(|&(_, owner, _)| owner == P1)
+            .map(|(_, _, p)| p)
+            .ok_or("an enemy city")?;
+        let home = PlayerView::new(&g, P0).fortress().ok_or("a fortress")?;
+        // A second city of the wizard far from the first, on the same plane.
+        let (w, h) = PlayerView::new(&g, P0).map_size().ok_or("a map")?;
+        let candidates: Vec<Position> = {
+            let view = PlayerView::new(&g, P0);
+            (0..h)
+                .flat_map(|y| (0..w).map(move |x| (x, y)))
+                .map(|(x, y)| Position { x, y, ..home })
+                .filter(|&p| crate::view::distance(&view, p, home).is_some_and(|d| d >= GATE_FAR))
+                .collect()
+        };
+        let far = candidates
+            .into_iter()
+            .find(|&pos| {
+                let events = g.apply(Command::FoundCity {
+                    owner: P0,
+                    pos,
+                    name: "Far".into(),
+                    race: g.content().rules.races.id_numbered(8),
+                    population: 6,
+                });
+                !events.iter().any(|e| matches!(e, Event::Rejected(_)))
+            })
+            .ok_or("no room for a far city")?;
+        let city_at = |g: &Game, p| g.economy().city_at(p).ok_or("a city");
+        let (home_city, far_city) = (city_at(&g, home)?, city_at(&g, far)?);
+        // The rally city is the one nearer the enemy.
+        let view = PlayerView::new(&g, P0);
+        let near = |p| crate::view::distance(&view, p, enemy).unwrap_or(u32::MAX);
+        let (rally_city, other_city) = if near(home) <= near(far) {
+            (home_city, far_city)
+        } else {
+            (far_city, home_city)
+        };
+        let aim = |g: &Game, ai: &Ai| earth_gate_target(ai, &PlayerView::new(g, P0), gate);
+        assert_eq!(aim(&g, &ai), None, "no campaign: no gate");
+        ai.campaign = Some(enemy);
+        assert_eq!(aim(&g, &ai), Some(Target::City(rally_city)));
+        g.scenario_enchant_city(rally_city, gate, P0);
+        assert_eq!(aim(&g, &ai), Some(Target::City(other_city)));
+        g.scenario_enchant_city(other_city, gate, P0);
+        assert_eq!(aim(&g, &ai), None, "the pair is done");
+        Ok(())
+    }
+
     /// The overland spells the AI leaves alone, and why (task 509). Each is cast by something else
     /// or has no worth the AI can weigh yet.
     const LEFT_ALONE: &[(u16, &str)] = &[
@@ -2430,10 +2564,6 @@ mod tests {
         (
             18, /* transmute */
             "no model of what a changed mineral is worth",
-        ),
-        (
-            37, /* earth_gate */
-            "pays for a gate in two cities for a teleport; the army uses one it has",
         ),
         (
             28, /* move_fortress */

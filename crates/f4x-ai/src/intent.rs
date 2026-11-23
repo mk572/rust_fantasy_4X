@@ -12,7 +12,7 @@
 //!
 //! Tests: at the end of this file, on the shipped rules.
 
-use f4x_core::city::gate::{ASTRAL_GATE, GATE};
+use f4x_core::city::gate::{ASTRAL_GATE, EARTH_GATE, GATE};
 use f4x_core::diplomacy::Treaty;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
@@ -170,6 +170,11 @@ pub(crate) fn is_land_boost(def: &SpellDef) -> bool {
 /// A gate that lets a stack change plane in the city it is in.
 pub(crate) fn is_astral_gate(def: &SpellDef) -> bool {
     def.has_hook_arg(GATE, ASTRAL_GATE)
+}
+
+/// A gate that teleports a stack to another city with one.
+pub(crate) fn is_earth_gate(def: &SpellDef) -> bool {
+    def.has_hook_arg(GATE, EARTH_GATE)
 }
 
 /// How near an own city an enemy stack must stand to be struck.
