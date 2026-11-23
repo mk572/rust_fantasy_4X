@@ -973,3 +973,195 @@ fn the_wizard_of_the_side_to_play_casts_and_the_other_waits() {
         assert_eq!(mana(&f.g, f.a), before, "{}", f.name);
     }
 }
+
+/// `n` more units of the kind of `f.defender`, on its square, owned by `owner`.
+fn crowd(f: &mut Faceoff, owner: PlayerId, n: usize) -> Vec<hecs::Entity> {
+    let at = f.g.units().unit_position(f.defender).expect("a position");
+    let kind = f.g.units().unit_kind_id(f.defender).expect("a kind");
+    for _ in 0..n {
+        f.g.apply(Command::CreateUnit {
+            owner,
+            pos: at,
+            unit: kind,
+        });
+    }
+    f.g.units()
+        .units_at(at)
+        .into_iter()
+        .filter(|&u| f.g.units().unit_owner(u) == Some(owner))
+        .collect()
+}
+
+#[test]
+fn the_winner_gains_experience_and_fame_for_the_kills_and_the_loser_loses_fame() {
+    for mut f in faceoffs() {
+        let renown = f.g.content().rules.config.renown.clone();
+        let owner = f.b;
+        let stack = crowd(&mut f, owner, renown.fame_kills);
+        assert!(stack.len() >= renown.fame_kills, "{}", f.name);
+        let (xp, fame_a, fame_b) = (
+            f.g.units().unit_experience(f.attacker),
+            f.g.fame(f.a),
+            f.g.fame(f.b),
+        );
+        let events = f.g.apply(Command::BeginBattle {
+            attackers: vec![f.attacker],
+            defenders: stack.clone(),
+        });
+        assert_eq!(refusal(&events), None, "{}: {events:?}", f.name);
+        let events = wipe_out(&mut f.g, Side::Defender);
+        assert_eq!(
+            f.g.units().unit_experience(f.attacker),
+            xp + stack.len() as u32 * renown.xp_per_kill,
+            "{}: experience for each kill",
+            f.name
+        );
+        assert_eq!(f.g.fame(f.a), fame_a + 1, "{}: the winner's fame", f.name);
+        // Fame does not go below nothing, and a wizard starts with none.
+        assert_eq!(
+            f.g.fame(f.b),
+            (fame_b - 1).max(0),
+            "{}: the loser's fame",
+            f.name
+        );
+        assert!(
+            told(
+                &events,
+                |e| matches!(e, Event::BattleSpoils { player, fame: 1, loser_fame: -1, .. }
+                if *player == f.a)
+            ),
+            "{}: {events:?}",
+            f.name
+        );
+    }
+}
+
+#[test]
+fn a_win_over_fewer_than_the_kills_for_fame_gives_experience_and_no_fame() {
+    for mut f in faceoffs() {
+        let renown = f.g.content().rules.config.renown.clone();
+        let (xp, fame_a) = (f.g.units().unit_experience(f.attacker), f.g.fame(f.a));
+        start(&mut f);
+        wipe_out(&mut f.g, Side::Defender);
+        assert!(
+            renown.fame_kills > 1,
+            "the content wants a single kill to give fame"
+        );
+        assert_eq!(
+            f.g.units().unit_experience(f.attacker),
+            xp + renown.xp_per_kill,
+            "{}",
+            f.name
+        );
+        assert_eq!(f.g.fame(f.a), fame_a, "{}", f.name);
+    }
+}
+
+#[test]
+fn monsters_that_win_get_nothing_and_a_city_they_beat_is_wrecked_not_taken() {
+    use f4x_core::player::MONSTERS;
+    let mut tried = 0;
+    for mut f in faceoffs() {
+        let race = {
+            let c = f.g.economy().cities_of(f.b)[0].0;
+            f.g.economy().city_race(c)
+        };
+        let at = f.g.units().unit_position(f.attacker).expect("a position");
+        let kind = f.g.units().unit_kind_id(f.attacker).expect("a kind");
+        let Some(site) = around(&f.g, at).into_iter().find(|&q| {
+            f.g.units().units_at(q).is_empty()
+                && f.g.economy().city_at(q).is_none()
+                && f.g.economy().terrain_class_at(q) == Some(TerrainClass::Grassland)
+        }) else {
+            continue;
+        };
+        let city = f.g.scenario_found_city(f.b, site, "Prey", race, 3);
+        for (owner, pos) in [(f.b, site), (MONSTERS, at)] {
+            f.g.apply(Command::CreateUnit {
+                owner,
+                pos,
+                unit: kind,
+            });
+        }
+        let guard = f.g.units().units_at(site)[0];
+        let beast =
+            f.g.units()
+                .units_at(at)
+                .into_iter()
+                .find(|&u| f.g.units().unit_owner(u) == Some(MONSTERS))
+                .expect("a monster");
+        tried += 1;
+        let events = f.g.apply(Command::BeginBattle {
+            attackers: vec![beast],
+            defenders: vec![guard],
+        });
+        assert_eq!(refusal(&events), None, "{}: {events:?}", f.name);
+        let events = wipe_out(&mut f.g, Side::Defender);
+        assert!(
+            !told(&events, |e| matches!(e, Event::BattleSpoils { .. })),
+            "{}",
+            f.name
+        );
+        assert!(
+            !told(&events, |e| matches!(e, Event::CityCaptured { .. })),
+            "{}",
+            f.name
+        );
+        assert!(
+            told(
+                &events,
+                |e| matches!(e, Event::CityRampaged { owner, .. } if *owner == f.b)
+            ),
+            "{}: {events:?}",
+            f.name
+        );
+        assert!(
+            f.g.economy().city_owner(city).is_none_or(|o| o == f.b),
+            "{}: the monsters own the city",
+            f.name
+        );
+        assert!(
+            f.g.units().unit_position(beast).is_none_or(|p| p != site),
+            "{}: the monsters moved into the city",
+            f.name
+        );
+    }
+    assert!(tried > 0, "no world had room for a city");
+}
+
+#[test]
+fn defenders_beyond_the_nine_sit_the_fight_out_and_flee_when_it_is_lost() {
+    for mut f in faceoffs() {
+        let side = f.g.max_battle_side();
+        let site = f.g.units().unit_position(f.defender).expect("a position");
+        let owner = f.b;
+        let stack = crowd(&mut f, owner, side + 3);
+        assert!(stack.len() > side, "{}", f.name);
+        // The attacker names the whole stack: only `side` of them fight.
+        f.g.apply(Command::BeginBattle {
+            attackers: vec![f.attacker],
+            defenders: stack.clone(),
+        });
+        let fighting = ids(&f.g, Side::Defender).len();
+        assert_eq!(fighting, side, "{}: the strongest {side} fight", f.name);
+        wipe_out(&mut f.g, Side::Defender);
+        // The attacker won and took the square: those who sat it out ran or were lost.
+        let left_on_site =
+            f.g.units()
+                .units_at(site)
+                .into_iter()
+                .filter(|&u| f.g.units().unit_owner(u) == Some(f.b))
+                .count();
+        assert_eq!(
+            left_on_site, 0,
+            "{}: defenders stayed on a lost square",
+            f.name
+        );
+        assert_eq!(
+            f.g.units().unit_position(f.attacker),
+            Some(site),
+            "{}: the winner did not take the square",
+            f.name
+        );
+    }
+}
