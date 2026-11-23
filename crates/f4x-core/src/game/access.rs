@@ -328,6 +328,20 @@ impl Game {
         self.begin_casting(player, spell, owed);
     }
 
+    /// [`Game::scenario_casting`] for a spell with `extra` mana put into it (a dispel's strength).
+    pub fn scenario_casting_with(
+        &mut self,
+        player: PlayerId,
+        spell: SpellId,
+        owed: i32,
+        extra: i32,
+    ) {
+        if let Some(mut w) = self.wizard_mut(player) {
+            w.clear_casting();
+        }
+        self.begin_casting_with(player, spell, owed, extra);
+    }
+
     /// Make fleeing from a battle safe or risky for everyone (the `safe_flee` setting).
     pub fn scenario_set_safe_flee(&mut self, safe: bool) {
         self.settings.rules.safe_flee = crate::game::setting::Split::both(safe);

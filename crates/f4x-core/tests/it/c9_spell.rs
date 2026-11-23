@@ -556,3 +556,295 @@ fn a_wizard_who_cannot_pay_the_upkeep_gives_up_the_dearest_spells_first() {
     }
     assert!(tried > 0, "no world held enough lasting spells");
 }
+
+#[test]
+fn a_lasting_spell_takes_hold_on_its_target_once_and_turning_it_off_ends_it() {
+    use f4x_core::check::world_problems;
+    use f4x_core::spell::instance::SpellTarget as On;
+    use f4x_def::rules::Duration;
+    let (_, base) = worlds().remove(0);
+    let snapshot = Snapshot::from_text(&text(&base)).expect("reads");
+    let wizards: Vec<PlayerId> = base
+        .player_ids()
+        .into_iter()
+        .filter(|&p| !base.is_neutral_player(p) && base.wizard(p).is_some())
+        .collect();
+    let (p, other) = (wizards[0], wizards[1]);
+    let stride = if f4x_def::testdir::deep() { 1 } else { 2 };
+    let (mut held, mut ended) = (0, 0);
+    let spells: Vec<SpellId> = base
+        .content()
+        .rules
+        .spells
+        .defs()
+        .iter()
+        .filter(|d| {
+            d.contexts.contains(&CastContext::Overland) && d.duration == Duration::Permanent
+        })
+        .map(|d| SpellId::new(d.num))
+        .collect();
+    for spell in spells.into_iter().step_by(stride) {
+        let def = base.content().rules.spells.get(spell).clone();
+        // The kind of target each names; the spells with no target or another kind are not in this table.
+        let kind = match def.target {
+            SpellTarget::OwnUnit | SpellTarget::AnyUnit => Kind::OwnUnit,
+            SpellTarget::EnemyUnit => Kind::EnemyUnit,
+            SpellTarget::OwnCity => Kind::OwnCity,
+            SpellTarget::EnemyCity => Kind::EnemyCity,
+            _ => continue,
+        };
+        let mut g = snapshot.clone().restore(content()).expect("restores");
+        let Some(target) = target_of(&g, p, other, kind) else {
+            continue;
+        };
+        g.cheat_learn_spell(p, spell);
+        g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+        g.scenario_casting(p, spell, 0);
+        let events = g.apply(Command::ResolveCast { player: p, target });
+        if refusal(&events).is_some() {
+            // A refusal for what the target is (a unit the spell does not take) is the matrix's.
+            continue;
+        }
+        let on = match target {
+            Target::Unit(u) => On::Unit(u),
+            Target::City(c) => On::City(c),
+            _ => unreachable!("a unit or a city"),
+        };
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::SpellCast { player, spell: s } if *player == p && *s == spell)),
+            "{}: the cast is not told: {events:?}",
+            def.id
+        );
+        let wizard = g.wizard(p).expect("a wizard").entity();
+        let spells = g.spells();
+        let mine: Vec<_> = spells
+            .of_def(spell)
+            .into_iter()
+            .filter(|&i| spells.target(i) == Some(on) && spells.caster(i) == Some(wizard))
+            .collect();
+        assert_eq!(mine.len(), 1, "{}: on {kind:?}: {events:?}", def.id);
+        held += 1;
+        // A second cast on the same target never doubles it.
+        g.scenario_casting(p, spell, 0);
+        g.apply(Command::ResolveCast { player: p, target });
+        assert_eq!(
+            g.spells()
+                .of_def(spell)
+                .into_iter()
+                .filter(|&i| g.spells().target(i) == Some(on))
+                .count(),
+            1,
+            "{}: the spell is on the target twice",
+            def.id
+        );
+        // The wizard turns it off.
+        let off = match target {
+            Target::Unit(unit) => Command::TurnOffUnitSpell {
+                player: p,
+                unit,
+                spell,
+            },
+            Target::City(city) => Command::TurnOffCitySpell {
+                player: p,
+                city,
+                spell,
+            },
+            _ => unreachable!(),
+        };
+        let events = g.apply(off);
+        assert_eq!(refusal(&events), None, "{}: {events:?}", def.id);
+        assert!(
+            !g.spells().has(on, spell),
+            "{}: still on after turning it off",
+            def.id
+        );
+        ended += 1;
+        let bad = world_problems(&g);
+        assert!(bad.is_empty(), "{}: {bad:#?}", def.id);
+    }
+    assert!(held > 10 && ended == held, "{held} held, {ended} ended");
+}
+
+/// The first lasting spells of the content that name a city of their own caster, for a city to carry.
+fn city_spells(g: &Game, n: usize) -> Vec<SpellId> {
+    g.content()
+        .rules
+        .spells
+        .defs()
+        .iter()
+        .filter(|d| {
+            d.contexts.contains(&CastContext::Overland)
+                && d.target == SpellTarget::OwnCity
+                && d.duration == f4x_def::rules::Duration::Permanent
+        })
+        .map(|d| SpellId::new(d.num))
+        .take(n)
+        .collect()
+}
+
+/// Two wizards who have met, the first with plenty of mana.
+fn rivals() -> Vec<(String, Game, PlayerId, PlayerId)> {
+    worlds()
+        .into_iter()
+        .map(|(name, mut g)| {
+            let w: Vec<PlayerId> = g
+                .player_ids()
+                .into_iter()
+                .filter(|&p| !g.is_neutral_player(p) && g.wizard(p).is_some())
+                .collect();
+            g.make_contact(w[0], w[1]);
+            g.make_contact(w[1], w[0]);
+            g.treasury_mut(w[0]).expect("a treasury").mana = HalfInt::from_int(100_000);
+            (name, g, w[0], w[1])
+        })
+        .collect()
+}
+
+/// `player` casts spell `number` on `target` with `extra` mana in it, paid at once.
+fn cast_at(g: &mut Game, player: PlayerId, number: u16, target: Target, extra: i32) -> Vec<Event> {
+    let spell = SpellId::new(number);
+    g.cheat_learn_spell(player, spell);
+    g.scenario_casting_with(player, spell, 0, extra);
+    g.apply(Command::ResolveCast { player, target })
+}
+
+#[test]
+fn a_strong_disenchant_area_takes_off_the_other_wizards_spells_and_leaves_the_casters_own() {
+    use f4x_core::spell::instance::SpellTarget as On;
+    for (name, mut g, p, other) in rivals() {
+        let city = g.economy().cities_of(other)[0].0;
+        let at = g.economy().cities_of(other)[0].1;
+        let spells = city_spells(&g, 2);
+        assert_eq!(spells.len(), 2, "{name}");
+        g.scenario_enchant_city(city, spells[0], other);
+        g.scenario_enchant_city(city, spells[1], p);
+        let events = cast_at(
+            &mut g,
+            p,
+            204, /* disenchant_area */
+            Target::Tile(at),
+            100_000,
+        );
+        assert_eq!(refusal(&events), None, "{name}: {events:?}");
+        assert!(
+            !g.spells().has(On::City(city), spells[0]),
+            "{name}: the rival's spell stayed under a dispel of any strength"
+        );
+        assert!(
+            g.spells().has(On::City(city), spells[1]),
+            "{name}: the caster's own spell was dispelled"
+        );
+    }
+}
+
+#[test]
+fn a_dispel_on_a_bare_square_is_refused_as_there_being_nothing_to_dispel() {
+    for (name, mut g, p, other) in rivals() {
+        let at = g.economy().cities_of(other)[0].1;
+        let events = cast_at(
+            &mut g,
+            p,
+            204, /* disenchant_area */
+            Target::Tile(at),
+            0,
+        );
+        assert_eq!(
+            refusal(&events),
+            Some(Rejection::Magic(MagicError::Target(
+                TargetError::NothingToDispel
+            ))),
+            "{name}: {events:?}"
+        );
+    }
+}
+
+#[test]
+fn a_strong_disjunction_takes_a_rivals_global_spell_and_is_refused_on_the_casters_own() {
+    for (name, mut g, p, other) in rivals() {
+        let global = SpellId::new(158 /* crusade */);
+        g.scenario_add_global(other, global);
+        g.scenario_add_global(p, global);
+        let theirs = g.global_instance(other, global).expect("an instance");
+        let own = g.global_instance(p, global).expect("an instance");
+        let events = cast_at(
+            &mut g,
+            p,
+            210, /* disjunction */
+            Target::Spell(own),
+            100_000,
+        );
+        assert_eq!(
+            refusal(&events),
+            Some(Rejection::Magic(MagicError::Target(
+                TargetError::NotGlobalSpell
+            ))),
+            "{name}: {events:?}"
+        );
+        assert!(g.has_global(p, global), "{name}");
+        let events = cast_at(&mut g, p, 210, Target::Spell(theirs), 100_000);
+        assert_eq!(refusal(&events), None, "{name}: {events:?}");
+        assert!(!g.has_global(other, global), "{name}: the rival keeps it");
+        assert!(g.has_global(p, global), "{name}: the caster lost its own");
+        assert!(
+            events.iter().any(
+                |e| matches!(e, Event::GlobalSpellRemoved { player, victim, spell }
+                if *player == p && *victim == other && *spell == global)
+            ),
+            "{name}: {events:?}"
+        );
+    }
+}
+
+#[test]
+fn spell_blast_ends_a_cast_at_the_price_of_what_its_wizard_had_spent() {
+    for (name, mut g, p, other) in rivals() {
+        let spell = SpellId::new(80 /* time_stop */);
+        let cost = i32::try_from(g.content().rules.spells.get(spell).cost).expect("a cost");
+        let owed = cost / 3;
+        g.cheat_learn_spell(other, spell);
+        g.scenario_casting(other, spell, owed);
+        let before = g.player(p).expect("a player").treasury().mana;
+        let events = cast_at(
+            &mut g,
+            p,
+            58, /* spell_blast */
+            Target::Player(other),
+            0,
+        );
+        assert_eq!(refusal(&events), None, "{name}: {events:?}");
+        let paid = events
+            .iter()
+            .find_map(|e| match e {
+                Event::SpellBlasted { mana, victim, .. } if *victim == other => Some(*mana),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("{name}: no blast told: {events:?}"));
+        assert_eq!(paid, cost - owed, "{name}: the price is what was spent");
+        assert!(
+            g.wizard(other).expect("a wizard").casting().is_none(),
+            "{name}"
+        );
+        assert!(
+            g.player(p).expect("a player").treasury().mana <= before - HalfInt::from_int(paid),
+            "{name}: the blast cost the caster nothing"
+        );
+    }
+}
+
+#[test]
+fn spell_blast_is_refused_when_the_caster_cannot_match_the_mana() {
+    for (name, mut g, p, other) in rivals() {
+        let spell = SpellId::new(80 /* time_stop */);
+        g.cheat_learn_spell(other, spell);
+        g.scenario_casting(other, spell, 1);
+        g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(1);
+        let events = cast_at(&mut g, p, 58, Target::Player(other), 0);
+        assert!(refusal(&events).is_some(), "{name}: {events:?}");
+        assert!(
+            g.wizard(other).expect("a wizard").casting().is_some(),
+            "{name}: the cast was ended"
+        );
+    }
+}
