@@ -235,21 +235,23 @@ The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says w
 
 | Item, today on `World` | Goes to | Note |
 |---|---|---|
-| `ecs`, `map`, `fog`, `content`, `names`, `player_index`, `monsters`, `next_serial`, `rng`, `settings` | world | |
+| `ecs`, `map`, `fog`, `content`, `names`, `player_index`, `monsters`, `next_serial`, `settings` | world | |
+| `rng` (seed and draws) | game | passed to the world operations (10.10) |
 | `diplomacy`, `events`, `threat`, `battle`, `battle_brains`, `item_awards`, `prefab_taken`, `locations` | world | the clocks of the events and threats are state of the world |
 | `vision`, `net_gold_memo`, `budget_parts`, `tile_watch`, `confirmed` | world | caches and command state |
-| `undo_on`, `undo_stack`, `recording` | open (10.3) | |
-| `override_log` | world, open (10.2) | each line is stamped with the round |
+| `undo_on`, `undo_stack` | game | beside the replay log (10.9) |
+| `recording` | game | replays move to the game (10.9) |
+| `override_log` | world | the caller writes the round into the line (10.6) |
 | `turn` | game | decided |
-| `flow` | game | becomes the master's typed `State`; the opaque text goes |
-| `plans` | game | belongs to the controllers |
-| `game_over` | game, open (10.3) | the world detects the win |
+| `flow` | game | becomes typed state of the game (round, phase, active seat); the opaque text goes |
+| `plans` | the controllers | the game never reads them; the save holds them beside the game (10.5) |
+| `game_over` | game | the world keeps the facts, the game decides (10.7) |
 | `turn_players()` | game | merged with `Master::players_of` |
 | `start_round`, `start_player_turn`, `end_player_turn`, `end_round` (`turn.rs`) | split | the order and the counter to the game; each step stays a world operation |
 | `end_turn` (`Command::EndTurn`) | game | becomes `Game::play_round` |
 | `Command::StartRound`, `StartPlayerTurn`, `EndPlayerTurn`, `EndRound` | leave the command set | |
-| `endgame.rs`: `finish`, `win_by_mastery`, `check_conquest` | split | detection in the world, the verdict in the game |
-| `endgame.rs`: `living_wizards`, `banished_wizards`, `score`, `aftermath` | world | `score` takes the round and the mastery winner |
+| `endgame.rs`: `finish`, `win_by_mastery`, `check_conquest` | split | the facts in the world, the check and the verdict in the game (10.7) |
+| `endgame.rs`: `living_wizards`, `banished_wizards`, `score`, `aftermath` | world | `score` takes the round; it reads the Spell of Mastery from the world |
 
 Users of the moving state outside core: `f4x-ai` reads the round in most of its modules (directly and through `PlayerView::turn` and `game_over`) and its tests set it; the client reads `turn`, `game_over` and `flow`; the console reads `turn` and `game_over` and its tests send `EndTurn`; `f4x-tools` (soak, metrics, contestants) reads `turn`, `game_over` and sets `plans`. `f4x-learn` is stale.
 
@@ -260,22 +262,109 @@ Users of the moving state outside core: `f4x-ai` reads the round in most of its 
 | events (`world_event/world.rs`), raiders, monsters, sea raids (`threat/`) | round start | argument |
 | growth is skipped in round 1 (`start_player_turn`), first offers (`player/offer.rs`) | turn start | argument |
 | `score` (`world/endgame.rs`) | query | argument |
-| `war_since` (`diplomacy`): stamped by a war declaration, read by `war_age` | **inside a player's command** | see below |
+| `war_since` (`diplomacy`): stamped by a war declaration, read by `war_age` | **inside a player's command** | 10.6 |
 | `GameOver.turn` (`finish`) | **inside a player's command** | the game stamps it |
-| the cheat log's prefix (`world/cheat.rs`) | **inside a cheat command** | see below |
+| the cheat log's prefix (`world/cheat.rs`) | **inside a cheat command** | 10.6 |
 
-The last three run while a command is applied, so "pass it in" does not reach them by itself. Proposal: no command takes the round. `war_since` becomes a war age that `end_round` counts up (a change of the save's diplomacy field and of the pinned digests); the game stamps `GameOver`; the cheat log drops the round from its text, or the game adds it. The other way is `World::apply(command, round)`.
+The last three run while a command is applied, so "pass it in" does not reach them by itself (decided in 10.6).
 
-### 10.3 Open points
+### 10.3 Further decisions (26 November 2026)
 
-| Point | Proposal |
+| Point | Decision |
 |---|---|
-| The three readers inside commands (10.2) | war age counted by the world; no round in `apply` |
-| Who do the front ends and the AI send commands to? | `Game::apply`, which refuses after the end and for the wrong seat; they read through `game.world()`; `world_mut` for setup, cheats and tests only |
-| How do the AI and the views know the round? | `PlayerView::new` takes it, so `PlayerView::turn` stays; `f4x-ai` takes `&Game` or the round where it has only the world today |
-| Game over | the world records that a wizard has won and refuses further changes; the game turns it into `GameOver` with the round |
 | The battle in progress | the world's: it holds unit entities and is saved with them; the game does not advance while one is open |
-| Undo and replay | undo stays in the world, and the game clears it at turn boundaries; replay moves to the game, since a log with round steps cannot be played on a world alone |
-| Random numbers | stay in the world; the order of draws must not change |
-| Save | the same file and field names (`turn`, `game_over`, `flow`, `plans` assembled by the game), so older saves load |
-| Monsters' and neutral turns, first player of a round | unchanged: the neutral seat last, fixed seat order (section 7.1) |
+| The clocks of the events and threats | their state stays in the world; the game calls their step |
+| Undo and reactions | a command that opens or answers a reaction (10.4) ends the undo history: the other player has seen it |
+| Order of play (no neutral seat, 10.11) | wizards in today's fixed order, then the independent race players by player number, the monster player last |
+
+### 10.4 Commands and reactions (decided 26 November 2026)
+
+The human (through the client) and the AI players send every command through `Game::apply(player, command)`, and the game refuses the illegal ones. Setup, cheats and tests keep a separate way into the world; `CreateUnit`, which only cheats and tests send, is refused from a player. The AI gets the game to send commands and a read-only view of the world.
+
+**The rule:** on its own turn a player may do anything the world allows; on another player's turn it may only react to something that happened to it. After the end of the game everything is refused.
+
+The game does not take a sender's word that something is a reaction. An event that affects another player opens a **reaction** for that player, which allows these commands and no others:
+
+| What happened to the player | What it may do |
+|---|---|
+| A request, demand or threat | accept, refuse, counter, pay, declare war on the asker |
+| First contact | greet |
+| An attack | choose fighters, fight or auto-resolve, give battle orders to its own side |
+| A city taken | declare war on the taker |
+| A spell cast on it (which spells: task 785) | declare war on the caster |
+| Items won | place, sell or scrap those items |
+| Banishment | resign |
+
+- A reaction stays open until the turn that caused it ends. A request and an attack hold that turn until they are answered; the others may be left, and lapse with it.
+- Open reactions are part of the saved game.
+- An attacker sends the attack on its own turn; the client does not start a battle on an AI's behalf.
+- A rival's unprompted offers and demands are no reactions: they are made in the rival's own turn (today `approach_human` runs at the start of the human's turn).
+- A reaction being allowed does not mean a front end or the AI uses it. A war question after a lost city, or an AI that strikes back at once, is new behaviour and not part of task 822.
+- `World::command_actor` has to name a player for diplomacy, battle and auto-resolve commands, which today name none.
+
+### 10.5 Game, master and the save (decided 26 November 2026)
+
+| `Game` (game state, saved) | `Master` (runs the game, rebuilt at runtime) |
+|---|---|
+| the world | the controllers: the code that plays each seat |
+| round, phase, active seat | round-start checkpoints |
+| seats: which players, in what order | saving: asks each controller for its plans |
+| game over | loading: gives each controller its plans back |
+| open reactions (10.4) | |
+| the random numbers (10.10) | |
+
+- `Master` drives a `&mut Game`: it asks the active seat's controller to play, and another seat's controller when a reaction waits for it. The `Game` does not own the controllers: they borrow the front end's state, cannot be saved, and need to change the game to send commands.
+- The save holds two parts side by side: the `Game`, and one block of plans per computer player. The `Game` does not know that AIs exist; a human or remote player has no block.
+
+### 10.6 Who knows the round (decided 26 November 2026)
+
+No command takes a round.
+
+- **At a round or turn start** (and in queries) the world operation takes the round as an argument.
+- **War age:** the world stores the age of each war instead of the round it began, and `start_round` adds one, the moment the round advances, so the values stay as they are today. The saved diplomacy field changes, and with it its pinned digest.
+- **Game over:** the `Game` stamps the winning turn.
+- **Cheat log:** the caller, which has the `Game`, writes "turn N:" into the line it records.
+- **Client, console and tools** ask `game.round()`.
+- **AI:** each AI notes the round when it is asked to play or to react; it is not saved with its plans. `PlayerView::turn` goes, and `PlayerView::new` stays as it is.
+
+### 10.7 Game over (decided 26 November 2026)
+
+- The world keeps facts only: who is defeated and by whom, and who has completed the Spell of Mastery (a new saved fact; today only `game_over` records it).
+- The `Game` asks the world after each command and after each turn or round step whether an end condition is met, and keeps the winner, the kind and the turn. The conditions are today's: the human wizard has fallen, at most one wizard is left, or the Spell of Mastery is complete.
+- `Game::apply` refuses commands after the end; the world no longer refuses them.
+- Two conditions met in the same step need a fixed order (today the first one wins).
+- A cheat that wins the game sets the fact in the world and has the `Game` check.
+
+### 10.8 The save file, old saves and the pins (decided 26 November 2026)
+
+| Part | Holds |
+|---|---|
+| header | the save and game version |
+| game | seed and draws, round, phase, active seat, seats, game over, open reactions |
+| world | everything else; it still loads on its own, for core's tests |
+| plans | one block per computer player |
+
+- **Old saves are converted** by a converter in `f4x-master`: one module that nothing else depends on, so that it can be retired later (task 823). The change bumps the version to 0.0.8.
+- **Pinned digests** move: `seed`, `draws`, `turn`, `game_over`, `flow` and `plans` leave the world, the war age changes the diplomacy field, and the Spell of Mastery fact is new.
+- **Proof that play is unchanged:** for the same seeds, a converted save from the build before the change is byte-identical to a save from the build after it. Run this on the layout change alone, before any change of behaviour; then refresh the pins and check that no other field moved.
+
+### 10.9 Replays, undo and tests (decided 26 November 2026)
+
+- **Replays belong to the game**, since a log with turn and round steps cannot be played on a world alone. The log is the starting game followed by entries: a player's command with its sender, or a turn or round step. Playback goes through the `Game` and needs no controllers or AI. Writing units and cities as creation numbers stays in core. Cheats are not recorded, as today.
+- **Old replay files are refused**; the converter (10.8) is for saves.
+- **Undo belongs to the game** too: it restores the whole `Game`, open reactions included, and takes the command out of the replay log. What cannot be taken back stays as today (a command that explored, drew a random number or started a battle, and everything before it; the end of a turn); the game sees the draws itself, and the world tells it the other facts.
+- **Turn-order, replay and undo tests** move to `f4x-master`.
+- **Core tests that only need time to pass** stay in core and call `Game::play_round`, with `f4x-master` as a dev-dependency of `f4x-core`. Only the tests under `tests/` can use it, and `docs/design.md` section 2 records the exception. No test helper in core repeats the turn order.
+
+### 10.10 Random numbers (decided 26 November 2026)
+
+- The seed and the number of draws belong to the `Game` and are saved in its part of the file.
+- The `Game` passes `&mut GameRng` to each world operation that draws; the world keeps none. The places where the world takes its generator out and leaves a placeholder (`GameRng::lent`) go. The order of draws does not change. It is a step of its own: many signatures change.
+- The AI draws no random numbers from the game. Its one draw, whether to raze a captured city, goes first (task 824).
+
+### 10.11 Players and seats (26 November 2026)
+
+There is no neutral seat. The players are the wizards, the independent race players (no wizard, one for each race, each played by an AI) and the monster player, and each has a seat of its own, with its own start, turn, end and reactions. Today one seat in `f4x-master` (`Seat::neutrals`, `f4x_ai::NeutralSeat`) starts all the non-wizard players, then plays them, then ends them all; this replaces what sections 7.1 and `docs/game-flow.md` say about it.
+
+- A race player can appear during a game, so the seats follow the players in the game, and the saved active seat names a player, not a position in a list.
+- One turn at a time changes the order of operations and of the random draws, so it comes after the comparison of 10.8, as a change of its own.
