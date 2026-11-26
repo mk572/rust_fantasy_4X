@@ -1,10 +1,10 @@
-//! The turn lifecycle: [`World::start_round`], [`World::start_player_turn`],
+//! What the turn order does to the world: [`World::start_round`], [`World::start_player_turn`],
 //! [`World::end_player_turn`] and [`World::end_round`] (task 477, `docs/turn-structure.md`).
-//! `f4x-master` calls them in order; `Command::EndTurn` composes them for all players. What each step does is in its domain: city growth in
+//! The order is the game's (`f4x-master`), which calls them through [`World::advance`]. What each step does is in its domain: city growth in
 //! `city/growth.rs`, the treasury in `player/finance.rs`, magic in `wizard/magic_world.rs`, healing in
 //! `unit/healing.rs`.
 //!
-//! Tests: in turn/tests.rs.
+//! Tests: in tests/it (`c7_turn.rs`, `c9_turn.rs`).
 
 use crate::city::economy::{Farmers, Population};
 use crate::player::PlayerId;
@@ -13,16 +13,6 @@ use f4x_def::half_int::HalfInt;
 use rand::SeedableRng;
 
 impl World {
-    /// Every player that takes part in the lifecycle, in the fixed order: the wizards and the
-    /// independent cities' players by id, then the monsters' owner (the neutral seat) last.
-    pub fn turn_players(&self) -> Vec<PlayerId> {
-        let mut ids = crate::player::ids(&self.ecs);
-        if self.player_entity(crate::player::MONSTERS).is_some() {
-            ids.push(crate::player::MONSTERS);
-        }
-        ids
-    }
-
     /// Round start, once per round before any player acts: the round counter advances and the
     /// world's opening work runs (the event draw, the raiders' and monsters' clocks). See
     /// `docs/turn-structure.md` section 7.1 for what belongs to which phase.
@@ -277,85 +267,5 @@ impl World {
             });
         }
         events
-    }
-}
-
-/// The per-player steps for every player in turn, for tests that mean "the turn change".
-#[cfg(test)]
-impl World {
-    pub(crate) fn determine_offers_all(&mut self) -> Vec<Event> {
-        let mut events = Vec::new();
-        for p in self.turn_players() {
-            events.extend(self.determine_offers(p));
-        }
-        events
-    }
-
-    pub(crate) fn process_chaos_rifts_all(&mut self) -> Vec<Event> {
-        let mut events = Vec::new();
-        for p in self.turn_players() {
-            events.extend(self.process_chaos_rifts(p));
-        }
-        events
-    }
-
-    pub(crate) fn process_gaias_blessing_all(&mut self) -> Vec<Event> {
-        let mut events = Vec::new();
-        for p in self.turn_players() {
-            events.extend(self.process_gaias_blessing(p));
-        }
-        events
-    }
-
-    pub(crate) fn process_research_all(&mut self) -> Vec<Event> {
-        let mut events = Vec::new();
-        for p in self.turn_players() {
-            events.extend(self.process_research(p));
-        }
-        events
-    }
-
-    pub(crate) fn process_magic_all(&mut self) -> Vec<Event> {
-        let mut events = Vec::new();
-        for p in self.turn_players() {
-            events.extend(self.process_magic(p));
-        }
-        events
-    }
-
-    pub(crate) fn process_purify_all(&mut self) -> Vec<Event> {
-        let mut events = Vec::new();
-        for p in self.turn_players() {
-            events.extend(self.process_purify(p));
-        }
-        events
-    }
-
-    pub(crate) fn process_road_work_all(&mut self) -> Vec<Event> {
-        let mut events = Vec::new();
-        for p in self.turn_players() {
-            events.extend(self.process_road_work(p));
-        }
-        events
-    }
-
-    pub(crate) fn sail_marooned_all(&mut self) -> Vec<Event> {
-        let mut events = Vec::new();
-        for p in self.turn_players() {
-            events.extend(self.sail_marooned(p));
-        }
-        events
-    }
-
-    pub(crate) fn heal_units_all(&mut self) {
-        for p in self.turn_players() {
-            self.heal_units(p);
-        }
-    }
-
-    pub(crate) fn process_experience_all(&mut self) {
-        for p in self.turn_players() {
-            self.process_experience(p);
-        }
     }
 }

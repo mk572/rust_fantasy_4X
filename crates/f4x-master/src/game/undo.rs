@@ -4,7 +4,7 @@
 //! first, and [`Game::undo`] goes back one command. Undo never gives an unfair look at hidden
 //! things or a second try at luck, so a command that explored new squares, drew from the
 //! random generator, or started a battle cannot be taken back, and neither can anything
-//! before it. Ending the turn clears the history.
+//! before it. A step of the turn order (`game/step.rs`) clears the history.
 //!
 //! Tests: in tests/it/undo.rs.
 
@@ -68,6 +68,11 @@ impl Game {
         !self.history.entries.is_empty()
     }
 
+    /// Forget what could be taken back.
+    pub(super) fn forget_history(&mut self) {
+        self.history.entries.clear();
+    }
+
     /// Name of the command that [`Game::undo`] would take back.
     pub fn undo_label(&self) -> Option<&str> {
         self.history.entries.last().map(|e| e.label.as_str())
@@ -78,16 +83,7 @@ impl Game {
         if !self.history.on || self.world.in_battle() {
             return self.world.apply(command);
         }
-        let ends_history = matches!(
-            command,
-            Command::EndTurn
-                | Command::StartRound
-                | Command::StartPlayerTurn { .. }
-                | Command::EndPlayerTurn { .. }
-                | Command::EndRound
-                | Command::Battle(_)
-                | Command::EnterSite { .. }
-        );
+        let ends_history = matches!(command, Command::Battle(_) | Command::EnterSite { .. });
         let label = label_of(&command);
         let snapshot = (!ends_history).then(|| self.world.snapshot());
         let (draws, explored) = (self.world.draws(), self.world.explored_total());

@@ -4,11 +4,13 @@
 //! world only by sending a command ([`Game::apply`]). Setting up a world, cheats and tests have a
 //! way of their own, [`Game::world_mut`].
 //!
-//! Undo (`game/undo.rs`) and replays (`game/replay.rs`) are the game's: they see every command.
+//! The turn order (`game/step.rs`), undo (`game/undo.rs`) and replays (`game/replay.rs`) are the
+//! game's: they see every command.
 //!
 //! Tests: in tests/it.
 
 pub mod replay;
+pub mod step;
 pub mod undo;
 
 use f4x_battle::battle::BattleCommand;

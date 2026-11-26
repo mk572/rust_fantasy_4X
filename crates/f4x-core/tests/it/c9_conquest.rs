@@ -10,6 +10,7 @@ use f4x_core::wizard::fortress::FortressError;
 use f4x_core::world::endgame::EndKind;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
+use f4x_master::Game;
 
 struct Fall {
     name: String,
@@ -538,7 +539,7 @@ fn finishing_the_spell_of_mastery_wins_at_once_and_scores_it_for_the_caster_only
             f.name
         );
         // A game that is over takes no more commands.
-        let later = f.w.apply(Command::EndTurn);
+        let later = Game::new(f.w).play_round();
         assert!(
             told(&later, |e| matches!(
                 e,

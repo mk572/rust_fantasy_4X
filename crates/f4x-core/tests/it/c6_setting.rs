@@ -1,6 +1,7 @@
 //! Class 6: where the outcome depends on a setting, run the action under each value of its range and
 //! check the outcome follows. The range and the defaults are read from the settings, never copied.
 
+use crate::support::games;
 use crate::support::worlds;
 use f4x_core::city::FoundCityError;
 use f4x_core::map::{Plane, Position};
@@ -159,7 +160,7 @@ fn the_most_units_on_a_square_follows_its_setting() {
 #[test]
 fn a_city_stops_growing_at_its_setting() {
     for setting in f4x_def::settings::MAX_CITY_SIZE_RANGE {
-        let (_, mut w) = worlds().remove(0);
+        let (_, mut w) = games().remove(0);
         w.scenario_change_settings(|s| s.rules.max_city_size = setting);
         let cities: Vec<_> = w.economy().cities().into_iter().map(|c| c.0).collect();
         for &c in &cities {

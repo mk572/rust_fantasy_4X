@@ -36,7 +36,7 @@ draw, log, animate from events and queries
   run the command log still reproduces a game from its seed; commands carry entity ids, so a
   log cannot be replayed across a load (the loaded entities have new ids).
 
-The core has per-player lifecycle phases (section 4) but does not decide who acts when:
+The core has per-player lifecycle operations (section 4) but does not decide who acts when:
 `f4x-master` runs the rounds and seats and checks a command against the active player
 (`World::command_actor`). A command called directly on the core does not carry an acting
 player, so **ownership is not checked** there: the caller is trusted. (Needed before any
@@ -46,8 +46,6 @@ networked play.)
 
 | Command | What it does | Events on success | Typical rejections |
 |---|---|---|---|
-| `StartRound`, `StartPlayerTurn`, `EndPlayerTurn`, `EndRound` | The lifecycle phases (section 4) | `TurnStarted` (round start), then everything the phase produced | none |
-| `EndTurn` | All four phases for every player (compatibility, section 4) | as the phases | none |
 | `CreateUnit { owner, pos, unit }` | Makes a unit with full moves and health; explores around it | `UnitCreated` | none (not validated: for scenario setup and summoning) |
 | `MoveStack { units, to }` | One step of a stack to an adjacent tile | `UnitsMoved`, or `AttackRequested` if hostile | `Move(...)` |
 | `GoTo { units, to }` | Plans a route and starts walking it at once | `UnitsMoved`... (as far as moves allow), or `AttackRequested` | `Move(Impassable)` if there is no route |
@@ -137,19 +135,20 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 
 A game runs in **rounds**; in each round every player takes one **turn**, in a fixed order (seat
 order, the human first, the neutral seat last: independent cities and monsters). The core
-offers four lifecycle phases, recorded `Command`s like any other, and `f4x-master` runs them in
-order and asks each seat (human, AI, neutrals) to act in between (`docs/turn-structure.md` has
-the design and the cadence table, section 7.1):
+offers four lifecycle operations, and the game (`f4x_master::Game`) makes them as **steps**:
+no commands, no player sends them, but each is written into a replay and ends the undo history.
+The master runs them in order and asks each seat (human, AI, neutrals) to act in between
+(`docs/turn-structure.md` has the design and the cadence table, section 7.1):
 
-| Phase | Command | What it does |
+| Phase | Step of the game | What it does |
 |---|---|---|
-| Round start | `StartRound` | `World.turn` advances, `TurnStarted`, world events (`process_events`), threats (`process_threats`) |
-| Turn start | `StartPlayerTurn { player }` | what changes the land and the people, then the player's units become ready (4.1) |
-| Turn end | `EndPlayerTurn { player }` | the player's income, bills and production (4.2) |
-| Round end | `EndRound` | durations and world-wide processes, once (4.3) |
+| Round start | `start_round` | `World.turn` advances, `TurnStarted`, world events (`process_events`), threats (`process_threats`) |
+| Turn start | `start_player_turn(player)` | what changes the land and the people, then the player's units become ready (4.1) |
+| Turn end | `end_player_turn(player)` | the player's income, bills and production (4.2) |
+| Round end | `end_round` | durations and world-wide processes, once (4.3) |
 
-`Command::EndTurn` stays as a composition for tests and tools: `EndPlayerTurn` for every player,
-`EndRound`, `StartRound`, `StartPlayerTurn` for every player.
+`Game::play_round` is the change of rounds at once, for tests and tools: every player ends their
+turn, the round ends, the next begins, and every player starts theirs.
 
 The order follows the original's turn change, which is why income, bills and production are the
 turn **end** (a defender finished now defends against the rivals' turns, and a shortage costs its
@@ -264,7 +263,7 @@ each player's explored area (bit-packed), the players, every unit (with moves, d
 experience and any standing order) and every city (population, farmers, buildings,
 enchantments, race, current item and progress).
 
-**Where the game is in its round:** the optional `flow` (`World::flow`), written by `f4x-master` after every step and cleared by the lifecycle commands, says which phase and seat come next; a save without it was made on the human's turn. The client's autosave is made at the start of a round. What each AI has in mind (`World::plans`) is saved with it.
+**Where the game is in its round:** the optional `flow` (`World::flow`), written by `f4x-master` after every step and cleared by every step of the turn order, says which phase and seat come next; a save without it was made on the human's turn. The client's autosave is made at the start of a round. What each AI has in mind (`World::plans`) is saved with it.
 
 **What it does not hold:** content definitions, events, the command log, or the AI's own memory (targets, campaigns). A save is a game
 state, not a content pack.

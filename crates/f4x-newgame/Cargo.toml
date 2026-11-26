@@ -16,3 +16,6 @@ serde.workspace = true
 f4x-def = { workspace = true, features = ["testutil"] }
 f4x-core = { workspace = true, features = ["testutil"] }
 ron.workspace = true
+# For tests under `tests/` only, until task 822 ends: time passes in a game (`docs/design.md`
+# section 2).
+f4x-master = { workspace = true, features = ["testutil"] }

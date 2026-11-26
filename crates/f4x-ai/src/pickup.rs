@@ -914,7 +914,7 @@ mod tests {
     fn run_turns(ai: &mut Ai, w: &mut Game, n: usize) {
         for _ in 0..n {
             run(ai, w, &mut Vec::new());
-            w.apply(Command::EndTurn);
+            w.play_round();
             w.balance_farmers(P0);
         }
     }

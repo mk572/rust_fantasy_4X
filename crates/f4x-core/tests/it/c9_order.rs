@@ -7,6 +7,7 @@ use f4x_core::rules::UnitId;
 use f4x_core::world::testutil::fresh;
 use f4x_core::world::{Command, Event};
 use f4x_def::half_int::HalfInt;
+use f4x_master::Game;
 
 #[test]
 fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
@@ -54,7 +55,7 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
     }
     let (unit, b, c) = found.expect("a unit walks from the city over a square to another");
 
-    let mut w = fresh(wizards, seed).expect("a fresh game");
+    let mut w = Game::new(fresh(wizards, seed).expect("a fresh game"));
     let limit = w.settings().rules.max_battle_side;
     w.scenario_change_settings(|s| s.rules.max_tile = limit);
     let before = w.units().units_at(b).len();
@@ -85,7 +86,7 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
             "{events:?}"
         );
     }
-    let events = w.apply(Command::EndTurn);
+    let events = w.play_round();
     assert!(
         !events
             .iter()
@@ -103,7 +104,7 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
 #[test]
 fn a_stack_that_stays_blocked_is_told_why() {
     let (wizards, seed) = WORLDS[0];
-    let mut w = fresh(wizards, seed).expect("a fresh game");
+    let mut w = Game::new(fresh(wizards, seed).expect("a fresh game"));
     let wizard = w
         .player_ids()
         .into_iter()
@@ -158,7 +159,7 @@ fn a_stack_that_stays_blocked_is_told_why() {
         units: vec![walker],
         to: b,
     });
-    let events = w.apply(Command::EndTurn);
+    let events = w.play_round();
     assert!(
         events
             .iter()

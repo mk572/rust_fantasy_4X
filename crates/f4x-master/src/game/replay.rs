@@ -1,8 +1,8 @@
 //! Command logs and replays.
 //!
-//! A [`Replay`] is a snapshot of the world plus every command applied since, so the same game can
-//! be played again from that point (the random stream is part of the snapshot). Units and cities
-//! are written as creation numbers (`f4x_core::world::stable_ref`).
+//! A [`Replay`] is a snapshot of the world plus every command and every step of the turn order
+//! since, so the same game can be played again from that point (the random stream is part of the
+//! snapshot). Units and cities are written as creation numbers (`f4x_core::world::stable_ref`).
 //!
 //! Recording is local play's tool for replays and for saving a game with its history; it does
 //! not make a network protocol (see task 811, the multiplayer item).
@@ -17,6 +17,7 @@ use f4x_core::world::save::{check_versions, LoadError, Snapshot, SAVE_VERSION};
 use f4x_core::world::{Command, Event};
 use f4x_def::content::Content;
 
+use super::step::Step;
 use super::Game;
 
 /// What a recorded game is: where it started and what was done since.
@@ -24,8 +25,17 @@ use super::Game;
 pub struct Replay {
     pub version: u32,
     pub start: Snapshot,
-    /// One command each, as text with creation numbers in place of entities.
-    pub commands: Vec<String>,
+    /// What was done, in order.
+    pub entries: Vec<Entry>,
+}
+
+/// One thing done to a game.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Entry {
+    /// A command, as text with creation numbers in place of entities.
+    Command(String),
+    /// A step of the turn order.
+    Step(Step),
 }
 
 /// Why a replay could not be written or played.
@@ -35,14 +45,14 @@ pub enum ReplayError {
     NotRecording,
     /// The text is not a replay, or is of another version.
     Load(String),
-    /// Command number `index` named a unit or city that does not exist.
+    /// The command in entry number `index` named a unit or city that does not exist.
     Unresolved(usize),
 }
 
 /// The recording in progress.
 pub(super) struct Recording {
     start: Snapshot,
-    commands: Vec<String>,
+    entries: Vec<Entry>,
 }
 
 /// Just the version fields of a replay, read before the rest so that a file of another layout is
@@ -69,7 +79,7 @@ impl Game {
     pub fn start_recording(&mut self) {
         self.recording = Some(Recording {
             start: self.world.snapshot(),
-            commands: Vec::new(),
+            entries: Vec::new(),
         });
     }
 
@@ -83,7 +93,7 @@ impl Game {
         Some(Replay {
             version: SAVE_VERSION,
             start: r.start,
-            commands: r.commands,
+            entries: r.entries,
         })
     }
 
@@ -93,7 +103,7 @@ impl Game {
         Ok(Replay {
             version: SAVE_VERSION,
             start: r.start.clone(),
-            commands: r.commands.clone(),
+            entries: r.entries.clone(),
         })
     }
 
@@ -103,16 +113,23 @@ impl Game {
             return;
         };
         match self.world.command_to_text(command) {
-            Some(text) => recording.commands.push(text),
+            Some(text) => recording.entries.push(Entry::Command(text)),
             // A command that cannot be written (an entity without a number) breaks the record.
             None => self.recording = None,
+        }
+    }
+
+    /// Write a step down.
+    pub(super) fn record_step(&mut self, step: Step) {
+        if let Some(recording) = self.recording.as_mut() {
+            recording.entries.push(Entry::Step(step));
         }
     }
 
     /// The last command did nothing that stays (it was refused or taken back).
     pub(super) fn forget_last_command(&mut self) {
         if let Some(r) = self.recording.as_mut() {
-            r.commands.pop();
+            r.entries.pop();
         }
     }
 }
@@ -133,9 +150,9 @@ impl Replay {
         ron::from_str(text).map_err(|e| load(e.to_string()))
     }
 
-    /// Play the replay's first `count` commands into a game built from its start (all of them
+    /// Play the replay's first `count` entries into a game built from its start (all of them
     /// with `usize::MAX`). The game goes on recording, so a replay of it carries the same
-    /// history; its events are returned for each command.
+    /// history; its events are returned for each entry.
     pub fn play(
         &self,
         content: impl Into<Arc<Content>>,
@@ -149,12 +166,17 @@ impl Replay {
         let mut game = Game::new(world);
         game.start_recording();
         let mut all = Vec::new();
-        for (i, text) in self.commands.iter().take(count).enumerate() {
-            let command = game
-                .world
-                .command_from_text(text)
-                .ok_or(ReplayError::Unresolved(i))?;
-            all.push(game.apply(command));
+        for (i, entry) in self.entries.iter().take(count).enumerate() {
+            all.push(match entry {
+                Entry::Command(text) => {
+                    let command = game
+                        .world
+                        .command_from_text(text)
+                        .ok_or(ReplayError::Unresolved(i))?;
+                    game.apply(command)
+                }
+                Entry::Step(step) => game.take(*step),
+            });
         }
         Ok((game, all))
     }

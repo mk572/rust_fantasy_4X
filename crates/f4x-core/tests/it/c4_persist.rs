@@ -1,8 +1,10 @@
 //! Class 4: the ways a game is rebuilt from text (a save, a replay, an undo) lose nothing.
 
+use crate::support::games;
 use crate::support::{busy_round, content, shape, text, worlds};
 use f4x_core::world::save::{Integrity, LoadError, Snapshot};
 use f4x_core::world::World;
+use f4x_master::Game;
 
 fn restored(w: &World) -> World {
     Snapshot::from_text(&text(w))
@@ -13,7 +15,7 @@ fn restored(w: &World) -> World {
 
 #[test]
 fn a_game_written_and_read_is_the_same_game() {
-    for (name, mut w) in worlds() {
+    for (name, mut w) in games() {
         for round in 0..12 {
             let back = restored(&w);
             assert_eq!(text(&back), text(&w), "{name}, round {round}");
@@ -24,11 +26,11 @@ fn a_game_written_and_read_is_the_same_game() {
 
 #[test]
 fn a_loaded_game_goes_on_as_the_saved_one_would_have() {
-    for (name, mut live) in worlds() {
+    for (name, mut live) in games() {
         for _ in 0..8 {
             busy_round(&mut live, 6);
         }
-        let mut loaded = restored(&live);
+        let mut loaded = Game::new(restored(&live));
         for round in 0..15 {
             let a = shape(&busy_round(&mut live, 6));
             let b = shape(&busy_round(&mut loaded, 6));

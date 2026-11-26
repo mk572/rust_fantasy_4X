@@ -1,9 +1,11 @@
 //! Class 9, the wizard: what is researched and learned, the split of the power base.
 
+use crate::support::games;
 use crate::support::{content, worlds};
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::magic::MagicError;
 use f4x_core::world::{Command, Event, Rejection, World};
+use f4x_master::Game;
 
 fn wizards(w: &World) -> Vec<PlayerId> {
     w.player_ids()
@@ -123,7 +125,7 @@ fn research_takes_a_spell_on_offer_once_and_costs_what_the_rules_list() {
 
 #[test]
 fn research_with_the_cost_nearly_paid_learns_the_spell_in_the_turn_and_frees_the_choice() {
-    for (name, mut w) in worlds().into_iter().step_by(2) {
+    for (name, mut w) in games().into_iter().step_by(2) {
         let p = wizards(&w)[0];
         w.apply(Command::SetPowerSplit {
             player: p,
@@ -144,9 +146,9 @@ fn research_with_the_cost_nearly_paid_learns_the_spell_in_the_turn_and_frees_the
             .find(|s| s.player == p.0)
             .expect("a save");
         save.research_remaining = 1;
-        w = snap.restore(content()).expect("restores");
+        w = Game::new(snap.restore(content()).expect("restores"));
         assert!(!w.wizard(p).expect("a wizard").knows(pick));
-        w.apply(Command::EndTurn);
+        w.play_round();
         let wizard = w.wizard(p).expect("a wizard");
         assert!(wizard.knows(pick), "{name}: not learned after a turn");
         assert!(
@@ -192,7 +194,7 @@ fn a_known_spell_cannot_be_researched_and_the_neutral_player_researches_nothing(
 /// it off the wizard), the turn's end begins it again, whoever the wizard is.
 #[test]
 fn a_banished_wizard_whose_return_was_ended_begins_it_again_at_the_turns_end() {
-    for (name, mut w) in worlds().into_iter().step_by(2) {
+    for (name, mut w) in games().into_iter().step_by(2) {
         let p = wizards(&w)[0];
         let mut snap = w.snapshot();
         let save = snap
@@ -204,12 +206,12 @@ fn a_banished_wizard_whose_return_was_ended_begins_it_again_at_the_turns_end() {
         save.fortress = None;
         save.summon_at = None;
         save.more_circles.clear();
-        w = snap.restore(content()).expect("restores");
+        w = Game::new(snap.restore(content()).expect("restores"));
         assert!(w.wizard(p).expect("a wizard").is_banished(), "{name}");
         assert!(w.wizard(p).expect("a wizard").casting().is_none(), "{name}");
         // Every wizard's turn ends once in a round; the banished one's does too.
         for _ in 0..wizards(&w).len() {
-            w.apply(Command::EndTurn);
+            w.play_round();
         }
         let casting = w.wizard(p).expect("a wizard").casting();
         assert!(

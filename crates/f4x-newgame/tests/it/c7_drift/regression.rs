@@ -11,6 +11,7 @@ use f4x_core::world::save::Snapshot;
 use f4x_core::world::{Command, World};
 use f4x_def::content::Content;
 use f4x_def::testdir::TestResult;
+use f4x_master::Game;
 use f4x_newgame::setup::{new_game, NewGame};
 
 fn shipped() -> &'static Content {
@@ -21,13 +22,13 @@ fn folder() -> PathBuf {
     Path::new("../../tests/regression").to_path_buf()
 }
 
-fn end_turns(w: &mut World, n: usize) {
+fn end_turns(w: &mut Game, n: usize) {
     for _ in 0..n {
-        w.apply(Command::EndTurn);
+        w.play_round();
     }
 }
 
-fn fresh(seed: u64) -> Result<World, f4x_newgame::error::NewGameError> {
+fn fresh(seed: u64) -> Result<Game, f4x_newgame::error::NewGameError> {
     new_game(
         shipped(),
         &NewGame {
@@ -36,17 +37,18 @@ fn fresh(seed: u64) -> Result<World, f4x_newgame::error::NewGameError> {
             ..Default::default()
         },
     )
+    .map(Game::new)
 }
 
 /// A game a few turns old: the first ten turns of the AI's opening.
-fn early() -> Result<World, String> {
+fn early() -> Result<Game, String> {
     let mut w = fresh(11)?;
     end_turns(&mut w, 2);
     Ok(w)
 }
 
 /// A game in the middle, with the first two wizards at war.
-fn war() -> Result<World, String> {
+fn war() -> Result<Game, String> {
     let mut w = fresh(21)?;
     end_turns(&mut w, 40);
     let ids = w.player_ids();
@@ -56,7 +58,7 @@ fn war() -> Result<World, String> {
 }
 
 /// A game in which the first wizard keeps three global enchantments going.
-fn enchanted() -> Result<World, String> {
+fn enchanted() -> Result<Game, String> {
     let mut w = fresh(31)?;
     let me = w.player_ids()[0];
     w.treasury_mut(me).ok_or("no treasury")?.mana = f4x_def::half_int::HalfInt::from_int(30_000);
@@ -107,7 +109,7 @@ fn enchanted() -> Result<World, String> {
 }
 
 /// The commands each scenario plays on its prepared save.
-fn play(name: &str, w: &mut World) {
+fn play(name: &str, w: &mut Game) {
     match name {
         "early" => end_turns(w, 15),
         "war" => end_turns(w, 15),
@@ -204,7 +206,7 @@ fn refresh() -> Option<String> {
     std::env::var("F4X_REFRESH_REGRESSION").ok()
 }
 
-fn check(name: &str, build: fn() -> Result<World, String>) -> TestResult {
+fn check(name: &str, build: fn() -> Result<Game, String>) -> TestResult {
     let saves = folder();
     let save = saves.join(format!("{name}.save"));
     let target = saves.join(format!("{name}.target"));
@@ -219,7 +221,7 @@ fn check(name: &str, build: fn() -> Result<World, String>) -> TestResult {
             save.display()
         )
     })?;
-    let mut w = Snapshot::from_text(&text)?.restore(shipped().clone())?;
+    let mut w = Game::new(Snapshot::from_text(&text)?.restore(shipped().clone())?);
     play(name, &mut w);
     let got = digest(&w)?;
     if refresh.is_some() {

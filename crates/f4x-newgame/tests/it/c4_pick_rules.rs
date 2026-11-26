@@ -3,10 +3,11 @@
 
 use crate::support::{knobs, limits};
 use f4x_core::wizard::BuildError;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Event, World};
 use f4x_def::content::Content;
 use f4x_def::settings::{BOOKS_PER_REALM_RANGE, BOOKS_TOTAL_RANGE};
 use f4x_def::testdir::TestResult;
+use f4x_master::Game;
 use f4x_newgame::error::NewGameError;
 use f4x_newgame::setup::{new_game, NewGame};
 
@@ -14,8 +15,8 @@ fn shipped() -> &'static Content {
     f4x_def::testdir::shipped()
 }
 
-fn end_turns(w: &mut World, n: usize) -> Vec<Event> {
-    (0..n).flat_map(|_| w.apply(Command::EndTurn)).collect()
+fn end_turns(w: &mut Game, n: usize) -> Vec<Event> {
+    (0..n).flat_map(|_| w.play_round()).collect()
 }
 
 /// A new game on the shipped content with the map-size counts set by hand.
@@ -261,7 +262,7 @@ fn wizards_with_more_books_in_a_realm_than_the_default_allows_play_on() -> TestR
         spec.settings.wizards.max_books_per_realm = *BOOKS_PER_REALM_RANGE.end();
         spec.settings.wizards.max_books_total = *BOOKS_TOTAL_RANGE.end();
         spec.settings.wizards.picks.ai = most_picks();
-        let mut w = new_game(shipped(), &spec)?;
+        let mut w = Game::new(new_game(shipped(), &spec)?);
         for p in w.player_ids() {
             if let Some(wizard) = w.wizard(p) {
                 most_seen = most_seen.max(wizard.books().values().copied().max().unwrap_or(0));

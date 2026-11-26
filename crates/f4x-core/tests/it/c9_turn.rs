@@ -8,6 +8,7 @@ use f4x_core::unit::movement::MoveError;
 use f4x_core::unit::Standby;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
+use f4x_master::Game;
 
 fn wizards(w: &World) -> Vec<PlayerId> {
     w.player_ids()
@@ -152,22 +153,6 @@ fn the_start_of_a_player_turn_refills_only_their_units_moves() {
 }
 
 #[test]
-fn the_command_to_end_the_turn_is_the_four_phases_for_every_player() {
-    for ((name, mut a), (_, mut b)) in worlds().into_iter().zip(worlds()) {
-        a.apply(Command::EndTurn);
-        for p in b.turn_players() {
-            b.end_player_turn(p);
-        }
-        b.end_round();
-        b.start_round();
-        for p in b.turn_players() {
-            b.start_player_turn(p);
-        }
-        assert_eq!(text(&a), text(&b), "{name}");
-    }
-}
-
-#[test]
 fn standby_done_lasts_the_turn_and_patrol_stays() {
     for (name, mut w) in worlds() {
         let p = wizards(&w)[0];
@@ -232,7 +217,8 @@ fn stopped() -> Vec<(String, World, Vec<PlayerId>)> {
 
 #[test]
 fn time_stop_halts_growth_gold_and_mana_for_the_others_and_gold_for_the_keeper() {
-    for (name, mut w, ids) in stopped() {
+    for (name, w, ids) in stopped() {
+        let mut w = Game::new(w);
         assert_eq!(w.time_stopper(), Some(ids[0]), "{name}");
         let (keeper, others) = (ids[0], &ids[1..]);
         let before: Vec<_> = ids
@@ -240,7 +226,7 @@ fn time_stop_halts_growth_gold_and_mana_for_the_others_and_gold_for_the_keeper()
             .map(|&p| (gold(&w, p), mana(&w, p), people(&w, p)))
             .collect();
         for _ in 0..3 {
-            w.apply(Command::EndTurn);
+            w.play_round();
         }
         assert_eq!(
             gold(&w, keeper),

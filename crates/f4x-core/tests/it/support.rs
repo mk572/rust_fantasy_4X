@@ -20,8 +20,17 @@ pub fn worlds() -> Vec<(String, World)> {
         .collect()
 }
 
+/// [`worlds`] as games, for the tests that let time pass.
+pub fn games() -> Vec<(String, Game)> {
+    worlds()
+        .into_iter()
+        .map(|(name, world)| (name, Game::new(world)))
+        .collect()
+}
+
 use f4x_core::map::Position;
 use f4x_core::world::{Command, Event};
+use f4x_master::Game;
 
 /// The content the games are loaded and restored against.
 pub fn content() -> f4x_def::content::Content {
@@ -56,7 +65,7 @@ pub fn around(w: &World, at: Position) -> Vec<Position> {
 /// neighbouring square (the first the game accepts), then the turn ends. The events come back, so two
 /// games played the same way can be compared. A scripted walk, not a player: it explores, draws
 /// random numbers and fights, which is what the persistence tests need to have happened.
-pub fn busy_round(w: &mut World, limit: usize) -> Vec<Event> {
+pub fn busy_round(w: &mut Game, limit: usize) -> Vec<Event> {
     let mut events = Vec::new();
     for u in w.units().all_units().into_iter().take(limit) {
         let Some(at) = w.units().unit_position(u) else {
@@ -71,7 +80,7 @@ pub fn busy_round(w: &mut World, limit: usize) -> Vec<Event> {
             }
         }
     }
-    events.extend(w.apply(Command::EndTurn));
+    events.extend(w.play_round());
     events
 }
 
@@ -192,8 +201,6 @@ pub fn commands(w: &World) -> Vec<Command> {
         .collect();
 
     for &p in &players {
-        out.push(Command::StartPlayerTurn { player: p });
-        out.push(Command::EndPlayerTurn { player: p });
         out.push(Command::Resign { player: p });
         out.push(Command::CancelCast { player: p });
         out.push(Command::BalanceFarmers { player: p });

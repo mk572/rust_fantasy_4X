@@ -3,6 +3,7 @@
 //! ceiling on everything that puts units there). A unit that is hired, summoned or built is never
 //! refused for a full square; only the sanity limit stops it.
 
+use crate::support::games;
 use crate::support::worlds;
 use f4x_core::map::Position;
 use f4x_core::unit::TILE_SANITY_LIMIT;
@@ -132,7 +133,7 @@ fn a_tower_takes_twice_the_walking_limit() {
 #[test]
 fn no_command_leaves_a_square_over_the_sanity_limit() {
     use crate::support::{busy_round, commands};
-    for (name, mut w) in worlds().into_iter().step_by(2) {
+    for (name, mut w) in games().into_iter().step_by(2) {
         // Crowd a square close to the limit, so that what the commands put there tips it over.
         let (wizard, at) = wizard_and_city(&w);
         let unit = f4x_core::rules::UnitId::new(w.content().rules.units.defs()[0].num);

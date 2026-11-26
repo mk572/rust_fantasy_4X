@@ -1485,7 +1485,7 @@ mod tests {
             {
                 break;
             }
-            w.apply(Command::EndTurn);
+            w.play_round();
         }
         let shifted = troops
             .iter()
@@ -1515,7 +1515,7 @@ mod tests {
         // Past the usual time, within the walk on top of it.
         ai.march_started = w.turn;
         for _ in 0..=MARCH_TURNS {
-            w.apply(Command::EndTurn);
+            w.play_round();
         }
         let mut events = Vec::new();
         ai.march_started = w.turn - (MARCH_TURNS + 1);
@@ -1637,7 +1637,7 @@ mod tests {
             crate::naval::run(&mut ai, &mut w, &mut events);
             run(&mut ai, &mut w, &mut events);
             crate::pickup::run(&mut ai, &mut w, &mut events);
-            w.apply(Command::EndTurn);
+            w.play_round();
             let view = PlayerView::new(&w, P0);
             landed = view.my_units().into_iter().any(|u| {
                 is_fighter(&view, u)
@@ -1690,7 +1690,7 @@ mod tests {
             crate::naval::run(&mut ai, &mut w, &mut events);
             run(&mut ai, &mut w, &mut events);
             crate::pickup::run(&mut ai, &mut w, &mut events);
-            w.apply(Command::EndTurn);
+            w.play_round();
             let view = PlayerView::new(&w, P0);
             landed = view.my_units().into_iter().any(|u| {
                 is_fighter(&view, u)

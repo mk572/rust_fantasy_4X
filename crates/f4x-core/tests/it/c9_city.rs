@@ -10,6 +10,7 @@ use f4x_core::rules::{BuildingId, UnitId};
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::UnitKind;
+use f4x_master::turn_players;
 
 /// The wizards of a game.
 fn wizards(w: &World) -> Vec<PlayerId> {
@@ -47,7 +48,7 @@ enum Phase {
 /// turn. The events of the round come back.
 fn round(w: &mut World, look: &mut dyn FnMut(&mut World, PlayerId, Phase)) -> Vec<Event> {
     let mut events = w.start_round();
-    for p in w.turn_players() {
+    for p in turn_players(w) {
         look(w, p, Phase::BeforeStart);
         events.extend(w.start_player_turn(p));
         look(w, p, Phase::BeforeEnd);

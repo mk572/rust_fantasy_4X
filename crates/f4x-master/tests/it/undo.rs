@@ -64,7 +64,7 @@ fn a_recording_runs_from_its_start_to_its_stop_and_takes_back_what_undo_takes_ba
     assert!(!game.can_undo());
     let recorded = |game: &f4x_master::Game| {
         let replay = game.replay_so_far().expect("recording");
-        replay.commands.len()
+        replay.entries.len()
     };
     let before = recorded(&game);
     a_change_that_can_be_taken_back(&mut game).expect("a change");
@@ -80,7 +80,7 @@ fn a_recording_runs_from_its_start_to_its_stop_and_takes_back_what_undo_takes_ba
     assert!(!game.undo_enabled());
     assert!(!game.can_undo());
     let replay = game.stop_recording().expect("a recording");
-    assert_eq!(replay.commands.len(), before);
+    assert_eq!(replay.entries.len(), before);
     assert!(!game.is_recording());
     assert!(game.stop_recording().is_none());
 }

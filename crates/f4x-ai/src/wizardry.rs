@@ -3058,7 +3058,7 @@ mod tests {
             if werewolves(&w) > 0 {
                 break;
             }
-            w.apply(f4x_core::world::Command::EndTurn);
+            w.play_round();
         }
         assert!(werewolves(&w) >= 1, "a spearman is a werewolf");
         Ok(())

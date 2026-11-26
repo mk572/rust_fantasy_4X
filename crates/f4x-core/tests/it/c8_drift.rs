@@ -10,7 +10,8 @@
 
 use crate::support::{busy_round, commands, text, worlds};
 use f4x_core::check::digest;
-use f4x_core::world::{Command, World};
+use f4x_core::world::World;
+use f4x_master::Game;
 use std::collections::BTreeMap;
 
 const PINS: &str = "tests/pins/core_drift.txt";
@@ -20,14 +21,14 @@ fn pins_path() -> std::path::PathBuf {
 }
 
 /// A play: its name, the rounds at whose end the game is digested, and the way it goes on one round.
-type Round = fn(&mut World);
+type Round = fn(&mut Game);
 
-fn walking(w: &mut World) {
+fn walking(w: &mut Game) {
     busy_round(w, 6);
 }
 
-fn ending_turns(w: &mut World) {
-    w.apply(Command::EndTurn);
+fn ending_turns(w: &mut Game) {
+    w.play_round();
 }
 
 const PLAYS: [(&str, &[usize], Round); 2] = [
@@ -50,7 +51,7 @@ fn today() -> BTreeMap<String, String> {
     for (world, fresh) in worlds() {
         let world = world.replace(' ', "").replace(',', "_");
         for (play, checkpoints, step) in PLAYS {
-            let mut w = crate::support::worlds()
+            let mut w = crate::support::games()
                 .into_iter()
                 .find(|(n, _)| n.replace(' ', "").replace(',', "_") == world)
                 .expect("the world")
@@ -64,13 +65,13 @@ fn today() -> BTreeMap<String, String> {
             }
         }
         // Every command of the sweep, then three turns: what the commands changed, and what the turns made of it.
-        let mut w = fresh;
+        let mut w = Game::new(fresh);
         for command in commands(&w) {
             w.apply(command);
         }
         out.insert(format!("{world} commands@all"), line(&w));
         for _ in 0..3 {
-            w.apply(Command::EndTurn);
+            w.play_round();
         }
         out.insert(format!("{world} commands@+3turns"), line(&w));
     }
@@ -155,8 +156,8 @@ fn the_digest_is_the_same_for_the_same_game_and_names_what_differs() {
         );
     }
     // One turn moves the clock, the random generator and the units' moves, not the settings or the seed.
-    let mut later = copy;
-    later.apply(Command::EndTurn);
+    let mut later = Game::new(copy);
+    later.play_round();
     let (a, b) = (digest(&w), digest(&later));
     let moved: Vec<&str> = a
         .iter()

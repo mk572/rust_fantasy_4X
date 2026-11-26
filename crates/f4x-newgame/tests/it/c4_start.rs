@@ -10,8 +10,9 @@ use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::retort_available;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Event, World};
 use f4x_def::half_int::HalfInt;
+use f4x_master::Game;
 use f4x_newgame::neutral::{FORTRESS_CLEARANCE, SITE_CLEARANCE};
 use f4x_newgame::setup::{parse_retort, MIN_START_SIZE};
 
@@ -441,10 +442,10 @@ fn a_wizard_without_gold_is_found() {
 
 /// Ten turns of the computer's play on a game, with every refusal listed.
 fn played_refusals(case: WorldCase, turns: usize) -> Vec<String> {
-    let mut w = fresh_game(case);
+    let mut w = Game::new(fresh_game(case));
     let mut refused = Vec::new();
     for _ in 0..turns {
-        for e in w.apply(Command::EndTurn) {
+        for e in w.play_round() {
             if matches!(e, Event::Rejected(_)) {
                 refused.push(format!("{e:?}"));
             }

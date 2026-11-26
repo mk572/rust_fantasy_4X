@@ -5,6 +5,7 @@ use crate::support::{commands, content, text, worlds};
 use f4x_core::map::{Plane, Position};
 use f4x_core::world::save::Snapshot;
 use f4x_core::world::{Command, Event, Rejection, World};
+use f4x_master::Game;
 
 /// Apply `command`; a panic names the command.
 fn apply(w: &mut World, command: Command, what: &str) -> Vec<Event> {
@@ -44,7 +45,7 @@ fn nothing_can_be_done_once_the_game_is_over() {
         }
         assert_eq!(text(&w), before, "{name}");
         assert_eq!(
-            apply(&mut w, Command::EndTurn, &name),
+            Game::new(w).play_round(),
             [Event::Rejected(Rejection::GameOver)]
         );
     }
@@ -225,8 +226,9 @@ fn a_game_with_no_map_and_no_players_takes_every_command_without_a_panic() {
     for command in list {
         apply(&mut empty, command, "an empty game");
     }
+    let mut empty = Game::new(empty);
     for _ in 0..3 {
-        apply(&mut empty, Command::EndTurn, "an empty game");
+        empty.play_round();
     }
     // What was left is still a game that saves and loads.
     let again = Snapshot::from_text(&text(&empty))

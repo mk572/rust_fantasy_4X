@@ -94,7 +94,7 @@ pub struct World {
     /// The clocks of the raiders and the roaming monsters.
     pub(crate) threat: threat::Threat,
     /// Where the game is in its round, as the master (`f4x-master`) wrote it: opaque text that
-    /// is saved with the game. The lifecycle commands clear it, so it never outlives the step
+    /// is saved with the game. Every step of the game's turn order clears it, so it never outlives the step
     /// it describes (see [`World::flow`]).
     flow: Option<String>,
     /// What each computer player has in mind, as text the AI wrote (see [`World::plans`]).
@@ -580,33 +580,32 @@ impl World {
         }
         let vision = map::vision::VisionEffect::of(&cmd);
         let mut events = self.execute_command(cmd);
+        self.settle(vision, &mut events);
+        events
+    }
+
+    /// Advance the world by what the turn order does to it: `steps` calls one or more of the
+    /// turn operations ([`World::start_round`] and the others), and the world is tidied up once
+    /// afterwards, as after a command. The order of the steps is the caller's (`f4x-master`).
+    pub fn advance(&mut self, steps: impl FnOnce(&mut Self) -> Vec<Event>) -> Vec<Event> {
+        let mut events = steps(self);
+        self.settle(map::vision::VisionEffect::Recount, &mut events);
+        events
+    }
+
+    /// What follows every change of the world: the dead and the misplaced units go, and what the
+    /// change raised is told.
+    fn settle(&mut self, vision: map::vision::VisionEffect, events: &mut Vec<Event>) {
         events.extend(self.remove_units_without_hit_points());
         events.extend(self.enforce_tile_sanity());
         // What hooks in battles, spells and the turn raised between wizards comes last.
         events.extend(self.drain_diplomacy_events());
         events.extend(self.drain_item_awards());
-        self.vision_after(vision, &events);
-        events
+        self.vision_after(vision, events);
     }
 
     fn execute_command(&mut self, cmd: Command) -> Vec<Event> {
-        // A lifecycle step moves the game on; what the master wrote about it is out of date.
-        if matches!(
-            cmd,
-            Command::EndTurn
-                | Command::StartRound
-                | Command::StartPlayerTurn { .. }
-                | Command::EndPlayerTurn { .. }
-                | Command::EndRound
-        ) {
-            self.flow = None;
-        }
         match cmd {
-            Command::EndTurn => self.end_turn(),
-            Command::StartRound => self.start_round(),
-            Command::StartPlayerTurn { player } => self.start_player_turn(player),
-            Command::EndPlayerTurn { player } => self.end_player_turn(player),
-            Command::EndRound => self.end_round(),
             Command::CreateUnit { owner, pos, unit } => {
                 let unit = self.spawn_unit(owner, pos, unit);
                 vec![Event::UnitCreated { unit, pos }]
@@ -1144,23 +1143,6 @@ impl World {
         }];
         if let Some(city) = self.economy().city_at(to) {
             events.extend(self.conquer_city(city, owner, 0));
-        }
-        events
-    }
-
-    /// The old turn change for everyone at once, kept for tests and tools: every player ends
-    /// their turn, the round ends and the next begins, and every player starts theirs.
-    /// `f4x-master` calls the four phases itself.
-    fn end_turn(&mut self) -> Vec<Event> {
-        let players = self.turn_players();
-        let mut events = Vec::new();
-        for &p in &players {
-            events.extend(self.end_player_turn(p));
-        }
-        events.extend(self.end_round());
-        events.extend(self.start_round());
-        for &p in &players {
-            events.extend(self.start_player_turn(p));
         }
         events
     }

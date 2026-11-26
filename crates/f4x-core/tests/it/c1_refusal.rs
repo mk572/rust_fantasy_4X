@@ -5,9 +5,8 @@
 //! buildings) in every pairing that makes sense and some that do not, so most of them are refused, and
 //! each refusal is checked against the text of the game from before.
 
-use crate::support::{commands, text, worlds};
+use crate::support::{commands, games, text, worlds};
 use f4x_core::world::Event;
-use f4x_master::Game;
 
 /// Try every command of the sweep on each world, warmed up with `warm` rounds of play first, and check
 /// each refusal. Returns how many commands were tried and how many were refused.
@@ -17,7 +16,7 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
     let mut recorded = 0;
     // The item commands: (refused, accepted).
     let mut item = (0usize, 0usize);
-    for (name, mut w) in worlds().into_iter().step_by(every) {
+    for (name, mut w) in games().into_iter().step_by(every) {
         for _ in 0..warm {
             crate::support::busy_round(&mut w, 6);
         }
@@ -40,7 +39,6 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
         }
         // The commands go through a game with recording and undo on, so that a refused command is
         // also checked for what it leaves there: nothing in the replay, nothing to undo.
-        let mut w = Game::new(w);
         w.start_recording();
         w.set_undo(true);
         // The game goes on changing as commands are accepted (a unit is dismissed, a city founded), so
@@ -49,7 +47,7 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
             let label = format!("{command:?}");
             let before = text(&w);
             let history = (
-                w.replay_so_far().ok().map(|r| r.commands.len()),
+                w.replay_so_far().ok().map(|r| r.entries.len()),
                 w.can_undo(),
                 w.undo_label().map(str::to_owned),
             );
@@ -80,7 +78,7 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
                 if let (Some(was), Ok(now)) = (history.0, w.replay_so_far()) {
                     recorded += 1;
                     assert_eq!(
-                        now.commands.len(),
+                        now.entries.len(),
                         was,
                         "{name}: {label} was refused and recorded"
                     );
@@ -133,12 +131,6 @@ fn a_refused_command_changes_nothing_in_a_game_under_way() {
 
 /// The commands the sweep does not make yet, and why: each is a gap to close, not a decision.
 const NOT_TRIED: &[(&str, &str)] = &[
-    (
-        "EndTurn",
-        "never refused but at the end of the game (class 5)",
-    ),
-    ("StartRound", "the master's lifecycle step, never refused"),
-    ("EndRound", "the master's lifecycle step, never refused"),
     (
         "Anyway",
         "wraps another command: the sweep needs the confirmation cases",

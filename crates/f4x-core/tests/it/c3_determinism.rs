@@ -5,6 +5,7 @@
 use crate::support::{busy_round, content, shape, text, worlds};
 use f4x_core::world::save::Snapshot;
 use f4x_core::world::World;
+use f4x_master::Game;
 
 fn copy(w: &World) -> World {
     Snapshot::from_text(&text(w))
@@ -14,7 +15,8 @@ fn copy(w: &World) -> World {
 }
 
 /// The events of each round and the text of the game after it.
-fn play(mut w: World, rounds: usize) -> Vec<(String, String)> {
+fn play(w: World, rounds: usize) -> Vec<(String, String)> {
+    let mut w = Game::new(w);
     (0..rounds)
         .map(|_| {
             let events = shape(&busy_round(&mut w, 6));
@@ -40,7 +42,7 @@ fn a_game_played_in_turns_with_another_plays_as_it_does_alone() {
     let (name_a, a) = worlds.remove(0);
     let (name_b, b) = worlds.remove(0);
     let (alone_a, alone_b) = (play(copy(&a), 15), play(copy(&b), 15));
-    let (mut a, mut b) = (copy(&a), copy(&b));
+    let (mut a, mut b) = (Game::new(copy(&a)), Game::new(copy(&b)));
     for round in 0..15 {
         let ea = shape(&busy_round(&mut a, 6));
         let eb = shape(&busy_round(&mut b, 6));

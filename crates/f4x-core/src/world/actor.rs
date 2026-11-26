@@ -8,20 +8,14 @@ use crate::player::PlayerId;
 use crate::world::{Command, World};
 
 impl World {
-    /// The player a command acts for, or `None` when the command names none (the round's own
-    /// work, a battle's commands, diplomacy between two wizards, and entities that are gone).
+    /// The player a command acts for, or `None` when the command names none (a battle's commands, diplomacy between two wizards, and entities that are gone).
     pub fn command_actor(&self, command: &Command) -> Option<PlayerId> {
         let first =
             |units: &[hecs::Entity]| units.first().and_then(|&u| self.units().unit_owner(u));
         let city = |c: hecs::Entity| self.economy().city_owner(c);
         match command {
             Command::Anyway(inner) => self.command_actor(inner),
-            Command::EndTurn
-            | Command::StartRound
-            | Command::EndRound
-            | Command::Battle(_)
-            | Command::Diplomacy(_)
-            | Command::AutoResolve { .. } => None,
+            Command::Battle(_) | Command::Diplomacy(_) | Command::AutoResolve { .. } => None,
             Command::CreateUnit { owner, .. } | Command::FoundCity { owner, .. } => Some(*owner),
             Command::MoveStack { units, .. }
             | Command::GoTo { units, .. }
@@ -52,8 +46,6 @@ impl World {
             | Command::RejectOffer { player, .. }
             | Command::PlaceFortress { player, .. }
             | Command::Resign { player }
-            | Command::StartPlayerTurn { player }
-            | Command::EndPlayerTurn { player }
             | Command::RazeCity { player, .. }
             | Command::BalanceFarmers { player }
             | Command::SetTaxRate { player, .. }

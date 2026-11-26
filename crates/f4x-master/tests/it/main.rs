@@ -3,6 +3,7 @@
 //! of their names.
 
 mod replay;
+mod step;
 mod support;
 mod undo;
 
@@ -173,10 +174,6 @@ fn only_the_acting_player_may_command() {
             actor: ids[0],
             named: ids[1]
         })
-    );
-    assert_eq!(
-        m.apply(&mut w, ids[0], Command::EndTurn),
-        Err(Refused::UseLifecycle)
     );
 }
 

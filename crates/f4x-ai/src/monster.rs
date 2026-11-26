@@ -210,7 +210,7 @@ mod tests {
     fn end_turn(w: &mut Game) {
         // The wizard's soldiers eat: put the citizens on the farms, or they starve at the turn.
         w.balance_farmers(P0);
-        w.apply(Command::EndTurn);
+        w.play_round();
     }
 
     /// The monsters know the land round `p`, as they would after walking there.

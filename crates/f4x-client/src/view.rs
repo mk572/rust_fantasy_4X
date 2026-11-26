@@ -3078,7 +3078,7 @@ mod tests {
         app.view_step_keys(&press(&[KeyCode::V]));
         assert_eq!(app.game.revision(), r, "a read or a UI change");
         // A command.
-        app.game.apply(Command::EndTurn);
+        app.game.apply(Command::BalanceFarmers { player: HUMAN });
         let after_command = app.game.revision();
         assert_ne!(after_command, r, "a command");
         // A direct mutator.

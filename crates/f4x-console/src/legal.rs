@@ -7,7 +7,7 @@ use f4x_battle::battle::BattleCommand;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::map::{Plane, Position};
 
-use f4x_core::world::Command;
+use f4x_core::world::{Command, Rejection};
 
 use crate::args::{city_by_serial, parse_pos, parse_target, parse_units, resolve, Args};
 use crate::{CommandDef, ConsoleError, Ctx, Kind};
@@ -127,7 +127,7 @@ fn end(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     // begins.
     if ctx.game.game_over.is_some() {
         // The game refuses every command once it is over; say so the usual way.
-        return ctx.apply(Command::EndTurn);
+        return Err(ConsoleError::Refused(format!("{:?}", Rejection::GameOver)));
     }
     let events = f4x_ai::play_round(ctx.game, &mut []);
     for e in &events {

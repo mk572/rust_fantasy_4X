@@ -462,7 +462,7 @@ mod tests {
         w.balance_farmers(P0);
         for _ in 0..n {
             run(ai, w, &mut events);
-            w.apply(Command::EndTurn);
+            w.play_round();
             w.balance_farmers(P0);
         }
         events
@@ -687,7 +687,7 @@ mod tests {
         let mut events = Vec::new();
         for _ in 0..4 {
             run(&mut ai, &mut w, &mut events);
-            w.apply(Command::EndTurn);
+            w.play_round();
         }
         assert!(
             ai.roles.targets(crate::roles::Role::Raid).is_empty(),

@@ -2,7 +2,7 @@
 
 use f4x_core::world::save::GAME_VERSION;
 use f4x_core::world::Command;
-use f4x_master::{Replay, ReplayError};
+use f4x_master::{Entry, Replay, ReplayError};
 
 use crate::support::{all_farm, busy_round, content, games, text};
 
@@ -47,7 +47,7 @@ fn a_replay_stopped_part_way_is_the_game_as_it_was_then() {
         let mut states = vec![(0, text(game.world()))];
         for _ in 0..6 {
             busy_round(&mut game, 4);
-            let done = game.replay_so_far().expect("a recording").commands.len();
+            let done = game.replay_so_far().expect("a recording").entries.len();
             states.push((done, text(game.world())));
         }
         let replay = game.stop_recording().expect("a recording");
@@ -69,10 +69,8 @@ fn a_replay_that_is_no_replay_or_names_nothing_is_refused() {
     game.start_recording();
     busy_round(&mut game, 3);
     let mut replay = game.stop_recording().expect("recorded");
-    replay.commands.insert(
-        0,
-        "MoveStack(units: [999999], to: (x: 0, y: 0, plane: Arcanus))".into(),
-    );
+    let unknown = "MoveStack(units: [999999], to: (x: 0, y: 0, plane: Arcanus))";
+    replay.entries.insert(0, Entry::Command(unknown.into()));
     assert!(matches!(
         replay.play(content(), usize::MAX),
         Err(ReplayError::Unresolved(0))
@@ -91,10 +89,12 @@ fn the_units_a_recorded_command_names_are_told_apart() {
     busy_round(&mut game, 6);
     let replay = game.stop_recording().expect("a recording");
     let moves: std::collections::BTreeSet<&str> = replay
-        .commands
+        .entries
         .iter()
-        .filter(|c| c.starts_with("MoveStack"))
-        .map(|c| c.as_str())
+        .filter_map(|e| match e {
+            Entry::Command(c) if c.starts_with("MoveStack") => Some(c.as_str()),
+            _ => None,
+        })
         .collect();
     assert!(moves.len() >= 3, "{moves:?}");
     let units: std::collections::BTreeSet<&str> = moves

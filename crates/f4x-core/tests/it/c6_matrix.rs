@@ -9,6 +9,7 @@ use f4x_core::check::world_problems;
 use f4x_core::world::save::Snapshot;
 use f4x_core::world::{Event, World};
 use f4x_def::testdir::{deep, sample};
+use f4x_master::Game;
 
 /// The `rules: (...)` line of a save, as its pairs `(name, value)`.
 fn rule_pairs(full: &str) -> (String, Vec<(String, String)>) {
@@ -132,7 +133,8 @@ fn refused(events: &[Event]) -> bool {
 
 /// Play the game under its settings: rounds with the world checked after each, the commands of the
 /// sweep with each refusal changing nothing, a save and load that returns the same game.
-fn play(mut w: World, at: &str) {
+fn play(w: World, at: &str) {
+    let mut w = Game::new(w);
     // A game made under the setting has no city above the cap; this one was made under another.
     let cap = w.economy().max_city_size();
     for (city, _, _) in w.economy().cities() {

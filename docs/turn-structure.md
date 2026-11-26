@@ -227,7 +227,7 @@ This document defines the lifecycle and design constraints, not a demand to rewr
 
 ## 10. Splitting the game from the world (task 822)
 
-**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`); the log holds commands only, since senders and turn or round steps (10.9) come with the turn order, as does the new save layout that refuses old replay files. No other state has moved to it yet.
+**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log still has no sender (10.4). No state has moved out of the world yet.
 
 The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says what is in the world and what can be done in it. The **game** (`Game` in `f4x-master`) owns a `World` and advances time.
 
@@ -356,7 +356,8 @@ No command takes a round.
 - **Old replay files are refused**; the converter (10.8) is for saves.
 - **Undo belongs to the game** too: it restores the whole `Game`, open reactions included, and takes the command out of the replay log. What cannot be taken back stays as today (a command that explored, drew a random number or started a battle, and everything before it; the end of a turn); the game sees the draws itself, and the world tells it the other facts.
 - **Turn-order, replay and undo tests** move to `f4x-master`.
-- **Core tests that only need time to pass** stay in core and call `Game::play_round`, with `f4x-master` as a dev-dependency of `f4x-core`. Only the tests under `tests/` can use it, and `docs/design.md` section 2 records the exception. No test helper in core repeats the turn order.
+- **Core tests that only need time to pass** call `Game::play_round`, with `f4x-master` as a dev-dependency of `f4x-core`, while the move is under way. Only the tests under `tests/` can use it, and `docs/design.md` section 2 records the exception. No test helper in core repeats the turn order.
+- **The dev-dependency is temporary** (27 November 2026). Once the move is done, a test that needs the core alone sits in core and a test that needs the game sits in master, and core no longer depends on master, for tests either (the "Sort the tests" step of task 822).
 
 ### 10.10 Random numbers (decided 26 November 2026)
 

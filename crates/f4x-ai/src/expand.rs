@@ -187,7 +187,7 @@ mod tests {
     fn end_turn(w: &mut Game) {
         // The settlers eat: put the citizens on the farms, or they starve at the turn.
         w.balance_farmers(P0);
-        w.apply(Command::EndTurn);
+        w.play_round();
     }
 
     #[test]
@@ -342,7 +342,7 @@ mod tests {
             crate::dispatch::revalidate(&mut ai, &mut w, &mut events);
             settlers(&mut ai, &mut w, &mut events);
             crate::pickup::run(&mut ai, &mut w, &mut events);
-            w.apply(Command::EndTurn);
+            w.play_round();
         }
         let cities = PlayerView::new(&w, P0).my_cities();
         assert!(cities.len() > before, "{cities:?}");

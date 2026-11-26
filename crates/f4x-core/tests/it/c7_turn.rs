@@ -2,11 +2,13 @@
 //! or many: a tally against the sum of its parts, the players taken in another order, a treasury at the
 //! end of its range, a city at its size cap, a game played far past its usual end.
 
+use crate::support::games;
 use crate::support::{text, worlds};
 use f4x_core::check::world_problems;
 use f4x_core::player::PlayerId;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Event, World};
 use f4x_def::half_int::HalfInt;
+use f4x_master::turn_players;
 
 /// The players that keep a treasury: the wizards.
 fn wizards(w: &World) -> Vec<PlayerId> {
@@ -33,7 +35,7 @@ fn mana(w: &World, p: PlayerId) -> HalfInt {
 
 #[test]
 fn the_budget_is_the_sum_of_what_the_cities_yield() {
-    for (name, mut w) in worlds() {
+    for (name, mut w) in games() {
         for round in 0..12 {
             for p in wizards(&w) {
                 let (mut gold, mut upkeep, mut surplus) =
@@ -61,7 +63,7 @@ fn the_budget_is_the_sum_of_what_the_cities_yield() {
                 );
                 assert!(b.unit_upkeep >= HalfInt::ZERO, "{at}: upkeep below nothing");
             }
-            w.apply(Command::EndTurn);
+            w.play_round();
         }
     }
 }
@@ -80,7 +82,7 @@ fn the_treasury_after_a_turn_is_what_the_budget_said_once() {
         idle_cities(&mut w);
         for round in 0..10 {
             w.start_round();
-            for p in w.turn_players() {
+            for p in turn_players(&w) {
                 let mut events = w.start_player_turn(p);
                 if w.is_neutral_player(p) || w.wizard(p).is_none() {
                     events.extend(w.end_player_turn(p));
@@ -114,10 +116,10 @@ fn the_treasury_after_a_turn_is_what_the_budget_said_once() {
 
 #[test]
 fn the_order_of_the_players_does_not_change_the_treasuries() {
-    for (name, mut w) in worlds() {
+    for (name, mut w) in games() {
         idle_cities(&mut w);
         for _ in 0..4 {
-            w.apply(Command::EndTurn);
+            w.play_round();
         }
         idle_cities(&mut w);
         let saved = w.snapshot();
@@ -126,7 +128,7 @@ fn the_order_of_the_players_does_not_change_the_treasuries() {
             .restore(crate::support::content())
             .expect("restores");
         let mut backward = saved.restore(crate::support::content()).expect("restores");
-        let mut order = forward.turn_players();
+        let mut order = turn_players(&forward);
         for p in order.clone() {
             play_turn_of(&mut forward, p);
         }
@@ -151,14 +153,14 @@ fn the_order_of_the_players_does_not_change_the_treasuries() {
 
 #[test]
 fn a_treasury_at_the_end_of_its_range_does_not_wrap() {
-    for (name, mut w) in worlds().into_iter().step_by(2) {
+    for (name, mut w) in games().into_iter().step_by(2) {
         for p in wizards(&w) {
             let t = w.treasury_mut(p).expect("a treasury");
             t.gold = HalfInt::from_raw(i32::MAX - 3);
             t.mana = HalfInt::from_raw(i32::MAX - 3);
         }
         for _ in 0..3 {
-            w.apply(Command::EndTurn);
+            w.play_round();
         }
         for p in wizards(&w) {
             assert!(
@@ -177,14 +179,14 @@ fn a_treasury_at_the_end_of_its_range_does_not_wrap() {
 
 #[test]
 fn an_empty_treasury_stays_empty_and_never_goes_below() {
-    for (name, mut w) in worlds().into_iter().step_by(2) {
+    for (name, mut w) in games().into_iter().step_by(2) {
         for _ in 0..6 {
             for p in wizards(&w) {
                 let t = w.treasury_mut(p).expect("a treasury");
                 t.gold = HalfInt::ZERO;
                 t.mana = HalfInt::ZERO;
             }
-            w.apply(Command::EndTurn);
+            w.play_round();
             for p in wizards(&w) {
                 assert!(gold(&w, p) >= HalfInt::ZERO, "{name}: gold of {p:?}");
                 assert!(mana(&w, p) >= HalfInt::ZERO, "{name}: mana of {p:?}");
@@ -195,13 +197,13 @@ fn an_empty_treasury_stays_empty_and_never_goes_below() {
 
 #[test]
 fn cities_at_the_size_cap_stay_there_and_hold_together() {
-    for (name, mut w) in worlds().into_iter().step_by(2) {
+    for (name, mut w) in games().into_iter().step_by(2) {
         let cap = w.economy().max_city_size();
         for (city, _, _) in w.economy().cities() {
             w.scenario_set_citizens(city, cap);
         }
         for turn in 1..=8 {
-            w.apply(Command::EndTurn);
+            w.play_round();
             for (city, _, _) in w.economy().cities() {
                 let size = w.city_population(city).figures;
                 assert!(
@@ -217,10 +219,10 @@ fn cities_at_the_size_cap_stay_there_and_hold_together() {
 
 #[test]
 fn a_game_played_far_past_its_usual_end_holds_together() {
-    let (name, mut w) = worlds().remove(0);
+    let (name, mut w) = games().remove(0);
     let start = w.turn;
     for turn in 1..=400 {
-        w.apply(Command::EndTurn);
+        w.play_round();
         if turn % 50 == 0 {
             let bad = world_problems(&w);
             assert!(bad.is_empty(), "{name}, after turn {turn}: {bad:#?}");

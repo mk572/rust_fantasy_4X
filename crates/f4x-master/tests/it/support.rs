@@ -60,7 +60,7 @@ pub fn busy_round(game: &mut Game, limit: usize) {
             }
         }
     }
-    game.apply(Command::EndTurn);
+    game.play_round();
 }
 
 /// A command that changes the game, draws no random number and explores nothing: the tax rate of a

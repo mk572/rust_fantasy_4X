@@ -466,7 +466,7 @@ mod tests {
                 w.balance_farmers(P0);
                 run(ai, w, &mut Vec::new());
                 raided |= ai.roles.any(Role::Raid);
-                w.apply(f4x_core::world::Command::EndTurn);
+                w.play_round();
             }
             raided
         };

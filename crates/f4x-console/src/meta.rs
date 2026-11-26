@@ -317,7 +317,7 @@ fn record(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             ctx.say("recording".to_string());
         }
         "status" => match ctx.game.replay_so_far() {
-            Ok(r) => ctx.say(format!("recording, {} commands so far", r.commands.len())),
+            Ok(r) => ctx.say(format!("recording, {} entries so far", r.entries.len())),
             Err(_) => ctx.say("not recording".to_string()),
         },
         "stop" => {
@@ -333,9 +333,9 @@ fn record(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 .map_err(|e| ConsoleError::Failed(e.to_string()))?;
             std::fs::write(&path, text).map_err(|e| ConsoleError::Failed(e.to_string()))?;
             ctx.say(format!(
-                "wrote {} ({} commands)",
+                "wrote {} ({} entries)",
                 path.display(),
-                replay.commands.len()
+                replay.entries.len()
             ));
         }
         other => {
@@ -366,7 +366,7 @@ fn replay(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     game.set_undo(true);
     *ctx.game = game;
     ctx.say(format!(
-        "played {} commands from {} (turn {})",
+        "played {} entries from {} (turn {})",
         events.len(),
         path.display(),
         ctx.game.turn

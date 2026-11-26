@@ -121,7 +121,6 @@ impl FrameCache {
 #[cfg(test)]
 mod tests {
     use crate::view::{App, HUMAN};
-    use f4x_core::world::Command;
 
     fn same_as_fresh(app: &App) {
         use f4x_core::map::Plane;
@@ -147,7 +146,7 @@ mod tests {
 
         // A command that changes the figures: the turn change pays and eats.
         for _ in 0..3 {
-            app.game.apply(Command::EndTurn);
+            app.game.play_round();
             same_as_fresh(&app);
         }
         assert_ne!(app.cache.made.get(), made, "a change makes them again");

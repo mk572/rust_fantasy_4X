@@ -511,7 +511,7 @@ mod tests {
             if !PlayerView::new(&w, P0).unit_builds_road(engineer) {
                 break;
             }
-            w.apply(Command::EndTurn);
+            w.play_round();
         }
         // It looks at the other city, finds the link done and has nothing left.
         let serial = PlayerView::new(&w, P0).serial_of(engineer);
@@ -520,7 +520,7 @@ mod tests {
             if !ai.roles.has_role(serial) {
                 break;
             }
-            w.apply(Command::EndTurn);
+            w.play_round();
         }
         let view = PlayerView::new(&w, P0);
         assert!(!ai.roles.has_role(serial));

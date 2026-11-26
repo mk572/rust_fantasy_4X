@@ -14,14 +14,15 @@
 //! the independent cities and the monsters, last in the round. The master knows no concrete AI
 //! and no front end: a [`Controller`] is given by the host (the client's human, `f4x-ai`'s
 //! wizards and neutrals). The simulation rules stay in `f4x-core`; the master decides *when*
-//! each of its lifecycle operations runs, exactly once, and keeps a small [`State`] that is
+//! each step of the turn order is made (`game/step.rs`), exactly once, and keeps a small [`State`] that is
 //! saved with the game so that a load resumes without repeating or skipping a step.
 //!
 //! Tests: in tests/it.
 
 mod game;
 
-pub use game::replay::{self, Replay, ReplayError};
+pub use game::replay::{self, Entry, Replay, ReplayError};
+pub use game::step::{self, turn_players, Step};
 pub use game::undo::{self, UndoError};
 pub use game::Game;
 
@@ -180,8 +181,6 @@ pub enum Refused {
     NotYourTurn { active: PlayerId, actor: PlayerId },
     /// `actor` sent a command that acts for another player (that player's unit or city).
     ForAnotherPlayer { actor: PlayerId, named: PlayerId },
-    /// Ending the turn is the controller's job, not a command; the lifecycle runs it.
-    UseLifecycle,
 }
 
 /// What a step or a run came to.
@@ -212,7 +211,7 @@ pub enum Until {
     Waiting,
     /// Until this many more rounds have begun (the round counter has advanced and the round-start
     /// work is done), or a controller waits, or the game ends. `Rounds(1)` from a fresh master
-    /// plays out the current round and begins the next, as the old `EndTurn` did.
+    /// plays out the current round and begins the next.
     Rounds(u32),
 }
 
@@ -312,9 +311,6 @@ impl<'a> Master<'a> {
         actor: PlayerId,
         command: Command,
     ) -> Result<Vec<Event>, Refused> {
-        if command == Command::EndTurn {
-            return Err(Refused::UseLifecycle);
-        }
         let seat = self.active_seat().ok_or(Refused::NobodyActing)?;
         let players = self.players_of(game, seat);
         if !players.contains(&actor) {
@@ -333,12 +329,11 @@ impl<'a> Master<'a> {
 
     /// The players a seat plays now: its own, or for the neutral seat every independent city's
     /// player and the monsters' owner that exist.
-    pub fn players_of(&self, world: &World, seat: usize) -> Vec<PlayerId> {
+    pub fn players_of(&self, game: &Game, seat: usize) -> Vec<PlayerId> {
         if self.seats[seat].neutral {
-            world
-                .turn_players()
+            game.turn_players()
                 .into_iter()
-                .filter(|&p| world.is_neutral_player(p))
+                .filter(|&p| game.is_neutral_player(p))
                 .collect()
         } else {
             self.seats[seat].players.clone()
@@ -369,7 +364,7 @@ impl<'a> Master<'a> {
         match self.state.phase {
             Phase::Over => stopped = Stopped::Over,
             Phase::RoundStart => {
-                events.extend(game.apply(Command::StartRound));
+                events.extend(game.start_round());
                 self.state.phase = match self.next_eligible(game, 0) {
                     Some(i) => Phase::TurnStart(i),
                     None => Phase::Over,
@@ -377,7 +372,7 @@ impl<'a> Master<'a> {
             }
             Phase::TurnStart(i) => {
                 for p in self.players_of(game, i) {
-                    events.extend(game.apply(Command::StartPlayerTurn { player: p }));
+                    events.extend(game.start_player_turn(p));
                 }
                 self.state.phase = Phase::Acting(i);
             }
@@ -390,7 +385,7 @@ impl<'a> Master<'a> {
             }
             Phase::TurnEnd(i) => {
                 for p in self.players_of(game, i) {
-                    events.extend(game.apply(Command::EndPlayerTurn { player: p }));
+                    events.extend(game.end_player_turn(p));
                 }
                 // A player may have been defeated during the turn; the next one to play is the
                 // next seat that is still in the game.
@@ -400,7 +395,7 @@ impl<'a> Master<'a> {
                 };
             }
             Phase::RoundEnd => {
-                events.extend(game.apply(Command::EndRound));
+                events.extend(game.end_round());
                 self.state.phase = if game.game_over.is_some() {
                     Phase::Over
                 } else {

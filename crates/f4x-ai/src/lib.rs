@@ -1229,7 +1229,7 @@ mod send_tests {
         });
         let mut events = Vec::new();
         assert_eq!(
-            Ai::new(P0).send(&mut w, Command::EndTurn, &mut events),
+            Ai::new(P0).send(&mut w, Command::BalanceFarmers { player: P0 }, &mut events),
             Err(SendError::GameOver)
         );
     }

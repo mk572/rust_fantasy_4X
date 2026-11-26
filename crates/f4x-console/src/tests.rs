@@ -448,7 +448,7 @@ fn the_originals_map_generator_makes_a_playable_game_with_the_real_content() -> 
     let mut w = new_game(content(), &spec)?;
     assert_ne!(noise.map(), w.map());
     for _ in 0..3 {
-        w.apply(f4x_core::world::Command::EndTurn);
+        w.play_round();
     }
     Ok(())
 }
@@ -755,7 +755,7 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() -> TestResult
         {
             break;
         }
-        w.apply(f4x_core::world::Command::EndTurn);
+        w.play_round();
         w.apply(f4x_core::world::Command::ResolveCast {
             player: HUMAN,
             target: Target::City(city),
@@ -971,7 +971,7 @@ fn every_neutral_city_has_the_player_and_treasury_of_its_race() {
         .iter()
         .map(|&o| w.player(o).expect("the player exists").treasury().gold)
         .collect();
-    w.apply(f4x_core::world::Command::EndTurn);
+    w.play_round();
     let after: Vec<_> = owners
         .iter()
         .map(|&o| w.player(o).expect("the player exists").treasury().gold)
@@ -1009,7 +1009,7 @@ fn a_neutral_city_that_cannot_pay_loses_its_garrison() {
     w.treasury_mut(owner)
         .expect("the player has a treasury")
         .gold = f4x_def::half_int::HalfInt::from_int(0);
-    w.apply(f4x_core::world::Command::EndTurn);
+    w.play_round();
     assert!(
         w.units().units_at(pos).len() < units,
         "{units} units stayed"
@@ -1105,7 +1105,7 @@ fn the_starting_army_and_capital_pay_their_way() -> TestResult {
         // Growth makes new mouths, so a careful ruler keeps putting people on the farms.
         for _ in 0..8 {
             w.balance_farmers(HUMAN);
-            w.apply(f4x_core::world::Command::EndTurn);
+            w.play_round();
         }
         assert_eq!(start_army(&w, HUMAN).len(), 2, "seed {seed}");
         assert!(
@@ -1568,14 +1568,14 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() -> TestResult {
     let (mut w, city) = neutral_world(12, &[]);
     w.conquer_city(city, HUMAN, 0);
     let snap = w.snapshot();
-    let mut back = snap.restore(w.content().clone())?;
+    let mut back = Game::new(snap.restore(w.content().clone())?);
     let again = conquered_city(&back);
     assert!(
         back.component::<f4x_core::city::conquest::Conquered>(again)
             .is_some(),
         "the chance to raze survives a save"
     );
-    back.apply(f4x_core::world::Command::EndTurn);
+    back.play_round();
     let events = back.apply(f4x_core::world::Command::RazeCity {
         player: HUMAN,
         city: again,

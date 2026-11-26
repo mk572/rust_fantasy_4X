@@ -8,6 +8,7 @@ use f4x_core::wizard::magic::{MagicError, Retort};
 use f4x_core::world::save::Snapshot;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
+use f4x_master::Game;
 
 fn wizards(w: &World) -> Vec<PlayerId> {
     w.player_ids()
@@ -245,7 +246,7 @@ fn an_offer_that_is_not_answered_lapses_at_the_turn_change() {
         .find(|d| d.hireable)
         .map(|d| f4x_core::rules::UnitId::new(d.num))
         .expect("a unit");
-    let mut w = with_offers(
+    let w = with_offers(
         &g0,
         p,
         vec![Offer::Mercenaries {
@@ -255,7 +256,8 @@ fn an_offer_that_is_not_answered_lapses_at_the_turn_change() {
             price: 1,
         }],
     );
-    w.apply(Command::EndTurn);
+    let mut w = Game::new(w);
+    w.play_round();
     // What is waiting now was rolled at this turn change, not kept from before.
     let kept = w
         .player_component::<f4x_core::player::Offers>(p)

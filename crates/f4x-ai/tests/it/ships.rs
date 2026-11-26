@@ -211,7 +211,7 @@ fn troops_sail_a_galley_across_and_step_ashore() -> TestResult {
         if w.units().unit_position(galley) == Some(far_sea()) {
             break;
         }
-        w.apply(Command::EndTurn);
+        w.play_round();
         fund(&mut w)?;
     }
     assert_eq!(
@@ -250,7 +250,7 @@ fn troops_left_at_sea_when_their_ship_is_lost_scramble_ashore_or_drown_at_the_tu
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(w.economy().carrier_of(troops[0]), Some(galley));
     w.scenario_remove_unit(galley);
-    let events = w.apply(Command::EndTurn);
+    let events = w.play_round();
     let drowned: u32 = events
         .iter()
         .map(|e| match e {
